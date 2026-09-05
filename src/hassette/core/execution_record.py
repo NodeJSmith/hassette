@@ -99,7 +99,7 @@ class ExecutionRecord:
 
     # Reserved unified-table columns (001.sql)
     # These columns exist in the schema and round-trip through persistence/queries.
-    # trigger_mode is populated for manual triggers (CommandExecutor.build_record());
+    # trigger_mode is populated for manual triggers (execution_record_builder.build_execution_record());
     # retry_count is not populated yet and always holds the default below. Baked in
     # now so future retry tracking needs no migration.
     trigger_mode: str | None = None

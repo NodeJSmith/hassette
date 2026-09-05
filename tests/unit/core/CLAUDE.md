@@ -23,6 +23,8 @@ surface stable; only the definitions moved.
 - `make_execute_job_cmd(**kw)` — `MagicMock` spec'd to `ExecuteJob` for executor tests
 - `make_bus_service(**kw)`, `make_scheduler_service(**kw)` — service instances bypassing `Resource.__init__`
 - `make_watcher(hassette)`, `make_watcher_hassette(**kw)` — `ServiceWatcher` test setup
+- `FAST_COOLDOWN_SECONDS` — cooldown value for `RestartSpec` in tests where `cooldown_and_retry`'s sleep is expected to actually complete; shared by `test_service_watcher_coverage.py` and `test_service_watcher_exhausted.py`
+- `COOLDOWN_NEVER_REACHED_SECONDS` — cooldown value for `RestartSpec` in tests where restart admission is blocked before the sleep is ever reached — the number itself is irrelevant to timing, just large enough that a guard regression letting execution fall through would hang the test instead of passing by accident; shared by the same two files
 - `make_blocking_io_hassette(**kw)` — minimal mock Hassette for watchdog and monkeypatch guard tests
 - `make_marker_executor(**kw)` — mock executor with `ExecutionMarker` on `current_execution`
 - `assert_listener_count(db, listener_id, expected, message)` — assert the number of `listeners` rows with that id

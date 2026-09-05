@@ -37,6 +37,8 @@ declare module "@tanstack/react-table" {
 
 type ExecutionStatus = components["schemas"]["ExecutionStatus"];
 
+export type ExecutionKind = "handler" | "job";
+
 const INITIAL_ROWS = 5;
 
 const HEAD_CLASS =
@@ -146,8 +148,6 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     // flexRender for it (it needs the row's resolved href, not available at column-definition time).
   },
 ];
-
-type ExecutionKind = "handler" | "job";
 
 interface ExecutionTableProps {
   records: ExecutionRecord[];

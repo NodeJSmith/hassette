@@ -16,6 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from hassette.core import execution_pipeline
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
@@ -243,7 +244,7 @@ async def test_thread_leaked_round_trips_through_db(
         execution_id=execution_id,
     )
 
-    await executor.persist_batch([record])
+    await execution_pipeline.persist_batch(executor, [record])
 
     cursor = await db_service.db.execute(
         "SELECT thread_leaked FROM executions WHERE execution_id = ?",

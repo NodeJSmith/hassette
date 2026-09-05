@@ -28,7 +28,13 @@ from tests.support.helpers import (
 )
 from tests.support.mock_hassette import make_mock_hassette
 
-from .conftest import DummyService, make_watcher, make_watcher_hassette
+from .conftest import (
+    COOLDOWN_NEVER_REACHED_SECONDS,
+    FAST_COOLDOWN_SECONDS,
+    DummyService,
+    make_watcher,
+    make_watcher_hassette,
+)
 
 
 class TestConfigLogLevel:
@@ -212,7 +218,9 @@ class TestCooldownAndRetry:
         dummy = DummyService(hassette)
         hassette.children = [dummy]
 
-        spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=5.0, max_cooldown_cycles=0)
+        spec = RestartSpec(
+            restart_type=RestartType.TRANSIENT, cooldown_seconds=COOLDOWN_NEVER_REACHED_SECONDS, max_cooldown_cycles=0
+        )
         key = watcher.service_key(dummy.class_name, dummy.role)
 
         hassette.shutdown_event.set()
@@ -232,7 +240,9 @@ class TestCooldownAndRetry:
         dummy = DummyService(hassette)
         hassette.children = [dummy]
 
-        spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
+        spec = RestartSpec(
+            restart_type=RestartType.TRANSIENT, cooldown_seconds=FAST_COOLDOWN_SECONDS, max_cooldown_cycles=0
+        )
         key = watcher.service_key(dummy.class_name, dummy.role)
 
         with patch(
@@ -249,7 +259,9 @@ class TestCooldownAndRetry:
         watcher = make_watcher(hassette)
         hassette.children = []
 
-        spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
+        spec = RestartSpec(
+            restart_type=RestartType.TRANSIENT, cooldown_seconds=FAST_COOLDOWN_SECONDS, max_cooldown_cycles=0
+        )
 
         # Should not raise despite no matching service.
         key = watcher.service_key("GoneService", ResourceRole.SERVICE)
@@ -570,7 +582,8 @@ class TestExecuteRestartCatchesRefusal:
         dummy = DummyService(hassette)
         key = watcher.service_key(dummy.class_name, dummy.role)
         watcher._restarting.add(key)
-        budget = watcher.get_budget(key, RestartSpec(backoff_base_seconds=1.0))
+        spec = RestartSpec(backoff_base_seconds=1.0)
+        budget = watcher.get_budget(key, spec)
         budget.record_restart()
 
         async def block_after_backoff(_duration: float) -> bool:
@@ -581,9 +594,7 @@ class TestExecuteRestartCatchesRefusal:
             patch.object(watcher, "shutdown_safe_sleep", side_effect=block_after_backoff),
             patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart,
         ):
-            await watcher.execute_restart(
-                dummy.class_name, dummy.role, key, RestartSpec(backoff_base_seconds=1.0), dummy, budget
-            )
+            await watcher.execute_restart(dummy.class_name, dummy.role, key, spec, dummy, budget)
 
         mock_restart.assert_not_called()
         assert key not in watcher._restarting
@@ -595,7 +606,9 @@ class TestCooldownAndRetryCatchesRefusal:
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
         hassette.children = [dummy]
-        spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
+        spec = RestartSpec(
+            restart_type=RestartType.TRANSIENT, cooldown_seconds=FAST_COOLDOWN_SECONDS, max_cooldown_cycles=0
+        )
         key = watcher.service_key(dummy.class_name, dummy.role)
 
         error = make_unsafe_restart_refused_error(dummy.class_name)
@@ -612,7 +625,9 @@ class TestCooldownAndRetryCatchesRefusal:
         hassette.shutdown_event.set()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
-        spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=999, max_cooldown_cycles=0)
+        spec = RestartSpec(
+            restart_type=RestartType.TRANSIENT, cooldown_seconds=COOLDOWN_NEVER_REACHED_SECONDS, max_cooldown_cycles=0
+        )
         key = watcher.service_key(dummy.class_name, dummy.role)
 
         with patch("hassette.core.service_watcher.restart", new_callable=AsyncMock) as mock_restart:
@@ -629,7 +644,9 @@ class TestCooldownAndRetryCatchesRefusal:
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
         hassette.children = [dummy]
-        spec = RestartSpec(restart_type=RestartType.TRANSIENT, cooldown_seconds=0.001, max_cooldown_cycles=0)
+        spec = RestartSpec(
+            restart_type=RestartType.TRANSIENT, cooldown_seconds=FAST_COOLDOWN_SECONDS, max_cooldown_cycles=0
+        )
         key = watcher.service_key(dummy.class_name, dummy.role)
         budget = watcher.get_budget(key, spec)
         budget.record_restart()

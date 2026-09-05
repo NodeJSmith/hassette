@@ -4,7 +4,8 @@ Covers:
     — CoverEntity.sync, ClimateEntity.sync, LightEntity.sync are instances of
       their respective {Domain}EntitySyncFacade, not BaseEntitySyncFacade.
     — CoverEntity.sync.open_cover() dispatches to api.sync.call_service with
-      the correct domain/service/target and no extra kwargs.
+      the correct domain/service/target, plus the optional speed kwarg (None
+      by default).
     — ClimateEntity.sync.set_temperature(temperature=21.0) passes the param through.
     — LightEntity.sync.turn_on(brightness=128) and .turn_off() route through
       call_service (generated override); isinstance(..., BaseEntitySyncFacade)
@@ -117,7 +118,7 @@ def test_light_sync_is_light_entity_sync_facade() -> None:
 
 
 def test_cover_sync_open_cover_dispatches_call_service() -> None:
-    """open_cover() calls api.sync.call_service once with correct domain/service/target, no extra kwargs."""
+    """open_cover() calls api.sync.call_service once with correct domain/service/target, speed defaults to None."""
     api = make_api()
     with entity_session(make_cover_entity(api)) as entity:
         mock_sync = MagicMock()
@@ -130,9 +131,9 @@ def test_cover_sync_open_cover_dispatches_call_service() -> None:
         assert kwargs["domain"] == "cover"
         assert kwargs["service"] == "open_cover"
         assert kwargs["target"] == {"entity_id": COVER_ENTITY_ID}
-        # A no-param service forwards exactly these three keys — pin the full set so
-        # both an extra kwarg and a missing expected key are caught.
-        assert set(kwargs) == {"domain", "service", "target"}
+        assert kwargs["speed"] is None
+        # Pin the full key set so both an unexpected extra kwarg and a missing expected key are caught.
+        assert set(kwargs) == {"domain", "service", "target", "speed"}
 
 
 def test_climate_sync_set_temperature_passes_param_through() -> None:

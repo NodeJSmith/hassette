@@ -9,6 +9,7 @@ import pytest
 from hassette.cli import app
 from hassette.cli.commands.run import cmd_run
 from hassette.exceptions import AppPrecheckFailedError, FatalError
+from tests.unit.cli.conftest import capture_stderr
 
 
 class TestBareHassetteShowsHelp:
@@ -91,6 +92,8 @@ class TestCmdRun:
         ],
     )
     def test_empty_app_values_rejected(self, mock_run_server: AsyncMock, app_values: list[str]) -> None:
-        with pytest.raises(SystemExit):
+        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
             cmd_run(app=app_values)
+        assert exc_info.value.code == 1
+        assert "--app requires at least one non-empty app key" in buf.getvalue()
         mock_run_server.assert_not_called()

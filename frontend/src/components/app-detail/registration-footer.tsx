@@ -3,12 +3,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 import { parseSourceLocation } from "../../utils/format";
+import type { ExecutionKind } from "../shared/execution-table";
 import { IconArrowRight, IconChevron } from "../shared/icons";
 import { RegistrationSource } from "../shared/registration-source";
 import { SourceLocation } from "../shared/source-location";
 
 interface RegistrationFooterProps {
-  kind: "handler" | "job";
+  kind: ExecutionKind;
   testId: string;
   sourceLocation?: string | null;
   registrationSource?: string | null;

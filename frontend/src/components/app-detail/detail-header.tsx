@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 
 import type { StatusKind } from "../../utils/status";
+import type { ExecutionKind } from "../shared/execution-table";
 import { StatusShape } from "../shared/status-shape";
 
 // Maps a StatusKind onto the flattened "kind-*" Badge variants (formerly Chip's
@@ -19,7 +20,7 @@ interface DetailHeaderProps {
   name: string;
   kindLabel: string;
   statusKind: StatusKind;
-  kind: "handler" | "job";
+  kind: ExecutionKind;
   subtitle?: string | null;
   headerActions?: ReactNode;
 }

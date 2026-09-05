@@ -16,8 +16,33 @@ interface Props {
   appKey: string;
 }
 
-const DATA_TABLE_CLASS =
-  "w-full border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[var(--text-label-tracking)] [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
+const DATA_TABLE_CLASS = cn(
+  "w-full border-collapse bg-card [&_thead_tr]:bg-muted",
+  "[&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left",
+  "[&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase",
+  "[&_th]:tracking-[var(--text-label-tracking)] [&_th]:text-muted-foreground [&_th]:whitespace-nowrap",
+  "[&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)]",
+  "[&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted",
+);
+
+const CONFIG_COLUMN_CLASS = "min-w-0 px-4 pb-4";
+
+const RAW_TOML_CLASS = cn(
+  "mt-2 overflow-x-auto whitespace-pre rounded-sm border border-dashed border-border bg-muted p-3",
+  "font-mono text-xs",
+);
+
+const RAW_TOML_HIGHLIGHTED_CLASS = cn(
+  RAW_TOML_CLASS,
+  "[&_.shiki]:m-0 [&_.shiki]:bg-transparent [&_.shiki]:p-0",
+  "[&_.shiki]:font-inherit [&_.shiki]:text-inherit",
+  "[&_.shiki_span:not(.line)]:text-[var(--shiki-light,var(--ink-1))]",
+  "dark:[&_.shiki_span:not(.line)]:text-[var(--shiki-dark,var(--ink-1))]",
+);
+
+const NO_CONFIG_VALUES_TITLE = "no configuration values";
+
+const TOML_LANG = "toml";
 
 /** True when the value is a plain (non-array) object usable as a ConfigRecord. */
 function isConfigRecord(value: unknown): value is ConfigRecord {
@@ -30,10 +55,10 @@ function ConfigValue({ value }: { value: unknown }) {
   return <>{String(value)}</>;
 }
 
-function SimpleConfigTable({ config }: { config: ConfigRecord }) {
-  const entries = Object.entries(config);
+function SimpleConfigTable({ appConfig }: { appConfig: ConfigRecord }) {
+  const entries = Object.entries(appConfig);
   if (entries.length === 0) {
-    return <EmptyState title="no configuration values" />;
+    return <EmptyState title={NO_CONFIG_VALUES_TITLE} />;
   }
 
   return (
@@ -43,7 +68,7 @@ function SimpleConfigTable({ config }: { config: ConfigRecord }) {
           <th className="w-[30%] whitespace-nowrap" scope="col">
             Key
           </th>
-          <th className="w-[55%]" scope="col">
+          <th className="w-[70%]" scope="col">
             Value
           </th>
         </tr>
@@ -90,8 +115,57 @@ function AppConfigContent({
   }
   return (
     <Card variant="config">
-      <SimpleConfigTable config={displayValues} />
+      <SimpleConfigTable appConfig={displayValues} />
     </Card>
+  );
+}
+
+function ConfigInstance({
+  idx,
+  instanceConfig,
+  schema,
+  manifestValues,
+  frameworkFields,
+}: {
+  idx: number;
+  instanceConfig: unknown;
+  schema: SchemaNode | undefined;
+  manifestValues: ConfigRecord;
+  frameworkFields?: string[];
+}) {
+  return (
+    <div className="min-w-0" data-testid={`config-instance-${idx}`}>
+      <h4 className="mb-3 border-b border-strong pb-2 font-sans text-sm font-semibold uppercase tracking-[var(--text-label-tracking-mid)] text-foreground-secondary">
+        Instance {idx}
+      </h4>
+      {isConfigRecord(instanceConfig) ? (
+        <AppConfigContent
+          appConfig={instanceConfig}
+          schema={schema}
+          manifestValues={manifestValues}
+          frameworkFields={frameworkFields}
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">{String(instanceConfig)}</p>
+      )}
+    </div>
+  );
+}
+
+function RawConfigBlock({ tomlHtml, rawToml }: { tomlHtml: string | null; rawToml: string }) {
+  if (tomlHtml) {
+    return (
+      <div
+        className={RAW_TOML_HIGHLIGHTED_CLASS}
+        data-testid="raw-config-toml"
+        dangerouslySetInnerHTML={{ __html: tomlHtml }}
+      />
+    );
+  }
+  return (
+    <pre className={RAW_TOML_CLASS} data-testid="raw-config-toml">
+      {rawToml}
+    </pre>
   );
 }
 
@@ -115,11 +189,11 @@ export function ConfigTab({ appKey }: Props) {
         setConfigData(data);
 
         try {
-          const hl = await getShikiHighlighter("toml");
+          const highlighter = await getShikiHighlighter(TOML_LANG);
           if (controller.signal.aborted) return;
           setTomlHtml(
-            hl.codeToHtml(data.config_toml, {
-              lang: "toml",
+            highlighter.codeToHtml(data.config_toml, {
+              lang: TOML_LANG,
               themes: SHIKI_THEMES,
               defaultColor: false,
             }),
@@ -164,27 +238,20 @@ export function ConfigTab({ appKey }: Props) {
   return (
     <div className="pb-4" data-testid="config-tab-content">
       <div className="grid grid-cols-[1.4fr_1fr] gap-4 max-mobile:grid-cols-1">
-        <div className="min-w-0 px-4 pb-4">
+        <div className={CONFIG_COLUMN_CLASS}>
           {isListConfig ? (
             <div className="flex flex-col gap-6">
               {/* isListConfig is a stored boolean, so TS can't use it to narrow
                   appConfig here — hence the cast despite the guard above. */}
-              {(appConfig as unknown[]).map((instanceCfg, idx) => (
-                <div key={idx} className="min-w-0" data-testid={`config-instance-${idx}`}>
-                  <h4 className="mb-3 border-b border-strong pb-2 font-sans text-sm font-semibold uppercase tracking-[var(--text-label-tracking-mid)] text-foreground-secondary">
-                    Instance {idx}
-                  </h4>
-                  {isConfigRecord(instanceCfg) ? (
-                    <AppConfigContent
-                      appConfig={instanceCfg}
-                      schema={schema}
-                      manifestValues={manifestValues}
-                      frameworkFields={frameworkFields}
-                    />
-                  ) : (
-                    <p className="text-sm text-muted-foreground">{String(instanceCfg)}</p>
-                  )}
-                </div>
+              {(appConfig as unknown[]).map((instanceConfig, idx) => (
+                <ConfigInstance
+                  key={idx}
+                  idx={idx}
+                  instanceConfig={instanceConfig}
+                  schema={schema}
+                  manifestValues={manifestValues}
+                  frameworkFields={frameworkFields}
+                />
               ))}
             </div>
           ) : isConfigRecord(appConfig) ? (
@@ -195,34 +262,15 @@ export function ConfigTab({ appKey }: Props) {
               frameworkFields={frameworkFields}
             />
           ) : (
-            <EmptyState title="no configuration values" />
+            <EmptyState title={NO_CONFIG_VALUES_TITLE} />
           )}
         </div>
 
-        <div className="min-w-0 px-4 pb-4">
+        <div className={CONFIG_COLUMN_CLASS}>
           <h3 className={SECTION_LABEL_CLASS}>raw config</h3>
           <Card variant="config">
             <span className="font-mono text-xs text-muted-foreground">hassette.toml → apps.{appKey}.config</span>
-            {tomlHtml ? (
-              <div
-                className={cn(
-                  "mt-2 overflow-x-auto whitespace-pre rounded-sm border border-dashed border-border bg-muted p-3",
-                  "font-mono text-xs [&_.shiki]:m-0 [&_.shiki]:bg-transparent [&_.shiki]:p-0",
-                  "[&_.shiki]:font-inherit [&_.shiki]:text-inherit",
-                  "[&_.shiki_span:not(.line)]:text-[var(--shiki-light,var(--ink-1))]",
-                  "dark:[&_.shiki_span:not(.line)]:text-[var(--shiki-dark,var(--ink-1))]",
-                )}
-                data-testid="raw-config-toml"
-                dangerouslySetInnerHTML={{ __html: tomlHtml }}
-              />
-            ) : (
-              <pre
-                className="mt-2 overflow-x-auto whitespace-pre rounded-sm border border-dashed border-border bg-muted p-3 font-mono text-xs"
-                data-testid="raw-config-toml"
-              >
-                {configData.config_toml}
-              </pre>
-            )}
+            <RawConfigBlock tomlHtml={tomlHtml} rawToml={configData.config_toml} />
           </Card>
         </div>
       </div>
