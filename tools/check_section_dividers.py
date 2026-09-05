@@ -34,18 +34,29 @@ from pathlib import Path
 
 from lint_helpers import REPO_ROOT, extract_comments, iter_python_files, run_check
 
-#: Already HSL001's job — never re-flag a comment that's a decorated divider.
+#: Already HSL001's job — never re-flag a comment that's a decorated divider. The label portion
+#: accepts a single non-whitespace character (``\S(?:.*\S)?``) so a one-character label like
+#: ``# --- A ---`` is recognized as decorated instead of falling through to the shape rule below.
 DECORATED_RULE = re.compile(r"^[-=#*~_]{4,}$")
-DECORATED_WRAPPED = re.compile(r"^[-=#*~_]{3,}\s+\S.*\S\s+[-=#*~_]{3,}$")
+DECORATED_WRAPPED = re.compile(r"^[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_]{3,}$")
 
-#: Tooling directives and follow-up markers, never section labels. ``dup-ignore*`` is
-#: ``check_duplicate_code.py``'s suppression syntax; ``--8<--`` is the mkdocs snippet-extraction
-#: marker used throughout ``docs/pages/*/snippets/``. Both are isolated, short lines that would
-#: otherwise match the shape rule below, but neither is prose a reader wrote to label a section.
+#: Tooling directives and follow-up markers, never section labels. ``pragma:`` covers directives
+#: like ``# pragma: no cover``; ``dup-ignore*`` is ``check_duplicate_code.py``'s suppression
+#: syntax; ``--8<--`` is the mkdocs snippet-extraction marker used throughout
+#: ``docs/pages/*/snippets/``. All are isolated, short lines that would otherwise match the shape
+#: rule below, but none is prose a reader wrote to label a section.
 PRAGMA_RE = re.compile(
-    r"^(type:|pyright:|noqa\b|fmt:|ruff:|TODO\b|FIXME\b|NOTE\b|HACK\b|XXX\b|dup-ignore|--8<--)",
+    r"^(type:|pyright:|noqa\b|fmt:|ruff:|pragma:|TODO\b|FIXME\b|NOTE\b|HACK\b|XXX\b|dup-ignore|--8<--)",
     re.IGNORECASE,
 )
+
+#: Shebang and PEP 263 encoding-cookie lines are tokenized as comments by ``tokenize`` but are
+#: source directives, never section labels — exempt them even if isolated by blank lines above
+#: and below (e.g. a shebang followed by a blank line before the module docstring). Per PEP 263,
+#: both are only meaningful on line 1 or 2, so the check is line-scoped to avoid exempting an
+#: unrelated isolated comment that merely contains the substring "coding" further down the file.
+SHEBANG_RE = re.compile(r"^#!")
+CODING_COOKIE_RE = re.compile(r"^#.*coding[:=]\s*[-\w.]+")
 
 #: What a comment "introduces" for the structural rule: a definition or a decorator above one.
 DEFINITION_RE = re.compile(r"^(async\s+def\s|def\s|class\s|@)")
@@ -86,6 +97,9 @@ def check_file(path: Path) -> list[tuple[int, str]]:
         above_blank = lineno == 1 or lines[lineno - 2].strip() == ""
         below_blank = lineno == len(lines) or lines[lineno].strip() == ""
         if not (above_blank and below_blank):
+            continue
+
+        if lineno <= 2 and (SHEBANG_RE.match(comment) or CODING_COOKIE_RE.match(comment)):
             continue
 
         body = comment.lstrip("#").strip()

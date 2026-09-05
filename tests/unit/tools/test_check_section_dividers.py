@@ -88,6 +88,86 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         [],
     ),
     (
+        "decorated_wrapped_single_char_label_not_flagged",
+        """\
+        x = 1
+
+        # --- A ---
+
+        def foo():
+            pass
+        """,
+        [],
+    ),
+    (
+        "pragma_todo_not_flagged",
+        """\
+        x = 1
+
+        # TODO
+
+        def foo():
+            pass
+        """,
+        [],
+    ),
+    (
+        "pragma_fixme_not_flagged",
+        """\
+        x = 1
+
+        # FIXME
+
+        def foo():
+            pass
+        """,
+        [],
+    ),
+    (
+        "pragma_note_not_flagged",
+        """\
+        x = 1
+
+        # NOTE
+
+        def foo():
+            pass
+        """,
+        [],
+    ),
+    (
+        "pragma_coverage_directive_not_flagged",
+        """\
+        x = 1
+
+        # pragma: no cover
+
+        def foo():
+            pass
+        """,
+        [],
+    ),
+    (
+        "shebang_not_flagged_even_when_isolated",
+        """\
+        #!/usr/bin/env python3
+
+        def foo():
+            pass
+        """,
+        [],
+    ),
+    (
+        "encoding_cookie_not_flagged_even_when_isolated",
+        """\
+        # coding: utf-8
+
+        def foo():
+            pass
+        """,
+        [],
+    ),
+    (
         "pragma_noqa_not_flagged",
         """\
         x = 1

@@ -37,6 +37,16 @@ CHECK_FILE_CASES: list[tuple[str, str, str | None]] = [
         "{/* --- Section --- */}",
         "section-divider comment - '{/* --- Section --- */}'",
     ),
+    (
+        "single_char_wrapped_line_comment_flagged",
+        "// --- A ---",
+        "section-divider comment - '// --- A ---'",
+    ),
+    (
+        "single_char_wrapped_jsx_comment_flagged",
+        "{/* --- A --- */}",
+        "section-divider comment - '{/* --- A --- */}'",
+    ),
     ("plain_label_not_flagged", "// Helpers", None),
     ("ordinary_comment_not_flagged", "// this explains something", None),
     ("short_dash_run_not_flagged", "// ---", None),
@@ -69,6 +79,12 @@ def test_main_fails_on_divider(frontend_env: Path, capsys: pytest.CaptureFixture
     (frontend_env / "Page.tsx").write_text("// --- Helpers ---\nconst x = 1;\n")
     assert main() == 1
     assert "Page.tsx:1" in capsys.readouterr().out
+
+
+def test_main_fails_on_divider_in_plain_ts_file(frontend_env: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    (frontend_env / "utils.ts").write_text("// --- Helpers ---\nexport const x = 1;\n")
+    assert main() == 1
+    assert "utils.ts:1" in capsys.readouterr().out
 
 
 def test_main_skips_generated_d_ts_files(frontend_env: Path, capsys: pytest.CaptureFixture[str]) -> None:

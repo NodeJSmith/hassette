@@ -21,10 +21,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
 
+#: The label portion accepts a single non-whitespace character (``\S(?:.*\S)?``) so a
+#: one-character label like ``// --- A ---`` is recognized as decorated.
 LINE_COMMENT_RULE = re.compile(r"^//\s*[-=#*~_]{4,}$")
-LINE_COMMENT_WRAPPED = re.compile(r"^//\s*[-=#*~_]{3,}\s+\S.*\S\s+[-=#*~_]{3,}$")
+LINE_COMMENT_WRAPPED = re.compile(r"^//\s*[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_]{3,}$")
 JSX_COMMENT_RULE = re.compile(r"^\{/\*\s*[-=#*~_]{4,}\s*\*/\}$")
-JSX_COMMENT_WRAPPED = re.compile(r"^\{/\*\s*[-=#*~_]{3,}\s+\S.*\S\s+[-=#*~_]{3,}\s*\*/\}$")
+JSX_COMMENT_WRAPPED = re.compile(r"^\{/\*\s*[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_]{3,}\s*\*/\}$")
 
 
 def check_file(path: Path) -> list[tuple[int, str]]:
