@@ -62,6 +62,26 @@ CHECK_FILE_CASES: list[tuple[str, str, str | None]] = [
         "/* --- A --- */",
         "section-divider comment - '/* --- A --- */'",
     ),
+    (
+        "multiline_bare_block_comment_flagged",
+        "/*\n * --------\n */",
+        "section-divider comment - '/* -------- */'",
+    ),
+    (
+        "multiline_wrapped_block_comment_flagged",
+        "/*\n * --- Helpers ---\n */",
+        "section-divider comment - '/* --- Helpers --- */'",
+    ),
+    (
+        "multiline_wrapped_jsx_comment_flagged",
+        "{/*\n  --- Section ---\n*/}",
+        "section-divider comment - '{/* --- Section --- */}'",
+    ),
+    (
+        "multiline_real_docstring_not_flagged",
+        "/*\n * This explains something at length.\n * Across more than one line.\n */",
+        None,
+    ),
     ("plain_label_not_flagged", "// Helpers", None),
     ("ordinary_comment_not_flagged", "// this explains something", None),
     ("short_dash_run_not_flagged", "// ---", None),

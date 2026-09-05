@@ -4,13 +4,18 @@
 house-lint's HSL001 flags decorated section dividers (``# --------``,
 ``# --- Helpers ---``) in Python via ``tokenize``, but it never scans
 ``frontend/src/`` at all — there's no TS-aware parser wired in. This is the
-frontend-only counterpart: a line-based scan for the same divider shape in the
-three comment forms TS/TSX actually uses:
+frontend-only counterpart: a scan for the same divider shape in the three
+comment forms TS/TSX actually uses:
 
-- ``// --------`` / ``// --- Helpers ---`` — line comments.
+- ``// --------`` / ``// --- Helpers ---`` — line comments, inherently single-line.
 - ``{/* -------- */}`` / ``{/* --- Helpers --- */}`` — JSX expression comments.
 - ``/* -------- */`` / ``/* --- Helpers --- */`` — ordinary block comments, used
   outside JSX (plain ``.ts`` files, or ``.tsx`` code outside a JSX expression).
+
+The JSX and block forms can also span multiple physical lines (the standard JSDoc-style
+layout, ``/*`` then a ``* --- Helpers ---`` line then a closing ``*/`` line) — those are
+matched as a whole comment span across the full file text, normalized to the single-line
+form the same regexes already check, rather than line-by-line like the ``//`` scan.
 
 Decorated-form parity with HSL001 only — unlike ``tools/check_section_dividers.py``, this
 checker has no *undecorated* one-line label rule (``// Helpers`` with no dashes). Extending
@@ -38,27 +43,58 @@ JSX_COMMENT_WRAPPED = re.compile(r"^\{/\*\s*[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_
 BLOCK_COMMENT_RULE = re.compile(r"^/\*\s*[-=#*~_]{4,}\s*\*/$")
 BLOCK_COMMENT_WRAPPED = re.compile(r"^/\*\s*[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_]{3,}\s*\*/$")
 
+#: Whole-file spans for the JSX and block comment forms, found across line boundaries so a
+#: multiline ``/*\n * --- Helpers ---\n */`` layout is caught, not just the single-line shape.
+#: The block-comment span excludes anything immediately preceded by ``{`` (a negative
+#: lookbehind) so a ``{/* ... */}`` JSX comment's inner ``/* ... */`` is never matched twice —
+#: once as JSX, once as a plain block comment.
+JSX_COMMENT_SPAN_RE = re.compile(r"\{/\*.*?\*/\}", re.DOTALL)
+BLOCK_COMMENT_SPAN_RE = re.compile(r"(?<!\{)/\*.*?\*/", re.DOTALL)
+
+
+def _normalize_comment_span(span: str, *, jsx: bool) -> str:
+    """Collapse a (possibly multiline) comment span into the single-line form
+    ``JSX_COMMENT_RULE``/``BLOCK_COMMENT_RULE`` and their wrapped variants expect: strip the
+    delimiters, drop each continuation line's leading ``*`` bullet (the standard JSDoc-style
+    layout), and join what's left with a single space.
+    """
+    inner = span[3:-3] if jsx else span[2:-2]
+    parts = []
+    for raw_line in inner.splitlines():
+        stripped = raw_line.strip()
+        if stripped.startswith("*"):
+            stripped = stripped[1:].strip()
+        if stripped:
+            parts.append(stripped)
+    body = " ".join(parts)
+    return f"{{/* {body} */}}" if jsx else f"/* {body} */"
+
 
 def check_file(path: Path) -> list[tuple[int, str]]:
     """Return sorted (1-based line number, message) decorated-divider violations in ``path``."""
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        text = path.read_text(encoding="utf-8")
     except (UnicodeDecodeError, OSError):
         return []
 
     violations: list[tuple[int, str]] = []
-    for lineno, line in enumerate(lines, start=1):
+
+    for lineno, line in enumerate(text.splitlines(), start=1):
         stripped = line.strip()
-        if (
-            LINE_COMMENT_RULE.fullmatch(stripped)
-            or LINE_COMMENT_WRAPPED.fullmatch(stripped)
-            or JSX_COMMENT_RULE.fullmatch(stripped)
-            or JSX_COMMENT_WRAPPED.fullmatch(stripped)
-            or BLOCK_COMMENT_RULE.fullmatch(stripped)
-            or BLOCK_COMMENT_WRAPPED.fullmatch(stripped)
-        ):
+        if LINE_COMMENT_RULE.fullmatch(stripped) or LINE_COMMENT_WRAPPED.fullmatch(stripped):
             violations.append((lineno, f"section-divider comment - {stripped!r}"))
 
+    for span_re, rule, wrapped, jsx in (
+        (JSX_COMMENT_SPAN_RE, JSX_COMMENT_RULE, JSX_COMMENT_WRAPPED, True),
+        (BLOCK_COMMENT_SPAN_RE, BLOCK_COMMENT_RULE, BLOCK_COMMENT_WRAPPED, False),
+    ):
+        for match in span_re.finditer(text):
+            normalized = _normalize_comment_span(match.group(), jsx=jsx)
+            if rule.fullmatch(normalized) or wrapped.fullmatch(normalized):
+                lineno = text.count("\n", 0, match.start()) + 1
+                violations.append((lineno, f"section-divider comment - {normalized!r}"))
+
+    violations.sort()
     return violations
 
 
