@@ -94,7 +94,7 @@ async def test_persist_execution_batch_inserts_job_records(
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
     # tests/integration/test_command_executor.py's post-drain assertions — different test tier
     # (unit vs. integration) exercising unrelated code paths (TelemetryRepository.persist_execution_batch
-    # here vs. CommandExecutor.drain_and_persist there); not extractable across that boundary.
+    # here vs. execution_pipeline.drain_and_persist there); not extractable across that boundary.
     cursor = await telemetry_db.execute(
         "SELECT status, job_id, kind FROM executions WHERE job_id = ?",
         (job_id,),
