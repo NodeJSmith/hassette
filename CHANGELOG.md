@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.54.1](https://github.com/NodeJSmith/hassette/compare/v0.54.0...v0.54.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* clean up CLI dead code and error-path inconsistencies ([#1917](https://github.com/NodeJSmith/hassette/issues/1917)) ([e859dba](https://github.com/NodeJSmith/hassette/commit/e859dba73a3ee1b19d06762fcd819807e2fbbbe2)), closes [#1858](https://github.com/NodeJSmith/hassette/issues/1858)
+
+
+### Refactoring
+
+* **core:** decompose command_executor.py into focused modules ([#1919](https://github.com/NodeJSmith/hassette/issues/1919)) ([63466c8](https://github.com/NodeJSmith/hassette/commit/63466c82a30388f384acf32e83e2f20b48d7b7f9))
+
 ## [0.54.0](https://github.com/NodeJSmith/hassette/compare/v0.53.0...v0.54.0) (2026-09-05)
 
 
