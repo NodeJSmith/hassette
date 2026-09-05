@@ -44,6 +44,7 @@ from .counter import CounterAttributes, CounterState
 from .cover import (
     CoverAttributes,
     CoverDeviceClass,
+    CoverEntityCapabilityAttribute,
     CoverEntityFeature,
     CoverEntityStateAttribute,
     CoverState,
@@ -195,6 +196,7 @@ __all__ = [
     "CounterState",
     "CoverAttributes",
     "CoverDeviceClass",
+    "CoverEntityCapabilityAttribute",
     "CoverEntityFeature",
     "CoverEntityStateAttribute",
     "CoverState",

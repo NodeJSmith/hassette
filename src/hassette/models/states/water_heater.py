@@ -15,6 +15,7 @@ class WaterHeaterEntityCapabilityAttribute(StrEnum):
 
 class WaterHeaterEntityStateAttribute(StrEnum):
     CURRENT_TEMPERATURE = "current_temperature"
+    TARGET_TEMPERATURE = "temperature"
     TEMPERATURE = "temperature"
     TARGET_TEMP_HIGH = "target_temp_high"
     TARGET_TEMP_LOW = "target_temp_low"
