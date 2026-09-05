@@ -208,7 +208,7 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         """\
         x = 1
 
-        # dup-ignore-end
+        # dup-ignore-marker
 
         def foo():
             pass

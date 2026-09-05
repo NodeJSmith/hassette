@@ -12,6 +12,12 @@ three comment forms TS/TSX actually uses:
 - ``/* -------- */`` / ``/* --- Helpers --- */`` — ordinary block comments, used
   outside JSX (plain ``.ts`` files, or ``.tsx`` code outside a JSX expression).
 
+Decorated-form parity with HSL001 only — unlike ``tools/check_section_dividers.py``, this
+checker has no *undecorated* one-line label rule (``// Helpers`` with no dashes). Extending
+this checker to that shape needs a decision the Python structural/shape heuristic doesn't
+answer for free: whether it's confidently distinguishable from an ordinary short comment given
+how differently TS/TSX code is structured.
+
 Usage:
     python tools/frontend/check_frontend_section_dividers.py
 """

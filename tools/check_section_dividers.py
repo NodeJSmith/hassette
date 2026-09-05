@@ -38,6 +38,9 @@ from lint_helpers import REPO_ROOT, extract_comments, iter_python_files, run_che
 #: Already HSL001's job — never re-flag a comment that's a decorated divider. The label portion
 #: accepts a single non-whitespace character (``\S(?:.*\S)?``) so a one-character label like
 #: ``# --- A ---`` is recognized as decorated instead of falling through to the shape rule below.
+#: ``#`` is included in the fill-character class because these patterns match ``body`` — the
+#: comment with its leading ``#`` already stripped — so a ``# ####`` divider's fill characters
+#: are themselves ``#``, not the comment marker.
 DECORATED_RULE = re.compile(r"^[-=#*~_]{4,}$")
 DECORATED_WRAPPED = re.compile(r"^[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_]{3,}$")
 
