@@ -6,8 +6,6 @@ from tests.unit.cli.conftest import CLIClientFactory, CommandRunner
 
 runner = CommandRunner("hassette.cli.commands.misc.make_client")
 
-# cmd_config
-
 
 class TestCmdConfig:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:

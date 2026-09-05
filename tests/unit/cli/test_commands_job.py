@@ -20,8 +20,6 @@ MY_APP_JOBS_ENDPOINT = "/api/telemetry/app/my-app/jobs"
 JOB_5_EXECUTIONS_ENDPOINT = "/api/telemetry/job/5/executions"
 JOB_1_EXECUTIONS_ENDPOINT = "/api/telemetry/job/1/executions"
 
-# cmd_job (bare — list all jobs)
-
 
 class TestCmdJob:
     def test_calls_global_jobs_endpoint(self, cli_client_factory: CLIClientFactory) -> None:

@@ -141,9 +141,6 @@ class TestOnShutdown:
             svc.sync_executor.executor.submit(lambda: None)
 
 
-# Module-level constant relationship (probe interval >= suppress window)
-
-
 class TestConstantInvariant:
     """Verify the coupling invariant documented in the module-level comments."""
 

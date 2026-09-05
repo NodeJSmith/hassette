@@ -1,8 +1,6 @@
 from hassette import App, AppConfig
 
 
-# Composition: drop_newest + single
-
 # --8<-- [start:drop_newest_single]
 class ComposedApp(App[AppConfig]):
     async def on_initialize(self):

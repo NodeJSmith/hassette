@@ -15,8 +15,6 @@ from tests.unit.cli.conftest import CLIClientFactory, CommandRunner
 
 runner = CommandRunner("hassette.cli.commands.status.make_client")
 
-# cmd_status
-
 
 class TestCmdStatus:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
@@ -66,9 +64,6 @@ class TestCmdStatus:
         assert "starting" in output
 
 
-# cmd_telemetry
-
-
 class TestCmdTelemetry:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """Telemetry command fetches from GET /api/telemetry/status."""
@@ -108,9 +103,6 @@ class TestCmdTelemetry:
         parsed = runner.json_output(client, cmd_telemetry)
         assert parsed["degraded"] is True
         assert "error" not in parsed
-
-
-# cmd_dashboard
 
 
 class TestCmdDashboard:

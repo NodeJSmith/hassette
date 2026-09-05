@@ -14,8 +14,6 @@ from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler.classes import Job
 from hassette.types.enums import ExecutionMode
 
-# Helpers
-
 
 def _make_raw_job(**kwargs) -> Job:
     """Create a minimal Job, bypassing the Scheduler."""
@@ -25,9 +23,6 @@ def _make_raw_job(**kwargs) -> Job:
         job=lambda: None,
         **kwargs,
     )
-
-
-# Job field-level tests (pure unit, no async needed)
 
 
 class TestJobModeAndGuard:

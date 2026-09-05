@@ -477,9 +477,6 @@ def test_to_listener_with_summary_target_falls_back_to_topic_last_segment():
     assert result.target == "service_status"
 
 
-# LivenessResponse and ReadinessResponse
-
-
 def test_liveness_response_has_live_status():
     """LivenessResponse.status defaults to 'live'."""
     result = LivenessResponse()

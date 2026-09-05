@@ -171,9 +171,6 @@ class TestCredentialAttachment:
         assert "has hassette been started" in stderr
 
 
-# No literal --token CLI argument for the web API credential
-
-
 class TestNoLiteralWebApiTokenArgument:
     def test_only_run_command_defines_a_token_flag(self) -> None:
         """The only ``--token``-shaped flag anywhere in the CLI is run.py's HA token flag.
@@ -196,9 +193,6 @@ class TestNoLiteralWebApiTokenArgument:
         )
 
 
-# TLS verification (--no-verify-ssl / cli.verify_ssl)
-
-
 class TestVerifySslPassthrough:
     def test_verify_true_by_default(self) -> None:
         config = make_host_port_config()
@@ -215,9 +209,6 @@ class TestVerifySslPassthrough:
         assert mock_client_cls.call_args.kwargs["verify"] is False
 
 
-# Non-loopback targets: fail open, not fast
-
-
 class TestRequestIssuedDespiteNoCredential:
     def test_non_loopback_no_credential_still_issues_request(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
@@ -227,9 +218,6 @@ class TestRequestIssuedDespiteNoCredential:
         assert result == {}
         assert len(captured_headers) == 1
         assert "authorization" not in captured_headers[0]
-
-
-# Non-loopback 401: remedies split by where they apply
 
 
 class TestNonLoopback401Message:
@@ -255,9 +243,6 @@ class TestNonLoopback401Message:
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         _code, stderr = get_expecting_exit(client)
         assert "trusted_proxies" not in stderr
-
-
-# TLS-verification warning: config-sourced only, not the explicit flag
 
 
 class TestVerifySslWarning:
