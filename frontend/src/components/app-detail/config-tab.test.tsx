@@ -3,16 +3,20 @@ import { delay, http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { server } from "../../test/server";
+import { getShikiHighlighter } from "../../utils/shiki";
 import { ConfigTab } from "./config-tab";
 
-vi.mock("shiki", () => ({
-  createHighlighter: vi.fn().mockResolvedValue({
+/** Mocked at the getShikiHighlighter boundary (not the "shiki" package) so each test controls
+ *  resolution/rejection directly — the real module caches per-language, which would make a
+ *  once-resolved "toml" highlighter unrejectable for a later test in this same file. */
+vi.mock("../../utils/shiki", () => ({
+  getShikiHighlighter: vi.fn().mockResolvedValue({
     codeToHtml: vi.fn().mockImplementation((code: string) => {
       const escaped = code.replace(/</g, "&lt;").replace(/>/g, "&gt;");
       return `<pre class="shiki"><code>${escaped}</code></pre>`;
     }),
-    dispose: vi.fn(),
   }),
+  SHIKI_THEMES: { light: "github-light", dark: "github-dark" },
 }));
 
 const APP_KEY = "test_app";
@@ -137,6 +141,21 @@ describe("ConfigTab", () => {
     renderConfigTab();
     await waitForTestId("config-values-table");
     expect(screen.getByTestId("config-value-api_key").textContent).toContain("some-value");
+  });
+
+  it("shows an error card when fetching the config fails", async () => {
+    server.use(http.get("/api/apps/:app_key/config", () => HttpResponse.json(null, { status: 500 })));
+    renderConfigTab();
+    await waitForTestId("config-tab-error");
+  });
+
+  it("falls back to a plain <pre> block when syntax highlighting fails", async () => {
+    vi.mocked(getShikiHighlighter).mockRejectedValueOnce(new Error("highlight failed"));
+    renderConfigTab();
+    const rawBlock = await screen.findByTestId("raw-config-toml");
+    expect(rawBlock.tagName).toBe("PRE");
+    expect(rawBlock.innerHTML).not.toContain("shiki");
+    expect(rawBlock.textContent).toContain(`host = "${HOST}"`);
   });
 
   it("aborts in-flight request on unmount", async () => {
