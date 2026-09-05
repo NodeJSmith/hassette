@@ -17,8 +17,9 @@ from unittest.mock import AsyncMock, MagicMock
 import aiosqlite
 
 from hassette.commands import InvokeHandler
-from hassette.core.command_executor import CommandExecutor
+from hassette.core import execution_pipeline
 from hassette.core.execution_record import ExecutionRecord
+from hassette.core.execution_record_builder import build_execution_record
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.types.types import SourceTier
 
@@ -50,7 +51,9 @@ def test_build_record_reads_source_tier():
     cmd = make_real_invoke_handler_cmd(listener_id=5, source_tier="framework")
     result = make_result()
 
-    record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
+    record = build_execution_record(
+        cmd, result, time.time(), "test-exec-id", session_id=executor.hassette.try_session_id()
+    )
 
     assert isinstance(record, ExecutionRecord)
     assert record.kind == "handler"
@@ -65,7 +68,9 @@ def test_build_record_reads_is_di_failure():
     cmd = make_real_invoke_handler_cmd(listener_id=5, source_tier="app")
     result = make_result(status="error", error_type="DependencyError", error_message="dep failed", is_di_failure=True)
 
-    record = CommandExecutor.build_record(executor, cmd, result, time.time(), "test-exec-id")  # pyright: ignore[reportArgumentType]
+    record = build_execution_record(
+        cmd, result, time.time(), "test-exec-id", session_id=executor.hassette.try_session_id()
+    )
 
     assert isinstance(record, ExecutionRecord)
     assert record.is_di_failure is True
@@ -79,11 +84,13 @@ def test_build_record_reads_thread_leaked():
 
     result = make_result(status="timed_out", thread_leaked=True)
 
-    record = CommandExecutor.build_record(executor, cmd, result, time.time(), "exec-id")  # pyright: ignore[reportArgumentType]
+    record = build_execution_record(cmd, result, time.time(), "exec-id", session_id=executor.hassette.try_session_id())
     assert record.thread_leaked is True
 
     result.thread_leaked = False
-    record = CommandExecutor.build_record(executor, cmd, result, time.time(), "exec-id-2")  # pyright: ignore[reportArgumentType]
+    record = build_execution_record(
+        cmd, result, time.time(), "exec-id-2", session_id=executor.hassette.try_session_id()
+    )
     assert record.thread_leaked is False
 
 
@@ -111,7 +118,7 @@ async def test_flush_queue_handles_db_closed():
     executor.repository.persist_execution_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
 
     # flush_queue must NOT raise — shutdown must complete
-    await executor.flush_queue()
+    await execution_pipeline.flush_queue(executor)
 
     # flush_queue drains the queue *before* it attempts to persist, so an empty queue alone
     # proves nothing. Pin the persist attempt itself — this fails if flush_queue ever dequeues

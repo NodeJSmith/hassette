@@ -16,12 +16,11 @@ import uuid_utils
 from hassette.bus.error_context import BusErrorContext
 from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.core import execution_pipeline
+from hassette.core import execution_pipeline, execution_record_builder
 from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_pipeline import RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.execution_record_builder import build_execution_record
 from hassette.core.loop_watchdog import WatchdogEvent
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.sync_executor import SYNC_WORKER_HANDLE
@@ -211,13 +210,13 @@ class CommandExecutor(Service):
                             "Write queue full during shutdown — dropping 1 record (total dropped: %d)",
                             self._dropped_overflow,
                         )
-                await self.flush_queue()
+                await execution_pipeline.flush_queue(self)
                 return
 
             if get_fut in done and not get_fut.cancelled() and get_fut.exception() is None:
                 # An item arrived — drain the full queue in one batch
                 try:
-                    await self.drain_and_persist(first_item=get_fut.result())
+                    await execution_pipeline.drain_and_persist(self, first_item=get_fut.result())
                 except Exception:
                     self.logger.exception(
                         "drain_and_persist failed — records from this batch are dropped (already dequeued)"
@@ -226,7 +225,7 @@ class CommandExecutor(Service):
                 # Timeout — timer fired; drain whatever accumulated without a triggering item
                 if not self._write_queue.empty():
                     try:
-                        await self.drain_and_persist()
+                        await execution_pipeline.drain_and_persist(self)
                     except Exception:
                         self.logger.exception(
                             "drain_and_persist failed (timer flush) — records from this batch may be dropped"
@@ -309,13 +308,21 @@ class CommandExecutor(Service):
                 known = ()
             case _:
                 raise AssertionError(f"Unexpected source_tier: {cmd.source_tier!r}")
+
+        def enqueue_result_record() -> None:
+            self.enqueue_record(
+                execution_record_builder.build_execution_record(
+                    cmd, result, execution_start_ts, execution_id, session_id=self.hassette.try_session_id()
+                )
+            )
+
         try:
             async with track_execution(known_errors=known) as result:
                 result.execution_id = execution_id
                 async with asyncio.timeout(cmd.effective_timeout):
                     await fn()
         except asyncio.CancelledError:
-            self.enqueue_record(self.build_record(cmd, result, execution_start_ts, execution_id))
+            enqueue_result_record()
             raise
         except Exception:  # noqa: S110 — intentional: ExecutionResult is populated and error logged upstream
             pass
@@ -350,7 +357,7 @@ class CommandExecutor(Service):
         SYNC_WORKER_HANDLE.set(None)
         if result.is_error:
             log_error(result)
-        self.enqueue_record(self.build_record(cmd, result, execution_start_ts, execution_id))
+        enqueue_result_record()
         return result
 
     def log_timeout_rate_limited(self, cmd: InvokeHandler | ExecuteJob, result: ExecutionResult) -> None:
@@ -394,18 +401,6 @@ class CommandExecutor(Service):
     def enqueue_record(self, record: ExecutionRecord) -> None:
         """Enqueue a record, dropping and logging if the queue is full. Delegates to execution_pipeline."""
         execution_pipeline.enqueue_record(self, record)
-
-    def build_record(
-        self,
-        cmd: InvokeHandler | ExecuteJob,
-        result: ExecutionResult,
-        execution_start_ts: float,
-        execution_id: str,
-    ) -> ExecutionRecord:
-        """Build a unified ExecutionRecord. Delegates to execution_record_builder.build_execution_record()."""
-        return build_execution_record(
-            cmd, result, execution_start_ts, execution_id, session_id=self.hassette.try_session_id()
-        )
 
     def bind_execution_context(
         self,
@@ -688,30 +683,6 @@ class CommandExecutor(Service):
             )
         )
 
-    async def drain_and_persist(self, first_item: ExecutionRecord | RetryableBatch | None = None) -> None:
-        """Drain up to 100 queue items and persist them to DB. Delegates to execution_pipeline."""
-        await execution_pipeline.drain_and_persist(self, first_item=first_item)
-
-    async def flush_queue(self) -> None:
-        """Drain and persist ALL remaining items in the write queue. Delegates to execution_pipeline."""
-        await execution_pipeline.flush_queue(self)
-
-    async def persist_batch(
-        self,
-        records: list[ExecutionRecord],
-        *,
-        retry_count: int = 0,
-    ) -> None:
-        """Write a batch of unified execution records to the DB. Delegates to execution_pipeline."""
-        await execution_pipeline.persist_batch(self, records, retry_count=retry_count)
-
-    async def emit_completion_events(
-        self,
-        records: list[ExecutionRecord],
-    ) -> None:
-        """Emit bus topic events for persisted execution records. Delegates to execution_pipeline."""
-        await execution_pipeline.emit_completion_events(self, records)
-
     def record_blocking_event(self, event: WatchdogEvent | MonkeypatchEvent) -> None:
         """Persist a blocking event row. Must be called on the loop thread.
 
@@ -777,10 +748,3 @@ class CommandExecutor(Service):
         except RuntimeError:
             # enqueue() is the only RuntimeError source here, raised when the queue isn't live.
             self.logger.debug("Database service not ready — dropping blocking-event row")
-
-    async def handle_fk_violation(
-        self,
-        records: list[ExecutionRecord],
-    ) -> None:
-        """Handle an IntegrityError by re-inserting records with FK fallback. Delegates to execution_pipeline."""
-        await execution_pipeline.handle_fk_violation(self, records)

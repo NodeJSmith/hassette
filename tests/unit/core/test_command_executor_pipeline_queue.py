@@ -18,6 +18,9 @@ import time
 from collections.abc import Callable, Coroutine
 from typing import Any
 
+import pytest
+
+from hassette.core import execution_pipeline
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.execution_pipeline import _MAX_RETRY_COUNT, RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
@@ -136,7 +139,7 @@ async def test_enqueue_record_capacity_warning_respects_configured_rate_limit() 
     )
 
 
-async def test_retryable_batch_expanded_in_drain():
+async def test_retryable_batch_expanded_in_drain(monkeypatch: pytest.MonkeyPatch):
     """RetryableBatch enqueued in write_queue expands into the current batch on drain."""
     executor = init_executor()
 
@@ -149,13 +152,13 @@ async def test_retryable_batch_expanded_in_drain():
     captured_records: list[ExecutionRecord] = []
     captured_retry_counts: list[int] = []
 
-    async def fake_persist(records, *, retry_count=0):
+    async def fake_persist(_executor, records, *, retry_count=0):
         captured_records.extend(records)
         captured_retry_counts.append(retry_count)
 
-    executor.persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(execution_pipeline, "persist_batch", fake_persist)
 
-    await executor.drain_and_persist()
+    await execution_pipeline.drain_and_persist(executor)
 
     assert inv in captured_records
     assert job in captured_records
@@ -179,7 +182,7 @@ async def test_id_none_records_persist():
 
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    await CommandExecutor.persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
+    await execution_pipeline.persist_batch(executor, records)
 
     # Should have attempted to persist
     assert len(persist_calls) == 1
@@ -195,7 +198,7 @@ async def test_operational_error_triggers_retry():
 
     wire_raising_persist(executor, sqlite3.OperationalError("disk I/O error"))
 
-    await CommandExecutor.persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
+    await execution_pipeline.persist_batch(executor, records)
 
     # Should have re-enqueued as RetryableBatch
     assert not executor._write_queue.empty()
@@ -215,9 +218,7 @@ async def test_max_retries_drops_batch():
     wire_raising_persist(executor, sqlite3.OperationalError("disk I/O error"))
 
     # Pass the exhausted retry count to indicate the batch has no retries left
-    await CommandExecutor.persist_batch(  # pyright: ignore[reportArgumentType]
-        executor, exhausted_batch.records, retry_count=_MAX_RETRY_COUNT
-    )
+    await execution_pipeline.persist_batch(executor, exhausted_batch.records, retry_count=_MAX_RETRY_COUNT)
 
     # Should NOT have re-enqueued (retry_count >= _MAX_RETRY_COUNT)
     assert executor._write_queue.empty()
@@ -233,7 +234,7 @@ async def test_data_error_drops_immediately():
 
     wire_raising_persist(executor, sqlite3.DataError("column mismatch"))
 
-    await CommandExecutor.persist_batch(executor, [inv])  # pyright: ignore[reportArgumentType]
+    await execution_pipeline.persist_batch(executor, [inv])
 
     # No re-enqueue, and none of the three counted drop paths were taken — a DataError is
     # dropped where it is raised, so it is neither an overflow, a retry-exhausted drop, nor a
@@ -264,13 +265,13 @@ async def test_integrity_error_row_by_row_fallback():
 
     executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
 
-    await CommandExecutor.persist_batch(executor, records)  # pyright: ignore[reportArgumentType]
+    await execution_pipeline.persist_batch(executor, records)
 
     # Should have incremented dropped_exhausted for the 1 record that failed even with null FK
     assert executor._dropped_exhausted == 1
 
 
-async def test_retryable_batch_future_not_before_is_requeued():
+async def test_retryable_batch_future_not_before_is_requeued(monkeypatch: pytest.MonkeyPatch):
     """A RetryableBatch whose not_before is in the future must be re-enqueued, not persisted."""
     executor = init_executor()
 
@@ -284,13 +285,13 @@ async def test_retryable_batch_future_not_before_is_requeued():
 
     persist_called = False
 
-    async def fake_persist(_invs, _jobs, **_kwargs):
+    async def fake_persist(_executor, _records, **_kwargs):
         nonlocal persist_called
         persist_called = True
 
-    executor.persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(execution_pipeline, "persist_batch", fake_persist)
 
-    await executor.drain_and_persist()
+    await execution_pipeline.drain_and_persist(executor)
 
     # Must NOT have been persisted
     assert not persist_called
@@ -301,7 +302,7 @@ async def test_retryable_batch_future_not_before_is_requeued():
     assert requeued is batch
 
 
-async def test_retryable_batch_past_not_before_is_persisted():
+async def test_retryable_batch_past_not_before_is_persisted(monkeypatch: pytest.MonkeyPatch):
     """A RetryableBatch whose not_before is in the past (or zero) is persisted normally."""
     executor = init_executor()
 
@@ -315,12 +316,12 @@ async def test_retryable_batch_past_not_before_is_persisted():
 
     persist_args: list[tuple[list[ExecutionRecord], int]] = []
 
-    async def fake_persist(records, *, retry_count=0):
+    async def fake_persist(_executor, records, *, retry_count=0):
         persist_args.append((list(records), retry_count))
 
-    executor.persist_batch = fake_persist  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(execution_pipeline, "persist_batch", fake_persist)
 
-    await executor.drain_and_persist()
+    await execution_pipeline.drain_and_persist(executor)
 
     assert len(persist_args) == 1
     persisted_records, persisted_retry = persist_args[0]
@@ -339,7 +340,7 @@ async def test_retryable_batch_not_before_set_to_backoff_delay():
 
     before = time.monotonic()
     # retry_count=0 → backoff should be 1s (retry_count + 1 = 1)
-    await CommandExecutor.persist_batch(executor, [inv], retry_count=0)  # pyright: ignore[reportArgumentType]
+    await execution_pipeline.persist_batch(executor, [inv], retry_count=0)
     after = time.monotonic()
 
     assert not executor._write_queue.empty()
@@ -360,7 +361,7 @@ async def test_retryable_batch_backoff_increases_with_retry_count():
         wire_raising_persist(executor, sqlite3.OperationalError("disk I/O error"))
 
         before = time.monotonic()
-        await CommandExecutor.persist_batch(executor, [inv], retry_count=initial_retry)  # pyright: ignore[reportArgumentType]
+        await execution_pipeline.persist_batch(executor, [inv], retry_count=initial_retry)
         after = time.monotonic()
 
         queued = executor._write_queue.get_nowait()

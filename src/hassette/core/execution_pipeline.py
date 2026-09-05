@@ -3,11 +3,12 @@
 Every function here takes ``executor: "CommandExecutor"`` as an explicit first argument and
 operates on its state (``_write_queue``, ``_dropped_*`` counters, ``_clock``, etc.). Internal
 calls among these functions — and from ``CommandExecutor.serve()``/``_execute()`` into them —
-always go through ``executor.<method>(...)`` bound-method attribute lookup, never a bare
-module-function call. Several existing tests monkeypatch these methods as instance attributes
-(e.g. ``executor.persist_batch = fake_persist``) and expect callers to observe the override; a
-bare ``persist_batch(executor, ...)`` call would skip that lookup and silently defeat the test
-double.
+are plain module-level calls (e.g. ``persist_batch(executor, ...)``); there is no corresponding
+``CommandExecutor.persist_batch`` method. Tests that need to observe a substitute implementation
+patch the module attribute directly (e.g. ``monkeypatch.setattr(execution_pipeline,
+"persist_batch", fake_persist)``) — Python resolves an unqualified call inside this module
+through this module's own globals on every call, so the patched attribute is what every caller
+here observes.
 """
 
 import asyncio
@@ -129,7 +130,7 @@ async def drain_and_persist(
 
     # Persist fresh records as a single batch (retry_count=0)
     if fresh_records:
-        await executor.persist_batch(fresh_records)
+        await persist_batch(executor, fresh_records)
 
     # Process each RetryableBatch separately to preserve its retry_count.
     # Skip batches whose backoff window has not yet elapsed — re-enqueue them.
@@ -149,7 +150,7 @@ async def drain_and_persist(
                     executor._dropped_overflow,
                 )
             continue
-        await executor.persist_batch(batch.records, retry_count=batch.retry_count)
+        await persist_batch(executor, batch.records, retry_count=batch.retry_count)
 
 
 async def flush_queue(executor: "CommandExecutor") -> None:
@@ -181,7 +182,7 @@ async def flush_queue(executor: "CommandExecutor") -> None:
         return
 
     try:
-        await executor.persist_batch(records)
+        await persist_batch(executor, records)
     except Exception:
         drop_count = len(records)
         executor._dropped_shutdown += drop_count
@@ -237,7 +238,7 @@ async def persist_batch(
 
     try:
         await executor.hassette.database_service.submit(executor.repository.persist_execution_batch(records))
-        await executor.emit_completion_events(records)
+        await emit_completion_events(executor, records)
     except sqlite3.OperationalError as exc:
         # Retryable — transient DB error (disk I/O, locked, etc.)
         if retry_count >= _MAX_RETRY_COUNT:
@@ -277,7 +278,7 @@ async def persist_batch(
 
     except sqlite3.IntegrityError:
         # FK violation — fall back to row-by-row INSERT
-        await executor.handle_fk_violation(records)
+        await handle_fk_violation(executor, records)
 
     except (sqlite3.DataError, sqlite3.ProgrammingError) as exc:
         # Non-retryable schema/data mismatch — this is a regression
@@ -325,7 +326,7 @@ async def handle_fk_violation(
                 executor._dropped_exhausted,
             )
         else:
-            await executor.emit_completion_events(records)
+            await emit_completion_events(executor, records)
     except Exception as exc:
         drop_count = len(records)
         executor._dropped_exhausted += drop_count

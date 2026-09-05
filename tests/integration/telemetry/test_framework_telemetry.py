@@ -14,6 +14,7 @@ import pytest
 
 from hassette import HassetteConfig
 from hassette.commands import InvokeHandler
+from hassette.core import execution_pipeline
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
@@ -211,7 +212,7 @@ async def test_queue_persistence_via_drain_and_persist(framework_hassette: Magic
     await executor.execute(cmd)
 
     # Drain and persist
-    await executor.drain_and_persist()
+    await execution_pipeline.drain_and_persist(executor)
 
     # Query the unified executions table
     rows = await db_service.submit(

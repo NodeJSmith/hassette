@@ -18,6 +18,9 @@ from collections.abc import Coroutine
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from hassette.core import execution_pipeline
 from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.execution_pipeline import _UNOWNED_WARN_RATE_LIMIT_SECS
@@ -46,7 +49,7 @@ def make_executor_with_send_event(queue_max: int = 10) -> CommandExecutor:
     return executor
 
 
-async def test_serve_loops_without_blocking_when_queue_empty():
+async def test_serve_loops_without_blocking_when_queue_empty(monkeypatch: pytest.MonkeyPatch):
     """serve() does not block indefinitely when the queue is empty — the timer causes it to loop."""
     # dup-ignore-start: executor + recorder-stub setup (drain_calls list + fake_drain callback)
     # repeated across the serve() loop tests below. test_serve_timer_drains_items_added_during_drain
@@ -57,7 +60,7 @@ async def test_serve_loops_without_blocking_when_queue_empty():
     # Queue stays empty; the timer should fire and allow the loop to continue (and eventually shut down)
     drain_calls: list[str] = []
 
-    async def fake_drain(first_item=None):
+    async def fake_drain(_executor, first_item=None):
         drain_calls.append("timer" if first_item is None else "item")
 
     # dup-ignore-end
@@ -65,8 +68,8 @@ async def test_serve_loops_without_blocking_when_queue_empty():
     shutdown_event = asyncio.Event()
     executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
 
-    executor.drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
-    executor.flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(execution_pipeline, "drain_and_persist", fake_drain)
+    monkeypatch.setattr(execution_pipeline, "flush_queue", AsyncMock())
     executor.hassette.config.database.max_flush_interval_seconds = 0.05  # very short — timer fires quickly
 
     # Shut down after two timer cycles; if max_flush_interval_seconds is honoured the whole
@@ -82,7 +85,7 @@ async def test_serve_loops_without_blocking_when_queue_empty():
     assert not drain_calls
 
 
-async def test_serve_timer_drains_items_added_during_drain():
+async def test_serve_timer_drains_items_added_during_drain(monkeypatch: pytest.MonkeyPatch):
     """Items put back into the queue during drain_and_persist (e.g. deferred retries) are
     picked up on the next loop iteration, not lost.
     """
@@ -99,7 +102,7 @@ async def test_serve_timer_drains_items_added_during_drain():
 
     drain_calls: list[str] = []
 
-    async def fake_drain(first_item=None):
+    async def fake_drain(_executor, first_item=None):
         drain_calls.append("timer" if first_item is None else "item")
         if len(drain_calls) == 1:
             # Simulate a deferred retry being re-enqueued during the first drain
@@ -110,8 +113,8 @@ async def test_serve_timer_drains_items_added_during_drain():
     shutdown_event = asyncio.Event()
     executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
 
-    executor.drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
-    executor.flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(execution_pipeline, "drain_and_persist", fake_drain)
+    monkeypatch.setattr(execution_pipeline, "flush_queue", AsyncMock())
     executor.hassette.config.database.max_flush_interval_seconds = 5.0  # long — rely on item arrival, not timer
 
     async def stop_after_two_drains():
@@ -128,7 +131,7 @@ async def test_serve_timer_drains_items_added_during_drain():
     assert all(d == "item" for d in drain_calls)
 
 
-async def test_serve_item_flush_drains_queue_on_arrival():
+async def test_serve_item_flush_drains_queue_on_arrival(monkeypatch: pytest.MonkeyPatch):
     """serve() drains via first_item path when a queue item arrives before timeout."""
     # dup-ignore-start: executor + recorder-stub setup — see the matching comment in
     # test_serve_loops_without_blocking_when_queue_empty above.
@@ -136,7 +139,7 @@ async def test_serve_item_flush_drains_queue_on_arrival():
 
     drain_calls: list[str] = []
 
-    async def fake_drain(first_item=None):
+    async def fake_drain(_executor, first_item=None):
         drain_calls.append("timer" if first_item is None else "item")
 
     # dup-ignore-end
@@ -144,8 +147,8 @@ async def test_serve_item_flush_drains_queue_on_arrival():
     shutdown_event = asyncio.Event()
     executor.shutdown_event = shutdown_event  # pyright: ignore[reportAttributeAccessIssue]
 
-    executor.drain_and_persist = fake_drain  # pyright: ignore[reportAttributeAccessIssue]
-    executor.flush_queue = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(execution_pipeline, "drain_and_persist", fake_drain)
+    monkeypatch.setattr(execution_pipeline, "flush_queue", AsyncMock())
     executor.hassette.config.database.max_flush_interval_seconds = 5.0  # long interval — item should arrive first
 
     async def enqueue_then_stop():
@@ -202,7 +205,7 @@ async def test_emit_completion_events_no_warning_for_owned_records() -> None:
     executor = make_executor_with_send_event()
 
     owned = make_execution_record(app_key="my_app", source_tier="app")
-    await CommandExecutor.emit_completion_events(executor, [owned])
+    await execution_pipeline.emit_completion_events(executor, [owned])
 
     assert executor._last_unowned_warn_ts is None
     executor.hassette.send_event.assert_awaited_once()
@@ -215,7 +218,7 @@ async def test_emit_completion_events_no_warning_for_framework_tier_empty_app_ke
     executor = make_executor_with_send_event()
 
     framework_record = make_execution_record(app_key="", source_tier="framework")
-    await CommandExecutor.emit_completion_events(executor, [framework_record])
+    await execution_pipeline.emit_completion_events(executor, [framework_record])
 
     assert executor._last_unowned_warn_ts is None
 
@@ -228,7 +231,7 @@ async def test_emit_completion_events_warns_on_empty_app_key() -> None:
     executor._clock = make_controlled_clock(start=1.0)
 
     unowned = make_execution_record(app_key="", source_tier="app")
-    await CommandExecutor.emit_completion_events(executor, [unowned])
+    await execution_pipeline.emit_completion_events(executor, [unowned])
 
     assert executor._last_unowned_warn_ts == 1.0
 
@@ -240,11 +243,11 @@ async def test_emit_completion_events_unowned_warning_rate_limited() -> None:
     executor._clock = clock
     unowned = make_execution_record(app_key="", source_tier="app")
 
-    await CommandExecutor.emit_completion_events(executor, [unowned])
+    await execution_pipeline.emit_completion_events(executor, [unowned])
     clock.advance_to(101.0)
-    await CommandExecutor.emit_completion_events(executor, [unowned])  # suppressed
+    await execution_pipeline.emit_completion_events(executor, [unowned])  # suppressed
     clock.advance_to(102.0)
-    await CommandExecutor.emit_completion_events(executor, [unowned])  # still suppressed
+    await execution_pipeline.emit_completion_events(executor, [unowned])  # still suppressed
 
     assert executor._last_unowned_warn_ts == 100.0
 
@@ -256,14 +259,14 @@ async def test_emit_completion_events_unowned_warning_fires_after_rate_limit_win
     executor._clock = clock
     unowned = make_execution_record(app_key="", source_tier="app")
 
-    await CommandExecutor.emit_completion_events(executor, [unowned])
+    await execution_pipeline.emit_completion_events(executor, [unowned])
     assert executor._last_unowned_warn_ts == 100.0
 
     clock.advance_to(100.0 + _UNOWNED_WARN_RATE_LIMIT_SECS - 0.001)
-    await CommandExecutor.emit_completion_events(executor, [unowned])
+    await execution_pipeline.emit_completion_events(executor, [unowned])
     assert executor._last_unowned_warn_ts == 100.0
 
     clock.advance_to(100.0 + _UNOWNED_WARN_RATE_LIMIT_SECS)
-    await CommandExecutor.emit_completion_events(executor, [unowned])
+    await execution_pipeline.emit_completion_events(executor, [unowned])
 
     assert executor._last_unowned_warn_ts == 130.0

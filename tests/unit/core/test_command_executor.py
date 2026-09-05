@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.commands import ExecuteJob
-from hassette.core.command_executor import CommandExecutor
 from hassette.core.execution_record import ExecutionRecord
+from hassette.core.execution_record_builder import build_execution_record
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.types.types import ExecutionStatus
 from hassette.utils.execution import ExecutionResult
@@ -144,7 +144,9 @@ class TestBuildRecordTriggerMode:
         cmd.job.app_key = "test_app"
         cmd.job.instance_index = 0
 
-        record = CommandExecutor.build_record(executor, cmd, make_result(), time.time(), "exec-id")
+        record = build_execution_record(
+            cmd, make_result(), time.time(), "exec-id", session_id=executor.hassette.try_session_id()
+        )
 
         assert isinstance(record, ExecutionRecord)
         assert record.kind == "job"

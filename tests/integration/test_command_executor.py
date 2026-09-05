@@ -7,9 +7,11 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock
 import pytest
 
 from hassette.commands import ExecuteJob
+from hassette.core import execution_pipeline
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
+from hassette.core.execution_record_builder import build_execution_record
 from hassette.exceptions import DependencyError, HassetteError
 from hassette.types.types import ExecutionStatus
 from hassette.utils.execution import ExecutionResult
@@ -76,12 +78,12 @@ async def test_restart_cancellation_persists_cancelled_row(
     listener_id = await executor.register_listener(make_listener_registration())
 
     queue_record(executor, listener_id, session_id, status="cancelled")
-    await executor.drain_and_persist()
+    await execution_pipeline.drain_and_persist(executor)
 
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
     # tests/unit/core/test_telemetry_repository_schema.py's persist_execution_batch() assertions —
     # different test tier (integration vs. unit) exercising unrelated code paths
-    # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
+    # (execution_pipeline.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
     # there); not extractable across that boundary.
     cursor = await db_service.db.execute(
         "SELECT status FROM executions WHERE listener_id = ?",
@@ -219,13 +221,13 @@ async def test_serve_drains_queue_to_db(executor: CommandExecutor, initialized_d
     queue_record(executor, listener_id, session_id)
 
     # Drain without going through serve() loop — call drain_and_persist directly
-    await executor.drain_and_persist()
+    await execution_pipeline.drain_and_persist(executor)
 
     # Verify it landed in DB
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
     # tests/unit/core/test_telemetry_repository_schema.py's persist_execution_batch() assertions —
     # different test tier (integration vs. unit) exercising unrelated code paths
-    # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
+    # (execution_pipeline.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
     # there); not extractable across that boundary.
     cursor = await db_service.db.execute(
         "SELECT status, listener_id, session_id FROM executions WHERE listener_id = ?",
@@ -250,7 +252,7 @@ async def test_flush_queue_on_shutdown(executor: CommandExecutor, initialized_db
     for _ in range(2):
         queue_record(executor, listener_id, session_id, duration_ms=5.0)
 
-    await executor.flush_queue()
+    await execution_pipeline.flush_queue(executor)
 
     # Both records should be in DB, queue should be empty
     assert executor._write_queue.empty()
@@ -305,7 +307,7 @@ def test_build_record_uses_session_id_directly(db_hassette: AsyncMock) -> None:
     result.status = "success"
     result.duration_ms = 1.0
 
-    record = exc.build_record(cmd, result, time.time(), "test-exec-id")
+    record = build_execution_record(cmd, result, time.time(), "test-exec-id", session_id=exc.hassette.try_session_id())
     assert isinstance(record, ExecutionRecord)
     assert record.session_id == 99
     assert record.listener_id == 5
@@ -335,7 +337,7 @@ async def test_persist_batch_drops_presession_records(
     # Patch try_session_id to return None so the "session not ready" path is triggered
     executor.hassette.try_session_id = MagicMock(return_value=None)
 
-    await executor.persist_batch([valid, pre_session])
+    await execution_pipeline.persist_batch(executor, [valid, pre_session])
 
     # Restore session_id to the real value for the next assertion query
     type(executor.hassette).session_id = PropertyMock(return_value=session_id)
@@ -344,7 +346,7 @@ async def test_persist_batch_drops_presession_records(
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
     # tests/unit/core/test_telemetry_repository_schema.py's persist_execution_batch() assertions —
     # different test tier (integration vs. unit) exercising unrelated code paths
-    # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
+    # (execution_pipeline.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
     # there); not extractable across that boundary.
     cursor = await db_service.db.execute(
         "SELECT session_id FROM executions WHERE listener_id = ?",
@@ -486,7 +488,7 @@ async def test_fk_preserved_across_restart(
     # dup-ignore-start: shares the "fetch one row, assert count then fields" shape with
     # tests/unit/core/test_telemetry_repository_schema.py's persist_execution_batch() assertions —
     # different test tier (integration vs. unit) exercising unrelated code paths
-    # (CommandExecutor.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
+    # (execution_pipeline.drain_and_persist here vs. TelemetryRepository.persist_execution_batch
     # there); not extractable across that boundary.
     cursor = await db_service.db.execute(
         "SELECT listener_id FROM executions WHERE listener_id = ?",
