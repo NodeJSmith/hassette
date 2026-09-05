@@ -324,3 +324,20 @@ def test_check_file(
 ) -> None:
     path = write_sample(source)
     assert check_file(path) == expected
+
+
+def test_check_file_honors_pep263_encoding_cookie(tmp_path: Path) -> None:
+    """A valid non-UTF-8 source file (PEP 263 cookie + Latin-1 bytes) is still scanned, not skipped."""
+    source = '# -*- coding: latin-1 -*-\nNAME = "café"\n\n# some label\n\ny = 2\n'
+    path = tmp_path / "sample.py"
+    path.write_bytes(source.encode("latin-1"))
+
+    assert check_file(path) == [(4, "undecorated section divider (short label) - '# some label'")]
+
+
+def test_check_file_returns_no_violations_for_undecodable_source(tmp_path: Path) -> None:
+    """A file with invalid UTF-8 and no PEP 263 cookie fails closed instead of raising."""
+    path = tmp_path / "sample.py"
+    path.write_bytes(b"x = 1\n\n# some label \xff\xfe\n\ny = 2\n")
+
+    assert check_file(path) == []

@@ -37,6 +37,7 @@ Usage:
 
 import re
 import sys
+import tokenize
 from pathlib import Path
 
 from lint_helpers import REPO_ROOT, extract_comments, iter_python_files, run_check
@@ -99,8 +100,12 @@ FOOTER = (
 def check_file(path: Path) -> list[tuple[int, str]]:
     """Return sorted (1-based line number, message) undecorated-divider violations in ``path``."""
     try:
-        source = path.read_text(encoding="utf-8")
-    except (UnicodeDecodeError, OSError):
+        # tokenize.open() honors a PEP 263 encoding cookie (e.g. `# -*- coding: latin-1 -*-`)
+        # instead of assuming UTF-8 — a plain read_text(encoding="utf-8") raises on a valid
+        # non-UTF-8 source file and the except below would then silently skip it.
+        with tokenize.open(path) as f:
+            source = f.read()
+    except (OSError, SyntaxError, UnicodeDecodeError):
         return []
 
     lines = source.splitlines()
