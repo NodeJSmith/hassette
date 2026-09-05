@@ -10,12 +10,26 @@ import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
 import { appStatusKey, useAppStore } from "./state/store";
 import { createInstance, createListener, createManifest } from "./test/factories";
-import { withManifests as installManifests } from "./test/handlers";
+import { withManifests } from "./test/handlers";
 import { server } from "./test/server";
 import { LOGIN_PATH } from "./utils/app-routes";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
+
+const SELECTORS = {
+  hamburger: "[data-testid='hamburger']",
+  mobileDrawer: "[data-testid='mobile-drawer']",
+  mobileDrawerBackdrop: "[data-testid='mobile-drawer-backdrop']",
+  layout: "[data-testid='layout']",
+  statusBar: "[data-testid='status-bar']",
+} as const;
+
+const DRAWER_OPEN_CLASS = "translate-x-0";
+const DRAWER_CLOSED_CLASS = "-translate-x-full";
+const SIDEBAR_COLLAPSED_CLASS = "is-collapsed";
+const COMMAND_PALETTE_DIALOG_NAME = /command palette/i;
+const COMMAND_PALETTE_SEARCH_PLACEHOLDER = "Search apps, handlers, pages, actions…";
 
 // Mock wouter so we control routing without a real browser history.
 //
@@ -115,12 +129,12 @@ vi.mock("./components/layout/alert-banner", async (importOriginal) => {
 describe("App — layout structure", () => {
   it("renders the layout container", () => {
     const { container } = render(<App />);
-    expect(container.querySelector("[data-testid='layout']")).not.toBeNull();
+    expect(container.querySelector(SELECTORS.layout)).not.toBeNull();
   });
 
   it("renders a sidebar element inside layout", () => {
     const { container } = render(<App />);
-    const layout = container.querySelector("[data-testid='layout']");
+    const layout = container.querySelector(SELECTORS.layout);
     expect(layout!.querySelector("aside")).not.toBeNull();
   });
 
@@ -142,35 +156,48 @@ describe("App — layout structure", () => {
   });
 });
 
+async function openDrawer(user: ReturnType<typeof userEvent.setup>, container: Element) {
+  const btn = container.querySelector<HTMLElement>(SELECTORS.hamburger)!;
+  await user.click(btn);
+}
+
+function expectDrawerOpen(container: Element) {
+  expect(container.querySelector(SELECTORS.mobileDrawer)!.className).toContain(DRAWER_OPEN_CLASS);
+}
+
+function expectDrawerClosed(container: Element) {
+  expect(container.querySelector(SELECTORS.mobileDrawer)!.className).toContain(DRAWER_CLOSED_CLASS);
+}
+
 describe("App — hamburger button", () => {
   it("renders a hamburger button", () => {
     const { container } = render(<App />);
-    const btn = container.querySelector("[data-testid='hamburger']");
+    const btn = container.querySelector(SELECTORS.hamburger);
     expect(btn).not.toBeNull();
   });
 
   it("hamburger button has accessible label", () => {
     const { container } = render(<App />);
-    const btn = container.querySelector("[data-testid='hamburger']");
+    const btn = container.querySelector(SELECTORS.hamburger);
     expect(btn!.getAttribute("aria-label")).toBe("Open navigation");
   });
 
   it("hamburger button has aria-expanded=false initially", () => {
     const { container } = render(<App />);
-    const btn = container.querySelector("[data-testid='hamburger']");
+    const btn = container.querySelector(SELECTORS.hamburger);
     expect(btn!.getAttribute("aria-expanded")).toBe("false");
   });
 
   it("drawer is not open initially", () => {
     const { container } = render(<App />);
-    const drawer = container.querySelector("[data-testid='mobile-drawer']");
+    const drawer = container.querySelector(SELECTORS.mobileDrawer);
     expect(drawer).not.toBeNull();
-    expect(drawer!.className).toContain("-translate-x-full");
+    expectDrawerClosed(container);
   });
 
   it("keeps the closed drawer inert", () => {
     const { container } = render(<App />);
-    const drawer = container.querySelector("[data-testid='mobile-drawer']");
+    const drawer = container.querySelector(SELECTORS.mobileDrawer);
     expect(drawer).not.toBeNull();
     expect(drawer!.hasAttribute("inert")).toBe(true);
   });
@@ -178,18 +205,16 @@ describe("App — hamburger button", () => {
   it("clicking the hamburger opens the drawer", async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
-    const btn = container.querySelector("[data-testid='hamburger']")!;
-    await user.click(btn);
-    const drawer = container.querySelector("[data-testid='mobile-drawer']");
-    expect(drawer!.className).toContain("translate-x-0");
-    expect(drawer!.hasAttribute("inert")).toBe(false);
+    await openDrawer(user, container);
+    expectDrawerOpen(container);
+    expect(container.querySelector(SELECTORS.mobileDrawer)!.hasAttribute("inert")).toBe(false);
   });
 
   it("hamburger aria-expanded updates to true when drawer is open", async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
-    const btn = container.querySelector("[data-testid='hamburger']")!;
-    await user.click(btn);
+    const btn = container.querySelector(SELECTORS.hamburger)!;
+    await openDrawer(user, container);
     expect(btn.getAttribute("aria-expanded")).toBe("true");
   });
 });
@@ -213,7 +238,7 @@ describe("App — visibilitychange tick recovery", () => {
     vi.useRealTimers();
   });
 
-  it("adds a visibilitychange listener that increments tick immediately when tab becomes visible", () => {
+  it("registers a visibilitychange listener and dispatching it does not throw", () => {
     const addSpy = vi.spyOn(document, "addEventListener");
     render(<App />);
 
@@ -226,7 +251,7 @@ describe("App — visibilitychange tick recovery", () => {
     Object.defineProperty(document, "hidden", { value: false, writable: true, configurable: true });
 
     act(() => {
-      handlers.forEach((h) => h(new Event("visibilitychange")));
+      handlers.forEach((handler) => handler(new Event("visibilitychange")));
     });
 
     // The handler should not throw — functional smoke test.
@@ -256,7 +281,7 @@ describe("App — sidebar collapse", () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => localStorage.clear());
 
-  const layoutOf = (container: Element) => container.querySelector<HTMLElement>("[data-testid='layout']")!;
+  const layoutOf = (container: Element) => container.querySelector<HTMLElement>(SELECTORS.layout)!;
 
   it("pressing [ collapses the sidebar out of the layout", async () => {
     const user = userEvent.setup();
@@ -267,7 +292,7 @@ describe("App — sidebar collapse", () => {
     // parsed as the start of a special-key token (e.g. "{Meta}") and produce no keystroke.
     await user.keyboard("[[");
 
-    expect(layoutOf(container).className).toContain("is-collapsed");
+    expect(layoutOf(container).className).toContain(SIDEBAR_COLLAPSED_CLASS);
     expect(layoutOf(container).querySelector("aside")).toBeNull();
   });
 
@@ -275,11 +300,11 @@ describe("App — sidebar collapse", () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
     await user.keyboard("[[");
-    expect(layoutOf(container).className).toContain("is-collapsed");
+    expect(layoutOf(container).className).toContain(SIDEBAR_COLLAPSED_CLASS);
 
     await user.keyboard("[[");
 
-    expect(layoutOf(container).className).not.toContain("is-collapsed");
+    expect(layoutOf(container).className).not.toContain(SIDEBAR_COLLAPSED_CLASS);
     expect(layoutOf(container).querySelector("aside")).not.toBeNull();
   });
 
@@ -291,7 +316,7 @@ describe("App — sidebar collapse", () => {
     filter.focus();
     await user.keyboard("[[");
 
-    expect(layoutOf(container).className).not.toContain("is-collapsed");
+    expect(layoutOf(container).className).not.toContain(SIDEBAR_COLLAPSED_CLASS);
   });
 
   it("ignores [ when it carries a modifier", async () => {
@@ -300,7 +325,7 @@ describe("App — sidebar collapse", () => {
 
     await user.keyboard("{Meta>}[[{/Meta}");
 
-    expect(layoutOf(container).className).not.toContain("is-collapsed");
+    expect(layoutOf(container).className).not.toContain(SIDEBAR_COLLAPSED_CLASS);
   });
 });
 
@@ -308,57 +333,54 @@ describe("App — drawer close mechanisms", () => {
   it("backdrop click closes the drawer", async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
-    const btn = container.querySelector("[data-testid='hamburger']")!;
-    await user.click(btn);
-    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("translate-x-0");
+    await openDrawer(user, container);
+    expectDrawerOpen(container);
 
-    const backdrop = container.querySelector("[data-testid='mobile-drawer-backdrop']")!;
+    const backdrop = container.querySelector<HTMLElement>(SELECTORS.mobileDrawerBackdrop)!;
     await user.click(backdrop);
-    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("-translate-x-full");
+    expectDrawerClosed(container);
   });
 
   it("Escape key closes the drawer", async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
-    const btn = container.querySelector("[data-testid='hamburger']")!;
-    await user.click(btn);
-    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("translate-x-0");
+    await openDrawer(user, container);
+    expectDrawerOpen(container);
 
     await user.keyboard("{Escape}");
-    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("-translate-x-full");
+    expectDrawerClosed(container);
   });
 
   it("clicking the hamburger a second time closes the drawer", async () => {
     const user = userEvent.setup();
     const { container } = render(<App />);
-    const btn = container.querySelector("[data-testid='hamburger']")!;
-    await user.click(btn);
-    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("translate-x-0");
-    await user.click(btn);
-    expect(container.querySelector("[data-testid='mobile-drawer']")!.className).toContain("-translate-x-full");
+    await openDrawer(user, container);
+    expectDrawerOpen(container);
+    await openDrawer(user, container);
+    expectDrawerClosed(container);
   });
 });
 
 describe("App — hamburger inside status bar", () => {
   it("renders hamburger inside the status bar", () => {
     const { container } = render(<App />);
-    const statusBar = container.querySelector("[data-testid='status-bar']");
+    const statusBar = container.querySelector(SELECTORS.statusBar);
     expect(statusBar).not.toBeNull();
-    const hamburger = statusBar!.querySelector("[data-testid='hamburger']");
+    const hamburger = statusBar!.querySelector(SELECTORS.hamburger);
     expect(hamburger).not.toBeNull();
   });
 
   it("does not render a standalone hamburger outside the status bar", () => {
     const { container } = render(<App />);
-    const allHamburgers = container.querySelectorAll("[data-testid='hamburger']");
+    const allHamburgers = container.querySelectorAll(SELECTORS.hamburger);
     expect(allHamburgers).toHaveLength(1);
-    const statusBar = container.querySelector("[data-testid='status-bar']");
+    const statusBar = container.querySelector(SELECTORS.statusBar);
     expect(statusBar!.contains(allHamburgers[0])).toBe(true);
   });
 });
 
-function withManifests(manifests: AppManifest[]) {
-  installManifests(manifests, server);
+function seedManifests(manifests: AppManifest[]) {
+  withManifests(manifests, server);
 }
 
 async function openPalette(user: ReturnType<typeof userEvent.setup>) {
@@ -370,33 +392,33 @@ describe("App — command palette", () => {
     const user = userEvent.setup();
     render(<App />);
     await openPalette(user);
-    expect(await screen.findByRole("dialog", { name: /command palette/i })).toBeDefined();
+    expect(await screen.findByRole("dialog", { name: COMMAND_PALETTE_DIALOG_NAME })).toBeDefined();
   });
 
   it("Cmd+K toggles the palette closed on a second press", async () => {
     const user = userEvent.setup();
     render(<App />);
     await openPalette(user);
-    await screen.findByRole("dialog", { name: /command palette/i });
+    await screen.findByRole("dialog", { name: COMMAND_PALETTE_DIALOG_NAME });
     await openPalette(user);
-    expect(screen.queryByRole("dialog", { name: /command palette/i })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: COMMAND_PALETTE_DIALOG_NAME })).toBeNull();
   });
 
   it("Escape closes the palette", async () => {
     const user = userEvent.setup();
     render(<App />);
     await openPalette(user);
-    const dialog = await screen.findByRole("dialog", { name: /command palette/i });
+    const dialog = await screen.findByRole("dialog", { name: COMMAND_PALETTE_DIALOG_NAME });
     dialog.focus();
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: /command palette/i })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: COMMAND_PALETTE_DIALOG_NAME })).toBeNull();
   });
 
   it("shows page items and lets Enter navigate to the active one", async () => {
     const user = userEvent.setup();
     render(<App />);
     await openPalette(user);
-    const input = await screen.findByPlaceholderText("Search apps, handlers, pages, actions…");
+    const input = await screen.findByPlaceholderText(COMMAND_PALETTE_SEARCH_PLACEHOLDER);
     input.focus();
     await user.keyboard("{Enter}");
     expect(mockNavigate).toHaveBeenCalledWith("/apps");
@@ -404,7 +426,7 @@ describe("App — command palette", () => {
 
   it("shows app items from manifests and navigates on click", async () => {
     const user = userEvent.setup();
-    withManifests([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
+    seedManifests([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
     render(<App />);
     await openPalette(user);
     const item = await screen.findByTestId("cmd-result-app-garage_app");
@@ -414,7 +436,7 @@ describe("App — command palette", () => {
 
   it("shows instance items for multi-instance apps", async () => {
     const user = userEvent.setup();
-    withManifests([
+    seedManifests([
       createManifest({
         app_key: "multi_app",
         display_name: "Multi App",
@@ -433,13 +455,13 @@ describe("App — command palette", () => {
 
   it("filters results as the user types", async () => {
     const user = userEvent.setup();
-    withManifests([
+    seedManifests([
       createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" }),
       createManifest({ app_key: "lights_app", display_name: "Lights App", status: "running" }),
     ]);
     render(<App />);
     await openPalette(user);
-    const input = await screen.findByPlaceholderText("Search apps, handlers, pages, actions…");
+    const input = await screen.findByPlaceholderText(COMMAND_PALETTE_SEARCH_PLACEHOLDER);
     await screen.findByTestId("cmd-result-app-garage_app");
     await user.type(input, "garage");
     expect(screen.queryByTestId("cmd-result-app-garage_app")).not.toBeNull();
@@ -471,7 +493,7 @@ describe("App — command palette", () => {
       }),
     );
     render(<App />);
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(callCount).toBe(0);
   });
 });
@@ -488,8 +510,8 @@ describe("App — /login route", () => {
     const { container } = render(<App />);
 
     expect(screen.getByTestId("login-page")).not.toBeNull();
-    expect(container.querySelector("[data-testid='layout']")).toBeNull();
-    expect(container.querySelector("[data-testid='status-bar']")).toBeNull();
+    expect(container.querySelector(SELECTORS.layout)).toBeNull();
+    expect(container.querySelector(SELECTORS.statusBar)).toBeNull();
   });
 
   it("does not mount WebSocketEffect or TelemetryHealthEffect", () => {
@@ -520,21 +542,21 @@ describe("App — /login route", () => {
 
 describe("App — FailedAppsAlert", () => {
   it("includes a degraded app in the failure banner", async () => {
-    withManifests([createManifest({ app_key: "degraded_app", display_name: "Degraded App", status: "degraded" })]);
+    seedManifests([createManifest({ app_key: "degraded_app", display_name: "Degraded App", status: "degraded" })]);
     render(<App />);
     const banner = await screen.findByTestId("alert-banner");
     expect(banner.textContent).toContain("degraded_app");
   });
 
   it("includes a failed app in the failure banner", async () => {
-    withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    seedManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
     render(<App />);
     const banner = await screen.findByTestId("alert-banner");
     expect(banner.textContent).toContain("failed_app");
   });
 
   it("does not include a running app in the failure banner", () => {
-    withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]);
+    seedManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]);
     render(<App />);
     expect(screen.queryByTestId("alert-banner")).toBeNull();
   });
@@ -544,7 +566,7 @@ describe("App — FailedAppsAlert", () => {
     // passthrough of a manifest already tagged "degraded" — the harder, real-world case this
     // fix's rationale is built on: a cached manifest can still read "running" while one of its
     // instances has actually failed, until an execution event refetches the grid.
-    withManifests([
+    seedManifests([
       createManifest({
         app_key: "multi_instance_app",
         display_name: "Multi Instance App",
@@ -575,7 +597,7 @@ describe("App — FailedAppsAlert re-render scoping", () => {
   });
 
   it("does not re-render when an unrelated status write leaves the failed-app set unchanged", async () => {
-    withManifests([
+    seedManifests([
       createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
       createManifest({ app_key: "healthy_app", display_name: "Healthy App", status: "running" }),
     ]);
@@ -595,7 +617,7 @@ describe("App — FailedAppsAlert re-render scoping", () => {
   });
 
   it("re-renders when an app enters the failed set", async () => {
-    withManifests([createManifest({ app_key: "flaky_app", display_name: "Flaky App", status: "running" })]);
+    seedManifests([createManifest({ app_key: "flaky_app", display_name: "Flaky App", status: "running" })]);
     render(<App />);
     // Wait for manifests to load (sidebar renders one entry per manifest) before triggering the
     // status change — the banner itself isn't present yet since nothing is failing.
