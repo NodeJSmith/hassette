@@ -735,6 +735,43 @@ def test_compute_shutdown_budget_honors_configured_task_cancel_ceiling():
     assert budget.task_cancel_seconds == 5.0
 
 
+class _ObserveTimer:
+    """Fake ``_observe_active_initializer``: sleeps for ``seconds``, then records the actually
+    measured duration in ``actual_elapsed`` -- read after the sleep so callers self-calibrate
+    against real scheduling variance instead of assuming the sleep took exactly ``seconds``.
+    """
+
+    def __init__(self, seconds: float) -> None:
+        self.seconds = seconds
+        self.actual_elapsed = 0.0
+
+    async def __call__(self, _resource: object) -> bool:
+        loop = asyncio.get_running_loop()
+        before = loop.time()
+        await asyncio.sleep(self.seconds)
+        self.actual_elapsed = loop.time() - before
+        return True
+
+
+class _WaitCapture:
+    """Fake ``asyncio.wait``: records the ``timeout`` it's called with in ``timeout``, then
+    reports the task as still pending without actually waiting.
+
+    Patches ``asyncio.wait`` process-wide, not just ``lifecycle.py``'s reference to it, so the
+    exercised path must call it exactly once for this capture to be unambiguous:
+    ``_ObserveTimer`` above replaces the initializer-observation phase's own inner
+    ``asyncio.wait`` call entirely (see ``lifecycle.py:741``) rather than letting it run for
+    real, leaving only the coordinator's outer wait (``lifecycle.py:811``) to hit this patch.
+    """
+
+    def __init__(self) -> None:
+        self.timeout: float | None = None
+
+    async def __call__(self, tasks: object, *, timeout: float | None = None) -> tuple[set, set]:
+        self.timeout = timeout
+        return set(), set(tasks)  # (done, pending) -- "still pending" drives the coordinator's timeout branch
+
+
 async def test_shutdown_coordinator_bounds_body_wait_by_remaining_budget(monkeypatch):
     """Regression: the coordinator's outer wait on the shutdown body must be bounded by the
     remaining time to the shared, un-margin-reduced ``total_deadline`` (``now0 + timeout``),
@@ -744,16 +781,14 @@ async def test_shutdown_coordinator_bounds_body_wait_by_remaining_budget(monkeyp
     timeout again, roughly doubling worst-case shutdown time.
 
     Asserts directly on the ``timeout`` value the coordinator computes and passes to its outer
-    ``asyncio.wait(timeout=...)`` bound, captured via a monkeypatch that also short-circuits the
-    wait itself, rather than on the real end-to-end elapsed time of a live wait. The two correct
+    ``asyncio.wait(timeout=...)`` bound (via ``_WaitCapture``, which also short-circuits the
+    wait itself) rather than on the real end-to-end elapsed time of a live wait. The two correct
     and buggy outcomes differ by exactly ``observe_seconds``, so measuring wall-clock duration end
     to end needs a real timeout on the order of that difference and a margin on the assertion
     tight enough to still distinguish the two -- vulnerable to ordinary event-loop scheduling
     jitter on a shared, contended CI runner. Capturing the computed argument instead needs no
-    live wait at all: the expected value is derived from the actual measured duration of the one
-    remaining real sleep (the mocked initializer-observation phase), so it self-calibrates
-    against that sleep's own scheduling variance instead of assuming it took exactly
-    ``observe_seconds``.
+    live wait at all, and ``_ObserveTimer`` self-calibrates the expected value against its own
+    actually measured sleep duration rather than assuming it took exactly ``observe_seconds``.
 
     Uses ``HangingChild`` as the resource: its ``on_shutdown()`` never completes on its own, so
     ``body_task`` is still pending when the mocked wait returns "not done", and the coordinator's
@@ -766,34 +801,20 @@ async def test_shutdown_coordinator_bounds_body_wait_by_remaining_budget(monkeyp
     """
     observe_seconds = 0.3
     total_timeout_seconds = 1.0
-    observed_actual_elapsed = 0.0
+    # Generous headroom over the scheduling jitter of the one real `asyncio.sleep()` in
+    # `_ObserveTimer` (typically sub-millisecond to a few ms even under load), while staying far
+    # below `observe_seconds` -- the gap a buggy fresh-timeout value would actually produce --
+    # so it cannot mask a real regression.
+    wait_timeout_epsilon_seconds = 0.05
+    # Safety net only: bounds the cleanup wait below so a coordinator regression that stops
+    # cancelling body_task fails this test outright instead of hanging the suite.
+    cleanup_wait_timeout_seconds = 2.0
 
-    async def fake_observe_active_initializer(_resource) -> bool:
-        nonlocal observed_actual_elapsed
-        loop = asyncio.get_running_loop()
-        before = loop.time()
-        await asyncio.sleep(observe_seconds)
-        observed_actual_elapsed = loop.time() - before
-        return True
+    observe_timer = _ObserveTimer(observe_seconds)
+    monkeypatch.setattr(lifecycle, "_observe_active_initializer", observe_timer)
 
-    monkeypatch.setattr(lifecycle, "_observe_active_initializer", fake_observe_active_initializer)
-
-    captured_wait_timeout = None
-
-    async def capturing_wait(tasks, *, timeout=None):
-        nonlocal captured_wait_timeout
-        captured_wait_timeout = timeout
-        # (done, pending), matching asyncio.wait()'s real return shape -- reporting the task as
-        # still pending, never done, is what drives the coordinator into its timeout branch below.
-        return set(), set(tasks)
-
-    # Patches asyncio.wait() process-wide, not just lifecycle.py's reference to it, so this
-    # exercised path must call it exactly once: fake_observe_active_initializer above replaces
-    # the initializer-observation phase's own asyncio.wait() call entirely rather than letting it
-    # run for real, leaving only the coordinator's outer wait (lifecycle.py's `_run_shutdown_coordinator`)
-    # to hit this patch. Adding another real asyncio.wait() call anywhere else in this test's
-    # exercised path would silently get captured/short-circuited by this same patch too.
-    monkeypatch.setattr(asyncio, "wait", capturing_wait)
+    wait_capture = _WaitCapture()
+    monkeypatch.setattr(asyncio, "wait", wait_capture)
 
     hassette = make_mock_hassette(sealed=False)
     hassette.config.lifecycle.resource_shutdown_timeout_seconds = total_timeout_seconds
@@ -808,26 +829,20 @@ async def test_shutdown_coordinator_bounds_body_wait_by_remaining_budget(monkeyp
         # Correct behavior passes total_deadline_remaining() -- the shared deadline minus
         # whatever the observe phase actually consumed. The bug this guards against passes a
         # fresh `total_timeout_seconds` instead, ignoring that consumption entirely; the two
-        # differ by `observed_actual_elapsed`, which is comfortably above the epsilon below.
-        expected_wait_timeout = total_timeout_seconds - observed_actual_elapsed
-        # 0.05s epsilon: generous headroom over the scheduling jitter of the single real
-        # `asyncio.sleep()` above (typically sub-millisecond to a few ms even under load), while
-        # staying far below `observe_seconds` (0.3s) -- the gap a buggy fresh-timeout value would
-        # actually produce -- so it cannot mask a real regression.
-        assert captured_wait_timeout == pytest.approx(expected_wait_timeout, abs=0.05), (
+        # differ by `observe_timer.actual_elapsed`, comfortably above the epsilon below.
+        expected_wait_timeout = total_timeout_seconds - observe_timer.actual_elapsed
+        assert wait_capture.timeout == pytest.approx(expected_wait_timeout, abs=wait_timeout_epsilon_seconds), (
             "outer body wait must be bounded by the remaining shared deadline, not a fresh "
-            f"timeout -- captured {captured_wait_timeout}, expected ~{expected_wait_timeout:.3f}"
+            f"timeout -- captured {wait_capture.timeout}, expected ~{expected_wait_timeout:.3f}"
         )
     finally:
         # The coordinator's own else-branch above already cancelled body_task once; a plain
         # hang only needs that single cancel to finish, unlike TrulyResistantChild elsewhere in
-        # this file, which needs a second one to defeat its own re-blocking. Bounded with
-        # wait_for (rather than a bare await) so a coordinator regression that stops cancelling
-        # body_task fails this test outright instead of hanging the suite.
+        # this file, which needs a second one to defeat its own re-blocking.
         body_task = resource._shutdown_body_task
         if body_task is not None:
             with contextlib.suppress(asyncio.CancelledError):
-                await asyncio.wait_for(body_task, timeout=2.0)
+                await asyncio.wait_for(body_task, timeout=cleanup_wait_timeout_seconds)
 
 
 def raise_boom(_resource, _reason=None):
