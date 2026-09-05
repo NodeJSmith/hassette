@@ -192,9 +192,6 @@ class TestDependencyGraph:
         assert len(SyncExecutorService.depends_on) == 0
 
 
-# wire_services() registration and hassette.sync_executor_service property
-
-
 @pytest.fixture(autouse=False)
 def isolated_hassette_context(monkeypatch: pytest.MonkeyPatch):
     """Swap HASSETTE_INSTANCE and HASSETTE_CONFIG for fresh ContextVars.

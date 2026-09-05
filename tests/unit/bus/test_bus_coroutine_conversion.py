@@ -45,9 +45,6 @@ async def handler(event: object) -> None:
     pass
 
 
-# public registration methods are plain def, not async def
-
-
 @pytest.mark.parametrize("method_name", _PUBLIC_REGISTRATION_METHODS)
 def test_registration_method_is_plain_def(method_name: str) -> None:
     """Every public bus registration method must be a plain def, not async def."""
@@ -59,9 +56,6 @@ def test_registration_method_is_plain_def(method_name: str) -> None:
 
 
 # Annotation-origin guard lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
-
-
-# await returns Subscription with db_id; no warnings emitted
 
 
 @pytest.mark.parametrize(
@@ -107,9 +101,6 @@ async def test_on_returns_registration_handle(bus: "Bus") -> None:
         handle.close()
 
 
-# forgotten await on a delegate also emits HassetteForgottenAwaitWarning
-
-
 @pytest.mark.parametrize(
     "call",
     [
@@ -129,9 +120,6 @@ def test_forgotten_await_warns(bus: "Bus", call) -> None:
         _ = call(bus)
         del _
         gc.collect()
-
-
-# Source threading — ListenerIdentity.source_location is non-empty
 
 
 async def test_source_location_threaded_to_listener(bus: "Bus") -> None:

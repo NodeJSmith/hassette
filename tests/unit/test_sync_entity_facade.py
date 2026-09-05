@@ -44,9 +44,6 @@ EntityT = TypeVar("EntityT", bound=BaseEntity)
 StateModelT = TypeVar("StateModelT", bound=BaseModel)
 
 
-# Entity construction helpers
-
-
 def make_domain_entity(
     api: "Api", *, entity_id: str, state: str, entity_cls: type[EntityT], state_cls: type[StateModelT]
 ) -> "tuple[EntityT, Token[Hassette]]":
@@ -95,9 +92,6 @@ def make_lock_entity(api: "Api") -> "tuple[LockEntity, Token[Hassette]]":
     return make_domain_entity(api, entity_id=LOCK_ENTITY_ID, state="locked", entity_cls=LockEntity, state_cls=LockState)
 
 
-# .sync returns the domain-specific facade type
-
-
 def test_cover_sync_is_cover_entity_sync_facade() -> None:
     """CoverEntity.sync is a CoverEntitySyncFacade instance, not the base."""
     api = make_api()
@@ -122,9 +116,6 @@ def test_light_sync_is_light_entity_sync_facade() -> None:
         assert type(entity.sync) is LightEntitySyncFacade
 
 
-# No-param dispatch: CoverEntity.sync.open_cover()
-
-
 def test_cover_sync_open_cover_dispatches_call_service() -> None:
     """open_cover() calls api.sync.call_service once with correct domain/service/target, no extra kwargs."""
     api = make_api()
@@ -142,9 +133,6 @@ def test_cover_sync_open_cover_dispatches_call_service() -> None:
         # A no-param service forwards exactly these three keys — pin the full set so
         # both an extra kwarg and a missing expected key are caught.
         assert set(kwargs) == {"domain", "service", "target"}
-
-
-# Required-param dispatch: ClimateEntity.sync.set_temperature()
 
 
 def test_climate_sync_set_temperature_passes_param_through() -> None:
@@ -219,9 +207,6 @@ def test_light_sync_inherits_base_entity_sync_facade() -> None:
     api = make_api()
     with entity_session(make_light_entity(api)) as entity:
         assert isinstance(entity.sync, BaseEntitySyncFacade)
-
-
-# .sync caching: same instance returned on repeated access
 
 
 def test_sync_property_caches_facade_instance() -> None:

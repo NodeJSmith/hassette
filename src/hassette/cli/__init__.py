@@ -26,8 +26,6 @@ from hassette.cli.context import CLIContext
 from hassette.config.config import HassetteConfig
 from hassette.utils import get_version
 
-# Root App
-
 app = App(
     name="hassette",
     version=get_version(),
@@ -116,8 +114,6 @@ job_app.default(cmd_job)
 
 log_app.default(cmd_log)
 execution_app.default(cmd_execution)
-
-# Meta app — global options that apply to all commands
 
 
 @app.meta.default

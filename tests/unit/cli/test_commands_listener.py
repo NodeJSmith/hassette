@@ -14,8 +14,6 @@ from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 runner = CommandRunner("hassette.cli.commands.listener.make_client")
 LISTENER_42_EXECUTIONS_ENDPOINT = "/api/telemetry/listener/42/executions"
 
-# cmd_listener (bare — list all listeners)
-
 
 class TestCmdListener:
     def test_calls_global_listeners_endpoint(self, cli_client_factory: CLIClientFactory) -> None:

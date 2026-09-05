@@ -65,13 +65,13 @@ export interface TelemetryHealthFields {
 }
 
 export interface AppStore {
-  // --- connection ---
+  // connection
   connection: ConnectionStatus;
   uptimeSeconds: number | null;
   systemVersion: string | null;
   setConnection: (status: ConnectionStatus) => void;
 
-  // --- telemetry ---
+  // telemetry
   appStatus: Record<string, AppStatusEntry>;
   serviceStatus: Record<string, ServiceStatusEntry>;
   executionCompleted: WsExecutionCompletedPayload[] | null;
@@ -87,13 +87,13 @@ export interface AppStore {
   setExecutionCompleted: (data: WsExecutionCompletedPayload[]) => void;
   setTelemetryHealth: (data: Partial<TelemetryHealthFields>) => void;
 
-  // --- preferences ---
+  // preferences
   theme: "dark" | "light";
   sidebarCollapsed: boolean;
   setTheme: (t: "dark" | "light") => void;
   setSidebarCollapsed: (v: boolean) => void;
 
-  // --- time window ---
+  // time window
   timePreset: TimePreset;
   urlWindowParam: TimePreset | null;
   tick: number;
@@ -101,7 +101,7 @@ export interface AppStore {
   setUrlWindowParam: (p: TimePreset | null) => void;
   incrementTick: () => void;
 
-  // --- logs ---
+  // logs
   logVersion: number;
   logBuffer: RingBuffer<WsLogPayload>;
   sendLogLevel: (level: string) => void;
@@ -110,7 +110,7 @@ export interface AppStore {
   clearLogs: () => void;
   getLogEntries: () => WsLogPayload[];
 
-  // --- composite actions ---
+  // composite actions
   handleWsConnected: (data: WsConnectedPayload, isReconnect: boolean) => void;
 }
 
@@ -140,12 +140,12 @@ export function initialState(): Omit<
   | "handleWsConnected"
 > {
   return {
-    // --- connection ---
+    // connection
     connection: "connecting",
     uptimeSeconds: null,
     systemVersion: null,
 
-    // --- telemetry ---
+    // telemetry
     appStatus: {},
     serviceStatus: {},
     executionCompleted: null,
@@ -155,16 +155,16 @@ export function initialState(): Omit<
     droppedShutdown: 0,
     errorHandlerFailures: 0,
 
-    // --- preferences ---
+    // preferences
     theme: getStoredValue<"dark" | "light">("theme", "light", isTheme),
     sidebarCollapsed: getStoredValue<boolean>("sidebarCollapsed", false, isBoolean),
 
-    // --- time window ---
+    // time window
     timePreset: getStoredValue<TimePreset>("timePreset", "since-restart", isTimePreset),
     urlWindowParam: null,
     tick: 0,
 
-    // --- logs ---
+    // logs
     logVersion: 0,
     logBuffer: new RingBuffer<WsLogPayload>(LOG_BUFFER_CAPACITY),
     sendLogLevel: () => {},
@@ -174,10 +174,10 @@ export function initialState(): Omit<
 export const useAppStore = create<AppStore>()((set, get) => ({
   ...initialState(),
 
-  // --- connection ---
+  // connection
   setConnection: (status) => set({ connection: status }),
 
-  // --- telemetry ---
+  // telemetry
   updateAppStatus: (key, entry) => set((state) => ({ appStatus: { ...state.appStatus, [key]: entry } })),
   updateServiceStatus: (name, entry) => set((state) => ({ serviceStatus: { ...state.serviceStatus, [name]: entry } })),
   // Not called by handleWsConnected (see its comment) — kept as a standalone store primitive
@@ -187,7 +187,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   setExecutionCompleted: (data) => set({ executionCompleted: data }),
   setTelemetryHealth: (data) => set(data),
 
-  // --- preferences ---
+  // preferences
   // These setters aren't plain reducers: each one also writes its persisted copy (and, for
   // theme, the DOM attribute) so callers never have to remember to sync all three themselves.
   setTheme: (t) => {
@@ -200,7 +200,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     set({ sidebarCollapsed: v });
   },
 
-  // --- time window ---
+  // time window
   // See the preferences note above — setTimePreset persists alongside the state write too.
   setTimePreset: (p) => {
     setStoredValue("timePreset", p);
@@ -209,7 +209,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
   setUrlWindowParam: (p) => set({ urlWindowParam: p }),
   incrementTick: () => set((state) => ({ tick: state.tick + 1 })),
 
-  // --- logs ---
+  // logs
   setSendLogLevel: (fn) => set({ sendLogLevel: fn }),
   pushLog: (entry) =>
     set((state) => {
@@ -225,7 +225,7 @@ export const useAppStore = create<AppStore>()((set, get) => ({
     }),
   getLogEntries: () => get().logBuffer.toArray(),
 
-  // --- composite actions ---
+  // composite actions
   handleWsConnected: (data, isReconnect) =>
     // Everything here must land in this single set() call. Splitting it across multiple set()s
     // (e.g. calling clearServiceStatus()/clearLogs()) would make atomicity depend on React's

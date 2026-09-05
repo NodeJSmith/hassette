@@ -56,9 +56,6 @@ def assert_timed_out(executor: CommandExecutor, *, thread_leaked: bool, reason: 
     assert record.thread_leaked is thread_leaked, reason
 
 
-# Not-started sync timeout → thread_leaked=False (handle.thread still None)
-
-
 async def test_not_started_sync_timeout_no_false_positive(
     executor: CommandExecutor,
     sync_executor: SyncExecutor,
@@ -106,9 +103,6 @@ async def test_not_started_sync_timeout_no_false_positive(
     )
 
 
-# Blocked sync handler past timeout → thread_leaked=True
-
-
 async def test_sync_handler_timeout_sets_thread_leaked(
     executor: CommandExecutor,
     sync_executor: SyncExecutor,
@@ -140,9 +134,6 @@ async def test_sync_handler_timeout_sets_thread_leaked(
     )
 
 
-# Async handler timeout → thread_leaked=False (no worker thread involved)
-
-
 async def test_async_handler_timeout_does_not_set_thread_leaked(
     executor: CommandExecutor,
 ) -> None:
@@ -160,9 +151,6 @@ async def test_async_handler_timeout_does_not_set_thread_leaked(
         thread_leaked=False,
         reason="thread_leaked must be False for async handlers (no worker thread)",
     )
-
-
-# Thread-leaked distinguishable from clean timeout (thread finishes before check)
 
 
 async def test_pure_async_timeout_no_handle_no_thread_leaked(
@@ -222,9 +210,6 @@ async def test_completed_sync_handler_no_false_thread_leaked(
             "even though the pool thread is still alive"
         ),
     )
-
-
-# Round-trip persistence — thread_leaked column survives write+read back
 
 
 @pytest.mark.parametrize("thread_leaked", [True, False], ids=["leaked", "not_leaked"])

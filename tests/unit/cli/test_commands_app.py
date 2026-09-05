@@ -52,9 +52,6 @@ _ACTION_CASES = [
 ]
 
 
-# cmd_app (bare — list all apps)
-
-
 class TestCmdApp:
     def test_calls_manifests_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """Bare app command fetches from GET /api/apps/manifests."""
@@ -102,9 +99,6 @@ class TestCmdApp:
     def test_app_list_columns_count_is_compact(self) -> None:
         """APP_LIST_COLUMNS uses at most 8 columns for readability."""
         assert len(APP_LIST_COLUMNS) <= 8
-
-
-# cmd_app_health
 
 
 class TestCmdAppHealth:
@@ -179,9 +173,6 @@ class TestCmdAppHealth:
         assert "last_activity_ts" in field_names
 
 
-# cmd_app_activity
-
-
 class TestCmdAppActivity:
     @pytest.fixture
     def activity_client(self, cli_client_factory: CLIClientFactory) -> HassetteCLIClient:
@@ -253,9 +244,6 @@ class TestCmdAppActivity:
         assert len(APP_ACTIVITY_COLUMNS) <= 8
 
 
-# cmd_app_config
-
-
 class TestCmdAppConfig:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """App config fetches from GET /api/apps/{key}/config."""
@@ -321,9 +309,6 @@ class TestCmdAppConfig:
         assert "config_schema" not in parsed
 
 
-# cmd_app_source
-
-
 class TestCmdAppSource:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """App source fetches from GET /api/apps/{key}/source."""
@@ -349,9 +334,6 @@ class TestCmdAppSource:
         assert parsed["app_key"] == "my-app"
         assert "content" in parsed
         assert parsed["line_count"] == 1
-
-
-# cmd_app_start / cmd_app_stop / cmd_app_reload
 
 
 def _action_response(

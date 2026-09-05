@@ -113,9 +113,6 @@ def resolve_blocking_io_behavior(owner: object) -> BlockingIOBehavior:
     return behavior
 
 
-# Tier 2 event structure (consumed by the DB persistence layer)
-
-
 @dataclass(frozen=True)
 class MonkeypatchEvent:
     """Detected blocking call event — structured for DB persistence.
@@ -156,9 +153,6 @@ class MonkeypatchEvent:
     withheld), or ``"framework"`` (no execution was bound: a genuine framework/library call)."""
 
 
-# Enablement logic
-
-
 def _should_install(hassette: "Hassette") -> bool:
     """Decide whether Tier 2 should be installed, mirroring allow_reload_in_prod precedent."""
     cfg = hassette.config
@@ -170,9 +164,6 @@ def _should_install(hassette: "Hassette") -> bool:
     if cfg.dev_mode:
         return True  # dev: on
     return cfg.blocking_io.allow_deep_detection_in_prod  # prod: only with explicit opt-in
-
-
-# Wrapper factory
 
 
 def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecutor") -> None:
@@ -279,9 +270,6 @@ def _make_method_wrapper(
     return wrapper
 
 
-# Attribution helper
-
-
 class _Attribution(NamedTuple):
     """Resolved attribution for one detected blocking call. The first four fields are ``None``
     unless ``reason == "attributed"`` (a displaced/framework call carries no owner).
@@ -332,9 +320,6 @@ def _resolve_owner(hassette: "Hassette", app_key: str | None, instance_index: in
     return hassette
 
 
-# Warning emission
-
-
 def _emit(event: MonkeypatchEvent) -> None:
     """Emit the warning for a detected blocking call.
 
@@ -364,9 +349,6 @@ def _emit(event: MonkeypatchEvent) -> None:
 #   - method: (class_obj, attr_name, original_callable)  — wrapper needs self
 #
 # Seeded from HA's block_async_io.py.
-
-
-# Install / uninstall (idempotent, reversible, leak-proof)
 
 
 def install(hassette: "Hassette", *, loop_thread_id: int, executor: "CommandExecutor") -> bool:
