@@ -64,7 +64,11 @@ def _normalize_comment_span(span: str, *, jsx: bool) -> str:
     parts = []
     for raw_line in inner.splitlines():
         stripped = raw_line.strip()
-        if stripped.startswith("*"):
+        # A JSDoc bullet `*` is always alone or followed by whitespace before the content
+        # (`*`, `* --- Helpers ---`). A star-fill divider's `*` is immediately followed by
+        # another non-whitespace fill character (`****`, `*** Helpers ***`) — leave those alone
+        # so the fill run doesn't get silently shortened below the regex thresholds.
+        if stripped == "*" or stripped.startswith("* "):
             stripped = stripped[1:].strip()
         if stripped:
             parts.append(stripped)

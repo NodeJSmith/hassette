@@ -102,6 +102,21 @@ CHECK_FILE_CASES: list[tuple[str, str, str | None]] = [
         "/** This is a real JSDoc comment explaining something. */",
         None,
     ),
+    (
+        "star_fill_bare_block_comment_flagged",
+        "/* **** */",
+        "section-divider comment - '/* **** */'",
+    ),
+    (
+        "star_fill_wrapped_block_comment_flagged",
+        "/* *** Helpers *** */",
+        "section-divider comment - '/* *** Helpers *** */'",
+    ),
+    (
+        "star_fill_wrapped_jsx_comment_flagged",
+        "{/* *** Section *** */}",
+        "section-divider comment - '{/* *** Section *** */}'",
+    ),
     ("plain_label_not_flagged", "// Helpers", None),
     ("ordinary_comment_not_flagged", "// this explains something", None),
     ("short_dash_run_not_flagged", "// ---", None),
