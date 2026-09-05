@@ -18,7 +18,8 @@ import time
 from collections.abc import Callable, Coroutine
 from typing import Any
 
-from hassette.core.command_executor import _MAX_RETRY_COUNT, CommandExecutor, RetryableBatch
+from hassette.core.command_executor import CommandExecutor
+from hassette.core.execution_pipeline import _MAX_RETRY_COUNT, RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
 from tests.support.factories import make_execution_record
 

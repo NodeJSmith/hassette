@@ -19,17 +19,7 @@ from hassette.context import CURRENT_EXECUTION_ID
 from hassette.core import execution_pipeline
 from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.database_service import DatabaseService
-from hassette.core.execution_pipeline import (
-    # Both re-exported unused in this file — kept so tests importing from this module path
-    # (test_command_executor_pipeline_queue.py, test_command_executor_pipeline_serve.py) keep working.
-    _MAX_RETRY_COUNT as _MAX_RETRY_COUNT,
-)
-from hassette.core.execution_pipeline import (
-    _UNOWNED_WARN_RATE_LIMIT_SECS as _UNOWNED_WARN_RATE_LIMIT_SECS,
-)
-from hassette.core.execution_pipeline import (
-    RetryableBatch as RetryableBatch,
-)
+from hassette.core.execution_pipeline import RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.execution_record_builder import build_execution_record
 from hassette.core.loop_watchdog import WatchdogEvent
@@ -698,10 +688,7 @@ class CommandExecutor(Service):
             )
         )
 
-    async def drain_and_persist(
-        self,
-        first_item: ExecutionRecord | RetryableBatch | None = None,
-    ) -> None:
+    async def drain_and_persist(self, first_item: ExecutionRecord | RetryableBatch | None = None) -> None:
         """Drain up to 100 queue items and persist them to DB. Delegates to execution_pipeline."""
         await execution_pipeline.drain_and_persist(self, first_item=first_item)
 
