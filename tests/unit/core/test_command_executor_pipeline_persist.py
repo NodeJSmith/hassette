@@ -15,13 +15,16 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
+import pytest
 
 from hassette.commands import InvokeHandler
 from hassette.core import execution_pipeline
+from hassette.core.execution_pipeline import RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.execution_record_builder import build_execution_record
 from hassette.core.telemetry.repository import TelemetryRepository
 from hassette.types.types import SourceTier
+from hassette.utils.execution import ExecutionResult
 
 from .conftest import init_executor, make_invocation
 from .test_command_executor import make_result
@@ -42,6 +45,17 @@ def make_real_invoke_handler_cmd(*, listener_id: int = 5, source_tier: SourceTie
         source_tier=source_tier,
         effective_timeout=None,
     )
+
+
+def test_build_execution_record_raises_when_status_not_populated():
+    """build_execution_record raises RuntimeError if result.status is still None — a caller
+    invoked it before track_execution() assigned a real outcome (contract violation).
+    """
+    cmd = make_real_invoke_handler_cmd()
+    result = ExecutionResult(duration_ms=1.0, status=None)
+
+    with pytest.raises(RuntimeError, match="status must be populated"):
+        build_execution_record(cmd, result, time.time(), "exec-id", session_id=1)
 
 
 def test_build_record_reads_source_tier():
@@ -125,6 +139,61 @@ async def test_flush_queue_handles_db_closed():
     # and returns early, which is the regression the empty-queue check cannot see.
     assert submit_attempts == 1, "flush_queue must make its best-effort persist attempt"
     assert executor._write_queue.empty()
+
+
+async def test_flush_queue_empty_queue_returns_without_persisting(monkeypatch: pytest.MonkeyPatch):
+    """flush_queue on an empty queue returns immediately — no persist attempt is made."""
+    executor = init_executor()
+
+    persist_called = False
+
+    async def fake_persist(_executor, _records, **_kwargs):
+        nonlocal persist_called
+        persist_called = True
+
+    monkeypatch.setattr(execution_pipeline, "persist_batch", fake_persist)
+
+    await execution_pipeline.flush_queue(executor)
+
+    assert not persist_called
+
+
+async def test_flush_queue_flattens_retryable_batch_records(monkeypatch: pytest.MonkeyPatch):
+    """flush_queue unpacks a queued RetryableBatch's records for a best-effort shutdown persist,
+    bypassing its retry_count/not_before backoff state.
+    """
+    executor = init_executor()
+
+    inv = make_invocation(listener_id=5, session_id=1)
+    batch = RetryableBatch(records=[inv], retry_count=2, not_before=time.monotonic() + 9999.0)
+    executor._write_queue.put_nowait(batch)
+
+    captured: list[ExecutionRecord] = []
+
+    async def fake_persist(_executor, records, **_kwargs):
+        captured.extend(records)
+
+    monkeypatch.setattr(execution_pipeline, "persist_batch", fake_persist)
+
+    await execution_pipeline.flush_queue(executor)
+
+    assert captured == [inv]
+
+
+async def test_flush_queue_records_dropped_shutdown_when_persist_raises_outside_its_own_try():
+    """An exception raised before persist_batch's own try/except (e.g. session lookup failing)
+    is caught by flush_queue itself, which counts the records as dropped-at-shutdown.
+    """
+    executor = init_executor()
+
+    inv = make_invocation(listener_id=5, session_id=1)
+    executor._write_queue.put_nowait(inv)
+
+    executor.hassette.try_session_id = MagicMock(side_effect=RuntimeError("session lookup failed"))  # pyright: ignore[reportAttributeAccessIssue]
+
+    await execution_pipeline.flush_queue(executor)
+
+    assert executor._dropped_shutdown == 1
 
 
 async def test_persist_execution_batch_includes_source_tier():

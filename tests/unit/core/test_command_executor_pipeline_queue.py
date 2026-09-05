@@ -17,6 +17,7 @@ import sqlite3
 import time
 from collections.abc import Callable, Coroutine
 from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -368,3 +369,102 @@ async def test_retryable_batch_backoff_increases_with_retry_count():
         expected_delay = float(initial_retry + 1)
         assert queued.not_before >= before + expected_delay
         assert queued.not_before <= after + expected_delay + 0.1
+
+
+async def test_deferred_batch_dropped_when_queue_full_on_requeue():
+    """A deferred RetryableBatch that can't be put back (queue full) is dropped, not raised.
+
+    Two deferred batches are drained out of a maxsize=1 queue in the same drain_and_persist
+    call (one via first_item, one already queued); the first re-queue succeeds and fills the
+    queue, so the second hits QueueFull.
+    """
+    executor = init_executor(queue_max=1)
+
+    far_future = time.monotonic() + 9999.0
+    inv1 = make_invocation(listener_id=1, session_id=1)
+    inv2 = make_invocation(listener_id=2, session_id=1)
+    batch1 = RetryableBatch(records=[inv1], retry_count=1, not_before=far_future)
+    batch2 = RetryableBatch(records=[inv2], retry_count=1, not_before=far_future)
+
+    executor._write_queue.put_nowait(batch2)  # occupies the only queue slot
+
+    await execution_pipeline.drain_and_persist(executor, first_item=batch1)
+
+    assert executor._dropped_overflow == len(batch2.records)
+    remaining = executor._write_queue.get_nowait()
+    assert remaining is batch1
+    assert executor._write_queue.empty()
+
+
+async def test_operational_error_retry_dropped_when_queue_full():
+    """OperationalError retry re-enqueue is dropped (not raised) when the queue is already full."""
+    executor = init_executor(queue_max=1)
+    executor._write_queue.put_nowait(make_invocation(listener_id=1, session_id=1))  # fills the queue
+
+    inv = make_invocation(listener_id=5, session_id=1)
+    wire_raising_persist(executor, sqlite3.OperationalError("disk I/O error"))
+
+    await execution_pipeline.persist_batch(executor, [inv], retry_count=0)
+
+    # Queue was already full, so the retry re-enqueue itself hits QueueFull and is dropped
+    # as exhausted rather than silently lost.
+    assert executor._dropped_exhausted == 1
+
+
+async def test_persist_batch_drops_records_with_no_session_when_session_not_ready():
+    """Records with session_id=None are filtered out (with a warning) when no session exists
+    yet, while sibling records in the same batch that already carry a session_id still persist.
+    """
+    executor = init_executor()
+    executor.hassette.try_session_id.return_value = None
+
+    inv_no_session = make_invocation(listener_id=1, session_id=None)
+    inv_with_session = make_invocation(listener_id=2, session_id=1)
+
+    persist_calls: list[list[ExecutionRecord]] = []
+
+    async def fake_persist_batch(recs):
+        persist_calls.append(list(recs))
+
+    executor.repository.persist_execution_batch = fake_persist_batch  # pyright: ignore[reportAttributeAccessIssue]
+    executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+
+    await execution_pipeline.persist_batch(executor, [inv_no_session, inv_with_session])
+
+    # The no-session record was filtered out (with a warning); its sibling still persisted —
+    # this is selective per-record filtering, not an unconditional early return.
+    assert persist_calls == [[inv_with_session]]
+    executor.logger.warning.assert_called_once()
+
+
+async def test_handle_fk_violation_all_persisted_emits_completion_events():
+    """When the FK fallback drops nothing, completion events still fire for the batch."""
+    executor = init_executor()
+    inv = make_invocation(listener_id=1, session_id=1)
+    executor.hassette.send_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+
+    async def fake_fk_fallback(_recs):
+        return 0  # nothing dropped
+
+    executor.repository.persist_execution_batch_with_fk_fallback = fake_fk_fallback  # pyright: ignore[reportAttributeAccessIssue]
+    executor.hassette.database_service.submit = direct_submit  # pyright: ignore[reportAttributeAccessIssue]
+
+    await execution_pipeline.handle_fk_violation(executor, [inv])
+
+    executor.hassette.send_event.assert_awaited_once()
+    assert executor._dropped_exhausted == 0
+
+
+async def test_handle_fk_violation_submit_failure_drops_all_records():
+    """If the FK-fallback submit itself raises, every record in the batch is dropped."""
+    executor = init_executor()
+    inv = make_invocation(listener_id=1, session_id=1)
+
+    async def failing_submit(_coro):
+        raise RuntimeError("db unavailable")
+
+    executor.hassette.database_service.submit = failing_submit  # pyright: ignore[reportAttributeAccessIssue]
+
+    await execution_pipeline.handle_fk_violation(executor, [inv])
+
+    assert executor._dropped_exhausted == 1
