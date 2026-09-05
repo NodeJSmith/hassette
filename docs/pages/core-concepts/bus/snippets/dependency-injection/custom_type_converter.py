@@ -26,7 +26,6 @@ def str_to_effect(value: str) -> Effect:
     return Effect(value.lower())
 
 
-
 class LightEffectApp(App):
     async def on_light_effect_change(self, effect: Annotated[Effect, A.get_attr_new("effect")]):
         self.logger.info("Light effect: %r", effect)
