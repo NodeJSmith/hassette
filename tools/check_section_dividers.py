@@ -24,6 +24,12 @@ Pragma-shaped comments (``# type: ...``, ``# pyright: ...``, ``# noqa``,
 flagged — they carry tooling directives, follow-up markers, or file-level license
 metadata, not section labels, even though they're often short and isolated.
 
+The structural and shape rules can't distinguish a real inline note from a decorative
+label by shape alone — both are short, isolated, and unpunctuated. For the rare
+genuine note this checker misclassifies, mark it ``# divider-ignore: <original text>``
+rather than deleting it; this checker treats the marker as another pragma prefix and
+leaves the line alone.
+
 Usage:
     ./tools/check_section_dividers.py            # scan the same dirs as house-lint
     ./tools/check_section_dividers.py <file> ...  # scan specific files (pre-commit)
@@ -48,12 +54,15 @@ DECORATED_WRAPPED = re.compile(r"^[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_]{3,}$")
 #: like ``# pragma: no cover``; ``dup-ignore*`` is ``check_duplicate_code.py``'s suppression
 #: syntax; ``--8<--`` is the mkdocs snippet-extraction marker used throughout
 #: ``docs/pages/*/snippets/``. ``SPDX-License-Identifier:``/``Copyright`` are file-level license
-#: metadata — short and isolated like a label, but not one a reader wrote to divide the file. All
-#: are isolated, short lines that would otherwise match the shape rule below, but none is prose a
-#: reader wrote to label a section.
+#: metadata — short and isolated like a label, but not one a reader wrote to divide the file.
+#: ``divider-ignore:`` is this checker's own suppression marker — see the module docstring — for
+#: the rare real note that would otherwise misclassify as a label; unlike ``dup-ignore``, it takes
+#: no separate reason since it suppresses one line, not a range. All are isolated, short lines
+#: that would otherwise match the shape rule below, but none is prose a reader wrote to label a
+#: section.
 PRAGMA_RE = re.compile(
     r"^(type:|pyright:|noqa\b|fmt:|ruff:|pragma:|TODO\b|FIXME\b|NOTE\b|HACK\b|XXX\b|dup-ignore|--8<--"
-    r"|SPDX-License-Identifier:|Copyright\b)",
+    r"|SPDX-License-Identifier:|Copyright\b|divider-ignore\b)",
     re.IGNORECASE,
 )
 
@@ -81,7 +90,9 @@ MAX_STRUCTURAL_WORDS = 10
 FOOTER = (
     "An isolated one-line label comment (blank line above and below) that only restates the\n"
     "def/class name below it, or reads as a short section label, is the same AI-writing tell as\n"
-    "a decorated divider (# --- Helpers ---) — delete it rather than converting it to plain text."
+    "a decorated divider (# --- Helpers ---) — delete it rather than converting it to plain text.\n"
+    "If it's a genuine note this checker misclassified, mark it # divider-ignore: <original text>\n"
+    "instead of deleting it."
 )
 
 

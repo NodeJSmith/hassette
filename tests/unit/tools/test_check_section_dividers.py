@@ -172,6 +172,29 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         [],
     ),
     (
+        "divider_ignore_marker_not_flagged_by_shape_rule",
+        """\
+        x = 1
+
+        # divider-ignore: Must remain first
+
+        y = 2
+        """,
+        [],
+    ),
+    (
+        "divider_ignore_marker_not_flagged_by_structural_rule",
+        """\
+        x = 1
+
+        # divider-ignore: Must precede the class it configures
+
+        class Foo:
+            pass
+        """,
+        [],
+    ),
+    (
         "shebang_not_flagged_even_when_isolated",
         """\
         #!/usr/bin/env python3
