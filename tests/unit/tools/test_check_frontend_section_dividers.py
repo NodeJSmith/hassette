@@ -1,9 +1,9 @@
 """Characterization tests for tools/frontend/check_frontend_section_dividers.py.
 
 Pins which line shapes the guard flags as decorated section dividers in .ts/.tsx files —
-bare `// ----` rules and wrapped `// --- Label ---` / `{/* --- Label --- */}` forms — and
-which it leaves alone (plain labels, ordinary comments), using an isolated tmp_path
-frontend tree.
+bare `// ----` rules and wrapped `// --- Label ---` / `{/* --- Label --- */}` /
+`/* --- Label --- */` forms — and which it leaves alone (plain labels, ordinary comments),
+using an isolated tmp_path frontend tree.
 """
 
 from pathlib import Path
@@ -46,6 +46,21 @@ CHECK_FILE_CASES: list[tuple[str, str, str | None]] = [
         "single_char_wrapped_jsx_comment_flagged",
         "{/* --- A --- */}",
         "section-divider comment - '{/* --- A --- */}'",
+    ),
+    (
+        "bare_block_comment_flagged",
+        "/* -------- */",
+        "section-divider comment - '/* -------- */'",
+    ),
+    (
+        "wrapped_block_comment_flagged",
+        "/* --- Helpers --- */",
+        "section-divider comment - '/* --- Helpers --- */'",
+    ),
+    (
+        "single_char_wrapped_block_comment_flagged",
+        "/* --- A --- */",
+        "section-divider comment - '/* --- A --- */'",
     ),
     ("plain_label_not_flagged", "// Helpers", None),
     ("ordinary_comment_not_flagged", "// this explains something", None),

@@ -20,8 +20,9 @@ rate on this codebase:
 
 Pragma-shaped comments (``# type: ...``, ``# pyright: ...``, ``# noqa``,
 ``# fmt: ...``, ``# ruff: ...``, ``# TODO``, ``# FIXME``, ``# NOTE``, ``# HACK``,
-``# XXX``) are never flagged — they carry tooling directives or follow-up markers,
-not section labels, even though they're often short and isolated.
+``# XXX``, ``# SPDX-License-Identifier: ...``, ``# Copyright ...``) are never
+flagged — they carry tooling directives, follow-up markers, or file-level license
+metadata, not section labels, even though they're often short and isolated.
 
 Usage:
     ./tools/check_section_dividers.py            # scan the same dirs as house-lint
@@ -43,10 +44,13 @@ DECORATED_WRAPPED = re.compile(r"^[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_]{3,}$")
 #: Tooling directives and follow-up markers, never section labels. ``pragma:`` covers directives
 #: like ``# pragma: no cover``; ``dup-ignore*`` is ``check_duplicate_code.py``'s suppression
 #: syntax; ``--8<--`` is the mkdocs snippet-extraction marker used throughout
-#: ``docs/pages/*/snippets/``. All are isolated, short lines that would otherwise match the shape
-#: rule below, but none is prose a reader wrote to label a section.
+#: ``docs/pages/*/snippets/``. ``SPDX-License-Identifier:``/``Copyright`` are file-level license
+#: metadata — short and isolated like a label, but not one a reader wrote to divide the file. All
+#: are isolated, short lines that would otherwise match the shape rule below, but none is prose a
+#: reader wrote to label a section.
 PRAGMA_RE = re.compile(
-    r"^(type:|pyright:|noqa\b|fmt:|ruff:|pragma:|TODO\b|FIXME\b|NOTE\b|HACK\b|XXX\b|dup-ignore|--8<--)",
+    r"^(type:|pyright:|noqa\b|fmt:|ruff:|pragma:|TODO\b|FIXME\b|NOTE\b|HACK\b|XXX\b|dup-ignore|--8<--"
+    r"|SPDX-License-Identifier:|Copyright\b)",
     re.IGNORECASE,
 )
 

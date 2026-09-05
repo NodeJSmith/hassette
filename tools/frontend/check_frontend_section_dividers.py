@@ -5,10 +5,12 @@ house-lint's HSL001 flags decorated section dividers (``# --------``,
 ``# --- Helpers ---``) in Python via ``tokenize``, but it never scans
 ``frontend/src/`` at all — there's no TS-aware parser wired in. This is the
 frontend-only counterpart: a line-based scan for the same divider shape in the
-two comment forms TS/TSX actually uses:
+three comment forms TS/TSX actually uses:
 
 - ``// --------`` / ``// --- Helpers ---`` — line comments.
 - ``{/* -------- */}`` / ``{/* --- Helpers --- */}`` — JSX expression comments.
+- ``/* -------- */`` / ``/* --- Helpers --- */`` — ordinary block comments, used
+  outside JSX (plain ``.ts`` files, or ``.tsx`` code outside a JSX expression).
 
 Usage:
     python tools/frontend/check_frontend_section_dividers.py
@@ -27,6 +29,8 @@ LINE_COMMENT_RULE = re.compile(r"^//\s*[-=#*~_]{4,}$")
 LINE_COMMENT_WRAPPED = re.compile(r"^//\s*[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_]{3,}$")
 JSX_COMMENT_RULE = re.compile(r"^\{/\*\s*[-=#*~_]{4,}\s*\*/\}$")
 JSX_COMMENT_WRAPPED = re.compile(r"^\{/\*\s*[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_]{3,}\s*\*/\}$")
+BLOCK_COMMENT_RULE = re.compile(r"^/\*\s*[-=#*~_]{4,}\s*\*/$")
+BLOCK_COMMENT_WRAPPED = re.compile(r"^/\*\s*[-=#*~_]{3,}\s+\S(?:.*\S)?\s+[-=#*~_]{3,}\s*\*/$")
 
 
 def check_file(path: Path) -> list[tuple[int, str]]:
@@ -44,6 +48,8 @@ def check_file(path: Path) -> list[tuple[int, str]]:
             or LINE_COMMENT_WRAPPED.fullmatch(stripped)
             or JSX_COMMENT_RULE.fullmatch(stripped)
             or JSX_COMMENT_WRAPPED.fullmatch(stripped)
+            or BLOCK_COMMENT_RULE.fullmatch(stripped)
+            or BLOCK_COMMENT_WRAPPED.fullmatch(stripped)
         ):
             violations.append((lineno, f"section-divider comment - {stripped!r}"))
 

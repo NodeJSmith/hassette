@@ -148,6 +148,30 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         [],
     ),
     (
+        "pragma_spdx_license_identifier_not_flagged",
+        """\
+        x = 1
+
+        # SPDX-License-Identifier: MIT
+
+        def foo():
+            pass
+        """,
+        [],
+    ),
+    (
+        "pragma_copyright_notice_not_flagged",
+        """\
+        x = 1
+
+        # Copyright 2026 Jessica Smith
+
+        def foo():
+            pass
+        """,
+        [],
+    ),
+    (
         "shebang_not_flagged_even_when_isolated",
         """\
         #!/usr/bin/env python3
