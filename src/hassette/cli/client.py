@@ -49,6 +49,22 @@ def query_params(**values: Any) -> dict[str, Any]:
     return {key: value for key, value in values.items() if value is not None}
 
 
+def emit_usage_error(message: str, *, json_mode: bool = False) -> NoReturn:
+    """Print a usage error and exit non-zero.
+
+    Module-level so callers with no live :class:`HassetteCLIClient` — like ``run``, which starts
+    the server directly and never talks to it over HTTP — can format a usage error the same way
+    :meth:`HassetteCLIClient.error_usage` does. ``run`` has no ``--json`` flag today and always
+    calls this with the default ``json_mode=False``; once one is added, its command function can
+    pass through ``ctx.json_mode`` to get full parity with every other command's ``--json`` handling.
+    """
+    if json_mode:
+        _write_json_error(None, message)
+    else:
+        cli_output.stderr_console.print(f"[bold red]Usage error:[/bold red] {message}", highlight=False)
+    sys.exit(1)
+
+
 class HassetteCLIClient:
     """Synchronous HTTP client for querying the hassette REST API."""
 
@@ -317,7 +333,6 @@ class HassetteCLIClient:
     def _instance_not_found(self, app_key: str, instance: str, instances: list[AppInstanceResponse]) -> NoReturn:
         names = ", ".join(repr(inst.instance_name) for inst in instances) if instances else "(none)"
         self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
-        raise AssertionError("unreachable")
 
     def _find_by_name(
         self, app_key: str, instances: list[AppInstanceResponse], name: str
@@ -360,8 +375,7 @@ class HassetteCLIClient:
         match = self._find_by_name(app_key, instances, instance)
         if match is not None:
             return match.index
-        self._instance_not_found(app_key, instance, instances)
-        raise AssertionError("unreachable")
+        return self._instance_not_found(app_key, instance, instances)
 
     def resolve_instance_with_name(self, app_key: str, instance: str) -> tuple[int, str | None]:
         """Resolve an instance selector to its index and, when known, its canonical ``instance_name``.
@@ -399,8 +413,7 @@ class HassetteCLIClient:
             match = self._find_by_name(app_key, instances, instance)
             if match is not None:
                 return match.index, match.instance_name
-            self._instance_not_found(app_key, instance, instances)
-            raise AssertionError("unreachable") from None
+            return self._instance_not_found(app_key, instance, instances)
         else:
             instances = self._try_fetch_instances(app_key)
             if instances is not None:
@@ -566,11 +579,7 @@ class HassetteCLIClient:
 
     def error_usage(self, message: str) -> NoReturn:
         """Print a usage error and exit non-zero."""
-        if self.json_mode:
-            _write_json_error(None, message)
-        else:
-            cli_output.stderr_console.print(f"[bold red]Usage error:[/bold red] {message}", highlight=False)
-        sys.exit(1)
+        emit_usage_error(message, json_mode=self.json_mode)
 
 
 def make_client(ctx: CLIContext) -> HassetteCLIClient:

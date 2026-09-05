@@ -97,8 +97,6 @@ SourceTierArg = Annotated[
     Parameter(name=["--source-tier"], help="Filter by telemetry source tier: 'app', 'framework', or 'all'."),
 ]
 
-JsonArg = Annotated[bool, Parameter(name=["--json"], help="Output results as JSON.", negative=[])]
-
 AppKeyArg = Annotated[str | None, Parameter(name=["--app"], help="Filter by app key.")]
 
 InstanceArg = Annotated[
