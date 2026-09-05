@@ -25,6 +25,8 @@ const SELECTORS = {
   statusBar: "[data-testid='status-bar']",
 } as const;
 
+const ALERT_BANNER_TESTID = "alert-banner";
+
 const DRAWER_OPEN_CLASS = "translate-x-0";
 const DRAWER_CLOSED_CLASS = "-translate-x-full";
 const SIDEBAR_COLLAPSED_CLASS = "is-collapsed";
@@ -544,21 +546,21 @@ describe("App — FailedAppsAlert", () => {
   it("includes a degraded app in the failure banner", async () => {
     seedManifests([createManifest({ app_key: "degraded_app", display_name: "Degraded App", status: "degraded" })]);
     render(<App />);
-    const banner = await screen.findByTestId("alert-banner");
+    const banner = await screen.findByTestId(ALERT_BANNER_TESTID);
     expect(banner.textContent).toContain("degraded_app");
   });
 
   it("includes a failed app in the failure banner", async () => {
     seedManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
     render(<App />);
-    const banner = await screen.findByTestId("alert-banner");
+    const banner = await screen.findByTestId(ALERT_BANNER_TESTID);
     expect(banner.textContent).toContain("failed_app");
   });
 
   it("does not include a running app in the failure banner", () => {
     seedManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]);
     render(<App />);
-    expect(screen.queryByTestId("alert-banner")).toBeNull();
+    expect(screen.queryByTestId(ALERT_BANNER_TESTID)).toBeNull();
   });
 
   it("includes a multi-instance app whose live overlay shows one running and one failed instance", async () => {
@@ -586,7 +588,7 @@ describe("App — FailedAppsAlert", () => {
       useAppStore.getState().updateAppStatus(appStatusKey("multi_instance_app", 1), { status: "failed", index: 1 });
     });
 
-    const banner = await screen.findByTestId("alert-banner");
+    const banner = await screen.findByTestId(ALERT_BANNER_TESTID);
     expect(banner.textContent).toContain("multi_instance_app");
   });
 });
@@ -603,7 +605,7 @@ describe("App — FailedAppsAlert re-render scoping", () => {
     ]);
     render(<App />);
     // Wait for manifests to load and settle the failure banner before capturing a baseline.
-    await screen.findByTestId("alert-banner");
+    await screen.findByTestId(ALERT_BANNER_TESTID);
     const before = alertBannerRenderCount.renders;
 
     act(() => {
@@ -622,14 +624,14 @@ describe("App — FailedAppsAlert re-render scoping", () => {
     // Wait for manifests to load (sidebar renders one entry per manifest) before triggering the
     // status change — the banner itself isn't present yet since nothing is failing.
     await screen.findByTestId("app-entry-flaky_app");
-    expect(screen.queryByTestId("alert-banner")).toBeNull();
+    expect(screen.queryByTestId(ALERT_BANNER_TESTID)).toBeNull();
     const before = alertBannerRenderCount.renders;
 
     act(() => {
       useAppStore.getState().updateAppStatus(appStatusKey("flaky_app", 0), { status: "failed", index: 0 });
     });
 
-    const banner = await screen.findByTestId("alert-banner");
+    const banner = await screen.findByTestId(ALERT_BANNER_TESTID);
     expect(banner.textContent).toContain("flaky_app");
     expect(alertBannerRenderCount.renders).toBeGreaterThan(before);
   });
