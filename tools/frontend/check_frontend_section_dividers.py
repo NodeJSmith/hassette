@@ -15,7 +15,9 @@ comment forms TS/TSX actually uses:
 The JSX and block forms can also span multiple physical lines (the standard JSDoc-style
 layout, ``/*`` then a ``* --- Helpers ---`` line then a closing ``*/`` line) — those are
 matched as a whole comment span across the full file text, normalized to the single-line
-form the same regexes already check, rather than line-by-line like the ``//`` scan.
+form the same regexes already check, rather than line-by-line like the ``//`` scan. The same
+normalization strips a JSDoc opener's extra leading ``*`` (``/** -------- */``), so that form
+is recognized too, whether it's one line or several.
 
 Decorated-form parity with HSL001 only — unlike ``tools/check_section_dividers.py``, this
 checker has no *undecorated* one-line label rule (``// Helpers`` with no dashes). Extending
