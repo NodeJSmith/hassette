@@ -38,6 +38,16 @@ interface ActivityGroup {
   handlerName: string;
   latestStatus: ExecutionStatus;
   count: number;
+  avgDurationMs: number | null;
+  newestTimestamp: number;
+  oldestTimestamp: number;
+}
+
+interface Accumulator {
+  key: string;
+  handlerName: string;
+  latestStatus: ExecutionStatus;
+  count: number;
   durationSum: number;
   durationCount: number;
   newestTimestamp: number;
@@ -45,44 +55,51 @@ interface ActivityGroup {
 }
 
 function summarizeActivityByHandler(entries: ActivityFeedEntryData[]): ActivityGroup[] {
-  const groups = new Map<string, ActivityGroup>();
+  const accumulators = new Map<string, Accumulator>();
   const newestFirst = [...entries].sort((a, b) => b.timestamp - a.timestamp);
   for (const entry of newestFirst) {
     const key = `${entry.kind}:${entry.handler_id}`;
-    const dur = entry.duration_ms ?? null;
-    const prev = groups.get(key);
+    const duration = entry.duration_ms ?? null;
+    const prev = accumulators.get(key);
     if (prev) {
-      groups.set(key, {
+      accumulators.set(key, {
         ...prev,
         count: prev.count + 1,
         oldestTimestamp: Math.min(prev.oldestTimestamp, entry.timestamp),
-        durationSum: prev.durationSum + (dur !== null ? dur : 0),
-        durationCount: prev.durationCount + (dur !== null ? 1 : 0),
+        durationSum: prev.durationSum + (duration !== null ? duration : 0),
+        durationCount: prev.durationCount + (duration !== null ? 1 : 0),
       });
     } else {
-      groups.set(key, {
+      accumulators.set(key, {
         key,
         handlerName: entry.handler_name,
         latestStatus: entry.status,
         count: 1,
-        durationSum: dur !== null ? dur : 0,
-        durationCount: dur !== null ? 1 : 0,
+        durationSum: duration !== null ? duration : 0,
+        durationCount: duration !== null ? 1 : 0,
         newestTimestamp: entry.timestamp,
         oldestTimestamp: entry.timestamp,
       });
     }
   }
-  return Array.from(groups.values());
+  return Array.from(accumulators.values()).map((acc) => ({
+    key: acc.key,
+    handlerName: acc.handlerName,
+    latestStatus: acc.latestStatus,
+    count: acc.count,
+    avgDurationMs: acc.durationCount > 0 ? acc.durationSum / acc.durationCount : null,
+    newestTimestamp: acc.newestTimestamp,
+    oldestTimestamp: acc.oldestTimestamp,
+  }));
 }
 
 function ActivityGroupRow({ group }: { group: ActivityGroup }) {
   const kind = executionStatusKind(group.latestStatus);
   const isGrouped = group.count > 1;
-  const avgDurationMs = group.durationCount > 0 ? group.durationSum / group.durationCount : null;
-  const showAvgDuration = isGrouped && avgDurationMs !== null;
+  const showAvgDuration = isGrouped && group.avgDurationMs !== null;
   const durationLabel = showAvgDuration
-    ? `avg ${formatDurationOrDash(avgDurationMs)}`
-    : formatDurationOrDash(avgDurationMs);
+    ? `avg ${formatDurationOrDash(group.avgDurationMs)}`
+    : formatDurationOrDash(group.avgDurationMs);
   const newestTimeLabel = formatRelativeTime(group.newestTimestamp);
   const oldestTimeLabel = formatRelativeTime(group.oldestTimestamp);
   const showTimeRange = isGrouped && newestTimeLabel !== oldestTimeLabel;
