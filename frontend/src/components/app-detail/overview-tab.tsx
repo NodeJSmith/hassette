@@ -20,6 +20,7 @@ import { RecentActivitySection } from "./recent-activity-section";
 
 type ManifestStatus = components["schemas"]["ManifestStatus"];
 type ResourceStatus = components["schemas"]["ResourceStatus"];
+type AppStatus = ManifestStatus | ResourceStatus | "unknown";
 
 interface Props {
   listeners: ListenerData[];
@@ -27,7 +28,7 @@ interface Props {
   appKey: string;
   instanceQs: string;
   resolvedInstanceIndex: number;
-  appStatus?: ManifestStatus | ResourceStatus | "unknown";
+  appStatus?: AppStatus;
 }
 
 const SEARCH_INPUT_CLASS =
@@ -49,13 +50,7 @@ function LogSearchInput({ value, onChange }: { value: string; onChange: (next: s
   );
 }
 
-function RecentLogsSection({
-  appKey,
-  appStatus,
-}: {
-  appKey: string;
-  appStatus?: ManifestStatus | ResourceStatus | "unknown";
-}) {
+function RecentLogsSection({ appKey, appStatus }: { appKey: string; appStatus?: AppStatus }) {
   const isInactive = appStatus !== undefined && INACTIVE_STATUSES.has(appStatus);
   const [search, setSearch] = useState("");
   const log = useLogTable({ context: "app", appKey, useLocalState: true, search });
@@ -90,12 +85,15 @@ function RecentLogsSection({
 
 export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInstanceIndex, appStatus }: Props) {
   const connection = useAppStore((s) => s.connection);
-  const wsConnected = connection === "connected";
+  const isWsConnected = connection === "connected";
   const allItems = useMemo(() => buildItems(listeners, jobs), [listeners, jobs]);
   const failingItems = useMemo(() => allItems.filter(isFailing), [allItems]);
 
   return (
-    <div className={cn("flex flex-col gap-7", !wsConnected && "opacity-[var(--op-muted)]")} data-testid="overview-tab">
+    <div
+      className={cn("flex flex-col gap-7", !isWsConnected && "opacity-[var(--op-muted)]")}
+      data-testid="overview-tab"
+    >
       <OverviewHealthStrip listeners={listeners} jobs={jobs} />
 
       {failingItems.length > 0 && (
