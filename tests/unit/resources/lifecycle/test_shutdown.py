@@ -26,7 +26,7 @@ from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.task_bucket import make_task_factory
 from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
-from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
+from tests.support.helpers import GENEROUS_SHUTDOWN_TIMEOUT_SECONDS, SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 
@@ -684,7 +684,7 @@ async def test_shutdown_children_uses_remaining_budget_after_slow_cleanup():
     an independent fresh timeout window after cleanup.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5.0
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = GENEROUS_SHUTDOWN_TIMEOUT_SECONDS
 
     parent = SlowCleanupParent(hassette)
     hanging = parent.add_child(HangingChild)
@@ -692,14 +692,16 @@ async def test_shutdown_children_uses_remaining_budget_after_slow_cleanup():
     await hanging.initialize()
 
     loop = asyncio.get_running_loop()
-    parent._shutdown_budget = compute_shutdown_budget(5.0, loop.time())
+    parent._shutdown_budget = compute_shutdown_budget(GENEROUS_SHUTDOWN_TIMEOUT_SECONDS, loop.time())
     start_time = loop.time()
 
     report = await asyncio.wait_for(parent._run_post_hook_shutdown_stage(), timeout=10)
     elapsed = loop.time() - start_time
 
     assert report.is_restart_safe is False, "the hanging child must produce an unsafe report"
-    assert elapsed < 5.5, f"the post-hook stage must finish within the body budget — took {elapsed:.2f}s"
+    assert elapsed < GENEROUS_SHUTDOWN_TIMEOUT_SECONDS + 0.5, (
+        f"the post-hook stage must finish within the body budget — took {elapsed:.2f}s"
+    )
 
     stopped_events = [
         call.args[0]

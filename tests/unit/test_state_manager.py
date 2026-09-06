@@ -12,6 +12,7 @@ from hassette.state_manager.state_manager import DomainStates, StateManager
 from hassette.testing import make_light_state_dict, make_state_dict
 from tests.support.mock_hassette import make_mock_hassette
 
+FIXED_TIMESTAMP = "2026-01-01T00:00:00+00:00"
 BAD_TIMESTAMP = "INVALID-TIMESTAMP"
 BAD_CONTEXT = {"id": None, "parent_id": None, "user_id": None}
 
@@ -99,7 +100,7 @@ def domain_states() -> DomainStates[LightState]:
 class TestDomainStatesCacheValidation:
     def test_last_updated_match_returns_cached_object(self, domain_states: DomainStates[LightState]) -> None:
         ds = domain_states
-        ts = "2026-01-01T00:00:00+00:00"
+        ts = FIXED_TIMESTAMP
         ctx = {"id": "fixed-context-id", "parent_id": None, "user_id": None}
 
         state_1 = make_light_state_dict(
@@ -129,7 +130,7 @@ class TestDomainStatesCacheValidation:
     def test_frozen_state_match_returns_cached_object(self, domain_states: DomainStates[LightState]) -> None:
         """Without last_updated to compare, identical states still hit the cache."""
         ds = domain_states
-        ts = "2026-01-01T00:00:00+00:00"
+        ts = FIXED_TIMESTAMP
 
         def state_without_last_updated() -> dict:
             state = make_light_state_dict(

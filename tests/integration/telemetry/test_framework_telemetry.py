@@ -22,6 +22,7 @@ from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.testing import HassetteHarness
 from hassette.testing._harness import TEST_TOKEN
 from tests.support.factories import make_job_registration, make_listener_registration
+from tests.support.helpers import DB_HASSETTE_DATABASE_MAX_SIZE_MB, DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
 
 
@@ -40,8 +41,8 @@ async def framework_hassette(premigrated_db_path: Path) -> AsyncIterator[MagicMo
         sealed=False,
         data_dir=premigrated_db_path.parent,
         set_ready=False,
-        database={"max_size_mb": 0},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        database={"max_size_mb": DB_HASSETTE_DATABASE_MAX_SIZE_MB},
+        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
     )
 
     db_service = DatabaseService(hassette, parent=None)

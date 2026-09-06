@@ -13,8 +13,15 @@ from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.factories import TEST_SOURCE_LOCATION
-from tests.support.helpers import async_noop
+from tests.support.helpers import (
+    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+    async_noop,
+)
 from tests.support.mock_hassette import make_mock_hassette
+
+SIZE_FAILSAFE_TRIGGER_MB = 0.0001
+"""Tiny max_size_mb guaranteed to trigger the size failsafe on any non-empty DB."""
 
 
 @pytest.fixture
@@ -24,8 +31,8 @@ def mock_hassette_fresh(tmp_path: Path) -> AsyncMock:
         sealed=False,
         data_dir=tmp_path,
         set_ready=False,
-        database={"telemetry_write_queue_max": 500},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        database={"telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX},
+        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
     )
 
 
@@ -528,7 +535,7 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
         )
     await db.commit()
 
-    initialized_service.hassette.config.database.max_size_mb = 0.0001  # guaranteed to trigger
+    initialized_service.hassette.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
     # First trigger — counter goes to 1, no warning logged
     with patch.object(initialized_service, "logger") as mock_logger:

@@ -48,6 +48,11 @@ from hassette.core.loop_watchdog import LoopWatchdog
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.testing import make_test_config
 from hassette.types.enums import BlockingIOBehavior
+from tests.support.helpers import (
+    DB_HASSETTE_DATABASE_MAX_SIZE_MB,
+    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+)
 
 from .helpers import DbFixture, drain_db_writes, fetch_blocking_events, open_db_with_session, running_command_executor
 
@@ -66,8 +71,11 @@ def _make_ignore_hassette(premigrated_db_path: Path) -> MagicMock:
     """
     config = make_test_config(
         data_dir=premigrated_db_path.parent,
-        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        database={
+            "telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+            "max_size_mb": DB_HASSETTE_DATABASE_MAX_SIZE_MB,
+        },
+        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
         web_api={"run": True},
     )
     mock_hassette = MagicMock()

@@ -16,9 +16,17 @@ from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.summary_models import SessionRecord
 from hassette.utils.aiosqlite_utils import connect_daemon
+from tests.support.helpers import (
+    DB_HASSETTE_DATABASE_MAX_SIZE_MB,
+    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+)
 from tests.support.mock_hassette import make_mock_hassette
 
 from .helpers import BASE_TS, DbFixture, open_db_with_session
+
+SHORT_READ_TIMEOUT_SECONDS = 0.1
+"""Short read timeout for testing query-level timeout behavior."""
 
 
 class TestGetSessionList:
@@ -95,8 +103,12 @@ class TestReadTimeout:
         return make_mock_hassette(
             data_dir=premigrated_db_path.parent,
             set_ready=False,
-            database={"telemetry_write_queue_max": 500, "max_size_mb": 0, "read_timeout_seconds": 0.1},
-            lifecycle={"resource_shutdown_timeout_seconds": 5},
+            database={
+                "telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+                "max_size_mb": DB_HASSETTE_DATABASE_MAX_SIZE_MB,
+                "read_timeout_seconds": SHORT_READ_TIMEOUT_SECONDS,
+            },
+            lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
             web_api={"run": True},
         )
 
