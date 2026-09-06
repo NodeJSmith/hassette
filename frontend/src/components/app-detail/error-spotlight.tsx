@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { StatusShape } from "../shared/status-shape";
 import { OVERVIEW_SECTION_CLASS } from "./overview-section";
-import { handlerHref, itemErrorMessage, itemErrorType } from "./overview-tab-helpers";
+import { handlerHref, itemErrorLabel, itemErrorMessage } from "./overview-tab-helpers";
 import type { UnifiedItem } from "./unified-handler-row";
 
 const SPOTLIGHT_LIMIT = 3;
@@ -18,7 +18,7 @@ interface SpotlightEntryProps {
 }
 
 function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
-  const errorType = itemErrorType(item);
+  const errorLabel = itemErrorLabel(item);
   const errorMessage = itemErrorMessage(item);
   const href = handlerHref(appKey, item, instanceQs);
 
@@ -33,7 +33,7 @@ function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
       <span className="shrink-0 whitespace-nowrap font-mono text-[length:var(--text-mono-sm)] font-medium text-foreground">
         {item.name}
       </span>
-      {errorType && <span className="shrink-0 whitespace-nowrap text-sm text-destructive">{errorType}</span>}
+      {errorLabel && <span className="shrink-0 whitespace-nowrap text-sm text-destructive">{errorLabel}</span>}
       {errorMessage && (
         <span className="min-w-0 flex-1 truncate text-sm text-foreground-secondary" title={errorMessage}>
           {errorMessage}

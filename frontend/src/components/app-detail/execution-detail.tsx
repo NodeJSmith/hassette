@@ -10,7 +10,7 @@ import type { components } from "../../api/generated-types";
 import { useDocumentTitle } from "../../hooks/use-document-title";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
-import { executionStatusKind } from "../../utils/status";
+import { executionStatusKind, TIMED_OUT_LABEL } from "../../utils/status";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
 import { EmptyState } from "../shared/empty-state";
@@ -42,7 +42,7 @@ function statusBadgeFor(status: ExecutionStatus) {
     case "timed_out":
       return (
         <Badge variant="warning" size="sm">
-          timed out
+          {TIMED_OUT_LABEL}
         </Badge>
       );
     case "cancelled":

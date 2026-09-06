@@ -13,8 +13,8 @@ import { StatusShape } from "../shared/status-shape";
 import {
   handlerHref,
   isFailing,
+  itemErrorLabel,
   itemErrorMessage,
-  itemErrorType,
   itemKindChip,
   itemLastActiveAt,
   itemRunCount,
@@ -59,7 +59,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
   const href = handlerHref(appKey, item, instanceQs);
   const failing = isFailing(item);
   const chipLabel = itemKindChip(item);
-  const errorType = failing ? itemErrorType(item) : null;
+  const errorLabel = failing ? itemErrorLabel(item) : null;
   const errorMessage = failing ? itemErrorMessage(item) : null;
   const runCount = itemRunCount(item);
   const callLabel = item.kind === "listener" ? "call" : "run";
@@ -107,7 +107,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
           <Badge variant={item.kind} size="sm" aria-label={`kind: ${chipLabel}`}>
             {chipLabel}
           </Badge>
-          {errorType && <span className="whitespace-nowrap text-sm text-destructive">{errorType}</span>}
+          {errorLabel && <span className="whitespace-nowrap text-sm text-destructive">{errorLabel}</span>}
         </div>
 
         {errorMessage && (

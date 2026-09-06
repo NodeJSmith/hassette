@@ -1,16 +1,12 @@
-import { type HandlerKind, handlerPath } from "../../utils/app-routes";
-import { handlerKindLabel } from "../../utils/status";
+import { handlerPath, parseInstanceParam } from "../../utils/app-routes";
+import { handlerKindLabel, TIMED_OUT_LABEL } from "../../utils/status";
 import { compareFailingFirst } from "./handler-sort";
 import type { UnifiedItem } from "./unified-handler-row";
 
 export function handlerHref(appKey: string, item: UnifiedItem, instanceQs: string): string {
-  const kind: HandlerKind = item.kind === "listener" ? "listener" : "job";
-  return handlerPath(
-    appKey,
-    kind,
-    item.id,
-    instanceQs ? { instance: new URLSearchParams(instanceQs).get("instance") } : undefined,
-  );
+  return handlerPath(appKey, item.kind, item.id, {
+    instance: parseInstanceParam(new URLSearchParams(instanceQs).get("instance")),
+  });
 }
 
 export function isFailing(item: UnifiedItem): boolean {
@@ -33,8 +29,8 @@ export function itemLastActiveAt(item: UnifiedItem): number | null {
   return item.kind === "listener" ? (item.data.last_invoked_at ?? null) : (item.data.last_executed_at ?? null);
 }
 
-export function itemErrorType(item: UnifiedItem): string | null {
-  return item.data.last_error_type ?? (item.data.timed_out > 0 ? "timed out" : null);
+export function itemErrorLabel(item: UnifiedItem): string | null {
+  return item.data.last_error_type ?? (item.data.timed_out > 0 ? TIMED_OUT_LABEL : null);
 }
 
 export function itemErrorMessage(item: UnifiedItem): string | null {

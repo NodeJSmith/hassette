@@ -197,6 +197,8 @@ export function statusToKind(status: StatusKindMapKey): StatusKind {
   return STATUS_KIND_MAP[status] ?? "mute";
 }
 
+export const TIMED_OUT_LABEL = "timed out";
+
 /** Derive a display chip label from handler/job metadata.
  * Listeners use backend-provided `listener_kind`; jobs use trigger_type.
  */
