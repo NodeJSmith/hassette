@@ -21,6 +21,7 @@ type AppManifestListResponse = components["schemas"]["AppManifestListResponse"];
 type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
+type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
@@ -236,6 +237,21 @@ export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEn
     app_key: null,
     ...overrides,
   } satisfies LogEntryResponse;
+}
+
+export function createActivityFeedEntry(overrides: Partial<ActivityFeedEntry> = {}): ActivityFeedEntry {
+  return {
+    row_id: "00000000-0000-0000-0000-000000000001",
+    status: "success",
+    timestamp: 1700000100,
+    app_key: "test_app",
+    handler_id: 1,
+    handler_name: "on_motion",
+    duration_ms: 42,
+    error_type: null,
+    kind: "handler",
+    ...overrides,
+  } satisfies ActivityFeedEntry;
 }
 
 export function createExecutionCompletedPayload(
