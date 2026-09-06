@@ -3,16 +3,19 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import type { components } from "../../api/generated-types";
 import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
 import { useAppStore } from "../../state/store";
-import { createJob, createListener, createLogEntry } from "../../test/factories";
+import {
+  createActivityFeedEntry,
+  createExecutionCompletedPayload,
+  createJob,
+  createListener,
+  createLogEntry,
+} from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
 import { OverviewTab } from "./overview-tab";
-
-type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 
 // Overview tab tests are split into two groups:
 //  1. Props-only tests (error spotlight, health grid) — no context needed
@@ -28,10 +31,13 @@ vi.mock("wouter", () =>
   }),
 );
 
+const TEST_APP_KEY = "test_app";
+const OTHER_APP_KEY = "my_app";
+
 function renderOverviewTab({
   listeners = [createListener()],
   jobs = [createJob()],
-  appKey = "test_app",
+  appKey = TEST_APP_KEY,
   instanceQs = "",
   resolvedInstanceIndex = 0,
 } = {}) {
@@ -151,7 +157,6 @@ describe("OverviewTab — Error Spotlight", () => {
       createListener({ listener_id: 5, failed: 1 }),
     ];
     const { getAllByTestId, getByTestId } = renderOverviewTab({ listeners, jobs: [] });
-    // Initially only 3 visible
     expect(getAllByTestId(/^overview-error-spotlight-entry-/).length).toBe(3);
     const btn = getByTestId("overview-error-spotlight-show-more");
     expect(btn.textContent).toContain("2");
@@ -175,38 +180,38 @@ describe("OverviewTab — Error Spotlight", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 7, failed: 1 })],
       jobs: [],
-      appKey: "my_app",
+      appKey: OTHER_APP_KEY,
       instanceQs: "",
     });
     const entry = getByTestId("overview-error-spotlight-entry-listener-7");
     const anchor = entry.querySelector("a");
     expect(anchor).not.toBeNull();
-    expect(anchor!.getAttribute("href")).toBe("/apps/my_app/handlers/listener/7");
+    expect(anchor!.getAttribute("href")).toBe(`/apps/${OTHER_APP_KEY}/handlers/listener/7`);
   });
 
   it("links failing job entry to handlers tab with correct job ID", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [],
       jobs: [createJob({ job_id: 20, failed: 1 })],
-      appKey: "my_app",
+      appKey: OTHER_APP_KEY,
       instanceQs: "",
     });
     const entry = getByTestId("overview-error-spotlight-entry-job-20");
     const anchor = entry.querySelector("a");
     expect(anchor).not.toBeNull();
-    expect(anchor!.getAttribute("href")).toBe("/apps/my_app/handlers/job/20");
+    expect(anchor!.getAttribute("href")).toBe(`/apps/${OTHER_APP_KEY}/handlers/job/20`);
   });
 
   it("links entry includes instanceQs when provided", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 3, failed: 1 })],
       jobs: [],
-      appKey: "test_app",
+      appKey: TEST_APP_KEY,
       instanceQs: "?instance=1",
     });
     const entry = getByTestId("overview-error-spotlight-entry-listener-3");
     const anchor = entry.querySelector("a");
-    expect(anchor!.getAttribute("href")).toBe("/apps/test_app/handlers/listener/3?instance=1");
+    expect(anchor!.getAttribute("href")).toBe(`/apps/${TEST_APP_KEY}/handlers/listener/3?instance=1`);
   });
 });
 
@@ -273,7 +278,6 @@ describe("OverviewTab — Handler Health Grid", () => {
     ];
     const { container } = renderOverviewTab({ listeners, jobs: [] });
     const cards = container.querySelectorAll("[data-testid^='overview-health-card-']");
-    // The failing listener (id=2) should appear first
     expect(cards[0].getAttribute("data-testid")).toBe("overview-health-card-listener-2");
     expect(cards[1].getAttribute("data-testid")).toBe("overview-health-card-listener-1");
   });
@@ -308,11 +312,11 @@ describe("OverviewTab — Handler Health Grid", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 4 })],
       jobs: [],
-      appKey: "my_app",
+      appKey: OTHER_APP_KEY,
       instanceQs: "",
     });
     await user.click(getByTestId("overview-health-card-listener-4"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/listener/4");
+    expect(mockNavigate).toHaveBeenCalledWith(`/apps/${OTHER_APP_KEY}/handlers/listener/4`);
   });
 
   it("clicking a job card navigates to the correct handler detail page", async () => {
@@ -321,11 +325,11 @@ describe("OverviewTab — Handler Health Grid", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [],
       jobs: [createJob({ job_id: 15 })],
-      appKey: "my_app",
+      appKey: OTHER_APP_KEY,
       instanceQs: "",
     });
     await user.click(getByTestId("overview-health-card-job-15"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/job/15");
+    expect(mockNavigate).toHaveBeenCalledWith(`/apps/${OTHER_APP_KEY}/handlers/job/15`);
   });
 
   it("card navigation includes instanceQs", async () => {
@@ -334,32 +338,20 @@ describe("OverviewTab — Handler Health Grid", () => {
     const { getByTestId } = renderOverviewTab({
       listeners: [createListener({ listener_id: 6 })],
       jobs: [],
-      appKey: "test_app",
+      appKey: TEST_APP_KEY,
       instanceQs: "?instance=2",
     });
     await user.click(getByTestId("overview-health-card-listener-6"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/6?instance=2");
+    expect(mockNavigate).toHaveBeenCalledWith(`/apps/${TEST_APP_KEY}/handlers/listener/6?instance=2`);
   });
 });
 
 describe("OverviewTab — Recent Activity", () => {
   it("renders activity data from the endpoint", async () => {
-    const entries: ActivityFeedEntry[] = [
-      {
-        row_id: "00000000-0000-0000-0000-000000000001",
-        status: "success",
-        timestamp: 1700000100,
-        app_key: "test_app",
-        handler_id: 1,
-        handler_name: "on_motion",
-        duration_ms: 42,
-        error_type: null,
-        kind: "handler",
-      },
-    ];
-    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
+    const entries = [createActivityFeedEntry()];
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json(entries)));
 
-    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    const { getByTestId } = renderOverviewTab();
     await waitFor(() => {
       expect(getByTestId("overview-activity-section")).toBeDefined();
     });
@@ -370,24 +362,13 @@ describe("OverviewTab — Recent Activity", () => {
   });
 
   it("wraps the activity table in a horizontal scroll container", async () => {
-    // Regression: the nowrap duration/time columns overflowed the mobile
-    // viewport, making the entire main column horizontally scrollable.
-    const entries: ActivityFeedEntry[] = [
-      {
-        row_id: "00000000-0000-0000-0000-000000000003",
-        status: "success",
-        timestamp: 1700000200,
-        app_key: "test_app",
-        handler_id: 1,
-        handler_name: "on_motion",
-        duration_ms: 42,
-        error_type: null,
-        kind: "handler",
-      },
+    // Nowrap columns must overflow inside the table, not the main viewport
+    const entries = [
+      createActivityFeedEntry({ row_id: "00000000-0000-0000-0000-000000000003", timestamp: 1700000200 }),
     ];
-    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json(entries)));
 
-    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    const { getByTestId } = renderOverviewTab();
     await waitFor(() => {
       expect(getByTestId("overview-activity-scroll")).toBeDefined();
     });
@@ -397,31 +378,28 @@ describe("OverviewTab — Recent Activity", () => {
   });
 
   it("renders empty state when activity endpoint returns no entries", async () => {
-    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>([])));
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json([])));
 
-    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    const { getByTestId } = renderOverviewTab();
     await waitFor(() => {
       expect(getByTestId("overview-activity-empty")).toBeDefined();
     });
   });
 
   it("shows status shape, handler name, duration, and relative time per row", async () => {
-    const entries: ActivityFeedEntry[] = [
-      {
+    const entries = [
+      createActivityFeedEntry({
         row_id: "00000000-0000-0000-0000-000000000002",
         status: "error",
         timestamp: 1700000200,
-        app_key: "test_app",
-        handler_id: 1,
         handler_name: "on_door_open",
         duration_ms: 155,
         error_type: "ValueError",
-        kind: "handler",
-      },
+      }),
     ];
-    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json(entries)));
 
-    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    const { getByTestId } = renderOverviewTab();
     await waitFor(() => {
       const section = getByTestId("overview-activity-section");
       expect(section.textContent).toContain("on_door_open");
@@ -430,66 +408,48 @@ describe("OverviewTab — Recent Activity", () => {
   });
 
   it("groups repeated activity into one row per runtime handler", async () => {
-    const entries: ActivityFeedEntry[] = [
-      {
+    const entries = [
+      createActivityFeedEntry({
         row_id: "r1",
-        status: "success",
         timestamp: 1700000300,
-        app_key: "test_app",
-        handler_id: 1,
         handler_name: "check",
         duration_ms: 10,
-        error_type: null,
         kind: "job",
-      },
-      {
+      }),
+      createActivityFeedEntry({
         row_id: "r2",
-        status: "success",
         timestamp: 1700000200,
-        app_key: "test_app",
-        handler_id: 1,
         handler_name: "check",
         duration_ms: 20,
-        error_type: null,
         kind: "job",
-      },
-      {
+      }),
+      createActivityFeedEntry({
         row_id: "r3",
-        status: "success",
         timestamp: 1700000100,
-        app_key: "test_app",
-        handler_id: 1,
         handler_name: "check",
         duration_ms: 30,
-        error_type: null,
         kind: "job",
-      },
-      {
+      }),
+      createActivityFeedEntry({
         row_id: "r4",
         status: "error",
         timestamp: 1700000050,
-        app_key: "test_app",
         handler_id: 2,
         handler_name: "on_event",
         duration_ms: 5,
         error_type: "ValueError",
-        kind: "handler",
-      },
-      {
+      }),
+      createActivityFeedEntry({
         row_id: "r5",
-        status: "success",
         timestamp: 1700000000,
-        app_key: "test_app",
-        handler_id: 1,
         handler_name: "check",
         duration_ms: 15,
-        error_type: null,
         kind: "job",
-      },
+      }),
     ];
-    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json(entries)));
 
-    const { getByTestId, getAllByTestId } = renderOverviewTab({ appKey: "test_app" });
+    const { getByTestId, getAllByTestId } = renderOverviewTab();
     await waitFor(() => {
       const rows = getAllByTestId("overview-activity-row");
       expect(rows.length).toBe(2);
@@ -500,51 +460,29 @@ describe("OverviewTab — Recent Activity", () => {
   });
 
   it("keeps separate registrations that share a handler name", async () => {
-    const entries: ActivityFeedEntry[] = [
-      {
-        row_id: "r1",
-        status: "success",
-        timestamp: 1700000300,
-        app_key: "test_app",
-        handler_id: 1,
-        handler_name: "shared_handler",
-        duration_ms: 10,
-        error_type: null,
-        kind: "handler",
-      },
-      {
-        row_id: "r2",
-        status: "success",
-        timestamp: 1700000200,
-        app_key: "test_app",
-        handler_id: 2,
-        handler_name: "shared_handler",
-        duration_ms: 20,
-        error_type: null,
-        kind: "handler",
-      },
+    const entries = [
+      createActivityFeedEntry({ row_id: "r1", timestamp: 1700000300, handler_name: "shared_handler" }),
+      createActivityFeedEntry({ row_id: "r2", timestamp: 1700000200, handler_id: 2, handler_name: "shared_handler" }),
     ];
-    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json(entries)));
 
-    const { getAllByTestId } = renderOverviewTab({ appKey: "test_app" });
+    const { getAllByTestId } = renderOverviewTab();
     await waitFor(() => expect(getAllByTestId("overview-activity-row")).toHaveLength(2));
   });
 
   it("shows at most eight unique activity rows", async () => {
-    const entries: ActivityFeedEntry[] = Array.from({ length: 10 }, (_, index) => ({
-      row_id: `row-${index}`,
-      status: "success",
-      timestamp: 1700001000 - index,
-      app_key: "test_app",
-      handler_id: index,
-      handler_name: `handler_${index}`,
-      duration_ms: 10,
-      error_type: null,
-      kind: "handler",
-    }));
-    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json<ActivityFeedEntry[]>(entries)));
+    const entries = Array.from({ length: 10 }, (_, index) =>
+      createActivityFeedEntry({
+        row_id: `row-${index}`,
+        timestamp: 1700001000 - index,
+        handler_id: index,
+        handler_name: `handler_${index}`,
+        duration_ms: 10,
+      }),
+    );
+    server.use(http.get("/api/telemetry/app/:app_key/activity", () => HttpResponse.json(entries)));
 
-    const { getAllByTestId, queryByText } = renderOverviewTab({ appKey: "test_app" });
+    const { getAllByTestId, queryByText } = renderOverviewTab();
     await waitFor(() => expect(getAllByTestId("overview-activity-row")).toHaveLength(8));
     expect(queryByText("handler_8")).toBeNull();
   });
@@ -553,12 +491,12 @@ describe("OverviewTab — Recent Activity", () => {
 describe("OverviewTab — Recent Logs", () => {
   it("renders recent log entries for the app", async () => {
     const logs = [
-      createLogEntry({ seq: 10, app_key: "test_app", level: "INFO", message: "handler fired" }),
-      createLogEntry({ seq: 11, app_key: "test_app", level: "ERROR", message: "something went wrong" }),
+      createLogEntry({ seq: 10, app_key: TEST_APP_KEY, level: "INFO", message: "handler fired" }),
+      createLogEntry({ seq: 11, app_key: TEST_APP_KEY, level: "ERROR", message: "something went wrong" }),
     ];
     server.use(http.get("/api/logs/recent", () => HttpResponse.json(logs)));
 
-    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    const { getByTestId } = renderOverviewTab();
     await waitFor(() => {
       expect(getByTestId("overview-logs-section")).toBeDefined();
     });
@@ -571,7 +509,7 @@ describe("OverviewTab — Recent Logs", () => {
   it("renders empty state when logs endpoint returns no entries", async () => {
     server.use(http.get("/api/logs/recent", () => HttpResponse.json([])));
 
-    const { getByTestId } = renderOverviewTab({ appKey: "test_app" });
+    const { getByTestId } = renderOverviewTab();
     await waitFor(() => {
       const section = getByTestId("overview-logs-section");
       expect(section.textContent).toContain("no log lines in window");
@@ -585,39 +523,25 @@ describe("OverviewTab — Real-time refetch", () => {
     server.use(
       http.get("/api/telemetry/app/:app_key/activity", () => {
         fetchCount++;
-        return HttpResponse.json<ActivityFeedEntry[]>([]);
+        return HttpResponse.json([]);
       }),
     );
     return { getFetchCount: () => fetchCount };
   }
 
-  function renderOverview() {
-    renderWithAppState(
-      <OverviewTab listeners={[]} jobs={[]} appKey="test_app" instanceQs="" resolvedInstanceIndex={0} />,
-      { storeOverrides: { uptimeSeconds: 120 } },
-    );
+  async function setupRefetchTest() {
+    const { getFetchCount } = setupActivityCounter();
+    renderOverviewTab({ listeners: [], jobs: [] });
+    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
+    return { getFetchCount, countAfterMount: getFetchCount() };
   }
 
   it("refetches activity when executionCompleted changes with matching app_key (handler)", async () => {
-    const { getFetchCount } = setupActivityCounter();
-    renderOverview();
-
-    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
-    const countAfterMount = getFetchCount();
+    const { getFetchCount, countAfterMount } = await setupRefetchTest();
 
     act(() => {
       useAppStore.setState({
-        executionCompleted: [
-          {
-            kind: "handler",
-            listener_id: 1,
-            app_key: "test_app",
-            instance_index: 0,
-            status: "success",
-            duration_ms: 10,
-            error_type: null,
-          },
-        ],
+        executionCompleted: [createExecutionCompletedPayload({ kind: "handler", listener_id: 1, duration_ms: 10 })],
       });
     });
 
@@ -625,52 +549,26 @@ describe("OverviewTab — Real-time refetch", () => {
   });
 
   it("does not refetch when executionCompleted events are for a different app_key", async () => {
-    const { getFetchCount } = setupActivityCounter();
-    renderOverview();
-
-    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
-    const countAfterMount = getFetchCount();
+    const { getFetchCount, countAfterMount } = await setupRefetchTest();
 
     act(() => {
       useAppStore.setState({
         executionCompleted: [
-          {
-            kind: "handler",
-            listener_id: 99,
-            app_key: "other_app",
-            instance_index: 0,
-            status: "success",
-            duration_ms: 5,
-            error_type: null,
-          },
+          createExecutionCompletedPayload({ kind: "handler", listener_id: 99, app_key: "other_app", duration_ms: 5 }),
         ],
       });
     });
 
-    await new Promise((r) => setTimeout(r, 700));
+    await new Promise((resolve) => setTimeout(resolve, WS_DEBOUNCE_MAX_WAIT_MS));
     expect(getFetchCount()).toBe(countAfterMount);
   });
 
   it("refetches activity when executionCompleted changes with matching app_key (job)", async () => {
-    const { getFetchCount } = setupActivityCounter();
-    renderOverview();
-
-    await waitFor(() => expect(getFetchCount()).toBeGreaterThan(0));
-    const countAfterMount = getFetchCount();
+    const { getFetchCount, countAfterMount } = await setupRefetchTest();
 
     act(() => {
       useAppStore.setState({
-        executionCompleted: [
-          {
-            kind: "job",
-            job_id: 5,
-            app_key: "test_app",
-            instance_index: 0,
-            status: "success",
-            duration_ms: 20,
-            error_type: null,
-          },
-        ],
+        executionCompleted: [createExecutionCompletedPayload({ kind: "job", job_id: 5, duration_ms: 20 })],
       });
     });
 
