@@ -18,8 +18,18 @@ import { OVERVIEW_SECTION_CLASS, SECTION_LABEL_CLASS } from "./overview-section"
 
 const ACTIVITY_FETCH_LIMIT = 20;
 const ACTIVITY_ROW_LIMIT = 8;
-const DATA_TABLE_CLASS =
-  "w-full border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[var(--text-label-tracking)] [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
+const DATA_TABLE_CLASS = cn(
+  "w-full border-collapse bg-card",
+  "[&_thead_tr]:bg-muted",
+  "[&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2",
+  "[&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium",
+  "[&_th]:uppercase [&_th]:tracking-[var(--text-label-tracking)]",
+  "[&_th]:text-muted-foreground [&_th]:whitespace-nowrap",
+  "[&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2",
+  "[&_td]:align-middle [&_td]:font-mono",
+  "[&_td]:text-[length:var(--text-mono-sm)] [&_td]:text-foreground-secondary",
+  "[&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted",
+);
 
 type ExecutionStatus = components["schemas"]["ExecutionStatus"];
 
@@ -29,8 +39,8 @@ interface ActivityGroup {
   latestStatus: ExecutionStatus;
   count: number;
   avgDurationMs: number | null;
-  newestTs: number;
-  oldestTs: number;
+  newestTimestamp: number;
+  oldestTimestamp: number;
 }
 
 interface Accumulator {
@@ -40,8 +50,8 @@ interface Accumulator {
   count: number;
   durationSum: number;
   durationCount: number;
-  newestTs: number;
-  oldestTs: number;
+  newestTimestamp: number;
+  oldestTimestamp: number;
 }
 
 function summarizeActivityByHandler(entries: ActivityFeedEntryData[]): ActivityGroup[] {
@@ -49,27 +59,26 @@ function summarizeActivityByHandler(entries: ActivityFeedEntryData[]): ActivityG
   const newestFirst = [...entries].sort((a, b) => b.timestamp - a.timestamp);
   for (const entry of newestFirst) {
     const key = `${entry.kind}:${entry.handler_id}`;
+    const duration = entry.duration_ms ?? null;
     const prev = accumulators.get(key);
     if (prev) {
-      const dur = entry.duration_ms ?? null;
       accumulators.set(key, {
         ...prev,
         count: prev.count + 1,
-        oldestTs: Math.min(prev.oldestTs, entry.timestamp),
-        durationSum: prev.durationSum + (dur !== null ? dur : 0),
-        durationCount: prev.durationCount + (dur !== null ? 1 : 0),
+        oldestTimestamp: Math.min(prev.oldestTimestamp, entry.timestamp),
+        durationSum: prev.durationSum + (duration !== null ? duration : 0),
+        durationCount: prev.durationCount + (duration !== null ? 1 : 0),
       });
     } else {
-      const dur = entry.duration_ms ?? null;
       accumulators.set(key, {
         key,
         handlerName: entry.handler_name,
         latestStatus: entry.status,
         count: 1,
-        durationSum: dur !== null ? dur : 0,
-        durationCount: dur !== null ? 1 : 0,
-        newestTs: entry.timestamp,
-        oldestTs: entry.timestamp,
+        durationSum: duration !== null ? duration : 0,
+        durationCount: duration !== null ? 1 : 0,
+        newestTimestamp: entry.timestamp,
+        oldestTimestamp: entry.timestamp,
       });
     }
   }
@@ -79,22 +88,22 @@ function summarizeActivityByHandler(entries: ActivityFeedEntryData[]): ActivityG
     latestStatus: acc.latestStatus,
     count: acc.count,
     avgDurationMs: acc.durationCount > 0 ? acc.durationSum / acc.durationCount : null,
-    newestTs: acc.newestTs,
-    oldestTs: acc.oldestTs,
+    newestTimestamp: acc.newestTimestamp,
+    oldestTimestamp: acc.oldestTimestamp,
   }));
 }
 
 function ActivityGroupRow({ group }: { group: ActivityGroup }) {
   const kind = executionStatusKind(group.latestStatus);
   const isGrouped = group.count > 1;
-  const durationLabel =
-    isGrouped && group.avgDurationMs !== null
-      ? `avg ${formatDurationOrDash(group.avgDurationMs)}`
-      : formatDurationOrDash(group.avgDurationMs);
-  const newestTimeLabel = formatRelativeTime(group.newestTs);
-  const oldestTimeLabel = formatRelativeTime(group.oldestTs);
-  const timeLabel =
-    isGrouped && newestTimeLabel !== oldestTimeLabel ? `${newestTimeLabel}–${oldestTimeLabel}` : newestTimeLabel;
+  const showAvgDuration = isGrouped && group.avgDurationMs !== null;
+  const durationLabel = showAvgDuration
+    ? `avg ${formatDurationOrDash(group.avgDurationMs)}`
+    : formatDurationOrDash(group.avgDurationMs);
+  const newestTimeLabel = formatRelativeTime(group.newestTimestamp);
+  const oldestTimeLabel = formatRelativeTime(group.oldestTimestamp);
+  const showTimeRange = isGrouped && newestTimeLabel !== oldestTimeLabel;
+  const timeLabel = showTimeRange ? `${newestTimeLabel}–${oldestTimeLabel}` : newestTimeLabel;
 
   return (
     <tr data-testid="overview-activity-row">
@@ -110,6 +119,58 @@ function ActivityGroupRow({ group }: { group: ActivityGroup }) {
       <td className="whitespace-nowrap text-right text-muted-foreground">{durationLabel}</td>
       <td className="whitespace-nowrap text-right text-muted-foreground">{timeLabel}</td>
     </tr>
+  );
+}
+
+function ActivityContent({
+  activityError,
+  loading,
+  groups,
+}: {
+  activityError: Error | null;
+  loading: boolean;
+  groups: ActivityGroup[];
+}) {
+  if (activityError) {
+    return (
+      <p className="mt-2 p-0 text-sm text-destructive" data-testid="overview-activity-error">
+        could not load activity
+      </p>
+    );
+  }
+
+  if (!loading && groups.length === 0) {
+    return (
+      <p className="mt-2 p-0 text-sm text-muted-foreground" data-testid="overview-activity-empty">
+        no recent activity
+      </p>
+    );
+  }
+
+  // The nowrap duration/time columns can exceed the content width on
+  // mobile — scroll the table locally instead of the whole main column.
+  return (
+    <div className="overflow-x-auto" data-testid="overview-activity-scroll">
+      <table className={DATA_TABLE_CLASS}>
+        <thead>
+          <tr>
+            <th className="w-7" scope="col"></th>
+            <th scope="col">Handler</th>
+            <th className="whitespace-nowrap text-right text-muted-foreground" scope="col">
+              Duration
+            </th>
+            <th className="whitespace-nowrap text-right text-muted-foreground" scope="col">
+              Time
+            </th>
+          </tr>
+        </thead>
+        <tbody aria-live="polite" aria-atomic="false">
+          {groups.map((group) => (
+            <ActivityGroupRow key={group.key} group={group} />
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -140,44 +201,7 @@ export function RecentActivitySection({
   return (
     <section className={OVERVIEW_SECTION_CLASS} data-testid="overview-activity-section">
       <h3 className={SECTION_LABEL_CLASS}>recent activity</h3>
-      {activityError ? (
-        <p className="mt-2 p-0 text-sm text-destructive" data-testid="overview-activity-error">
-          could not load activity
-        </p>
-      ) : !loading && (activity ?? []).length === 0 ? (
-        <p className="mt-2 p-0 text-sm text-muted-foreground" data-testid="overview-activity-empty">
-          no recent activity
-        </p>
-      ) : (
-        // The nowrap duration/time columns can exceed the content width on
-        // mobile — scroll the table locally instead of the whole main column.
-        <div className="overflow-x-auto" data-testid="overview-activity-scroll">
-          <table
-            className={cn(
-              DATA_TABLE_CLASS,
-              "[&_td]:align-middle [&_td]:font-mono [&_td]:text-[length:var(--text-mono-sm)] [&_td]:text-foreground-secondary",
-            )}
-          >
-            <thead>
-              <tr>
-                <th className="w-7" scope="col"></th>
-                <th scope="col">Handler</th>
-                <th className="whitespace-nowrap text-right text-muted-foreground" scope="col">
-                  Duration
-                </th>
-                <th className="whitespace-nowrap text-right text-muted-foreground" scope="col">
-                  Time
-                </th>
-              </tr>
-            </thead>
-            <tbody aria-live="polite" aria-atomic="false">
-              {groups.map((group) => (
-                <ActivityGroupRow key={group.key} group={group} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <ActivityContent activityError={activityError} loading={loading} groups={groups} />
     </section>
   );
 }
