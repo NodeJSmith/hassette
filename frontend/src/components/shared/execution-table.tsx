@@ -20,7 +20,7 @@ import { executionPath, type HandlerKind } from "../../utils/app-routes";
 import { STATUS_DOT_SIZE } from "../../utils/constants";
 import { formatDuration, formatRelativeTime, formatTimestamp } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
-import { executionStatusKind, type StatusKind } from "../../utils/status";
+import { executionStatusKind, type StatusKind, TIMED_OUT_LABEL } from "../../utils/status";
 import { EmptyState } from "./empty-state";
 import { IconArrowRight } from "./icons";
 import { ShowMoreButton } from "./show-more-button";
@@ -49,7 +49,7 @@ const CELL_CLASS = "px-2 py-1 max-mobile:px-1 max-mobile:text-xs";
 const STATUS_LABEL: Record<StatusKind, string> = {
   ok: "ok",
   err: "failed",
-  warn: "timed out",
+  warn: TIMED_OUT_LABEL,
   cancel: "cancelled",
   mute: "skipped",
 };
