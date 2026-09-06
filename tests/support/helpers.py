@@ -50,19 +50,17 @@ SHORT_SHUTDOWN_TIMEOUT_SECONDS = 0.1
 """Short ``resource_shutdown_timeout_seconds`` for tests that force a timeout/force-terminal branch."""
 
 DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX = 500
-"""``make_mock_hassette`` database queue-max override — matches the production default."""
+"""``make_mock_hassette`` database queue-max override — smaller than the production default (1000) for test speed."""
 
 DB_HASSETTE_DATABASE_MAX_SIZE_MB = 0
 """``make_mock_hassette`` database size-limit override — 0 disables the size failsafe."""
 
 DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS = 5
-"""``make_mock_hassette`` lifecycle override — matches the production default.
-See also ``GENEROUS_SHUTDOWN_TIMEOUT_SECONDS`` (same numeric value, different consumer context)."""
+"""``make_mock_hassette`` lifecycle override — shorter than the production default (10s) for test speed."""
 
 GENEROUS_SHUTDOWN_TIMEOUT_SECONDS = 5.0
-"""Generous ``resource_shutdown_timeout_seconds`` for shutdown-body tests that need the full
-budget to run without racing the coordinator's own outer deadline.
-See also ``DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS`` (same numeric value, different consumer context)."""
+"""``resource_shutdown_timeout_seconds`` for shutdown-body tests that need enough budget
+to run without racing the coordinator's own outer deadline."""
 
 SHORT_TASK_CANCEL_TIMEOUT_SECONDS = 0.1
 """Short ``task_cancellation_timeout_seconds`` for tests that need the TaskBucket cancel stage
