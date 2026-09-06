@@ -29,7 +29,11 @@ from hassette.resources.service import Service
 from hassette.resources.teardown import TeardownCause
 from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
-from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
+from tests.support.helpers import (
+    GENEROUS_SHUTDOWN_TIMEOUT_SECONDS,
+    SHORT_SHUTDOWN_TIMEOUT_SECONDS,
+    SHORT_TASK_CANCEL_TIMEOUT_SECONDS,
+)
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.lifecycle.conftest import ShutdownCounter, SimpleService
 
@@ -259,7 +263,7 @@ class TestServiceShutdownBodyServeTaskPending:
         # own TaskBucket.cancel_all() bounds its wait by task_cancellation_timeout_seconds, not
         # resource_shutdown_timeout_seconds. Keep both short so the outer asyncio.wait_for below
         # proves the whole body stays within a bounded budget rather than racing the 5s default.
-        hassette.config.lifecycle.task_cancellation_timeout_seconds = 0.1
+        hassette.config.lifecycle.task_cancellation_timeout_seconds = SHORT_TASK_CANCEL_TIMEOUT_SECONDS
 
         svc = ResistantService(hassette)
         await svc.initialize()
@@ -318,7 +322,7 @@ class TestShutdownBodySurvivesUnresponsiveServeTask:
 
     async def test_body_completes_within_shared_budget_not_a_fresh_one(self) -> None:
         hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5.0
+        hassette.config.lifecycle.resource_shutdown_timeout_seconds = GENEROUS_SHUTDOWN_TIMEOUT_SECONDS
 
         svc = UnresponsiveService(hassette)
         child = svc.add_child(ShutdownCounter)
@@ -326,7 +330,7 @@ class TestShutdownBodySurvivesUnresponsiveServeTask:
         await wait_for_running(svc)
 
         loop = asyncio.get_running_loop()
-        svc._shutdown_budget = compute_shutdown_budget(5.0, loop.time())
+        svc._shutdown_budget = compute_shutdown_budget(GENEROUS_SHUTDOWN_TIMEOUT_SECONDS, loop.time())
         start_time = loop.time()
 
         report = await asyncio.wait_for(svc._shutdown_body(), timeout=10)
@@ -335,7 +339,9 @@ class TestShutdownBodySurvivesUnresponsiveServeTask:
         assert TeardownCause.SERVE_TASK_PENDING in report.causes, (
             "the serve task never honoring cancellation must still be recorded as evidence"
         )
-        assert elapsed < 5.5, f"the body must finish within the 5.0s budget — took {elapsed:.2f}s"
+        assert elapsed < GENEROUS_SHUTDOWN_TIMEOUT_SECONDS + 0.5, (
+            f"the body must finish within the budget — took {elapsed:.2f}s"
+        )
 
         assert child.shutdown_completed is True, "child shutdown must still be attempted, not skipped entirely"
 
@@ -355,7 +361,7 @@ class TestServiceResistantServeNeverReplaced:
     async def test_shutdown_refuses_restart_and_never_spawns_replacement(self) -> None:
         hassette = make_mock_hassette(sealed=False)
         hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
-        hassette.config.lifecycle.task_cancellation_timeout_seconds = 0.1
+        hassette.config.lifecycle.task_cancellation_timeout_seconds = SHORT_TASK_CANCEL_TIMEOUT_SECONDS
 
         svc = ResistantService(hassette)
         await svc.initialize()
@@ -411,7 +417,7 @@ async def test_slow_serve_wait_records_late_hooks_as_failed():
     mandatory tail is guaranteed regardless of how the pool is divided.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = 5.0
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = GENEROUS_SHUTDOWN_TIMEOUT_SECONDS
 
     svc = SlowServeService(hassette)
 
@@ -431,4 +437,6 @@ async def test_slow_serve_wait_records_late_hooks_as_failed():
     assert TeardownCause.SHUTDOWN_HOOK_FAILED in report.causes, (
         "on_shutdown must be recorded as failed when the serve-wait consumed the hooks pool"
     )
-    assert elapsed < 5.5, f"shutdown must stay within the coordinator budget — took {elapsed:.2f}s"
+    assert elapsed < GENEROUS_SHUTDOWN_TIMEOUT_SECONDS + 0.5, (
+        f"shutdown must stay within the coordinator budget — took {elapsed:.2f}s"
+    )

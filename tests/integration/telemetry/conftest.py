@@ -8,6 +8,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from hassette.core.telemetry.query_service import TelemetryQueryService
+from tests.support.helpers import (
+    DB_HASSETTE_DATABASE_MAX_SIZE_MB,
+    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+)
 from tests.support.mock_hassette import make_mock_hassette
 
 from .helpers import DbFixture, open_db_with_session
@@ -19,8 +24,11 @@ def db_hassette(premigrated_db_path: Path) -> MagicMock:
     return make_mock_hassette(
         data_dir=premigrated_db_path.parent,
         set_ready=False,
-        database={"telemetry_write_queue_max": 500, "max_size_mb": 0},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        database={
+            "telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+            "max_size_mb": DB_HASSETTE_DATABASE_MAX_SIZE_MB,
+        },
+        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
         web_api={"run": True},
     )
 

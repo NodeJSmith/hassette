@@ -14,6 +14,7 @@ from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.logging_ import LogPersistenceHandler
 from hassette.utils.aiosqlite_utils import connect_daemon
+from tests.support.helpers import DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS, DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
@@ -48,8 +49,8 @@ def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
     return make_mock_hassette(
         data_dir=tmp_path,
         set_ready=False,
-        database={"telemetry_write_queue_max": 500},
-        lifecycle={"resource_shutdown_timeout_seconds": 5},
+        database={"telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX},
+        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
     )
 
 

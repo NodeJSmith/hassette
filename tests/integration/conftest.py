@@ -18,17 +18,16 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.sync_executor import SyncExecutor
 from hassette.types.enums import ExecutionMode
-from tests.support.helpers import cleanup_hassette_streams
+from tests.support.helpers import (
+    DB_HASSETTE_DATABASE_MAX_SIZE_MB,
+    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+    cleanup_hassette_streams,
+)
 from tests.support.mock_hassette import make_mock_hassette
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness
-
-
-# db_hassette config overrides — named so re-tuning is a single-site edit.
-DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX = 500
-DB_HASSETTE_DATABASE_MAX_SIZE_MB = 0
-DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS = 5
 
 _HARNESS_FIXTURES = frozenset(
     {

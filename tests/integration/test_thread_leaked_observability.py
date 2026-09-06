@@ -29,6 +29,12 @@ from .conftest import invoke_cmd, pop_execution_record
 
 InvokeFn = Callable[[object], Awaitable[None]]
 
+FAST_TIMEOUT_SECONDS = 0.01
+"""Fires before a queued-but-not-started worker has a chance to dequeue."""
+
+SHORT_TIMEOUT_SECONDS = 0.05
+"""Fires while a blocking handler is still alive on the worker thread."""
+
 
 def sync_invoker(sync_executor: SyncExecutor, handler: Callable[[object], None]) -> InvokeFn:
     """Wrap a sync handler in the async adapter the bus uses, so it runs on a pool worker."""
@@ -94,7 +100,7 @@ async def test_not_started_sync_timeout_no_false_positive(
     listener = make_invoker_listener(sync_invoker(sync_executor, sync_fn))
 
     # 10ms timeout — fires before the pool has a free slot
-    await executor.execute(invoke_cmd(listener, listener_id=4, effective_timeout=0.01))
+    await executor.execute(invoke_cmd(listener, listener_id=4, effective_timeout=FAST_TIMEOUT_SECONDS))
 
     # Release the pool fillers so they exit before teardown.
     pool_gate.set()
@@ -129,7 +135,7 @@ async def test_sync_handler_timeout_sets_thread_leaked(
     listener = make_invoker_listener(sync_invoker(sync_executor, sync_blocking))
 
     # 50ms timeout — the worker will still be alive when it fires
-    await executor.execute(invoke_cmd(listener, effective_timeout=0.05))
+    await executor.execute(invoke_cmd(listener, effective_timeout=SHORT_TIMEOUT_SECONDS))
 
     # Release the worker so it can exit cleanly after the test.
     released.set()
@@ -154,7 +160,7 @@ async def test_async_handler_timeout_does_not_set_thread_leaked(
 
     listener = make_invoker_listener(slow_async)
 
-    await executor.execute(invoke_cmd(listener, listener_id=2, effective_timeout=0.05))
+    await executor.execute(invoke_cmd(listener, listener_id=2, effective_timeout=SHORT_TIMEOUT_SECONDS))
 
     assert_timed_out(
         executor,
@@ -181,7 +187,7 @@ async def test_pure_async_timeout_no_handle_no_thread_leaked(
 
     listener = make_invoker_listener(async_slow)
 
-    await executor.execute(invoke_cmd(listener, listener_id=3, effective_timeout=0.05))
+    await executor.execute(invoke_cmd(listener, listener_id=3, effective_timeout=SHORT_TIMEOUT_SECONDS))
 
     assert_timed_out(
         executor,
