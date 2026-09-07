@@ -231,6 +231,60 @@ class TestLoggingConfig:
             cfg = LoggingConfig(log_level="BADLEVEL")  # pyright: ignore[reportArgumentType]
         assert cfg.log_level == "INFO"
 
+    def test_extra_loggers_defaults_to_empty_tuple(self):
+        """extra_loggers defaults to an empty tuple — no extra loggers attached."""
+        cfg = LoggingConfig()
+        assert cfg.extra_loggers == ()
+
+    def test_extra_loggers_accepts_names(self):
+        """extra_loggers stores configured logger names as a tuple."""
+        cfg = LoggingConfig(extra_loggers=["my_app.notify", "my_app.laundry"])
+        assert cfg.extra_loggers == ("my_app.notify", "my_app.laundry")
+
+    def test_extra_loggers_rejects_empty_string(self):
+        """An empty logger name is rejected — it would resolve to the root logger."""
+        with pytest.raises(ValidationError):
+            LoggingConfig(extra_loggers=[""])
+
+    def test_extra_loggers_rejects_whitespace_only_string(self):
+        """A whitespace-only logger name is rejected for the same reason as an empty one."""
+        with pytest.raises(ValidationError):
+            LoggingConfig(extra_loggers=["   "])
+
+    def test_extra_loggers_rejects_multiline_whitespace_only_string(self):
+        """A multi-line whitespace-only name (e.g. from a TOML triple-quoted string) is rejected
+        the same as a single-line one — the min_length/pattern constraint isn't line-scoped.
+        """
+        with pytest.raises(ValidationError):
+            LoggingConfig(extra_loggers=["\n \n"])
+
+    def test_extra_loggers_accepts_name_with_leading_newline(self):
+        """A name with real content is accepted even if it also contains a leading newline —
+        the pattern only requires at least one non-whitespace character somewhere.
+        """
+        cfg = LoggingConfig(extra_loggers=["\nmy_app.notify"])
+        assert cfg.extra_loggers == ("\nmy_app.notify",)
+
+    def test_extra_loggers_rejects_py_warnings(self):
+        """py.warnings is already managed by Hassette's logging setup — reconfiguring its level
+        via extra_loggers would silently break HassetteForgottenAwaitWarning capture.
+        """
+        with pytest.raises(ValidationError, match=r"py\.warnings"):
+            LoggingConfig(extra_loggers=["py.warnings"])
+
+    def test_extra_loggers_rejects_hassette(self):
+        """The hassette logger itself is already managed and may not be re-adopted."""
+        with pytest.raises(ValidationError, match="hassette"):
+            LoggingConfig(extra_loggers=["hassette"])
+
+    def test_extra_loggers_rejects_root(self):
+        """logging.getLogger("root") is stdlib's special case for the actual process root
+        logger (the same trap an empty name hits) — adopting it would clear the root logger's
+        handlers and route every propagating logger in the process through Hassette's pipeline.
+        """
+        with pytest.raises(ValidationError, match="root"):
+            LoggingConfig(extra_loggers=["root"])
+
 
 class TestLifecycleConfig:
     def test_defaults(self):

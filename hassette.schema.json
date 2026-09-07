@@ -1069,6 +1069,16 @@
           "title": "Api",
           "type": "string"
         },
+        "extra_loggers": {
+          "description": "Additional logger names (outside the ``hassette.`` tree) to attach to Hassette's own\nlogging pipeline \u2014 same handlers, formatter, and level as the ``hassette`` logger. Use this\nto opt an app author's own package logger (e.g. ``logging.getLogger(\"my_app.notify\")``) into\nstructured console output, WebSocket log capture, and DB persistence, without renaming it\ninto the ``hassette.`` namespace.\n\nEach named logger is reset the same way the ``hassette`` logger is: existing handlers and\nfilters on it are cleared before Hassette's own handler is attached. If you configure a\nthird-party logger that already has its own handler (e.g. a library-installed\n``FileHandler``), that handler is removed.\n\nAn empty or whitespace-only name is rejected \u2014 ``logging.getLogger(\"\")`` returns the root\nlogger, not a no-op, and (e.g. from a stray comma in a TOML array) would silently reroute\nthe root logger through Hassette's pipeline, double-logging every propagating logger in the\nprocess. ``\"root\"`` is rejected for the identical reason \u2014 ``logging.getLogger(\"root\")`` is\nstdlib's special case for that same root logger object, not a distinctly-named one.\n``\"hassette\"`` and ``\"py.warnings\"`` are also rejected: both are already managed outright by\nHassette's own logging setup, and reconfiguring them here would silently override wiring the\nframework depends on (see ``reject_reserved_logger_name`` below).",
+          "items": {
+            "minLength": 1,
+            "pattern": ".*\\S.*",
+            "type": "string"
+          },
+          "title": "Extra Loggers",
+          "type": "array"
+        },
         "all_events": {
           "default": false,
           "description": "Whether to include all events in bus debug logging. Should be used sparingly.",

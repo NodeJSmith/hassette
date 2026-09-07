@@ -346,6 +346,67 @@ class TestPyWarningsLoggerWiring:
             remove_queue_handlers()
 
 
+class TestExtraLoggers:
+    """A configured LoggingConfig.extra_loggers name is kept in sync through the Phase 1/2
+    swap and Phase 2 teardown — see issue #1933.
+    """
+
+    EXTRA_LOGGER_NAME = "my_app.notify"
+
+    def _extra_logger(self) -> logging.Logger:
+        return logging.getLogger(self.EXTRA_LOGGER_NAME)
+
+    async def test_on_initialize_attaches_queue_handler_to_extra_logger(self) -> None:
+        """After init, the extra logger carries the same QueueHandler instance as hassette."""
+        hassette = make_mock_hassette(sealed=False, logging={"extra_loggers": [self.EXTRA_LOGGER_NAME]})
+        hassette.database_service = make_db_service()
+        svc = await make_initialized_logging_service(hassette=hassette)
+
+        try:
+            extra_logger = self._extra_logger()
+            assert svc._queue_handler is not None
+            assert svc._queue_handler in extra_logger.handlers
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+            remove_queue_handlers()
+            for h in list(self._extra_logger().handlers):
+                self._extra_logger().removeHandler(h)
+
+    async def test_on_shutdown_restores_stream_handler_on_extra_logger(self) -> None:
+        """Shutdown removes the QueueHandler and restores the StreamHandler on the extra logger too."""
+        extra_logger = self._extra_logger()
+        stream_handler = logging.StreamHandler()
+        extra_logger.addHandler(stream_handler)
+
+        hassette = make_mock_hassette(sealed=False, logging={"extra_loggers": [self.EXTRA_LOGGER_NAME]})
+        hassette.database_service = make_db_service()
+        svc = await make_initialized_logging_service(hassette=hassette, stream_handler=stream_handler)
+        queue_handler = svc._queue_handler
+
+        await svc.on_shutdown()
+
+        try:
+            assert stream_handler in extra_logger.handlers
+            assert queue_handler not in extra_logger.handlers
+        finally:
+            extra_logger.removeHandler(stream_handler)
+            remove_queue_handlers()
+
+    async def test_no_extra_loggers_configured_leaves_other_loggers_untouched(self) -> None:
+        """Without extra_loggers configured, only the standard LOGGER_NAMES get the QueueHandler."""
+        svc = await make_initialized_logging_service()
+
+        try:
+            extra_logger = self._extra_logger()
+            assert svc._queue_handler is not None
+            assert svc._queue_handler not in extra_logger.handlers
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+            remove_queue_handlers()
+
+
 class TestPersistenceActive:
     """persistence_active separates 'healthy, zero drops' from 'persistence unavailable'."""
 

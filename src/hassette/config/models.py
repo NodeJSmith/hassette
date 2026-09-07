@@ -11,11 +11,21 @@ from logging import getLogger
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, SecretStr, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    SecretStr,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.helpers import coerce_log_level, log_level_default_factory
+from hassette.logging_ import RESERVED_EXTRA_LOGGER_NAMES
 from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import LOG_LEVEL_TYPE, RawAppDict
 
@@ -196,6 +206,56 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
 
     api: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the API resource (REST/WebSocket client). Defaults to log_level."""
+
+    extra_loggers: tuple[Annotated[str, StringConstraints(min_length=1, pattern=r".*\S.*")], ...] = Field(
+        default_factory=tuple
+    )
+    """Additional logger names (outside the ``hassette.`` tree) to attach to Hassette's own
+    logging pipeline — same handlers, formatter, and level as the ``hassette`` logger. Use this
+    to opt an app author's own package logger (e.g. ``logging.getLogger("my_app.notify")``) into
+    structured console output, WebSocket log capture, and DB persistence, without renaming it
+    into the ``hassette.`` namespace.
+
+    Each named logger is reset the same way the ``hassette`` logger is: existing handlers and
+    filters on it are cleared before Hassette's own handler is attached. If you configure a
+    third-party logger that already has its own handler (e.g. a library-installed
+    ``FileHandler``), that handler is removed.
+
+    An empty or whitespace-only name is rejected — ``logging.getLogger("")`` returns the root
+    logger, not a no-op, and (e.g. from a stray comma in a TOML array) would silently reroute
+    the root logger through Hassette's pipeline, double-logging every propagating logger in the
+    process. ``"root"`` is rejected for the identical reason — ``logging.getLogger("root")`` is
+    stdlib's special case for that same root logger object, not a distinctly-named one.
+    ``"hassette"`` and ``"py.warnings"`` are also rejected: both are already managed outright by
+    Hassette's own logging setup, and reconfiguring them here would silently override wiring the
+    framework depends on (see ``reject_reserved_logger_name`` below)."""
+
+    @field_validator("extra_loggers")
+    @classmethod
+    def reject_reserved_logger_name(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Reject a name that either aliases the root logger or that Hassette already manages.
+
+        ``"root"`` (``hassette.logging_.RESERVED_EXTRA_LOGGER_NAMES``) resolves to the same
+        object as the process's root logger — the same stdlib special case that makes an empty
+        string do this too (see the field docstring above) — so adopting it would clear the root
+        logger's handlers and route every propagating logger through Hassette's pipeline, not
+        just reconfigure one named logger.
+
+        ``"hassette"`` and ``"py.warnings"`` are reset and wired by
+        ``enable_basic_logging()``/``LoggingService`` regardless of this setting. ``py.warnings``
+        in particular is fixed at ``WARNING`` independent of ``log_level`` so that
+        ``HassetteForgottenAwaitWarning`` capture can't be silently disabled by raising
+        ``log_level`` — letting it back in through ``extra_loggers`` would reintroduce exactly
+        that footgun.
+        """
+        reserved = RESERVED_EXTRA_LOGGER_NAMES.intersection(value)
+        if reserved:
+            names = ", ".join(sorted(reserved))
+            raise ValueError(
+                f'extra_loggers may not contain {names} — reserved ("root" aliases the process\'s '
+                'root logger; "hassette"/"py.warnings" are already managed by Hassette\'s own logging setup)'
+            )
+        return value
 
     all_events: bool = Field(default=False)
     """Whether to include all events in bus debug logging. Should be used sparingly."""
