@@ -18,6 +18,7 @@ from ._fixtures_app_lifecycle import (
     mock_registry,
     set_registry_apps,
 )
+from ._fixtures_app_registry import make_app_instance, make_manifest_obj
 from ._fixtures_blocking_io import make_blocking_io_hassette, make_marker_executor
 from ._fixtures_bus_scheduler import make_bus_service, make_scheduler_service
 from ._fixtures_command_executor import (
@@ -66,11 +67,13 @@ __all__ = [
     "insert_committed_execution",
     "insert_new_session",
     "lifecycle_service",
+    "make_app_instance",
     "make_blocking_io_hassette",
     "make_bus_service",
     "make_execute_job_cmd",
     "make_executor",
     "make_invocation",
+    "make_manifest_obj",
     "make_marker_executor",
     "make_mock_app_instance",
     "make_mock_cmd_listener",
