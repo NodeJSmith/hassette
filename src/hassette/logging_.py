@@ -30,6 +30,14 @@ HASSETTE_LOGGER_NAME = "hassette"
 PY_WARNINGS_LOGGER_NAME = "py.warnings"
 LOGGER_NAMES = (HASSETTE_LOGGER_NAME, PY_WARNINGS_LOGGER_NAME)
 
+# Names LoggingConfig.extra_loggers may not contain — both are already managed outright by
+# enable_basic_logging()/LoggingService, and letting a user re-adopt them via extra_loggers
+# would silently override level/handler wiring the framework depends on (e.g. py.warnings
+# must stay independent of log_level — see the comment on its setup below). Enforced in
+# LoggingConfig.reject_reserved_logger_name (config/models.py); duplicated here as the
+# single source of truth both that validator and this module read from.
+RESERVED_EXTRA_LOGGER_NAMES = frozenset(LOGGER_NAMES)
+
 if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService
 
@@ -380,6 +388,86 @@ def _extract_record_fields(
     return event_dict
 
 
+@dataclass(frozen=True)
+class _ExtraLoggerSnapshot:
+    """The pre-Hassette state of a ``LoggingConfig.extra_loggers`` name.
+
+    Captured once, the first time a given name is ever adopted in this process, before
+    ``_reset_logger`` touches it — so it can be restored exactly if a later
+    ``enable_basic_logging()`` call (a second ``Hassette()`` constructed in the same process
+    with a different or empty ``extra_loggers`` list) stops configuring that name.
+    """
+
+    level: int
+    propagate: bool
+    handlers: list[logging.Handler]
+    # logging.Filterer.filters is list[Filter | Callable[[LogRecord], bool]] — a plain `list`
+    # of that union is invariant against stdlib's own private type alias, so pyright rejects
+    # round-tripping it through logger.filters either direction. Any: we only ever store and
+    # replay this list verbatim, never inspect its contents.
+    filters: list[Any]
+
+
+# Deliberately module-level, not instance state — see TestNoModuleGlobals for the general
+# "no module globals in this file" convention this departs from. That convention targets state
+# an owning Resource can hold instead (LoggingService's Phase 2 handlers are instance attributes
+# for exactly that reason). This state is different in kind: it exists to detect drift *between*
+# separate enable_basic_logging() calls — i.e. separate Hassette() instances constructed one
+# after another in the same process, most commonly across test-suite construction. Each such
+# instance gets its own LoggingService, so no single instance could own "what the previous
+# instance configured" — only state that outlives any one instance and spans the whole process
+# can answer that, which is what module-level state means here. logging.getLogger()'s own
+# registry is process-global for the same reason; this is bookkeeping for the same registry,
+# not an independent design choice. block_io_guard.py's _originals/_installed is the existing
+# precedent for this pattern (module state tracking mutations to a shared process-global
+# resource so they can be undone) — the difference is block_io_guard also tracks an _owner_id
+# to detect a *conflicting* second installation, which doesn't apply here: a second Hassette()
+# reconfiguring or dropping a name is the intended, correct behavior for this setting, not a
+# conflict to flag.
+#
+# Not safe for concurrent enable_basic_logging() calls — the diff-and-restore sequence below is
+# read-modify-write with no lock. Not currently a real scenario: every call site
+# (Hassette.__init__, __main__.py) is synchronous, single-threaded, constructor-time code.
+# Keyed by logger name. Populated lazily in enable_basic_logging() and never cleared in
+# production — a name is only ever snapshotted once per process, on its first-ever adoption,
+# so re-adopting it later always compares against the true pre-Hassette baseline rather than
+# whatever a previous Hassette instance left behind.
+_extra_logger_snapshots: dict[str, _ExtraLoggerSnapshot] = {}
+# The extra logger names currently attached to Hassette's pipeline, as of the most recent
+# enable_basic_logging() call. Diffed against the next call's list to detect names that were
+# dropped and need restoring.
+_adopted_extra_loggers: set[str] = set()
+
+
+def _snapshot_extra_logger(name: str) -> None:
+    """Record ``name``'s current state as its restore target, if not already recorded."""
+    if name in _extra_logger_snapshots:
+        return
+    logger = logging.getLogger(name)
+    _extra_logger_snapshots[name] = _ExtraLoggerSnapshot(
+        level=logger.level,
+        propagate=logger.propagate,
+        handlers=list(logger.handlers),
+        filters=list(logger.filters),
+    )
+
+
+def _restore_extra_logger(name: str) -> None:
+    """Reset ``name`` back to its snapshotted pre-Hassette state.
+
+    ``logger.handlers.clear()`` (in ``_reset_logger``) never closes the handlers it drops, so
+    the original handler objects are still open and safe to reattach here.
+    """
+    snapshot = _extra_logger_snapshots.get(name)
+    if snapshot is None:
+        return
+    logger = logging.getLogger(name)
+    logger.setLevel(snapshot.level)
+    logger.propagate = snapshot.propagate
+    logger.handlers = list(snapshot.handlers)
+    logger.filters = list(snapshot.filters)
+
+
 def _reset_logger(name: str, level: int | str) -> logging.Logger:
     """Return the named logger cleared of handlers/filters, non-propagating, at ``level``.
 
@@ -487,6 +575,34 @@ def enable_basic_logging(
     warnings_logger = _reset_logger(PY_WARNINGS_LOGGER_NAME, logging.WARNING)
     warnings_logger.addHandler(stream_handler)
 
+    # Snapshot each newly-relevant extra_loggers name's true pre-Hassette state before anything
+    # below — including the noisy-suppression block two steps down — can mutate it. A name that
+    # is *also* one of the hardcoded-suppressed names below (e.g. "requests") would otherwise
+    # have its restore target permanently corrupted to the suppression default (WARNING) instead
+    # of whatever it actually was before this process touched it, the first time it's snapshotted.
+    new_extra_loggers = set(extra_loggers or ())
+    for name in new_extra_loggers:
+        _snapshot_extra_logger(name)
+
+    # A name previously adopted by an earlier enable_basic_logging() call (a different
+    # Hassette() constructed earlier in this same process) that is no longer in this call's
+    # list is restored to its pre-Hassette state rather than left attached to a now-orphaned
+    # handler — see _restore_extra_logger.
+    for dropped_name in _adopted_extra_loggers - new_extra_loggers:
+        _restore_extra_logger(dropped_name)
+    _adopted_extra_loggers.clear()
+    _adopted_extra_loggers.update(new_extra_loggers)
+
+    # Suppress overly verbose logs from libraries that aren't helpful. Applied before the
+    # extra_loggers loop below so that explicitly opting one of these names into extra_loggers
+    # (e.g. extra_loggers=["requests"] with log_level="DEBUG") always wins — otherwise this
+    # block would immediately overwrite the level the user just asked for.
+    logging.getLogger("requests").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
+    logging.getLogger("httpx2").setLevel(logging.WARNING)
+    logging.getLogger("asyncio").setLevel(logging.ERROR)
+
     # Attach any app-author-configured extra logger names (LoggingConfig.extra_loggers) to
     # the same handler, formatter, and level as the hassette logger — lets a logger outside
     # the "hassette." tree opt into structured logging without renaming into that namespace.
@@ -494,13 +610,6 @@ def enable_basic_logging(
     for extra_name in extra_loggers or []:
         extra_logger = _reset_logger(extra_name, log_level)
         extra_logger.addHandler(stream_handler)
-
-    # Suppress overly verbose logs from libraries that aren't helpful
-    logging.getLogger("requests").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
-    logging.getLogger("httpx2").setLevel(logging.WARNING)
-    logging.getLogger("asyncio").setLevel(logging.ERROR)
 
     sys.excepthook = lambda *args: logging.getLogger().exception("Uncaught exception", exc_info=args)
     threading.excepthook = lambda args: logging.getLogger().exception(

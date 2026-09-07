@@ -12,9 +12,37 @@ import logging
 from io import StringIO
 from unittest.mock import MagicMock
 
+import pytest
+
 import hassette.logging_ as logging_module
 from hassette.logging_ import enable_basic_logging
 from tests.unit.conftest import LoggingPipelineFixture
+
+# Fixture-only logger names used across TestExtraLoggers and TestExtraLoggerReconfiguration.
+# Not real loggers anything else in the codebase writes to, but enable_basic_logging()'s
+# snapshot/restore tracking (see logging_._extra_logger_snapshots) is process-global state —
+# reset it and the loggers themselves after every test in this module so one test's
+# extra_loggers config can never leak into another's assertions.
+_TEST_EXTRA_LOGGER_NAMES = ("my_app.notify", "my_app.otf", "my_app.laundry")
+
+
+@pytest.fixture(autouse=True)
+def _reset_extra_logger_state():
+    """Prevent this module's extra_loggers fixture names from leaking across tests.
+
+    enable_basic_logging() restores a *real* extra logger to its pre-Hassette baseline once it
+    drops out of a later call's extra_loggers list (see _restore_extra_logger) — but tests
+    shouldn't rely on the implementation under test to isolate themselves. Reset directly.
+    """
+    yield
+    for name in _TEST_EXTRA_LOGGER_NAMES:
+        logging_module._extra_logger_snapshots.pop(name, None)
+        logging_module._adopted_extra_loggers.discard(name)
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.NOTSET)
+        logger.propagate = True
+        logger.handlers.clear()
+        logger.filters.clear()
 
 
 class TestLoggingPipelineConsoleRenderer:
@@ -302,6 +330,73 @@ class TestExtraLoggers:
         )
         assert handler in logging.getLogger("my_app.notify").handlers
         assert handler in logging.getLogger("my_app.otf").handlers
+
+    def test_explicit_extra_logger_level_wins_over_noisy_suppression(self) -> None:
+        """Opting a noisy-suppressed name into extra_loggers applies log_level, not the
+        suppression default — the suppression block must run before this loop, not after.
+        """
+        stream = StringIO()
+        enable_basic_logging("DEBUG", log_format="console", stream=stream, extra_loggers=("requests",))
+        assert logging.getLogger("requests").level == logging.DEBUG
+
+    def test_unconfigured_noisy_logger_still_suppressed(self) -> None:
+        """A noisy-suppressed name not opted into extra_loggers keeps its WARNING default."""
+        stream = StringIO()
+        enable_basic_logging("DEBUG", log_format="console", stream=stream)
+        assert logging.getLogger("requests").getEffectiveLevel() == logging.WARNING
+
+
+class TestExtraLoggerReconfiguration:
+    """A second enable_basic_logging() call in the same process — a second Hassette()
+    constructed with a different extra_loggers list — restores names dropped from the new
+    list to their pre-Hassette state instead of leaving them attached to the old handler.
+    """
+
+    def test_dropped_extra_logger_is_detached_from_old_handler(self) -> None:
+        first_stream = StringIO()
+        first_handler = enable_basic_logging(
+            "INFO", log_format="console", stream=first_stream, extra_loggers=("my_app.notify",)
+        )
+        assert first_handler in logging.getLogger("my_app.notify").handlers
+
+        second_stream = StringIO()
+        enable_basic_logging("INFO", log_format="console", stream=second_stream)
+
+        assert first_handler not in logging.getLogger("my_app.notify").handlers
+
+    def test_dropped_extra_logger_restores_exact_prior_state(self) -> None:
+        """Restoration replays the logger's pre-Hassette level/propagate/handlers/filters
+        exactly, not just a blank NOTSET/propagate=True/no-handlers reset.
+        """
+        original_handler = logging.StreamHandler(StringIO())
+        original_filter = logging.Filter("original")
+        pristine = logging.getLogger("my_app.laundry")
+        pristine.setLevel(logging.ERROR)
+        pristine.propagate = True
+        pristine.addHandler(original_handler)
+        pristine.addFilter(original_filter)
+
+        enable_basic_logging("INFO", log_format="console", stream=StringIO(), extra_loggers=("my_app.laundry",))
+        enable_basic_logging("INFO", log_format="console", stream=StringIO())
+
+        restored = logging.getLogger("my_app.laundry")
+        assert restored.level == logging.ERROR
+        assert restored.propagate is True
+        assert restored.handlers == [original_handler]
+        assert restored.filters == [original_filter]
+
+    def test_still_configured_extra_logger_is_not_restored(self) -> None:
+        """A name present in both calls' extra_loggers stays on the newest handler."""
+        enable_basic_logging("INFO", log_format="console", stream=StringIO(), extra_loggers=("my_app.notify",))
+
+        second_stream = StringIO()
+        second_handler = enable_basic_logging(
+            "WARNING", log_format="console", stream=second_stream, extra_loggers=("my_app.notify",)
+        )
+
+        extra_logger = logging.getLogger("my_app.notify")
+        assert second_handler in extra_logger.handlers
+        assert extra_logger.level == logging.WARNING
 
 
 class TestNoModuleGlobals:
