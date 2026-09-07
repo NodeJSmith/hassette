@@ -224,26 +224,37 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     An empty or whitespace-only name is rejected — ``logging.getLogger("")`` returns the root
     logger, not a no-op, and (e.g. from a stray comma in a TOML array) would silently reroute
     the root logger through Hassette's pipeline, double-logging every propagating logger in the
-    process. ``"hassette"`` and ``"py.warnings"`` are also rejected: both are already managed
-    outright by Hassette's own logging setup, and reconfiguring them here would silently override
-    wiring the framework depends on (see ``reject_reserved_logger_name`` below)."""
+    process. ``"root"`` is rejected for the identical reason — ``logging.getLogger("root")`` is
+    stdlib's special case for that same root logger object, not a distinctly-named one.
+    ``"hassette"`` and ``"py.warnings"`` are also rejected: both are already managed outright by
+    Hassette's own logging setup, and reconfiguring them here would silently override wiring the
+    framework depends on (see ``reject_reserved_logger_name`` below)."""
 
     @field_validator("extra_loggers")
     @classmethod
     def reject_reserved_logger_name(cls, value: tuple[str, ...]) -> tuple[str, ...]:
-        """Reject a name Hassette already manages outright.
+        """Reject a name that either aliases the root logger or that Hassette already manages.
 
-        ``"hassette"`` and ``"py.warnings"`` (``hassette.logging_.RESERVED_EXTRA_LOGGER_NAMES``)
-        are reset and wired by ``enable_basic_logging()``/``LoggingService`` regardless of this
-        setting. ``py.warnings`` in particular is fixed at ``WARNING`` independent of
-        ``log_level`` so that ``HassetteForgottenAwaitWarning`` capture can't be silently
-        disabled by raising ``log_level`` — letting it back in through ``extra_loggers`` would
-        reintroduce exactly that footgun.
+        ``"root"`` (``hassette.logging_.RESERVED_EXTRA_LOGGER_NAMES``) resolves to the same
+        object as the process's root logger — the same stdlib special case that makes an empty
+        string do this too (see the field docstring above) — so adopting it would clear the root
+        logger's handlers and route every propagating logger through Hassette's pipeline, not
+        just reconfigure one named logger.
+
+        ``"hassette"`` and ``"py.warnings"`` are reset and wired by
+        ``enable_basic_logging()``/``LoggingService`` regardless of this setting. ``py.warnings``
+        in particular is fixed at ``WARNING`` independent of ``log_level`` so that
+        ``HassetteForgottenAwaitWarning`` capture can't be silently disabled by raising
+        ``log_level`` — letting it back in through ``extra_loggers`` would reintroduce exactly
+        that footgun.
         """
         reserved = RESERVED_EXTRA_LOGGER_NAMES.intersection(value)
         if reserved:
             names = ", ".join(sorted(reserved))
-            raise ValueError(f"extra_loggers may not contain {names} — already managed by Hassette's own logging setup")
+            raise ValueError(
+                f'extra_loggers may not contain {names} — reserved ("root" aliases the process\'s '
+                'root logger; "hassette"/"py.warnings" are already managed by Hassette\'s own logging setup)'
+            )
         return value
 
     all_events: bool = Field(default=False)

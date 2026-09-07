@@ -30,13 +30,19 @@ HASSETTE_LOGGER_NAME = "hassette"
 PY_WARNINGS_LOGGER_NAME = "py.warnings"
 LOGGER_NAMES = (HASSETTE_LOGGER_NAME, PY_WARNINGS_LOGGER_NAME)
 
-# Names LoggingConfig.extra_loggers may not contain — both are already managed outright by
-# enable_basic_logging()/LoggingService, and letting a user re-adopt them via extra_loggers
-# would silently override level/handler wiring the framework depends on (e.g. py.warnings
-# must stay independent of log_level — see the comment on its setup below). Enforced in
-# LoggingConfig.reject_reserved_logger_name (config/models.py); duplicated here as the
-# single source of truth both that validator and this module read from.
-RESERVED_EXTRA_LOGGER_NAMES = frozenset(LOGGER_NAMES)
+# Names LoggingConfig.extra_loggers may not contain. Two distinct hazards:
+# - HASSETTE_LOGGER_NAME/PY_WARNINGS_LOGGER_NAME (LOGGER_NAMES) are already managed outright by
+#   enable_basic_logging()/LoggingService — letting a user re-adopt them via extra_loggers would
+#   silently override level/handler wiring the framework depends on (e.g. py.warnings must stay
+#   independent of log_level — see the comment on its setup below).
+# - "root" is Python's stdlib special case for the process-global root logger:
+#   logging.getLogger("root") returns the same object as logging.getLogger() — the identical
+#   trap that makes an empty string do this too (see LoggingConfig.extra_loggers' docstring).
+#   Adopting it would clear the root logger's handlers process-wide and route every propagating
+#   logger through Hassette's pipeline, not just reconfigure one named logger.
+# Enforced in LoggingConfig.reject_reserved_logger_name (config/models.py); this is the single
+# source of truth both that validator and this module read from.
+RESERVED_EXTRA_LOGGER_NAMES = frozenset({*LOGGER_NAMES, "root"})
 
 if TYPE_CHECKING:
     from hassette.core.database_service import DatabaseService

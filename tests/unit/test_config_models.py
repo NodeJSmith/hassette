@@ -277,6 +277,14 @@ class TestLoggingConfig:
         with pytest.raises(ValidationError, match="hassette"):
             LoggingConfig(extra_loggers=["hassette"])
 
+    def test_extra_loggers_rejects_root(self):
+        """logging.getLogger("root") is stdlib's special case for the actual process root
+        logger (the same trap an empty name hits) — adopting it would clear the root logger's
+        handlers and route every propagating logger in the process through Hassette's pipeline.
+        """
+        with pytest.raises(ValidationError, match="root"):
+            LoggingConfig(extra_loggers=["root"])
+
 
 class TestLifecycleConfig:
     def test_defaults(self):
