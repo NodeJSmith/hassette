@@ -134,10 +134,9 @@ class TestSetGlobalHassetteReturnsToken:
 class TestHarnessTeardownClearsSingletonOnError:
     """Harness teardown clears the global Hassette singleton even when teardown raises.
 
-    Regression for #1059: on Python 3.11, an exception escaping ``HassetteHarness.stop()``
-    before the contextvar reset leaked HASSETTE_INSTANCE, poisoning every later test on the
-    xdist worker with "Hassette instance is already set" errors. The reset must run in a
-    ``finally`` so it survives any escape, on any Python version.
+    Regression for #1059. An exception escaping ``HassetteHarness.stop()`` before the contextvar
+    reset leaks HASSETTE_INSTANCE, so every later test sharing the process fails with "Hassette
+    instance is already set". The reset must run in a ``finally`` so it survives any escape.
     """
 
     async def test_singleton_reset_runs_when_teardown_raises(
@@ -160,15 +159,15 @@ class TestHarnessTeardownClearsSingletonOnError:
 
         class _TeardownBoom(BaseException):
             """A BaseException is guaranteed to escape stop()'s ``except Exception`` collectors,
-            so the test pins the invariant for any escape — not just the specific 3.11 exception.
+            so the test pins the invariant for any escape, not just the exception type that
+            originally leaked.
             """
 
         async def _boom() -> None:
             raise _TeardownBoom("forced teardown failure after children stopped")
 
-        # Inject an escape into the teardown body, after children are cleanly stopped. Before the
-        # fix this skipped the singleton reset and leaked HASSETTE_INSTANCE; the fix's ``finally``
-        # must now reset it regardless of the escape.
+        # Inject an escape into the teardown body, after children are cleanly stopped. The
+        # ``finally`` around the reset must clear HASSETTE_INSTANCE regardless of the escape.
         monkeypatch.setattr(harness._exit_stack, "aclose", _boom)
 
         with pytest.raises(_TeardownBoom):

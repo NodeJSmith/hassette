@@ -318,15 +318,12 @@ async def test_running_to_stopped_direct_is_valid():
 async def test_handle_failed_on_terminal_resource_is_noop(terminal: ResourceStatus):
     """handle_failed() on an already-terminal resource is a no-op, even in strict mode.
 
-    Regression for #1059: during teardown a late submit-after-shutdown error
-    (``RuntimeError("cannot schedule new futures after shutdown")``) could surface on a
-    resource that had already reached STOPPED. handle_failed() then drove a STOPPED → FAILED
-    transition, which VALID_TRANSITIONS forbids — raising InvalidLifecycleTransitionError under
-    strict_lifecycle. On Python 3.11 that error escaped harness teardown before the global
-    singleton was reset, poisoning every later test on the xdist worker.
-
-    Terminal states (STOPPED, EXHAUSTED_DEAD) cannot transition to FAILED, so failing one is
-    benign — handle_failed() must leave the status unchanged instead of raising.
+    Regression for #1059. Terminal states (STOPPED, EXHAUSTED_DEAD) have no valid transition to
+    FAILED, so a late failure arriving after teardown completed — such as a submit-after-shutdown
+    ``RuntimeError("cannot schedule new futures after shutdown")`` — is benign. handle_failed()
+    must leave the status unchanged rather than drive a STOPPED → FAILED transition that
+    VALID_TRANSITIONS forbids, which would raise InvalidLifecycleTransitionError under
+    strict_lifecycle.
     """
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
     resource = ConcreteResource(hassette)
@@ -452,8 +449,7 @@ async def test_cancel_from_worker_thread_redispatches_onto_loop_thread():
     this redispatch, cancel() would run synchronously on the worker thread and see
     _pending_start_task still None (start()'s own redispatch has not been processed by the loop
     yet), report nothing to cancel, and let the queued _start_on_loop_thread callback go on to
-    initialize the resource despite the ordered cancellation request. Regression test for the
-    Codex review finding on lifecycle.py's cancel().
+    initialize the resource despite the ordered cancellation request.
     """
     hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)
