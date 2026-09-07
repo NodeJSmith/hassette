@@ -231,6 +231,26 @@ class TestLoggingConfig:
             cfg = LoggingConfig(log_level="BADLEVEL")  # pyright: ignore[reportArgumentType]
         assert cfg.log_level == "INFO"
 
+    def test_extra_loggers_defaults_to_empty_tuple(self):
+        """extra_loggers defaults to an empty tuple — no extra loggers attached."""
+        cfg = LoggingConfig()
+        assert cfg.extra_loggers == ()
+
+    def test_extra_loggers_accepts_names(self):
+        """extra_loggers stores configured logger names as a tuple."""
+        cfg = LoggingConfig(extra_loggers=["my_app.notify", "my_app.laundry"])
+        assert cfg.extra_loggers == ("my_app.notify", "my_app.laundry")
+
+    def test_extra_loggers_rejects_empty_string(self):
+        """An empty logger name is rejected — it would resolve to the root logger."""
+        with pytest.raises(ValidationError):
+            LoggingConfig(extra_loggers=[""])
+
+    def test_extra_loggers_rejects_whitespace_only_string(self):
+        """A whitespace-only logger name is rejected for the same reason as an empty one."""
+        with pytest.raises(ValidationError):
+            LoggingConfig(extra_loggers=["   "])
+
 
 class TestLifecycleConfig:
     def test_defaults(self):

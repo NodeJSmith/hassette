@@ -197,6 +197,32 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     api: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
     """Logging level for the API resource (REST/WebSocket client). Defaults to log_level."""
 
+    extra_loggers: tuple[str, ...] = Field(default_factory=tuple)
+    """Additional logger names (outside the ``hassette.`` tree) to attach to Hassette's own
+    logging pipeline — same handlers, formatter, and level as the ``hassette`` logger. Use this
+    to opt an app author's own package logger (e.g. ``logging.getLogger("my_app.notify")``) into
+    structured console output, WebSocket log capture, and DB persistence, without renaming it
+    into the ``hassette.`` namespace.
+
+    Each named logger is reset the same way the ``hassette`` logger is: existing handlers and
+    filters on it are cleared before Hassette's own handler is attached. If you configure a
+    third-party logger that already has its own handler (e.g. a library-installed
+    ``FileHandler``), that handler is removed."""
+
+    @field_validator("extra_loggers")
+    @classmethod
+    def reject_empty_logger_name(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Reject an empty/whitespace-only entry in extra_loggers.
+
+        ``logging.getLogger("")`` returns the root logger, not a no-op — an empty string
+        (e.g. from a stray comma in a TOML array) would silently reset and reroute the root
+        logger through Hassette's pipeline, double-logging every propagating logger in the
+        process. Closing this at config load is cheaper than debugging duplicated log lines.
+        """
+        if any(not name.strip() for name in value):
+            raise ValueError("extra_loggers may not contain an empty or whitespace-only logger name")
+        return value
+
     all_events: bool = Field(default=False)
     """Whether to include all events in bus debug logging. Should be used sparingly."""
 

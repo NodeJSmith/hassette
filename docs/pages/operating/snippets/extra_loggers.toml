@@ -1,0 +1,2 @@
+[hassette.logging]
+extra_loggers = ["my_app.notify", "my_app.laundry"]

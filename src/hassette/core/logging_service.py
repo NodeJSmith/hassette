@@ -24,9 +24,14 @@ if typing.TYPE_CHECKING:
 _QUEUE_LISTENER_STOP_TIMEOUT_SECONDS = 5.0
 
 
-def _get_loggers() -> list[logging.Logger]:
-    """The loggers this file keeps in sync — see LOGGER_NAMES in logging_.py."""
-    return [logging.getLogger(name) for name in LOGGER_NAMES]
+def _get_loggers(extra_loggers: tuple[str, ...] | None = None) -> list[logging.Logger]:
+    """The loggers this file keeps in sync — see LOGGER_NAMES in logging_.py.
+
+    ``extra_loggers`` (``LoggingConfig.extra_loggers``) are app-author-configured logger names
+    outside the ``hassette.`` tree that ``enable_basic_logging()`` already wired to the same
+    Phase 1 handler — this keeps them in the Phase 1/2 swap and Phase 2 teardown too.
+    """
+    return [logging.getLogger(name) for name in (*LOGGER_NAMES, *(extra_loggers or []))]
 
 
 def _remove_stale_queue_handlers(loggers: list[logging.Logger]) -> None:
@@ -81,7 +86,7 @@ class LoggingService(Resource):
 
     async def on_initialize(self) -> None:
         """Upgrade logging from sync to async pipeline."""
-        loggers = _get_loggers()
+        loggers = _get_loggers(self.hassette.config.logging.extra_loggers)
 
         _remove_stale_queue_handlers(loggers)
         if self._queue_listener is not None:
@@ -131,7 +136,7 @@ class LoggingService(Resource):
     async def on_shutdown(self) -> None:
         """Stop the async logging pipeline and restore synchronous console logging."""
         self.capture_handler.shutting_down = True
-        loggers = _get_loggers()
+        loggers = _get_loggers(self.hassette.config.logging.extra_loggers)
 
         if self._queue_handler is not None:
             _remove_handler(loggers, self._queue_handler)

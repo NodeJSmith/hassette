@@ -55,6 +55,18 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 
 `log_queue_max` (default 2000) caps how many records can wait for persistence at once. When the queue is full, new records are dropped rather than blocking the app. Raise it only if sustained `DEBUG` persistence reports drops.
 
+## Attaching Loggers Outside the `hassette.` Tree
+
+Python loggers nest by name — `hassette.scheduler` sits under `hassette`, and Hassette's pipeline only wires up that `hassette.*` tree, plus `py.warnings`. A logger created elsewhere — `logging.getLogger("my_app.notify")` in an app's own module, or a third-party library's own logger — inherits Python's default `WARNING` threshold and prints unformatted to stderr instead. Its `INFO` calls never fire, and even its `WARNING`/`ERROR` calls skip console formatting, the live log buffer, and the telemetry database.
+
+`extra_loggers` attaches additional logger names to the exact same pipeline as `hassette` — same handlers, same level, same formatter:
+
+```toml
+--8<-- "pages/operating/snippets/extra_loggers.toml"
+```
+
+No renaming required. A logger named in `extra_loggers` keeps its own name in every log line; it just stops being invisible.
+
 ## Dropped Log Records
 
 Log records pass through two bounded queues on their way to the database, and each drops records independently when it fills. The Diagnostics page reports them separately, as does `GET /api/health`:

@@ -1069,6 +1069,14 @@
           "title": "Api",
           "type": "string"
         },
+        "extra_loggers": {
+          "description": "Additional logger names (outside the ``hassette.`` tree) to attach to Hassette's own\nlogging pipeline \u2014 same handlers, formatter, and level as the ``hassette`` logger. Use this\nto opt an app author's own package logger (e.g. ``logging.getLogger(\"my_app.notify\")``) into\nstructured console output, WebSocket log capture, and DB persistence, without renaming it\ninto the ``hassette.`` namespace.\n\nEach named logger is reset the same way the ``hassette`` logger is: existing handlers and\nfilters on it are cleared before Hassette's own handler is attached. If you configure a\nthird-party logger that already has its own handler (e.g. a library-installed\n``FileHandler``), that handler is removed.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Extra Loggers",
+          "type": "array"
+        },
         "all_events": {
           "default": false,
           "description": "Whether to include all events in bus debug logging. Should be used sparingly.",

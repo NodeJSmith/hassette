@@ -381,7 +381,13 @@ def _extract_record_fields(
 
 
 def _reset_logger(name: str, level: int | str) -> logging.Logger:
-    """Return the named logger cleared of handlers/filters, non-propagating, at ``level``."""
+    """Return the named logger cleared of handlers/filters, non-propagating, at ``level``.
+
+    Called on ``HASSETTE_LOGGER_NAME`` and ``PY_WARNINGS_LOGGER_NAME``, which Hassette owns
+    outright, and on every configured ``LoggingConfig.extra_loggers`` name, which it does not —
+    an extra logger that already had its own handler (e.g. a library-installed ``FileHandler``)
+    loses it here, in exchange for joining Hassette's structured pipeline instead.
+    """
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.propagate = False
@@ -395,6 +401,7 @@ def enable_basic_logging(
     *,
     log_format: Literal["auto", "console", "json"] = "auto",
     stream: IO[str] | None = None,
+    extra_loggers: tuple[str, ...] | None = None,
 ) -> logging.StreamHandler:
     """Set up synchronous console-only structured logging.
 
@@ -412,6 +419,9 @@ def enable_basic_logging(
             ``"json"`` always uses JSONRenderer (one JSON object per line).
             ``"auto"`` checks ``stream.isatty()`` (defaults to ``sys.stdout``).
         stream: Output stream. Defaults to ``sys.stdout``.
+        extra_loggers: Additional logger names (outside the ``hassette.`` tree) to attach to
+            this same pipeline — see ``LoggingConfig.extra_loggers``. Each is reset and wired
+            identically to the ``hassette`` logger itself.
 
     Returns:
         The StreamHandler attached to the hassette logger. Stored on Hassette and
@@ -476,6 +486,14 @@ def enable_basic_logging(
     logging.captureWarnings(True)
     warnings_logger = _reset_logger(PY_WARNINGS_LOGGER_NAME, logging.WARNING)
     warnings_logger.addHandler(stream_handler)
+
+    # Attach any app-author-configured extra logger names (LoggingConfig.extra_loggers) to
+    # the same handler, formatter, and level as the hassette logger — lets a logger outside
+    # the "hassette." tree opt into structured logging without renaming into that namespace.
+    # LoggingService.on_initialize()/on_shutdown() (Phase 2) mirror this same wiring.
+    for extra_name in extra_loggers or []:
+        extra_logger = _reset_logger(extra_name, log_level)
+        extra_logger.addHandler(stream_handler)
 
     # Suppress overly verbose logs from libraries that aren't helpful
     logging.getLogger("requests").setLevel(logging.WARNING)

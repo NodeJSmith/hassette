@@ -106,6 +106,7 @@ class Hassette(Resource):
         self._basic_stream_handler = enable_basic_logging(
             self.config.logging.log_level,
             log_format=self.config.logging.log_format,
+            extra_loggers=self.config.logging.extra_loggers,
         )
 
         # SyncExecutor is built before super().__init__() so it exists before the first

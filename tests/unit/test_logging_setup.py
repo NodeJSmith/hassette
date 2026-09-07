@@ -250,6 +250,60 @@ class TestEnableBasicLogging:
         assert handler.stream is stream
 
 
+class TestExtraLoggers:
+    """enable_basic_logging() attaches configured extra_loggers to the same pipeline as the
+    hassette logger — see issue #1933.
+    """
+
+    def test_extra_logger_gets_same_handler_as_hassette_logger(self) -> None:
+        """An extra logger name is attached to the same StreamHandler as 'hassette'."""
+        stream = StringIO()
+        handler = enable_basic_logging("INFO", log_format="console", stream=stream, extra_loggers=("my_app.notify",))
+        extra_logger = logging.getLogger("my_app.notify")
+        assert handler in extra_logger.handlers
+
+    def test_extra_logger_gets_same_level_as_hassette_logger(self) -> None:
+        """An extra logger is set to the configured log_level, not the root default."""
+        stream = StringIO()
+        enable_basic_logging("WARNING", log_format="console", stream=stream, extra_loggers=("my_app.notify",))
+        extra_logger = logging.getLogger("my_app.notify")
+        assert extra_logger.level == logging.WARNING
+
+    def test_extra_logger_does_not_propagate(self) -> None:
+        """An extra logger is set non-propagating, like the hassette logger."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="console", stream=stream, extra_loggers=("my_app.notify",))
+        assert logging.getLogger("my_app.notify").propagate is False
+
+    def test_extra_logger_record_reaches_stream(self) -> None:
+        """A record logged on an extra logger name reaches the console stream."""
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="console", stream=stream, extra_loggers=("my_app.notify",))
+        logging.getLogger("my_app.notify").info("extra logger message")
+        assert "extra logger message" in stream.getvalue()
+
+    def test_no_extra_loggers_by_default(self) -> None:
+        """Omitting extra_loggers does not attach any additional logger names."""
+        stream = StringIO()
+        handler = enable_basic_logging("INFO", log_format="console", stream=stream)
+        # No AttributeError, no unexpected loggers wired — a logger not passed as an
+        # extra name keeps its own independent, unattached handler set.
+        untouched_logger = logging.getLogger("some_unrelated_module")
+        assert handler not in untouched_logger.handlers
+
+    def test_multiple_extra_loggers_all_wired(self) -> None:
+        """Multiple configured extra logger names are all attached."""
+        stream = StringIO()
+        handler = enable_basic_logging(
+            "INFO",
+            log_format="console",
+            stream=stream,
+            extra_loggers=("my_app.notify", "my_app.otf"),
+        )
+        assert handler in logging.getLogger("my_app.notify").handlers
+        assert handler in logging.getLogger("my_app.otf").handlers
+
+
 class TestNoModuleGlobals:
     """Module-level globals and accessor functions are removed."""
 
