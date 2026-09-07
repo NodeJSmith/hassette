@@ -47,6 +47,7 @@ import { NotFoundPage } from "./pages/not-found";
 import { type AppStatusEntry, RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
 import { appLiveStatus } from "./utils/app-data";
 import { HOME_PATH, LOGIN_PATH } from "./utils/app-routes";
+import { COMPACT_STATUS_DOT_SIZE } from "./utils/constants";
 import { isFailureStatus, statusToKind } from "./utils/status";
 
 const PALETTE_STALE_TIME_MS = 300_000;
@@ -391,7 +392,9 @@ function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 data-testid={`cmd-result-${item.id}`}
                 onSelect={() => item.action()}
               >
-                {item.status !== undefined && <StatusShape kind={statusToKind(item.status)} size={8} />}
+                {item.status !== undefined && (
+                  <StatusShape kind={statusToKind(item.status)} size={COMPACT_STATUS_DOT_SIZE} />
+                )}
                 <span>{item.label}</span>
                 {item.sub && <span className="ml-1 text-xs text-muted-foreground">{item.sub}</span>}
                 <span className="ml-auto text-xs text-muted-foreground">{item.kind}</span>

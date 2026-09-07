@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 
+import { BADGE_STATUS_DOT_SIZE } from "../../utils/constants";
 import type { StatusKind } from "../../utils/status";
 import type { ExecutionKind } from "../shared/execution-table";
 import { StatusShape } from "../shared/status-shape";
@@ -42,7 +43,7 @@ export function DetailHeader({ name, kindLabel, statusKind, kind, subtitle, head
 
       <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <Badge variant={KIND_BADGE_VARIANT[statusKind]} aria-label={`kind: ${kindLabel}`}>
-          <StatusShape kind={statusKind} size={8} />
+          <StatusShape kind={statusKind} size={BADGE_STATUS_DOT_SIZE} />
           {kindLabel}
         </Badge>
         {subtitle && <span data-testid={`${kind}-human-description`}>{subtitle}</span>}
