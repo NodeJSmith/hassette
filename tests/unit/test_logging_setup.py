@@ -414,6 +414,37 @@ class TestExtraLoggerReconfiguration:
         assert second_handler in extra_logger.handlers
         assert extra_logger.level == logging.WARNING
 
+    def test_second_adopt_drop_cycle_restores_the_cycles_own_baseline(self) -> None:
+        """A name adopted, dropped, reconfigured by its own owning code, then re-adopted and
+        dropped again must restore to *that* reconfiguration — not the very first snapshot ever
+        taken for this name. A stale, never-refreshed snapshot would silently discard whatever
+        legitimate reconfiguration happened between the two adopt/drop cycles.
+        """
+        original_handler = logging.StreamHandler(StringIO())
+        pristine = logging.getLogger("my_app.otf")
+        pristine.setLevel(logging.ERROR)
+        pristine.addHandler(original_handler)
+
+        # Cycle 1: adopt, then drop — restores to the pristine state above.
+        enable_basic_logging("INFO", log_format="console", stream=StringIO(), extra_loggers=("my_app.otf",))
+        enable_basic_logging("INFO", log_format="console", stream=StringIO())
+        assert logging.getLogger("my_app.otf").handlers == [original_handler]
+
+        # The logger's owning code reconfigures it while it's not adopted by Hassette.
+        reconfigured_handler = logging.StreamHandler(StringIO())
+        owner_reconfigured = logging.getLogger("my_app.otf")
+        owner_reconfigured.setLevel(logging.DEBUG)
+        owner_reconfigured.handlers = [reconfigured_handler]
+
+        # Cycle 2: adopt again, then drop again — must restore to the reconfiguration above,
+        # not cycle 1's original snapshot.
+        enable_basic_logging("INFO", log_format="console", stream=StringIO(), extra_loggers=("my_app.otf",))
+        enable_basic_logging("INFO", log_format="console", stream=StringIO())
+
+        restored = logging.getLogger("my_app.otf")
+        assert restored.level == logging.DEBUG
+        assert restored.handlers == [reconfigured_handler]
+
 
 class TestNoModuleGlobals:
     """Module-level globals and accessor functions are removed."""

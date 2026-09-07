@@ -429,10 +429,12 @@ class _ExtraLoggerSnapshot:
 # Not safe for concurrent enable_basic_logging() calls — the diff-and-restore sequence below is
 # read-modify-write with no lock. Not currently a real scenario: every call site
 # (Hassette.__init__, __main__.py) is synchronous, single-threaded, constructor-time code.
-# Keyed by logger name. Populated lazily in enable_basic_logging() and never cleared in
-# production — a name is only ever snapshotted once per process, on its first-ever adoption,
-# so re-adopting it later always compares against the true pre-Hassette baseline rather than
-# whatever a previous Hassette instance left behind.
+# Keyed by logger name. An entry exists only between a name's adoption and its next restore —
+# _restore_extra_logger() pops it once replayed, so a later re-adoption of the same name
+# snapshots whatever is actually on the logger at that moment, not the original one. Without
+# this, a name adopted, dropped, reconfigured by its own owning code, then re-adopted and
+# dropped again would restore to the stale first-ever baseline and silently discard that
+# legitimate intervening reconfiguration.
 _extra_logger_snapshots: dict[str, _ExtraLoggerSnapshot] = {}
 # The extra logger names currently attached to Hassette's pipeline, as of the most recent
 # enable_basic_logging() call. Diffed against the next call's list to detect names that were
@@ -458,9 +460,10 @@ def _restore_extra_logger(name: str) -> None:
     """Reset ``name`` back to its snapshotted pre-Hassette state.
 
     ``logger.handlers.clear()`` (in ``_reset_logger``) never closes the handlers it drops, so
-    the original handler objects are still open and safe to reattach here.
+    the original handler objects are still open and safe to reattach here. Pops the snapshot
+    once replayed — see the comment on ``_extra_logger_snapshots`` for why.
     """
-    snapshot = _extra_logger_snapshots.get(name)
+    snapshot = _extra_logger_snapshots.pop(name, None)
     if snapshot is None:
         return
     logger = logging.getLogger(name)
