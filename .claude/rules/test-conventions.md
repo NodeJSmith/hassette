@@ -32,6 +32,7 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `make_hassette_event(topic=..., data=...)` — `Event` carrying a `HassettePayload`
 - `make_hass_event(event_type=..., data=..., origin=...)` — `Event` carrying a `HassPayload` (Home Assistant origin)
 - `make_mock_parent(**kw)` — `MagicMock` standing in for an owning App resource
+- `make_change_set(**buckets)` — `ChangeSet` from plain iterables, every unlisted bucket defaulting to empty
 
 `tests/support/helpers.py` — event/state builders and misc test helpers:
 

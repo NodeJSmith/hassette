@@ -23,14 +23,6 @@ from hassette.testing import EventCapture
 from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
-from tests.support.mock_hassette import make_ws_hassette_stub
-
-
-@pytest.fixture
-async def websocket_service() -> WebsocketService:
-    """Create a WebsocketService with a fully-mocked hassette stub (sealed=False for extra attrs)."""
-    hassette = make_ws_hassette_stub(sealed=False)
-    return WebsocketService(hassette=hassette)
 
 
 class TestTimeoutAndLogLevelProperties:
@@ -107,12 +99,10 @@ class TestSendAndWaitCallerProvidedId:
     async def test_uses_caller_provided_id_instead_of_generating_one(self, websocket_service: WebsocketService) -> None:
         """send_and_wait uses an explicitly-passed id (as subscribe_events does) rather than allocating one."""
 
-        async def send_side_effect(**data):
-            msg_id = data["id"]
-            fut = websocket_service._response_futures[msg_id]
-            fut.set_result({"ok": True})
+        async def resolve_immediately(**data):
+            websocket_service._response_futures[data["id"]].set_result({"ok": True})
 
-        websocket_service.send_json = AsyncMock(side_effect=send_side_effect)
+        websocket_service.send_json = AsyncMock(side_effect=resolve_immediately)
 
         result = await websocket_service.send_and_wait(type="subscribe_events", id=99)
 

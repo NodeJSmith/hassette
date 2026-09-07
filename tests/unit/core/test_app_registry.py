@@ -951,27 +951,36 @@ class TestBuildManifestInfoStatusDerivation:
 
         assert info.status == "failed"
 
-    def test_failed_instance_name_resolved_from_manifest_config(self, registry: AppRegistry) -> None:
-        """A failed entry's instance_name comes from the manifest's configured app_config,
-        not a synthesized ``ClassName.N`` name.
+    @pytest.mark.parametrize(
+        ("app_config", "expected_name"),
+        [
+            ([{"instance_name": "custom_instance"}], "custom_instance"),
+            (None, "MyApp.0"),
+            ([{"instance_name": None}], "MyApp.0"),
+            ([{"instance_name": False}], "MyApp.0"),
+            ([{"instance_name": 0}], "MyApp.0"),
+            ([{"instance_name": ""}], "MyApp.0"),
+        ],
+        ids=["configured_name", "no_app_config", "null", "false", "zero", "empty_string"],
+    )
+    def test_failed_instance_name_resolution(
+        self, registry: AppRegistry, app_config: list[dict] | None, expected_name: str
+    ) -> None:
+        """A failed entry's instance_name comes from the manifest's configured app_config when
+        that value is a usable string, and otherwise falls back to ``ClassName.index``.
+
+        The fallback has to cover more than a missing key. A non-string or empty configured
+        ``instance_name`` -- an explicit ``null`` in the user's config, say -- must not flow
+        through as-is: ``AppInstanceInfo.instance_name`` is a required ``str``, and the eventual
+        ``AppInstanceResponse`` Pydantic mapping would raise a validation error on anything else,
+        turning the status endpoint into a 500.
         """
-        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "custom_instance"}])
+        manifest = make_manifest_obj("my_app", app_config=app_config)
         registry.record_failure("my_app", 0, ValueError("boom"))
 
         info = registry.build_manifest_info("my_app", manifest)
 
-        assert info.instances[0].instance_name == "custom_instance"
-
-    def test_failed_instance_name_falls_back_when_no_configured_name(self, registry: AppRegistry) -> None:
-        """When the manifest config has no configured instance_name, fall back to
-        ``ClassName.index`` (matching prior synthesized-name behavior).
-        """
-        manifest = make_manifest_obj("my_app")
-        registry.record_failure("my_app", 0, ValueError("boom"))
-
-        info = registry.build_manifest_info("my_app", manifest)
-
-        assert info.instances[0].instance_name == "MyApp.0"
+        assert info.instances[0].instance_name == expected_name
 
     def test_failed_instance_name_falls_back_when_no_manifest(self, registry: AppRegistry) -> None:
         """When no manifest is tracked for the app_key, fall back to ``Unknown.index``."""
@@ -981,19 +990,3 @@ class TestBuildManifestInfoStatusDerivation:
 
         assert snapshot.instances[0].instance_name == "Unknown.0"
         assert snapshot.instances[0].class_name == "Unknown"
-
-    @pytest.mark.parametrize("configured_name", [None, False, 0, ""])
-    def test_failed_instance_name_falls_back_for_invalid_configured_value(
-        self, registry: AppRegistry, configured_name: object
-    ) -> None:
-        """A non-string (or empty) configured ``instance_name`` -- e.g. an explicit ``null`` in
-        the user's config -- must not flow through as-is. ``AppInstanceInfo.instance_name`` is a
-        required ``str``, and the eventual ``AppInstanceResponse`` Pydantic mapping would raise a
-        validation error on anything else, turning the status endpoint into a 500.
-        """
-        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": configured_name}])
-        registry.record_failure("my_app", 0, ValueError("boom"))
-
-        info = registry.build_manifest_info("my_app", manifest)
-
-        assert info.instances[0].instance_name == "MyApp.0"

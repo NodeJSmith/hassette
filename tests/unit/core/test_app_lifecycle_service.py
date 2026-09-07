@@ -8,30 +8,22 @@ test_app_lifecycle_service_reconcile.py.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
 import pytest
 
 from hassette.bus import Bus
-from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
 from hassette.testing import EventCapture
-from hassette.types import Topic
+from tests.support.factories import make_change_set
 
-from .conftest import set_registry_apps
+from .conftest import assert_load_completed_count, set_registry_apps
 
 
 class TestAppLifecycleServiceInit:
-    def test_stores_registry_reference(
-        self, mock_hassette: MagicMock, mock_registry: MagicMock, mock_factory: MagicMock
-    ) -> None:
+    def test_stores_registry_reference(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
         """Verify constructor stores the registry reference."""
-        with (
-            patch("hassette.core.app_lifecycle_service.AppFactory", return_value=mock_factory),
-            patch("hassette.core.app_lifecycle_service.AppChangeDetector"),
-        ):
-            service = AppLifecycleService(mock_hassette, parent=None, registry=mock_registry)
-        assert service.registry is mock_registry
+        assert lifecycle_service.registry is mock_registry
 
     def test_creates_factory_internally(self, mock_hassette: MagicMock, mock_registry: MagicMock) -> None:
         """Verify constructor creates an AppFactory."""
@@ -55,17 +47,9 @@ class TestAppLifecycleServiceInit:
             detector_cls.assert_called_once()
             assert service.change_detector is detector_cls.return_value
 
-    def test_does_not_create_bus_child(
-        self, mock_hassette: MagicMock, mock_registry: MagicMock, mock_factory: MagicMock
-    ) -> None:
+    def test_does_not_create_bus_child(self, lifecycle_service: AppLifecycleService) -> None:
         """Verify constructor does not create a Bus child (file-watcher subscription belongs to AppHandler.bus)."""
-        with (
-            patch("hassette.core.app_lifecycle_service.AppFactory", return_value=mock_factory),
-            patch("hassette.core.app_lifecycle_service.AppChangeDetector"),
-        ):
-            service = AppLifecycleService(mock_hassette, parent=None, registry=mock_registry)
-
-        assert not any(isinstance(child, Bus) for child in service.children)
+        assert not any(isinstance(child, Bus) for child in lifecycle_service.children)
 
 
 class TestOnlyAppRegistryAgreement:
@@ -81,12 +65,7 @@ class TestOnlyAppRegistryAgreement:
 
         def capture_only_apps(_original, _current, _changed_paths, *, only_apps=None):
             captured_only_apps.append(only_apps)
-            return ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset(),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-            )
+            return make_change_set()
 
         lifecycle_service.change_detector.detect_changes = capture_only_apps  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -109,6 +88,8 @@ class TestBootstrapAppsAdmission:
         mock_hassette.app_bootstrap_coordinator.wait_released.assert_not_awaited()
         lifecycle_service.start_apps.assert_awaited_once_with(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
+    # dup-ignore-start: pytest test function signature — Python has no way to share a function
+    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
     async def test_bootstrap_replays_deferred_reconciliation_after_startup(
         self,
         lifecycle_service: AppLifecycleService,
@@ -127,14 +108,7 @@ class TestBootstrapAppsAdmission:
         mock_registry.get_snapshot = Mock(return_value=MagicMock(running_count=0, failed_count=0))
         lifecycle_service.start_apps = AsyncMock()
         lifecycle_service.resolve_only_apps = AsyncMock()
-        lifecycle_service.change_detector.detect_changes = Mock(
-            return_value=ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset({"app_a"}),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-            )
-        )
+        lifecycle_service.change_detector.detect_changes = Mock(return_value=make_change_set(new_apps={"app_a"}))
         lifecycle_service.apply_changes = AsyncMock()
         lifecycle_service._record_pre_release_reconciliation(
             original_apps_config={"old_app": original_manifest},
@@ -147,9 +121,11 @@ class TestBootstrapAppsAdmission:
         lifecycle_service.start_apps.assert_awaited_once_with(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
         lifecycle_service.apply_changes.assert_awaited_once()
         assert lifecycle_service._pending_reconciliation is None
-        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-        assert len(completed_calls) == 1
+        assert_load_completed_count(event_capture, 1)
+        # dup-ignore-end
 
+    # dup-ignore-start: pytest test function signature — Python has no way to share a function
+    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
     async def test_bootstrap_replays_deferred_reconciliation_when_no_manifests(
         self,
         lifecycle_service: AppLifecycleService,
@@ -169,14 +145,7 @@ class TestBootstrapAppsAdmission:
         event_capture.install(mock_hassette)
         mock_registry.manifests = {}
         lifecycle_service.resolve_only_apps = AsyncMock()
-        lifecycle_service.change_detector.detect_changes = Mock(
-            return_value=ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset({"app_a"}),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-            )
-        )
+        lifecycle_service.change_detector.detect_changes = Mock(return_value=make_change_set(new_apps={"app_a"}))
         lifecycle_service.apply_changes = AsyncMock()
         lifecycle_service._record_pre_release_reconciliation(
             original_apps_config={"old_app": MagicMock()},
@@ -189,8 +158,8 @@ class TestBootstrapAppsAdmission:
         mock_hassette.app_bootstrap_coordinator.wait_released.assert_awaited_once()
         lifecycle_service.apply_changes.assert_awaited_once()
         assert lifecycle_service._pending_reconciliation is None
-        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-        assert len(completed_calls) == 1
+        assert_load_completed_count(event_capture, 1)
+        # dup-ignore-end
 
 
 class TestAppLifecycleServiceProperties:
@@ -221,6 +190,8 @@ class TestBootstrapApps:
 
         lifecycle_service.start_apps.assert_not_called()
 
+    # dup-ignore-start: pytest test function signature — Python has no way to share a function
+    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
     async def test_emits_load_completed_when_no_manifests(
         self,
         lifecycle_service: AppLifecycleService,
@@ -237,9 +208,11 @@ class TestBootstrapApps:
 
         await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
-        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-        assert len(completed_calls) == 1
+        assert_load_completed_count(event_capture, 1)
+        # dup-ignore-end
 
+    # dup-ignore-start: pytest test function signature — Python has no way to share a function
+    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
     async def test_emits_load_completed_event(
         self,
         lifecycle_service: AppLifecycleService,
@@ -255,8 +228,8 @@ class TestBootstrapApps:
 
         await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
-        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-        assert len(completed_calls) == 1
+        assert_load_completed_count(event_capture, 1)
+        # dup-ignore-end
 
     async def test_handles_crash(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
         """Calls handle_crash and re-raises on exception."""
@@ -273,39 +246,32 @@ class TestBootstrapApps:
 
 
 class TestStartApps:
-    async def test_gathers_all_app_starts(
+    @pytest.mark.parametrize(
+        ("autostart_app_keys", "expected_starts"),
+        [(["app_a", "app_b"], 2), (["app_a"], 1)],
+        ids=["starts_every_autostart_app", "excludes_autostart_false_app"],
+    )
+    async def test_start_apps_starts_only_autostart_manifests(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
         mock_factory: MagicMock,
+        autostart_app_keys: list[str],
+        expected_starts: int,
     ) -> None:
-        """Starts only autostart_manifests apps (not all active_manifests) by default."""
-        manifest_a = MagicMock()
-        manifest_b = MagicMock()
-        mock_registry.autostart_manifests = {"app_a": manifest_a, "app_b": manifest_b}
-        mock_registry.get_manifest = Mock(side_effect=lambda k: {"app_a": manifest_a, "app_b": manifest_b}.get(k))
+        """start_apps() starts exactly the apps in autostart_manifests, not all active_manifests.
+
+        active_manifests is the superset: an app with autostart=false is active but must stay
+        unstarted when no explicit set is passed.
+        """
+        manifests = {key: MagicMock() for key in autostart_app_keys}
+        mock_registry.autostart_manifests = manifests
+        mock_registry.get_manifest = Mock(side_effect=manifests.get)
         mock_registry.get_running_apps = Mock(return_value={})
 
         await lifecycle_service.start_apps()
 
-        assert mock_factory.create_instances.call_count == 2
-
-    async def test_excludes_autostart_false_apps_by_default(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_factory: MagicMock,
-    ) -> None:
-        """Apps not in autostart_manifests are not started when no explicit set is passed."""
-        manifest_a = MagicMock()
-        # autostart_manifests only contains app_a; active_manifests also has app_b (autostart=false)
-        mock_registry.autostart_manifests = {"app_a": manifest_a}
-        mock_registry.get_manifest = Mock(side_effect=lambda k: {"app_a": manifest_a}.get(k))
-        mock_registry.get_running_apps = Mock(return_value={})
-
-        await lifecycle_service.start_apps()
-
-        assert mock_factory.create_instances.call_count == 1
+        assert mock_factory.create_instances.call_count == expected_starts
 
     async def test_cancelled_error_is_not_swallowed(
         self,
@@ -410,142 +376,54 @@ class TestStopAppLocking:
 
 
 class TestApplyChangesGating:
-    async def test_new_apps_autostart_false_not_started(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
+    @pytest.mark.parametrize(
+        ("bucket", "autostart", "running", "operation", "expected_call"),
+        [
+            ("new_apps", False, False, "start_app", None),
+            ("new_apps", True, False, "start_app", call("app_a")),
+            ("reload_apps", False, True, "reload_app", call("app_a")),
+            ("reload_apps", False, False, "reload_app", None),
+            ("reimport_apps", False, True, "reload_app", call("app_a", force_reload=True)),
+            ("reimport_apps", False, False, "reload_app", None),
+            ("orphans", False, False, "stop_app", call("app_a")),
+        ],
+        ids=[
+            "new_autostart_false_is_skipped",
+            "new_autostart_true_starts",
+            "reload_running_reloads_despite_autostart_false",
+            "reload_not_running_autostart_false_is_skipped",
+            "reimport_running_force_reloads_despite_autostart_false",
+            "reimport_not_running_autostart_false_is_skipped",
+            "orphan_stops_regardless_of_autostart",
+        ],
+    )
+    async def test_apply_changes_gating(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        bucket: str,
+        autostart: bool,
+        running: bool,
+        operation: str,
+        expected_call: object,
     ) -> None:
-        """new_apps with autostart=False are skipped in apply_changes."""
+        """apply_changes gates each bucket on autostart and on whether the app is already running.
+
+        The table is the gating matrix itself: `autostart=False` only suppresses work for an app
+        that is not already running -- a running instance still gets reloaded or reimported,
+        because autostart governs whether an app is *started*, not whether a running one keeps
+        tracking its manifest. Orphans are stopped regardless of either.
+        """
         manifest = MagicMock()
-        manifest.autostart = False
+        manifest.autostart = autostart
         mock_registry.get_manifest = Mock(return_value=manifest)
-        set_registry_apps(mock_registry, {})
-        lifecycle_service.start_app = AsyncMock()
+        set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}} if running else {})
+        operation_mock = AsyncMock()
+        setattr(lifecycle_service, operation, operation_mock)
 
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset({"app_a"}),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset(),
-        )
-        await lifecycle_service.apply_changes(changes, {}, {})
+        await lifecycle_service.apply_changes(make_change_set(**{bucket: {"app_a"}}), {}, {})
 
-        lifecycle_service.start_app.assert_not_called()
-
-    async def test_new_apps_autostart_true_are_started(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """new_apps with autostart=True are started in apply_changes."""
-        manifest = MagicMock()
-        manifest.autostart = True
-        mock_registry.get_manifest = Mock(return_value=manifest)
-        set_registry_apps(mock_registry, {})
-        lifecycle_service.start_app = AsyncMock()
-
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset({"app_a"}),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset(),
-        )
-        await lifecycle_service.apply_changes(changes, {}, {})
-
-        lifecycle_service.start_app.assert_called_once_with("app_a")
-
-    async def test_reload_apps_running_autostart_false_are_reloaded(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """reload_apps for a running app are always reconciled (autostart=False, but running)."""
-        manifest = MagicMock()
-        manifest.autostart = False
-        mock_registry.get_manifest = Mock(return_value=manifest)
-        set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}})
-        lifecycle_service.reload_app = AsyncMock()
-
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset({"app_a"}),
-        )
-        await lifecycle_service.apply_changes(changes, {}, {})
-
-        lifecycle_service.reload_app.assert_called_once_with("app_a")
-
-    async def test_reload_apps_not_running_autostart_false_are_skipped(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """reload_apps for a non-running autostart=False app are skipped."""
-        manifest = MagicMock()
-        manifest.autostart = False
-        mock_registry.get_manifest = Mock(return_value=manifest)
-        set_registry_apps(mock_registry, {})
-        lifecycle_service.reload_app = AsyncMock()
-
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset({"app_a"}),
-        )
-        await lifecycle_service.apply_changes(changes, {}, {})
-
-        lifecycle_service.reload_app.assert_not_called()
-
-    async def test_reimport_apps_running_autostart_false_are_reloaded(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """reimport_apps for a running autostart=False app are reconciled with force_reload."""
-        manifest = MagicMock()
-        manifest.autostart = False
-        mock_registry.get_manifest = Mock(return_value=manifest)
-        set_registry_apps(mock_registry, {"app_a": {0: MagicMock()}})
-        lifecycle_service.reload_app = AsyncMock()
-
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset({"app_a"}),
-            reload_apps=frozenset(),
-        )
-        await lifecycle_service.apply_changes(changes, {}, {})
-
-        lifecycle_service.reload_app.assert_called_once_with("app_a", force_reload=True)
-
-    async def test_reimport_apps_not_running_autostart_false_are_skipped(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """reimport_apps for a non-running autostart=False app are skipped."""
-        manifest = MagicMock()
-        manifest.autostart = False
-        mock_registry.get_manifest = Mock(return_value=manifest)
-        set_registry_apps(mock_registry, {})
-        lifecycle_service.reload_app = AsyncMock()
-
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset({"app_a"}),
-            reload_apps=frozenset(),
-        )
-        await lifecycle_service.apply_changes(changes, {}, {})
-
-        lifecycle_service.reload_app.assert_not_called()
-
-    async def test_orphans_stopped_unconditionally(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock
-    ) -> None:
-        """Orphaned apps are stopped regardless of autostart."""
-        manifest = MagicMock()
-        manifest.autostart = False
-        mock_registry.get_manifest = Mock(return_value=manifest)
-        set_registry_apps(mock_registry, {})
-        lifecycle_service.stop_app = AsyncMock()
-
-        changes = ChangeSet(
-            orphans=frozenset({"app_a"}),
-            new_apps=frozenset(),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset(),
-        )
-        await lifecycle_service.apply_changes(changes, {}, {})
-
-        lifecycle_service.stop_app.assert_called_once_with("app_a")
+        if expected_call is None:
+            operation_mock.assert_not_called()
+        else:
+            assert operation_mock.call_args_list == [expected_call]

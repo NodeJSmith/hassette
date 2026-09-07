@@ -9,6 +9,7 @@ working unchanged. See tests/unit/core/CLAUDE.md for the fixture inventory.
 from ._fixtures_app_lifecycle import (
     app_handler,
     app_handler_mock_hassette,
+    assert_load_completed_count,
     lifecycle_service,
     make_mock_app_instance,
     mock_app_instance,
@@ -17,6 +18,7 @@ from ._fixtures_app_lifecycle import (
     mock_manifest,
     mock_registry,
     set_registry_apps,
+    stub_detected_changes,
 )
 from ._fixtures_blocking_io import make_blocking_io_hassette, make_marker_executor
 from ._fixtures_bus_scheduler import make_bus_service, make_scheduler_service
@@ -48,6 +50,7 @@ from ._fixtures_telemetry import (
     telemetry_repo,
     telemetry_session_id,
 )
+from ._fixtures_websocket import websocket_service, websocket_service_strict
 
 __all__ = [
     "COOLDOWN_NEVER_REACHED_SECONDS",
@@ -60,6 +63,7 @@ __all__ = [
     "app_handler_mock_hassette",
     "assert_job_count",
     "assert_listener_count",
+    "assert_load_completed_count",
     "fetch_job_field",
     "fetch_listener_field",
     "init_executor",
@@ -83,7 +87,10 @@ __all__ = [
     "mock_manifest",
     "mock_registry",
     "set_registry_apps",
+    "stub_detected_changes",
     "telemetry_db",
     "telemetry_repo",
     "telemetry_session_id",
+    "websocket_service",
+    "websocket_service_strict",
 ]

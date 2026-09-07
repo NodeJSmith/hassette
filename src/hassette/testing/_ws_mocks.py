@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, Mock
 from aiohttp import ClientWebSocketResponse
 
 from hassette.core.observer_list import ObserverList
+from hassette.exceptions import RetryableConnectionClosedError
 from hassette.resources.lifecycle import mark_ready
 from hassette.testing.config import TEST_TOTAL_TIMEOUT_SECONDS
 from hassette.types.enums import ConnectionState
@@ -100,6 +101,47 @@ def mark_websocket_service_connected(websocket_service: "WebsocketService", *, r
     websocket_service._connection_state = ConnectionState.CONNECTED
     websocket_service._ever_connected = True
     _configure_websocket_external_readiness_primitives(websocket_service)
+
+
+def make_clean_connection_task() -> asyncio.Task[None]:
+    """Build the task a ``make_connection()`` stub returns for a connection that exits cleanly.
+
+    ``serve()`` awaits whatever ``make_connection()`` hands back, so a stub has to return a real
+    task rather than a plain value -- this and `make_dropped_connection_task` are the two outcomes
+    those stubs need.
+    """
+
+    async def _clean() -> None:
+        pass
+
+    return asyncio.create_task(_clean())
+
+
+def make_dropped_connection_task(message: str = "peer gone") -> asyncio.Task[None]:
+    """Build the task a ``make_connection()`` stub returns for a connection the peer drops.
+
+    Awaiting it raises ``RetryableConnectionClosedError``, which is what drives ``serve()`` into
+    its reconnect path. See `make_clean_connection_task` for the success counterpart.
+    """
+
+    async def _fail() -> None:
+        raise RetryableConnectionClosedError(message)
+
+    return asyncio.create_task(_fail())
+
+
+async def run_start_recv_and_subscribe(websocket_service: "WebsocketService", spawned_coros: list[Coroutine]) -> None:
+    """Run ``start_recv_and_subscribe()`` and dispose of everything it started.
+
+    Pair with `make_task_bucket_spawn_stub`, whose recorded coroutine list is what
+    ``spawned_coros`` expects. Closes each recorded coroutine (the stub never ran them, so
+    leaving them open raises ResourceWarning) and cancels the recv task the method returns,
+    which tests observe side effects of rather than await.
+    """
+    result_task = await websocket_service.start_recv_and_subscribe()
+    for coro in spawned_coros:
+        coro.close()
+    result_task.cancel()
 
 
 def make_task_bucket_spawn_stub() -> tuple[list[Coroutine], Mock]:

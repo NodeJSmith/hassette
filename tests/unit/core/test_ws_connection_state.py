@@ -4,7 +4,6 @@ Tests for the three-state ConnectionState enum (DISCONNECTED, CONNECTING, CONNEC
 set_connection_state() validation, and proper state transitions in serve/connect/cleanup.
 """
 
-import asyncio
 import logging
 import time
 from unittest.mock import AsyncMock, patch
@@ -14,27 +13,13 @@ import pytest
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import InvalidAuthError, InvalidLifecycleTransitionError, RetryableConnectionClosedError
 from hassette.resources.lifecycle import mark_ready
+from hassette.testing._ws_mocks import make_clean_connection_task, make_dropped_connection_task
 from hassette.testing.config import (
     TEST_EARLY_DROP_BACKOFF_INITIAL_SECONDS,
     TEST_EARLY_DROP_BACKOFF_MAX_SECONDS,
     TEST_EARLY_DROP_STABLE_WINDOW_SECONDS,
 )
 from hassette.types.enums import ConnectionState
-from tests.support.mock_hassette import make_ws_hassette_stub
-
-
-@pytest.fixture
-async def websocket_service() -> WebsocketService:
-    """Create a WebsocketService with a fully-mocked hassette stub (non-strict mode)."""
-    hassette = make_ws_hassette_stub(strict_lifecycle=False, sealed=False)
-    return WebsocketService(hassette=hassette)
-
-
-@pytest.fixture
-async def websocket_service_strict() -> WebsocketService:
-    """Create a WebsocketService with strict_lifecycle=True."""
-    hassette = make_ws_hassette_stub(strict_lifecycle=True, sealed=False)
-    return WebsocketService(hassette=hassette)
 
 
 class TestInitialState:
@@ -211,10 +196,7 @@ class TestValidConnectSequence:
             websocket_service.set_connection_state(ConnectionState.CONNECTED)
             mark_ready(websocket_service, reason="test: connected")
 
-            async def _clean():
-                pass
-
-            return asyncio.create_task(_clean())
+            return make_clean_connection_task()
 
         websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -255,19 +237,13 @@ class TestReconnectSequence:
                 websocket_service._connected_at = time.monotonic()
                 mark_ready(websocket_service, reason="test: connected")
 
-                async def _fail():
-                    raise RetryableConnectionClosedError("peer gone")
-
-                return asyncio.create_task(_fail())
+                return make_dropped_connection_task("peer gone")
 
             # Second: clean exit (reconnect succeeded)
             websocket_service.set_connection_state(ConnectionState.CONNECTED)
             mark_ready(websocket_service, reason="test: reconnected")
 
-            async def _clean():
-                pass
-
-            return asyncio.create_task(_clean())
+            return make_clean_connection_task()
 
         websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
@@ -312,10 +288,7 @@ class TestMaxRetriesDisconnects:
             websocket_service._connected_at = time.monotonic()
             mark_ready(websocket_service, reason="test: simulating successful connection")
 
-            async def _fail():
-                raise RetryableConnectionClosedError("dropped")
-
-            return asyncio.create_task(_fail())
+            return make_dropped_connection_task("dropped")
 
         websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]

@@ -4,7 +4,6 @@ Verifies that _emit_readiness_event() is called after mark_not_ready() and mark_
 in the serve() reconnect paths.
 """
 
-import asyncio
 import time
 from unittest.mock import AsyncMock, Mock
 
@@ -14,17 +13,14 @@ from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import RetryableConnectionClosedError
 from hassette.resources.lifecycle import mark_ready
 from hassette.testing import EventCapture
-from hassette.testing._ws_mocks import make_task_bucket_spawn_stub
+from hassette.testing._ws_mocks import (
+    make_clean_connection_task,
+    make_dropped_connection_task,
+    make_task_bucket_spawn_stub,
+    run_start_recv_and_subscribe,
+)
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
-from tests.support.mock_hassette import make_ws_hassette_stub
-
-
-@pytest.fixture
-async def websocket_service() -> WebsocketService:
-    """Create a WebsocketService with a fully-mocked hassette stub."""
-    hassette = make_ws_hassette_stub(sealed=False)
-    return WebsocketService(hassette=hassette)
 
 
 class TestWebsocketReadinessEvents:
@@ -54,16 +50,10 @@ class TestWebsocketReadinessEvents:
                 websocket_service._connected_at = time.monotonic()
                 mark_ready(websocket_service, reason="test: connected")
 
-                async def _fail():
-                    raise RetryableConnectionClosedError("peer gone")
-
-                return asyncio.create_task(_fail())
+                return make_dropped_connection_task("peer gone")
 
             # Second call: clean exit
-            async def _clean():
-                pass
-
-            return asyncio.create_task(_clean())
+            return make_clean_connection_task()
 
         websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
@@ -102,10 +92,7 @@ class TestWebsocketReadinessEvents:
             websocket_service._connected_at = time.monotonic() - 60.0
             mark_ready(websocket_service, reason="test: connected")
 
-            async def _fail():
-                raise RetryableConnectionClosedError("stable drop")
-
-            return asyncio.create_task(_fail())
+            return make_dropped_connection_task("stable drop")
 
         websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -143,12 +130,7 @@ class TestWebsocketReadinessEvents:
         websocket_service.send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
 
-        result_task = await websocket_service.start_recv_and_subscribe()
-
-        # Close spawned coroutines to suppress ResourceWarning
-        for coro in spawned_coros:
-            coro.close()
-        result_task.cancel()
+        await run_start_recv_and_subscribe(websocket_service, spawned_coros)
 
         # Assert: _emit_readiness_event() was called → a service_status event with ready=True was sent
         service_status_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_SERVICE_STATUS)
@@ -186,11 +168,7 @@ class TestWebsocketReadinessEvents:
 
         websocket_service._connection_state = ConnectionState.CONNECTING
 
-        result_task = await websocket_service.start_recv_and_subscribe()
-
-        for coro in spawned_coros:
-            coro.close()
-        result_task.cancel()
+        await run_start_recv_and_subscribe(websocket_service, spawned_coros)
 
         assert topics == [
             Topic.HASSETTE_EVENT_SERVICE_STATUS,
@@ -215,11 +193,7 @@ class TestWebsocketReadinessEvents:
         websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service._connection_state = ConnectionState.CONNECTING
 
-        result_task = await websocket_service.start_recv_and_subscribe()
-
-        for coro in spawned_coros:
-            coro.close()
-        result_task.cancel()
+        await run_start_recv_and_subscribe(websocket_service, spawned_coros)
 
         assert websocket_service.is_connected is True
         assert await websocket_service.wait_connected(timeout=0) is True
