@@ -119,10 +119,11 @@ class TestOverlayRuntimeState:
         if running:
             registry.register_app(manifest.app_key, 0, mock_app)
         if failed:
-            # record_failure only replaces the entry at the matching index, so failing index 1
-            # while index 0 stays registered is what produces a running/failed mix -- the
-            # precondition for "degraded". Without a running instance, index 0 is fine.
-            registry.record_failure(manifest.app_key, 1 if running else 0, ValueError("boom"))
+            # record_failure only replaces the entry at the matching index, so the failure has to
+            # land on a different index than the running instance to produce the running/failed
+            # mix "degraded" requires. With nothing running, index 0 is free to hold it.
+            failed_index = 1 if running else 0
+            registry.record_failure(manifest.app_key, failed_index, ValueError("boom"))
         if blocked:
             registry.block_app(manifest.app_key, BlockReason.ONLY_APP)
 

@@ -107,7 +107,7 @@ def make_clean_connection_task() -> asyncio.Task[None]:
     """Build the task a ``make_connection()`` stub returns for a connection that exits cleanly.
 
     ``serve()`` awaits whatever ``make_connection()`` hands back, so a stub has to return a real
-    task rather than a plain value -- this and `make_dropped_connection_task` are the two outcomes
+    task rather than a plain value -- this and ``make_dropped_connection_task`` are the two outcomes
     those stubs need.
     """
 
@@ -121,7 +121,7 @@ def make_dropped_connection_task(message: str = "peer gone") -> asyncio.Task[Non
     """Build the task a ``make_connection()`` stub returns for a connection the peer drops.
 
     Awaiting it raises ``RetryableConnectionClosedError``, which is what drives ``serve()`` into
-    its reconnect path. See `make_clean_connection_task` for the success counterpart.
+    its reconnect path. See ``make_clean_connection_task`` for the success counterpart.
     """
 
     async def _fail() -> None:
@@ -133,7 +133,7 @@ def make_dropped_connection_task(message: str = "peer gone") -> asyncio.Task[Non
 async def run_start_recv_and_subscribe(websocket_service: "WebsocketService", spawned_coros: list[Coroutine]) -> None:
     """Run ``start_recv_and_subscribe()`` and dispose of everything it started.
 
-    Pair with `make_task_bucket_spawn_stub`, whose recorded coroutine list is what
+    Pair with ``make_task_bucket_spawn_stub``, whose recorded coroutine list is what
     ``spawned_coros`` expects. Closes each recorded coroutine (the stub never ran them, so
     leaving them open raises ResourceWarning) and cancels the recv task the method returns,
     which tests observe side effects of rather than await.

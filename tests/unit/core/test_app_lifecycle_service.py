@@ -247,8 +247,8 @@ class TestBootstrapApps:
 
 class TestStartApps:
     @pytest.mark.parametrize(
-        ("autostart_app_keys", "expected_starts"),
-        [(["app_a", "app_b"], 2), (["app_a"], 1)],
+        ("autostart_app_keys", "non_autostart_app_keys"),
+        [(["app_a", "app_b"], []), (["app_a"], ["app_b"])],
         ids=["starts_every_autostart_app", "excludes_autostart_false_app"],
     )
     async def test_start_apps_starts_only_autostart_manifests(
@@ -257,21 +257,26 @@ class TestStartApps:
         mock_registry: MagicMock,
         mock_factory: MagicMock,
         autostart_app_keys: list[str],
-        expected_starts: int,
+        non_autostart_app_keys: list[str],
     ) -> None:
         """start_apps() starts exactly the apps in autostart_manifests, not all active_manifests.
 
-        active_manifests is the superset: an app with autostart=false is active but must stay
-        unstarted when no explicit set is passed.
+        active_manifests is the superset: an app with autostart=false is active and has a
+        resolvable manifest, but must stay unstarted when no explicit set is passed. The
+        exclusion case seeds one such app so a regression that iterates active_manifests
+        instead starts it and fails here.
         """
-        manifests = {key: MagicMock() for key in autostart_app_keys}
-        mock_registry.autostart_manifests = manifests
-        mock_registry.get_manifest = Mock(side_effect=manifests.get)
+        autostart_manifests = {key: MagicMock() for key in autostart_app_keys}
+        active_manifests = autostart_manifests | {key: MagicMock() for key in non_autostart_app_keys}
+        mock_registry.autostart_manifests = autostart_manifests
+        mock_registry.active_manifests = active_manifests
+        mock_registry.get_manifest = Mock(side_effect=active_manifests.get)
         mock_registry.get_running_apps = Mock(return_value={})
 
         await lifecycle_service.start_apps()
 
-        assert mock_factory.create_instances.call_count == expected_starts
+        started = {call.args[0] for call in mock_factory.create_instances.call_args_list}
+        assert started == set(autostart_app_keys)
 
     async def test_cancelled_error_is_not_swallowed(
         self,
