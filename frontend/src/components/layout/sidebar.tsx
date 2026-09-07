@@ -12,7 +12,7 @@ import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
 import { type AppStatusEntry, useAppStore } from "../../state/store";
 import { appLiveStatus, instanceLiveStatus } from "../../utils/app-data";
 import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { COMPACT_STATUS_DOT_SIZE, GROUP_HEADER_STATUS_SHAPE_SIZE, STATUS_DOT_SIZE } from "../../utils/constants";
 import { SHORTCUT_HINT } from "../../utils/keyboard";
 import { statusToKind } from "../../utils/status";
 import { Spinner } from "../shared/spinner";
@@ -113,7 +113,7 @@ function AppEntry({ manifest, location, searchString, appStatuses }: AppEntryPro
                       )}
                       aria-current={instActive ? "page" : undefined}
                     >
-                      <StatusShape kind={statusToKind(instStatus)} size={8} />
+                      <StatusShape kind={statusToKind(instStatus)} size={COMPACT_STATUS_DOT_SIZE} />
                       <span className="truncate">{inst.instance_name}</span>
                     </Link>
                   </li>
@@ -149,7 +149,7 @@ const StatusGroupHeader = forwardRef<HTMLButtonElement, StatusGroupHeaderProps>(
       {...props}
     >
       <SidebarChevron open={isOpen} className="shrink-0 text-[var(--ink-4)]" />
-      <StatusShape kind={def.tone} size={7} />
+      <StatusShape kind={def.tone} size={GROUP_HEADER_STATUS_SHAPE_SIZE} />
       <span
         className={cn(
           "flex-1 text-xs font-medium tracking-[0.05em] text-[var(--ink-2)] uppercase",
