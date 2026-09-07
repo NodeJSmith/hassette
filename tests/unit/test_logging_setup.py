@@ -41,6 +41,7 @@ def _reset_extra_logger_state():
         logger = logging.getLogger(name)
         logger.setLevel(logging.NOTSET)
         logger.propagate = True
+        logger.disabled = False
         logger.handlers.clear()
         logger.filters.clear()
 
@@ -345,6 +346,19 @@ class TestExtraLoggers:
         enable_basic_logging("DEBUG", log_format="console", stream=stream)
         assert logging.getLogger("requests").getEffectiveLevel() == logging.WARNING
 
+    def test_adopting_a_disabled_logger_re_enables_it(self) -> None:
+        """A logger previously disabled (e.g. by logging.config.dictConfig()'s default
+        disable_existing_loggers=True) must be re-enabled on adoption — Logger.handle() no-ops
+        entirely on a disabled logger regardless of level or attached handlers, so extra_loggers
+        would otherwise silently do nothing for exactly this kind of pre-existing logger.
+        """
+        logging.getLogger("my_app.notify").disabled = True
+
+        stream = StringIO()
+        enable_basic_logging("INFO", log_format="console", stream=stream, extra_loggers=("my_app.notify",))
+
+        assert logging.getLogger("my_app.notify").disabled is False
+
 
 class TestExtraLoggerReconfiguration:
     """A second enable_basic_logging() call in the same process — a second Hassette()
@@ -365,14 +379,15 @@ class TestExtraLoggerReconfiguration:
         assert first_handler not in logging.getLogger("my_app.notify").handlers
 
     def test_dropped_extra_logger_restores_exact_prior_state(self) -> None:
-        """Restoration replays the logger's pre-Hassette level/propagate/handlers/filters
-        exactly, not just a blank NOTSET/propagate=True/no-handlers reset.
+        """Restoration replays the logger's pre-Hassette level/propagate/disabled/handlers/
+        filters exactly, not just a blank NOTSET/propagate=True/enabled/no-handlers reset.
         """
         original_handler = logging.StreamHandler(StringIO())
         original_filter = logging.Filter("original")
         pristine = logging.getLogger("my_app.laundry")
         pristine.setLevel(logging.ERROR)
         pristine.propagate = True
+        pristine.disabled = True
         pristine.addHandler(original_handler)
         pristine.addFilter(original_filter)
 
@@ -382,6 +397,7 @@ class TestExtraLoggerReconfiguration:
         restored = logging.getLogger("my_app.laundry")
         assert restored.level == logging.ERROR
         assert restored.propagate is True
+        assert restored.disabled is True
         assert restored.handlers == [original_handler]
         assert restored.filters == [original_filter]
 

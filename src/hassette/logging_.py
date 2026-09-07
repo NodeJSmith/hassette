@@ -400,6 +400,7 @@ class _ExtraLoggerSnapshot:
 
     level: int
     propagate: bool
+    disabled: bool
     handlers: list[logging.Handler]
     # logging.Filterer.filters is list[Filter | Callable[[LogRecord], bool]] — a plain `list`
     # of that union is invariant against stdlib's own private type alias, so pyright rejects
@@ -447,6 +448,7 @@ def _snapshot_extra_logger(name: str) -> None:
     _extra_logger_snapshots[name] = _ExtraLoggerSnapshot(
         level=logger.level,
         propagate=logger.propagate,
+        disabled=logger.disabled,
         handlers=list(logger.handlers),
         filters=list(logger.filters),
     )
@@ -464,6 +466,7 @@ def _restore_extra_logger(name: str) -> None:
     logger = logging.getLogger(name)
     logger.setLevel(snapshot.level)
     logger.propagate = snapshot.propagate
+    logger.disabled = snapshot.disabled
     logger.handlers = list(snapshot.handlers)
     logger.filters = list(snapshot.filters)
 
@@ -475,10 +478,17 @@ def _reset_logger(name: str, level: int | str) -> logging.Logger:
     outright, and on every configured ``LoggingConfig.extra_loggers`` name, which it does not —
     an extra logger that already had its own handler (e.g. a library-installed ``FileHandler``)
     loses it here, in exchange for joining Hassette's structured pipeline instead.
+
+    Also clears ``disabled`` — a very common gotcha for third-party loggers specifically,
+    since ``logging.config.dictConfig()`` defaults to ``disable_existing_loggers=True`` and
+    disables every logger that existed before it ran. ``Logger.handle()`` no-ops entirely on a
+    disabled logger regardless of level or attached handlers, so leaving this set would make
+    extra_loggers silently do nothing for exactly the kind of logger it's meant to adopt.
     """
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.propagate = False
+    logger.disabled = False
     logger.handlers.clear()
     logger.filters.clear()
     return logger
