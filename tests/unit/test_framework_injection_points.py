@@ -158,9 +158,10 @@ class TestHarnessTeardownClearsSingletonOnError:
         assert fresh_instance.get(None) is harness.hassette
 
         class _TeardownBoom(BaseException):
-            """A BaseException is guaranteed to escape stop()'s ``except Exception`` collectors,
-            so the test pins the invariant for any escape, not just the exception type that
-            originally leaked.
+            """A BaseException bypasses stop()'s ``except Exception`` collectors, which would
+            otherwise stash the error and re-raise it as an ExceptionGroup only after the reset
+            has already run. It escapes the teardown body mid-flight instead — the case the
+            ``finally`` exists to cover.
             """
 
         async def _boom() -> None:

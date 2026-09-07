@@ -321,8 +321,8 @@ async def test_handle_failed_on_terminal_resource_is_noop(terminal: ResourceStat
     Regression for #1059. Terminal states (STOPPED, EXHAUSTED_DEAD) have no valid transition to
     FAILED, so a late failure arriving after teardown completed — such as a submit-after-shutdown
     ``RuntimeError("cannot schedule new futures after shutdown")`` — is benign. handle_failed()
-    must leave the status unchanged rather than drive a STOPPED → FAILED transition that
-    VALID_TRANSITIONS forbids, which would raise InvalidLifecycleTransitionError under
+    must therefore leave the status unchanged. Driving the terminal → FAILED transition instead
+    would violate VALID_TRANSITIONS and raise InvalidLifecycleTransitionError under
     strict_lifecycle.
     """
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
@@ -413,9 +413,7 @@ async def test_start_from_worker_thread_redispatches_onto_loop_thread():
     dedicated sync-handler thread pool. create_lifecycle_task() calls
     asyncio.get_running_loop(), which raises RuntimeError when there is no running loop on the
     calling thread. Without the cross-thread redispatch, calling start() from a worker thread
-    would raise instead of scheduling initialization on the loop thread. Regression test for the
-    dropped TaskBucket.spawn()-style cross-thread dispatch start() lost when its joiner creation
-    moved to create_lifecycle_task().
+    would raise instead of scheduling initialization on the loop thread.
     """
     hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)
@@ -536,7 +534,7 @@ async def test_cancel_stops_pending_start_joiner_same_turn():
     in the same event-loop turn as start() (no intervening await) must therefore also check
     _pending_start_task -- otherwise cancel() sees _init_task still None, reports nothing to
     cancel, and the queued joiner goes on to initialize the resource despite the cancellation
-    request. Regression test for the race described in the PR review finding on cancel().
+    request.
     """
     hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)
