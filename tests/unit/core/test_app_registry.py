@@ -1,4 +1,9 @@
-"""Tests for AppRegistry."""
+"""Unit tests for AppRegistry core registration and its AppStatusSnapshot counts.
+
+Covers `AppStatusSnapshot` itself and `AppRegistry`, including `get_snapshot()`.
+The `get_full_snapshot()`, blocking, autostart, and manifest-info tests live in
+`test_app_registry_snapshot.py`.
+"""
 
 from unittest.mock import MagicMock
 

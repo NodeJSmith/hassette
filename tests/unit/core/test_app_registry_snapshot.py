@@ -1,4 +1,8 @@
-"""Tests for AppRegistry snapshot, blocking, autostart, and manifest-info derivation."""
+"""Unit tests for AppRegistry full-snapshot, blocking, autostart, and manifest-info derivation.
+
+Covers `get_full_snapshot()` and the manifest-backed views around it. The core registration
+tests and the lighter `get_snapshot()` counts live in `test_app_registry.py`.
+"""
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
