@@ -318,15 +318,12 @@ async def test_running_to_stopped_direct_is_valid():
 async def test_handle_failed_on_terminal_resource_is_noop(terminal: ResourceStatus):
     """handle_failed() on an already-terminal resource is a no-op, even in strict mode.
 
-    Regression for #1059: during teardown a late submit-after-shutdown error
-    (``RuntimeError("cannot schedule new futures after shutdown")``) could surface on a
-    resource that had already reached STOPPED. handle_failed() then drove a STOPPED → FAILED
-    transition, which VALID_TRANSITIONS forbids — raising InvalidLifecycleTransitionError under
-    strict_lifecycle. On Python 3.11 that error escaped harness teardown before the global
-    singleton was reset, poisoning every later test on the xdist worker.
-
-    Terminal states (STOPPED, EXHAUSTED_DEAD) cannot transition to FAILED, so failing one is
-    benign — handle_failed() must leave the status unchanged instead of raising.
+    Regression for #1059. Terminal states (STOPPED, EXHAUSTED_DEAD) have no valid transition to
+    FAILED, so a late failure arriving after teardown completed — such as a submit-after-shutdown
+    ``RuntimeError("cannot schedule new futures after shutdown")`` — is benign. handle_failed()
+    must therefore leave the status unchanged. Driving the terminal → FAILED transition instead
+    would violate VALID_TRANSITIONS and raise InvalidLifecycleTransitionError under
+    strict_lifecycle.
     """
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
     resource = ConcreteResource(hassette)
@@ -416,9 +413,7 @@ async def test_start_from_worker_thread_redispatches_onto_loop_thread():
     dedicated sync-handler thread pool. create_lifecycle_task() calls
     asyncio.get_running_loop(), which raises RuntimeError when there is no running loop on the
     calling thread. Without the cross-thread redispatch, calling start() from a worker thread
-    would raise instead of scheduling initialization on the loop thread. Regression test for the
-    dropped TaskBucket.spawn()-style cross-thread dispatch start() lost when its joiner creation
-    moved to create_lifecycle_task().
+    would raise instead of scheduling initialization on the loop thread.
     """
     hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)
@@ -452,8 +447,7 @@ async def test_cancel_from_worker_thread_redispatches_onto_loop_thread():
     this redispatch, cancel() would run synchronously on the worker thread and see
     _pending_start_task still None (start()'s own redispatch has not been processed by the loop
     yet), report nothing to cancel, and let the queued _start_on_loop_thread callback go on to
-    initialize the resource despite the ordered cancellation request. Regression test for the
-    Codex review finding on lifecycle.py's cancel().
+    initialize the resource despite the ordered cancellation request.
     """
     hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)
@@ -540,7 +534,7 @@ async def test_cancel_stops_pending_start_joiner_same_turn():
     in the same event-loop turn as start() (no intervening await) must therefore also check
     _pending_start_task -- otherwise cancel() sees _init_task still None, reports nothing to
     cancel, and the queued joiner goes on to initialize the resource despite the cancellation
-    request. Regression test for the race described in the PR review finding on cancel().
+    request.
     """
     hassette = make_mock_hassette(sealed=False)
     resource = ConcreteResource(hassette)

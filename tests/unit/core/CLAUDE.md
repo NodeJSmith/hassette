@@ -1,10 +1,10 @@
 # Tests: unit/core
 
 Fixtures below are defined in family-scoped `_fixtures_*.py` modules in this directory
-(`_fixtures_app_lifecycle.py`, `_fixtures_command_executor.py`, `_fixtures_bus_scheduler.py`,
-`_fixtures_blocking_io.py`, `_fixtures_service_watcher.py`, `_fixtures_telemetry.py`,
-`_fixtures_websocket.py`) and re-exported from `conftest.py`. Import from `.conftest` as before —
-the re-export keeps that surface stable; only the definitions moved.
+(`_fixtures_app_lifecycle.py`, `_fixtures_app_registry.py`, `_fixtures_command_executor.py`,
+`_fixtures_bus_scheduler.py`, `_fixtures_blocking_io.py`, `_fixtures_service_watcher.py`,
+`_fixtures_telemetry.py`, `_fixtures_websocket.py`) and re-exported from `conftest.py`. Import from
+`.conftest` as before — the re-export keeps that surface stable; only the definitions moved.
 
 ## Available fixtures (re-exported from this directory's conftest.py)
 
@@ -19,6 +19,8 @@ the re-export keeps that surface stable; only the definitions moved.
 - `assert_load_completed_count(event_capture, expected)` — assert how many `APP_LOAD_COMPLETED` broadcasts fired (the signal a connected dashboard refetches on)
 - `stub_detected_changes(lifecycle_service, changes)` — make `detect_changes` report `changes` and stub `apply_changes`, for tests of `handle_change_event`'s own apply/defer/broadcast decisions
 - `set_registry_apps(registry, apps)` — configures a `mock_registry`'s `__contains__`, `app_keys()`, `get_running_apps()`, and `get()` from an `apps`-shaped dict (`dict[str, dict[int, App]]`); use instead of assigning `mock_registry.apps = ...` directly (that attribute no longer exists on the real `AppRegistry`)
+- `make_manifest_obj(app_key, **kw)` — `SimpleNamespace` AppManifest stand-in for `AppRegistry` tests; shared by `test_app_registry.py` and `test_app_registry_snapshot.py`
+- `make_app_instance(app_key, index=0)` — `SimpleNamespace` App stand-in for `AppRegistry` tests; shared by the same two files
 - `make_executor(**kw)` — real `CommandExecutor` with dependencies mocked out
 - `init_executor(queue_max=10)` — real `CommandExecutor` set up for write-pipeline tests (bounded queue, capacity-warning config, real `ready_event`); shared by `test_command_executor_pipeline_queue.py`, `test_command_executor_pipeline_persist.py`, `test_command_executor_pipeline_serve.py`
 - `make_invocation(**kw)` — `ExecutionRecord` for a handler execution, defaults tuned for the write-pipeline tests above

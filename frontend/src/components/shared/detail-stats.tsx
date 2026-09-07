@@ -8,6 +8,11 @@ export interface DetailStatsCell {
   tone?: StatusKind;
 }
 
+// Intentionally not app-detail's SECTION_LABEL_CLASS, which this matches except for its
+// leading "mb-2". These are stat values inside a gap-1 flex column that already supplies the
+// spacing, and shared/ must not depend on app-detail/.
+const STAT_VALUE_CLASS = "font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
+
 const toneClass: Record<StatusKind, string> = {
   err: "text-destructive",
   warn: "text-[var(--status-warning)]",
@@ -33,13 +38,7 @@ export function DetailStats({ cells, "data-testid": testId }: DetailStatsProps) 
           <span className="whitespace-nowrap text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground">
             {cell.label}
           </span>
-          <span
-            className={cn(
-              "font-sans text-[length:var(--text-h3)] font-semibold text-foreground",
-              cell.tone && toneClass[cell.tone],
-            )}
-            data-tone={cell.tone}
-          >
+          <span className={cn(STAT_VALUE_CLASS, cell.tone && toneClass[cell.tone])} data-tone={cell.tone}>
             {cell.value}
           </span>
         </div>
