@@ -13,7 +13,15 @@ import pytest
 import hassette.core.telemetry.repository as telemetry_repository_module
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.repository import TelemetryRepository
-from tests.support.factories import make_execution_record, make_job_registration, make_listener_registration
+from tests.support.factories import (
+    DEFAULT_TEST_APP_KEY,
+    make_execution_record,
+    make_job_registration,
+    make_listener_registration,
+)
+
+# Row id far beyond anything the test fixtures insert, so it reliably violates the FK constraint.
+NONEXISTENT_FK_ID = 99999
 
 
 async def forward_execute(
@@ -44,7 +52,7 @@ async def test_reconcile_rollback_on_exception(
         patch.object(telemetry_db, "execute", side_effect=failing_execute),
         pytest.raises(RuntimeError, match="simulated DB error"),
     ):
-        await telemetry_repo.reconcile_registrations("test_app", [], [])
+        await telemetry_repo.reconcile_registrations(DEFAULT_TEST_APP_KEY, [], [])
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
@@ -105,10 +113,9 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
     """
     # dup-ignore-end
     now = time.time()
-    bad_listener_id = 99999
     record = ExecutionRecord(
         kind="handler",
-        listener_id=bad_listener_id,
+        listener_id=NONEXISTENT_FK_ID,
         session_id=telemetry_session_id,
         execution_start_ts=now,
         duration_ms=5.0,
@@ -138,10 +145,9 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violatio
     """
     # dup-ignore-end
     now = time.time()
-    bad_job_id = 99999
     record = ExecutionRecord(
         kind="job",
-        job_id=bad_job_id,
+        job_id=NONEXISTENT_FK_ID,
         session_id=telemetry_session_id,
         execution_start_ts=now,
         duration_ms=10.0,
