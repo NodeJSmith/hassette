@@ -92,11 +92,7 @@ Those commands query Hassette's own web API, not Home Assistant. That API has a 
 
 ## 6. Open the dashboard
 
-The same running instance serves a web UI. Open it in a browser:
-
-```
-http://127.0.0.1:8126/
-```
+The same running instance serves a web UI. Open <http://127.0.0.1:8126/> in a browser.
 
 ![Apps page](../../_static/web_ui_apps.png)
 

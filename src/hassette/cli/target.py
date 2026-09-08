@@ -56,6 +56,11 @@ class ResolvedCredential:
     the concrete path it read rather than the generic setting name — the difference between
     "some token was attached" and "the local instance's ``/data/.web_api_token`` was attached",
     which is the whole diagnosis when the CLI is pointed at a second instance on the same host.
+
+    Every source names itself as ``<setting> (<qualifier>)`` so the strings read the same when
+    spliced mid-sentence into an auth-failure message. The qualifier carries whatever the setting
+    name alone leaves out — the concrete path a file-backed source read, the equivalent
+    environment variable, or that a server-scoped value describes this machine's instance.
     """
 
     # repr=False keeps the plaintext credential out of any traceback or debugger frame dump that
@@ -240,7 +245,7 @@ def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> ResolvedCredentia
     value = token.get_secret_value().strip()
     if not value:
         return None
-    return _ensure_header_safe(value, "cli.auth_token / HASSETTE__CLI__AUTH_TOKEN")
+    return _ensure_header_safe(value, "cli.auth_token (or HASSETTE__CLI__AUTH_TOKEN)")
 
 
 def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential | None:
@@ -253,7 +258,7 @@ def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential 
     value = token.get_secret_value().strip()
     if not value:
         return None
-    return _ensure_header_safe(value, "web_api.auth_token / HASSETTE__WEB_API__AUTH_TOKEN (this machine's instance)")
+    return _ensure_header_safe(value, "web_api.auth_token (or HASSETTE__WEB_API__AUTH_TOKEN — this machine's instance)")
 
 
 def _resolve_data_dir_token_file(inputs: CredentialInputs) -> ResolvedCredential | None:
@@ -264,7 +269,7 @@ def _resolve_data_dir_token_file(inputs: CredentialInputs) -> ResolvedCredential
     actually validates against.
     """
     path = inputs.config.data_dir / TOKEN_FILENAME
-    return _read_token_file(path, f"{path} (this machine's instance token file)")
+    return _read_token_file(path, f"<data_dir>/{TOKEN_FILENAME} ({path} — this machine's instance)")
 
 
 CREDENTIAL_SOURCES: tuple[CredentialSource, ...] = (
@@ -303,6 +308,6 @@ def resolve_cli_auth_token(
         if source.scope == "server" and not target.is_loopback:
             continue
         credential = source.resolve(inputs)
-        if credential:
+        if credential is not None:
             return credential
     return None

@@ -16,6 +16,7 @@ from typing import Any, Literal, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
 from pydantic import ValidationError
+from rich.markup import escape
 
 import hassette.cli.output as cli_output
 from hassette.cli.context import CLIContext
@@ -109,8 +110,8 @@ class HassetteCLIClient:
         # this invocation, so it came from cli.verify_ssl in config — a silent, durable
         # opt-out rather than a conscious per-invocation choice.
         self._insecure_from_config = not target.verify_ssl and verify_ssl_flag is None
-        self._token_source = credential.source if credential else None
-        headers = {"Authorization": f"Bearer {credential.token}"} if credential else {}
+        self._token_source = credential.source if credential is not None else None
+        headers = {"Authorization": f"Bearer {credential.token}"} if credential is not None else {}
         self._client = httpx.Client(
             base_url=self.base_url, transport=transport, headers=headers, verify=target.verify_ssl
         )
@@ -481,19 +482,28 @@ class HassetteCLIClient:
         bad token unless the message says where the value came from.
         """
         if self._token_source is not None:
-            return (
-                f"the credential sent came from {self._token_source}, and the target rejected it. "
+            # Deliberately not split by loopback/remote the way the no-credential cases are: the
+            # remedy is the same either way. Remote targets get one extra clause because a
+            # forward-auth gateway can answer 401 itself, so "Hassette rejected it" is not a
+            # claim this code is in a position to make.
+            hint = (
+                f"the credential sent came from {self._token_source}, and it was rejected. "
                 f"Point the CLI at the target's own credential with {CLI_AUTH_REMEDIES}. "
-                f"See {CLI_AUTH_DOCS_URL}"
             )
+            if not self.is_loopback:
+                hint += (
+                    "If this target sits behind a forward-auth proxy, the proxy may be rejecting "
+                    "the request before it reaches Hassette. "
+                )
+            return f"{hint}See {CLI_AUTH_DOCS_URL}"
         if self.is_loopback:
             # No config value and no token file — distinguish this from "token was
             # wrong" so the operator isn't left guessing why an unauthenticated
             # request failed.
             return (
-                "no credential was attached — no cli.* credential is configured and no "
-                f"<data_dir>/{TOKEN_FILENAME} file was found; has hassette been started? "
-                f"Attach one with {CLI_AUTH_REMEDIES}. See {CLI_AUTH_DOCS_URL}"
+                "no credential was attached — no cli.* credential is configured, web_api.auth_token "
+                f"is unset, and no <data_dir>/{TOKEN_FILENAME} file was found; has hassette been "
+                f"started? Attach one with {CLI_AUTH_REMEDIES}. See {CLI_AUTH_DOCS_URL}"
             )
         # A server-scoped credential source was suppressed for this remote target —
         # separate the remedies by where they apply, since one is local (attach a
@@ -535,7 +545,11 @@ class HassetteCLIClient:
                 response.status_code, str(detail), debug_extra=extra, target=target, tls_verified=tls_verified
             )
         else:
-            cli_output.stderr_console.print(f"[bold red]Error {response.status_code}:[/bold red] {detail}")
+            # escape(): detail carries a server-supplied body and, for a 401, the resolved
+            # credential source — which can be a filesystem path. Rich parses square brackets as
+            # markup, so an unescaped "[/bold]" in either one raises MarkupError instead of
+            # printing the error the operator needs.
+            cli_output.stderr_console.print(f"[bold red]Error {response.status_code}:[/bold red] {escape(str(detail))}")
             if target is not None:
                 cli_output.stderr_console.print(f"[dim]Target:[/dim] {target}", highlight=False)
             if tls_verified is False:

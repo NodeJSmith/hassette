@@ -196,29 +196,31 @@ The instance name must match an `instances[].instance_name` value from `hassette
 
 **Authentication failure (401):**
 
-Every 401 names the credential the CLI actually sent — or says that none was attached — and the remedies that apply. Which of the three variants you see depends on what resolved.
+Every 401 names the credential the CLI actually sent — or says that none was attached — and the remedies that apply. Which of the three variants appears depends on what resolved.
 
-A credential resolved and the target rejected it:
+A credential resolved and was rejected:
 
 ```text
-Error 401: Not authenticated (the credential sent came from /data/.web_api_token (this
-machine's instance token file), and the target rejected it. Point the CLI at the target's
-own credential with --token-file, cli.token_file, or HASSETTE__CLI__AUTH_TOKEN. See
+Error 401: Not authenticated (the credential sent came from <data_dir>/.web_api_token
+(/data/.web_api_token — this machine's instance), and it was rejected. Point the CLI at
+the target's own credential with --token-file, cli.token_file, or
+HASSETTE__CLI__AUTH_TOKEN. See
 https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
 ```
 
-The named source is the diagnosis. `<data_dir>/.web_api_token` and `web_api.auth_token` belong to *this machine's* instance, and they are attached to any loopback target — including a second Hassette instance on the same host, listening on a different port, with a different token. When the source named is one of those and the target is not the local instance, the fix is to point the CLI at the target's own credential rather than to regenerate anything.
+The named source is the diagnosis. `<data_dir>/.web_api_token` and `web_api.auth_token` belong to *this machine's* instance, and they are attached to any loopback target — including a second Hassette instance on the same host, listening on a different port, with a different token. When the source named is one of those and the target is not the local instance, the fix is to point the CLI at the target's own credential rather than to regenerate anything. Against a remote target this variant adds one caveat: a forward-auth proxy in front of the target can answer 401 itself, so the rejection is not necessarily Hassette's.
 
 Nothing resolved against a local target:
 
 ```text
 Error 401: Not authenticated (no credential was attached — no cli.* credential is
-configured and no <data_dir>/.web_api_token file was found; has hassette been started?
-Attach one with --token-file, cli.token_file, or HASSETTE__CLI__AUTH_TOKEN. See
+configured, web_api.auth_token is unset, and no <data_dir>/.web_api_token file was found;
+has hassette been started? Attach one with --token-file, cli.token_file, or
+HASSETTE__CLI__AUTH_TOKEN. See
 https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
 ```
 
-Usually the server has not started yet — it writes `<data_dir>/.web_api_token` on first start. If it is running and you are pointed at a different `data_dir` than it uses, supply the credential explicitly.
+Usually the server has not started yet — it writes `<data_dir>/.web_api_token` on first start. A running server paired with this message means the CLI resolved a different `data_dir` than the server uses, which an explicit credential settles.
 
 Nothing resolved against a remote target:
 
