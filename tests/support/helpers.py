@@ -277,14 +277,19 @@ def make_crashed_event(
     exception_type: str | None = "RuntimeError",
     exception: str | None = "something broke",
     exception_traceback: str | None = "Traceback ...",
+    role: ResourceRole = ResourceRole.SERVICE,
 ) -> HassetteServiceEvent:
-    """Build a CRASHED HassetteServiceEvent for testing."""
+    """Build a CRASHED HassetteServiceEvent for testing.
+
+    ``role`` defaults to SERVICE; pass APP to build the kind of event the ServiceWatcher's
+    role filter must reject.
+    """
     return HassetteServiceEvent(
         topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
         payload=HassettePayload(
             data=ServiceStatusPayload(
                 resource_name=resource_name,
-                role=ResourceRole.SERVICE,
+                role=role,
                 status=ResourceStatus.CRASHED,
                 previous_status=ResourceStatus.FAILED,
                 exception=exception,

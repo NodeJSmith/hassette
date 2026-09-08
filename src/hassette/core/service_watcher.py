@@ -24,6 +24,17 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 SERVICE_STATUS_PATH = "payload.data.status"
+SERVICE_ROLE_PATH = "payload.data.role"
+
+IS_SERVICE_ROLE = P.ValueIs(source=get_path(SERVICE_ROLE_PATH), condition=ResourceRole.SERVICE)
+"""Restricts a service-status subscription to SERVICE-role resources.
+
+Every ``Resource`` emits ``HASSETTE_EVENT_SERVICE_STATUS`` through the shared lifecycle
+machinery, so APP-role events land on the same topic as service events. The watcher supervises
+services only -- its restart flow resolves a ``Service`` child by (name, role) and its crash
+handler shuts the whole process down -- so both would misfire on an app's status transitions.
+Filtering at registration makes that a structural guarantee rather than a convention.
+"""
 
 _STATUS_EVENT_DISPATCH_TIMEOUT_SECONDS = 5.0
 """Upper bound on how long dispatch_status_event_best_effort() waits for send_event() to accept
@@ -602,6 +613,13 @@ class ServiceWatcher(Resource):
             self._restarting.discard(key)
 
     async def log_service_event(self, event: HassetteServiceEvent) -> None:
+        """Log every status transition on the service-status topic at debug level.
+
+        Deliberately not role-filtered, unlike the watcher's other subscriptions: this handler
+        takes no action on the resource it observes, so an APP-role event costs a debug line and
+        nothing else. Keeping apps in makes the watcher's log a complete transition trace for the
+        topic, which is what it is read for when reconstructing a startup or shutdown sequence.
+        """
         status_payload = event.payload.data
         name = status_payload.resource_name
         role = status_payload.role
@@ -756,13 +774,13 @@ class ServiceWatcher(Resource):
             topic=topic,
             handler=self.restart_service,
             name="hassette.service_watcher.restart_service",
-            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.FAILED),
+            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.FAILED) & IS_SERVICE_ROLE,
         )
         await self.bus.on(
             topic=topic,
             handler=self.shutdown_if_crashed,
             name="hassette.service_watcher.shutdown_if_crashed",
-            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.CRASHED),
+            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.CRASHED) & IS_SERVICE_ROLE,
         )
         await self.bus.on(
             topic=topic,
@@ -773,7 +791,7 @@ class ServiceWatcher(Resource):
             topic=topic,
             handler=self.on_service_running,
             name="hassette.service_watcher.on_service_running",
-            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.RUNNING),
+            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.RUNNING) & IS_SERVICE_ROLE,
         )
         await self.bus.on(
             topic=topic,
