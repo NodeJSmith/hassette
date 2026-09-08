@@ -2,6 +2,7 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { appStatusKey } from "../state/store";
 import { createAppGridEntry } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
@@ -27,6 +28,17 @@ vi.mock("../components/shared/spinner", () => ({
 const STATE_WITH_UPTIME = { storeOverrides: { uptimeSeconds: 120 } };
 
 const APP_GRID_URL = "/api/telemetry/dashboard/app-grid";
+
+/** Reads a stats-strip cell's value by its label, since cells carry no per-label testid. */
+function statValue(strip: HTMLElement, label: string): string | undefined {
+  const cells = strip.querySelectorAll("[data-testid='stats-strip-cell']");
+  for (const cell of cells) {
+    if (cell.querySelector("[data-testid='stats-strip-label']")?.textContent === label) {
+      return cell.querySelector("[data-role='stats-strip-value']")?.textContent ?? undefined;
+    }
+  }
+  return undefined;
+}
 
 describe("AppsPage", () => {
   beforeEach(() => {
@@ -68,6 +80,34 @@ describe("AppsPage", () => {
     );
     const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
     expect(await findByTestId("apps-stats-strip")).toBeDefined();
+  });
+
+  it("stats strip counts reflect live WS status over the stale grid payload", async () => {
+    // The dashboard grid query is invalidated on execution events, not app_status_changed, so
+    // a cached row.status stays "running" after an app is stopped until something else forces
+    // a refetch. The strip must count the live status, like the row badges and filter popover.
+    server.use(
+      http.get(APP_GRID_URL, () =>
+        HttpResponse.json({
+          apps: [
+            createAppGridEntry({ app_key: "a", status: "running" }),
+            createAppGridEntry({ app_key: "b", status: "running" }),
+          ],
+        }),
+      ),
+    );
+    const { findByTestId } = renderWithAppState(<AppsPage />, {
+      ...STATE_WITH_UPTIME,
+      storeOverrides: {
+        ...STATE_WITH_UPTIME.storeOverrides,
+        appStatus: { [appStatusKey("b", 0)]: { status: "stopped", index: 0 } },
+      },
+    });
+
+    const strip = await findByTestId("apps-stats-strip");
+    expect(statValue(strip, "total")).toBe("2");
+    expect(statValue(strip, "running")).toBe("1");
+    expect(statValue(strip, "stopped")).toBe("1");
   });
 
   it("does not render legacy filter pills", async () => {
