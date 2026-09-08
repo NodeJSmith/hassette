@@ -7,10 +7,10 @@ import { cardVariants } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 /**
- * Geometry overrides for an `AlertShell tone="warning"` rendered *inside* a panel. The shell's
- * own `mb-4 rounded-md` is tuned for standalone page-level banners; in here the panel's flex
- * column already supplies the spacing. `cn()` runs twMerge, so these win over the shell's
- * defaults. The warning tokens themselves stay in AlertShell — this is spacing only.
+ * Content classes for an `AlertShell tone="warning"` nested in a panel. `cn()` runs twMerge, so
+ * `mb-0 rounded-sm` overrides the shell's standalone `mb-4 rounded-md` — the panel's flex column
+ * already supplies the gap. The text color and size live here because `AlertShell` applies no text
+ * styles of its own; its warning tone sets border and background only.
  */
 export const PANEL_BANNER_CLASS = "mb-0 rounded-sm text-sm text-[var(--status-warning)]";
 
