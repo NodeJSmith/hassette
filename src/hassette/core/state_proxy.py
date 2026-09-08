@@ -6,7 +6,6 @@ from itertools import count
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from fair_async_rlock import FairAsyncRLock
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
 from hassette.bus import Bus
 from hassette.core.api_resource import ApiResource
@@ -22,25 +21,8 @@ from hassette.types import Topic
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import extract_domain
 
-MAX_RETRY_ATTEMPTS = 5
-
-# Backoff for the `@_retry_on_not_ready` decorator, applied to read methods that may be called
-# briefly before initial state capability is established (see ResourceNotReadyError). Distinct
-# from `_compute_retry_delay`'s connect-retry backoff, which governs whole-synchronization retries.
-RETRY_ON_NOT_READY_INITIAL_WAIT_SECONDS = 0.01
-RETRY_ON_NOT_READY_MAX_WAIT_SECONDS = 0.1
-
 # Base of the exponential backoff used by `_compute_retry_delay` for synchronization retries.
 SYNC_RETRY_BACKOFF_BASE = 2
-
-_retry_on_not_ready = retry(
-    retry=retry_if_exception_type(ResourceNotReadyError),
-    stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
-    wait=wait_exponential_jitter(
-        initial=RETRY_ON_NOT_READY_INITIAL_WAIT_SECONDS, max=RETRY_ON_NOT_READY_MAX_WAIT_SECONDS
-    ),
-    reraise=True,
-)
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -314,7 +296,6 @@ class StateProxy(Resource):
         async with self.lock:
             self.states = {}
 
-    @_retry_on_not_ready
     def get_state(self, entity_id: str) -> "HassStateDict | None":
         """Get the current cached state for an entity.
 
@@ -326,9 +307,9 @@ class StateProxy(Resource):
 
         Raises:
             ResourceNotReadyError: If the cache freshness is UNAVAILABLE (no synchronization has
-                ever committed) even after retries. Once the cache has been synchronized at
-                least once, a later disconnect marks it STALE rather than UNAVAILABLE, so stale
-                reads succeed instead of raising.
+                ever committed). Once the cache has been synchronized at least once, a later
+                disconnect marks it STALE rather than UNAVAILABLE, so stale reads succeed
+                instead of raising.
         """
         return self.get_state_once(entity_id)
 
@@ -340,7 +321,10 @@ class StateProxy(Resource):
             )
 
     def get_state_once(self, entity_id: str) -> "HassStateDict | None":
-        """Get the current cached state for an entity, without the not-ready retry decorator.
+        """Get the current cached state for an entity.
+
+        Equivalent to ``get_state``; kept as a distinct name for call sites that want to be
+        explicit that a single readiness check is all that happens.
 
         Args:
             entity_id: The entity ID to look up (e.g., "light.kitchen").
@@ -349,8 +333,7 @@ class StateProxy(Resource):
             The raw state dict if found, None otherwise.
 
         Raises:
-            ResourceNotReadyError: If the cache freshness is UNAVAILABLE. Unlike ``get_state``,
-                this call is not retried.
+            ResourceNotReadyError: If the cache freshness is UNAVAILABLE.
         """
         self._check_ready()
         return self.states.get(entity_id)
@@ -365,20 +348,18 @@ class StateProxy(Resource):
             A dictionary of entity_id to state for the specified domain.
 
         Raises:
-            ResourceNotReadyError: If the cache freshness is UNAVAILABLE even after retries
-                (see ``get_state``).
+            ResourceNotReadyError: If the cache freshness is UNAVAILABLE (see ``get_state``).
         """
         return dict(self.yield_domain_states(domain))
 
-    @_retry_on_not_ready
     def yield_domain_states(self, domain: str) -> Generator[tuple[str, "HassStateDict"], Any, None]:
         """Yield all cached states for a specific domain.
 
         This method is deliberately NOT a generator function itself: the readiness check runs
-        eagerly, and iteration is delegated to a nested generator. That is required for
-        ``@_retry_on_not_ready`` to work — a generator body would defer the check past the
-        decorated call, leaving the retry inert. Do not collapse this back into a single
-        generator function.
+        eagerly at call time, and iteration is delegated to a nested generator. Collapsing it
+        into a single generator function would defer the check to the first ``next()``, so a
+        caller that builds the generator without iterating it would silently read an unavailable
+        cache instead of raising.
 
         Args:
             domain: The domain to filter by (e.g., "light").
@@ -387,8 +368,7 @@ class StateProxy(Resource):
             Tuples of (entity_id, state) for the specified domain.
 
         Raises:
-            ResourceNotReadyError: If the cache freshness is UNAVAILABLE even after retries
-                (see ``get_state``).
+            ResourceNotReadyError: If the cache freshness is UNAVAILABLE (see ``get_state``).
         """
         self._check_ready()
 
