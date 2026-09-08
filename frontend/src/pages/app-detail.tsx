@@ -36,8 +36,12 @@ interface Props {
   params: { key: string; tab?: TabId; handler?: string; execId?: string };
 }
 
-// An index at or past `instance_count` is still addressable when the manifest tracks it: a
-// running instance orphaned by a config shrink stays listed in `instances` so it can be stopped.
+// `instance_count` is the *size* of `instances`, which the backend builds as the union of the
+// configured indices and the still-tracked ones — so it counts an orphan without covering its
+// index. A running instance orphaned by a config shrink (configured=1, tracked={0, 2}) leaves
+// `instance_count` at 2 while the orphan sits at index 2, so the magnitude check alone would
+// redirect away from the only page offering its Stop control. The membership check is what
+// actually admits it; neither clause is redundant.
 function isAddressableInstance(manifest: AppManifest, index: number): boolean {
   return index < manifest.instance_count || (manifest.instances?.some((i) => i.index === index) ?? false);
 }

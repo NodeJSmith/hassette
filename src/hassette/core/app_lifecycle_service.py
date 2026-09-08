@@ -852,17 +852,13 @@ class AppLifecycleService(Resource):
         """
         async with self._get_app_key_lock(app_key):
             app_manifest = self.registry.get_manifest(app_key)
-            # A still-tracked instance whose index fell outside the configured range (the config
-            # shrank while it was still running) stays stoppable. `prune_stale_failed_indices`
-            # only prunes stale *failed* entries, so a running orphan would otherwise have no way
-            # to be shut down.
-            is_tracked = index in self.registry.get_instances(app_key)
-            if (
-                app_manifest is not None
-                and not is_tracked
-                and not self._instance_index_in_range(app_key, index, app_manifest)
-            ):
-                return
+            if app_manifest is not None and not self._instance_index_in_range(app_key, index, app_manifest):
+                # A still-tracked instance whose index fell outside the configured range (the
+                # config shrank while it was still running) stays stoppable.
+                # `prune_stale_failed_indices` only prunes stale *failed* entries, so a running
+                # orphan would otherwise have no way to be shut down.
+                if index not in self.registry.get_instances(app_key):
+                    return
             await self._stop_instance_unlocked(app_key, index)
 
     async def start_instance(

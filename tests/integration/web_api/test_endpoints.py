@@ -393,7 +393,7 @@ class TestAppInstanceEndpoints:
         assert response.status_code == 202
         mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", 2)
 
-    @pytest.mark.parametrize("action", ["start", "reload"], ids=["start", "reload"])
+    @pytest.mark.parametrize("action", ["start", "reload"])
     async def test_tracked_orphan_index_start_or_reload_still_returns_404(
         self, client: "AsyncClient", mock_hassette: MagicMock, action: str
     ) -> None:

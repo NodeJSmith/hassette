@@ -299,6 +299,20 @@ describe("AppDetailPage instances", () => {
     expect(mockCorrectUrl).not.toHaveBeenCalled();
   });
 
+  it("corrects an out-of-range index when the manifest omits its instances array", async () => {
+    // `instances` is optional on AppManifestResponse, so the membership check can find nothing
+    // to consult. With no tracked-index evidence, an index past instance_count is not
+    // addressable and the redirect must still fire.
+    const manifest = createManifest({ instance_count: 2, instances: undefined });
+    setupApi(manifest);
+    mockSearchString = "instance=5";
+    renderPage({ key: "test_app", tab: "handlers" });
+
+    await vi.waitFor(() => {
+      expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers?instance=0");
+    });
+  });
+
   it("corrects negative instance query params before preserving them in links", async () => {
     const manifest = createManifest({
       instance_count: 2,
