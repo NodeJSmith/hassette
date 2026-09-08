@@ -23,6 +23,12 @@ NOW_EPOCH = 1_748_000_000.0
 REMOTE_SERVER_URL = "https://example.com/hassette"
 REMOTE_SERVER_URL_BARE = "https://example.com"
 
+#: Console width for captured output. Rich defaults a non-terminal console to 80 columns, which
+#: re-truncates cells that pipe mode is supposed to render in full (see ``_build_table``: a
+#: non-TTY console ignores ``Column.max_width``). Pinning a generous width keeps assertions
+#: about cell *values* from depending on how many columns a table happens to declare.
+CAPTURE_CONSOLE_WIDTH = 200
+
 
 def make_cli_config(
     *,
@@ -136,7 +142,7 @@ def parse_json_stdout(capsys: pytest.CaptureFixture[str]) -> Any:
 def capture_stdout():
     """Capture Rich stdout console output."""
     buf = StringIO()
-    mock_console = Console(file=buf, highlight=False, force_terminal=False)
+    mock_console = Console(file=buf, highlight=False, force_terminal=False, width=CAPTURE_CONSOLE_WIDTH)
     with patch.object(output_module, "stdout_console", mock_console):
         yield buf
 
@@ -150,8 +156,8 @@ def capture_human(func, *args, **kwargs) -> tuple[str, str]:
     """
     stdout_buf = StringIO()
     stderr_buf = StringIO()
-    new_stdout = Console(file=stdout_buf, highlight=False, no_color=True)
-    new_stderr = Console(file=stderr_buf, highlight=False, no_color=True)
+    new_stdout = Console(file=stdout_buf, highlight=False, no_color=True, width=CAPTURE_CONSOLE_WIDTH)
+    new_stderr = Console(file=stderr_buf, highlight=False, no_color=True, width=CAPTURE_CONSOLE_WIDTH)
     with (
         patch.object(output_module, "stdout_console", new_stdout),
         patch.object(output_module, "stderr_console", new_stderr),
@@ -164,7 +170,7 @@ def capture_human(func, *args, **kwargs) -> tuple[str, str]:
 def capture_stderr():
     """Capture Rich stderr console output."""
     buf = StringIO()
-    mock_console = Console(file=buf, stderr=True, highlight=False, force_terminal=False)
+    mock_console = Console(file=buf, stderr=True, highlight=False, force_terminal=False, width=CAPTURE_CONSOLE_WIDTH)
     with patch.object(output_module, "stderr_console", mock_console):
         yield buf
 

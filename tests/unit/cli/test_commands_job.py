@@ -136,8 +136,17 @@ class TestCmdJob:
         assert "mode" in field_names
 
     def test_job_list_columns_count_is_compact(self) -> None:
-        """JOB_LIST_COLUMNS uses at most 11 columns for wide terminal fit."""
-        assert len(JOB_LIST_COLUMNS) <= 11
+        """JOB_LIST_COLUMNS uses at most 12 columns for wide terminal fit."""
+        assert len(JOB_LIST_COLUMNS) <= 12
+
+    def test_job_list_columns_includes_skipped(self) -> None:
+        """Skipped is shown so Total/OK/Fail arithmetic is self-consistent.
+
+        A predicate-gated job that never passes its predicate renders Total N / OK 0 / Fail 0;
+        without this column the missing N skips are invisible in the table.
+        """
+        field_names = [c.field for c in JOB_LIST_COLUMNS]
+        assert "skipped" in field_names
 
     def test_job_list_columns_includes_schedule_status(self) -> None:
         """JOB_LIST_COLUMNS includes a schedule_status column."""

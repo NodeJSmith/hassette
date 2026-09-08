@@ -237,14 +237,14 @@ Lists all scheduled jobs, or shows execution history for a specific job. A job i
 
 ```console
 $ hassette job
-┏━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━┳━━━━━━┳━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
-┃ ID ┃ App              ┃ Handler              ┃ Trigger  ┃ Status    ┃ Mode    ┃ Total ┃ OK ┃ Fail ┃ Avg ┃ Next Run           ┃
-┡━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━╇━━━━━━╇━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
-│ 1  │ config_app       │ StateProxy.sync_all  │ interval │ Scheduled │ single  │ 0     │ 0  │ 0    │ 0ms │ soon               │
-└────┴──────────────────┴──────────────────────┴──────────┴───────────┴─────────┴───────┴────┴──────┴─────┴────────────────────┘
+┏━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━┳━━━━━━┳━━━━━━━━━┳━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃ ID ┃ App              ┃ Handler              ┃ Trigger  ┃ Status    ┃ Mode    ┃ Total ┃ OK ┃ Fail ┃ Skipped ┃ Avg ┃ Next Run           ┃
+┡━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━╇━━━━━━╇━━━━━━━━━╇━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│ 1  │ config_app       │ StateProxy.sync_all  │ interval │ Scheduled │ single  │ 0     │ 0  │ 0    │ 0       │ 0ms │ soon               │
+└────┴──────────────────┴──────────────────────┴──────────┴───────────┴─────────┴───────┴────┴──────┴─────────┴─────┴────────────────────┘
 ```
 
-Each row shows the job ID, app key, handler method, trigger type, schedule status (`scheduled`, `waiting`, `completed`, or `manual`), mode, execution counts, average duration, and next run time. The Next Run column shows a relative time when one is scheduled, or status-aware placeholder text otherwise — `Timing unavailable.`, `Waiting for entity time.`, `Schedule completed.`, or `Manual only.` — rather than a blank cell.
+Each row shows the job ID, app key, handler method, trigger type, schedule status (`scheduled`, `waiting`, `completed`, or `manual`), mode, execution counts, average duration, and next run time. Skipped counts runs where the job's predicate returned `False` and the handler never ran — those runs are included in Total, so a job showing `Total 68 / OK 0 / Fail 0 / Skipped 68` is being filtered out entirely rather than failing. The Next Run column shows a relative time when one is scheduled, or status-aware placeholder text otherwise — `Timing unavailable.`, `Waiting for entity time.`, `Schedule completed.`, or `Manual only.` — rather than a blank cell.
 
 Passing a job ID shows its execution history:
 
