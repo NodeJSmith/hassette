@@ -10,7 +10,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, RetentionTarget
-from tests.support.helpers import DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS, DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX
+from tests.support.helpers import (
+    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+    async_noop,
+)
 from tests.support.mock_hassette import make_mock_hassette
 
 
@@ -244,6 +248,28 @@ async def test_submit_propagates_coroutine_exception(
 
     with pytest.raises(SentinelError, match="boom"):
         await initialized_service_with_worker.submit(failing_coro())
+
+
+async def test_update_heartbeat_times_out_when_write_queue_is_full(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A full write queue blocks submit()'s put(); the timeout counts it as a heartbeat failure."""
+    service = initialized_service_with_worker
+    assert service._consecutive_heartbeat_failures == 0
+
+    # Swap in a queue that is already at capacity. The running worker holds a reference to
+    # the original queue, so nothing will ever make room in this one.
+    full_queue: asyncio.Queue = asyncio.Queue(maxsize=1)
+    full_queue.put_nowait((async_noop(), None))
+    service._db_write_queue = full_queue
+
+    try:
+        with patch("hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", 0.05):
+            await asyncio.wait_for(service.update_heartbeat(), timeout=5.0)
+
+        assert service._consecutive_heartbeat_failures == 1
+    finally:
+        service.close_remaining_queue_items(full_queue)
 
 
 async def test_enqueue_is_fire_and_forget(

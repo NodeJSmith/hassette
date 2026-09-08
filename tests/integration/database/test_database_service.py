@@ -385,6 +385,55 @@ async def test_serve_raises_after_max_heartbeat_failures(initialized_service: Da
         await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
 
 
+async def test_serve_raises_when_write_worker_is_wedged(initialized_service: DatabaseService) -> None:
+    """A wedged write worker escalates to RuntimeError instead of parking serve() forever.
+
+    The worker never raises — it just stops draining the queue — so only the submit()
+    timeout in update_heartbeat() can turn the hang into a counted heartbeat failure.
+    """
+    gate = asyncio.Event()
+    wedged = asyncio.Event()
+
+    async def wedge() -> None:
+        wedged.set()
+        await gate.wait()
+
+    # Occupy the worker with a coroutine that never completes, so nothing queued behind
+    # it is ever executed.
+    assert initialized_service.enqueue(wedge()) is True
+    await asyncio.wait_for(wedged.wait(), timeout=1)
+
+    try:
+        with (
+            patch("hassette.core.database_service._HEARTBEAT_INTERVAL_SECONDS", 0.01),
+            patch("hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", 0.05),
+            pytest.raises(RuntimeError, match="Heartbeat failed 3 consecutive times"),
+        ):
+            await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
+
+        assert initialized_service._consecutive_heartbeat_failures == 3
+    finally:
+        gate.set()
+
+
+async def test_shutdown_drain_is_bounded_when_worker_is_dead(service: DatabaseService) -> None:
+    """on_shutdown() gives up on queue.join() rather than blocking on a dead worker."""
+    await service.on_initialize()
+
+    # Kill the worker with an item still queued — nothing will ever call task_done() for it,
+    # so an unbounded queue.join() could never complete.
+    assert service._db_worker_task is not None
+    service._db_worker_task.cancel()
+    await asyncio.gather(service._db_worker_task, return_exceptions=True)
+    assert service.enqueue(async_noop()) is True
+
+    with patch("hassette.core.database_service._SHUTDOWN_DRAIN_TIMEOUT_SECONDS", 0.05):
+        await asyncio.wait_for(service.on_shutdown(), timeout=5.0)
+
+    assert service._db is None, "Database connection should be closed after a bounded drain"
+    assert service._db_write_queue is None
+
+
 async def test_drain_on_shutdown(service: DatabaseService) -> None:
     """on_shutdown() blocks until all queued coroutines complete before closing the connection."""
     await service.on_initialize()

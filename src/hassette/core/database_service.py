@@ -48,6 +48,16 @@ _SIZE_FAILSAFE_VACUUM_PAGES = 100
 # Raise from serve() after this many consecutive heartbeat failures
 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 
+# Maximum seconds update_heartbeat() waits for its write to be queued and executed.
+# A wedged write worker stops draining the queue without ever raising, so an unbounded
+# await would park serve() forever and never reach its failure-count escalation.
+_HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
+
+# Maximum seconds on_shutdown() waits for the write queue to drain. A dead worker leaves
+# items queued with no one to complete them, so the join must not outlast the per-phase
+# shutdown budget (lifecycle.resource_shutdown_timeout_seconds, default 10s).
+_SHUTDOWN_DRAIN_TIMEOUT_SECONDS = 5
+
 _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
 
@@ -336,7 +346,15 @@ class DatabaseService(Service):
             if self._db_worker_task is not None:
                 queue, self._db_write_queue = self._db_write_queue, None
                 if queue is not None:
-                    await queue.join()
+                    try:
+                        async with asyncio.timeout(_SHUTDOWN_DRAIN_TIMEOUT_SECONDS):
+                            await queue.join()
+                    except TimeoutError:
+                        self.logger.warning(
+                            "Write queue did not drain within %ss — abandoning %d queued item(s)",
+                            _SHUTDOWN_DRAIN_TIMEOUT_SECONDS,
+                            queue.qsize(),
+                        )
                 self._db_worker_task.cancel()
                 await asyncio.gather(self._db_worker_task, return_exceptions=True)
                 self._db_worker_task = None
@@ -603,6 +621,12 @@ class DatabaseService(Service):
 
         Early-return guards run inline; the DB write is awaited via submit()
         so that _consecutive_heartbeat_failures is updated before returning.
+
+        The submit() call is bounded by _HEARTBEAT_WRITE_TIMEOUT_SECONDS. A wedged write
+        worker never raises — it just stops draining the queue — so without this bound
+        serve() would park on submit() forever and never reach its failure-count
+        escalation. A timeout counts as a heartbeat failure identically to a raised
+        sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
         """
         if self._db is None:
             return
@@ -612,7 +636,17 @@ class DatabaseService(Service):
             _ = self.hassette.session_id
         except RuntimeError:
             return
-        await self.submit(self._do_update_heartbeat())
+        try:
+            async with asyncio.timeout(_HEARTBEAT_WRITE_TIMEOUT_SECONDS):
+                await self.submit(self._do_update_heartbeat())
+        except TimeoutError:
+            self._consecutive_heartbeat_failures += 1
+            self.logger.exception(
+                "Heartbeat write timed out after %ss — write worker may be wedged (failure %d/%d)",
+                _HEARTBEAT_WRITE_TIMEOUT_SECONDS,
+                self._consecutive_heartbeat_failures,
+                _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
+            )
 
     async def _do_update_heartbeat(self) -> None:
         """Execute the heartbeat DB write; called by the write-queue worker."""
