@@ -12,7 +12,7 @@ describe("BootIssuesPanel", () => {
       // @ts-expect-error intentionally invalid severity to exercise the unknown-severity sort fallback
       { severity: "unrecognized", label: "Mystery issue", detail: "no known severity" },
       { severity: "err", label: "Critical error", detail: "failed to load something" },
-      // @ts-expect-error severity outside the response schema to exercise the defensive fallback tier
+      // @ts-expect-error "info" is absent from the response schema but has its own tier in the panel's sort order
       { severity: "info", label: "Informational issue", detail: "additional information" },
     ];
     const { getByTestId } = render(<BootIssuesPanel bootIssues={issues} />);
