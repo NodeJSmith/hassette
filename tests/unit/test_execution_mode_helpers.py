@@ -301,6 +301,71 @@ class TestRunThroughGuard:
         assert len(spawn_calls) == 1
         assert spawn_calls[0]["name"] == "my-task"
 
+    async def test_dropped_at_drain_time_resolves_its_own_future(self) -> None:
+        """A queued factory whose spawn raises at drain time resolves its own future (#1805).
+
+        ``ExecutionModeGuard.drain_next`` drops such a factory and keeps draining rather than
+        propagating the error, so nothing downstream would ever resolve the bridge future — the
+        outer dispatch task would stay parked on ``await done`` forever.
+        """
+        guard = ExecutionModeGuard(ExecutionMode.QUEUED)
+        pending_done: set[asyncio.Future[None]] = set()
+
+        sealed = False
+
+        def spawn(coro: Coroutine[Any, Any, None], *, name: str) -> asyncio.Task[None]:
+            if sealed:
+                coro.close()  # mirrors TaskBucket.spawn: close the rejected coroutine
+                raise RuntimeError("task bucket is sealed")
+            return asyncio.create_task(coro, name=name)
+
+        gate = asyncio.Event()
+        started = asyncio.Event()
+
+        async def invoke_running() -> None:
+            started.set()
+            await gate.wait()
+
+        async def invoke_queued() -> None:
+            raise AssertionError("the queued factory must never run once its spawn is rejected")
+
+        first = asyncio.create_task(
+            run_through_guard(guard, spawn, pending_done, invoke_running, MagicMock(), "r", 60.0)
+        )
+        await asyncio.wait_for(started.wait(), timeout=2.0)
+
+        second = asyncio.create_task(
+            run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", 60.0)
+        )
+        await wait_for(lambda: len(guard.pending) >= 1)
+
+        # Seal, then let the running invocation finish so drain_next pops the queued factory
+        # and its spawn is rejected.
+        sealed = True
+        gate.set()
+
+        await asyncio.wait_for(first, timeout=2.0)
+        await asyncio.wait_for(second, timeout=2.0)
+        assert len(pending_done) == 0
+        assert len(guard.pending) == 0
+
+    async def test_spawn_failure_propagates_when_the_guard_does_not_swallow_it(self) -> None:
+        """On the non-drain paths the spawn error still reaches the caller, future resolved."""
+        guard = ExecutionModeGuard(ExecutionMode.SINGLE)
+        pending_done: set[asyncio.Future[None]] = set()
+
+        def spawn(coro: Coroutine[Any, Any, None], *, name: str) -> asyncio.Task[None]:  # noqa: ARG001
+            coro.close()
+            raise RuntimeError("task bucket is sealed")
+
+        async def invoke() -> None:
+            raise AssertionError("never reached")
+
+        with pytest.raises(RuntimeError, match="sealed"):
+            await run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "n", 60.0)
+
+        assert len(pending_done) == 0
+
     async def test_drain_pending_done_resolves_queued_accepted_futures(self) -> None:
         """drain_pending_done after guard.release() resolves futures from QUEUED_ACCEPTED runs."""
         guard = ExecutionModeGuard(ExecutionMode.QUEUED)

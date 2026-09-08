@@ -162,6 +162,8 @@ class ExecutionModeGuard:
         self.current_task = None
         # Drain in arrival order. If a factory raises synchronously, drop it and try the next so a
         # single failed spawn cannot strand the rest of the queue with no live task to re-trigger it.
+        # A dropped factory is responsible for resolving its own completion bridge on the way out
+        # (see ``run_through_guard``), so dropping it here never parks its dispatch task.
         while self.pending:
             run_and_track = self.pending.popleft()
             try:
@@ -231,9 +233,13 @@ async def run_through_guard(
 
     Completion bridge: installs exactly one done-callback on ``pending_done`` per call; that
     callback fires when the spawned task completes, which may be after this function returns.
-    The caller must call ``drain_pending_done(pending_done)`` after every ``guard.release()`` to
-    resolve futures whose factory was dropped without ever running (the QUEUED_ACCEPTED-then-
-    released case), otherwise the parked outer task hangs forever.
+    When ``spawn`` itself raises (a sealed ``TaskBucket``, say), no task exists to fire that
+    callback, so the factory resolves the future before re-raising — ``guard.drain_next`` drops
+    such a factory rather than propagating the error, and an unresolved future there would park
+    the outer dispatch task forever. The caller must call ``drain_pending_done(pending_done)``
+    after every ``guard.release()`` to resolve futures whose factory was dropped without ever
+    running (the QUEUED_ACCEPTED-then-released case), otherwise the parked outer task hangs
+    forever.
 
     Note: the ``drain_next``/``release`` interleave edge (a task spawned by ``drain_next``
     concurrently with ``release()`` may detach rather than cancel) applies to every caller
@@ -250,7 +256,15 @@ async def run_through_guard(
             done.set_result(None)
 
     def run_and_track() -> "asyncio.Task[None]":
-        task = spawn(run_with_stall_watch(invoke, warn, threshold), name=spawn_name)
+        try:
+            task = spawn(run_with_stall_watch(invoke, warn, threshold), name=spawn_name)
+        except Exception:
+            # No task exists, so nothing will ever fire the done-callback below. Resolve the
+            # future here or a caller that drops this factory instead of propagating the error
+            # (``ExecutionModeGuard.drain_next``) leaves the outer dispatch task parked on
+            # ``await done`` forever, holding its dispatch-concurrency slot.
+            resolve_done()
+            raise
         task.add_done_callback(lambda _t: resolve_done())
         return task
 

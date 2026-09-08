@@ -7,12 +7,13 @@ enforcement added in #1076 (Layer 2).
 """
 
 import asyncio
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from hassette.core.bus_service import _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS, BusService
-from hassette.types.enums import BackpressurePolicy
+from hassette.testing import wait_for
+from hassette.types.enums import BackpressurePolicy, ExecutionMode
 from tests.support.factories import make_mock_event
-from tests.support.helpers import create_listener
+from tests.support.helpers import create_listener, make_task_bucket
 
 from .conftest import make_bus_service
 
@@ -301,3 +302,62 @@ async def test_drop_newest_does_not_perturb_dispatch_idle() -> None:
     await asyncio.wait_for(svc.await_dispatch_idle(timeout=TEST_TIMEOUT), timeout=TEST_TIMEOUT)
 
     svc._dispatch_semaphore.release()
+
+
+async def test_queued_factory_rejected_at_drain_releases_its_dispatch_slot() -> None:
+    """A queued invocation whose spawn is rejected at drain time still frees its slot (#1805).
+
+    ``ExecutionModeGuard.drain_next`` drops a factory whose spawn raises (a sealed TaskBucket
+    during teardown) and keeps draining. Without the bridge resolving that factory's completion
+    future, the queued trigger's dispatch task parks forever holding one of the
+    ``max_concurrent_dispatches`` permits — a silent, permanent capacity leak.
+    """
+    svc = make_bus_service(max_concurrent_dispatches=2)
+
+    sealed = False
+
+    def spawn(coro, *, name: str | None = None) -> asyncio.Task:
+        if sealed:
+            coro.close()  # mirrors TaskBucket.spawn: close the rejected coroutine
+            raise RuntimeError("task bucket is sealed")
+        return asyncio.create_task(coro, name=name)
+
+    handler_bucket = make_task_bucket()
+    handler_bucket.spawn = spawn
+
+    listener = create_listener(
+        topic="test.topic",
+        name="queued",
+        mode=ExecutionMode.QUEUED,
+        task_bucket=handler_bucket,
+    )
+    svc.router.add_route(listener.topic, listener)
+
+    gate = asyncio.Event()
+    running = asyncio.Event()
+
+    async def gated_execute(_cmd) -> None:
+        running.set()
+        await gate.wait()
+
+    svc._executor.execute = AsyncMock(side_effect=gated_execute)
+
+    # First event runs and blocks inside the handler.
+    await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
+    await asyncio.wait_for(running.wait(), timeout=TEST_TIMEOUT)
+
+    # Second event is QUEUED_ACCEPTED — its dispatch task parks on the completion future
+    # while holding the second permit.
+    await asyncio.wait_for(svc.dispatch("test.topic", make_mock_event()), timeout=TEST_TIMEOUT)
+    await wait_for(lambda: len(listener.invoker.guard.pending) >= 1)
+    assert svc._dispatch_semaphore.locked(), "both permits are held while one trigger is queued"
+
+    # Seal the handler bucket, then let the running invocation finish: drain_next pops the
+    # queued factory and its spawn is rejected.
+    sealed = True
+    gate.set()
+
+    await asyncio.wait_for(svc.await_dispatch_idle(timeout=TEST_TIMEOUT), timeout=TEST_TIMEOUT)
+
+    assert svc._dispatch_pending == 0
+    await assert_all_slots_reacquirable(svc, 2)
