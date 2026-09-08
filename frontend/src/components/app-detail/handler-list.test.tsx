@@ -3,18 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createJob, createListener } from "../../test/factories";
 import { HandlerList } from "./handler-list";
+import type { UnifiedItemKind } from "./unified-handler-row";
+import { ROW_TESTID_PREFIX, rowTestId } from "./unified-row.test-helpers";
 
 const HANDLER_LIST_TEST_ID = "handler-list";
-
-// vi.hoisted so the row test-id convention is shared between the hoisted vi.mock
-// factory below and the assertions that read it.
-const { ROW_TEST_ID_PREFIX, rowTestId } = vi.hoisted(() => {
-  const prefix = "unified-row-";
-  return {
-    ROW_TEST_ID_PREFIX: prefix,
-    rowTestId: (kind: string, id: number) => `${prefix}${kind}-${id}`,
-  };
-});
 
 // Mock UnifiedHandlerRow to isolate HandlerList behavior — the row component
 // calls query hooks which require the Zustand app store (useAppStore) and MSW.
@@ -23,7 +15,7 @@ vi.mock("./unified-handler-row", () => ({
     item,
     isSelected,
   }: {
-    item: { kind: string; id: number; name: string; humanDescription: string | null };
+    item: { kind: UnifiedItemKind; id: number; name: string; humanDescription: string | null };
     isSelected: boolean;
     onSelect: () => void;
   }) => (
@@ -108,7 +100,7 @@ describe("HandlerList", () => {
     const { container } = render(
       <HandlerList listeners={listeners} jobs={jobs} selectedId={null} onSelect={() => {}} />,
     );
-    const rows = container.querySelectorAll(`[data-testid^='${ROW_TEST_ID_PREFIX}']`);
+    const rows = container.querySelectorAll(`[data-testid^='${ROW_TESTID_PREFIX}']`);
     expect(Array.from(rows, (row) => row.getAttribute("data-testid"))).toEqual([
       rowTestId("listener", 2),
       rowTestId("job", 6),
