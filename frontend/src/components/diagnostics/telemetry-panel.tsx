@@ -2,8 +2,8 @@ import { AlertShell } from "../shared/alert-shell";
 import { DropCounterRow } from "./drop-counter-row";
 import { Panel, PANEL_BANNER_CLASS } from "./panel";
 
-/** Telemetry drop counters and degradation flag, as carried on the WS stream. */
-export interface TelemetryCounters {
+/** Telemetry health as carried on the WS stream: drop counters and the degradation flag. */
+export interface TelemetryHealth {
   droppedOverflow: number;
   droppedExhausted: number;
   droppedShutdown: number;
@@ -17,7 +17,7 @@ export function TelemetryPanel({
   droppedShutdown,
   errorHandlerFailures,
   telemetryDegraded,
-}: TelemetryCounters) {
+}: TelemetryHealth) {
   return (
     <Panel title="telemetry health" ariaLabel="Telemetry health" data-testid="diag-telemetry-panel">
       {telemetryDegraded && (
