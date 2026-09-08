@@ -4,11 +4,6 @@ const BASE_URL = "/api";
 const JSON_CONTENT_TYPE = "application/json";
 const FETCH_CREDENTIALS: RequestCredentials = "same-origin";
 
-/** Fallback message for a non-ok response whose body carried no usable detail. */
-function formatApiError(status: number, statusText: string): string {
-  return `API error: ${status} ${statusText}`;
-}
-
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -18,6 +13,11 @@ export class ApiError extends Error {
     super(message ?? formatApiError(status, statusText));
     this.name = "ApiError";
   }
+}
+
+/** Builds the generic `API error: <status> <statusText>` message used when no specific detail is available. */
+function formatApiError(status: number, statusText: string): string {
+  return `API error: ${status} ${statusText}`;
 }
 
 /** Extracts a human-readable error message from a non-ok response's JSON body, if present. */
