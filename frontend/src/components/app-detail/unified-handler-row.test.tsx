@@ -7,14 +7,14 @@ import { createJob, createListener } from "../../test/factories";
 import type { StatusKind } from "../../utils/status";
 import { UnifiedHandlerRow, type UnifiedItem } from "./unified-handler-row";
 
-const TESTID_DESC = "handler-row-desc";
-const TESTID_ERR_SUBLINE = "handler-row-subline-err";
+const TESTID_SUBLINE_ERR = "handler-row-subline-err";
 const TESTID_MODE_CHIP = "handler-row-mode-chip";
 const TESTID_NEXT_RUN = "handler-row-next-run";
 const TESTID_SCHEDULE_STATUS_BADGE = "schedule-status-badge";
 
-/** Seconds past "now" used when a job needs a next_run that has not fired yet. */
-const FUTURE_OFFSET_SECONDS = 60;
+function rowTestId(kind: "listener" | "job", id: number) {
+  return `unified-row-${kind}-${id}`;
+}
 
 interface ItemOverrides {
   name?: string;
@@ -29,8 +29,8 @@ interface RowPropOverrides {
 
 function noop() {}
 
-function renderRow(item: UnifiedItem, props: RowPropOverrides = {}) {
-  return render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={noop} {...props} />);
+function renderRow(item: UnifiedItem, overrides: RowPropOverrides = {}) {
+  return render(<UnifiedHandlerRow item={item} isSelected={false} onSelect={noop} {...overrides} />);
 }
 
 function makeListenerItem(overrides: Partial<ListenerData> = {}, itemOverrides: ItemOverrides = {}) {
@@ -69,7 +69,7 @@ describe("UnifiedHandlerRow — listener", () => {
   it("renders with data-testid containing kind and id", () => {
     const item = makeListenerItem({ listener_id: 42 });
     const { getByTestId } = renderRow(item);
-    expect(getByTestId("unified-row-listener-42")).toBeDefined();
+    expect(getByTestId(rowTestId("listener", 42))).toBeDefined();
   });
 
   it("renders handler name", () => {
@@ -84,19 +84,19 @@ describe("UnifiedHandlerRow — listener", () => {
       { name: "on_light_change", humanDescription: "When kitchen light changes" },
     );
     const { getByTestId, queryByText } = renderRow(item);
-    expect(getByTestId("unified-row-listener-1").getAttribute("aria-label")).toBe(
+    expect(getByTestId(rowTestId("listener", 1)).getAttribute("aria-label")).toBe(
       "on_light_change: When kitchen light changes",
     );
     expect(queryByText("When kitchen light changes")).toBeNull();
   });
 
-  it("does not render subtitle when humanDescription is null", () => {
+  it("omits the description from the aria-label when humanDescription is null", () => {
     const item = makeListenerItem(
       { human_description: null, listener_id: 1 },
       { name: "on_change", humanDescription: null },
     );
-    const { container } = renderRow(item);
-    expect(container.querySelector(`[data-testid='${TESTID_DESC}']`)).toBeNull();
+    const { getByTestId } = renderRow(item);
+    expect(getByTestId(rowTestId("listener", 1)).getAttribute("aria-label")).toBe("on_change");
   });
 
   it("renders invocation count in stats", () => {
@@ -128,13 +128,13 @@ describe("UnifiedHandlerRow — listener", () => {
   it("sets aria-pressed=true when isSelected is true", () => {
     const item = makeListenerItem({ listener_id: 1 });
     const { getByTestId } = renderRow(item, { isSelected: true });
-    expect(getByTestId("unified-row-listener-1").getAttribute("aria-pressed")).toBe("true");
+    expect(getByTestId(rowTestId("listener", 1)).getAttribute("aria-pressed")).toBe("true");
   });
 
   it("sets aria-pressed=false when isSelected is false", () => {
     const item = makeListenerItem({ listener_id: 1 });
     const { getByTestId } = renderRow(item, { isSelected: false });
-    expect(getByTestId("unified-row-listener-1").getAttribute("aria-pressed")).toBe("false");
+    expect(getByTestId(rowTestId("listener", 1)).getAttribute("aria-pressed")).toBe("false");
   });
 
   it("calls onSelect when clicked", async () => {
@@ -183,13 +183,13 @@ describe("UnifiedHandlerRow — idle state", () => {
       { statusKind: "mute" },
     );
     const { getByTestId } = renderRow(item);
-    expect(getByTestId("unified-row-listener-1").className).toContain("opacity-60");
+    expect(getByTestId(rowTestId("listener", 1)).className).toContain("opacity-60");
   });
 
   it("does not apply the dimmed idle styling when statusKind is ok", () => {
     const item = makeListenerItem({ listener_id: 1 });
     const { getByTestId } = renderRow(item);
-    expect(getByTestId("unified-row-listener-1").className).not.toContain("opacity-60");
+    expect(getByTestId(rowTestId("listener", 1)).className).not.toContain("opacity-60");
   });
 });
 
@@ -204,8 +204,8 @@ describe("UnifiedHandlerRow — subline switching", () => {
       },
       { name: "on_change", humanDescription: "When something changes", statusKind: "err" },
     );
-    const { container } = renderRow(item);
-    const errSubline = container.querySelector(`[data-testid='${TESTID_ERR_SUBLINE}']`);
+    const { queryByTestId } = renderRow(item);
+    const errSubline = queryByTestId(TESTID_SUBLINE_ERR);
     expect(errSubline).not.toBeNull();
     expect(errSubline?.textContent).toContain("KeyError");
   });
@@ -215,8 +215,8 @@ describe("UnifiedHandlerRow — subline switching", () => {
       { job_id: 1, failed: 3, last_error_message: "ConnectionError: timeout" },
       { name: "sync_data", humanDescription: null, statusKind: "err" },
     );
-    const { container } = renderRow(item);
-    const errSubline = container.querySelector(`[data-testid='${TESTID_ERR_SUBLINE}']`);
+    const { queryByTestId } = renderRow(item);
+    const errSubline = queryByTestId(TESTID_SUBLINE_ERR);
     expect(errSubline).not.toBeNull();
     expect(errSubline?.textContent).toContain("ConnectionError");
   });
@@ -232,19 +232,18 @@ describe("UnifiedHandlerRow — subline switching", () => {
       },
       { name: "on_door", humanDescription: "Fires on door open" },
     );
-    const { container, getByTestId } = renderRow(item);
-    expect(container.querySelector(`[data-testid='${TESTID_DESC}']`)).toBeNull();
-    expect(container.querySelector(`[data-testid='${TESTID_ERR_SUBLINE}']`)).toBeNull();
-    expect(getByTestId("unified-row-listener-1").getAttribute("aria-label")).toBe("on_door: Fires on door open");
+    const { getByTestId, queryByTestId } = renderRow(item);
+    expect(queryByTestId(TESTID_SUBLINE_ERR)).toBeNull();
+    expect(getByTestId(rowTestId("listener", 1)).getAttribute("aria-label")).toBe("on_door: Fires on door open");
   });
 
   it("shows next-run line for schedule jobs", () => {
     const item = makeJobItem(
-      { job_id: 1, next_run: Math.floor(Date.now() / 1000) + FUTURE_OFFSET_SECONDS },
+      { job_id: 1, next_run: Math.floor(Date.now() / 1000) + 60 },
       { name: "my_job", humanDescription: null },
     );
-    const { container } = renderRow(item);
-    expect(container.querySelector(`[data-testid='${TESTID_NEXT_RUN}']`)).not.toBeNull();
+    const { queryByTestId } = renderRow(item);
+    expect(queryByTestId(TESTID_NEXT_RUN)).not.toBeNull();
   });
 });
 
@@ -275,8 +274,8 @@ describe("UnifiedHandlerRow — mode chip", () => {
 
   it("does not render mode chip for job items", () => {
     const item = makeJobItem({ job_id: 5 });
-    const { container } = renderRow(item);
-    expect(container.querySelector(`[data-testid='${TESTID_MODE_CHIP}']`)).toBeNull();
+    const { queryByTestId } = renderRow(item);
+    expect(queryByTestId(TESTID_MODE_CHIP)).toBeNull();
   });
 });
 
@@ -284,7 +283,7 @@ describe("UnifiedHandlerRow — job", () => {
   it("renders with data-testid containing kind='job' and job id", () => {
     const item = makeJobItem({ job_id: 7 });
     const { getByTestId } = renderRow(item);
-    expect(getByTestId("unified-row-job-7")).toBeDefined();
+    expect(getByTestId(rowTestId("job", 7))).toBeDefined();
   });
 
   it("renders job name", () => {
@@ -299,7 +298,7 @@ describe("UnifiedHandlerRow — job", () => {
       { name: "my_job", humanDescription: "every 5 minutes" },
     );
     const { getByTestId } = renderRow(item);
-    expect(getByTestId("unified-row-job-1").getAttribute("aria-label")).toBe("my_job: every 5 minutes");
+    expect(getByTestId(rowTestId("job", 1)).getAttribute("aria-label")).toBe("my_job: every 5 minutes");
   });
 
   it("renders execution count in stats", () => {
