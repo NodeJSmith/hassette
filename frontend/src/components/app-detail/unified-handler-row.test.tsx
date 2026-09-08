@@ -1,20 +1,21 @@
 import { render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { createJob, createListener } from "../../test/factories";
 import type { StatusKind } from "../../utils/status";
 import { UnifiedHandlerRow, type UnifiedItem } from "./unified-handler-row";
+import { rowTestId } from "./unified-row.test-helpers";
 
-const TESTID_SUBLINE_ERR = "handler-row-subline-err";
-const TESTID_MODE_CHIP = "handler-row-mode-chip";
-const TESTID_NEXT_RUN = "handler-row-next-run";
-const TESTID_SCHEDULE_STATUS_BADGE = "schedule-status-badge";
+const SUBLINE_ERR_TESTID = "handler-row-subline-err";
+const MODE_CHIP_TESTID = "handler-row-mode-chip";
+const NEXT_RUN_TESTID = "handler-row-next-run";
+const SCHEDULE_STATUS_BADGE_TESTID = "schedule-status-badge";
 
-function rowTestId(kind: "listener" | "job", id: number) {
-  return `unified-row-${kind}-${id}`;
-}
+/** Seconds past "now" used when a job needs a next_run that has not fired yet. */
+const FUTURE_OFFSET_SECONDS = 60;
 
 interface ItemOverrides {
   name?: string;
@@ -22,10 +23,7 @@ interface ItemOverrides {
   statusKind?: StatusKind;
 }
 
-interface RowPropOverrides {
-  isSelected?: boolean;
-  onSelect?: () => void;
-}
+type RowPropOverrides = Partial<Pick<ComponentProps<typeof UnifiedHandlerRow>, "isSelected" | "onSelect">>;
 
 function noop() {}
 
@@ -205,7 +203,7 @@ describe("UnifiedHandlerRow — subline switching", () => {
       { name: "on_change", humanDescription: "When something changes", statusKind: "err" },
     );
     const { queryByTestId } = renderRow(item);
-    const errSubline = queryByTestId(TESTID_SUBLINE_ERR);
+    const errSubline = queryByTestId(SUBLINE_ERR_TESTID);
     expect(errSubline).not.toBeNull();
     expect(errSubline?.textContent).toContain("KeyError");
   });
@@ -216,7 +214,7 @@ describe("UnifiedHandlerRow — subline switching", () => {
       { name: "sync_data", humanDescription: null, statusKind: "err" },
     );
     const { queryByTestId } = renderRow(item);
-    const errSubline = queryByTestId(TESTID_SUBLINE_ERR);
+    const errSubline = queryByTestId(SUBLINE_ERR_TESTID);
     expect(errSubline).not.toBeNull();
     expect(errSubline?.textContent).toContain("ConnectionError");
   });
@@ -233,17 +231,17 @@ describe("UnifiedHandlerRow — subline switching", () => {
       { name: "on_door", humanDescription: "Fires on door open" },
     );
     const { getByTestId, queryByTestId } = renderRow(item);
-    expect(queryByTestId(TESTID_SUBLINE_ERR)).toBeNull();
+    expect(queryByTestId(SUBLINE_ERR_TESTID)).toBeNull();
     expect(getByTestId(rowTestId("listener", 1)).getAttribute("aria-label")).toBe("on_door: Fires on door open");
   });
 
   it("shows next-run line for schedule jobs", () => {
     const item = makeJobItem(
-      { job_id: 1, next_run: Math.floor(Date.now() / 1000) + 60 },
+      { job_id: 1, next_run: Math.floor(Date.now() / 1000) + FUTURE_OFFSET_SECONDS },
       { name: "my_job", humanDescription: null },
     );
     const { queryByTestId } = renderRow(item);
-    expect(queryByTestId(TESTID_NEXT_RUN)).not.toBeNull();
+    expect(queryByTestId(NEXT_RUN_TESTID)).not.toBeNull();
   });
 });
 
@@ -251,31 +249,31 @@ describe("UnifiedHandlerRow — mode chip", () => {
   it("renders mode chip for listener with mode=single", () => {
     const item = makeListenerItem({ mode: "single", listener_id: 1 });
     const { getByTestId } = renderRow(item);
-    expect(getByTestId(TESTID_MODE_CHIP).textContent).toBe("single");
+    expect(getByTestId(MODE_CHIP_TESTID).textContent).toBe("single");
   });
 
   it("renders mode chip for listener with mode=parallel", () => {
     const item = makeListenerItem({ mode: "parallel", listener_id: 2 });
     const { getByTestId } = renderRow(item);
-    expect(getByTestId(TESTID_MODE_CHIP).textContent).toBe("parallel");
+    expect(getByTestId(MODE_CHIP_TESTID).textContent).toBe("parallel");
   });
 
   it("renders mode chip for listener with mode=queued", () => {
     const item = makeListenerItem({ mode: "queued", listener_id: 3 });
     const { getByTestId } = renderRow(item);
-    expect(getByTestId(TESTID_MODE_CHIP).textContent).toBe("queued");
+    expect(getByTestId(MODE_CHIP_TESTID).textContent).toBe("queued");
   });
 
   it("renders mode chip for listener with mode=restart", () => {
     const item = makeListenerItem({ mode: "restart", listener_id: 4 });
     const { getByTestId } = renderRow(item);
-    expect(getByTestId(TESTID_MODE_CHIP).textContent).toBe("restart");
+    expect(getByTestId(MODE_CHIP_TESTID).textContent).toBe("restart");
   });
 
   it("does not render mode chip for job items", () => {
     const item = makeJobItem({ job_id: 5 });
     const { queryByTestId } = renderRow(item);
-    expect(queryByTestId(TESTID_MODE_CHIP)).toBeNull();
+    expect(queryByTestId(MODE_CHIP_TESTID)).toBeNull();
   });
 });
 
@@ -321,24 +319,24 @@ describe("UnifiedHandlerRow — job", () => {
   ] as const)("renders schedule status badge '%s' for jobs", (status, label) => {
     const item = makeJobItem({ job_id: 1, schedule_status: status, next_run: null });
     const { getByTestId } = renderRow(item);
-    expect(getByTestId(TESTID_SCHEDULE_STATUS_BADGE).textContent).toBe(label);
+    expect(getByTestId(SCHEDULE_STATUS_BADGE_TESTID).textContent).toBe(label);
   });
 
   it("does not render a schedule status badge for a normal scheduled job", () => {
     const item = makeJobItem({ job_id: 1, schedule_status: "scheduled", schedule_status_reason: null });
     const { queryByTestId } = renderRow(item);
-    expect(queryByTestId(TESTID_SCHEDULE_STATUS_BADGE)).toBeNull();
+    expect(queryByTestId(SCHEDULE_STATUS_BADGE_TESTID)).toBeNull();
   });
 
   it("renders 'unknown' badge for scheduled jobs with legacy_unknown reason", () => {
     const item = makeJobItem({ job_id: 1, schedule_status: "scheduled", schedule_status_reason: "legacy_unknown" });
     const { getByTestId } = renderRow(item);
-    expect(getByTestId(TESTID_SCHEDULE_STATUS_BADGE).textContent).toBe("unknown");
+    expect(getByTestId(SCHEDULE_STATUS_BADGE_TESTID).textContent).toBe("unknown");
   });
 
   it("does not render a schedule status badge for listeners", () => {
     const item = makeListenerItem();
     const { queryByTestId } = renderRow(item);
-    expect(queryByTestId(TESTID_SCHEDULE_STATUS_BADGE)).toBeNull();
+    expect(queryByTestId(SCHEDULE_STATUS_BADGE_TESTID)).toBeNull();
   });
 });
