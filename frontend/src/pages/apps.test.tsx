@@ -29,15 +29,18 @@ const STATE_WITH_UPTIME = { storeOverrides: { uptimeSeconds: 120 } };
 
 const APP_GRID_URL = "/api/telemetry/dashboard/app-grid";
 
-/** Reads a stats-strip cell's value by its label, since cells carry no per-label testid. */
-function statValue(strip: HTMLElement, label: string): string | undefined {
-  const cells = strip.querySelectorAll("[data-testid='stats-strip-cell']");
-  for (const cell of cells) {
-    if (cell.querySelector("[data-testid='stats-strip-label']")?.textContent === label) {
-      return cell.querySelector("[data-role='stats-strip-value']")?.textContent ?? undefined;
-    }
+/** Reads a stats-strip cell's value by its label, since cells carry no per-label testid. The
+ *  value span is tagged `data-role`, not `data-testid` — see `components/shared/stats-strip.tsx`.
+ *  Which labels exist is layout-dependent: "stopped" and "disabled" are separate cells only in
+ *  the desktop set (mobile merges them into "inactive"), and jsdom's default viewport is
+ *  desktop. Throws rather than returning undefined so a renamed or missing label reads as
+ *  "no such cell" instead of a value mismatch. */
+function getStatValue(strip: HTMLElement, label: string): string {
+  for (const cell of strip.querySelectorAll("[data-testid='stats-strip-cell']")) {
+    if (cell.querySelector("[data-testid='stats-strip-label']")?.textContent !== label) continue;
+    return cell.querySelector("[data-role='stats-strip-value']")?.textContent ?? "";
   }
-  return undefined;
+  throw new Error(`no stats-strip cell labeled "${label}"`);
 }
 
 describe("AppsPage", () => {
@@ -86,12 +89,15 @@ describe("AppsPage", () => {
     // The dashboard grid query is invalidated on execution events, not app_status_changed, so
     // a cached row.status stays "running" after an app is stopped until something else forces
     // a refetch. The strip must count the live status, like the row badges and filter popover.
+    // Covers every live-countable category the issue names: running, failed, stopped, disabled.
     server.use(
       http.get(APP_GRID_URL, () =>
         HttpResponse.json({
           apps: [
             createAppGridEntry({ app_key: "a", status: "running" }),
             createAppGridEntry({ app_key: "b", status: "running" }),
+            createAppGridEntry({ app_key: "c", status: "running" }),
+            createAppGridEntry({ app_key: "d", status: "disabled" }),
           ],
         }),
       ),
@@ -100,14 +106,23 @@ describe("AppsPage", () => {
       ...STATE_WITH_UPTIME,
       storeOverrides: {
         ...STATE_WITH_UPTIME.storeOverrides,
-        appStatus: { [appStatusKey("b", 0)]: { status: "stopped", index: 0 } },
+        appStatus: {
+          [appStatusKey("b", 0)]: { status: "stopped", index: 0 },
+          [appStatusKey("c", 0)]: { status: "failed", index: 0 },
+          // "disabled" is a manifest-level config state that appLiveStatus resolves before it
+          // consults appStatuses, so a per-instance status left over from before the app was
+          // disabled must not mask it.
+          [appStatusKey("d", 0)]: { status: "stopped", index: 0 },
+        },
       },
     });
 
     const strip = await findByTestId("apps-stats-strip");
-    expect(statValue(strip, "total")).toBe("2");
-    expect(statValue(strip, "running")).toBe("1");
-    expect(statValue(strip, "stopped")).toBe("1");
+    expect(getStatValue(strip, "total")).toBe("4");
+    expect(getStatValue(strip, "running")).toBe("1");
+    expect(getStatValue(strip, "failed")).toBe("1");
+    expect(getStatValue(strip, "stopped")).toBe("1");
+    expect(getStatValue(strip, "disabled")).toBe("1");
   });
 
   it("does not render legacy filter pills", async () => {
