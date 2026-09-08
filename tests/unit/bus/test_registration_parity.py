@@ -22,7 +22,7 @@ EXEMPTIONS: set[str] = {
     # Renamed fields — present on a sub-struct under a different name
     "handler_method",  # sourced from ListenerIdentity.handler_name (different name for the DB column)
     # Computed at registration time by BusService, not stored on sub-structs
-    "predicate_description",  # repr(listener.predicate), computed from Listener.predicate at registration
+    "predicate_description",  # describe_predicate(listener.predicate), computed from Listener.predicate at registration
     "human_description",  # summarize_top_level(listener.predicate), computed from Listener.predicate at registration
     # Duration fields sourced from DurationConfig, not ListenerIdentity or ListenerOptions
     "immediate",  # DurationConfig.immediate — duration concern, not behavioral option or identity

@@ -29,7 +29,7 @@ from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.scheduler.triggers import _WaitingSentinel
 from hassette.types.enums import ExecutionMode
 from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus
-from hassette.utils.func_utils import callable_stable_name
+from hassette.utils.func_utils import callable_stable_name, describe_predicate
 from hassette.utils.serialization import safe_json_serialize
 
 if typing.TYPE_CHECKING:
@@ -332,7 +332,7 @@ class SchedulerService(Service):
         predicate_description: str | None = None
         human_description: str | None = None
         if job.predicate is not None:
-            predicate_description = repr(job.predicate)
+            predicate_description = describe_predicate(job.predicate)
             if hasattr(job.predicate, "summarize"):
                 human_description = job.predicate.summarize()  # pyright: ignore[reportFunctionMemberAccess]
             else:

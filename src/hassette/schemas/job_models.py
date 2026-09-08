@@ -38,7 +38,8 @@ class JobSummary(BaseModel):
     registration_source: str | None
     source_tier: SourceTier = "app"
     predicate_description: str | None = None
-    """Python ``repr()`` of the job's scheduler predicate, or ``None`` when unset."""
+    """Structural description of the job's scheduler predicate — ``repr()`` for composed
+    predicate objects, the qualified name for a bare callable. ``None`` when unset."""
     human_description: str | None = None
     """Human-readable summary of the job's scheduler predicate, or ``None`` when unset."""
     total_executions: int
