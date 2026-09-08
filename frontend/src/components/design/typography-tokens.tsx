@@ -101,14 +101,14 @@ export function TypographyTokens() {
       <div className={designGroupClassName}>
         <h3 className={designGroupLabelClassName}>Weights</h3>
         <div className="flex flex-col gap-3">
-          {WEIGHTS.map((w) => (
-            <div key={w.cssVar} className="flex items-baseline gap-4">
-              <code className={designTokenCodeClassName}>{w.cssVar}</code>
+          {WEIGHTS.map((weight) => (
+            <div key={weight.cssVar} className="flex items-baseline gap-4">
+              <code className={designTokenCodeClassName}>{weight.cssVar}</code>
               <span
                 className="font-sans text-[length:var(--text-h3)] text-foreground"
-                style={{ fontWeight: `var(${w.cssVar})` }}
+                style={{ fontWeight: `var(${weight.cssVar})` }}
               >
-                {w.label} ({w.value})
+                {weight.label} ({weight.value})
               </span>
             </div>
           ))}
