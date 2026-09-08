@@ -13,7 +13,7 @@ const schema11 = {
   $defs: {
     AppManifestsChangedData: {
       description:
-        'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields — it is a refetch signal, not a diff. The event that triggers it\n(``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over\nall apps, and also after a live config edit that only changes manifest metadata (e.g.\n``display_name``) with no lifecycle action to take. Either way it does not identify which\napp(s) changed, so clients should treat receipt as "manifest status may be stale, refetch"\nrather than inspect the payload for detail.',
+        'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed — it is a refetch\nsignal, not a diff. Clients should treat receipt as "manifest state may be\nstale, refetch" rather than inspect the payload.',
       properties: {},
       title: "AppManifestsChangedData",
       type: "object",
@@ -128,7 +128,7 @@ const schema11 = {
     },
     ExecutionStatus: {
       description:
-        "Status values for handler invocations and job executions.\n\nCovers all values allowed by the ``executions.status`` CHECK constraint: migration 001\nintroduced the original four values (``success``, ``error``, ``cancelled``, ``timed_out``);\nmigration 009 added ``skipped``.\nPydantic v2 coerces plain strings to enum members on construction and\nserialises back to plain strings in JSON responses.",
+        "Status values for handler invocations and job executions.\n\nMust stay in sync with the ``executions.status`` CHECK constraint.",
       enum: ["success", "error", "cancelled", "timed_out", "skipped"],
       title: "ExecutionStatus",
       type: "string",
@@ -3287,7 +3287,7 @@ const schema27 = {
 };
 const schema28 = {
   description:
-    "Status values for handler invocations and job executions.\n\nCovers all values allowed by the ``executions.status`` CHECK constraint: migration 001\nintroduced the original four values (``success``, ``error``, ``cancelled``, ``timed_out``);\nmigration 009 added ``skipped``.\nPydantic v2 coerces plain strings to enum members on construction and\nserialises back to plain strings in JSON responses.",
+    "Status values for handler invocations and job executions.\n\nMust stay in sync with the ``executions.status`` CHECK constraint.",
   enum: ["success", "error", "cancelled", "timed_out", "skipped"],
   title: "ExecutionStatus",
   type: "string",
@@ -3843,7 +3843,7 @@ const schema29 = {
 };
 const schema30 = {
   description:
-    'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields — it is a refetch signal, not a diff. The event that triggers it\n(``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over\nall apps, and also after a live config edit that only changes manifest metadata (e.g.\n``display_name``) with no lifecycle action to take. Either way it does not identify which\napp(s) changed, so clients should treat receipt as "manifest status may be stale, refetch"\nrather than inspect the payload for detail.',
+    'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed — it is a refetch\nsignal, not a diff. Clients should treat receipt as "manifest state may be\nstale, refetch" rather than inspect the payload.',
   properties: {},
   title: "AppManifestsChangedData",
   type: "object",
