@@ -2,6 +2,12 @@
 
 const BASE_URL = "/api";
 const JSON_CONTENT_TYPE = "application/json";
+const FETCH_CREDENTIALS: RequestCredentials = "same-origin";
+
+/** Fallback message for a non-ok response whose body carried no usable detail. */
+function formatApiError(status: number, statusText: string): string {
+  return `API error: ${status} ${statusText}`;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -9,7 +15,7 @@ export class ApiError extends Error {
     public readonly statusText: string,
     message?: string,
   ) {
-    super(message ?? `API error: ${status} ${statusText}`);
+    super(message ?? formatApiError(status, statusText));
     this.name = "ApiError";
   }
 }
@@ -29,7 +35,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   const url = `${BASE_URL}${path}`;
   const response = await fetch(url, {
     ...init,
-    credentials: "same-origin",
+    credentials: FETCH_CREDENTIALS,
     headers: {
       Accept: JSON_CONTENT_TYPE,
       ...init?.headers,
@@ -67,7 +73,7 @@ export async function postSession(token: string): Promise<PostSessionResult> {
   try {
     response = await fetch(`${BASE_URL}/auth/session`, {
       method: "POST",
-      credentials: "same-origin",
+      credentials: FETCH_CREDENTIALS,
       headers: { "Content-Type": JSON_CONTENT_TYPE },
       body: JSON.stringify({ token }),
     });
@@ -78,6 +84,6 @@ export async function postSession(token: string): Promise<PostSessionResult> {
   if (response.ok) return { ok: true };
 
   const detail = await extractErrorMessage(response);
-  const message = detail ?? `API error: ${response.status} ${response.statusText}`;
+  const message = detail ?? formatApiError(response.status, response.statusText);
   return { ok: false, message };
 }
