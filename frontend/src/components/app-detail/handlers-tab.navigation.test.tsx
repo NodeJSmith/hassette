@@ -7,6 +7,7 @@ import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { HandlersTab } from "./handlers-tab";
 import { renderHandlersTab } from "./handlers-tab.test-helpers";
+import { rowTestId } from "./unified-row.test-helpers";
 
 // Mock child components that make API calls
 vi.mock("../shared/execution-table", () => ({
@@ -78,7 +79,7 @@ describe("HandlersTab navigation", () => {
     const user = userEvent.setup();
     const listeners = [createListener({ listener_id: 5 })];
     const { getByTestId } = renderHandlersTab(listeners, [], null);
-    await user.click(getByTestId("unified-row-listener-5"));
+    await user.click(getByTestId(rowTestId("listener", 5)));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/5");
   });
 
@@ -86,7 +87,7 @@ describe("HandlersTab navigation", () => {
     const user = userEvent.setup();
     const jobs = [createJob({ job_id: 20 })];
     const { getByTestId } = renderHandlersTab([], jobs, null);
-    await user.click(getByTestId("unified-row-job-20"));
+    await user.click(getByTestId(rowTestId("job", 20)));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/job/20");
   });
 
@@ -104,7 +105,7 @@ describe("HandlersTab navigation", () => {
       />,
       { storeOverrides: { uptimeSeconds: 120 } },
     );
-    await user.click(getByTestId("unified-row-listener-3"));
+    await user.click(getByTestId(rowTestId("listener", 3)));
     expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/3?instance=1");
   });
 
