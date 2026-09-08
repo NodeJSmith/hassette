@@ -6,7 +6,7 @@ set_connection_state() validation, and proper state transitions in serve/connect
 
 import logging
 import time
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -129,6 +129,58 @@ class TestValidTransitionTable:
         websocket_service._connection_state = ConnectionState.CONNECTED
         websocket_service.set_connection_state(ConnectionState.DISCONNECTED)
         assert websocket_service.connection_state == ConnectionState.DISCONNECTED
+
+
+class TestConnectionStateLogging:
+    """Entering and leaving CONNECTED is reported at INFO, so it survives the default log level.
+
+    The quickstart points a new user at the "Connected to Home Assistant" line to confirm their
+    URL and token work, which makes these messages behavior rather than incidental logging.
+    Logger is mocked rather than captured via caplog, matching the convention in
+    test_service_watcher_coverage.py.
+    """
+
+    async def test_first_connection_logs_connected_with_url(self, websocket_service: WebsocketService) -> None:
+        websocket_service._connection_state = ConnectionState.CONNECTING
+        websocket_service.logger = Mock()
+
+        websocket_service.set_connection_state(ConnectionState.CONNECTED)
+
+        websocket_service.logger.info.assert_called_once_with(
+            "Connected to Home Assistant at %s", websocket_service.url
+        )
+
+    async def test_reconnect_logs_reconnected_with_url(self, websocket_service: WebsocketService) -> None:
+        websocket_service._connection_state = ConnectionState.CONNECTING
+        websocket_service.set_connection_state(ConnectionState.CONNECTED)
+        websocket_service.set_connection_state(ConnectionState.CONNECTING)
+
+        websocket_service.logger = Mock()
+        websocket_service.set_connection_state(ConnectionState.CONNECTED)
+
+        websocket_service.logger.info.assert_called_once_with(
+            "Reconnected to Home Assistant at %s", websocket_service.url
+        )
+
+    async def test_leaving_connected_logs_disconnected_with_url(self, websocket_service: WebsocketService) -> None:
+        websocket_service._connection_state = ConnectionState.CONNECTING
+        websocket_service.set_connection_state(ConnectionState.CONNECTED)
+
+        websocket_service.logger = Mock()
+        websocket_service.set_connection_state(ConnectionState.CONNECTING)
+
+        websocket_service.logger.info.assert_called_once_with(
+            "Disconnected from Home Assistant at %s", websocket_service.url
+        )
+
+    async def test_failed_first_attempt_logs_nothing_at_info(self, websocket_service: WebsocketService) -> None:
+        """CONNECTING → DISCONNECTED without ever connecting has no connection to report losing."""
+        websocket_service._connection_state = ConnectionState.CONNECTING
+        websocket_service.logger = Mock()
+
+        websocket_service.set_connection_state(ConnectionState.DISCONNECTED)
+
+        websocket_service.logger.info.assert_not_called()
 
 
 class TestInvalidTransitions:

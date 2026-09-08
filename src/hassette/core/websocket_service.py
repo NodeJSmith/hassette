@@ -187,6 +187,10 @@ class WebsocketService(Service):
         raises InvalidLifecycleTransitionError for invalid transitions; in non-strict
         (default) mode logs WARNING. Logs every valid transition at DEBUG with previous state.
 
+        Reaching CONNECTED, and leaving it again, are also logged at INFO so the Home
+        Assistant connection is visible at the default log level — this is the line the
+        quickstart tells a new user to look for to confirm their URL and token work.
+
         Args:
             new: The new connection state to transition to.
 
@@ -217,9 +221,22 @@ class WebsocketService(Service):
 
         self.logger.debug("WebSocket: %s → %s", old, new)
         self._connection_state = new
+
+        # Read defensively for the same reason as the hasattr guards above and below: an
+        # instance built without __init__ has neither attribute, and the transition itself
+        # must still work even when the INFO report cannot name a URL.
+        url = getattr(self, "url", None)
+        ever_connected = getattr(self, "_ever_connected", False)
+
         if new == ConnectionState.CONNECTED:
+            if ever_connected:
+                self.logger.info("Reconnected to Home Assistant at %s", url)
+            else:
+                self.logger.info("Connected to Home Assistant at %s", url)
             self._ever_connected = True
         else:
+            if old == ConnectionState.CONNECTED:
+                self.logger.info("Disconnected from Home Assistant at %s", url)
             if hasattr(self, "_connected_event"):
                 self._connected_event.clear()
             if hasattr(self, "_connected_generation"):
