@@ -18,13 +18,16 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, seal
 
+import pytest
+
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService, PendingReconciliation
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.testing import EventCapture, wait_for
 from hassette.types import Topic
+from tests.support.factories import make_change_set
 
-from .conftest import set_registry_apps
+from .conftest import assert_load_completed_count, set_registry_apps, stub_detected_changes
 
 
 class ChangeEventLockRace:
@@ -91,6 +94,8 @@ class ChangeEventLockRace:
 
 
 class TestBootstrapAppsSuccessLogging:
+    # dup-ignore-start: pytest test function signature — Python has no way to share a function
+    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
     async def test_emits_load_completed_when_apps_running(
         self,
         lifecycle_service: AppLifecycleService,
@@ -106,36 +111,30 @@ class TestBootstrapAppsSuccessLogging:
 
         await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
-        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-        assert len(completed_calls) == 1
+        assert_load_completed_count(event_capture, 1)
+        # dup-ignore-end
 
 
 class TestStartAppSpecificFactoryErrors:
-    async def test_undefined_user_config_error_skips_start(
+    @pytest.mark.parametrize(
+        "error",
+        [
+            UndefinedUserConfigError("no user_config_class"),
+            InvalidInheritanceError("bad base class"),
+        ],
+        ids=["undefined_user_config", "invalid_inheritance"],
+    )
+    async def test_factory_error_skips_start(
         self,
         lifecycle_service: AppLifecycleService,
         mock_registry: MagicMock,
         mock_manifest: MagicMock,
         mock_factory: MagicMock,
+        error: Exception,
     ) -> None:
-        """UndefinedUserConfigError from factory.create_instances is caught; no instances started."""
+        """A config or inheritance error from factory.create_instances is caught; nothing starts."""
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_factory.create_instances.side_effect = UndefinedUserConfigError("no user_config_class")
-
-        await lifecycle_service.start_app("test_app")
-
-        mock_registry.get_running_apps.assert_not_called()
-
-    async def test_invalid_inheritance_error_skips_start(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_manifest: MagicMock,
-        mock_factory: MagicMock,
-    ) -> None:
-        """InvalidInheritanceError from factory.create_instances is caught; no instances started."""
-        mock_registry.get_manifest = Mock(return_value=mock_manifest)
-        mock_factory.create_instances.side_effect = InvalidInheritanceError("bad base class")
+        mock_factory.create_instances.side_effect = error
 
         await lifecycle_service.start_app("test_app")
 
@@ -199,90 +198,46 @@ class TestStartAppsErrorAggregation:
 
 
 class TestHandleChangeEventBranches:
-    async def test_no_changes_returns_without_applying_or_emitting(
+    @pytest.mark.parametrize(
+        ("changes", "is_released", "expected_broadcasts"),
+        [
+            (make_change_set(), True, 0),
+            (make_change_set(metadata_apps={"app_a"}), True, 1),
+            (make_change_set(metadata_apps={"app_a"}), False, 1),
+        ],
+        ids=["no_changes", "metadata_only_after_release", "metadata_only_before_release"],
+    )
+    async def test_change_with_no_lifecycle_action_skips_apply_and_broadcasts_iff_anything_changed(
         self,
         lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
         mock_hassette: MagicMock,
         event_capture: EventCapture,
+        changes: ChangeSet,
+        is_released: bool,
+        expected_broadcasts: int,
     ) -> None:
-        """When detect_changes reports no changes, apply_changes is skipped and no event fires."""
-        event_capture.install(mock_hassette)
-        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-            return_value=ChangeSet(
-                orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset()
-            )
-        )
-        lifecycle_service.apply_changes = AsyncMock()
+        """With no lifecycle action to take, apply_changes is always skipped -- but the
+        APP_LOAD_COMPLETED broadcast still fires whenever *anything* changed.
 
-        await lifecycle_service.handle_change_event()
-
-        lifecycle_service.apply_changes.assert_not_called()
-        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-        assert len(completed_calls) == 0
-
-    async def test_metadata_only_change_broadcasts_without_applying(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_hassette: MagicMock,
-        event_capture: EventCapture,
-    ) -> None:
-        """A metadata-only manifest change (e.g. display_name) has no lifecycle action to take,
-        but a connected dashboard still needs to know to refetch -- apply_changes is skipped
-        while the broadcast still fires. `has_changes` never sets on a metadata-only change, so
-        gating the broadcast on it (instead of `has_any_change`) would silently drop this signal.
+        A metadata-only manifest change (e.g. display_name) never sets `has_changes`, so gating
+        the broadcast on it instead of `has_any_change` would silently drop the signal a connected
+        dashboard refetches on. That broadcast must also fire before bootstrap release opens:
+        WebApiService can already be serving manifests by then (RuntimeQueryService.depends_on
+        excludes AppHandler), and release may not open for a long time -- or at all, while Home
+        Assistant is unreachable -- so deferring to the bootstrap-completion broadcast would leave
+        that dashboard stale indefinitely.
         """
         event_capture.install(mock_hassette)
-        mock_hassette.app_bootstrap_coordinator.is_released.return_value = True
-        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-            return_value=ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset(),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-                metadata_apps=frozenset({"app_a"}),
-            )
-        )
-        lifecycle_service.apply_changes = AsyncMock()
+        mock_hassette.app_bootstrap_coordinator.is_released.return_value = is_released
+        stub_detected_changes(lifecycle_service, changes)
 
         await lifecycle_service.handle_change_event()
 
         lifecycle_service.apply_changes.assert_not_called()
-        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-        assert len(completed_calls) == 1
+        assert_load_completed_count(event_capture, expected_broadcasts)
 
-    async def test_metadata_only_change_before_release_still_broadcasts(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_hassette: MagicMock,
-        event_capture: EventCapture,
-    ) -> None:
-        """A metadata-only change detected before bootstrap release opens must still broadcast --
-        WebApiService can already be serving manifests to a connected dashboard at this point
-        (RuntimeQueryService.depends_on excludes AppHandler), and release may not open for a long
-        time -- or at all -- while Home Assistant is unreachable, so waiting for the
-        bootstrap-completion broadcast would leave that dashboard stale indefinitely.
-        """
-        event_capture.install(mock_hassette)
-        mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
-        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-            return_value=ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset(),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-                metadata_apps=frozenset({"app_a"}),
-            )
-        )
-        lifecycle_service.apply_changes = AsyncMock()
-
-        await lifecycle_service.handle_change_event()
-
-        lifecycle_service.apply_changes.assert_not_called()
-        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-        assert len(completed_calls) == 1
-
+    # dup-ignore-start: pytest test function signature — Python has no way to share a function
+    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
     async def test_unblocked_apps_are_folded_into_new_apps(
         self,
         lifecycle_service: AppLifecycleService,
@@ -293,9 +248,7 @@ class TestHandleChangeEventBranches:
         """Apps unblocked by reconcile_blocked_apps (and not already running/changing) are started."""
         event_capture.install(mock_hassette)
         lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-            return_value=ChangeSet(
-                orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset()
-            )
+            return_value=make_change_set()
         )
         lifecycle_service.reconcile_blocked_apps = Mock(return_value={"unblocked_app"})
         set_registry_apps(mock_registry, {})
@@ -312,8 +265,8 @@ class TestHandleChangeEventBranches:
         assert len(applied) == 1
         assert applied[0].new_apps == frozenset({"unblocked_app"})
 
-        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-        assert len(completed_calls) == 1
+        assert_load_completed_count(event_capture, 1)
+        # dup-ignore-end
 
     def test_fold_unblocked_apps_preserves_metadata_apps(
         self,
@@ -325,19 +278,15 @@ class TestHandleChangeEventBranches:
         """
         lifecycle_service.reconcile_blocked_apps = Mock(return_value={"unblocked_app"})
         set_registry_apps(mock_registry, {})
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset(),
-            metadata_apps=frozenset({"other_app"}),
-        )
+        changes = make_change_set(metadata_apps={"other_app"})
 
         folded = lifecycle_service._fold_unblocked_apps_into_changes(changes)
 
         assert folded.new_apps == frozenset({"unblocked_app"})
         assert folded.metadata_apps == frozenset({"other_app"})
 
+    # dup-ignore-start: pytest test function signature — Python has no way to share a function
+    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
     async def test_pre_release_changes_are_deferred_and_coalesced(
         self,
         lifecycle_service: AppLifecycleService,
@@ -346,15 +295,7 @@ class TestHandleChangeEventBranches:
     ) -> None:
         event_capture.install(mock_hassette)
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
-        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-            return_value=ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset({"my_app"}),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-            )
-        )
-        lifecycle_service.apply_changes = AsyncMock()
+        stub_detected_changes(lifecycle_service, make_change_set(new_apps={"my_app"}))
 
         await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/first.py")}))
         await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/second.py")}))
@@ -366,6 +307,7 @@ class TestHandleChangeEventBranches:
         assert pending.current_apps_config is not None
         assert pending.changed_paths == frozenset({Path("/tmp/first.py"), Path("/tmp/second.py")})
         assert event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED) == []
+        # dup-ignore-end
 
     async def test_pre_release_second_change_with_unscoped_paths_degrades_scope_to_unknown(
         self,
@@ -377,12 +319,7 @@ class TestHandleChangeEventBranches:
         unioned -- the merged baseline still comes from the first (queue-opening) change.
         """
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
-        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-            return_value=ChangeSet(
-                orphans=frozenset(), new_apps=frozenset({"my_app"}), reimport_apps=frozenset(), reload_apps=frozenset()
-            )
-        )
-        lifecycle_service.apply_changes = AsyncMock()
+        stub_detected_changes(lifecycle_service, make_change_set(new_apps={"my_app"}))
 
         await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/first.py")}))
         first_original_snapshot = lifecycle_service._pending_reconciliation.original_apps_config  # pyright: ignore[reportOptionalMemberAccess]
@@ -405,15 +342,7 @@ class TestHandleChangeEventBranches:
         """
         # Queue a pre-release change while still unreleased.
         mock_hassette.app_bootstrap_coordinator.is_released.return_value = False
-        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-            return_value=ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset({"pre_release_app"}),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-            )
-        )
-        lifecycle_service.apply_changes = AsyncMock()
+        stub_detected_changes(lifecycle_service, make_change_set(new_apps={"pre_release_app"}))
 
         await lifecycle_service.handle_change_event(changed_file_paths=frozenset({Path("/tmp/pre.py")}))
 
@@ -429,12 +358,7 @@ class TestHandleChangeEventBranches:
 
         def capture_detect_changes(original, current, changed_paths, **_kwargs):
             captured_calls.append((original, current, changed_paths))
-            return ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset({"post_release_app"}),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-            )
+            return make_change_set(new_apps={"post_release_app"})
 
         lifecycle_service.change_detector.detect_changes = capture_detect_changes  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service.apply_changes = AsyncMock()
@@ -452,10 +376,7 @@ class TestHandleChangeEventBranches:
         lifecycle_service.apply_changes.assert_awaited_once()
 
     async def test_concurrent_invocations_are_serialized_by_the_change_event_lock(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_hassette: MagicMock,
+        self, lifecycle_service: AppLifecycleService
     ) -> None:
         """Two overlapping handle_change_event() calls — as the bus's ``parallel`` dispatch
         mode produces when two file-watcher events fire close together (BusService._dispatch
@@ -465,7 +386,7 @@ class TestHandleChangeEventBranches:
         reading it, tearing the "what was the world like before this change" snapshot.
         """
         race = ChangeEventLockRace(lifecycle_service)
-        empty = ChangeSet(orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset())
+        empty = make_change_set()
 
         # Wrapped rather than assigned directly (unlike the resolve_only_apps case below) only
         # because refresh_config has to return a config pair; the gating behavior is identical.
@@ -483,6 +404,8 @@ class TestHandleChangeEventBranches:
 
 
 class TestReplayPreReleaseReconciliationBranches:
+    # dup-ignore-start: pytest test function signature — Python has no way to share a function
+    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
     async def test_metadata_only_replay_broadcasts_without_applying(
         self,
         lifecycle_service: AppLifecycleService,
@@ -499,23 +422,16 @@ class TestReplayPreReleaseReconciliationBranches:
             original_apps_config={}, current_apps_config={}, changed_paths=None
         )
         lifecycle_service.resolve_only_apps = AsyncMock()
-        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-            return_value=ChangeSet(
-                orphans=frozenset(),
-                new_apps=frozenset(),
-                reimport_apps=frozenset(),
-                reload_apps=frozenset(),
-                metadata_apps=frozenset({"app_a"}),
-            )
-        )
-        lifecycle_service.apply_changes = AsyncMock()
+        stub_detected_changes(lifecycle_service, make_change_set(metadata_apps={"app_a"}))
 
         await lifecycle_service._replay_pre_release_reconciliation_if_needed()
 
         lifecycle_service.apply_changes.assert_not_called()
-        completed_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-        assert len(completed_calls) == 1
+        assert_load_completed_count(event_capture, 1)
+        # dup-ignore-end
 
+    # dup-ignore-start: pytest test function signature — Python has no way to share a function
+    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
     async def test_no_change_replay_does_not_broadcast(
         self,
         lifecycle_service: AppLifecycleService,
@@ -528,33 +444,24 @@ class TestReplayPreReleaseReconciliationBranches:
             original_apps_config={}, current_apps_config={}, changed_paths=None
         )
         lifecycle_service.resolve_only_apps = AsyncMock()
-        lifecycle_service.change_detector.detect_changes = Mock(  # pyright: ignore[reportAttributeAccessIssue]
-            return_value=ChangeSet(
-                orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset()
-            )
-        )
-        lifecycle_service.apply_changes = AsyncMock()
+        stub_detected_changes(lifecycle_service, make_change_set())
 
         await lifecycle_service._replay_pre_release_reconciliation_if_needed()
 
         lifecycle_service.apply_changes.assert_not_called()
         assert event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED) == []
+        # dup-ignore-end
 
 
 class TestReplayPreReleaseReconciliationSerialization:
-    async def test_replay_and_handle_change_event_do_not_race(
-        self,
-        lifecycle_service: AppLifecycleService,
-        mock_registry: MagicMock,
-        mock_hassette: MagicMock,
-    ) -> None:
+    async def test_replay_and_handle_change_event_do_not_race(self, lifecycle_service: AppLifecycleService) -> None:
         """_replay_pre_release_reconciliation_if_needed() (called from bootstrap_apps()) reads and
         clears the same _pending_reconciliation state as handle_change_event(); both must serialize on
         _change_event_lock. Without that, a file-watcher event arriving while bootstrap is replaying
         could race the take/clear of that state.
         """
         race = ChangeEventLockRace(lifecycle_service)
-        empty = ChangeSet(orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset())
+        empty = make_change_set()
 
         lifecycle_service._pending_reconciliation = PendingReconciliation(
             original_apps_config={},
@@ -605,33 +512,49 @@ class TestRefreshConfigFailure:
         assert "app_a" in current
 
 
+async def reconcile_one_instance(
+    lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, instance: AsyncMock
+) -> Any:
+    """Reconcile registrations for a single app instance and return the recorded executor call.
+
+    Every test below asserts on one positional or keyword argument of the resulting
+    `command_executor.reconcile_registrations` call, so returning `call_args` directly keeps each
+    test to its own arrangement plus its own assertion.
+    """
+    await lifecycle_service.reconcile_app_registrations("test_app", {0: instance})
+    return mock_hassette.command_executor.reconcile_registrations.call_args
+
+
 class TestReconcileAppRegistrationsDegradedPaths:
     async def test_listener_collection_failure_is_non_fatal(
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_app_instance: AsyncMock
     ) -> None:
         """A failure collecting listener IDs from one instance leaves live_listener_ids empty."""
         mock_app_instance.bus.get_listeners = Mock(side_effect=RuntimeError("bus unavailable"))
-        instances = {0: mock_app_instance}
 
-        await lifecycle_service.reconcile_app_registrations("test_app", instances)
-
-        call_kwargs = mock_hassette.command_executor.reconcile_registrations.call_args
+        call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
         assert call_kwargs.args[1] == []
 
+    # dup-ignore-start: four reconcile_app_registrations degraded paths, each arranging one
+    # collaborator to fail (or succeed) and asserting a different slice of the resulting
+    # executor call; the shared arrange/act/assert shape is already down to three lines and
+    # parametrizing it would need a setup callable per row to say less than the bodies do.
     async def test_router_safety_guard_failure_is_non_fatal(
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_app_instance: AsyncMock
     ) -> None:
         """Router guard failure still leaves the directly-collected listener IDs intact."""
         mock_app_instance.bus.get_listeners = Mock(return_value=[MagicMock(db_id=99)])
         mock_hassette.bus_service.router.get_listeners_by_owner = Mock(side_effect=RuntimeError("router down"))
-        instances = {0: mock_app_instance}
 
-        await lifecycle_service.reconcile_app_registrations("test_app", instances)
-
-        call_kwargs = mock_hassette.command_executor.reconcile_registrations.call_args
+        call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
         # Router union failed, but the bus-collected ID (99) survives.
         assert set(call_kwargs.args[1]) == {99}
+        # dup-ignore-end
 
+    # dup-ignore-start: four reconcile_app_registrations degraded paths, each arranging one
+    # collaborator to fail (or succeed) and asserting a different slice of the resulting
+    # executor call; the shared arrange/act/assert shape is already down to three lines and
+    # parametrizing it would need a setup callable per row to say less than the bodies do.
     async def test_router_safety_guard_unions_listener_ids(
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_app_instance: AsyncMock
     ) -> None:
@@ -640,24 +563,19 @@ class TestReconcileAppRegistrationsDegradedPaths:
         mock_hassette.bus_service.router.get_listeners_by_owner = Mock(
             return_value=[MagicMock(db_id=2), MagicMock(db_id=None)]
         )
-        instances = {0: mock_app_instance}
 
-        await lifecycle_service.reconcile_app_registrations("test_app", instances)
-
-        call_kwargs = mock_hassette.command_executor.reconcile_registrations.call_args
+        call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
         # Bus-collected (1) unioned with router-collected (2); the None-db_id router listener excluded.
         assert set(call_kwargs.args[1]) == {1, 2}
+        # dup-ignore-end
 
     async def test_job_id_collection_failure_is_non_fatal(
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_app_instance: AsyncMock
     ) -> None:
         """A failure collecting job IDs from one instance leaves live_job_ids empty."""
         mock_app_instance.scheduler.get_job_db_ids = Mock(side_effect=RuntimeError("scheduler unavailable"))
-        instances = {0: mock_app_instance}
 
-        await lifecycle_service.reconcile_app_registrations("test_app", instances)
-
-        call_kwargs = mock_hassette.command_executor.reconcile_registrations.call_args
+        call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
         assert call_kwargs.args[2] == []
 
     async def test_session_id_unavailable_degrades_gracefully(
@@ -672,14 +590,16 @@ class TestReconcileAppRegistrationsDegradedPaths:
         """
         del mock_hassette.session_id
         seal(mock_hassette)
-        instances = {0: mock_app_instance}
 
-        await lifecycle_service.reconcile_app_registrations("test_app", instances)
+        call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
 
         mock_hassette.command_executor.reconcile_registrations.assert_awaited_once()
-        call_kwargs = mock_hassette.command_executor.reconcile_registrations.call_args
         assert call_kwargs.kwargs["session_id"] is None
 
+    # dup-ignore-start: four reconcile_app_registrations degraded paths, each arranging one
+    # collaborator to fail (or succeed) and asserting a different slice of the resulting
+    # executor call; the shared arrange/act/assert shape is already down to three lines and
+    # parametrizing it would need a setup callable per row to say less than the bodies do.
     async def test_collects_live_listener_and_job_ids(
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_app_instance: AsyncMock
     ) -> None:
@@ -689,10 +609,7 @@ class TestReconcileAppRegistrationsDegradedPaths:
         mock_app_instance.bus.get_listeners = Mock(return_value=[listener_with_id, listener_without_id])
         mock_app_instance.scheduler.get_job_db_ids = Mock(return_value=[7, 8])
 
-        instances = {0: mock_app_instance}
-
-        await lifecycle_service.reconcile_app_registrations("test_app", instances)
-
-        call_kwargs = mock_hassette.command_executor.reconcile_registrations.call_args
+        call_kwargs = await reconcile_one_instance(lifecycle_service, mock_hassette, mock_app_instance)
         assert set(call_kwargs.args[1]) == {42}
         assert call_kwargs.args[2] == [7, 8]
+        # dup-ignore-end

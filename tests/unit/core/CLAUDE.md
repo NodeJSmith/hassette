@@ -1,10 +1,10 @@
 # Tests: unit/core
 
 Fixtures below are defined in family-scoped `_fixtures_*.py` modules in this directory
-(`_fixtures_app_lifecycle.py`, `_fixtures_app_registry.py`, `_fixtures_command_executor.py`, `_fixtures_bus_scheduler.py`,
-`_fixtures_blocking_io.py`, `_fixtures_service_watcher.py`, `_fixtures_telemetry.py`) and
-re-exported from `conftest.py`. Import from `.conftest` as before — the re-export keeps that
-surface stable; only the definitions moved.
+(`_fixtures_app_lifecycle.py`, `_fixtures_app_registry.py`, `_fixtures_command_executor.py`,
+`_fixtures_bus_scheduler.py`, `_fixtures_blocking_io.py`, `_fixtures_service_watcher.py`,
+`_fixtures_telemetry.py`, `_fixtures_websocket.py`) and re-exported from `conftest.py`. Import from
+`.conftest` as before — the re-export keeps that surface stable; only the definitions moved.
 
 ## Available fixtures (re-exported from this directory's conftest.py)
 
@@ -12,9 +12,12 @@ surface stable; only the definitions moved.
 - `mock_registry`, `mock_factory`, `mock_manifest`, `mock_app_instance` — mocked collaborators for lifecycle tests
 - `lifecycle_service` — `AppLifecycleService` built from the mocks above
 - `telemetry_db`, `telemetry_repo`, `telemetry_session_id` — SQLite-backed telemetry test chain
+- `websocket_service`, `websocket_service_strict` — `WebsocketService` on a mocked hassette stub; the `_strict` variant sets `strict_lifecycle=True` so an invalid connection-state transition raises
 
 ## Shared helpers and constants (module-level, not fixtures)
 
+- `assert_load_completed_count(event_capture, expected)` — assert how many `APP_LOAD_COMPLETED` broadcasts fired (the signal a connected dashboard refetches on)
+- `stub_detected_changes(lifecycle_service, changes)` — make `detect_changes` report `changes` and stub `apply_changes`, for tests of `handle_change_event`'s own apply/defer/broadcast decisions
 - `set_registry_apps(registry, apps)` — configures a `mock_registry`'s `__contains__`, `app_keys()`, `get_running_apps()`, and `get()` from an `apps`-shaped dict (`dict[str, dict[int, App]]`); use instead of assigning `mock_registry.apps = ...` directly (that attribute no longer exists on the real `AppRegistry`)
 - `make_manifest_obj(app_key, **kw)` — `SimpleNamespace` AppManifest stand-in for `AppRegistry` tests; shared by `test_app_registry.py` and `test_app_registry_snapshot.py`
 - `make_app_instance(app_key, index=0)` — `SimpleNamespace` App stand-in for `AppRegistry` tests; shared by the same two files
@@ -41,9 +44,11 @@ surface stable; only the definitions moved.
 
 - Service factories (`make_bus_service`, `make_scheduler_service`, `make_watcher`) bypass `__init__` via `__new__` — set every attribute the real `__init__` would set.
 - `# dup-ignore-start: pytest test function signature` markers precede most test functions in this
-  directory's `test_telemetry_repository_*.py` and `test_manifest_repository.py` files. Python has
-  no way to share a function signature between separate test functions, so every test re-declares
-  whichever fixtures it needs (`telemetry_repo`, `telemetry_db`, `telemetry_session_id`, `tmp_path`,
-  etc.) even when an adjacent test declares the identical set — `tools/check_duplicate_code.py`
-  would otherwise flag that repetition. The marker's inline reason stays a one-line pointer back to
-  this note rather than repeating the full explanation at all 19 sites.
+  directory's `test_telemetry_repository_*.py`, `test_manifest_repository.py`,
+  `test_app_lifecycle_service.py`, `test_app_lifecycle_service_coverage.py`, and
+  `test_app_lifecycle_service_start_stop.py` files. Python has no way to share a function
+  signature between separate test functions, so every test re-declares whichever fixtures it
+  needs (`telemetry_repo`, `telemetry_db`, `telemetry_session_id`, `tmp_path`, etc.) even when an
+  adjacent test declares the identical set — `tools/check_duplicate_code.py` would otherwise flag
+  that repetition. The marker's inline reason stays a one-line pointer back to this note rather
+  than repeating the full explanation at every site.

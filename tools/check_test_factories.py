@@ -58,6 +58,7 @@ SHARED_FACTORIES = {
     "make_hassette_event": "tests.support.factories",
     "make_hass_event": "tests.support.factories",
     "make_mock_parent": "tests.support.factories",
+    "make_change_set": "tests.support.factories",
     "make_invoke_handler_cmd": "tests.support.factories",
     "make_mock_listener": "tests.support.factories",
     "make_scheduler": "tests.support.factories",

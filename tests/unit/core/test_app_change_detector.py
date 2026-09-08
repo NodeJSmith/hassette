@@ -10,8 +10,8 @@ from hassette.core.app_change_detector import (
     APP_CONFIG_PATH_PATTERN,
     REIMPORT_PATH_PATTERN,
     AppChangeDetector,
-    ChangeSet,
 )
+from tests.support.factories import make_change_set
 
 
 class TestAppConfigPathPattern:
@@ -80,12 +80,7 @@ class TestReimportPathPattern:
 class TestChangeSet:
     def test_empty_changeset(self) -> None:
         """Test empty changeset."""
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset(),
-        )
+        changes = make_change_set()
 
         assert not changes.has_changes
         assert not changes.has_any_change
@@ -99,65 +94,34 @@ class TestChangeSet:
         """has_any_change is True on a metadata-only changeset even though has_changes is False --
         this is the distinction the broadcast-on-metadata-only-change fix relies on.
         """
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset(),
-            metadata_apps=frozenset({"app1"}),
-        )
+        changes = make_change_set(metadata_apps={"app1"})
 
         assert not changes.has_changes
         assert changes.has_any_change
 
     def test_has_changes_with_orphans(self) -> None:
         """Test has_changes is True when there are orphans."""
-        changes = ChangeSet(
-            orphans=frozenset({"app1"}),
-            new_apps=frozenset(),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset(),
-        )
+        changes = make_change_set(orphans={"app1"})
         assert changes.has_changes
 
     def test_has_changes_with_new_apps(self) -> None:
         """Test has_changes is True when there are new apps."""
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset({"app1"}),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset(),
-        )
+        changes = make_change_set(new_apps={"app1"})
         assert changes.has_changes
 
     def test_has_changes_with_reimport_apps(self) -> None:
         """Test has_changes is True when there are reimport apps."""
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset({"app1"}),
-            reload_apps=frozenset(),
-        )
+        changes = make_change_set(reimport_apps={"app1"})
         assert changes.has_changes
 
     def test_has_changes_with_reload_apps(self) -> None:
         """Test has_changes is True when there are reload apps."""
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset({"app1"}),
-        )
+        changes = make_change_set(reload_apps={"app1"})
         assert changes.has_changes
 
     def test_repr(self) -> None:
         """Test string representation."""
-        changes = ChangeSet(
-            orphans=frozenset({"a"}),
-            new_apps=frozenset({"b"}),
-            reimport_apps=frozenset({"c"}),
-            reload_apps=frozenset({"d"}),
-        )
+        changes = make_change_set(orphans={"a"}, new_apps={"b"}, reimport_apps={"c"}, reload_apps={"d"})
         repr_str = repr(changes)
 
         assert "orphans" in repr_str
@@ -167,12 +131,7 @@ class TestChangeSet:
 
     def test_immutability(self) -> None:
         """Test that ChangeSet is immutable (frozen)."""
-        changes = ChangeSet(
-            orphans=frozenset({"a"}),
-            new_apps=frozenset(),
-            reimport_apps=frozenset(),
-            reload_apps=frozenset(),
-        )
+        changes = make_change_set(orphans={"a"})
 
         with pytest.raises(AttributeError):
             changes.orphans = frozenset({"b"})  # pyright: ignore[reportCallIssue]
@@ -259,23 +218,61 @@ class TestAppChangeDetector:
         assert not changes.reimport_apps
         assert not changes.reload_apps
 
-    def test_detect_reimport_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
-        """Test detecting apps needing reimport due to file change."""
+    @pytest.mark.parametrize(
+        ("original_config", "current_config"),
+        [
+            (None, None),
+            ({"setting": "old"}, {"setting": "new"}),
+        ],
+        ids=["config_unchanged", "config_also_changed"],
+    )
+    def test_changed_file_path_triggers_reimport_not_reload(
+        self,
+        detector: AppChangeDetector,
+        make_manifest: Callable,
+        original_config: dict | None,
+        current_config: dict | None,
+    ) -> None:
+        """A file-watcher event for an app's source file routes that app to reimport_apps, and
+        keeps it out of reload_apps even when its app_config changed in the same pass -- a forced
+        reimport reloads config too, so a reload entry would be redundant.
+        """
         changed_path = Path("/apps/app1.py")
-        original = {"app1": make_manifest("app1", full_path=changed_path)}
-        current = {"app1": make_manifest("app1", full_path=changed_path)}
+        original = {"app1": make_manifest("app1", full_path=changed_path, app_config=original_config)}
+        current = {"app1": make_manifest("app1", full_path=changed_path, app_config=current_config)}
 
         changes = detector.detect_changes(original, current, changed_file_paths=frozenset({changed_path}))
 
         assert changes.reimport_apps == frozenset({"app1"})
+        assert "app1" not in changes.reload_apps
         assert not changes.orphans
         assert not changes.new_apps
-        assert not changes.reload_apps
 
-    def test_detect_reload_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
-        """Test detecting apps needing reload due to config change."""
-        original = {"app1": make_manifest("app1", app_config={"instance_name": "app1.0", "setting": "old"})}
-        current = {"app1": make_manifest("app1", app_config={"instance_name": "app1.0", "setting": "new"})}
+    @pytest.mark.parametrize(
+        ("companion_original", "companion_current"),
+        [
+            ({}, {}),
+            ({"display_name": "Same Name"}, {"display_name": "Same Name"}),
+            ({"display_name": "Old Name"}, {"display_name": "New Name"}),
+        ],
+        ids=["config_only", "display_name_unchanged", "display_name_also_changed"],
+    )
+    def test_app_config_change_routes_to_reload_only(
+        self,
+        detector: AppChangeDetector,
+        make_manifest: Callable,
+        companion_original: dict,
+        companion_current: dict,
+    ) -> None:
+        """An app_config change routes to reload_apps and to nothing else.
+
+        It stays in reload_apps whether or not a non-config attribute changes alongside it, is
+        not re-routed to reimport_apps by the implementation-field detection that runs in the
+        same pass, and never also appears in metadata_apps -- which does not double-count an app
+        already claimed by a lifecycle category.
+        """
+        original = {"app1": make_manifest("app1", app_config={"setting": "old"}, **companion_original)}
+        current = {"app1": make_manifest("app1", app_config={"setting": "new"}, **companion_current)}
 
         changes = detector.detect_changes(original, current)
 
@@ -283,59 +280,55 @@ class TestAppChangeDetector:
         assert not changes.orphans
         assert not changes.new_apps
         assert not changes.reimport_apps
+        assert "app1" not in changes.metadata_apps
 
-    def test_display_name_change_does_not_trigger_reload(
-        self, detector: AppChangeDetector, make_manifest: Callable
+    @pytest.mark.parametrize(
+        ("original_kwargs", "current_kwargs", "detect_kwargs"),
+        [
+            ({"display_name": "Old Name"}, {"display_name": "New Name"}, {}),
+            ({"autostart": True}, {"autostart": False}, {}),
+            (
+                {"display_name": "Old Name", "enabled": False},
+                {"display_name": "New Name", "enabled": False},
+                {},
+            ),
+            (
+                {"display_name": "Old Name", "enabled": False},
+                {"display_name": "New Name", "enabled": False},
+                {"only_apps": frozenset({"app2"})},
+            ),
+        ],
+        ids=["display_name", "autostart", "disabled_app", "excluded_by_only_apps"],
+    )
+    def test_non_lifecycle_change_surfaces_as_metadata_only(
+        self,
+        detector: AppChangeDetector,
+        make_manifest: Callable,
+        original_kwargs: dict,
+        current_kwargs: dict,
+        detect_kwargs: dict,
     ) -> None:
-        """A display_name-only change is not an app_config change and must not trigger a reload,
-        but it must still surface as a metadata change so a connected dashboard is told to
-        refetch (see test_app_lifecycle_service_coverage.py's metadata-broadcast tests).
+        """A manifest change that is neither an app_config change nor an implementation-target
+        change requires no lifecycle action, but must still surface in metadata_apps so a
+        connected dashboard is told to refetch (see test_app_lifecycle_service_coverage.py's
+        metadata-broadcast tests).
+
+        This holds for an app disabled on both sides -- detect_changes() is deliberately handed
+        every manifest rather than an enabled-only pre-filtered pair, so a disabled app's
+        metadata changes stay visible (see PR #1899 review) -- and for an app that `only_apps`
+        excludes, since `only_apps` narrows which apps get lifecycle actions, not which manifest
+        changes are worth telling a dashboard about.
         """
-        original = {"app1": make_manifest("app1", display_name="Old Name")}
-        current = {"app1": make_manifest("app1", display_name="New Name")}
+        original = {"app1": make_manifest("app1", **original_kwargs)}
+        current = {"app1": make_manifest("app1", **current_kwargs)}
 
-        changes = detector.detect_changes(original, current)
+        changes = detector.detect_changes(original, current, **detect_kwargs)
 
-        assert "app1" not in changes.reload_apps
+        # has_changes is the disjunction of the four lifecycle buckets, so this single assertion
+        # covers orphans, new_apps, reimport_apps, and reload_apps all being empty.
         assert not changes.has_changes
         assert changes.metadata_apps == frozenset({"app1"})
         assert changes.has_any_change
-
-    def test_autostart_change_does_not_trigger_reload(
-        self, detector: AppChangeDetector, make_manifest: Callable
-    ) -> None:
-        """An autostart-only change is not an app_config change and must not trigger a reload,
-        but it must still surface as a metadata change (see display_name test above).
-        """
-        original = {"app1": make_manifest("app1", autostart=True)}
-        current = {"app1": make_manifest("app1", autostart=False)}
-
-        changes = detector.detect_changes(original, current)
-
-        assert "app1" not in changes.reload_apps
-        assert not changes.has_changes
-        assert changes.metadata_apps == frozenset({"app1"})
-        assert changes.has_any_change
-
-    def test_metadata_change_on_disabled_app_is_still_detected(
-        self, detector: AppChangeDetector, make_manifest: Callable
-    ) -> None:
-        """A display_name change on an app that's disabled on both sides must still surface as
-        a metadata change -- previously the caller pre-filtered both configs to enabled-only
-        apps before calling detect_changes(), so a disabled app's manifest was simply absent
-        from both dicts and its metadata changes were invisible (see PR #1899 review).
-        """
-        original = {"app1": make_manifest("app1", display_name="Old Name", enabled=False)}
-        current = {"app1": make_manifest("app1", display_name="New Name", enabled=False)}
-
-        changes = detector.detect_changes(original, current)
-
-        assert not changes.has_changes
-        assert changes.metadata_apps == frozenset({"app1"})
-        assert changes.has_any_change
-        assert "app1" not in changes.orphans
-        assert "app1" not in changes.new_apps
-        assert "app1" not in changes.reload_apps
 
     def test_removed_disabled_app_still_triggers_metadata_broadcast(
         self, detector: AppChangeDetector, make_manifest: Callable
@@ -357,23 +350,8 @@ class TestAppChangeDetector:
         assert "app1" not in changes.orphans
         assert "app1" not in changes.new_apps
 
-    def test_only_apps_does_not_hide_metadata_changes_outside_selection(
-        self, detector: AppChangeDetector, make_manifest: Callable
-    ) -> None:
-        """A metadata-only change to a disabled app excluded by `only_apps` must still surface
-        as a metadata change -- `only_apps` narrows which apps get lifecycle actions, not which
-        manifest changes are worth telling a connected dashboard about, since both configs
-        passed to `detect_changes()` already contain every manifest regardless of that scope.
-        """
-        original = {"app1": make_manifest("app1", display_name="Old Name", enabled=False)}
-        current = {"app1": make_manifest("app1", display_name="New Name", enabled=False)}
-
-        changes = detector.detect_changes(original, current, only_apps=frozenset({"app2"}))
-
-        assert not changes.has_changes
-        assert changes.metadata_apps == frozenset({"app1"})
-        assert changes.has_any_change
-
+    # dup-ignore-start: only_apps guarantee -- new-app metadata still surfaces outside the selection;
+    # the sibling only_apps tests share this two-config/detect shape but assert different buckets.
     def test_only_apps_does_not_hide_new_app_metadata_outside_selection(
         self, detector: AppChangeDetector, make_manifest: Callable
     ) -> None:
@@ -388,6 +366,7 @@ class TestAppChangeDetector:
 
         assert "app2" not in changes.new_apps
         assert changes.metadata_apps == frozenset({"app2"})
+        # dup-ignore-end
 
     def test_disabling_an_app_is_still_an_orphan_not_metadata(
         self, detector: AppChangeDetector, make_manifest: Callable
@@ -406,41 +385,34 @@ class TestAppChangeDetector:
         assert not changes.reload_apps
         assert "app1" not in changes.metadata_apps
 
-    def test_app_config_change_triggers_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
-        """An app_config change must still trigger a reload, even alongside a non-config change."""
-        original = {
-            "app1": make_manifest("app1", app_config={"setting": "old"}, display_name="Same Name"),
-        }
-        current = {
-            "app1": make_manifest("app1", app_config={"setting": "new"}, display_name="Same Name"),
-        }
-
-        changes = detector.detect_changes(original, current)
-
-        assert changes.reload_apps == frozenset({"app1"})
-
-    def test_reload_app_not_also_in_metadata_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
-        """An app_config change alongside a display_name change lands only in reload_apps --
-        metadata_apps must not double-count an app already claimed by a lifecycle category.
+    @pytest.mark.parametrize(
+        ("companion_field", "companion_old", "companion_new"),
+        [
+            ("display_name", "Old Name", "New Name"),
+            ("app_config", {"setting": "old"}, {"setting": "new"}),
+        ],
+        ids=["display_name", "app_config"],
+    )
+    def test_filename_change_with_companion_change_lands_only_in_reimport(
+        self,
+        detector: AppChangeDetector,
+        make_manifest: Callable,
+        companion_field: str,
+        companion_old: object,
+        companion_new: object,
+    ) -> None:
+        """When a filename change coincides with another change to the same app_key, the app
+        lands in exactly one bucket -- reimport_apps. A forced reimport reloads config too, so
+        reload_apps would be redundant, and metadata_apps must not double-count an app already
+        claimed by a lifecycle category.
         """
-        original = {"app1": make_manifest("app1", app_config={"setting": "old"}, display_name="Old Name")}
-        current = {"app1": make_manifest("app1", app_config={"setting": "new"}, display_name="New Name")}
-
-        changes = detector.detect_changes(original, current)
-
-        assert changes.reload_apps == frozenset({"app1"})
-        assert "app1" not in changes.metadata_apps
-
-    def test_reimport_app_not_also_in_metadata_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
-        """A filename change alongside a display_name change lands only in reimport_apps --
-        metadata_apps must not double-count an app already claimed by a lifecycle category.
-        """
-        original = {"app1": make_manifest("app1", filename="old_app1.py", display_name="Old Name")}
-        current = {"app1": make_manifest("app1", filename="new_app1.py", display_name="New Name")}
+        original = {"app1": make_manifest("app1", filename="old_app1.py", **{companion_field: companion_old})}
+        current = {"app1": make_manifest("app1", filename="new_app1.py", **{companion_field: companion_new})}
 
         changes = detector.detect_changes(original, current)
 
         assert changes.reimport_apps == frozenset({"app1"})
+        assert "app1" not in changes.reload_apps
         assert "app1" not in changes.metadata_apps
 
     def test_new_app_not_in_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
@@ -453,18 +425,8 @@ class TestAppChangeDetector:
         assert "app1" in changes.new_apps
         assert "app1" not in changes.reload_apps
 
-    def test_reimport_not_in_reload(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
-        """Test that reimport apps are not also in reload_apps."""
-        changed_path = Path("/apps/app1.py")
-        # Config change + file change should only be reimport
-        original = {"app1": make_manifest("app1", full_path=changed_path, app_config={"setting": "old"})}
-        current = {"app1": make_manifest("app1", full_path=changed_path, app_config={"setting": "new"})}
-
-        changes = detector.detect_changes(original, current, changed_file_paths=frozenset({changed_path}))
-
-        assert "app1" in changes.reimport_apps
-        assert "app1" not in changes.reload_apps
-
+    # dup-ignore-start: only_apps guarantee -- a non-selected app reads as an orphan;
+    # the sibling only_apps tests share this two-config/detect shape but assert different buckets.
     def test_only_apps_parameter_excludes_other_apps(
         self, detector: AppChangeDetector, make_manifest: Callable
     ) -> None:
@@ -476,6 +438,7 @@ class TestAppChangeDetector:
 
         # app2 should be seen as orphan since it's filtered out of current
         assert "app2" in changes.orphans
+        # dup-ignore-end
 
     def test_only_apps_parameter_allows_target_apps(self, detector: AppChangeDetector, make_manifest: Callable) -> None:
         """Passing only_apps to detect_changes allows every named app through the filter."""
@@ -569,6 +532,8 @@ class TestAppChangeDetector:
         assert changes.reimport_apps == frozenset({"app2"})
         assert changes.reload_apps == frozenset({"app3"})
 
+    # dup-ignore-start: only_apps guarantee -- a non-selected app's config change stays out of reload_apps;
+    # the sibling only_apps tests share this two-config/detect shape but assert different buckets.
     def test_only_apps_excludes_reload_for_non_target(
         self, detector: AppChangeDetector, make_manifest: Callable
     ) -> None:
@@ -589,16 +554,45 @@ class TestAppChangeDetector:
         assert "app1" in changes.reload_apps
         assert "app2" not in changes.reload_apps
         assert "app3" not in changes.reload_apps
+        # dup-ignore-end
 
-    def test_filename_change_triggers_reimport_not_reload(
-        self, detector: AppChangeDetector, make_manifest: Callable
+    @pytest.mark.parametrize(
+        ("field", "old_value", "new_value"),
+        [
+            ("filename", "old_app1.py", "new_app1.py"),
+            ("class_name", "OldApp", "NewApp"),
+            ("app_dir", Path("/apps/old"), Path("/apps/new")),
+            ("cache_key", "old_key", "new_key"),
+        ],
+        ids=["filename", "class_name", "app_dir", "cache_key"],
+    )
+    def test_implementation_field_change_triggers_reimport_not_reload(
+        self,
+        detector: AppChangeDetector,
+        make_manifest: Callable,
+        field: str,
+        old_value: object,
+        new_value: object,
     ) -> None:
-        """A filename-only change (no app_config change, no file-watcher event) must land in
-        reimport_apps -- not reload_apps -- so apply_changes() forces a class reimport instead
-        of a config-only reload. See app_change_detector.py:106 comment.
+        """A change to any single REIMPORT_FIELDS attribute -- with no app_config change and no
+        file-watcher event -- lands in reimport_apps rather than reload_apps, so apply_changes()
+        forces a class reimport instead of a config-only reload.
+
+        Each field earns that routing differently:
+
+        - `filename` and `class_name` name the app's implementation target directly.
+        - `app_dir` moves it just as surely, since `full_path` is `app_dir / filename`, and the
+          move is invisible to the file watcher (which reports the changed *configuration* file,
+          not the app's new source path).
+        - `cache_key` does not change which class loads, but `App.__init__` builds its AsyncCache
+          exactly once from it and never rebuilds it. reload_apps's per-instance path only diffs
+          app_config, so a cache_key-only change would otherwise silently no-op and leave the
+          running instance bound to its old cache path.
+
+        See `REIMPORT_FIELDS` and its docstring in app_change_detector.py.
         """
-        original = {"app1": make_manifest("app1", filename="old_app1.py")}
-        current = {"app1": make_manifest("app1", filename="new_app1.py")}
+        original = {"app1": make_manifest("app1", **{field: old_value})}
+        current = {"app1": make_manifest("app1", **{field: new_value})}
 
         changes = detector.detect_changes(original, current)
 
@@ -606,87 +600,3 @@ class TestAppChangeDetector:
         assert "app1" not in changes.reload_apps
         assert not changes.orphans
         assert not changes.new_apps
-
-    def test_class_name_change_triggers_reimport_not_reload(
-        self, detector: AppChangeDetector, make_manifest: Callable
-    ) -> None:
-        """A class_name-only change must also land in reimport_apps, not reload_apps."""
-        original = {"app1": make_manifest("app1", class_name="OldApp")}
-        current = {"app1": make_manifest("app1", class_name="NewApp")}
-
-        changes = detector.detect_changes(original, current)
-
-        assert changes.reimport_apps == frozenset({"app1"})
-        assert "app1" not in changes.reload_apps
-
-    def test_app_dir_change_triggers_reimport_not_reload(
-        self, detector: AppChangeDetector, make_manifest: Callable
-    ) -> None:
-        """An app_dir-only change must also land in reimport_apps, not reload_apps.
-
-        full_path (the file the app actually loads from) is app_dir / filename, so moving
-        an app to a new directory changes its implementation target just as surely as
-        renaming its file -- and is just as invisible to the file watcher (which reports
-        the changed *configuration* file, not the app's new source path).
-        """
-        original = {"app1": make_manifest("app1", app_dir=Path("/apps/old"))}
-        current = {"app1": make_manifest("app1", app_dir=Path("/apps/new"))}
-
-        changes = detector.detect_changes(original, current)
-
-        assert changes.reimport_apps == frozenset({"app1"})
-        assert "app1" not in changes.reload_apps
-
-    def test_cache_key_change_triggers_reimport_not_reload(
-        self, detector: AppChangeDetector, make_manifest: Callable
-    ) -> None:
-        """A cache_key-only change (no app_config change, no file-watcher event) must land in
-        reimport_apps -- not reload_apps. App.__init__ builds its AsyncCache exactly once,
-        keyed on the manifest's cache_key at construction time; reload_apps's per-instance path
-        only diffs app_config, so a cache_key-only change would otherwise silently no-op and
-        leave the running instance bound to its old cache path. See
-        app_change_detector.py's REIMPORT_FIELDS docstring.
-        """
-        original = {"app1": make_manifest("app1", cache_key="old_key")}
-        current = {"app1": make_manifest("app1", cache_key="new_key")}
-
-        changes = detector.detect_changes(original, current)
-
-        assert changes.reimport_apps == frozenset({"app1"})
-        assert "app1" not in changes.reload_apps
-        assert not changes.orphans
-        assert not changes.new_apps
-
-    def test_filename_and_app_config_change_together_only_in_reimport(
-        self, detector: AppChangeDetector, make_manifest: Callable
-    ) -> None:
-        """When app_config and filename change together for the same app_key, the app must end
-        up in exactly one bucket -- reimport_apps -- since force_reload implies a fresh config
-        load too. It must not also appear in reload_apps.
-        """
-        original = {
-            "app1": make_manifest("app1", filename="old_app1.py", app_config={"setting": "old"}),
-        }
-        current = {
-            "app1": make_manifest("app1", filename="new_app1.py", app_config={"setting": "new"}),
-        }
-
-        changes = detector.detect_changes(original, current)
-
-        assert changes.reimport_apps == frozenset({"app1"})
-        assert "app1" not in changes.reload_apps
-
-    def test_app_config_only_change_unaffected_by_implementation_detection(
-        self, detector: AppChangeDetector, make_manifest: Callable
-    ) -> None:
-        """Regression check: an app_config-only change (no filename/class_name change) must
-        still route to reload_apps, not reimport_apps, now that implementation-field detection
-        exists alongside it.
-        """
-        original = {"app1": make_manifest("app1", app_config={"setting": "old"})}
-        current = {"app1": make_manifest("app1", app_config={"setting": "new"})}
-
-        changes = detector.detect_changes(original, current)
-
-        assert changes.reload_apps == frozenset({"app1"})
-        assert "app1" not in changes.reimport_apps
