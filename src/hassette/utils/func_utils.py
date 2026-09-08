@@ -120,10 +120,13 @@ def describe_predicate(predicate: Any) -> str:
     Returns:
         A description suitable for persisting and serializing.
     """
+    # Order is load-bearing: composed predicates are callable too (they define __call__),
+    # so the summarize() check has to come first or they would collapse to a qualified name.
     if hasattr(predicate, "summarize"):
         return repr(predicate)
     if callable(predicate):
         return callable_stable_name(predicate)
+    # Defensive default — both call sites guard against a None/absent predicate.
     return repr(predicate)
 
 
