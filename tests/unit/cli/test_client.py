@@ -71,8 +71,8 @@ def make_host_port_config(host: str = "127.0.0.1", port: int = 8126) -> Hassette
 
 def make_raw_body_client(
     content: bytes,
-    status_code: int = 200,
     *,
+    status_code: int = 200,
     content_type: str | None = None,
     json_mode: bool = False,
     debug_mode: bool = False,
@@ -83,6 +83,10 @@ def make_raw_body_client(
     JSON-encodes whatever body it is handed, so it cannot produce an HTML page, a bare ``not
     json`` string, or deliberately malformed UTF-8 bytes. Omit ``content_type`` to leave the
     header off entirely, as a proxy serving a raw error page would.
+
+    Everything after ``content`` is keyword-only: ``make_transport()`` takes its status code
+    first, so a positional second argument here would read as that helper's argument order
+    while meaning something else.
     """
     headers = {"content-type": content_type} if content_type is not None else {}
 
@@ -259,7 +263,7 @@ class TestTolerate503:
 
     def test_503_with_non_json_body_exits_instead_of_crashing(self) -> None:
         """A tolerated 503 from a proxy/LB (HTML body, not JSON) exits cleanly, not a traceback."""
-        client = make_raw_body_client(b"<html>503 Service Unavailable</html>", 503)
+        client = make_raw_body_client(b"<html>503 Service Unavailable</html>", status_code=503)
         with pytest.raises(SystemExit) as exc_info:
             client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel, tolerate_503=True)
         assert exc_info.value.code == 1
