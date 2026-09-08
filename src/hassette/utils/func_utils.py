@@ -105,6 +105,28 @@ def callable_stable_name(fn: Any) -> str:
     return "<callable>"
 
 
+def describe_predicate(predicate: Any) -> str:
+    """Return the telemetry ``predicate_description`` for a ``where=`` predicate.
+
+    Composed predicate objects (those exposing ``summarize()``, e.g. ``AllOf`` or
+    ``EntityMatches``) keep their structured ``repr()``, which reads as the predicate's
+    own declarative form. A bare callable renders as its qualified name instead — its
+    ``repr()`` is a bound-method or function repr carrying an object address, which is
+    both unstable across restarts and noise to anyone reading the API, CLI, or UI.
+
+    Args:
+        predicate: The predicate object or callable to describe.
+
+    Returns:
+        A description suitable for persisting and serializing.
+    """
+    if hasattr(predicate, "summarize"):
+        return repr(predicate)
+    if callable(predicate):
+        return callable_stable_name(predicate)
+    return repr(predicate)
+
+
 def callable_short_name(fn: Any, num_parts: int = 1) -> str:
     """Get a short name for a callable object.
 
