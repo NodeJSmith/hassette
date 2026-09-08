@@ -5,7 +5,7 @@ import { Link, useLocation } from "wouter";
 
 import { cn } from "@/lib/utils";
 
-import { getAppJobs, getAppListeners } from "../api/endpoints";
+import { type AppManifest, getAppJobs, getAppListeners } from "../api/endpoints";
 import { AppDetailHeader } from "../components/app-detail/app-detail-header";
 import { AppLogsPanel } from "../components/app-detail/app-logs-panel";
 import { CodeTab } from "../components/app-detail/code-tab";
@@ -34,6 +34,16 @@ export type TabId = AppDetailTab;
 
 interface Props {
   params: { key: string; tab?: TabId; handler?: string; execId?: string };
+}
+
+// `instance_count` is the *size* of `instances`, which the backend builds as the union of the
+// configured indices and the still-tracked ones — so it counts an orphan without covering its
+// index. A running instance orphaned by a config shrink (configured=1, tracked={0, 2}) leaves
+// `instance_count` at 2 while the orphan sits at index 2, so the magnitude check alone would
+// redirect away from the only page offering its Stop control. The membership check is what
+// actually admits it; neither clause is redundant.
+function isAddressableInstance(manifest: AppManifest, index: number): boolean {
+  return index < manifest.instance_count || (manifest.instances?.some((i) => i.index === index) ?? false);
 }
 
 function instanceCorrectionUrl(appKey: string, activeTab: TabId, lineParam: string | null): string {
@@ -165,7 +175,7 @@ export function AppDetailPage({ params }: Props) {
       correctUrl(instanceCorrectionUrl(appKey, activeTab, lineParam));
       return;
     }
-    if (manifest && instanceIndex !== undefined && instanceIndex >= manifest.instance_count) {
+    if (manifest && instanceIndex !== undefined && !isAddressableInstance(manifest, instanceIndex)) {
       correctUrl(instanceCorrectionUrl(appKey, activeTab, lineParam));
     }
   }, [initialLoading, manifest, instanceParam, instanceIndex, appKey, activeTab, lineParam, correctUrl]);

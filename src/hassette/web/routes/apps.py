@@ -80,6 +80,20 @@ def _orphan_app_permitted(app_key: str, hassette: HassetteDep, action: AppAction
     return action == "stop" and bool(hassette.app_handler.registry.get_instances(app_key))
 
 
+def _orphan_instance_permitted(app_key: str, index: int, hassette: HassetteDep, action: AppAction) -> bool:
+    """Whether ``index`` is a still-tracked instance outside the app's current configured range.
+
+    When an app's configured instance count shrinks while a higher-index instance is still
+    running, that instance is orphaned — ``AppRegistry.prune_stale_failed_indices`` only prunes
+    stale *failed* entries, never running ones, and ``build_manifest_info`` keeps reporting it in
+    ``instances``. Only ``stop`` is permitted through, for the same reason as
+    ``_orphan_app_permitted``: ``AppLifecycleService.stop_instance()`` matches this permissiveness,
+    while ``start_instance``/``reload_instance`` silently no-op on an out-of-range index, so
+    admitting them here would turn a clear 404 into a 202-accepted request that does nothing.
+    """
+    return action == "stop" and index in hassette.app_handler.registry.get_instances(app_key)
+
+
 def _require_known_app(app_key: str, hassette: HassetteDep, action: AppAction) -> None:
     """Validate that ``app_key`` is known, or is an orphaned app that ``action`` still permits."""
     if hassette.app_handler.registry.get_manifest(app_key) is not None:
@@ -90,7 +104,7 @@ def _require_known_app(app_key: str, hassette: HassetteDep, action: AppAction) -
 
 
 def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDep, action: AppAction) -> None:
-    """Validate that ``app_key`` is known and ``index`` is within its current instance count.
+    """Validate that ``app_key`` is known and ``index`` is addressable for ``action``.
 
     Runs before ``_run_app_action`` so an out-of-range index returns a fast 404 without
     waiting for lock acquisition. ``AppLifecycleService`` re-validates the index itself after
@@ -100,7 +114,8 @@ def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDe
     web-local reimplementation, so this count can never drift from ``AppFactory``'s.
 
     Skips range validation for an orphaned app that ``action`` still permits (see
-    ``_orphan_app_permitted``'s docstring for the ``stop``-only rationale).
+    ``_orphan_app_permitted``'s docstring for the ``stop``-only rationale), and for a
+    still-tracked instance orphaned by a shrunk config (see ``_orphan_instance_permitted``).
     """
     _validate_app_key(app_key)
     manifest = hassette.app_handler.registry.get_manifest(app_key)
@@ -110,6 +125,8 @@ def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDe
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
     valid_index_count = len(normalize_app_config(manifest.app_config))
     if index < 0 or index >= valid_index_count:
+        if _orphan_instance_permitted(app_key, index, hassette, action):
+            return
         raise HTTPException(status_code=404, detail=f"Instance {index} not found for app {app_key!r}")
 
 

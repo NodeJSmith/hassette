@@ -683,6 +683,8 @@ class AppLifecycleService(Resource):
         must re-validate the index after acquiring the per-app-key lock, mirroring
         ``start_app()``'s post-lock re-fetch pattern, since the manifest (and therefore the
         valid index range) can change while a caller was parked in ``_admit_start()``.
+        ``stop_instance`` consults this only for an index the registry no longer tracks: a
+        tracked out-of-range instance is an orphan that must stay stoppable.
         """
         valid_index_count = len(self.factory.normalize_configs(app_manifest.app_config))
         if index < 0 or index >= valid_index_count:
@@ -851,7 +853,12 @@ class AppLifecycleService(Resource):
         async with self._get_app_key_lock(app_key):
             app_manifest = self.registry.get_manifest(app_key)
             if app_manifest is not None and not self._instance_index_in_range(app_key, index, app_manifest):
-                return
+                # A still-tracked instance whose index fell outside the configured range (the
+                # config shrank while it was still running) stays stoppable.
+                # `prune_stale_failed_indices` only prunes stale *failed* entries, so a running
+                # orphan would otherwise have no way to be shut down.
+                if index not in self.registry.get_instances(app_key):
+                    return
             await self._stop_instance_unlocked(app_key, index)
 
     async def start_instance(
