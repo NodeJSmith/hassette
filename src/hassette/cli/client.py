@@ -20,10 +20,9 @@ from rich.markup import escape
 
 import hassette.cli.output as cli_output
 from hassette.cli.context import CLIContext
-from hassette.cli.target import resolve_cli_auth_token, resolve_server_target
+from hassette.cli.target import credential_source_names, resolve_cli_auth_token, resolve_server_target
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import FatalError
-from hassette.web.auth.tokens import TOKEN_FILENAME
 from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse
 
 DEFAULT_TIMEOUT = 10.0
@@ -480,37 +479,56 @@ class HassetteCLIClient:
         loopback case where the CLI attached this machine's own instance token to a request
         aimed at a second instance on the same host, which is indistinguishable from a plain
         bad token unless the message says where the value came from.
+
+        Three branches, in the order they are tested:
+
+        =========================  ==========================================================
+        Condition                  Message
+        =========================  ==========================================================
+        a credential resolved      names the source and says it was rejected
+        none resolved, loopback    lists the chain that came up empty; "has hassette started?"
+        none resolved, remote      explains why server-scoped sources were withheld
+        =========================  ==========================================================
         """
         if self._token_source is not None:
             # Deliberately not split by loopback/remote the way the no-credential cases are: the
-            # remedy is the same either way. Remote targets get one extra clause because a
-            # forward-auth gateway can answer 401 itself, so "Hassette rejected it" is not a
-            # claim this code is in a position to make.
-            hint = (
-                f"the credential sent came from {self._token_source}, and it was rejected. "
-                f"Point the CLI at the target's own credential with {CLI_AUTH_REMEDIES}. "
-            )
+            # remedy is the same either way. The proxy clause is remote-only on noise grounds,
+            # not because loopback rules a proxy out — a local forward-auth gateway on a
+            # loopback port is possible, but it is rare next to the dominant local case (a
+            # stale or wrong instance token), and the sentence above stays true either way
+            # since it never claims Hassette itself was the rejecter.
+            # Joined rather than concatenated so the spacing between clauses is visible in the
+            # source: with += the correct output depends on every fragment carrying a trailing
+            # space, which nothing in the code signals and a formatter could silently strip.
+            sentences = [
+                f"the credential sent came from {self._token_source}, and it was rejected.",
+                f"Point the CLI at the target's own credential with {CLI_AUTH_REMEDIES}.",
+            ]
             if not self.is_loopback:
-                hint += (
+                sentences.append(
                     "If this target sits behind a forward-auth proxy, the proxy may be rejecting "
-                    "the request before it reaches Hassette. "
+                    "the request before it reaches Hassette."
                 )
-            return f"{hint}See {CLI_AUTH_DOCS_URL}"
+            sentences.append(f"See {CLI_AUTH_DOCS_URL}")
+            return " ".join(sentences)
         if self.is_loopback:
-            # No config value and no token file — distinguish this from "token was
-            # wrong" so the operator isn't left guessing why an unauthenticated
-            # request failed.
+            # Nothing resolved — distinguish this from "token was wrong" so the operator isn't
+            # left guessing why an unauthenticated request failed. Phrased as an outcome rather
+            # than a claim about configuration: a configured cli.token_file that is missing,
+            # unreadable, or empty falls through to the next source silently, so "unset" and
+            # "configured but unusable" are indistinguishable from here.
             return (
-                "no credential was attached — no cli.* credential is configured, web_api.auth_token "
-                f"is unset, and no <data_dir>/{TOKEN_FILENAME} file was found; has hassette been "
-                f"started? Attach one with {CLI_AUTH_REMEDIES}. See {CLI_AUTH_DOCS_URL}"
+                "no credential was attached — nothing in the credential chain resolved to a usable "
+                f"value ({credential_source_names()}). If one of those is configured, check that the "
+                "file exists, is readable, and is not empty; otherwise, has hassette been started? "
+                f"Attach one with {CLI_AUTH_REMEDIES}. See {CLI_AUTH_DOCS_URL}"
             )
         # A server-scoped credential source was suppressed for this remote target —
         # separate the remedies by where they apply, since one is local (attach a
         # credential) and the other is remote (reconfigure the instance being queried).
         return (
             "no credential was attached to this remote request — server-scoped sources "
-            f"(web_api.auth_token, <data_dir>/{TOKEN_FILENAME}) describe this machine's instance "
+            f"({credential_source_names('server')}) describe this machine's instance "
             f"and are never sent to a remote target. Attach one locally with {CLI_AUTH_REMEDIES} — or, "
             "if this target sits behind a forward-auth proxy, configure trusted_proxies on the "
             "remote instance, which requires access to that host and a restart. "

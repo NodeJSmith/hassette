@@ -15,6 +15,7 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 import hassette.cli as cli_pkg
 from hassette.cli.client import CLI_AUTH_DOCS_URL, HassetteCLIClient
+from hassette.cli.target import CREDENTIAL_SOURCES
 from hassette.config.config import HassetteConfig
 from hassette.web.auth.tokens import TOKEN_FILENAME
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, make_cli_config
@@ -324,13 +325,34 @@ class TestAuthFailureNamesCredentialSource:
         detail = get_json_error(client, capsys, expect_code=1)["detail"]
         assert "no credential was attached" in detail
         # every loopback-applicable source is named, so the message can't be read as
-        # "the token file is missing" while a configured web_api.auth_token sits unmentioned
-        assert "cli.*" in detail
-        assert "web_api.auth_token" in detail
+        # "the token file is missing" while a configured web_api.auth_token sits unmentioned.
+        # Derived from CREDENTIAL_SOURCES rather than spelled out, so adding or renaming a
+        # source fails here instead of silently leaving the message listing a stale chain.
+        for source in CREDENTIAL_SOURCES:
+            assert source.name in detail
         assert TOKEN_FILENAME in detail
         assert "--token-file" in detail
         assert CLI_AUTH_TOKEN_ENV in detail
         assert CLI_AUTH_DOCS_URL in detail
+
+    def test_401_with_unusable_configured_token_file_does_not_claim_nothing_is_configured(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A configured ``cli.token_file`` that is empty resolves to nothing, silently.
+
+        The resolver falls through on missing/unreadable/empty content, so the client cannot
+        tell "unset" from "configured but unusable". The message must therefore describe the
+        resolution outcome and point at the file, not assert that no ``cli.*`` credential is
+        configured — which would send the operator looking for a setting that is already there.
+        """
+        token_file = tmp_path / "empty-token"
+        token_file.write_text("", encoding="utf-8")
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, cli_token_file=token_file))
+        client = factory.build(make_transport(401, {"detail": "Not authenticated"}), json_mode=True)
+        detail = get_json_error(client, capsys, expect_code=1)["detail"]
+        assert "no cli.* credential is configured" not in detail
+        assert "nothing in the credential chain resolved" in detail
+        assert "readable" in detail
 
     def test_human_mode_401_carries_the_hint_too(self, tmp_path: Path) -> None:
         """The hint is not a ``--json``-only affordance — stderr gets it as well."""

@@ -57,10 +57,11 @@ class ResolvedCredential:
     "some token was attached" and "the local instance's ``/data/.web_api_token`` was attached",
     which is the whole diagnosis when the CLI is pointed at a second instance on the same host.
 
-    Every source names itself as ``<setting> (<qualifier>)`` so the strings read the same when
-    spliced mid-sentence into an auth-failure message. The qualifier carries whatever the setting
-    name alone leaves out — the concrete path a file-backed source read, the equivalent
-    environment variable, or that a server-scoped value describes this machine's instance.
+    Every source names itself as ``<setting> (<qualifier>)`` via :func:`_format_source` so the
+    strings read the same when spliced mid-sentence into an auth-failure message. The qualifier
+    carries whatever the setting name alone leaves out — the concrete path a file-backed source
+    read, the equivalent environment variable, or that a server-scoped value describes this
+    machine's instance.
     """
 
     # repr=False keeps the plaintext credential out of any traceback or debugger frame dump that
@@ -77,8 +78,15 @@ class CredentialSource:
     ``"server"``-scoped source once the target is non-loopback by reading this field, never by
     naming individual sources. A source added later only has to declare its scope correctly for
     the gate to apply — it cannot forget to extend a hand-written skip condition.
+
+    ``name`` serves the same purpose for prose. It is the bare setting identifier with no
+    qualifier — the resolved-credential strings built by :func:`_ensure_header_safe` name one
+    concrete source, whereas a message that reports *nothing* resolved has to list the whole
+    chain. Deriving that list from this field (see :func:`credential_source_names`) is what
+    keeps it from drifting when a source is added, renamed, or reordered here.
     """
 
+    name: str
     scope: Literal["cli", "server"]
     resolve: Callable[[CredentialInputs], ResolvedCredential | None]
 
@@ -178,6 +186,17 @@ def resolve_server_target(
     return _resolve_derived_target(config, verify_ssl=verify_ssl)
 
 
+def _format_source(setting: str, qualifier: str) -> str:
+    """Render a credential source as ``<setting> (<qualifier>)``.
+
+    The shape is load-bearing: sources are spliced mid-sentence into an auth-failure message,
+    so they have to read the same way whichever resolver produced them. Going through one
+    formatter makes that a function signature rather than a convention a new resolver has to
+    remember from :class:`ResolvedCredential`'s docstring.
+    """
+    return f"{setting} ({qualifier})"
+
+
 def _ensure_header_safe(value: str, source: str) -> ResolvedCredential:
     """Reject a credential value that is not safe for use as an HTTP header value.
 
@@ -208,7 +227,7 @@ def _resolve_token_file_flag(inputs: CredentialInputs) -> ResolvedCredential | N
         raise CredentialResolutionError(f"--token-file could not be read: {path} ({exc})") from exc
     if not content:
         return None
-    return _ensure_header_safe(content, f"--token-file ({path})")
+    return _ensure_header_safe(content, _format_source("--token-file", str(path)))
 
 
 def _read_token_file(path: Path, source: str) -> ResolvedCredential | None:
@@ -234,7 +253,7 @@ def _resolve_cli_token_file(inputs: CredentialInputs) -> ResolvedCredential | No
     path = inputs.config.cli.token_file
     if path is None:
         return None
-    return _read_token_file(path, f"cli.token_file ({path})")
+    return _read_token_file(path, _format_source("cli.token_file", str(path)))
 
 
 def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> ResolvedCredential | None:
@@ -245,7 +264,7 @@ def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> ResolvedCredentia
     value = token.get_secret_value().strip()
     if not value:
         return None
-    return _ensure_header_safe(value, "cli.auth_token (or HASSETTE__CLI__AUTH_TOKEN)")
+    return _ensure_header_safe(value, _format_source("cli.auth_token", "or HASSETTE__CLI__AUTH_TOKEN"))
 
 
 def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential | None:
@@ -258,7 +277,9 @@ def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential 
     value = token.get_secret_value().strip()
     if not value:
         return None
-    return _ensure_header_safe(value, "web_api.auth_token (or HASSETTE__WEB_API__AUTH_TOKEN — this machine's instance)")
+    return _ensure_header_safe(
+        value, _format_source("web_api.auth_token", "or HASSETTE__WEB_API__AUTH_TOKEN — this machine's instance")
+    )
 
 
 def _resolve_data_dir_token_file(inputs: CredentialInputs) -> ResolvedCredential | None:
@@ -269,18 +290,33 @@ def _resolve_data_dir_token_file(inputs: CredentialInputs) -> ResolvedCredential
     actually validates against.
     """
     path = inputs.config.data_dir / TOKEN_FILENAME
-    return _read_token_file(path, f"<data_dir>/{TOKEN_FILENAME} ({path} — this machine's instance)")
+    return _read_token_file(path, _format_source(f"<data_dir>/{TOKEN_FILENAME}", f"{path} — this machine's instance"))
 
 
 CREDENTIAL_SOURCES: tuple[CredentialSource, ...] = (
-    CredentialSource(scope="cli", resolve=_resolve_token_file_flag),
-    CredentialSource(scope="cli", resolve=_resolve_cli_token_file),
-    CredentialSource(scope="cli", resolve=_resolve_cli_auth_token_field),
-    CredentialSource(scope="server", resolve=_resolve_web_api_auth_token),
-    CredentialSource(scope="server", resolve=_resolve_data_dir_token_file),
+    CredentialSource(name="--token-file", scope="cli", resolve=_resolve_token_file_flag),
+    CredentialSource(name="cli.token_file", scope="cli", resolve=_resolve_cli_token_file),
+    CredentialSource(name="cli.auth_token", scope="cli", resolve=_resolve_cli_auth_token_field),
+    CredentialSource(name="web_api.auth_token", scope="server", resolve=_resolve_web_api_auth_token),
+    CredentialSource(name=f"<data_dir>/{TOKEN_FILENAME}", scope="server", resolve=_resolve_data_dir_token_file),
 )
 """Credential precedence chain, in the order documented by design/specs/092-cli-remote-url/design.md
 (Architecture -> Credential scoping). See :class:`CredentialSource` for the scope gate."""
+
+
+def credential_source_names(scope: Literal["cli", "server"] | None = None) -> str:
+    """The credential sources' names in precedence order, comma-joined for use in a message.
+
+    An auth failure that reports *nothing* resolved has to name the chain it walked, and that
+    list is only useful if it matches the chain that actually ran. Deriving it here means a
+    source added, renamed, or reordered in :data:`CREDENTIAL_SOURCES` updates every message
+    that lists it, rather than leaving a hand-typed copy in another module to go stale.
+
+    Args:
+        scope: Restrict the list to sources of this scope. ``None`` lists the whole chain,
+            which is what applies to a loopback target.
+    """
+    return ", ".join(source.name for source in CREDENTIAL_SOURCES if scope is None or source.scope == scope)
 
 
 def resolve_cli_auth_token(

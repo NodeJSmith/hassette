@@ -213,14 +213,17 @@ The named source is the diagnosis. `<data_dir>/.web_api_token` and `web_api.auth
 Nothing resolved against a local target:
 
 ```text
-Error 401: Not authenticated (no credential was attached — no cli.* credential is
-configured, web_api.auth_token is unset, and no <data_dir>/.web_api_token file was found;
-has hassette been started? Attach one with --token-file, cli.token_file, or
-HASSETTE__CLI__AUTH_TOKEN. See
+Error 401: Not authenticated (no credential was attached — nothing in the credential chain
+resolved to a usable value (--token-file, cli.token_file, cli.auth_token,
+web_api.auth_token, <data_dir>/.web_api_token). If one of those is configured, check that
+the file exists, is readable, and is not empty; otherwise, has hassette been started?
+Attach one with --token-file, cli.token_file, or HASSETTE__CLI__AUTH_TOKEN. See
 https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
 ```
 
 Usually the server has not started yet — it writes `<data_dir>/.web_api_token` on first start. A running server paired with this message means the CLI resolved a different `data_dir` than the server uses, which an explicit credential settles.
+
+The message names the whole chain rather than asserting which entries are unset, because it cannot tell the difference: a `cli.token_file` or `<data_dir>/.web_api_token` that is missing, unreadable, or empty falls through to the next source silently, exactly like one that was never configured. Check the file before concluding the setting is absent.
 
 Nothing resolved against a remote target:
 
