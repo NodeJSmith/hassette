@@ -8,7 +8,6 @@ import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 import type { MergedService } from "./merge-services";
 
-/** Both ServiceRow and its ServiceRowMeta child take exactly the merged service and nothing else. */
 interface ServiceRowProps {
   service: MergedService;
 }
