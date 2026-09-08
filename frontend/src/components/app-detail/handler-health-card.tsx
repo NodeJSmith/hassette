@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { formatDuration, formatRate, pluralize } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
 import { StatusShape } from "../shared/status-shape";
@@ -93,7 +93,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
       >
         <div className="flex min-w-0 items-center gap-2">
           <span aria-hidden="true">
-            <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
+            <StatusShape kind={item.statusKind} size={STATUS_SHAPE_SIZE} />
           </span>
           <span
             className="min-w-0 flex-1 truncate font-mono text-[length:var(--text-mono-sm)] text-foreground"

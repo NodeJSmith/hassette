@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 
 import type { components } from "../../api/generated-types";
-import { BADGE_STATUS_DOT_SIZE, HEADING_STATUS_SHAPE_SIZE } from "../../utils/constants";
+import { BADGE_STATUS_SHAPE_SIZE, HEADING_STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { ActionButtons, getStableInstanceRef } from "../shared/action-buttons";
 import { AlertShell } from "../shared/alert-shell";
@@ -79,7 +79,7 @@ export function AppDetailHeader({
           {/* Shown for every status, healthy included — "running" should be a
               statement, not the absence of a pill. */}
           <Badge variant={statusToVariant(liveStatus)} size="sm" data-testid="app-status-pill">
-            <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_DOT_SIZE} /> {liveStatus}
+            <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_SHAPE_SIZE} /> {liveStatus}
           </Badge>
           <ActionButtons
             appKey={appKey}

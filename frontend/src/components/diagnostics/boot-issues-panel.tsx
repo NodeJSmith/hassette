@@ -1,5 +1,5 @@
 import type { BootIssue } from "../../api/endpoints";
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { StatusShape } from "../shared/status-shape";
 import { Panel } from "./panel";
 
@@ -26,7 +26,7 @@ export function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
             className="flex items-start gap-3"
             data-testid={`diag-boot-issue-${i}`}
           >
-            <StatusShape kind={issue.severity === "err" ? "err" : "warn"} size={STATUS_DOT_SIZE} />
+            <StatusShape kind={issue.severity === "err" ? "err" : "warn"} size={STATUS_SHAPE_SIZE} />
             <div className="flex flex-1 flex-col gap-1">
               <span
                 className="text-[length:var(--text-body)] font-medium text-foreground"
