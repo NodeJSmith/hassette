@@ -1,7 +1,7 @@
 {
   "$defs": {
     "AppManifestsChangedData": {
-      "description": "Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed \u2014 it is a refetch\nsignal, not a diff. Clients should treat receipt as \"manifest state may be\nstale, refetch\" rather than inspect the payload.",
+      "description": "Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed \u2014 it is a refetch\nsignal, not a diff. Clients should treat receipt as \"manifest status may be\nstale, refetch\" rather than inspect the payload.",
       "properties": {},
       "title": "AppManifestsChangedData",
       "type": "object"

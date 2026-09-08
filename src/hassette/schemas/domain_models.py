@@ -132,7 +132,7 @@ class AppManifestsChangedData(BaseModel):
     """Payload for a manifest refresh broadcast over WebSocket.
 
     Carries no fields and does not identify which apps changed — it is a refetch
-    signal, not a diff. Clients should treat receipt as "manifest state may be
+    signal, not a diff. Clients should treat receipt as "manifest status may be
     stale, refetch" rather than inspect the payload.
     """
 
