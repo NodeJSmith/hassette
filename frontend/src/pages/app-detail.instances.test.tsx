@@ -280,6 +280,25 @@ describe("AppDetailPage instances", () => {
     });
   });
 
+  it("keeps a tracked instance orphaned by a config shrink addressable", async () => {
+    // Config shrank to 1 instance while index 2 was still running. The backend reports the
+    // union of configured and tracked indices, so instance_count is 2 while the orphan sits at
+    // index 2 — redirecting away from it would make it unstoppable from the UI.
+    const manifest = createManifest({
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
+        createInstance({ index: 2, instance_name: "inst_2", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=2";
+    const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });
+
+    await findByTestId("app-title");
+    expect(mockCorrectUrl).not.toHaveBeenCalled();
+  });
+
   it("corrects negative instance query params before preserving them in links", async () => {
     const manifest = createManifest({
       instance_count: 2,

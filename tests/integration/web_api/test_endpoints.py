@@ -377,6 +377,37 @@ class TestAppInstanceEndpoints:
         assert response.status_code == 202
         mock_hassette.app_handler.stop_instance.assert_awaited_once_with("orphan_app", 0)
 
+    async def test_stop_instance_tracked_orphan_index_reaches_service_layer(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """The configured instance count shrank to 1 while index 2 was still running. That orphan
+        is still reported in the manifest's ``instances`` and must stay stoppable, even though it
+        now sits outside the configured range.
+        """
+        self._seed_manifest(mock_hassette, instance_count=1)
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock(), 2: MagicMock()}
+        mock_hassette.app_handler.stop_instance = AsyncMock()
+
+        response = await client.post(instance_action_path("my_app", 2, "stop"))
+
+        assert response.status_code == 202
+        mock_hassette.app_handler.stop_instance.assert_awaited_once_with("my_app", 2)
+
+    @pytest.mark.parametrize("action", ["start", "reload"], ids=["start", "reload"])
+    async def test_tracked_orphan_index_start_or_reload_still_returns_404(
+        self, client: "AsyncClient", mock_hassette: MagicMock, action: str
+    ) -> None:
+        """Only stop gets the orphan-index permissiveness, mirroring the orphaned-app rule:
+        start/reload silently no-op on an out-of-range index in the service layer, so admitting
+        them would swap a clear 404 for a 202 that does nothing.
+        """
+        self._seed_manifest(mock_hassette, instance_count=1)
+        mock_hassette._app_handler.registry.get_instances.return_value = {0: MagicMock(), 2: MagicMock()}
+
+        response = await client.post(instance_action_path("my_app", 2, action))
+
+        assert response.status_code == 404
+
     async def test_stop_app_orphaned_app_reaches_service_layer(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:

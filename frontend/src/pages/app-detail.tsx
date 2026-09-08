@@ -5,7 +5,7 @@ import { Link, useLocation } from "wouter";
 
 import { cn } from "@/lib/utils";
 
-import { getAppJobs, getAppListeners } from "../api/endpoints";
+import { type AppManifest, getAppJobs, getAppListeners } from "../api/endpoints";
 import { AppDetailHeader } from "../components/app-detail/app-detail-header";
 import { AppLogsPanel } from "../components/app-detail/app-logs-panel";
 import { CodeTab } from "../components/app-detail/code-tab";
@@ -34,6 +34,12 @@ export type TabId = AppDetailTab;
 
 interface Props {
   params: { key: string; tab?: TabId; handler?: string; execId?: string };
+}
+
+// An index at or past `instance_count` is still addressable when the manifest tracks it: a
+// running instance orphaned by a config shrink stays listed in `instances` so it can be stopped.
+function isAddressableInstance(manifest: AppManifest, index: number): boolean {
+  return index < manifest.instance_count || (manifest.instances?.some((i) => i.index === index) ?? false);
 }
 
 function instanceCorrectionUrl(appKey: string, activeTab: TabId, lineParam: string | null): string {
@@ -165,7 +171,7 @@ export function AppDetailPage({ params }: Props) {
       correctUrl(instanceCorrectionUrl(appKey, activeTab, lineParam));
       return;
     }
-    if (manifest && instanceIndex !== undefined && instanceIndex >= manifest.instance_count) {
+    if (manifest && instanceIndex !== undefined && !isAddressableInstance(manifest, instanceIndex)) {
       correctUrl(instanceCorrectionUrl(appKey, activeTab, lineParam));
     }
   }, [initialLoading, manifest, instanceParam, instanceIndex, appKey, activeTab, lineParam, correctUrl]);
