@@ -47,7 +47,13 @@ SETTLE_SECONDS = 0.05
 """Default settle window: seconds to let a stray extra handler call land before a negative assertion."""
 
 SHORT_SHUTDOWN_TIMEOUT_SECONDS = 0.1
-"""Short ``resource_shutdown_timeout_seconds`` for tests that force a timeout/force-terminal branch."""
+"""Short ``resource_shutdown_timeout_seconds`` for tests that force a timeout/force-terminal branch.
+
+Only for tests that *want* the coordinator's outer bound to fire. It leaves under 100ms of real
+wall-clock margin between the hooks pool and the total deadline, so a test asserting that an
+inner bound (a hook's own ``asyncio.timeout``) wins that race will flake on a loaded CI runner.
+Use ``GENEROUS_SHUTDOWN_TIMEOUT_SECONDS`` for those.
+"""
 
 DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX = 500
 """``make_mock_hassette`` database queue-max override — smaller than the production default (1000) for test speed."""
