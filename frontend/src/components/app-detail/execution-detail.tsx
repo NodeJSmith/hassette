@@ -8,7 +8,7 @@ import type { ExecutionData } from "../../api/endpoints";
 import { getExecutionById } from "../../api/endpoints";
 import type { components } from "../../api/generated-types";
 import { useDocumentTitle } from "../../hooks/use-document-title";
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
 import { executionStatusKind, TIMED_OUT_LABEL } from "../../utils/status";
 import type { DetailStatsCell } from "../shared/detail-stats";
@@ -121,7 +121,7 @@ export function ExecutionDetailContent({ record }: ContentProps) {
   return (
     <div>
       <div className="mb-4 flex items-center gap-2">
-        <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
+        <StatusShape kind={statusKind} size={STATUS_SHAPE_SIZE} />
         <h2 className="m-0 font-mono text-[length:var(--text-h3)] font-semibold text-foreground">
           Execution {truncated}
         </h2>
@@ -186,7 +186,7 @@ export function ExecutionDetailContent({ record }: ContentProps) {
 
       {record.status === "success" && (
         <div className="mb-4 flex items-center gap-2 rounded-sm bg-[var(--status-success-bg)] px-3 py-2">
-          <StatusShape kind="ok" size={STATUS_DOT_SIZE} />
+          <StatusShape kind="ok" size={STATUS_SHAPE_SIZE} />
           <span className="font-mono text-sm text-foreground-secondary">
             completed in {formatDuration(record.duration_ms)}
           </span>

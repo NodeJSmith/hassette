@@ -46,7 +46,7 @@ const SECONDS_PER_HOUR = 3600;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
 /** StatusShape size (px) for the status-filter menu rows, sized to sit inline with their
- * text-xs labels. Smaller than the shared STATUS_DOT_SIZE (10px), which is sized for the
+ * text-xs labels. Smaller than the shared STATUS_SHAPE_SIZE (10px), which is sized for the
  * list rows and detail panes that import it — this page's table does not use it. */
 const FILTER_SHAPE_SIZE = 8;
 

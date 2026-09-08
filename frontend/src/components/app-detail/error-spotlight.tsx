@@ -3,7 +3,7 @@ import { Link } from "wouter";
 
 import { cn } from "@/lib/utils";
 
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { StatusShape } from "../shared/status-shape";
 import { OVERVIEW_SECTION_CLASS } from "./overview-section";
 import { handlerHref, itemErrorLabel, itemErrorMessage } from "./overview-tab-helpers";
@@ -28,7 +28,7 @@ function SpotlightEntry({ item, appKey, instanceQs }: SpotlightEntryProps) {
       data-testid={`overview-error-spotlight-entry-${item.kind}-${item.id}`}
     >
       <span aria-hidden="true">
-        <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
+        <StatusShape kind={item.statusKind} size={STATUS_SHAPE_SIZE} />
       </span>
       <span className="shrink-0 whitespace-nowrap font-mono text-[length:var(--text-mono-sm)] font-medium text-foreground">
         {item.name}
