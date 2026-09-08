@@ -19,9 +19,8 @@ export class WsValidationError extends Error {
 
 function buildMissingTypeFieldError(): ErrorObject {
   return {
-    message: "expected object with type field",
-    // ajv-style keyword label for the synthetic error; coincidentally the same string as
-    // DISCRIMINATOR_FIELD, but it names the validation rule, not the WS message's field.
+    message: `expected object with ${DISCRIMINATOR_FIELD} field`,
+    // ajv's rule name, not the WS field — same string as DISCRIMINATOR_FIELD by coincidence
     keyword: "type",
     instancePath: "",
     schemaPath: "#/discriminator",
