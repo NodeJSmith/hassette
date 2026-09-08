@@ -186,7 +186,8 @@ class TestCredentialPrecedence:
         (tmp_path / "config-token-file").write_text("config-file-token", encoding="utf-8")
         target = resolve_server_target(config)
         result = resolve_cli_auth_token(config, target, token_file_flag=flag_file)
-        assert result == "flag-token"
+        assert result is not None
+        assert result.token == "flag-token"
 
     def test_cli_token_file_overrides_cli_auth_token(self, tmp_path: Path) -> None:
         token_file = tmp_path / "config-token-file"
@@ -194,27 +195,31 @@ class TestCredentialPrecedence:
         config = make_cli_config(data_dir=tmp_path, cli_token_file=token_file, cli_auth_token="config-auth-token")
         target = resolve_server_target(config)
         result = resolve_cli_auth_token(config, target)
-        assert result == "config-file-token"
+        assert result is not None
+        assert result.token == "config-file-token"
 
     def test_cli_auth_token_overrides_web_api_auth_token(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_auth_token="cli-token", web_api_auth_token="web-api-token")
         target = resolve_server_target(config)
         result = resolve_cli_auth_token(config, target)
-        assert result == "cli-token"
+        assert result is not None
+        assert result.token == "cli-token"
 
     def test_web_api_auth_token_overrides_data_dir_token_file(self, tmp_path: Path) -> None:
         (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
         config = make_cli_config(data_dir=tmp_path, web_api_auth_token="web-api-token")
         target = resolve_server_target(config)
         result = resolve_cli_auth_token(config, target)
-        assert result == "web-api-token"
+        assert result is not None
+        assert result.token == "web-api-token"
 
     def test_data_dir_token_file_is_last_resort(self, tmp_path: Path) -> None:
         (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
         config = make_cli_config(data_dir=tmp_path)
         target = resolve_server_target(config)
         result = resolve_cli_auth_token(config, target)
-        assert result == "file-token"
+        assert result is not None
+        assert result.token == "file-token"
 
     def test_no_source_returns_none(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path)
@@ -227,7 +232,8 @@ class TestCredentialPrecedence:
         config = make_cli_config(data_dir=tmp_path, cli_auth_token="   ")
         target = resolve_server_target(config)
         result = resolve_cli_auth_token(config, target)
-        assert result == "file-token"
+        assert result is not None
+        assert result.token == "file-token"
 
 
 # Credential scope gate (loopback suppression)
@@ -251,7 +257,8 @@ class TestCredentialScopeGate:
         config = make_cli_config(data_dir=tmp_path, cli_auth_token="cli-token")
         target = resolve_server_target(config, server_url_flag=REMOTE_SERVER_URL_BARE)
         result = resolve_cli_auth_token(config, target)
-        assert result == "cli-token"
+        assert result is not None
+        assert result.token == "cli-token"
 
     def test_derived_lan_host_suppresses_server_scoped_sources(self, tmp_path: Path) -> None:
         """web_api.host set to a LAN address with no cli.server_url: the derived target is
@@ -271,6 +278,62 @@ class TestCredentialScopeGate:
             assert source.scope in ("cli", "server")
 
 
+# Resolved credentials name their source
+
+
+class TestResolvedCredentialSource:
+    """Each source labels the credential it produced, so a 401 can say what was sent."""
+
+    def test_token_file_flag_names_the_supplied_path(self, tmp_path: Path) -> None:
+        flag_file = tmp_path / "flag-token"
+        flag_file.write_text("flag-token", encoding="utf-8")
+        config = make_cli_config(data_dir=tmp_path)
+        target = resolve_server_target(config)
+        result = resolve_cli_auth_token(config, target, token_file_flag=flag_file)
+        assert result is not None
+        assert "--token-file" in result.source
+        assert str(flag_file) in result.source
+
+    def test_cli_token_file_names_the_configured_path(self, tmp_path: Path) -> None:
+        token_file = tmp_path / "config-token-file"
+        token_file.write_text("config-file-token", encoding="utf-8")
+        config = make_cli_config(data_dir=tmp_path, cli_token_file=token_file)
+        target = resolve_server_target(config)
+        result = resolve_cli_auth_token(config, target)
+        assert result is not None
+        assert "cli.token_file" in result.source
+        assert str(token_file) in result.source
+
+    def test_cli_auth_token_names_setting_and_env_var(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path, cli_auth_token="cli-token")
+        target = resolve_server_target(config)
+        result = resolve_cli_auth_token(config, target)
+        assert result is not None
+        assert "cli.auth_token" in result.source
+        assert "HASSETTE__CLI__AUTH_TOKEN" in result.source
+
+    def test_web_api_auth_token_source_marks_it_as_local(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path, web_api_auth_token="web-api-token")
+        target = resolve_server_target(config)
+        result = resolve_cli_auth_token(config, target)
+        assert result is not None
+        assert "web_api.auth_token" in result.source
+        assert "this machine's instance" in result.source
+
+    def test_data_dir_token_file_names_the_concrete_path(self, tmp_path: Path) -> None:
+        """The companion trap: a second local instance gets this machine's token file attached.
+
+        The 401 can only distinguish that from a plain bad token if the source names the file.
+        """
+        token_path = tmp_path / TOKEN_FILENAME
+        token_path.write_text("file-token", encoding="utf-8")
+        config = make_cli_config(data_dir=tmp_path)
+        target = resolve_server_target(config)
+        result = resolve_cli_auth_token(config, target)
+        assert result is not None
+        assert str(token_path) in result.source
+
+
 # --token-file vs cli.token_file failure modes — edge cases
 
 
@@ -288,7 +351,8 @@ class TestTokenFileFailureModes:
         config = make_cli_config(data_dir=tmp_path, cli_token_file=missing)
         target = resolve_server_target(config)
         result = resolve_cli_auth_token(config, target)
-        assert result == "file-token"
+        assert result is not None
+        assert result.token == "file-token"
 
     def test_empty_token_file_flag_treated_as_no_credential(self, tmp_path: Path) -> None:
         empty_file = tmp_path / "empty-token"

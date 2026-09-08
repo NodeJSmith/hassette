@@ -12,7 +12,7 @@ the keyword arguments these functions accept.
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -48,6 +48,23 @@ class CredentialInputs:
 
 
 @dataclass(frozen=True)
+class ResolvedCredential:
+    """A credential plus the human-facing name of the source it came from.
+
+    ``source`` exists so an auth failure can say *which* credential was sent, not just that one
+    was. It is built by the resolver that produced the value, so a file-backed source can name
+    the concrete path it read rather than the generic setting name — the difference between
+    "some token was attached" and "the local instance's ``/data/.web_api_token`` was attached",
+    which is the whole diagnosis when the CLI is pointed at a second instance on the same host.
+    """
+
+    # repr=False keeps the plaintext credential out of any traceback or debugger frame dump that
+    # renders this object; only ``source`` is ever safe to display.
+    token: str = field(repr=False)
+    source: str
+
+
+@dataclass(frozen=True)
 class CredentialSource:
     """One entry in the credential precedence chain.
 
@@ -58,7 +75,7 @@ class CredentialSource:
     """
 
     scope: Literal["cli", "server"]
-    resolve: Callable[[CredentialInputs], str | None]
+    resolve: Callable[[CredentialInputs], ResolvedCredential | None]
 
 
 def _blank_to_none(value: str | None) -> str | None:
@@ -156,7 +173,7 @@ def resolve_server_target(
     return _resolve_derived_target(config, verify_ssl=verify_ssl)
 
 
-def _ensure_header_safe(value: str, source: str) -> str:
+def _ensure_header_safe(value: str, source: str) -> ResolvedCredential:
     """Reject a credential value that is not safe for use as an HTTP header value.
 
     ``httpx.Client(headers={...})`` raises ``UnicodeEncodeError`` deep inside its constructor for
@@ -170,10 +187,10 @@ def _ensure_header_safe(value: str, source: str) -> str:
             f"Credential from {source} is not safe for use as an HTTP header value "
             "(must be ASCII with no control characters)."
         )
-    return value
+    return ResolvedCredential(token=value, source=source)
 
 
-def _resolve_token_file_flag(inputs: CredentialInputs) -> str | None:
+def _resolve_token_file_flag(inputs: CredentialInputs) -> ResolvedCredential | None:
     """``--token-file``. Missing/unreadable raises — a path just typed on the command is a fresh,
     attributable mistake, so failing loudly beats a silent fall-through.
     """
@@ -186,10 +203,10 @@ def _resolve_token_file_flag(inputs: CredentialInputs) -> str | None:
         raise CredentialResolutionError(f"--token-file could not be read: {path} ({exc})") from exc
     if not content:
         return None
-    return _ensure_header_safe(content, str(path))
+    return _ensure_header_safe(content, f"--token-file ({path})")
 
 
-def _read_token_file(path: Path) -> str | None:
+def _read_token_file(path: Path, source: str) -> ResolvedCredential | None:
     """Read and validate a token file, treating missing/unreadable/empty content as "no credential".
 
     Shared by ``cli.token_file`` and ``<data_dir>/.web_api_token`` resolution — both fall through
@@ -202,20 +219,20 @@ def _read_token_file(path: Path) -> str | None:
         return None
     if not content:
         return None
-    return _ensure_header_safe(content, str(path))
+    return _ensure_header_safe(content, source)
 
 
-def _resolve_cli_token_file(inputs: CredentialInputs) -> str | None:
+def _resolve_cli_token_file(inputs: CredentialInputs) -> ResolvedCredential | None:
     """``cli.token_file``. Missing/unreadable falls through to the next source — a config path is
     reused unattended and goes stale in ways the operator isn't present to see.
     """
     path = inputs.config.cli.token_file
     if path is None:
         return None
-    return _read_token_file(path)
+    return _read_token_file(path, f"cli.token_file ({path})")
 
 
-def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> str | None:
+def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> ResolvedCredential | None:
     """``cli.auth_token``. CLI-scoped: applies to any target."""
     token = inputs.config.cli.auth_token
     if token is None:
@@ -223,10 +240,10 @@ def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> str | None:
     value = token.get_secret_value().strip()
     if not value:
         return None
-    return _ensure_header_safe(value, "cli.auth_token")
+    return _ensure_header_safe(value, "cli.auth_token / HASSETTE__CLI__AUTH_TOKEN")
 
 
-def _resolve_web_api_auth_token(inputs: CredentialInputs) -> str | None:
+def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential | None:
     """``web_api.auth_token``. Server-scoped: describes what the *local* instance validates
     against, so it is gated to loopback targets by ``resolve_cli_auth_token``.
     """
@@ -236,17 +253,18 @@ def _resolve_web_api_auth_token(inputs: CredentialInputs) -> str | None:
     value = token.get_secret_value().strip()
     if not value:
         return None
-    return _ensure_header_safe(value, "web_api.auth_token")
+    return _ensure_header_safe(value, "web_api.auth_token / HASSETTE__WEB_API__AUTH_TOKEN (this machine's instance)")
 
 
-def _resolve_data_dir_token_file(inputs: CredentialInputs) -> str | None:
+def _resolve_data_dir_token_file(inputs: CredentialInputs) -> ResolvedCredential | None:
     """``<data_dir>/.web_api_token``. Server-scoped, same reasoning as ``web_api.auth_token``.
 
     Never generates a token: the CLI is a *consumer* of an already-resolved credential, not the
     service that owns generation — a CLI-minted token would never match what the running service
     actually validates against.
     """
-    return _read_token_file(inputs.config.data_dir / TOKEN_FILENAME)
+    path = inputs.config.data_dir / TOKEN_FILENAME
+    return _read_token_file(path, f"{path} (this machine's instance token file)")
 
 
 CREDENTIAL_SOURCES: tuple[CredentialSource, ...] = (
@@ -262,7 +280,7 @@ CREDENTIAL_SOURCES: tuple[CredentialSource, ...] = (
 
 def resolve_cli_auth_token(
     config: HassetteConfig, target: ServerTarget, *, token_file_flag: Path | None = None
-) -> str | None:
+) -> ResolvedCredential | None:
     """Resolve the bearer credential the CLI should attach to outgoing requests.
 
     Walks :data:`CREDENTIAL_SOURCES` in precedence order, skipping any ``scope="server"`` entry
@@ -270,10 +288,10 @@ def resolve_cli_auth_token(
     instance validates against, never a statement about what some other instance accepts.
 
     Returns:
-        The plaintext token, or ``None`` if no applicable source has one. The CLI never
-        generates a token itself, and a non-loopback target with no credential still issues the
-        request rather than failing before the network call (``trusted_proxies`` deployments
-        need no bearer token at all).
+        The resolved credential and the name of the source it came from, or ``None`` if no
+        applicable source has one. The CLI never generates a token itself, and a non-loopback
+        target with no credential still issues the request rather than failing before the
+        network call (``trusted_proxies`` deployments need no bearer token at all).
 
     Raises:
         CredentialResolutionError: ``--token-file`` was supplied but could not be read, or a
@@ -284,7 +302,7 @@ def resolve_cli_auth_token(
     for source in CREDENTIAL_SOURCES:
         if source.scope == "server" and not target.is_loopback:
             continue
-        value = source.resolve(inputs)
-        if value:
-            return value
+        credential = source.resolve(inputs)
+        if credential:
+            return credential
     return None

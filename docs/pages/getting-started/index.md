@@ -88,10 +88,27 @@ hassette app
 
 `websocket_connected: True` confirms the Home Assistant connection. `my_app` shows `running`. `Invoc/1h` counts how many times your app's handlers have fired in the last hour. Zero is normal — the app logs a greeting at startup but does not react to anything in Home Assistant yet. The next guide covers that.
 
+Those commands query Hassette's own web API, not Home Assistant. That API has a credential of its own, and `HASSETTE__TOKEN` is not it — Hassette wrote a separate token to `<data_dir>/.web_api_token` on first start. The CLI finds that file and uses it automatically, which is why the commands above needed no setup. Point the CLI at a *different* instance — a remote host, or a second instance on this machine — and it needs that instance's token instead. See [CLI Configuration: Web API Token](../cli/configuration.md#web-api-token) for how to supply one. An `Error 401` names the credential the CLI sent and what to do about it.
+
+## 6. Open the dashboard
+
+The same running instance serves a web UI. Open it in a browser:
+
+```
+http://127.0.0.1:8126/
+```
+
+![Apps page](../../_static/web_ui_apps.png)
+
+A login screen asks for a token. Paste in the contents of `<data_dir>/.web_api_token` — the same credential the CLI uses. Hassette also logs it once on first start, on the line beginning `Generated new web API auth_token`.
+
+The dashboard shows app health, per-handler invocation history, structured logs, and the resolved configuration. It covers the same ground as `hassette status` and `hassette app`, plus history you can click through. See [Web UI](../web-ui/index.md) for the full tour, including how to change the bind address or run it behind a reverse proxy.
+
 !!! tip "Having trouble?"
     If Hassette fails to connect, check `HASSETTE__BASE_URL` in your `.env` and confirm the token is correct. See [Troubleshooting](../troubleshooting.md) for common issues.
 
 ## Next steps
 
 - [Your First Automation](first-automation.md): react to state changes, get typed event data automatically, and schedule recurring jobs
+- [Web UI](../web-ui/index.md): app health, invocation history, and logs in the browser
 - [Docker Setup](docker/index.md): deploy Hassette in production with Docker Compose
