@@ -57,11 +57,11 @@ export interface ServiceStatusEntry {
 
 /** Telemetry health polled from `/api/telemetry/status`: drop counters and the degradation flag. */
 export interface TelemetryHealth {
-  telemetryDegraded: boolean;
   droppedOverflow: number;
   droppedExhausted: number;
   droppedShutdown: number;
   errorHandlerFailures: number;
+  telemetryDegraded: boolean;
 }
 
 export interface AppStore {
