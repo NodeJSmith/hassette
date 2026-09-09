@@ -4,6 +4,7 @@ import socket
 import textwrap
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager, suppress
+from io import StringIO
 from logging import Logger, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -550,3 +551,32 @@ async def cleanup_hassette_streams(instance: Hassette) -> None:
         await instance.event_stream_service.close_streams()
     with suppress(Exception):
         await instance.bus_service.stream.aclose()
+
+
+def last_json_record(stream: StringIO) -> dict[str, Any]:
+    """Parse the most recent JSON log record written to a test log stream.
+
+    Args:
+        stream: Stream that a JSON-rendering log handler wrote to.
+
+    Returns:
+        The last non-blank line of the stream, parsed as a dict.
+    """
+    lines = [line for line in stream.getvalue().strip().splitlines() if line.strip()]
+    assert lines, "no log records were emitted to the stream"
+    return json.loads(lines[-1])
+
+
+def first_json_record_containing(stream: StringIO, text: str) -> dict[str, Any]:
+    """Parse the first JSON log record in a test log stream whose raw line contains `text`.
+
+    Args:
+        stream: Stream that a JSON-rendering log handler wrote to.
+        text: Substring identifying the record of interest, usually its message.
+
+    Returns:
+        The first matching line, parsed as a dict.
+    """
+    lines = [line for line in stream.getvalue().strip().splitlines() if text in line]
+    assert lines, f"no log record containing {text!r} was emitted to the stream"
+    return json.loads(lines[0])

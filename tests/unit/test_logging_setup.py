@@ -7,7 +7,6 @@ test_logging_persistence.py (LogPersistenceHandler batching/flush).
 """
 
 import inspect
-import json
 import logging
 from io import StringIO
 from unittest.mock import MagicMock
@@ -16,6 +15,7 @@ import pytest
 
 import hassette.logging_ as logging_module
 from hassette.logging_ import enable_basic_logging
+from tests.support.helpers import last_json_record
 from tests.unit.conftest import LoggingPipelineFixture
 
 # Fixture-only logger names used across TestExtraLoggers and TestExtraLoggerReconfiguration.
@@ -76,10 +76,7 @@ class TestLoggingPipelineJSONRenderer:
         child.info("hello json")
         logging_pipeline.listener.stop()
 
-        output = logging_pipeline.stream.getvalue()
-        lines = [line for line in output.strip().splitlines() if line.strip()]
-        assert len(lines) >= 1
-        parsed = json.loads(lines[-1])
+        parsed = last_json_record(logging_pipeline.stream)
         assert parsed["event"] == "hello json"
 
         logging_pipeline.listener.start()
@@ -90,10 +87,7 @@ class TestLoggingPipelineJSONRenderer:
         enable_basic_logging("INFO", log_format="json", stream=stream)
         logger = logging.getLogger("hassette.test_json_level")
         logger.warning("level test")
-        output = stream.getvalue()
-        lines = [line for line in output.strip().splitlines() if line.strip()]
-        parsed = json.loads(lines[-1])
-        assert parsed["level"] == "warning"
+        assert last_json_record(stream)["level"] == "warning"
 
     def test_source_tier_appears_in_json_output_via_record_filter(self) -> None:
         """source_tier appears in JSON output when stamped by a filter."""
@@ -104,10 +98,7 @@ class TestLoggingPipelineJSONRenderer:
             type("F", (logging.Filter,), {"filter": lambda _self, r: setattr(r, "source_tier", "app") or True})()
         )
         logger.info("tier test")
-        output = stream.getvalue()
-        lines = [line for line in output.strip().splitlines() if line.strip()]
-        parsed = json.loads(lines[-1])
-        assert parsed.get("source_tier") == "app"
+        assert last_json_record(stream).get("source_tier") == "app"
 
 
 class TestEnableBasicLoggingAutoFormat:
@@ -127,11 +118,7 @@ class TestEnableBasicLoggingAutoFormat:
         enable_basic_logging("INFO", log_format="auto", stream=stream)
         logger = logging.getLogger("hassette.test_auto_notty")
         logger.info("auto json")
-        output = stream.getvalue()
-        lines = [line for line in output.strip().splitlines() if line.strip()]
-        assert len(lines) >= 1
-        parsed = json.loads(lines[-1])
-        assert parsed["event"] == "auto json"
+        assert last_json_record(stream)["event"] == "auto json"
 
 
 class TestNoisyLibrarySuppression:
@@ -266,11 +253,7 @@ class TestEnableBasicLogging:
         enable_basic_logging("INFO", log_format="json", stream=stream)
         logger = logging.getLogger("hassette.test_basic_json")
         logger.info("json basic test")
-        output = stream.getvalue()
-        lines = [line for line in output.strip().splitlines() if line.strip()]
-        assert len(lines) >= 1
-        parsed = json.loads(lines[-1])
-        assert parsed["event"] == "json basic test"
+        assert last_json_record(stream)["event"] == "json basic test"
 
     def test_returned_handler_uses_correct_stream(self) -> None:
         """The returned StreamHandler's stream matches what was passed."""
