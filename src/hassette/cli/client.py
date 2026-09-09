@@ -109,7 +109,7 @@ class HassetteCLIClient:
         # this invocation, so it came from cli.verify_ssl in config — a silent, durable
         # opt-out rather than a conscious per-invocation choice.
         self._insecure_from_config = not target.verify_ssl and verify_ssl_flag is None
-        self._token_source = credential.source if credential is not None else None
+        self._credential_source = credential.source if credential is not None else None
         headers = {"Authorization": f"Bearer {credential.token}"} if credential is not None else {}
         self._client = httpx.Client(
             base_url=self.base_url, transport=transport, headers=headers, verify=target.verify_ssl
@@ -482,15 +482,15 @@ class HassetteCLIClient:
 
         Three branches, in the order they are tested:
 
-        =========================  ==========================================================
-        Condition                  Message
-        =========================  ==========================================================
-        a credential resolved      names the source and says it was rejected
-        none resolved, loopback    lists the chain that came up empty; "has hassette started?"
-        none resolved, remote      explains why server-scoped sources were withheld
-        =========================  ==========================================================
+        - a credential resolved: names the source and says it was rejected
+        - none resolved, loopback: lists the chain that came up empty, then asks whether
+          hassette has been started
+        - none resolved, remote: explains why server-scoped sources were withheld
+
+        Returns:
+            The parenthetical appended to the server's own 401 detail.
         """
-        if self._token_source is not None:
+        if self._credential_source is not None:
             # Deliberately not split by loopback/remote the way the no-credential cases are: the
             # remedy is the same either way. The proxy clause is remote-only on noise grounds,
             # not because loopback rules a proxy out — a local forward-auth gateway on a
@@ -501,7 +501,7 @@ class HassetteCLIClient:
             # source: with += the correct output depends on every fragment carrying a trailing
             # space, which nothing in the code signals and a formatter could silently strip.
             sentences = [
-                f"the credential sent came from {self._token_source}, and it was rejected.",
+                f"the credential sent came from {self._credential_source}, and it was rejected.",
                 f"Point the CLI at the target's own credential with {CLI_AUTH_REMEDIES}.",
             ]
             if not self.is_loopback:

@@ -96,7 +96,7 @@ The same running instance serves a web UI. Open <http://127.0.0.1:8126/> in a br
 
 ![Apps page](../../_static/web_ui_apps.png)
 
-A login screen asks for a token. Paste in the contents of `<data_dir>/.web_api_token` — the same credential the CLI uses. Hassette also logs it once on first start, on the line beginning `Generated new web API auth_token`.
+A login screen asks for a token. Paste in the contents of `<data_dir>/.web_api_token` — the same credential the CLI uses. If you are not sure where that file lives, the startup log names its path on the line beginning `Generated new web API auth_token`. The token value itself is never logged.
 
 The dashboard shows app health, per-handler invocation history, structured logs, and the resolved configuration. It covers the same ground as `hassette status` and `hassette app`, plus history you can click through. See [Web UI](../web-ui/index.md) for the full tour, including how to change the bind address or run it behind a reverse proxy.
 

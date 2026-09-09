@@ -29,6 +29,14 @@ from hassette.exceptions import (
 from hassette.utils.net_utils import format_host, is_loopback_host, substitute_host
 from hassette.web.auth.tokens import TOKEN_FILENAME
 
+SERVER_SCOPE_QUALIFIER = "this machine's instance"
+"""What a ``scope="server"`` source's qualifier has to say beyond naming the setting.
+
+Both server-scoped sources describe the instance running on *this* host, which is the whole
+diagnosis when the CLI is pointed at a second instance on the same machine. Naming the fragment
+once keeps the two messages phrased identically.
+"""
+
 
 @dataclass(frozen=True)
 class ServerTarget:
@@ -193,6 +201,16 @@ def _format_source(setting: str, qualifier: str) -> str:
     so they have to read the same way whichever resolver produced them. Going through one
     formatter makes that a function signature rather than a convention a new resolver has to
     remember from :class:`ResolvedCredential`'s docstring.
+
+    Args:
+        setting: The bare identifier an operator would set — a flag, a config key, or a path
+            template. Matches the corresponding :class:`CredentialSource` ``name``.
+        qualifier: Whatever the setting name alone leaves out, phrased to read inside the
+            parentheses. There is no single kind: a file-backed source passes the concrete
+            path it read, a config field passes ``"or <ENV_VAR>"`` so the alternative spelling
+            is discoverable, and a server-scoped source additionally says that the value
+            describes this machine's instance. Pick whichever of those a reader would need to
+            tell this source apart from the others in the chain.
     """
     return f"{setting} ({qualifier})"
 
@@ -278,7 +296,7 @@ def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential 
     if not value:
         return None
     return _ensure_header_safe(
-        value, _format_source("web_api.auth_token", "or HASSETTE__WEB_API__AUTH_TOKEN — this machine's instance")
+        value, _format_source("web_api.auth_token", f"or HASSETTE__WEB_API__AUTH_TOKEN — {SERVER_SCOPE_QUALIFIER}")
     )
 
 
@@ -290,7 +308,7 @@ def _resolve_data_dir_token_file(inputs: CredentialInputs) -> ResolvedCredential
     actually validates against.
     """
     path = inputs.config.data_dir / TOKEN_FILENAME
-    return _read_token_file(path, _format_source(f"<data_dir>/{TOKEN_FILENAME}", f"{path} — this machine's instance"))
+    return _read_token_file(path, _format_source(f"<data_dir>/{TOKEN_FILENAME}", f"{path} — {SERVER_SCOPE_QUALIFIER}"))
 
 
 CREDENTIAL_SOURCES: tuple[CredentialSource, ...] = (
