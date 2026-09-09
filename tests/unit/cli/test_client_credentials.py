@@ -25,6 +25,7 @@ from tests.unit.cli.test_client import (
     make_host_port_config,
     make_transport,
     stderr_for_connect_error,
+    stderr_for_malformed_response,
     stderr_for_successful_get,
 )
 
@@ -318,16 +319,9 @@ class TestVerifySslWarning:
         ``cli.verify_ssl = false`` must be warned there too.
         """
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
-        transport = make_transport(200, {"unexpected": "shape"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        _code, stderr = get_expecting_exit(client)
-        assert "TLS verification is disabled" in stderr
+        assert "TLS verification is disabled" in stderr_for_malformed_response(config)
 
     def test_flag_sourced_insecure_does_not_warn_on_malformed_response_path(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
-        transport = make_transport(200, {"unexpected": "shape"})
-        client = HassetteCLIClient(
-            config, json_mode=False, transport=transport, verify_ssl_flag=False, server_url_flag=None
-        )
-        _code, stderr = get_expecting_exit(client)
+        stderr = stderr_for_malformed_response(config, verify_ssl_flag=False, server_url_flag=None)
         assert "TLS verification is disabled" not in stderr

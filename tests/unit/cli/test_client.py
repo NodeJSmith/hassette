@@ -154,6 +154,20 @@ def stderr_for_connect_error(config: HassetteConfig, **client_kwargs: Any) -> st
     return stderr
 
 
+def stderr_for_malformed_response(config: HassetteConfig, **client_kwargs: Any) -> str:
+    """Return what a client built from ``config`` writes to stderr for an unusable 200 body.
+
+    The third sibling of ``stderr_for_successful_get`` and ``stderr_for_connect_error``: a 200
+    carrying valid JSON that doesn't match the requested model. The wrong-shape body is fixed —
+    only the config/flags that produced the client ever vary between these tests.
+    """
+    client = HassetteCLIClient(
+        config, json_mode=False, transport=make_transport(200, {"unexpected": "shape"}), **client_kwargs
+    )
+    _code, stderr = get_expecting_exit(client)
+    return stderr
+
+
 # Base URL construction & address substitution
 
 
@@ -305,10 +319,7 @@ class TestMalformedSuccessResponse:
         assert exc_info.value.code == 1
 
     def test_valid_json_wrong_shape_200_prints_clean_error_human_mode(self) -> None:
-        config = make_host_port_config()
-        transport = make_transport(200, {"unexpected": "shape"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        _code, stderr = get_expecting_exit(client)
+        stderr = stderr_for_malformed_response(make_host_port_config())
         assert "Error" in stderr
         assert "does not match the expected shape" in stderr
         assert "Traceback" not in stderr
@@ -324,10 +335,7 @@ class TestMalformedSuccessResponse:
 
     def test_non_loopback_shows_target(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
-        transport = make_transport(200, {"unexpected": "shape"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        _code, stderr = get_expecting_exit(client)
-        assert REMOTE_SERVER_URL in stderr
+        assert REMOTE_SERVER_URL in stderr_for_malformed_response(config)
 
     def test_non_utf8_200_body_prints_clean_error_human_mode(self) -> None:
         """A tolerated-503/2xx body with malformed UTF-8 bytes raises UnicodeDecodeError from
@@ -364,10 +372,7 @@ class TestMalformedSuccessResponse:
         assert "Body" in stderr
 
     def test_debug_mode_shows_url_and_body(self) -> None:
-        config = make_host_port_config()
-        transport = make_transport(200, {"unexpected": "shape"})
-        client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=transport)
-        _code, stderr = get_expecting_exit(client)
+        stderr = stderr_for_malformed_response(make_host_port_config(), debug_mode=True)
         assert "GET" in stderr
         assert HEALTH_ENDPOINT in stderr
         assert '"unexpected"' in stderr
