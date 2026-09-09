@@ -42,6 +42,8 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `make_crashed_event(**kw)` — `HassetteServiceEvent` with CRASHED status for service-watcher/session tests
 - `noop()` — sync no-op, default handler for `create_listener()` and scheduler job tests
 - `async_noop()` — async no-op, call it to get a coroutine object (e.g. `bucket.spawn(async_noop())`)
+- `last_json_record(stream)` — parse the last JSON log record written to a test log stream
+- `json_record_containing(stream, text)` — parse the first JSON log record whose raw line contains `text`
 
 `tests/support/web_manifest_helpers.py` — app manifest and snapshot models:
 
