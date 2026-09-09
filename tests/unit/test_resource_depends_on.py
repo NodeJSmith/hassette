@@ -9,6 +9,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_failed as real_handle_failed
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from tests.support.factories import wire_dependent_resource
 from tests.support.mock_hassette import make_mock_hassette
 
 
@@ -102,13 +103,11 @@ async def test_empty_depends_on_is_noop() -> None:
 async def test_depends_on_waits_for_matching_instance() -> None:
     """When depends_on has a type and a matching child exists, wait_for_ready is called with it."""
     hassette = build_hassette()
-    dep_a = _SimpleDepA(hassette=hassette)
-    hassette.children = [dep_a]
+    resource, deps = wire_dependent_resource(hassette, _ResourceWithDepA, _SimpleDepA)
 
-    resource = _ResourceWithDepA(hassette=hassette)
     await resource._auto_wait_dependencies()
 
-    hassette.wait_for_ready.assert_called_once_with([dep_a])
+    hassette.wait_for_ready.assert_called_once_with(deps)
 
 
 async def test_depends_on_missing_type_raises() -> None:
@@ -126,35 +125,27 @@ async def test_depends_on_missing_type_raises() -> None:
 async def test_depends_on_subclass_match() -> None:
     """depends_on=[BaseType] finds a ConcreteSubclass instance in children."""
     hassette = build_hassette()
-    sub = _SubclassOfA(hassette=hassette)
-    hassette.children = [sub]
+    resource, deps = wire_dependent_resource(hassette, _ResourceWithDepA, _SubclassOfA)
 
-    resource = _ResourceWithDepA(hassette=hassette)
     await resource._auto_wait_dependencies()
 
-    hassette.wait_for_ready.assert_called_once_with([sub])
+    hassette.wait_for_ready.assert_called_once_with(deps)
 
 
 async def test_depends_on_multiple_matches() -> None:
     """All matching instances for all declared dep types are waited on together."""
     hassette = build_hassette()
-    dep_a = _SimpleDepA(hassette=hassette)
-    dep_b = _SimpleDepB(hassette=hassette)
-    hassette.children = [dep_a, dep_b]
+    resource, deps = wire_dependent_resource(hassette, _ResourceWithDepAB, _SimpleDepA, _SimpleDepB)
 
-    resource = _ResourceWithDepAB(hassette=hassette)
     await resource._auto_wait_dependencies()
 
-    hassette.wait_for_ready.assert_called_once_with([dep_a, dep_b])
+    hassette.wait_for_ready.assert_called_once_with(deps)
 
 
 async def test_depends_on_timeout_raises() -> None:
     """RuntimeError raised naming timed-out deps when wait_for_ready returns False and shutdown not set."""
     hassette = build_hassette(wait_for_ready_return=False, shutdown_set=False)
-    dep_a = _SimpleDepA(hassette=hassette)
-    hassette.children = [dep_a]
-
-    resource = _ResourceWithDepA(hassette=hassette)
+    resource, _ = wire_dependent_resource(hassette, _ResourceWithDepA, _SimpleDepA)
 
     with pytest.raises(RuntimeError, match="timed out"):
         await resource._auto_wait_dependencies()
@@ -163,10 +154,7 @@ async def test_depends_on_timeout_raises() -> None:
 async def test_depends_on_shutdown_marks_not_ready() -> None:
     """When wait_for_ready returns False and shutdown is set, mark_not_ready is called and method returns."""
     hassette = build_hassette(wait_for_ready_return=False, shutdown_set=True)
-    dep_a = _SimpleDepA(hassette=hassette)
-    hassette.children = [dep_a]
-
-    resource = _ResourceWithDepA(hassette=hassette)
+    resource, _ = wire_dependent_resource(hassette, _ResourceWithDepA, _SimpleDepA)
 
     # Should NOT raise — shutdown path returns gracefully
     await resource._auto_wait_dependencies()
@@ -177,10 +165,7 @@ async def test_depends_on_shutdown_marks_not_ready() -> None:
 async def test_depends_on_timeout_calls_handle_failed() -> None:
     """handle_failed is called before RuntimeError from _auto_wait_dependencies propagates."""
     hassette = build_hassette(wait_for_ready_return=False, shutdown_set=False)
-    dep_a = _SimpleDepA(hassette=hassette)
-    hassette.children = [dep_a]
-
-    resource = _ResourceWithDepA(hassette=hassette)
+    resource, _ = wire_dependent_resource(hassette, _ResourceWithDepA, _SimpleDepA)
 
     handle_failed_calls: list[Exception] = []
 
@@ -217,10 +202,8 @@ async def test_skip_dependency_check_bypasses() -> None:
 async def test_service_auto_wait_dependencies() -> None:
     """Service.initialize() calls _auto_wait_dependencies with the same semantics as Resource."""
     hassette = build_hassette()
-    dep_a = _SimpleDepA(hassette=hassette)
-    hassette.children = [dep_a]
+    service, deps = wire_dependent_resource(hassette, _ServiceWithDepA, _SimpleDepA)
 
-    service = _ServiceWithDepA(hassette=hassette)
     await service._auto_wait_dependencies()
 
-    hassette.wait_for_ready.assert_called_once_with([dep_a])
+    hassette.wait_for_ready.assert_called_once_with(deps)

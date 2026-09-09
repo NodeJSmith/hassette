@@ -16,6 +16,7 @@ import pytest
 
 from hassette.resources.base import Resource
 from hassette.types.enums import ResourceRole
+from tests.support.factories import wire_dependent_resource
 
 from .conftest import build_hassette
 
@@ -66,13 +67,11 @@ async def test_app_role_with_depends_on_raises_runtime_error() -> None:
 async def test_single_instance_satisfying_multiple_dep_types_is_deduped() -> None:
     """A dep instance matching two declared dep types is only passed to wait_for_ready once."""
     hassette = build_hassette()
-    shared = MultiDep(hassette=hassette)
-    hassette.children = [shared]
     hassette.wait_for_ready = AsyncMock(return_value=True)
+    resource, deps = wire_dependent_resource(hassette, ResourceWithDepAB, MultiDep)
 
-    resource = ResourceWithDepAB(hassette=hassette)
     await resource._auto_wait_dependencies()
 
-    # DepA and DepB both match `shared` (isinstance is true for both), but it must
-    # appear exactly once in the list passed to wait_for_ready.
-    hassette.wait_for_ready.assert_called_once_with([shared])
+    # DepA and DepB both match the single MultiDep instance (isinstance is true for
+    # both), but it must appear exactly once in the list passed to wait_for_ready.
+    hassette.wait_for_ready.assert_called_once_with(deps)
