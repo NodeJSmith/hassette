@@ -13,7 +13,7 @@ import pytest
 import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.logging_ import CorrelationFilter, LogCaptureHandler, add_execution_id
+from hassette.logging_ import CorrelationFilter, LogCaptureHandler, LogEntry, add_execution_id
 from tests.support.factories import make_log_entry
 from tests.unit.conftest import LoggingPipelineFixture
 
@@ -193,7 +193,12 @@ class TestLogEntryCorrelationFields:
 
     @pytest.mark.parametrize("field", ["execution_id", "instance_name", "instance_index"])
     def test_log_entry_correlation_field_defaults_to_none(self, field: str) -> None:
-        entry = make_log_entry()
+        # Constructs LogEntry directly rather than via make_log_entry(): the subject here is the
+        # dataclass's own default for each optional field, and the factory passes every optional
+        # field explicitly, which would assert the factory's default instead.
+        entry = LogEntry(
+            seq=1, timestamp=0.0, level="INFO", logger_name="test", func_name="fn", lineno=1, message="msg"
+        )
         assert hasattr(entry, field)
         assert getattr(entry, field) is None
 
