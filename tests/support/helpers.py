@@ -567,7 +567,7 @@ def last_json_record(stream: StringIO) -> dict[str, Any]:
     return json.loads(lines[-1])
 
 
-def json_record_containing(stream: StringIO, text: str) -> dict[str, Any]:
+def first_json_record_containing(stream: StringIO, text: str) -> dict[str, Any]:
     """Parse the first JSON log record in a test log stream whose raw line contains `text`.
 
     Args:

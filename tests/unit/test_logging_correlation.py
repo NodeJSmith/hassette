@@ -12,7 +12,7 @@ import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_ import CorrelationFilter, LogCaptureHandler, LogEntry, add_execution_id
-from tests.support.helpers import json_record_containing
+from tests.support.helpers import first_json_record_containing
 from tests.unit.conftest import LoggingPipelineFixture
 
 
@@ -336,7 +336,7 @@ class TestCorrelationFilterAppliesToChildLoggers:
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
-        parsed = json_record_containing(logging_pipeline.stream, "framework record")
+        parsed = first_json_record_containing(logging_pipeline.stream, "framework record")
         assert parsed.get("source_tier") == "framework"
 
     def test_app_child_logger_gets_app_tier(self, logging_pipeline: LoggingPipelineFixture) -> None:
