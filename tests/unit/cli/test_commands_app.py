@@ -380,10 +380,12 @@ def _manifest_route(instances: list[AppInstanceResponse], app_key: str = "my_app
 def _instance_action_routes(
     action: str,
     *,
+    app_key: str = "my_app",
     instances: list[AppInstanceResponse] | None = None,
     requested_index: int = 1,
     confirmed_index: int | None = None,
-    manifest_unavailable: bool = False,
+    manifest_status: int = 200,
+    manifest_detail: str = "",
     action_status: int = 200,
     action_detail: str = "",
 ) -> list[tuple[str, str, int, Any]]:
@@ -392,22 +394,21 @@ def _instance_action_routes(
     ``instances`` defaults to a single instance at ``requested_index`` named ``inst{index}``;
     pass an explicit list to exercise multi-instance manifests or an index that resolves to no
     entry. ``confirmed_index`` is the index the server echoes back, defaulting to
-    ``requested_index`` — pass a different value to exercise the mismatch warning.
-    ``manifest_unavailable`` makes the manifest lookup 503 (telemetry outage). A non-200
-    ``action_status`` makes the POST fail with ``action_detail`` as its error body instead of
-    returning a successful ``ActionResponse``.
+    ``requested_index`` — pass a different value to exercise the mismatch warning. A non-200
+    ``manifest_status`` or ``action_status`` makes that route fail with the matching
+    ``*_detail`` as its error body instead of returning its normal successful payload.
     """
     if instances is None:
-        instances = [_instance(requested_index, f"inst{requested_index}")]
+        instances = [_instance(requested_index, f"inst{requested_index}", app_key=app_key)]
     if confirmed_index is None:
         confirmed_index = requested_index
 
-    if manifest_unavailable:
-        manifest_route = ("GET", "/api/apps/manifests", 503, {"detail": "Telemetry store unavailable"})
+    if manifest_status != 200:
+        manifest_route = ("GET", "/api/apps/manifests", manifest_status, {"detail": manifest_detail})
     else:
-        manifest_route = _manifest_route(instances)
+        manifest_route = _manifest_route(instances, app_key=app_key)
 
-    action_path = f"/api/apps/my_app/instances/{requested_index}/{action}"
+    action_path = f"/api/apps/{app_key}/instances/{requested_index}/{action}"
     if action_status != 200:
         action_route = ("POST", action_path, action_status, {"detail": action_detail})
     else:
@@ -415,7 +416,7 @@ def _instance_action_routes(
             "POST",
             action_path,
             200,
-            _action_response(action=action, instance_index=confirmed_index).model_dump(),
+            _action_response(app_key=app_key, action=action, instance_index=confirmed_index).model_dump(),
         )
 
     return [manifest_route, action_route]
@@ -472,9 +473,7 @@ class TestCmdAppActionRouting:
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
         """Success message includes the resolved instance name when --instance is provided."""
-        client = cli_client_factory.build_with_routes(
-            _instance_action_routes(action, instances=[_instance(1, "inst1")])
-        )
+        client = cli_client_factory.build_with_routes(_instance_action_routes(action))
         parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
         assert parsed["message"] == f"Instance 'inst1' of 'my_app' {verb}"
 
@@ -518,7 +517,9 @@ class TestCmdAppActionRouting:
         The manifest lookup is a best-effort name resolution — the mutating action itself
         has no telemetry dependency, so a degraded telemetry DB must not block it.
         """
-        client = cli_client_factory.build_with_routes(_instance_action_routes(action, manifest_unavailable=True))
+        client = cli_client_factory.build_with_routes(
+            _instance_action_routes(action, manifest_status=503, manifest_detail="Telemetry store unavailable")
+        )
         parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
         assert parsed["message"] == f"Instance '1' of 'my_app' {verb}"
 
