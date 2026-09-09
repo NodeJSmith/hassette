@@ -1,7 +1,5 @@
 """Unit tests for web/mappers.py — domain-to-response model conversions."""
 
-from typing import Any
-
 import pytest
 
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
@@ -185,17 +183,21 @@ def test_app_manifest_list_response_from_coerces_resource_status_enum():
 @pytest.mark.parametrize(
     ("manifest_kwargs", "response_attr", "expected"),
     [
-        pytest.param({"status": ManifestStatus.STOPPED}, "status", "stopped", id="status"),
-        pytest.param({"autostart": True}, "autostart", True, id="autostart-true"),
-        pytest.param({"autostart": False}, "autostart", False, id="autostart-false"),
-        pytest.param({"in_current_config": True}, "in_current_config", True, id="in-current-config-true"),
-        pytest.param({"in_current_config": False}, "in_current_config", False, id="in-current-config-false"),
+        pytest.param({"status": ManifestStatus.STOPPED}, "status", "stopped", id="status_stopped"),
+        pytest.param({"autostart": True}, "autostart", True, id="autostart_true"),
+        pytest.param({"autostart": False}, "autostart", False, id="autostart_false"),
+        pytest.param({"in_current_config": True}, "in_current_config", True, id="in_current_config_true"),
+        pytest.param({"in_current_config": False}, "in_current_config", False, id="in_current_config_false"),
     ],
 )
 def test_app_manifest_list_response_from_passes_manifest_field_through(
-    manifest_kwargs: dict[str, Any], response_attr: str, expected: object
+    manifest_kwargs: dict[str, ManifestStatus | bool], response_attr: str, expected: bool | str
 ):
-    """Single-value manifest fields are carried from AppManifestInfo to AppManifestResponse."""
+    """Single-value manifest fields are carried from AppManifestInfo to AppManifestResponse.
+
+    The ``status`` case also covers the ManifestStatus enum being coerced to its string value;
+    the boolean cases are plain identity pass-through.
+    """
     manifest = make_manifest("app_a", **manifest_kwargs)
     full = make_full_snapshot([manifest])
 
