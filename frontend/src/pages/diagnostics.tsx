@@ -6,12 +6,12 @@ import { BootIssuesPanel } from "../components/diagnostics/boot-issues-panel";
 import { LoggingPanel } from "../components/diagnostics/logging-panel";
 import { type MergedService, mergeServices } from "../components/diagnostics/merge-services";
 import { ServicesPanel } from "../components/diagnostics/services-panel";
-import { type TelemetryCounters, TelemetryPanel } from "../components/diagnostics/telemetry-panel";
+import { TelemetryPanel } from "../components/diagnostics/telemetry-panel";
 import { Spinner } from "../components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
 import { useDocumentTitle } from "../hooks/use-document-title";
 import { queryKeys } from "../lib/query-keys";
-import { useAppStore } from "../state/store";
+import { type TelemetryHealth, useAppStore } from "../state/store";
 
 function buildDiagCells(
   services: MergedService[],
@@ -42,7 +42,7 @@ interface DiagnosticsData {
   logQueueDrops: number;
   dbWriteQueueDrops: number;
   logPersistenceInactive: boolean;
-  telemetry: TelemetryCounters;
+  telemetry: TelemetryHealth;
   telemetryDrops: number;
   // Derived visibility — a healthy subsystem renders no panel at all
   showLogging: boolean;
