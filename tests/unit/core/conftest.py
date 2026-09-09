@@ -9,6 +9,7 @@ working unchanged. See tests/unit/core/CLAUDE.md for the fixture inventory.
 from ._fixtures_app_lifecycle import (
     app_handler,
     app_handler_mock_hassette,
+    assert_acquires_app_key_lock_once,
     assert_load_completed_count,
     lifecycle_service,
     make_mock_app_instance,
@@ -62,6 +63,7 @@ __all__ = [
     "TempService",
     "app_handler",
     "app_handler_mock_hassette",
+    "assert_acquires_app_key_lock_once",
     "assert_job_count",
     "assert_listener_count",
     "assert_load_completed_count",
