@@ -40,6 +40,9 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `make_state_dict(**kw)`, `make_light_state_dict(**kw)`, `make_sensor_state_dict(**kw)`, `make_switch_state_dict(**kw)`
 - `make_typed_state(state_class, state_dict)`, `make_task_bucket()`
 - `make_crashed_event(**kw)` — `HassetteServiceEvent` with CRASHED status for service-watcher/session tests
+- `emit_change_and_wait_for_app_status(hassette, changed_paths, *app_keys, status=RUNNING, timeout=...)` — the hot-reload
+  arrange-and-await sequence: wire status listeners, emit a synthetic file-change event, wait for every named
+  app under one `APP_STATUS_WAIT_SECONDS` deadline. Write the config/app-file changes yourself first.
 - `noop()` — sync no-op, default handler for `create_listener()` and scheduler job tests
 - `async_noop()` — async no-op, call it to get a coroutine object (e.g. `bucket.spawn(async_noop())`)
 

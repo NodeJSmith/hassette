@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import tomli_w
 
 from hassette.bus.listeners import (
@@ -45,6 +46,14 @@ assert on the name should take this default rather than inventing another placeh
 
 SETTLE_SECONDS = 0.05
 """Default settle window: seconds to let a stray extra handler call land before a negative assertion."""
+
+APP_STATUS_WAIT_SECONDS = 3
+"""Default real-clock budget for an app to reach an expected status after a file-change event.
+
+Covers the full hot-reload pipeline — config reload, teardown of the outgoing instance, import
+and bootstrap of the new one — so it needs headroom for a loaded CI runner. Shared by every
+``emit_change_and_wait_for_app_status`` call so the budget lives in one place.
+"""
 
 SHORT_SHUTDOWN_TIMEOUT_SECONDS = 0.1
 """Short ``resource_shutdown_timeout_seconds`` for tests that force a timeout/force-terminal branch.
@@ -332,9 +341,33 @@ async def wire_up_app_state_listener(
     )
 
 
-async def wire_up_app_running_listener(bus: "Bus", event: asyncio.Event, app_key: str) -> None:
-    """Wire up a listener that fires when a specific app reaches RUNNING status."""
-    await wire_up_app_state_listener(bus, event, app_key, ResourceStatus.RUNNING)
+async def emit_change_and_wait_for_app_status(
+    hassette: "Hassette",
+    changed_paths: set[Path],
+    *app_keys: str,
+    status: ResourceStatus = ResourceStatus.RUNNING,
+    timeout: float = APP_STATUS_WAIT_SECONDS,
+) -> None:
+    """Emit a synthetic file-change event and wait for each named app to reach ``status``.
+
+    The arrange-and-await half of a hot-reload test. Listeners are wired before the event is
+    emitted so a fast reload cannot fire before anything is listening, and all apps are awaited
+    under a single deadline.
+
+    Write the config or app-file changes before calling — this only announces them. ``status``
+    covers the non-RUNNING waits, e.g. ``ResourceStatus.STOPPED`` after an app is disabled.
+    """
+    reached_events: list[asyncio.Event] = []
+    for app_key in app_keys:
+        reached = asyncio.Event()
+        await wire_up_app_state_listener(hassette.bus, reached, app_key, status)
+        reached_events.append(reached)
+
+    await emit_file_change_event(hassette, changed_paths)
+
+    with anyio.fail_after(timeout):
+        for reached_event in reached_events:
+            await reached_event.wait()
 
 
 def make_task_bucket() -> MagicMock:

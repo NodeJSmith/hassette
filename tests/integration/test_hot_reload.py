@@ -6,13 +6,11 @@ timing flakiness while still exercising the full change-detection
 and app-lifecycle pipeline.
 """
 
-import asyncio
 import json
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import anyio
 import pytest
 
 from hassette.testing import HassetteHarness
@@ -20,9 +18,7 @@ from hassette.types import ResourceStatus
 from tests.support.harness import preserve_config
 from tests.support.helpers import (
     create_app_manifest,
-    emit_file_change_event,
-    wire_up_app_running_listener,
-    wire_up_app_state_listener,
+    emit_change_and_wait_for_app_status,
     write_app_toml,
     write_test_app_with_decorator,
 )
@@ -69,14 +65,8 @@ class TestBasicHotReload:
         app1 = create_app_manifest(suffix="enabled", app_dir=self.app_dir, enabled=True)
         write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
 
-        app_running_event = asyncio.Event()
-        await wire_up_app_running_listener(self.hassette.bus, app_running_event, app1.app_key)
-
         write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
-        await emit_file_change_event(self.hassette, {self.toml_file, app1.full_path})
-
-        with anyio.fail_after(3):
-            await app_running_event.wait()
+        await emit_change_and_wait_for_app_status(self.hassette, {self.toml_file, app1.full_path}, app1.app_key)
 
         snapshot = self.hassette.app_handler.registry.get_snapshot()
         assert self.hassette.app_handler.registry.get(app1.app_key, 0) is not None, f"Registry snapshot: {snapshot}"
@@ -87,27 +77,17 @@ class TestBasicHotReload:
         app1 = create_app_manifest(suffix="stoppable", app_dir=self.app_dir, enabled=True)
         write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
 
-        app_running = asyncio.Event()
-        await wire_up_app_running_listener(self.hassette.bus, app_running, app1.app_key)
-
         write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
-        await emit_file_change_event(self.hassette, {self.toml_file, app1.full_path})
-
-        with anyio.fail_after(3):
-            await app_running.wait()
+        await emit_change_and_wait_for_app_status(self.hassette, {self.toml_file, app1.full_path}, app1.app_key)
 
         app = self.app_handler.registry.get(app1.app_key, 0)
         assert app is not None
 
         # Disable by removing from config
-        app_stopped = asyncio.Event()
-        await wire_up_app_state_listener(self.hassette.bus, app_stopped, app1.app_key, ResourceStatus.STOPPED)
-
         write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[])
-        await emit_file_change_event(self.hassette, {self.toml_file})
-
-        with anyio.fail_after(3):
-            await app_stopped.wait()
+        await emit_change_and_wait_for_app_status(
+            self.hassette, {self.toml_file}, app1.app_key, status=ResourceStatus.STOPPED
+        )
 
         assert self.app_handler.registry.get(app1.app_key, 0) is None
 
@@ -121,14 +101,8 @@ class TestBasicHotReload:
             app_file=app1.full_path, class_name=app1.class_name, config_fields={"test_value": "str"}
         )
 
-        app_running = asyncio.Event()
-        await wire_up_app_running_listener(self.hassette.bus, app_running, app1.app_key)
-
         write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
-        await emit_file_change_event(self.hassette, {self.toml_file, app1.full_path})
-
-        with anyio.fail_after(3):
-            await app_running.wait()
+        await emit_change_and_wait_for_app_status(self.hassette, {self.toml_file, app1.full_path}, app1.app_key)
 
         inst = self.app_handler.registry.get(app1.app_key, 0)
         assert inst is not None
@@ -139,14 +113,8 @@ class TestBasicHotReload:
             suffix="cfgtest", app_dir=self.app_dir, enabled=True, app_config={"test_value": "updated"}
         )
 
-        app_running2 = asyncio.Event()
-        await wire_up_app_running_listener(self.hassette.bus, app_running2, app1.app_key)
-
         write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1_updated])
-        await emit_file_change_event(self.hassette, {self.toml_file})
-
-        with anyio.fail_after(3):
-            await app_running2.wait()
+        await emit_change_and_wait_for_app_status(self.hassette, {self.toml_file}, app1.app_key)
 
         inst = self.app_handler.registry.get(app1.app_key, 0)
         assert inst is not None
@@ -157,14 +125,8 @@ class TestBasicHotReload:
         app1 = create_app_manifest(suffix="reimport", app_dir=self.app_dir, enabled=True)
         write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
 
-        app_running = asyncio.Event()
-        await wire_up_app_running_listener(self.hassette.bus, app_running, app1.app_key)
-
         write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
-        await emit_file_change_event(self.hassette, {self.toml_file, app1.full_path})
-
-        with anyio.fail_after(3):
-            await app_running.wait()
+        await emit_change_and_wait_for_app_status(self.hassette, {self.toml_file, app1.full_path}, app1.app_key)
 
         inst = self.app_handler.registry.get(app1.app_key, 0)
         assert inst is not None
@@ -175,13 +137,7 @@ class TestBasicHotReload:
             app_file=app1.full_path, class_name=app1.class_name, config_fields={"marker": "str | None"}
         )
 
-        app_running2 = asyncio.Event()
-        await wire_up_app_running_listener(self.hassette.bus, app_running2, app1.app_key)
-
-        await emit_file_change_event(self.hassette, {app1.full_path})
-
-        with anyio.fail_after(3):
-            await app_running2.wait()
+        await emit_change_and_wait_for_app_status(self.hassette, {app1.full_path}, app1.app_key)
 
         inst = self.app_handler.registry.get(app1.app_key, 0)
         assert inst is not None
@@ -215,19 +171,13 @@ class TestOnlyAppsConfigFilter:
         # direct attribute set, it survives the config.reload() inside handle_change_event.
         monkeypatch.setenv("HASSETTE__ONLY_APPS", json.dumps([kept_a.app_key, kept_b.app_key]))
 
-        kept_a_running = asyncio.Event()
-        kept_b_running = asyncio.Event()
-        await wire_up_app_running_listener(self.hassette.bus, kept_a_running, kept_a.app_key)
-        await wire_up_app_running_listener(self.hassette.bus, kept_b_running, kept_b.app_key)
-
         write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[kept_a, kept_b, excluded])
-        await emit_file_change_event(
-            self.hassette, {self.toml_file, kept_a.full_path, kept_b.full_path, excluded.full_path}
+        await emit_change_and_wait_for_app_status(
+            self.hassette,
+            {self.toml_file, kept_a.full_path, kept_b.full_path, excluded.full_path},
+            kept_a.app_key,
+            kept_b.app_key,
         )
-
-        with anyio.fail_after(3):
-            await kept_a_running.wait()
-            await kept_b_running.wait()
 
         assert self.app_handler.registry.get(kept_a.app_key, 0) is not None
         assert self.app_handler.registry.get(kept_b.app_key, 0) is not None
