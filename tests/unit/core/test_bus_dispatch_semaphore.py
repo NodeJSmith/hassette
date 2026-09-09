@@ -10,10 +10,12 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 from hassette.core.bus_service import _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS, BusService
+from hassette.task_bucket import TaskBucket
 from hassette.testing import wait_for
 from hassette.types.enums import BackpressurePolicy, ExecutionMode
 from tests.support.factories import make_mock_event
-from tests.support.helpers import create_listener, make_task_bucket
+from tests.support.helpers import create_listener
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import make_bus_service
 
@@ -314,16 +316,9 @@ async def test_queued_factory_rejected_at_drain_releases_its_dispatch_slot() -> 
     """
     svc = make_bus_service(max_concurrent_dispatches=2)
 
-    sealed = False
-
-    def spawn(coro, *, name: str | None = None) -> asyncio.Task:
-        if sealed:
-            coro.close()  # mirrors TaskBucket.spawn: close the rejected coroutine
-            raise RuntimeError("task bucket is sealed")
-        return asyncio.create_task(coro, name=name)
-
-    handler_bucket = make_task_bucket()
-    handler_bucket.spawn = spawn
+    # A real TaskBucket, so the rejection this test hinges on is the production sealed-spawn
+    # path rather than a stand-in that could drift from it.
+    handler_bucket = TaskBucket(make_mock_hassette())
 
     listener = create_listener(
         topic="test.topic",
@@ -354,7 +349,7 @@ async def test_queued_factory_rejected_at_drain_releases_its_dispatch_slot() -> 
 
     # Seal the handler bucket, then let the running invocation finish: drain_next pops the
     # queued factory and its spawn is rejected.
-    sealed = True
+    handler_bucket.seal()
     gate.set()
 
     await asyncio.wait_for(svc.await_dispatch_idle(timeout=TEST_TIMEOUT), timeout=TEST_TIMEOUT)

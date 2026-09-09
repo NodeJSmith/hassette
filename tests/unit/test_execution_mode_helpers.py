@@ -349,8 +349,12 @@ class TestRunThroughGuard:
         assert len(pending_done) == 0
         assert len(guard.pending) == 0
 
-    async def test_spawn_failure_propagates_when_the_guard_does_not_swallow_it(self) -> None:
-        """On the non-drain paths the spawn error still reaches the caller, future resolved."""
+    async def test_single_mode_spawn_failure_propagates_and_resolves_future(self) -> None:
+        """On the non-drain paths the spawn error still reaches the caller, future resolved.
+
+        Unlike the QUEUED drain path above, nothing swallows the error here, so the caller sees
+        it — and the bridge future is still resolved rather than left pending.
+        """
         guard = ExecutionModeGuard(ExecutionMode.SINGLE)
         pending_done: set[asyncio.Future[None]] = set()
 
