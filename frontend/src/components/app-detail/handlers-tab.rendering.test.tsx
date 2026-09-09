@@ -2,12 +2,13 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useAppStore } from "../../state/store";
 import { createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { createTestQueryClient } from "../../test/query-test-utils";
 import { HandlersTab } from "./handlers-tab";
-import { renderHandlersTab } from "./handlers-tab.test-helpers";
+import { APP_KEY, HANDLERS_URL, renderHandlersTab } from "./handlers-tab.test-helpers";
 
 /**
  * Fake ResizeObserver that records the last-observed element and lets tests fire a
@@ -57,7 +58,7 @@ vi.mock("./execution-detail", () => ({
 const mockNavigate = vi.fn();
 const mockCorrectUrl = vi.fn();
 
-vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/apps/test_app/handlers", mockNavigate] }));
+vi.mock("wouter", () => createWouterMock({ useLocation: () => [HANDLERS_URL, mockNavigate] }));
 
 vi.mock("../../hooks/use-correct-url", () => ({
   useCorrectUrl: () => mockCorrectUrl,
@@ -101,7 +102,7 @@ describe("HandlersTab rendering", () => {
 
     const { getByTestId, rerender } = render(
       <QueryClientProvider client={client}>
-        <HandlersTab listeners={[]} jobs={[]} selectedHandler={null} selectedExecId={null} appKey="test_app" />
+        <HandlersTab listeners={[]} jobs={[]} selectedHandler={null} selectedExecId={null} appKey={APP_KEY} />
       </QueryClientProvider>,
     );
 
@@ -115,7 +116,7 @@ describe("HandlersTab rendering", () => {
           jobs={[]}
           selectedHandler="listener/1"
           selectedExecId={null}
-          appKey="test_app"
+          appKey={APP_KEY}
         />
       </QueryClientProvider>,
     );
@@ -126,7 +127,7 @@ describe("HandlersTab rendering", () => {
     expect(observer?.element).toBeDefined();
 
     act(() => {
-      observer?.trigger(400); // narrower than BREAKPOINT_MOBILE (768)
+      observer?.trigger(BREAKPOINT_MOBILE - 1);
     });
 
     await waitFor(() => expect(getByTestId("back-to-list")).toBeDefined());
