@@ -2,9 +2,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { components } from "../../api/generated-types";
 import { server } from "../../test/server";
 import { getShikiHighlighter } from "../../utils/shiki";
 import { ConfigTab } from "./config-tab";
+
+type AppConfigResponse = components["schemas"]["AppConfigResponse"];
 
 /** Mocked at the getShikiHighlighter boundary (not the "shiki" package) so each test controls
  *  resolution/rejection directly — the real module caches per-language, which would make a
@@ -28,8 +31,9 @@ const PORT = 8080;
 /** Long enough to keep the request in flight while the component unmounts mid-request. */
 const MOCK_RESPONSE_DELAY_MS = 100;
 
-/** Fields shared by every app config response fixture below. */
-const baseAppMeta = {
+/** Fields shared by every app config response fixture below. Typed against the generated
+ *  response model so a backend field rename fails the type check instead of silently drifting. */
+const baseAppConfigFields: Pick<AppConfigResponse, "app_key" | "filename" | "class_name" | "enabled" | "autostart"> = {
   app_key: APP_KEY,
   filename: "test_app.py",
   class_name: "TestApp",
@@ -39,7 +43,7 @@ const baseAppMeta = {
 
 /** App config response with a schema that marks 'token' as a secret via anyOf. */
 const defaultConfig = {
-  ...baseAppMeta,
+  ...baseAppConfigFields,
   app_config: {
     token: MASK_SENTINEL,
     host: HOST,
@@ -62,7 +66,7 @@ const defaultConfig = {
 
 /** App config response without a schema — falls back to SimpleConfigTable. */
 const noSchemaConfig = {
-  ...baseAppMeta,
+  ...baseAppConfigFields,
   app_config: {
     api_key: "some-value",
   },
