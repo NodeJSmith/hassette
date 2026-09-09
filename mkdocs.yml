@@ -5,6 +5,7 @@ repo_url: https://github.com/NodeJSmith/hassette
 docs_dir: docs
 exclude_docs: |
   **/snippets/**/*.md
+  pr-evidence/**
 use_directory_urls: true
 watch:
   - src
