@@ -9,10 +9,12 @@ import asyncio
 import json
 import logging
 
+import pytest
 import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.logging_ import CorrelationFilter, LogCaptureHandler, LogEntry, add_execution_id
+from hassette.logging_ import CorrelationFilter, LogCaptureHandler, add_execution_id
+from tests.support.factories import make_log_entry
 from tests.unit.conftest import LoggingPipelineFixture
 
 
@@ -95,30 +97,12 @@ class TestLogEntryToDictIncludesSeq:
     """to_dict() includes the seq field."""
 
     def test_to_dict_contains_seq(self) -> None:
-        entry = LogEntry(
-            seq=42,
-            timestamp=1234567890.0,
-            level="INFO",
-            logger_name="hassette.test",
-            func_name="test_func",
-            lineno=10,
-            message="hello",
-        )
-        d = entry.to_dict()
+        d = make_log_entry(seq=42).to_dict()
         assert d["seq"] == 42
 
     def test_to_dict_seq_position(self) -> None:
         """Seq should be present alongside timestamp in the dict."""
-        entry = LogEntry(
-            seq=7,
-            timestamp=1000.0,
-            level="DEBUG",
-            logger_name="test",
-            func_name="fn",
-            lineno=1,
-            message="msg",
-        )
-        d = entry.to_dict()
+        d = make_log_entry(seq=7, timestamp=1000.0).to_dict()
         assert "seq" in d
         assert "timestamp" in d
 
@@ -207,54 +191,18 @@ class TestAddExecutionIdProcessor:
 class TestLogEntryCorrelationFields:
     """LogEntry dataclass includes correlation fields."""
 
-    def test_log_entry_has_execution_id_field(self) -> None:
-        entry = LogEntry(
-            seq=1, timestamp=0.0, level="INFO", logger_name="test", func_name="fn", lineno=1, message="msg"
-        )
-        assert hasattr(entry, "execution_id")
-        assert entry.execution_id is None
-
-    def test_log_entry_has_instance_name_field(self) -> None:
-        entry = LogEntry(
-            seq=1, timestamp=0.0, level="INFO", logger_name="test", func_name="fn", lineno=1, message="msg"
-        )
-        assert hasattr(entry, "instance_name")
-        assert entry.instance_name is None
-
-    def test_log_entry_has_instance_index_field(self) -> None:
-        entry = LogEntry(
-            seq=1, timestamp=0.0, level="INFO", logger_name="test", func_name="fn", lineno=1, message="msg"
-        )
-        assert hasattr(entry, "instance_index")
-        assert entry.instance_index is None
+    @pytest.mark.parametrize("field", ["execution_id", "instance_name", "instance_index"])
+    def test_log_entry_correlation_field_defaults_to_none(self, field: str) -> None:
+        entry = make_log_entry()
+        assert hasattr(entry, field)
+        assert getattr(entry, field) is None
 
     def test_to_dict_includes_execution_id(self) -> None:
-        entry = LogEntry(
-            seq=1,
-            timestamp=0.0,
-            level="INFO",
-            logger_name="test",
-            func_name="fn",
-            lineno=1,
-            message="msg",
-            execution_id="exec-abc",
-        )
-        d = entry.to_dict()
+        d = make_log_entry(execution_id="exec-abc").to_dict()
         assert d["execution_id"] == "exec-abc"
 
     def test_to_dict_includes_instance_name(self) -> None:
-        entry = LogEntry(
-            seq=1,
-            timestamp=0.0,
-            level="INFO",
-            logger_name="test",
-            func_name="fn",
-            lineno=1,
-            message="msg",
-            instance_name="MyApp.0",
-            instance_index=0,
-        )
-        d = entry.to_dict()
+        d = make_log_entry(instance_name="MyApp.0", instance_index=0).to_dict()
         assert d["instance_name"] == "MyApp.0"
         assert d["instance_index"] == 0
 

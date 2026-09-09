@@ -33,6 +33,7 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `make_hass_event(event_type=..., data=..., origin=...)` — `Event` carrying a `HassPayload` (Home Assistant origin)
 - `make_mock_parent(**kw)` — `MagicMock` standing in for an owning App resource
 - `make_change_set(**buckets)` — `ChangeSet` from plain iterables, every unlisted bucket defaulting to empty
+- `make_log_entry(**overrides)` — `hassette.logging_.LogEntry` with every required field defaulted (distinct from the web-layer `make_log_entry_response()`)
 
 `tests/support/helpers.py` — event/state builders and misc test helpers:
 

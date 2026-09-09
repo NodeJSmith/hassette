@@ -19,6 +19,7 @@ from hassette.core.registration import ListenerRegistration, ScheduledJobRegistr
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
+from hassette.logging_ import LogEntry
 from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.scheduler import Scheduler
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
@@ -369,6 +370,35 @@ def make_change_set(
         reimport_apps=frozenset(reimport_apps),
         reload_apps=frozenset(reload_apps),
         metadata_apps=frozenset(metadata_apps),
+    )
+
+
+def make_log_entry(
+    *,
+    seq: int = 1,
+    timestamp: float = 0.0,
+    level: str = "INFO",
+    logger_name: str = "hassette.test",
+    func_name: str = "fn",
+    lineno: int = 1,
+    message: str = "msg",
+    **overrides: Any,
+) -> LogEntry:
+    """Build a `LogEntry`, defaulting every required field to a neutral placeholder.
+
+    `LogEntry` has seven required constructor fields, most of which are irrelevant to any
+    given assertion. Optional correlation fields (``execution_id``, ``instance_name``,
+    ``app_key``, ...) pass through ``overrides`` so callers spell out only what they assert on.
+    """
+    return LogEntry(
+        seq=seq,
+        timestamp=timestamp,
+        level=level,
+        logger_name=logger_name,
+        func_name=func_name,
+        lineno=lineno,
+        message=message,
+        **overrides,
     )
 
 
