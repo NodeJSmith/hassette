@@ -6,18 +6,21 @@ Tests verify:
 3. The guard still routes listeners/jobs through the in-memory path (Router add, Queue enqueue)
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
-from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.core.scheduler_service import SchedulerService
 from hassette.types.enums import ExecutionMode
-from tests.support.factories import make_job_registration, make_listener_registration, make_mock_listener
+from tests.support.factories import (
+    make_bus_service_with_mock_executor,
+    make_job_registration,
+    make_listener_registration,
+    make_mock_listener,
+    make_scheduler_service_with_mock_executor,
+)
 
 from .conftest import make_mock_job
 
@@ -28,24 +31,6 @@ async def executor(db_hassette: AsyncMock, initialized_db: tuple[DatabaseService
     exc = CommandExecutor(db_hassette, parent=db_hassette)
     await exc.on_initialize()
     return exc
-
-
-def stub_task_bucket() -> MagicMock:
-    """Create a task_bucket stub whose spawn() captures and closes coroutines.
-
-    Coroutines passed to spawn() are closed immediately to avoid RuntimeWarning.
-    """
-    bucket = MagicMock()
-    task = MagicMock()
-    task.done.return_value = True
-
-    def _spawn(coro: object, **kwargs: object) -> MagicMock:  # noqa: ARG001
-        if asyncio.iscoroutine(coro):
-            coro.close()
-        return task
-
-    bucket.spawn.side_effect = _spawn
-    return bucket
 
 
 async def test_listener_registration_persists_correct_app_key(
@@ -149,11 +134,7 @@ async def test_listener_with_app_key_spawns_combined_task(db_hassette: AsyncMock
 
     DB registration is now awaited inline (not spawned). Route insertion is synchronous.
     """
-    executor_mock = MagicMock()
-    executor_mock.register_listener = AsyncMock(return_value=99)
-    stream = MagicMock()
-    bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
-    bus_service.task_bucket = stub_task_bucket()
+    bus_service, executor_mock = make_bus_service_with_mock_executor(db_hassette, registration_id=99)
 
     listener = make_mock_listener(owner_id="bus:MyApp:0", app_key="my_app", instance_index=2)
 
@@ -168,11 +149,7 @@ async def test_job_with_app_key_spawns_combined_task(db_hassette: AsyncMock) -> 
 
     DB registration and enqueue are now awaited inline (not spawned).
     """
-    executor_mock = MagicMock()
-    executor_mock.register_job = AsyncMock(return_value=55)
-    scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
-    scheduler_service.task_bucket = stub_task_bucket()
-    scheduler_service._job_queue = AsyncMock()
+    scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette, registration_id=55)
 
     job = make_mock_job(owner_id="scheduler:MyApp:0", app_key="my_app", instance_index=3)
 
@@ -192,11 +169,7 @@ async def test_listener_with_empty_app_key_spawns_db_registration(db_hassette: A
 
     DB registration is awaited inline regardless of app_key. Route insertion is synchronous.
     """
-    executor_mock = MagicMock()
-    executor_mock.register_listener = AsyncMock(return_value=10)
-    stream = MagicMock()
-    bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
-    bus_service.task_bucket = stub_task_bucket()
+    bus_service, executor_mock = make_bus_service_with_mock_executor(db_hassette, registration_id=10)
 
     listener = make_mock_listener(app_key="", instance_index=0)
 
@@ -211,11 +184,7 @@ async def test_listener_with_app_key_triggers_registration(db_hassette: AsyncMoc
 
     DB registration is awaited inline; the route is inserted synchronously after.
     """
-    executor_mock = MagicMock()
-    executor_mock.register_listener = AsyncMock(return_value=7)
-    stream = MagicMock()
-    bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
-    bus_service.task_bucket = stub_task_bucket()
+    bus_service, executor_mock = make_bus_service_with_mock_executor(db_hassette, registration_id=7)
 
     listener = make_mock_listener(app_key="my_app", instance_index=1)
 
@@ -229,11 +198,7 @@ async def test_job_with_empty_app_key_skips_registration(db_hassette: AsyncMock)
 
     All jobs now go through DB registration regardless of app_key.
     """
-    executor_mock = MagicMock()
-    executor_mock.register_job = AsyncMock(return_value=0)
-    scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
-    scheduler_service.task_bucket = stub_task_bucket()
-    scheduler_service._job_queue = AsyncMock()
+    scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette, registration_id=0)
 
     job = make_mock_job(app_key="", instance_index=0)
 
@@ -247,11 +212,7 @@ async def test_job_with_empty_app_key_skips_registration(db_hassette: AsyncMock)
 
 async def test_job_with_app_key_triggers_registration(db_hassette: AsyncMock) -> None:
     """Jobs with non-empty app_key trigger executor.register_job inline, then enqueue."""
-    executor_mock = MagicMock()
-    executor_mock.register_job = AsyncMock(return_value=42)
-    scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
-    scheduler_service.task_bucket = stub_task_bucket()
-    scheduler_service._job_queue = AsyncMock()
+    scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette, registration_id=42)
 
     job = make_mock_job(app_key="my_app", instance_index=1)
 
@@ -365,11 +326,7 @@ class _ComposedPredicate:
 
 async def test_job_callable_predicate_registers_qualified_name(db_hassette: AsyncMock) -> None:
     """A bound-method ``where=`` is persisted as its qualified name, not an object repr."""
-    executor_mock = MagicMock()
-    executor_mock.register_job = AsyncMock(return_value=42)
-    scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
-    scheduler_service.task_bucket = stub_task_bucket()
-    scheduler_service._job_queue = AsyncMock()
+    scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette, registration_id=42)
 
     job = make_mock_job(app_key="my_app", instance_index=1)
     job.predicate = PredicateDemo().is_motion_detected
@@ -383,11 +340,7 @@ async def test_job_callable_predicate_registers_qualified_name(db_hassette: Asyn
 
 async def test_job_composed_predicate_keeps_structured_description(db_hassette: AsyncMock) -> None:
     """A predicate object exposing summarize() keeps its structured repr."""
-    executor_mock = MagicMock()
-    executor_mock.register_job = AsyncMock(return_value=43)
-    scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
-    scheduler_service.task_bucket = stub_task_bucket()
-    scheduler_service._job_queue = AsyncMock()
+    scheduler_service, executor_mock = make_scheduler_service_with_mock_executor(db_hassette, registration_id=43)
 
     job = make_mock_job(app_key="my_app", instance_index=1)
     job.predicate = _ComposedPredicate()
@@ -401,11 +354,7 @@ async def test_job_composed_predicate_keeps_structured_description(db_hassette: 
 
 async def test_listener_callable_predicate_registers_qualified_name(db_hassette: AsyncMock) -> None:
     """A bound-method ``where=`` on the bus is persisted as its qualified name too."""
-    executor_mock = MagicMock()
-    executor_mock.register_listener = AsyncMock(return_value=44)
-    stream = MagicMock()
-    bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
-    bus_service.task_bucket = stub_task_bucket()
+    bus_service, executor_mock = make_bus_service_with_mock_executor(db_hassette, registration_id=44)
 
     listener = make_mock_listener(app_key="my_app", instance_index=1)
     listener.predicate = PredicateDemo().is_motion_detected

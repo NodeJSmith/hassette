@@ -4,6 +4,7 @@ Override-friendly factories that replace per-file duplicates. Every field has
 a sensible default; callers pass only the fields they care about.
 """
 
+import asyncio
 from collections.abc import Iterable
 from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -14,8 +15,10 @@ import hassette.utils.date_utils as date_utils
 from hassette.commands import InvokeHandler
 from hassette.conversion import STATE_REGISTRY
 from hassette.core.app_change_detector import ChangeSet
+from hassette.core.bus_service import BusService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
+from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
@@ -377,6 +380,64 @@ def make_mock_executor() -> MagicMock:
     executor = MagicMock()
     executor.execute = AsyncMock()
     return executor
+
+
+def make_closing_task_bucket() -> MagicMock:
+    """Build a task_bucket stub whose ``spawn()`` closes coroutines instead of running them.
+
+    Every coroutine handed to ``spawn()`` is closed immediately so it is never reported as
+    "never awaited", and the returned task mock reports ``done() is True``. Unlike
+    ``tests.support.helpers.make_task_bucket``, nothing is ever scheduled on the event loop —
+    reach for this when a test asserts on what was spawned rather than on its effects.
+    """
+    bucket = MagicMock()
+    task = MagicMock()
+    task.done.return_value = True
+
+    def spawn(coro: object, **kwargs: object) -> MagicMock:  # noqa: ARG001
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        return task
+
+    bucket.spawn.side_effect = spawn
+    return bucket
+
+
+def make_bus_service_with_mock_executor(
+    hassette: Any,
+    *,
+    registration_id: int = 1,
+) -> tuple[BusService, MagicMock]:
+    """Build a BusService wired to a mocked command executor and a stubbed task bucket.
+
+    Returns the service and its executor mock, whose ``register_listener`` is an ``AsyncMock``
+    returning ``registration_id``. The event stream is a bare ``MagicMock`` — the service never
+    reads it unless ``serve()`` runs.
+    """
+    executor = MagicMock()
+    executor.register_listener = AsyncMock(return_value=registration_id)
+    service = BusService(hassette, stream=MagicMock(), executor=executor, parent=hassette)
+    service.task_bucket = make_closing_task_bucket()
+    return service, executor
+
+
+def make_scheduler_service_with_mock_executor(
+    hassette: Any,
+    *,
+    registration_id: int = 1,
+) -> tuple[SchedulerService, MagicMock]:
+    """Build a SchedulerService wired to a mocked command executor and a stubbed task bucket.
+
+    Returns the service and its executor mock, whose ``register_job`` is an ``AsyncMock``
+    returning ``registration_id``. The internal job queue is replaced with an ``AsyncMock`` so
+    ``add_job`` records the enqueue without needing a running queue child.
+    """
+    executor = MagicMock()
+    executor.register_job = AsyncMock(return_value=registration_id)
+    service = SchedulerService(hassette, executor=executor, parent=hassette)
+    service.task_bucket = make_closing_task_bucket()
+    service._job_queue = AsyncMock()
+    return service, executor
 
 
 def make_mock_event() -> MagicMock:
