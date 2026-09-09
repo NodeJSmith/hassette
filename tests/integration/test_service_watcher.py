@@ -29,6 +29,7 @@ from hassette.types.enums import RestartType
 from tests.support.harness import preserve_config
 from tests.support.helpers import (
     PLACEHOLDER_APP_NAME,
+    PLACEHOLDER_RESOURCE_NAME,
     make_crashed_event,
     make_service_failed_event,
     make_service_running_event,
@@ -1082,6 +1083,32 @@ async def test_app_role_crashed_event_does_not_shut_down_process(
 
         assert hassette.fatal_shutdown_reason is None, "APP-role crash must not record a fatal reason"
         assert not hassette.shutdown_event.is_set(), "APP-role crash must not request shutdown"
+
+
+async def test_resource_role_crashed_event_still_shuts_down_process(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
+    """A RESOURCE-role CRASHED event still records a fatal reason and requests shutdown.
+
+    The role filter excludes apps, not everything that is not a Service. Several framework
+    components are plain ``Resource`` subclasses rather than ``Service`` -- notably
+    ``AppLifecycleService``, which calls ``handle_crash`` when ``bootstrap_apps()`` raises. That
+    crash reaches the watcher as a RESOURCE-role event, and it must still stop the process:
+    ``AppHandler`` runs bootstrap as a detached task, so nothing else converts the failure into a
+    non-zero exit, and Hassette would otherwise keep running with no apps bootstrapped.
+    """
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        await watcher.register_internal_event_listeners()
+
+        await dispatch_and_wait(
+            watcher,
+            make_crashed_event(resource_name=PLACEHOLDER_RESOURCE_NAME, role=ResourceRole.RESOURCE),
+        )
+
+        assert hassette.fatal_shutdown_reason is not None, "RESOURCE-role crash must record a fatal reason"
+        assert PLACEHOLDER_RESOURCE_NAME in hassette.fatal_shutdown_reason
+        assert hassette.shutdown_event.is_set(), "RESOURCE-role crash must request shutdown"
 
 
 async def test_app_role_failed_event_does_not_reach_restart_service(

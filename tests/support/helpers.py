@@ -48,6 +48,11 @@ PLACEHOLDER_APP_NAME = "TestApp"
 ``PLACEHOLDER_SERVICE_NAME``. Apps emit on the same status topic services do, so tests covering
 role filtering need a name that reads as an app rather than a service."""
 
+PLACEHOLDER_RESOURCE_NAME = "TestResource"
+"""Stand-in resource_name for RESOURCE-role lifecycle events. Plain ``Resource`` subclasses
+(``AppLifecycleService``, ``StateProxy``, ``AppHandler``) emit on the same status topic under a
+third role, which role-filtering tests must distinguish from both SERVICE and APP."""
+
 SETTLE_SECONDS = 0.05
 """Default settle window: seconds to let a stray extra handler call land before a negative assertion."""
 

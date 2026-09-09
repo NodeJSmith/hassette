@@ -20,6 +20,8 @@ from hassette.testing import wait_for
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import ResourceRole, RestartType
 from tests.support.helpers import (
+    PLACEHOLDER_APP_NAME,
+    PLACEHOLDER_RESOURCE_NAME,
     PLACEHOLDER_SERVICE_NAME,
     make_crashed_event,
     make_service_failed_event,
@@ -103,8 +105,15 @@ class TestRegisterInternalEventListeners:
             ("hassette.service_watcher.on_service_running", ResourceStatus.RUNNING),
         ],
     )
-    async def test_acting_handler_is_role_filtered_to_services(self, handler_name: str, status: ResourceStatus) -> None:
-        """Each handler that acts on a resource accepts SERVICE-role events and rejects APP-role ones."""
+    async def test_acting_handler_excludes_apps_but_not_framework_resources(
+        self, handler_name: str, status: ResourceStatus
+    ) -> None:
+        """Each acting handler rejects APP-role events and accepts every other framework role.
+
+        RESOURCE is asserted alongside SERVICE on purpose: plain ``Resource`` subclasses such as
+        ``AppLifecycleService`` reach ``handle_crash``, and a SERVICE-only filter would drop
+        those framework crashes along with the app noise this filter exists to remove.
+        """
         hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
 
@@ -115,11 +124,15 @@ class TestRegisterInternalEventListeners:
         service_event = HassetteServiceEvent.from_service_status(
             resource_name=PLACEHOLDER_SERVICE_NAME, role=ResourceRole.SERVICE, status=status
         )
+        resource_event = HassetteServiceEvent.from_service_status(
+            resource_name=PLACEHOLDER_RESOURCE_NAME, role=ResourceRole.RESOURCE, status=status
+        )
         app_event = HassetteServiceEvent.from_service_status(
-            resource_name="MyApp", role=ResourceRole.APP, status=status
+            resource_name=PLACEHOLDER_APP_NAME, role=ResourceRole.APP, status=status
         )
 
         assert where(service_event), f"{handler_name} should accept SERVICE-role events"
+        assert where(resource_event), f"{handler_name} should accept RESOURCE-role events"
         assert not where(app_event), f"{handler_name} should reject APP-role events"
 
 
