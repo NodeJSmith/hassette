@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createJob, createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
-import { CARD_SELECTOR, cardTestId } from "./handler-health.test-helpers";
+import { CARD_SELECTOR, cardTestId, HEALTH_EMPTY_TESTID, HEALTH_GRID_TESTID } from "./handler-health.test-helpers";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { buildItems } from "./handler-list";
 import type { UnifiedItem } from "./unified-handler-row";
@@ -18,11 +18,13 @@ vi.mock("wouter", () =>
 
 const DEFAULT_GRID_PROPS = { appKey: "test_app", instanceQs: "" };
 
-function renderGrid(items: UnifiedItem[], overrides: Partial<typeof DEFAULT_GRID_PROPS> = {}) {
+type GridPropOverrides = Partial<typeof DEFAULT_GRID_PROPS>;
+
+function renderGrid(items: UnifiedItem[], overrides: GridPropOverrides = {}) {
   return render(<HandlerHealthGrid items={items} {...DEFAULT_GRID_PROPS} {...overrides} />);
 }
 
-function renderGridWithAppState(items: UnifiedItem[], overrides: Partial<typeof DEFAULT_GRID_PROPS> = {}) {
+function renderGridWithAppState(items: UnifiedItem[], overrides: GridPropOverrides = {}) {
   return renderWithAppState(<HandlerHealthGrid items={items} {...DEFAULT_GRID_PROPS} {...overrides} />);
 }
 
@@ -39,12 +41,12 @@ function makeJobItem(overrides: Parameters<typeof createJob>[0] = {}) {
 describe("HandlerHealthGrid — empty state", () => {
   it("renders the section wrapper with testid even when empty", () => {
     const { getByTestId } = renderGrid([]);
-    expect(getByTestId("overview-health-grid")).toBeDefined();
+    expect(getByTestId(HEALTH_GRID_TESTID)).toBeDefined();
   });
 
   it("renders EmptyState with testid when no items", () => {
     const { getByTestId } = renderGrid([]);
-    expect(getByTestId("overview-health-empty")).toBeDefined();
+    expect(getByTestId(HEALTH_EMPTY_TESTID)).toBeDefined();
   });
 
   it("does not render cards when items are empty", () => {
@@ -61,10 +63,21 @@ describe("HandlerHealthGrid — with items", () => {
     expect(getByTestId(cardTestId("job", 2))).toBeDefined();
   });
 
+  it("renders correct number of cards for given items", () => {
+    const items = [
+      makeListenerItem({ listener_id: 3 }),
+      makeJobItem({ job_id: 7 }),
+      makeListenerItem({ listener_id: 5 }),
+    ];
+    const { container } = renderGridWithAppState(items);
+    const cards = container.querySelectorAll(CARD_SELECTOR);
+    expect(cards).toHaveLength(3);
+  });
+
   it("does not render EmptyState when items are present", () => {
     const items = [makeListenerItem({ listener_id: 1 })];
     const { queryByTestId } = renderGridWithAppState(items);
-    expect(queryByTestId("overview-health-empty")).toBeNull();
+    expect(queryByTestId(HEALTH_EMPTY_TESTID)).toBeNull();
   });
 
   it("renders the section heading", () => {
@@ -85,18 +98,5 @@ describe("HandlerHealthGrid — sorting (failing first)", () => {
     const cards = container.querySelectorAll(CARD_SELECTOR);
     expect(cards[0].getAttribute("data-testid")).toBe(cardTestId("listener", 2));
     expect(cards[1].getAttribute("data-testid")).toBe(cardTestId("listener", 1));
-  });
-});
-
-describe("HandlerHealthGrid — passes props to cards", () => {
-  it("renders correct number of cards for given items", () => {
-    const items = [
-      makeListenerItem({ listener_id: 3 }),
-      makeJobItem({ job_id: 7 }),
-      makeListenerItem({ listener_id: 5 }),
-    ];
-    const { container } = renderGridWithAppState(items, { instanceQs: "?instance=1" });
-    const cards = container.querySelectorAll(CARD_SELECTOR);
-    expect(cards).toHaveLength(3);
   });
 });

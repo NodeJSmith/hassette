@@ -15,6 +15,7 @@ import {
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
+import { HEALTH_EMPTY_TESTID, HEALTH_GRID_TESTID } from "./handler-health.test-helpers";
 import { OverviewTab } from "./overview-tab";
 
 // Overview tab tests are split into two groups:
@@ -218,7 +219,7 @@ describe("OverviewTab — Error Spotlight", () => {
 describe("OverviewTab — Handler Health Grid", () => {
   it("renders the health grid section", () => {
     const { getByTestId } = renderOverviewTab();
-    expect(getByTestId("overview-health-grid")).toBeDefined();
+    expect(getByTestId(HEALTH_GRID_TESTID)).toBeDefined();
   });
 
   it("renders a card for each listener", () => {
@@ -259,7 +260,7 @@ describe("OverviewTab — Handler Health Grid", () => {
 
   it("shows empty state when no listeners or jobs", () => {
     const { getByTestId } = renderOverviewTab({ listeners: [], jobs: [] });
-    expect(getByTestId("overview-health-empty")).toBeDefined();
+    expect(getByTestId(HEALTH_EMPTY_TESTID)).toBeDefined();
   });
 
   it("does not render a table element in the health grid section", () => {
@@ -267,7 +268,7 @@ describe("OverviewTab — Handler Health Grid", () => {
       listeners: [createListener({ listener_id: 1 })],
       jobs: [],
     });
-    const section = getByTestId("overview-health-grid");
+    const section = getByTestId(HEALTH_GRID_TESTID);
     expect(section.querySelector("table")).toBeNull();
   });
 
