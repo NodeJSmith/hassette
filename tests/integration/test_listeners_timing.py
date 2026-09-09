@@ -1,7 +1,7 @@
 """Debounce, throttle, and rate-limiter cancellation behavior."""
 
 import asyncio
-from collections.abc import Callable, Coroutine
+from collections.abc import Awaitable, Callable
 
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.task_bucket import TaskBucket
@@ -9,7 +9,7 @@ from hassette.testing import wait_for
 from tests.support.helpers import make_controlled_clock, settle
 
 
-def make_recording_handler_factory() -> tuple[list[str], Callable[[str], Callable[[], Coroutine[None, None, None]]]]:
+def make_recording_handler_factory() -> tuple[list[str], Callable[[str], Callable[[], Awaitable[None]]]]:
     """Build a call recorder and a factory for labeled no-arg async handlers.
 
     Returns the shared ``calls`` accumulator plus a factory that builds a no-arg async
@@ -17,7 +17,7 @@ def make_recording_handler_factory() -> tuple[list[str], Callable[[str], Callabl
     """
     calls: list[str] = []
 
-    def make_handler(label: str) -> Callable[[], Coroutine[None, None, None]]:
+    def make_handler(label: str) -> Callable[[], Awaitable[None]]:
         async def handler() -> None:
             calls.append(label)
 
