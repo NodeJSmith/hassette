@@ -45,6 +45,16 @@ PLACEHOLDER_SERVICE_NAME = "TestService"
 """Stand-in resource_name for the service-lifecycle event factories below. Tests that don't
 assert on the name should take this default rather than inventing another placeholder."""
 
+PLACEHOLDER_APP_NAME = "TestApp"
+"""Stand-in resource_name for APP-role lifecycle events, the counterpart to
+``PLACEHOLDER_SERVICE_NAME``. Apps emit on the same status topic services do, so tests covering
+role filtering need a name that reads as an app rather than a service."""
+
+PLACEHOLDER_RESOURCE_NAME = "TestResource"
+"""Stand-in resource_name for RESOURCE-role lifecycle events. Plain ``Resource`` subclasses
+(``AppLifecycleService``, ``StateProxy``, ``AppHandler``) emit on the same status topic under a
+third role, which role-filtering tests must distinguish from both SERVICE and APP."""
+
 SETTLE_SECONDS = 0.05
 """Default settle window: seconds to let a stray extra handler call land before a negative assertion."""
 
@@ -293,14 +303,19 @@ def make_crashed_event(
     exception_type: str | None = "RuntimeError",
     exception: str | None = "something broke",
     exception_traceback: str | None = "Traceback ...",
+    role: ResourceRole = ResourceRole.SERVICE,
 ) -> HassetteServiceEvent:
-    """Build a CRASHED HassetteServiceEvent for testing."""
+    """Build a CRASHED HassetteServiceEvent for testing.
+
+    ``role`` defaults to SERVICE; pass APP to build the kind of event the ServiceWatcher's
+    role filter must reject.
+    """
     return HassetteServiceEvent(
         topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
         payload=HassettePayload(
             data=ServiceStatusPayload(
                 resource_name=resource_name,
-                role=ResourceRole.SERVICE,
+                role=role,
                 status=ResourceStatus.CRASHED,
                 previous_status=ResourceStatus.FAILED,
                 exception=exception,
