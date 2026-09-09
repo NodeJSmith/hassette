@@ -641,12 +641,13 @@ class ServiceWatcher(Resource):
     async def shutdown_if_crashed(self, event: HassetteServiceEvent) -> None:
         """Record the fatal reason and request shutdown when a service has crashed.
 
-        Universal reaction to a CRASHED event from any source. Records the fatal reason
-        (unless a more specific one is already set) before calling request_shutdown() so
-        run_forever()'s shutdown_event.wait() unblocks, runs the full teardown (including
-        finalize_session), and then raises FatalError via _raise_if_fatal_shutdown(). This
-        makes a crash-driven exit non-zero to external supervisors (systemd Restart=on-failure,
-        Docker healthcheck).
+        Reacts to a CRASHED event from any SERVICE-role resource; the subscription's role filter
+        keeps APP-role crashes out, so one crashed app cannot take the process down (see
+        ``IS_SERVICE_ROLE``). Records the fatal reason (unless a more specific one is already set)
+        before calling request_shutdown() so run_forever()'s shutdown_event.wait() unblocks, runs
+        the full teardown (including finalize_session), and then raises FatalError via
+        _raise_if_fatal_shutdown(). This makes a crash-driven exit non-zero to external
+        supervisors (systemd Restart=on-failure, Docker healthcheck).
         """
         status_payload = event.payload.data
         name = status_payload.resource_name
@@ -801,7 +802,12 @@ class ServiceWatcher(Resource):
         )
 
     async def on_bus_service_running(self, event: HassetteServiceEvent) -> None:
-        """Trigger reconciliation scan when BusService recovers."""
+        """Trigger reconciliation scan when BusService recovers.
+
+        Carries no role filter, unlike the watcher's other acting subscriptions: it narrows to a
+        single named resource below, and only a SERVICE can be named ``BusService``, so an
+        APP-role event cannot reach the reconciliation call (see ``IS_SERVICE_ROLE``).
+        """
         status_payload = event.payload.data
         if status_payload.resource_name != BusService.__name__:
             return

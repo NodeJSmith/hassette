@@ -43,6 +43,11 @@ PLACEHOLDER_SERVICE_NAME = "TestService"
 """Stand-in resource_name for the service-lifecycle event factories below. Tests that don't
 assert on the name should take this default rather than inventing another placeholder."""
 
+PLACEHOLDER_APP_NAME = "TestApp"
+"""Stand-in resource_name for APP-role lifecycle events, the counterpart to
+``PLACEHOLDER_SERVICE_NAME``. Apps emit on the same status topic services do, so tests covering
+role filtering need a name that reads as an app rather than a service."""
+
 SETTLE_SECONDS = 0.05
 """Default settle window: seconds to let a stray extra handler call land before a negative assertion."""
 

@@ -8,7 +8,7 @@ import contextlib
 import time
 from collections.abc import AsyncIterator, Callable
 from typing import ClassVar, NamedTuple
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -27,9 +27,17 @@ from hassette.testing._reset import reset_hassette_lifecycle
 from hassette.types import ResourceRole, ResourceStatus, Topic
 from hassette.types.enums import RestartType
 from tests.support.harness import preserve_config
-from tests.support.helpers import make_crashed_event, make_service_failed_event, make_service_running_event
+from tests.support.helpers import (
+    PLACEHOLDER_APP_NAME,
+    make_crashed_event,
+    make_service_failed_event,
+    make_service_running_event,
+)
 
 AWAIT_TIMEOUT = 5.0
+
+SERVICE_RESOURCE_NAME_PATH = "payload.data.resource_name"
+"""Accessor path to a service-status event's resource_name, for narrowing test listeners."""
 
 
 def make_call_counts() -> dict[str, int]:
@@ -1026,13 +1034,20 @@ async def test_restart_refusal_shutdown_survives_event_dispatch_failure(
 async def dispatch_and_wait(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
     """Send `event` through the real bus and return once dispatch for it has completed.
 
-    Registers a throwaway sentinel listener with the same status filter the watcher's own
-    handlers carry, minus the role filter, so it fires for exactly the events under test. That
-    makes "the watcher's handler did not run" a checked negative rather than a race with an
-    event that had not been delivered yet.
+    Registers a throwaway sentinel listener carrying the same status filter the watcher's own
+    handlers do, minus the role filter, narrowed further to `event`'s own resource_name so an
+    unrelated resource reaching the same status mid-test cannot satisfy the wait. That makes
+    "the watcher's handler did not run" a checked negative rather than a race with an event that
+    had not been delivered yet.
+
+    The sentinel firing proves the event was delivered and matched, but each matching handler
+    runs as its own task -- so this also waits for dispatch to go idle, otherwise a watcher
+    handler that *did* wrongly match could still be mid-flight when the caller asserts it never
+    ran.
     """
     fired = asyncio.Event()
     hassette = watcher.hassette
+    data = event.payload.data
 
     async def sentinel(_: HassetteServiceEvent) -> None:
         hassette.task_bucket.post_to_loop(fired.set)
@@ -1040,12 +1055,14 @@ async def dispatch_and_wait(watcher: ServiceWatcher, event: HassetteServiceEvent
     await watcher.bus.on(
         topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
         handler=sentinel,
-        name=f"test.service_watcher.sentinel.{event.payload.data.status}",
-        where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=event.payload.data.status),
+        name=f"test.service_watcher.sentinel.{data.resource_name}.{data.status}",
+        where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=data.status)
+        & P.ValueIs(source=get_path(SERVICE_RESOURCE_NAME_PATH), condition=data.resource_name),
     )
 
     await hassette.send_event(event)
     await asyncio.wait_for(fired.wait(), timeout=AWAIT_TIMEOUT)
+    await hassette.bus_service.await_dispatch_idle(timeout=AWAIT_TIMEOUT)
 
 
 async def test_app_role_crashed_event_does_not_shut_down_process(
@@ -1061,27 +1078,39 @@ async def test_app_role_crashed_event_does_not_shut_down_process(
         hassette = watcher.hassette
         await watcher.register_internal_event_listeners()
 
-        await dispatch_and_wait(watcher, make_crashed_event(resource_name="MyApp", role=ResourceRole.APP))
+        await dispatch_and_wait(watcher, make_crashed_event(resource_name=PLACEHOLDER_APP_NAME, role=ResourceRole.APP))
 
         assert hassette.fatal_shutdown_reason is None, "APP-role crash must not record a fatal reason"
         assert not hassette.shutdown_event.is_set(), "APP-role crash must not request shutdown"
 
 
-async def test_app_role_failed_event_does_not_warn_about_missing_service(
+async def test_app_role_failed_event_does_not_reach_restart_service(
     test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
 ):
-    """An APP-role FAILED event never reaches restart_service, so it logs no lookup warning."""
+    """An APP-role FAILED event never reaches restart_service.
+
+    restart_service resolves a Service child by (name, role); for an app it resolves nothing and
+    bails out before touching a restart budget, so the only observable difference between "the
+    filter worked" and "the handler ran and found nothing" is whether the handler ran at all.
+    A pass-through spy installed before registration records that directly.
+    """
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        received: list[HassetteServiceEvent] = []
+        real_restart_service = watcher.restart_service
+
+        async def spy(event: HassetteServiceEvent) -> None:
+            received.append(event)
+            await real_restart_service(event)
+
+        watcher.restart_service = spy  # pyright: ignore[reportAttributeAccessIssue]
         await watcher.register_internal_event_listeners()
-        watcher.logger = Mock()
 
         failed_event = HassetteServiceEvent.from_service_status(
-            resource_name="MyApp",
+            resource_name=PLACEHOLDER_APP_NAME,
             role=ResourceRole.APP,
             status=ResourceStatus.FAILED,
             exception=RuntimeError("app init blew up"),
         )
         await dispatch_and_wait(watcher, failed_event)
 
-        watcher.logger.warning.assert_not_called()
-        assert not watcher._budgets, "APP-role failure must not open a restart budget"
+        assert not received, "APP-role failure must not reach restart_service"
