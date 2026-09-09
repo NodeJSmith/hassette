@@ -31,14 +31,14 @@ IS_NOT_APP_ROLE = ~P.ValueIs(source=get_path(SERVICE_ROLE_PATH), condition=Resou
 
 Every ``Resource`` emits ``HASSETTE_EVENT_SERVICE_STATUS`` through the shared lifecycle
 machinery, so an app's status transitions land on the same topic the framework's own do. This
-guards the watcher's *acting* handlers -- the ones that do something to the resource they
+guards the watcher's *acting* handlers — the ones that do something to the resource they
 observe (restart it, or take the process down), as opposed to ``log_service_event``, which only
 describes it. One app's failure is not a framework failure.
 
 Excludes APP rather than admitting SERVICE only, and the difference matters: the watcher is not
 services-only. ``shutdown_if_crashed`` is the process-level fatal handler for every framework
 resource, and several of those are plain ``Resource`` subclasses (RESOURCE role), not
-``Service`` -- ``AppLifecycleService`` reaches ``handle_crash`` when ``bootstrap_apps()`` fails,
+``Service`` — ``AppLifecycleService`` reaches ``handle_crash`` when ``bootstrap_apps()`` fails,
 and that crash must still stop the process. A SERVICE-only filter would swallow it, leaving
 Hassette running with no apps bootstrapped. Negating APP also fails open on a missing or
 malformed role, matching the unfiltered behavior this narrows.
@@ -649,7 +649,7 @@ class ServiceWatcher(Resource):
     async def shutdown_if_crashed(self, event: HassetteServiceEvent) -> None:
         """Record the fatal reason and request shutdown when a service has crashed.
 
-        Reacts to a CRASHED event from any framework resource -- SERVICE and RESOURCE roles
+        Reacts to a CRASHED event from any framework resource — SERVICE and RESOURCE roles
         alike; the subscription's role filter keeps only APP-role crashes out, so one crashed app
         cannot take the process down while a crashed framework resource still can (see
         ``IS_NOT_APP_ROLE``). Records the fatal reason (unless a more specific one is already set)

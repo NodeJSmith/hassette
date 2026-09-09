@@ -1033,22 +1033,22 @@ async def test_restart_refusal_shutdown_survives_event_dispatch_failure(
 
 
 async def dispatch_and_wait(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
-    """Send `event` through the real bus and return once dispatch for it has completed.
+    """Send ``event`` through the real bus and return once dispatch for it has completed.
 
     Registers a throwaway sentinel listener carrying the same status filter the watcher's own
-    handlers do, minus the role filter, narrowed further to `event`'s own resource_name so an
+    handlers do, minus the role filter, narrowed further to ``event``'s own resource_name so an
     unrelated resource reaching the same status mid-test cannot satisfy the wait. That makes
     "the watcher's handler did not run" a checked negative rather than a race with an event that
     had not been delivered yet.
 
     The sentinel firing proves the event was delivered and matched, but each matching handler
-    runs as its own task -- so this also waits for dispatch to go idle, otherwise a watcher
+    runs as its own task — so this also waits for dispatch to go idle, otherwise a watcher
     handler that *did* wrongly match could still be mid-flight when the caller asserts it never
     ran.
     """
     fired = asyncio.Event()
     hassette = watcher.hassette
-    data = event.payload.data
+    status_payload = event.payload.data
 
     async def sentinel(_: HassetteServiceEvent) -> None:
         hassette.task_bucket.post_to_loop(fired.set)
@@ -1056,9 +1056,9 @@ async def dispatch_and_wait(watcher: ServiceWatcher, event: HassetteServiceEvent
     await watcher.bus.on(
         topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
         handler=sentinel,
-        name=f"test.service_watcher.sentinel.{data.resource_name}.{data.status}",
-        where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=data.status)
-        & P.ValueIs(source=get_path(SERVICE_RESOURCE_NAME_PATH), condition=data.resource_name),
+        name=f"test.service_watcher.sentinel.{status_payload.resource_name}.{status_payload.status}",
+        where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=status_payload.status)
+        & P.ValueIs(source=get_path(SERVICE_RESOURCE_NAME_PATH), condition=status_payload.resource_name),
     )
 
     await hassette.send_event(event)
