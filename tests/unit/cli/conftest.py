@@ -27,6 +27,11 @@ REMOTE_SERVER_URL_BARE = "https://example.com"
 #: re-truncates cells that pipe mode is supposed to render in full (see ``_build_table``: a
 #: non-TTY console ignores ``Column.max_width``). Pinning a generous width keeps assertions
 #: about cell *values* from depending on how many columns a table happens to declare.
+#:
+#: The value only has to exceed the widest table any CLI command renders. The largest column
+#: set today (``JOB_LIST_COLUMNS``) needs roughly 156 columns including Rich's borders and
+#: padding. Raise this if a table outgrows it; captured-output assertions silently start
+#: truncating again when it does.
 CAPTURE_CONSOLE_WIDTH = 200
 
 

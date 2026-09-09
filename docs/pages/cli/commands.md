@@ -244,7 +244,7 @@ $ hassette job
 └────┴──────────────────┴──────────────────────┴──────────┴───────────┴─────────┴───────┴────┴──────┴─────────┴─────┴────────────────────┘
 ```
 
-Each row shows the job ID, app key, handler method, trigger type, schedule status (`scheduled`, `waiting`, `completed`, or `manual`), mode, execution counts, average duration, and next run time. Skipped counts runs where the job's predicate returned `False` and the handler never ran — those runs are included in Total, so a job showing `Total 68 / OK 0 / Fail 0 / Skipped 68` is being filtered out entirely rather than failing. The Next Run column shows a relative time when one is scheduled, or status-aware placeholder text otherwise — `Timing unavailable.`, `Waiting for entity time.`, `Schedule completed.`, or `Manual only.` — rather than a blank cell.
+Each row shows the job ID, app key, handler method, trigger type, schedule status (`scheduled`, `waiting`, `completed`, or `manual`), mode, execution counts, average duration, and next run time. `Skipped` counts runs where the job's predicate returned `False` and the handler never ran. Those runs still count toward `Total`, so a job showing `Total 68 / OK 0 / Fail 0 / Skipped 68` is being filtered out entirely rather than failing. The Next Run column shows a relative time when one is scheduled, or status-aware placeholder text otherwise — `Timing unavailable.`, `Waiting for entity time.`, `Schedule completed.`, or `Manual only.` — rather than a blank cell.
 
 Passing a job ID shows its execution history:
 

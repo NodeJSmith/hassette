@@ -136,7 +136,12 @@ class TestCmdJob:
         assert "mode" in field_names
 
     def test_job_list_columns_count_is_compact(self) -> None:
-        """JOB_LIST_COLUMNS uses at most 12 columns for wide terminal fit."""
+        """JOB_LIST_COLUMNS uses at most 12 columns for wide terminal fit.
+
+        The ceiling is a terminal-width budget, not headroom over the current count: the
+        declared ``max_width`` values plus Rich's borders have to fit a wide-but-real terminal.
+        Raising it means re-checking that budget, not just matching a new column count.
+        """
         assert len(JOB_LIST_COLUMNS) <= 12
 
     def test_job_list_columns_includes_skipped(self) -> None:
