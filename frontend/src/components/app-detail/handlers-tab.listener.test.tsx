@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
-import { renderHandlersTab } from "./handlers-tab.test-helpers";
+import { HANDLERS_URL, renderHandlersTab } from "./handlers-tab.test-helpers";
 
 // Mock child components that make API calls
 vi.mock("../shared/execution-table", () => ({
@@ -24,7 +24,7 @@ vi.mock("./execution-detail", () => ({
 const mockNavigate = vi.fn();
 const mockCorrectUrl = vi.fn();
 
-vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/apps/test_app/handlers", mockNavigate] }));
+vi.mock("wouter", () => createWouterMock({ useLocation: () => [HANDLERS_URL, mockNavigate] }));
 
 vi.mock("../../hooks/use-correct-url", () => ({
   useCorrectUrl: () => mockCorrectUrl,
