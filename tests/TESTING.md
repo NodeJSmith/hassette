@@ -231,6 +231,17 @@ exercise a single bucket otherwise means spelling out three meaningless `frozens
 changes = make_change_set(reload_apps={"app_a"})
 ```
 
+### `make_log_entry(**kwargs)` — `tests/support/factories.py`
+
+Builds a `hassette.logging_.LogEntry` with all seven required fields defaulted to neutral placeholders
+and all nine optional correlation fields defaulted to `None`. Every field is an explicit keyword, so
+callers spell out only what they assert on. Distinct from the web-layer `make_log_entry_response()`
+(`tests/support/web_telemetry_helpers.py`), which builds the `LogEntryResponse` pydantic model.
+
+```python
+entry = make_log_entry(seq=42, execution_id="exec-abc")
+```
+
 ### `make_mock_parent(**kwargs)` — `tests/support/factories.py`
 
 Builds a `MagicMock` standing in for an owning `App` resource, with `app_key`, `index`, `unique_name`, `source_tier`, `class_name`, and `app_config` all set. Callers that only care about a subset of these get harmless extra attributes.
