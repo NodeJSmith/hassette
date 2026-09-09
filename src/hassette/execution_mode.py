@@ -162,6 +162,8 @@ class ExecutionModeGuard:
         self.current_task = None
         # Drain in arrival order. If a factory raises synchronously, drop it and try the next so a
         # single failed spawn cannot strand the rest of the queue with no live task to re-trigger it.
+        # A dropped factory is responsible for resolving its own completion bridge on the way out
+        # (see ``run_through_guard``), so dropping it here never parks its dispatch task.
         while self.pending:
             run_and_track = self.pending.popleft()
             try:
@@ -229,11 +231,21 @@ async def run_through_guard(
     ``spawn_name``). ``spawn`` is a bare callable rather than a ``TaskBucket`` so this module
     stays a dependency-free leaf.
 
-    Completion bridge: installs exactly one done-callback on ``pending_done`` per call; that
-    callback fires when the spawned task completes, which may be after this function returns.
-    The caller must call ``drain_pending_done(pending_done)`` after every ``guard.release()`` to
-    resolve futures whose factory was dropped without ever running (the QUEUED_ACCEPTED-then-
-    released case), otherwise the parked outer task hangs forever.
+    Completion bridge: every call adds one future to ``pending_done``, and the outer task parks
+    on that future until something resolves it. Three paths do:
+
+    - The spawned task's done-callback, installed by ``run_and_track``. Fires when the task
+      completes, which may be after this function returns.
+    - ``run_and_track`` itself, when ``spawn`` raises (a sealed ``TaskBucket``, say) and so no
+      task exists to carry that callback. It resolves before re-raising because the error may
+      never reach a caller: ``guard.drain_next`` drops such a factory and keeps draining.
+      Resolving here rather than in ``drain_next`` is not a preference — ``drain_next`` holds
+      only the opaque factory and never sees ``pending_done``.
+    - ``drain_pending_done(pending_done)``, which the caller must invoke after every
+      ``guard.release()`` to cover futures whose factory was dropped without ever running (the
+      QUEUED_ACCEPTED-then-released case).
+
+    A future missed by all three parks its outer task forever.
 
     Note: the ``drain_next``/``release`` interleave edge (a task spawned by ``drain_next``
     concurrently with ``release()`` may detach rather than cancel) applies to every caller
@@ -250,7 +262,15 @@ async def run_through_guard(
             done.set_result(None)
 
     def run_and_track() -> "asyncio.Task[None]":
-        task = spawn(run_with_stall_watch(invoke, warn, threshold), name=spawn_name)
+        try:
+            task = spawn(run_with_stall_watch(invoke, warn, threshold), name=spawn_name)
+        except BaseException:
+            # No task, so nothing below will ever fire the done-callback — see the completion
+            # bridge notes in the docstring for why this must resolve here. Same shape as the
+            # by-hand unwind in ``BusService._spawn_dispatch_task``, which releases its
+            # semaphore permit under the same circumstances.
+            resolve_done()
+            raise
         task.add_done_callback(lambda _t: resolve_done())
         return task
 
