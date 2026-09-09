@@ -30,6 +30,7 @@ from hassette.resources.service import Service
 from hassette.schemas.live_counts import LiveCounts
 from hassette.types.enums import BackpressurePolicy, Topic
 from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus
+from hassette.utils.func_utils import describe_predicate
 from hassette.utils.hass_utils import split_entity_id, valid_entity_id
 
 if typing.TYPE_CHECKING:
@@ -234,7 +235,7 @@ class BusService(Service):
             throttle=listener.options.throttle,
             once=listener.options.once,
             priority=listener.options.priority,
-            predicate_description=repr(listener.predicate) if listener.predicate else None,
+            predicate_description=describe_predicate(listener.predicate) if listener.predicate else None,
             human_description=human_description,
             source_location=source_location,
             registration_source=registration_source,

@@ -12,6 +12,27 @@ interface SpacingToken {
   px: number;
 }
 
+interface RadiusToken {
+  name: string;
+  cssVar: string;
+  px: number;
+}
+
+interface ShadowToken {
+  name: string;
+  cssVar: string;
+  label: string;
+}
+
+/**
+ * Column widths for the spacing scale rows, applied as an inline grid template.
+ * Tailwind resolves arbitrary values by scanning source text, so a `grid-cols-[...]`
+ * class assembled from these constants would never emit CSS.
+ */
+const SPACING_VAR_COLUMN_WIDTH = "100px";
+const SPACING_PX_COLUMN_WIDTH = "40px";
+const SPACING_ROW_TEMPLATE = `${SPACING_VAR_COLUMN_WIDTH} ${SPACING_PX_COLUMN_WIDTH} minmax(0, 1fr)`;
+
 const SPACING: SpacingToken[] = [
   { name: "px", cssVar: "--sp-px", px: 1 },
   { name: "0", cssVar: "--sp-0", px: 2 },
@@ -31,7 +52,7 @@ const SPACING: SpacingToken[] = [
 
 const MAX_SPACING_PX = SPACING[SPACING.length - 1].px;
 
-const RADII = [
+const RADII: RadiusToken[] = [
   { name: "sm", cssVar: "--r-sm", px: 6 },
   { name: "md", cssVar: "--r-md", px: 8 },
   { name: "lg", cssVar: "--r-lg", px: 12 },
@@ -39,7 +60,7 @@ const RADII = [
   { name: "pill", cssVar: "--r-pill", px: 999 },
 ];
 
-const SHADOWS = [
+const SHADOWS: ShadowToken[] = [
   { name: "shadow-1", cssVar: "--shadow-1", label: "Subtle" },
   { name: "shadow-2", cssVar: "--shadow-2", label: "Medium" },
   { name: "shadow-3", cssVar: "--shadow-3", label: "Elevated" },
@@ -54,7 +75,11 @@ export function SpacingTokens() {
         <h3 className={designGroupLabelClassName}>Spacing Scale</h3>
         <div className="flex flex-col gap-2">
           {SPACING.map((token) => (
-            <div key={token.cssVar} className="grid grid-cols-[100px_40px_minmax(0,1fr)] items-center gap-3">
+            <div
+              key={token.cssVar}
+              className="grid items-center gap-3"
+              style={{ gridTemplateColumns: SPACING_ROW_TEMPLATE }}
+            >
               <code className={designTokenCodeClassName}>{token.cssVar}</code>
               <span className="text-right font-mono text-xs text-foreground-secondary">{token.px}px</span>
               <div className="h-2 overflow-hidden rounded-sm bg-muted">
@@ -71,15 +96,15 @@ export function SpacingTokens() {
       <div className={designGroupClassName}>
         <h3 className={designGroupLabelClassName}>Border Radius</h3>
         <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
-          {RADII.map((r) => (
-            <div key={r.cssVar} className="flex flex-col items-center gap-1">
+          {RADII.map((radius) => (
+            <div key={radius.cssVar} className="flex flex-col items-center gap-1">
               <div
                 className="size-14 border border-[var(--primary-border)] bg-[var(--primary-soft)]"
-                style={{ borderRadius: `var(${r.cssVar})` }}
+                style={{ borderRadius: `var(${radius.cssVar})` }}
               />
-              <span className="font-sans text-sm font-medium text-foreground">{r.name}</span>
+              <span className="font-sans text-sm font-medium text-foreground">{radius.name}</span>
               <code className={designTokenCodeClassName}>
-                {r.cssVar} ({r.px}px)
+                {radius.cssVar} ({radius.px}px)
               </code>
             </div>
           ))}

@@ -8,8 +8,11 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
+from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_lifecycle_service import AppLifecycleService
+from hassette.testing import EventCapture
+from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 from tests.support.mock_hassette import make_mock_hassette
 
@@ -67,6 +70,28 @@ def app_handler(app_handler_mock_hassette: MagicMock) -> AppHandler:
     ):
         handler = AppHandler(app_handler_mock_hassette)
     return handler
+
+
+def assert_load_completed_count(event_capture: EventCapture, expected: int) -> None:
+    """Assert how many APP_LOAD_COMPLETED broadcasts fired.
+
+    That topic is the signal a connected dashboard refetches on, so most lifecycle tests care
+    about its exact count -- zero (nothing worth telling anyone about) or one (exactly one
+    broadcast, not a duplicate).
+    """
+    completed = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
+    assert len(completed) == expected, f"expected {expected} APP_LOAD_COMPLETED event(s), got {len(completed)}"
+
+
+def stub_detected_changes(lifecycle_service: AppLifecycleService, changes: ChangeSet) -> None:
+    """Make `detect_changes` report `changes`, and stub `apply_changes` so nothing is really applied.
+
+    Tests of `handle_change_event`'s own decisions -- whether it applies, defers, or broadcasts --
+    drive the detector's verdict directly rather than building configs for it to diff, and assert
+    against the `apply_changes` stub this leaves behind.
+    """
+    lifecycle_service.change_detector.detect_changes = Mock(return_value=changes)  # pyright: ignore[reportAttributeAccessIssue]
+    lifecycle_service.apply_changes = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def set_registry_apps(registry: MagicMock, apps: dict[str, dict[int, Any]]) -> None:

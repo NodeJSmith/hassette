@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import typing
-from collections.abc import Iterable
 from copy import deepcopy
 from pathlib import Path
 from unittest.mock import patch
@@ -17,7 +16,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.testing import HassetteHarness, wait_for
 from hassette.types import Topic
 from hassette.utils.app_utils import load_app_class_from_manifest
-from tests.support.factories import make_job_registration, make_listener_registration
+from tests.support.factories import make_change_set, make_job_registration, make_listener_registration
 from tests.support.helpers import create_listener, noop
 
 if typing.TYPE_CHECKING:
@@ -26,22 +25,6 @@ if typing.TYPE_CHECKING:
     from hassette.core.app_handler import AppHandler
 
 TEST_APPS_PATH = Path(__file__).parent.parent / "data" / "apps"
-
-
-def change_set(
-    *,
-    orphans: Iterable[str] = (),
-    new_apps: Iterable[str] = (),
-    reimport_apps: Iterable[str] = (),
-    reload_apps: Iterable[str] = (),
-) -> ChangeSet:
-    """Build a ChangeSet from plain iterables, defaulting every unlisted bucket to empty."""
-    return ChangeSet(
-        orphans=frozenset(orphans),
-        new_apps=frozenset(new_apps),
-        reimport_apps=frozenset(reimport_apps),
-        reload_apps=frozenset(reload_apps),
-    )
 
 
 class TestApps:
@@ -171,7 +154,7 @@ class TestApps:
             "Precondition: my_app config shows enabled"
         )
 
-        await self.run_change_event(change_set(orphans={"my_app"}))
+        await self.run_change_event(make_change_set(orphans={"my_app"}))
 
         assert "my_app" not in self.app_handler.registry, "my_app should stop after being disabled"
         assert "my_app_sync" in self.app_handler.registry, "Other enabled apps should continue running"
@@ -186,7 +169,7 @@ class TestApps:
         new_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config["disabled_app"].enabled = True
 
-        await self.run_change_event(change_set(new_apps={"disabled_app"}), new_manifests=new_app_config)
+        await self.run_change_event(make_change_set(new_apps={"disabled_app"}), new_manifests=new_app_config)
 
         assert "disabled_app" in self.app_handler.registry, "disabled_app should start after being enabled"
         assert "my_app" in self.app_handler.registry, "Other enabled apps should continue running"
@@ -205,7 +188,7 @@ class TestApps:
         original_config = deepcopy(self.app_handler.registry.manifests)
         self.app_handler.registry.manifests["my_app"].app_config = {"test_entity": "light.office"}
 
-        changes = change_set(reload_apps={"my_app"})
+        changes = make_change_set(reload_apps={"my_app"})
 
         await self.app_handler.apply_changes(changes, original_config, self.app_handler.registry.manifests)
         await wait_for(
@@ -317,7 +300,7 @@ class TestApps:
 
         new_app_config = deepcopy(self.app_handler.registry.manifests)
 
-        await self.run_change_event(change_set(new_apps={"no_autostart_app"}), new_manifests=new_app_config)
+        await self.run_change_event(make_change_set(new_apps={"no_autostart_app"}), new_manifests=new_app_config)
 
         assert "no_autostart_app" not in self.app_handler.registry, (
             "no_autostart_app should remain unstarted after reload with new_apps (autostart=false)"
@@ -331,7 +314,7 @@ class TestApps:
         new_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config["my_app"].app_config = {"test_entity": "light.some_other_light"}
 
-        await self.run_change_event(change_set(reload_apps={"my_app"}), new_manifests=new_app_config)
+        await self.run_change_event(make_change_set(reload_apps={"my_app"}), new_manifests=new_app_config)
 
         assert "no_autostart_app" in self.app_handler.registry, (
             "no_autostart_app should still be running after an unrelated reload"
@@ -344,7 +327,7 @@ class TestApps:
         new_app_config = deepcopy(self.app_handler.registry.manifests)
         new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
 
-        await self.run_change_event(change_set(reload_apps={"no_autostart_app"}), new_manifests=new_app_config)
+        await self.run_change_event(make_change_set(reload_apps={"no_autostart_app"}), new_manifests=new_app_config)
 
         assert "no_autostart_app" not in self.app_handler.registry, (
             "no_autostart_app should remain unstarted after config change reload (autostart=false, not running)"
@@ -360,7 +343,7 @@ class TestApps:
         new_app_config["no_autostart_app"].app_config = {"test_entity": "light.changed"}
         self.app_handler.registry.set_manifests(new_app_config)
 
-        changes = change_set(reload_apps={"no_autostart_app"})
+        changes = make_change_set(reload_apps={"no_autostart_app"})
 
         await self.app_handler.apply_changes(changes, original_app_config, new_app_config)
         await wait_for(
@@ -477,7 +460,7 @@ class TestPerInstanceSelectiveRestart:
         # Mutate instance 1's config only — instance 0's dict stays identical.
         lifecycle.registry.manifests[app_key].app_config = [{"value": "a"}, {"value": "changed"}]
 
-        changes = change_set(reload_apps={app_key})
+        changes = make_change_set(reload_apps={app_key})
         await lifecycle.apply_changes(changes, original_config, lifecycle.registry.manifests)
 
         await wait_for(
@@ -616,7 +599,7 @@ class TestPerInstanceSelectiveRestart:
         lifecycle._stop_instance_unlocked = instrumented_stop
         lifecycle._create_instance_unlocked = instrumented_create
 
-        changes = change_set(reload_apps={app_key})
+        changes = make_change_set(reload_apps={app_key})
         task = asyncio.create_task(lifecycle.apply_changes(changes, original_config, lifecycle.registry.manifests))
 
         await asyncio.wait_for(index_1_stop_entered.wait(), timeout=1)

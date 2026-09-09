@@ -10,7 +10,7 @@ import { isExecutionDefined, useAppExecution } from "../../hooks/use-scoped-exec
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { useAppStore } from "../../state/store";
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { formatDurationOrDash, formatRelativeTime, lastDotSegment } from "../../utils/format";
 import { executionStatusKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
@@ -109,7 +109,7 @@ function ActivityGroupRow({ group }: { group: ActivityGroup }) {
     <tr data-testid="overview-activity-row">
       <td aria-label={`latest status: ${group.latestStatus}`}>
         <span className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-[length:var(--text-mono-sm)] leading-none">
-          <StatusShape kind={kind} size={STATUS_DOT_SIZE} />
+          <StatusShape kind={kind} size={STATUS_SHAPE_SIZE} />
         </span>
       </td>
       <td className="text-foreground" title={group.handlerName}>

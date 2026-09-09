@@ -79,64 +79,58 @@ class TestOverlayRuntimeState:
         assert by_key["removed_app"].in_current_config is False
         assert by_key["removed_app"].instance_count == 0
 
-    def test_status_priority_stopped_when_nothing_tracked(self, registry: AppRegistry, tmp_path: Path) -> None:
-        manifest = create_app_manifest("stopped", tmp_path)
-        registry.set_manifests({manifest.app_key: manifest})
-
-        results = overlay_runtime_state([make_manifest_db_row(manifest.app_key)], registry)
-
-        assert results[0].status == "stopped"
-
-    def test_status_priority_failed_beats_stopped(self, registry: AppRegistry, tmp_path: Path) -> None:
-        manifest = create_app_manifest("failed", tmp_path)
-        registry.set_manifests({manifest.app_key: manifest})
-        registry.record_failure(manifest.app_key, 0, ValueError("boom"))
-
-        results = overlay_runtime_state([make_manifest_db_row(manifest.app_key)], registry)
-
-        assert results[0].status == "failed"
-
-    def test_status_priority_degraded_when_running_and_failed_coexist(
-        self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
+    @pytest.mark.parametrize(
+        ("running", "failed", "blocked", "enabled", "expected_status", "expected_block_reason"),
+        [
+            (False, False, False, True, "stopped", None),
+            (False, True, False, True, "failed", None),
+            (True, True, False, True, "degraded", None),
+            (True, True, True, True, "blocked", BlockReason.ONLY_APP.value),
+            (True, True, True, False, "disabled", BlockReason.ONLY_APP.value),
+        ],
+        ids=[
+            "nothing_tracked_is_stopped",
+            "failed_beats_stopped",
+            "running_plus_failed_is_degraded",
+            "blocked_beats_running_and_failed",
+            "disabled_beats_everything",
+        ],
+    )
+    def test_status_priority_ladder(
+        self,
+        registry: AppRegistry,
+        mock_app: MagicMock,
+        tmp_path: Path,
+        running: bool,
+        failed: bool,
+        blocked: bool,
+        enabled: bool,
+        expected_status: str,
+        expected_block_reason: str | None,
     ) -> None:
-        manifest = create_app_manifest("degraded", tmp_path)
+        """Derived status follows a strict precedence: disabled > blocked > degraded > failed > stopped.
+
+        Each row adds one more runtime condition on top of the row above it and asserts the
+        higher-priority status wins, so the table reads as the precedence order itself. `blocked`
+        stays visible in `block_reason` even once `disabled` outranks it for `status`.
+        """
+        manifest = create_app_manifest(expected_status, tmp_path, enabled=enabled)
         registry.set_manifests({manifest.app_key: manifest})
-        registry.register_app(manifest.app_key, 0, mock_app)
-        # A different instance index failed — record_failure only replaces the entry at the
-        # matching index, so the running instance at index 0 stays registered alongside the
-        # failure at index 1. A mix of running and failed entries derives "degraded".
-        registry.record_failure(manifest.app_key, 1, ValueError("boom"))
+        if running:
+            registry.register_app(manifest.app_key, 0, mock_app)
+        if failed:
+            # record_failure only replaces the entry at the matching index, so the failure has to
+            # land on a different index than the running instance to produce the running/failed
+            # mix "degraded" requires. With nothing running, index 0 is free to hold it.
+            failed_index = 1 if running else 0
+            registry.record_failure(manifest.app_key, failed_index, ValueError("boom"))
+        if blocked:
+            registry.block_app(manifest.app_key, BlockReason.ONLY_APP)
 
         results = overlay_runtime_state([make_manifest_db_row(manifest.app_key)], registry)
 
-        assert results[0].status == "degraded"
-
-    def test_status_priority_blocked_beats_running_and_failed(
-        self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
-    ) -> None:
-        manifest = create_app_manifest("blockedbeatsall", tmp_path)
-        registry.set_manifests({manifest.app_key: manifest})
-        registry.register_app(manifest.app_key, 0, mock_app)
-        registry.record_failure(manifest.app_key, 1, ValueError("boom"))
-        registry.block_app(manifest.app_key, BlockReason.ONLY_APP)
-
-        results = overlay_runtime_state([make_manifest_db_row(manifest.app_key)], registry)
-
-        assert results[0].status == "blocked"
-        assert results[0].block_reason == BlockReason.ONLY_APP.value
-
-    def test_status_priority_disabled_beats_everything(
-        self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path
-    ) -> None:
-        manifest = create_app_manifest("disabledbeatsall", tmp_path, enabled=False)
-        registry.set_manifests({manifest.app_key: manifest})
-        registry.register_app(manifest.app_key, 0, mock_app)
-        registry.record_failure(manifest.app_key, 1, ValueError("boom"))
-        registry.block_app(manifest.app_key, BlockReason.ONLY_APP)
-
-        results = overlay_runtime_state([make_manifest_db_row(manifest.app_key)], registry)
-
-        assert results[0].status == "disabled"
+        assert results[0].status == expected_status
+        assert results[0].block_reason == expected_block_reason
 
     def test_enabled_agrees_with_status_when_db_row_is_stale(
         self, registry: AppRegistry, mock_app: MagicMock, tmp_path: Path

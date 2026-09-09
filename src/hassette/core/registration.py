@@ -35,7 +35,9 @@ class ListenerRegistration:
     """Listener ordering priority."""
 
     predicate_description: str | None
-    """Python repr of the listener's predicate, or None if no ``where=`` was given."""
+    """Structural description of the listener's predicate — ``repr()`` for composed
+    predicate objects, the qualified name for a bare callable. None if no ``where=``
+    was given."""
 
     human_description: str | None
     """Stable, human-readable summary from predicate.summarize(), or None."""
@@ -119,7 +121,8 @@ class ScheduledJobRegistration:
     the ``scheduled_jobs.mode`` column. The tier-aware default is already applied in the scheduler."""
 
     predicate_description: str | None = None
-    """Python repr of the job's predicate, or None if no ``where=`` was given."""
+    """Structural description of the job's predicate — ``repr()`` for composed predicate
+    objects, the qualified name for a bare callable. None if no ``where=`` was given."""
 
     human_description: str | None = None
     """Stable, human-readable summary of the predicate — ``predicate.summarize()`` when

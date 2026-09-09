@@ -2,7 +2,12 @@
 
 from functools import partial, wraps
 
-from hassette.utils.func_utils import callable_name, callable_short_name, callable_stable_name
+from hassette.utils.func_utils import (
+    callable_name,
+    callable_short_name,
+    callable_stable_name,
+    describe_predicate,
+)
 
 
 def plain_function() -> None:
@@ -168,3 +173,41 @@ class TestCallableShortName:
         obj = CallableClass()
         short = callable_short_name(obj)
         assert short == "__call__"
+
+
+class PredicateHolder:
+    def is_motion_detected(self) -> bool:
+        return True
+
+
+class SummarizingPredicate:
+    def summarize(self) -> str:
+        return "entity light.kitchen"
+
+    def __repr__(self) -> str:
+        return "EntityMatches(entity_id='light.kitchen')"
+
+
+class TestDescribePredicate:
+    def test_bound_method_renders_as_qualified_name(self) -> None:
+        """A bound method describes as its qualname, not a <bound method ... at 0x...> repr."""
+        described = describe_predicate(PredicateHolder().is_motion_detected)
+        assert described == "PredicateHolder.is_motion_detected"
+
+    def test_plain_function_renders_as_qualified_name(self) -> None:
+        assert describe_predicate(plain_function) == "plain_function"
+
+    def test_lambda_renders_as_stable_placeholder(self) -> None:
+        """Lambdas have no stable qualified name, so they collapse to the shared placeholder."""
+        fn = lambda: None  # noqa: E731
+        assert describe_predicate(fn) == "<callable>"
+
+    def test_partial_renders_as_stable_placeholder(self) -> None:
+        assert describe_predicate(partial(plain_function)) == "<callable>"
+
+    def test_composed_predicate_keeps_structured_repr(self) -> None:
+        """Objects exposing summarize() keep their structured repr."""
+        assert describe_predicate(SummarizingPredicate()) == "EntityMatches(entity_id='light.kitchen')"
+
+    def test_non_callable_falls_back_to_repr(self) -> None:
+        assert describe_predicate(None) == "None"

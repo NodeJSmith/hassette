@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import type { components } from "../../api/generated-types";
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { executionPath, type HandlerKind } from "../../utils/app-routes";
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { formatDuration, formatRelativeTime, formatTimestamp } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
 import { executionStatusKind, type StatusKind, TIMED_OUT_LABEL } from "../../utils/status";
@@ -96,7 +96,7 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
       const statusKind = executionStatusKind(record.status);
       return (
         <div className="flex items-center gap-2">
-          <StatusShape kind={statusKind} size={STATUS_DOT_SIZE} />
+          <StatusShape kind={statusKind} size={STATUS_SHAPE_SIZE} />
           <span className={statusLabelClass(statusKind)}>{STATUS_LABEL[statusKind]}</span>
           {record.thread_leaked && (
             <Badge variant="warning" size="sm" aria-label="thread leaked past timeout">

@@ -6,7 +6,8 @@ import { createJob, createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { HandlersTab } from "./handlers-tab";
-import { renderHandlersTab } from "./handlers-tab.test-helpers";
+import { APP_KEY, HANDLERS_URL, renderHandlersTab } from "./handlers-tab.test-helpers";
+import { rowTestId } from "./unified-row.test-helpers";
 
 // Mock child components that make API calls
 vi.mock("../shared/execution-table", () => ({
@@ -26,7 +27,7 @@ vi.mock("./execution-detail", () => ({
 const mockNavigate = vi.fn();
 const mockCorrectUrl = vi.fn();
 
-vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/apps/test_app/handlers", mockNavigate] }));
+vi.mock("wouter", () => createWouterMock({ useLocation: () => [HANDLERS_URL, mockNavigate] }));
 
 vi.mock("../../hooks/use-correct-url", () => ({
   useCorrectUrl: () => mockCorrectUrl,
@@ -37,7 +38,6 @@ describe("HandlersTab navigation", () => {
     vi.clearAllMocks();
   });
 
-  // URL-driven selection tests (T03)
   it("selects listener by selectedHandler='listener/1' prop", () => {
     const listeners = [createListener({ listener_id: 1 })];
     const { getByTestId } = renderHandlersTab(listeners, [], "listener/1");
@@ -58,19 +58,17 @@ describe("HandlersTab navigation", () => {
   it("calls correctUrl when selectedHandler references a non-existent listener", () => {
     const listeners = [createListener({ listener_id: 1 })];
     renderHandlersTab(listeners, [], "listener/999");
-    expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers");
+    expect(mockCorrectUrl).toHaveBeenCalledWith(HANDLERS_URL);
   });
 
   it("calls correctUrl when selectedHandler references a non-existent job", () => {
     const jobs = [createJob({ job_id: 1 })];
     renderHandlersTab([], jobs, "job/999");
-    expect(mockCorrectUrl).toHaveBeenCalledWith("/apps/test_app/handlers");
+    expect(mockCorrectUrl).toHaveBeenCalledWith(HANDLERS_URL);
   });
 
   it("does not call correctUrl when data is empty (loading guard)", () => {
-    // Empty arrays = loading state / no data — should not correct URL
     renderHandlersTab([], [], "listener/999");
-    // The empty-state branch renders, no correctUrl call
     expect(mockCorrectUrl).not.toHaveBeenCalled();
   });
 
@@ -78,16 +76,16 @@ describe("HandlersTab navigation", () => {
     const user = userEvent.setup();
     const listeners = [createListener({ listener_id: 5 })];
     const { getByTestId } = renderHandlersTab(listeners, [], null);
-    await user.click(getByTestId("unified-row-listener-5"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/5");
+    await user.click(getByTestId(rowTestId("listener", 5)));
+    expect(mockNavigate).toHaveBeenCalledWith(`${HANDLERS_URL}/listener/5`);
   });
 
   it("clicking a job row navigates to job deep-link URL", async () => {
     const user = userEvent.setup();
     const jobs = [createJob({ job_id: 20 })];
     const { getByTestId } = renderHandlersTab([], jobs, null);
-    await user.click(getByTestId("unified-row-job-20"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/job/20");
+    await user.click(getByTestId(rowTestId("job", 20)));
+    expect(mockNavigate).toHaveBeenCalledWith(`${HANDLERS_URL}/job/20`);
   });
 
   it("clicking a listener row includes instanceQs in deep-link URL", async () => {
@@ -99,13 +97,13 @@ describe("HandlersTab navigation", () => {
         jobs={[]}
         selectedHandler={null}
         selectedExecId={null}
-        appKey="test_app"
+        appKey={APP_KEY}
         instanceIndex={1}
       />,
       { storeOverrides: { uptimeSeconds: 120 } },
     );
-    await user.click(getByTestId("unified-row-listener-3"));
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/test_app/handlers/listener/3?instance=1");
+    await user.click(getByTestId(rowTestId("listener", 3)));
+    expect(mockNavigate).toHaveBeenCalledWith(`${HANDLERS_URL}/listener/3?instance=1`);
   });
 
   it("shows placeholder when selectedHandler has invalid format", () => {
@@ -120,7 +118,7 @@ describe("HandlersTab navigation", () => {
 
   it("handler detail: calls onSwitchToCode with line number when view-in-code clicked", async () => {
     const user = userEvent.setup();
-    const onSwitch = vi.fn();
+    const onSwitchToCode = vi.fn();
     const listener = createListener({
       listener_id: 45,
       source_location: "my_app.py:99",
@@ -131,19 +129,19 @@ describe("HandlersTab navigation", () => {
         jobs={[]}
         selectedHandler="listener/45"
         selectedExecId={null}
-        appKey="test_app"
-        onSwitchToCode={onSwitch}
+        appKey={APP_KEY}
+        onSwitchToCode={onSwitchToCode}
       />,
       { storeOverrides: { uptimeSeconds: 120 } },
     );
     await waitFor(() => getByTestId("listener-detail-45"));
     await user.click(getByTestId("view-in-code-btn"));
-    expect(onSwitch).toHaveBeenCalledWith(99);
+    expect(onSwitchToCode).toHaveBeenCalledWith(99);
   });
 
   it("renders execution detail even when no handlers are registered", () => {
     const { getByTestId, queryByTestId } = renderWithAppState(
-      <HandlersTab listeners={[]} jobs={[]} selectedHandler="listener/5" selectedExecId="abc-123" appKey="test_app" />,
+      <HandlersTab listeners={[]} jobs={[]} selectedHandler="listener/5" selectedExecId="abc-123" appKey={APP_KEY} />,
       { storeOverrides: { uptimeSeconds: 120 } },
     );
     expect(getByTestId("execution-detail-fetcher")).toBeTruthy();

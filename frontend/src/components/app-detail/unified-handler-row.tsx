@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { formatTimestamp, pluralize } from "../../utils/format";
 import { scheduleStatusLabel } from "../../utils/handler-rows";
 import type { StatusKind } from "../../utils/status";
@@ -85,7 +85,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
       onClick={onSelect}
     >
       <span className="shrink-0 pt-0" aria-hidden="true">
-        <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
+        <StatusShape kind={item.statusKind} size={STATUS_SHAPE_SIZE} />
       </span>
       <div className="flex min-w-0 flex-col gap-0">
         <div className="flex min-w-0 items-baseline gap-2">
