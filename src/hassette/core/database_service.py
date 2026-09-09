@@ -12,7 +12,7 @@ import aiosqlite
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.migration_runner import _collect_migrations, _read_user_version, run_migrations
 from hassette.exceptions import SchemaVersionError
-from hassette.resources.lifecycle import create_lifecycle_task, mark_not_ready, mark_ready
+from hassette.resources.lifecycle import create_lifecycle_task, hooks_pool_remaining, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
@@ -53,10 +53,16 @@ _MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 # await would park serve() forever and never reach its failure-count escalation.
 _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
 
-# Maximum seconds on_shutdown() waits for the write queue to drain. A dead worker leaves
-# items queued with no one to complete them, so the join must not outlast the per-phase
-# shutdown budget (lifecycle.resource_shutdown_timeout_seconds, default 10s).
+# Ceiling on the seconds on_shutdown() waits for the write queue to drain. A worker that is
+# dead (nobody left to call task_done()) or wedged (stuck mid-write) never lets the join
+# complete on its own, so it must not outlast the shutdown hooks pool that run_hooks()
+# already bounds on_shutdown() with — the effective budget is the smaller of this and
+# _DRAIN_TIMEOUT_POOL_FRACTION of the pool remaining, never this constant on its own.
 _SHUTDOWN_DRAIN_TIMEOUT_SECONDS = 5
+
+# Share of the remaining hooks pool the drain may claim, leaving the rest for cancelling the
+# worker and closing both connections in the same hook.
+_DRAIN_TIMEOUT_POOL_FRACTION = 0.5
 
 _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
@@ -346,13 +352,20 @@ class DatabaseService(Service):
             if self._db_worker_task is not None:
                 queue, self._db_write_queue = self._db_write_queue, None
                 if queue is not None:
+                    drain_timeout = min(
+                        _SHUTDOWN_DRAIN_TIMEOUT_SECONDS,
+                        hooks_pool_remaining(self) * _DRAIN_TIMEOUT_POOL_FRACTION,
+                    )
                     try:
-                        async with asyncio.timeout(_SHUTDOWN_DRAIN_TIMEOUT_SECONDS):
+                        async with asyncio.timeout(drain_timeout):
                             await queue.join()
                     except TimeoutError:
+                        # qsize() excludes the item the worker already dequeued, which the
+                        # cancel() below abandons too — so it is a floor, not the total.
                         self.logger.warning(
-                            "Write queue did not drain within %ss — abandoning %d queued item(s)",
-                            _SHUTDOWN_DRAIN_TIMEOUT_SECONDS,
+                            "Write queue did not drain within %.2fs — abandoning %d queued write(s) "
+                            "plus any write already in flight",
+                            drain_timeout,
                             queue.qsize(),
                         )
                 self._db_worker_task.cancel()
@@ -444,6 +457,14 @@ class DatabaseService(Service):
                 result = await coro
                 if future is not None and not future.done():
                     future.set_result(result)
+            except asyncio.CancelledError:
+                # on_shutdown() bounds its drain, so the worker can be cancelled with an item
+                # still executing. close_remaining_queue_items() only reaches items still on
+                # the queue, so without this the submit() caller awaiting this future would
+                # stay suspended forever.
+                if future is not None and not future.done():
+                    future.cancel()
+                raise
             except Exception as exc:
                 if future is not None and not future.done():
                     future.set_exception(exc)
@@ -627,6 +648,11 @@ class DatabaseService(Service):
         serve() would park on submit() forever and never reach its failure-count
         escalation. A timeout counts as a heartbeat failure identically to a raised
         sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
+
+        This method is the only place _consecutive_heartbeat_failures moves, so one attempt
+        costs exactly one strike. Counting the timeout here and the raise inside the queued
+        coroutine would let a single slow-then-failing write consume two of the three,
+        restarting the service a full heartbeat interval early.
         """
         if self._db is None:
             return
@@ -647,21 +673,6 @@ class DatabaseService(Service):
                 self._consecutive_heartbeat_failures,
                 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
             )
-
-    async def _do_update_heartbeat(self) -> None:
-        """Execute the heartbeat DB write; called by the write-queue worker."""
-        try:
-            session_id = self.hassette.session_id
-            now = time.time()
-            await self.db.execute(
-                "UPDATE sessions SET last_heartbeat_at = ? WHERE id = ?",
-                (now, session_id),
-            )
-            await self.db.commit()
-            self.logger.debug("Heartbeat updated for session %d", session_id)
-            if self._consecutive_heartbeat_failures > 0:
-                self.logger.info("Heartbeat recovered after %d failure(s)", self._consecutive_heartbeat_failures)
-                self._consecutive_heartbeat_failures = 0
         except (sqlite3.Error, OSError, ValueError):
             self._consecutive_heartbeat_failures += 1
             self.logger.exception(
@@ -669,6 +680,25 @@ class DatabaseService(Service):
                 self._consecutive_heartbeat_failures,
                 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
             )
+        else:
+            if self._consecutive_heartbeat_failures > 0:
+                self.logger.info("Heartbeat recovered after %d failure(s)", self._consecutive_heartbeat_failures)
+                self._consecutive_heartbeat_failures = 0
+
+    async def _do_update_heartbeat(self) -> None:
+        """Execute the heartbeat DB write; called by the write-queue worker.
+
+        Failures propagate to update_heartbeat() through submit()'s future rather than
+        being counted here — see that method for why the count lives in one place.
+        """
+        session_id = self.hassette.session_id
+        now = time.time()
+        await self.db.execute(
+            "UPDATE sessions SET last_heartbeat_at = ? WHERE id = ?",
+            (now, session_id),
+        )
+        await self.db.commit()
+        self.logger.debug("Heartbeat updated for session %d", session_id)
 
     async def run_retention_cleanup(self) -> None:
         """Enqueue a retention cleanup; fire-and-forget via enqueue()."""
