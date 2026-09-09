@@ -64,6 +64,7 @@ JOB_LIST_COLUMNS: list[Column] = [
     Column("total_executions", "Total", max_width=7),
     Column("successful", "OK", max_width=6),
     Column("failed", "Fail", max_width=6),
+    Column("skipped", "Skipped", max_width=7),
     Column("avg_duration_ms", "Avg", max_width=7, formatter=fmt_duration_ms),
     Column("next_run", "Next Run", max_width=11, row_formatter=_next_run_display),
 ]
