@@ -14,6 +14,9 @@ import { RecentActivitySection } from "./recent-activity-section";
 
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 
+const APP_KEY = "test_app";
+const OTHER_APP_KEY = "other_app";
+
 function makeExecution(appKey: string, kind: ExecutionKind): WsExecutionCompletedPayload {
   return createExecutionCompletedPayload({ kind, app_key: appKey });
 }
@@ -34,7 +37,7 @@ async function renderSettled() {
         counter.renders += 1;
       }}
     >
-      <RecentActivitySection appKey="test_app" resolvedInstanceIndex={0} />
+      <RecentActivitySection appKey={APP_KEY} resolvedInstanceIndex={0} />
     </Profiler>,
     { storeOverrides: { uptimeSeconds: 120 } },
   );
@@ -51,7 +54,7 @@ describe("RecentActivitySection store subscriptions", () => {
     act(() => {
       useAppStore
         .getState()
-        .setExecutionCompleted([makeExecution("other_app", "handler"), makeExecution("other_app", "job")]);
+        .setExecutionCompleted([makeExecution(OTHER_APP_KEY, "handler"), makeExecution(OTHER_APP_KEY, "job")]);
     });
 
     expect(counter.renders).toBe(before);
@@ -62,7 +65,7 @@ describe("RecentActivitySection store subscriptions", () => {
     const before = counter.renders;
 
     act(() => {
-      useAppStore.getState().setExecutionCompleted([makeExecution("test_app", kind)]);
+      useAppStore.getState().setExecutionCompleted([makeExecution(APP_KEY, kind)]);
     });
 
     await waitFor(() => expect(counter.renders).toBeGreaterThan(before));
