@@ -1,6 +1,5 @@
-import { cn } from "@/lib/utils";
-
 import { useAppStore } from "../../state/store";
+import { AlertShell } from "../shared/alert-shell";
 import { AppLink } from "../shared/app-link";
 import { IconWarning } from "../shared/icons";
 
@@ -18,9 +17,7 @@ export function AlertBanner({ failedApps }: AlertBannerProps) {
 
   return (
     <div
-      className={cn(
-        "mx-8 mb-2 flex flex-col items-stretch gap-2 rounded-md border border-destructive bg-[var(--destructive-bg)] px-3 py-2 text-sm text-destructive",
-      )}
+      className="mx-8 mb-2 flex flex-col items-stretch gap-2 rounded-md border border-destructive bg-[var(--destructive-bg)] px-3 py-2 text-sm text-destructive"
       role="alert"
       data-testid="alert-banner"
     >
@@ -39,11 +36,7 @@ export function AlertBanner({ failedApps }: AlertBannerProps) {
   );
 }
 
-/**
- * TelemetryDegradedBanner renders an amber warning banner when the telemetry
- * database is degraded (queue overflow, backpressure, or unreachable).
- * Reads `telemetryDegraded`, `droppedOverflow`, and `droppedExhausted` signals.
- */
+/** Warns when telemetry is degraded — queue overflow, backpressure, or an unreachable database. */
 export function TelemetryDegradedBanner() {
   const telemetryDegraded = useAppStore((s) => s.telemetryDegraded);
   const droppedOverflow = useAppStore((s) => s.droppedOverflow);
@@ -54,16 +47,17 @@ export function TelemetryDegradedBanner() {
   const totalDropped = droppedOverflow + droppedExhausted;
 
   return (
-    <div
-      className="mb-4 flex items-center gap-3 rounded-md border border-[var(--status-warning)] bg-[var(--status-warning-bg)] px-4 py-3 text-[length:var(--text-body)] text-[var(--status-warning)]"
-      data-testid="telemetry-degraded-banner"
+    <AlertShell
+      tone="warning"
       role="alert"
+      data-testid="telemetry-degraded-banner"
+      className="flex items-center gap-3 text-[var(--status-warning)]"
     >
       <IconWarning />
-      <span className="flex-1 text-[length:var(--text-body)] leading-[var(--text-body-leading)]">
+      <span className="flex-1 leading-[var(--text-body-leading)]">
         Telemetry is degraded
         {totalDropped > 0 ? ` — ${totalDropped} events dropped` : ""}. Some data may be missing.
       </span>
-    </div>
+    </AlertShell>
   );
 }
