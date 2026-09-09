@@ -3,14 +3,19 @@
 import asyncio
 import contextlib
 import dataclasses
+import sqlite3
 from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, RetentionTarget
-from tests.support.helpers import DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS, DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX
+from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, RetentionTarget, _WriteQueueItem
+from tests.support.helpers import (
+    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+    async_noop,
+)
 from tests.support.mock_hassette import make_mock_hassette
 
 
@@ -244,6 +249,85 @@ async def test_submit_propagates_coroutine_exception(
 
     with pytest.raises(SentinelError, match="boom"):
         await initialized_service_with_worker.submit(failing_coro())
+
+
+async def test_update_heartbeat_times_out_when_write_queue_is_full(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A full write queue blocks submit()'s put(); the timeout counts it as a heartbeat failure."""
+    service = initialized_service_with_worker
+    assert service._consecutive_heartbeat_failures == 0
+
+    # Swap in a queue that is already at capacity. The running worker holds a reference to
+    # the original queue, so nothing will ever make room in this one.
+    full_queue: asyncio.Queue[_WriteQueueItem] = asyncio.Queue(maxsize=1)
+    full_queue.put_nowait((async_noop(), None))
+    service._db_write_queue = full_queue
+
+    try:
+        with patch("hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", 0.05):
+            await asyncio.wait_for(service.update_heartbeat(), timeout=5.0)
+
+        assert service._consecutive_heartbeat_failures == 1
+    finally:
+        service.close_remaining_queue_items(full_queue)
+
+
+async def test_timed_out_heartbeat_is_counted_once_even_if_the_write_later_fails(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """One heartbeat attempt costs one strike, even when it both times out and then raises.
+
+    The timeout only abandons submit()'s future — the queued write keeps running under the
+    worker. Counting in both places would spend two of the three allowed strikes on a single
+    slow-then-failing heartbeat and restart the service a heartbeat interval early.
+    """
+    service = initialized_service_with_worker
+    release = asyncio.Event()
+
+    async def slow_then_failing_execute(*_args: object, **_kwargs: object) -> None:
+        await release.wait()
+        raise sqlite3.OperationalError("disk I/O error")
+
+    assert service._db is not None
+    assert service._db_write_queue is not None
+    service._db.execute = AsyncMock(side_effect=slow_then_failing_execute)
+
+    with patch("hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", 0.05):
+        await asyncio.wait_for(service.update_heartbeat(), timeout=5.0)
+
+    assert service._consecutive_heartbeat_failures == 1
+
+    # Let the abandoned write run to its failure; it must not add a second strike.
+    release.set()
+    await asyncio.wait_for(service._db_write_queue.join(), timeout=5.0)
+    assert service._consecutive_heartbeat_failures == 1
+
+
+async def test_submit_caller_is_released_when_worker_is_cancelled_mid_item(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """Cancelling the worker mid-write cancels the in-flight future instead of stranding its caller.
+
+    on_shutdown() bounds its drain, so the worker can be cancelled while an item is still
+    executing. close_remaining_queue_items() only reaches items still on the queue.
+    """
+    service = initialized_service_with_worker
+    started = asyncio.Event()
+
+    async def never_finishes() -> None:
+        started.set()
+        await asyncio.Event().wait()
+
+    caller = asyncio.create_task(service.submit(never_finishes()))
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    assert service._db_worker_task is not None
+    service._db_worker_task.cancel()
+
+    done, _pending = await asyncio.wait([caller], timeout=5)
+    assert caller in done, "submit() caller stayed suspended after the worker was cancelled"
+    assert caller.cancelled()
 
 
 async def test_enqueue_is_fire_and_forget(

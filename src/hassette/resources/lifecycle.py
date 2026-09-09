@@ -552,7 +552,10 @@ def hooks_pool_remaining(resource: _LifecycleHostP) -> float:
     """Seconds left in the hooks pool for the current shutdown attempt.
 
     Used by ``run_hooks()`` (each hook), the serve-task wait, and
-    ``_observe_active_initializer()`` — everything that shares the discretionary pool.
+    ``_observe_active_initializer()`` — everything that shares the discretionary pool. A hook
+    body may also read it to sub-divide its own share, as ``DatabaseService.on_shutdown()`` does
+    to bound its write-queue drain; the list above is the framework's own consumers, not a
+    closed set.
     Returns ``resource_shutdown_timeout_seconds`` when no budget has been set yet (the
     coordinator always sets one before any consumer runs; this is a defensive fallback,
     not the normal path), and 0 only once the pool itself is exhausted.
