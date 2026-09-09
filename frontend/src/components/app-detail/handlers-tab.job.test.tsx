@@ -8,7 +8,7 @@ import { useAppStore } from "../../state/store";
 import { createJob } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { server } from "../../test/server";
-import { renderHandlersTab } from "./handlers-tab.test-helpers";
+import { APP_KEY, HANDLERS_URL, renderHandlersTab } from "./handlers-tab.test-helpers";
 
 vi.mock("sonner", async (importOriginal) => {
   const actual = await importOriginal<typeof import("sonner")>();
@@ -41,7 +41,7 @@ const SCHEDULE_STATUSES = ["scheduled", "waiting", "completed", "manual"] as con
 /** Past RUN_NOW_FEEDBACK_TIMEOUT_MS (8000ms in job-detail.tsx) so the timeout fallback fires. */
 const PAST_RUN_NOW_FEEDBACK_TIMEOUT_MS = 10000;
 
-vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/apps/test_app/handlers", mockNavigate] }));
+vi.mock("wouter", () => createWouterMock({ useLocation: () => [HANDLERS_URL, mockNavigate] }));
 
 vi.mock("../../hooks/use-correct-url", () => ({
   useCorrectUrl: () => mockCorrectUrl,
@@ -373,7 +373,7 @@ describe("HandlersTab job detail", () => {
               {
                 kind: "job",
                 job_id: jobId,
-                app_key: "test_app",
+                app_key: APP_KEY,
                 instance_index: 0,
                 status: "success",
                 duration_ms: 10,
@@ -427,7 +427,7 @@ describe("HandlersTab job detail", () => {
             {
               kind: "job",
               job_id: 999,
-              app_key: "test_app",
+              app_key: APP_KEY,
               instance_index: 0,
               status: "success",
               duration_ms: 10,
@@ -477,7 +477,7 @@ describe("HandlersTab job detail", () => {
             {
               kind: "job",
               job_id: jobId,
-              app_key: "test_app",
+              app_key: APP_KEY,
               instance_index: 0,
               status: "success",
               duration_ms: 10,
