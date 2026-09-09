@@ -9,11 +9,15 @@ vi.mock("../shared/execution-table", async () => {
   const actual = await vi.importActual<typeof import("../shared/execution-table")>("../shared/execution-table");
   return {
     ...actual,
-    ExecutionTable: vi.fn((props: { records: ExecutionRecord[]; tableId: string }) => (
-      <div data-testid="mock-execution-table" data-record-count={props.records.length} data-table-id={props.tableId}>
-        execution table
-      </div>
-    )),
+    ExecutionTable: vi.fn(
+      (
+        props: Pick<ComponentProps<typeof import("../shared/execution-table").ExecutionTable>, "records" | "tableId">,
+      ) => (
+        <div data-testid="mock-execution-table" data-record-count={props.records.length} data-table-id={props.tableId}>
+          execution table
+        </div>
+      ),
+    ),
   };
 });
 
@@ -70,19 +74,15 @@ describe("ExecutionSection", () => {
   });
 
   it("passes the correct props to ExecutionTable", () => {
-    render(
-      <ExecutionSection
-        heading="Executions"
-        records={[SUCCESS_EXECUTION]}
-        kind="job"
-        tableId="table-42"
-        loading={false}
-        appKey="my_app"
-        handlerKind="listener"
-        handlerId={7}
-        instanceQs="?instance=0"
-      />,
-    );
+    renderSection({
+      records: [SUCCESS_EXECUTION],
+      kind: "job",
+      tableId: "table-42",
+      appKey: "my_app",
+      handlerKind: "listener",
+      handlerId: 7,
+      instanceQs: "?instance=0",
+    });
 
     // React calls function components with only a props argument (no Preact-style second
     // "context" argument), so the second call arg is undefined here.
