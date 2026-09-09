@@ -20,6 +20,7 @@ vi.mock("../../utils/shiki", () => ({
 }));
 
 const APP_KEY = "test_app";
+const CONFIG_ENDPOINT = "/api/apps/:app_key/config";
 const MASK_SENTINEL = "••••••••";
 const HOST = "192.168.1.1";
 const PORT = 8080;
@@ -27,13 +28,18 @@ const PORT = 8080;
 /** Long enough to keep the request in flight while the component unmounts mid-request. */
 const MOCK_RESPONSE_DELAY_MS = 100;
 
-/** App config response with a schema that marks 'token' as a secret via anyOf. */
-const defaultConfig = {
+/** Fields shared by every app config response fixture below. */
+const baseAppMeta = {
   app_key: APP_KEY,
   filename: "test_app.py",
   class_name: "TestApp",
   enabled: true,
   autostart: true,
+};
+
+/** App config response with a schema that marks 'token' as a secret via anyOf. */
+const defaultConfig = {
+  ...baseAppMeta,
   app_config: {
     token: MASK_SENTINEL,
     host: HOST,
@@ -56,11 +62,7 @@ const defaultConfig = {
 
 /** App config response without a schema — falls back to SimpleConfigTable. */
 const noSchemaConfig = {
-  app_key: APP_KEY,
-  filename: "test_app.py",
-  class_name: "TestApp",
-  enabled: true,
-  autostart: true,
+  ...baseAppMeta,
   app_config: {
     api_key: "some-value",
   },
@@ -80,7 +82,7 @@ function waitForTestId(testId: string) {
 describe("ConfigTab", () => {
   beforeEach(() => {
     server.use(
-      http.get("/api/apps/:app_key/config", () => {
+      http.get(CONFIG_ENDPOINT, () => {
         return HttpResponse.json(defaultConfig);
       }),
     );
@@ -119,7 +121,7 @@ describe("ConfigTab", () => {
 
   it("renders empty config message when schema has no properties", async () => {
     server.use(
-      http.get("/api/apps/:app_key/config", () => {
+      http.get(CONFIG_ENDPOINT, () => {
         return HttpResponse.json({
           ...defaultConfig,
           app_config: {},
@@ -134,7 +136,7 @@ describe("ConfigTab", () => {
 
   it("falls back to SimpleConfigTable when no schema is provided", async () => {
     server.use(
-      http.get("/api/apps/:app_key/config", () => {
+      http.get(CONFIG_ENDPOINT, () => {
         return HttpResponse.json(noSchemaConfig);
       }),
     );
@@ -144,7 +146,7 @@ describe("ConfigTab", () => {
   });
 
   it("shows an error card when fetching the config fails", async () => {
-    server.use(http.get("/api/apps/:app_key/config", () => HttpResponse.json(null, { status: 500 })));
+    server.use(http.get(CONFIG_ENDPOINT, () => HttpResponse.json(null, { status: 500 })));
     renderConfigTab();
     await waitForTestId("config-tab-error");
   });
@@ -162,7 +164,7 @@ describe("ConfigTab", () => {
     let requestSignal: AbortSignal | undefined;
 
     server.use(
-      http.get("/api/apps/:app_key/config", async ({ request }) => {
+      http.get(CONFIG_ENDPOINT, async ({ request }) => {
         requestSignal = request.signal;
         await delay(MOCK_RESPONSE_DELAY_MS);
         return HttpResponse.json(defaultConfig);
@@ -180,7 +182,7 @@ describe("ConfigTab", () => {
 
   it("handles multi-instance list config by rendering per-instance blocks", async () => {
     server.use(
-      http.get("/api/apps/:app_key/config", () => {
+      http.get(CONFIG_ENDPOINT, () => {
         return HttpResponse.json({
           ...defaultConfig,
           app_config: [
