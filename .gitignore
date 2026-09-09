@@ -245,6 +245,7 @@ frontend/dist/
 # Screenshots from design audits and debug sessions (ephemeral, not source)
 *.png
 !docs/_static/*.png
+!docs/pr-evidence/*.png
 !frontend/public/hassette-logo.png
 !src/hassette/web/static/img/hassette-logo.png
 
