@@ -6,7 +6,7 @@ import { createJob, createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { HandlersTab } from "./handlers-tab";
-import { renderHandlersTab } from "./handlers-tab.test-helpers";
+import { APP_KEY, HANDLERS_URL, renderHandlersTab } from "./handlers-tab.test-helpers";
 import { rowTestId } from "./unified-row.test-helpers";
 
 // Mock child components that make API calls
@@ -23,9 +23,6 @@ vi.mock("./execution-detail", () => ({
     <div data-testid="execution-detail-fetcher">{props.executionId}</div>
   ),
 }));
-
-const APP_KEY = "test_app";
-const HANDLERS_URL = `/apps/${APP_KEY}/handlers`;
 
 const mockNavigate = vi.fn();
 const mockCorrectUrl = vi.fn();
