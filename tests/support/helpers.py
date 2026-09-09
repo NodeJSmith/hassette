@@ -356,9 +356,13 @@ async def emit_change_and_wait_for_app_status(
 
     Write the config or app-file changes before calling — this only announces them. ``status``
     covers the non-RUNNING waits, e.g. ``ResourceStatus.STOPPED`` after an app is disabled.
+    Repeated ``app_keys`` are deduplicated, preserving order.
     """
     reached_events: list[asyncio.Event] = []
-    for app_key in app_keys:
+    # Listeners are named per (app_key, status) and registered with if_exists="replace", so a
+    # repeated app_key would orphan the earlier event and hang until the deadline. Dedupe,
+    # preserving order.
+    for app_key in dict.fromkeys(app_keys):
         reached = asyncio.Event()
         await wire_up_app_state_listener(hassette.bus, reached, app_key, status)
         reached_events.append(reached)
