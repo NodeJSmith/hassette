@@ -14,8 +14,6 @@ from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
 runner = CommandRunner("hassette.cli.commands.log.make_client")
 
-# cmd_log — recent log entries
-
 
 class TestCmdLog:
     @pytest.fixture
@@ -102,9 +100,6 @@ class TestCmdLog:
     def test_log_columns_count_is_compact(self) -> None:
         """LOG_COLUMNS uses at most 8 columns for 80-column fit."""
         assert len(LOG_COLUMNS) <= 8
-
-
-# cmd_execution — logs for a specific execution context
 
 
 class TestCmdExecution:

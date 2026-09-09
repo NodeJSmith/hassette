@@ -174,8 +174,6 @@ class TypeRegistry:
                     return self.convert(value, tt)
             raise UnableToConvertValueError(f"Unable to convert {value!r} to any of the types {to_type}")
 
-        # handle single type
-
         from_type = type(value)
         key = (from_type, to_type)
 
@@ -284,8 +282,6 @@ register_simple_type_converter(Time, str, fn=Time.format_iso)
 register_simple_type_converter(ZonedDateTime, Instant, fn=ZonedDateTime.to_instant)
 register_simple_type_converter(ZonedDateTime, PlainDateTime, fn=ZonedDateTime.to_plain)
 register_simple_type_converter(ZonedDateTime, str, fn=ZonedDateTime.format_iso)
-
-# more complex converters
 
 
 @register_type_converter_fn(error_message="String must be a datetime-like value, got {from_type}")

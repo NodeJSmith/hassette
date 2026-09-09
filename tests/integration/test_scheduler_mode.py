@@ -132,9 +132,6 @@ async def test_run_once_with_mode_fires_exactly_once() -> None:
         assert completed_job.next_run is None
 
 
-# Integration tests via hassette_with_scheduler (framework-tier scheduler)
-
-
 class TestSchedulerModeViaHarness:
     """Test the full schedule() path including mode resolution and job creation."""
 
@@ -243,9 +240,6 @@ class TestOneShotModeAcceptance:
         hassette_with_scheduler.scheduler.remove_job(job)
 
 
-# Convenience method forwarding
-
-
 class TestConvenienceMethodModeForwarding:
     async def test_run_every_forwards_mode(self, hassette_with_scheduler) -> None:
         """run_every forwards mode= and the resolved mode appears on the job."""
@@ -301,9 +295,6 @@ class TestConvenienceMethodModeForwarding:
             hassette_with_scheduler.scheduler.remove_job(job)
 
 
-# Dispatch-time reschedule and guard routing tests
-
-
 class _OverlapConfig(AppConfig):
     """Minimal config for overlap mode tests."""
 
@@ -333,9 +324,6 @@ class _OverrunApp(App[_OverlapConfig]):
         self.invocation_count += 1
         self.started.set()
         await self.run_gate.wait()
-
-
-# Dispatch-time reschedule: next occurrence on heap before run completes
 
 
 async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -> None:
@@ -374,9 +362,6 @@ async def test_dispatch_time_reschedule_next_occurrence_before_run_completes() -
         await asyncio.wait_for(dispatch_task, timeout=2.0)
 
 
-# Fire sequence unchanged for non-overrunning jobs
-
-
 async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
     """A job that completes within its interval produces the same fire-time sequence
     with dispatch-time reschedule.
@@ -410,9 +395,6 @@ async def test_non_overrunning_job_produces_same_fire_sequence() -> None:
         delta = (job2.next_run - t0).total("seconds")
         # Allow a small tolerance; the grid tick should be ~10s
         assert 9 <= delta <= 11, f"Expected next fire ~10s after first fire, got delta={delta}s"
-
-
-# single mode suppresses overrun re-fires
 
 
 async def test_single_mode_suppresses_overrun() -> None:
@@ -457,9 +439,6 @@ async def test_single_mode_suppresses_overrun() -> None:
         # Clean up
         app.run_gate.set()
         await asyncio.wait_for(dispatch1, timeout=2.0)
-
-
-# parallel mode runs overlapping invocations concurrently
 
 
 async def test_parallel_mode_runs_invocations_concurrently() -> None:
@@ -510,9 +489,6 @@ async def test_parallel_mode_runs_invocations_concurrently() -> None:
         assert max_concurrent[0] >= 2, (
             f"Expected concurrent invocations (parallel mode), max_concurrent={max_concurrent[0]}"
         )
-
-
-# queued mode serializes overruns
 
 
 async def test_queued_mode_serializes_overrun() -> None:
@@ -568,9 +544,6 @@ async def test_queued_mode_serializes_overrun() -> None:
         assert 1 in run_order, "First invocation should have run"
         assert 2 in run_order, "Second (queued) invocation should have run"
         assert run_order.index(1) < run_order.index(2), "Invocations should run in arrival order"
-
-
-# queued mode: QUEUED_ACCEPTED + removal does not hang dispatch task
 
 
 async def test_queued_accepted_then_remove_does_not_hang() -> None:
@@ -631,9 +604,6 @@ async def test_queued_accepted_then_remove_does_not_hang() -> None:
         gate.set()
         with contextlib.suppress(asyncio.CancelledError, TimeoutError):
             await asyncio.wait_for(dispatch1, timeout=2.0)
-
-
-# restart mode cancels in-flight and starts fresh
 
 
 async def test_restart_mode_cancels_and_starts_fresh() -> None:
@@ -796,9 +766,6 @@ async def test_trigger_error_runs_current_fire_then_completes_job() -> None:
         assert any(j is job for j in still_registered), "Job should remain registered after a trigger error"
 
 
-# Dequeued race: in-lock re-check prevents spurious re-push
-
-
 async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
     """A job cancelled between dispatch entry and the dispatch-time re-enqueue is not
     pushed back onto the heap.
@@ -857,9 +824,6 @@ async def test_dequeued_race_in_lock_prevents_spurious_repush() -> None:
         )
 
 
-# Guard release on removal clears in-flight invocation
-
-
 async def test_guard_release_on_remove_clears_in_flight() -> None:
     """Removing a job with an in-flight invocation releases its guard."""
 
@@ -908,9 +872,6 @@ async def test_guard_release_on_remove_clears_in_flight() -> None:
         dispatch_task.cancel()
         with contextlib.suppress(asyncio.CancelledError, TimeoutError):
             await asyncio.wait_for(dispatch_task, timeout=1.0)
-
-
-# Removing a COMPLETED job (never heap-resident) still releases its guard
 
 
 async def test_remove_completed_job_releases_guard_without_heap_entry() -> None:

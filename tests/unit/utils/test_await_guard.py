@@ -41,9 +41,6 @@ def _drain(drain_forgotten_await_handles: None) -> None:
     # dup-ignore-end
 
 
-# Helpers
-
-
 async def _noop_coro() -> str:
     """A trivial coroutine that returns a value."""
     return "ok"
@@ -71,18 +68,12 @@ def _make_handle(
     )
 
 
-# drop + gc.collect() emits warning
-
-
 def test_drop_unawaited_emits_warning():
     """Dropping a RegistrationHandle without awaiting emits HassetteForgottenAwaitWarning."""
     h = _make_handle(source_location="/app/my_app.py:42")
     with pytest.warns(HassetteForgottenAwaitWarning):
         del h
         gc.collect()
-
-
-# warning message contains owner identity + source location
 
 
 def test_warning_message_contains_app_identity():
@@ -115,9 +106,6 @@ def test_warning_message_falls_back_to_inner_coro_name():
     with pytest.warns(HassetteForgottenAwaitWarning, match="Coroutine from '_noop_coro' was never awaited"):
         del h
         gc.collect()
-
-
-# awaited handle does NOT warn, no native double-warning
 
 
 async def test_awaited_handle_does_not_warn():
@@ -167,9 +155,6 @@ async def test_unawaited_no_native_double_warning():
     assert native_warns == [], f"Got unexpected native warning(s): {native_warns}"
 
 
-# all four drive/teardown entry points set _awaited = True
-
-
 async def test_send_sets_awaited():
     """Driving via send() sets _awaited, suppressing the warning."""
     h = _make_handle()
@@ -210,9 +195,6 @@ async def test_await_sets_awaited():
     h = _make_handle()
     await h
     assert h._awaited is True
-
-
-# RegistrationHandle.__name__ and asyncio.iscoroutine
 
 
 def test_handle_name_delegates_to_inner_coro():
@@ -338,9 +320,6 @@ def test_global_default_used_when_per_app_none():
     h.close()
 
 
-# module-name attribution
-
-
 def test_source_capture_no_longer_uses_path_fragments():
     """source_capture.is_internal_frame uses module-name check, not path fragments."""
     # Old path-fragment style is removed
@@ -437,9 +416,6 @@ def test_source_capture_limit_too_small_falls_back(monkeypatch):
     assert source_location == "/site-packages/hassette/bus/bus.py:350"
 
 
-# handle held alive does not warn until collected
-
-
 def test_handle_held_alive_does_not_warn_immediately():
     """A handle stored on an object does not warn while the object is reachable."""
 
@@ -462,9 +438,6 @@ def test_handle_held_alive_does_not_warn_immediately():
         gc.collect()
 
 
-# ForgottenAwaitBehavior enum
-
-
 def test_forgotten_await_behavior_has_all_members():
     """ForgottenAwaitBehavior has IGNORE, WARN, ERROR members."""
     assert ForgottenAwaitBehavior.IGNORE is not None
@@ -481,15 +454,9 @@ def test_forgotten_await_behavior_is_str_enum():
     assert ForgottenAwaitBehavior.ERROR == "error"
 
 
-# HassetteForgottenAwaitWarning
-
-
 def test_hassette_forgotten_await_warning_is_runtime_warning():
     """HassetteForgottenAwaitWarning is a subclass of RuntimeWarning."""
     assert issubclass(HassetteForgottenAwaitWarning, RuntimeWarning)
-
-
-# Config — per-app and global
 
 
 def test_app_config_has_forgotten_await_behavior_field():

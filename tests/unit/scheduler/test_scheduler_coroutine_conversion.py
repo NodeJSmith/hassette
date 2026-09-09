@@ -59,9 +59,6 @@ def _drain(drain_forgotten_await_handles: None) -> None:
     # dup-ignore-end
 
 
-# Public scheduling methods must be plain def, not async def
-
-
 @pytest.mark.parametrize("method_name", _PUBLIC_SCHEDULING_METHODS)
 def test_scheduling_method_is_plain_def(method_name: str) -> None:
     """Every public scheduler scheduling method must be a plain def, not async def."""
@@ -73,9 +70,6 @@ def test_scheduling_method_is_plain_def(method_name: str) -> None:
 
 
 # Annotation-origin guard lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
-
-
-# Awaiting returns Job with db_id; no warnings emitted
 
 
 @pytest.mark.parametrize("call", _SCHEDULING_METHOD_CALLS)
@@ -128,9 +122,6 @@ def test_returns_registration_handle(call) -> None:
     handle.close()
 
 
-# Dropping un-awaited handle emits HassetteForgottenAwaitWarning
-
-
 @pytest.mark.parametrize("call", _SCHEDULING_METHOD_CALLS)
 # dup-ignore-end
 def test_forgotten_await_warns(call) -> None:
@@ -140,9 +131,6 @@ def test_forgotten_await_warns(call) -> None:
         _ = call(scheduler)
         del _
         gc.collect()
-
-
-# Source threading — Job.source_location is non-empty via add_job backfill
 
 
 async def test_source_location_backfilled_via_schedule() -> None:
@@ -180,9 +168,6 @@ async def test_source_location_preserved_when_already_set() -> None:
     assert result.source_location == pre_set, (
         f"add_job must not overwrite a pre-set source_location, got {result.source_location!r}"
     )
-
-
-# TypeError on add_job("not-a-job") — synchronous, at call time
 
 
 def test_add_job_wrong_type_raises_typeerror_synchronously() -> None:

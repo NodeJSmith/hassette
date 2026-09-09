@@ -29,9 +29,6 @@ async def handler_b(event) -> None:
     pass
 
 
-# ListenerNameRequiredError
-
-
 async def test_registering_without_name_raises_type_error(bus: "Bus") -> None:
     """Bus.on() omitting name= entirely raises TypeError — name has no default."""
     with mock_add_listener(bus), pytest.raises(TypeError):
@@ -112,9 +109,6 @@ async def test_providing_name_does_not_raise(bus: "Bus") -> None:
         assert sub is not None
 
 
-# DuplicateListenerError
-
-
 async def test_duplicate_name_and_topic_raises(bus: "Bus") -> None:
     """Registering two handlers with the same name+topic raises DuplicateListenerError."""
     with mock_add_listener(bus):
@@ -168,9 +162,6 @@ async def test_once_listeners_collide_like_durable_listeners(bus: "Bus") -> None
         # Second once-listener with same name+topic now raises DuplicateListenerError
         with pytest.raises(DuplicateListenerError):
             await bus.on(topic="test.topic", handler=handler_b, name="once_listener", once=True)
-
-
-# _listener_natural_key canonical shape
 
 
 async def test_listener_natural_key_is_canonical_4_tuple(bus: "Bus") -> None:

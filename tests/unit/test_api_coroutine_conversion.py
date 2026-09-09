@@ -40,9 +40,6 @@ def _drain(drain_forgotten_await_handles: None) -> None:
     """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
 
 
-# Converted public methods are plain def, not async def
-
-
 @pytest.mark.parametrize("method_name", _CONVERTED_METHODS)
 def test_converted_method_is_plain_def(method_name: str) -> None:
     """Every converted api fire-and-forget method must be a plain def, not async def."""
@@ -54,9 +51,6 @@ def test_converted_method_is_plain_def(method_name: str) -> None:
 
 
 # Annotation-origin guard lives in tests/unit/test_forgotten_await_completeness.py::TestAnnotationOriginGuard.
-
-
-# Awaiting returns expected values; no warnings emitted
 
 
 @pytest.mark.parametrize(
@@ -123,9 +117,6 @@ def test_returns_registration_handle(call) -> None:
     handle = call(api)
     assert isinstance(handle, RegistrationHandle)
     handle.close()
-
-
-# Forgotten await on a primary AND a delegate emits HassetteForgottenAwaitWarning
 
 
 @pytest.mark.parametrize("call", _API_METHODS)

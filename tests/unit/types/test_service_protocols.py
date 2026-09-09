@@ -18,8 +18,6 @@ from hassette.core.state_proxy import StateProxy
 if TYPE_CHECKING:
     from hassette.types import SchedulerServiceProtocol, StateReader
 
-# Protocol member inventories
-
 _SCHEDULER_SERVICE_PROTOCOL_MEMBERS = [
     "task_bucket",
     "add_job",
@@ -35,9 +33,6 @@ _STATE_READER_MEMBERS = [
     "get_state",
     "yield_domain_states",
 ]
-
-
-# Runtime hasattr conformance
 
 
 def _all_annotations(cls: type) -> dict[str, Any]:
@@ -87,9 +82,6 @@ def _check_scheduler_service_protocol(svc: SchedulerService) -> None:
 def _check_state_reader(proxy: StateProxy) -> None:
     """Pyright verifies StateProxy is assignable to StateReader."""
     _: StateReader = proxy
-
-
-# Export / import surface checks
 
 
 def test_both_in_all() -> None:

@@ -64,9 +64,6 @@ async def test_error_via_on_call_service(bus: "Bus") -> None:
             await bus.on_call_service(handler=handler_b, name="svc_listener", if_exists="error")
 
 
-# skip idempotent re-registration
-
-
 async def test_skip_identical_config_returns_subscription(bus: "Bus") -> None:
     """Skip with identical config returns a subscription."""
     with mock_add_listener(bus):
@@ -199,9 +196,6 @@ async def test_skip_via_on_call_service(bus: "Bus") -> None:
     assert sub2.listener is sub1.listener
 
 
-# skip with drift raises ValueError
-
-
 async def test_skip_drift_raises_value_error(bus: "Bus") -> None:
     """Skip with different handler raises ValueError."""
     with mock_add_listener(bus):
@@ -238,9 +232,6 @@ async def test_skip_drift_with_predicate_change_notes_lambda_identity(bus: "Bus"
     assert "predicate" in msg
     assert "lambda/closure predicates compare by identity" in msg
     assert "if_exists='replace'" in msg
-
-
-# replace cancels old, registers new
 
 
 async def test_replace_cancels_old_listener(bus: "Bus") -> None:
@@ -304,9 +295,6 @@ async def test_replace_db_id_preserved(bus: "Bus") -> None:
         assert sub2.listener.db_id == 42
     finally:
         bus.bus_service.add_listener = original
-
-
-# cancel path spawns mark_listener_cancelled
 
 
 async def test_cancel_subscription_spawns_mark_cancelled(bus: "Bus") -> None:
@@ -430,9 +418,6 @@ async def test_replace_cancel_old_spawns_mark_cancelled(bus: "Bus") -> None:
     assert old_db_id in cancelled_db_ids, f"mark_listener_cancelled should have been called with db_id={old_db_id}"
 
 
-# add_listener returns Subscription
-
-
 async def test_add_listener_returns_subscription(bus: "Bus") -> None:
     """add_listener returns a Subscription."""
     with mock_add_listener(bus):
@@ -471,9 +456,6 @@ async def test_add_listener_skip_returns_existing_subscription(bus: "Bus") -> No
         sub2 = await bus.add_listener(listener2, if_exists="skip")
 
     assert sub2.listener is sub1.listener, "skip should return existing listener's subscription"
-
-
-# if_exists accepted on on() explicitly
 
 
 async def test_if_exists_accepted_on_on_method(bus: "Bus") -> None:

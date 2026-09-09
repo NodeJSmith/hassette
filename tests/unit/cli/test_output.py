@@ -26,8 +26,6 @@ from hassette.cli.output import (
 from hassette.types.types import CliFormat
 from tests.unit.cli.conftest import capture_human, parse_json_stdout
 
-# Simple test models
-
 
 class SimpleItem(BaseModel):
     name: str
@@ -58,9 +56,6 @@ class ParentModel(BaseModel):
     debug: bool = False
     tags: list[str] = []
     sub: SubModel = SubModel(host="localhost", port=8080)
-
-
-# Column definition
 
 
 class TestColumn:
@@ -95,9 +90,6 @@ class TestColumn:
             col.field = "other"  # pyright: ignore[reportAttributeAccessIssue]
 
 
-# _extract_field
-
-
 class TestExtractField:
     def test_simple_field(self) -> None:
         item = SimpleItem(name="alpha", count=1)
@@ -129,9 +121,6 @@ class TestExtractField:
         item = SimpleItem(name="alpha", count=1, note=None)
         # note is None, trying to go deeper returns None
         assert _extract_field(item, "note.sub") is None
-
-
-# Built-in formatters
 
 
 class TestFmtRelativeTime:
@@ -203,9 +192,6 @@ class TestFmtDurationS:
         assert fmt_duration_s("invalid") == "invalid"
 
 
-# _cell_text
-
-
 class TestCellText:
     def test_no_formatter_returns_str(self) -> None:
         col = Column(field="name", header="Name")
@@ -252,9 +238,6 @@ class TestCellText:
         col = Column(field="next_run", header="Next Run")
         meta = CliFormat("relative_time")
         assert _cell_text(None, col, meta) == ""
-
-
-# render_table — JSON mode
 
 
 class TestRenderTableJsonMode:
@@ -304,9 +287,6 @@ class TestRenderTableJsonMode:
         # Must be valid JSON — no ANSI codes, no Rich markup
         parsed = parse_json_stdout(capsys)
         assert parsed[0]["name"] == "x"
-
-
-# render_table — human mode
 
 
 class TestRenderTableHumanMode:
@@ -365,9 +345,6 @@ class TestRenderTableHumanMode:
         assert "gamma" in stdout
 
 
-# render_table — CliFormat metadata fallback
-
-
 class TestRenderTableCliFormatFallback:
     def test_column_without_formatter_uses_model_metadata(self) -> None:
         items = [AnnotatedTableItem(name="job1", avg_duration_ms=450.0)]
@@ -395,9 +372,6 @@ class TestRenderTableCliFormatFallback:
         parsed = parse_json_stdout(capsys)
         assert parsed[0]["avg_duration_ms"] == 450.0
         assert parsed[0]["next_run"] is None
-
-
-# render_table — pipe detection
 
 
 class TestRenderTablePipeDetection:
@@ -436,9 +410,6 @@ class TestRenderTablePipeDetection:
         assert long_name in output
 
 
-# render_detail — JSON mode
-
-
 class TestRenderDetailJsonMode:
     def test_valid_json_on_stdout(self, capsys: pytest.CaptureFixture[str]) -> None:
         item = SimpleItem(name="test", count=7, active=True)
@@ -468,9 +439,6 @@ class TestRenderDetailJsonMode:
         captured = capsys.readouterr()
         # model_dump_json with indent=2 produces multi-line output
         assert "\n" in captured.out
-
-
-# render_detail — human mode
 
 
 class TestRenderDetailHumanMode:
@@ -543,9 +511,6 @@ class TestRenderDetailHumanMode:
         assert "—" in stdout
 
 
-# stdout cleanliness contract
-
-
 class TestStdoutCleanliness:
     def test_json_table_stdout_is_valid_json_only(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Stdout in JSON mode must be exactly one valid JSON document."""
@@ -569,9 +534,6 @@ class TestStdoutCleanliness:
         columns = [Column("name", "Name")]
         _stdout, stderr = capture_human(render_table, items, columns, json_mode=False)
         assert stderr == ""
-
-
-# Architectural constraint verification
 
 
 class TestArchitecturalConstraint:

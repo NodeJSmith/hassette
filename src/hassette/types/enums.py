@@ -128,8 +128,6 @@ class Outcome(StrEnum):
 class Topic(StrEnum):
     """Event topic identifiers for the internal pub/sub bus."""
 
-    # hassette events
-
     HASSETTE_EVENT_SERVICE_STATUS = "hassette.event.service_status"
     """Service status updates"""
 
@@ -150,8 +148,6 @@ class Topic(StrEnum):
 
     HASSETTE_EVENT_EXECUTION_COMPLETED = "hassette.event.execution_completed"
     """Handler or job execution persisted to the telemetry database"""
-
-    # Home Assistant events
 
     HASS_EVENT_STATE_CHANGED = "hass.event.state_changed"
     """State change events"""

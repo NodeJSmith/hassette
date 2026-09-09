@@ -181,8 +181,6 @@ class HelperClient(Resource):
         self.logger.debug("Listed %d %s helpers", len(items), domain)
         return [record_type.model_validate(item) for item in items]
 
-    # create dispatches on type(params)
-
     @overload
     async def create(self, params: CreateInputBooleanParams) -> InputBooleanRecord: ...
     @overload
@@ -215,8 +213,6 @@ class HelperClient(Resource):
         record = record_type.model_validate(_expect_dict(val, f"{domain}/create"))
         self.logger.info("Created %s helper %r", domain, record.id)  # pyright: ignore[reportAttributeAccessIssue]
         return record
-
-    # update dispatches on type(params)
 
     @overload
     async def update(self, helper_id: str, params: UpdateInputBooleanParams) -> InputBooleanRecord: ...
@@ -253,8 +249,6 @@ class HelperClient(Resource):
         record = record_type.model_validate(_expect_dict(val, f"{domain}/update"))
         self.logger.debug("Updated %s helper %r", domain, helper_id)
         return record
-
-    # delete dispatches on a Literal domain string
 
     @overload
     async def delete(self, domain: Literal["input_boolean"], helper_id: str) -> None: ...

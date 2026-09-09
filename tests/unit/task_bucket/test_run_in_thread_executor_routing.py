@@ -32,9 +32,6 @@ def bucket(hassette_mock: AsyncMock, sync_executor: SyncExecutor) -> TaskBucket:
     return TaskBucket(hassette_mock, sync_executor=sync_executor)
 
 
-# Sync user code runs on the dedicated pool
-
-
 async def test_run_in_thread_uses_dedicated_executor(bucket: TaskBucket) -> None:
     """Worker thread name starts with 'hassette-sync' (the dedicated pool's prefix).
 
@@ -73,9 +70,6 @@ async def test_run_in_thread_handle_captures_worker_thread(bucket: TaskBucket) -
     assert result == "done"
     assert handle.thread is not None, "handle.thread should be a Thread after completion"
     assert isinstance(handle.thread, threading.Thread)
-
-
-# Framework asyncio.to_thread still uses the default pool
 
 
 async def test_asyncio_to_thread_uses_default_pool() -> None:
@@ -125,9 +119,6 @@ async def test_pool_split_both_assertions_in_one_pass(bucket: TaskBucket) -> Non
     assert not default_name[0].startswith("hassette-sync"), (
         f"asyncio.to_thread worker should NOT be on dedicated pool, got '{default_name[0]}'"
     )
-
-
-# Timeout signal unchanged
 
 
 async def test_slow_sync_handler_timeout_signal_unchanged(bucket: TaskBucket) -> None:

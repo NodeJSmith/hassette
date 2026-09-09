@@ -31,9 +31,6 @@ async def handler_b(event) -> None:
     pass
 
 
-# once-listeners participate in collision tracking
-
-
 async def test_once_listeners_collide_with_duplicate_error(bus: "Bus") -> None:
     """Two once=True listeners with same name+topic raise DuplicateListenerError."""
     with mock_add_listener(bus):
@@ -59,9 +56,6 @@ async def test_once_if_exists_replace_works(bus: "Bus") -> None:
 
     assert sub1.listener.is_cancelled
     assert sub2.listener is not sub1.listener
-
-
-# once-fire releases the key (new registration succeeds)
 
 
 def get_bus_removal_callback(bus: "Bus"):
@@ -132,9 +126,6 @@ async def test_once_key_released_after_fire(bus: "Bus") -> None:
         bus.bus_service.task_bucket.spawn = original_spawn
         bus.bus_service.add_listener = original_add
         bus.bus_service.mark_listener_cancelled = original_mark
-
-
-# once-fire spawns mark_listener_cancelled
 
 
 async def test_once_fire_spawns_mark_listener_cancelled(bus: "Bus") -> None:
@@ -222,9 +213,6 @@ async def test_once_fire_callback_no_crash_when_no_db_id(bus: "Bus") -> None:
         bus.bus_service.add_listener = original_add
 
     assert len(spawned_coros) == 0, "No spawn when db_id is None"
-
-
-# on_shutdown deregisters the removal callback
 
 
 async def test_shutdown_deregisters_removal_callback(bus: "Bus") -> None:

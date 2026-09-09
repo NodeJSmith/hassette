@@ -156,6 +156,17 @@ files = "^frontend/src/"
 stages = ["pre-commit", "pre-push"]
 groups = ["frontend"]
 
+[[repos.hooks]]
+id = "check-frontend-section-dividers"
+name = "Check for section-divider comments (TS/TSX)"
+language = "system"
+entry = "./tools/frontend/check_frontend_section_dividers.py"
+pass_filenames = false
+types_or = ["ts", "tsx"]
+files = "^frontend/src/"
+stages = ["pre-commit", "pre-push"]
+groups = ["frontend"]
+
 # ---------------------------------------------------------------------------
 # Local hooks — codegen (pre-push only)
 # ---------------------------------------------------------------------------
@@ -293,4 +304,12 @@ name = "Check for blind **kwargs forwarding typed object/Any"
 language = "system"
 entry = "./tools/check_kwargs_forwarding.py"
 files = '^src/hassette/.*\.py$'
+stages = ["pre-commit", "pre-push"]
+
+[[repos.hooks]]
+id = "check-section-dividers"
+name = "Check for undecorated section-divider comments"
+language = "system"
+entry = "./tools/check_section_dividers.py"
+files = '^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$'
 stages = ["pre-commit", "pre-push"]

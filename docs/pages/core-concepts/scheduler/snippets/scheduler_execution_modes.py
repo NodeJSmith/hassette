@@ -93,8 +93,6 @@ class MetricApp(App[AppConfig]):
 # --8<-- [end:parallel]
 
 
-# Intro: the mode= parameter
-
 class IntroApp(App[AppConfig]):
     async def on_initialize(self):
         # --8<-- [start:mode_parameter_basic]

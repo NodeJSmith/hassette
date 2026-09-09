@@ -97,8 +97,6 @@ class MetricApp(App[AppConfig]):
 # --8<-- [end:parallel]
 
 
-# Composition: debounce + single
-
 # --8<-- [start:debounce_single]
 class TempApp(App[AppConfig]):
     async def on_initialize(self):
@@ -121,8 +119,6 @@ class TempApp(App[AppConfig]):
 # --8<-- [end:debounce_single]
 
 
-# Composition: once + mode
-
 # --8<-- [start:once_mode]
 class StartupApp(App[AppConfig]):
     async def on_initialize(self):
@@ -140,8 +136,6 @@ class StartupApp(App[AppConfig]):
         self.logger.info("Front door opened for the first time")
 # --8<-- [end:once_mode]
 
-
-# Composition: duration + single
 
 # --8<-- [start:duration_single]
 class OccupancyApp(App[AppConfig]):
@@ -164,8 +158,6 @@ class OccupancyApp(App[AppConfig]):
 # --8<-- [end:duration_single]
 
 
-# Intro: the mode= parameter
-
 class DoorApp(App[AppConfig]):
     async def on_initialize(self):
         # --8<-- [start:mode_parameter_basic]
@@ -184,8 +176,6 @@ class DoorApp(App[AppConfig]):
     ):
         await self.api.call_service("lock", "lock", entity_id="lock.front")
 
-
-# Migration: restore pre-1.0 concurrent behavior
 
 class ReadingApp(App[AppConfig]):
     async def on_initialize(self):

@@ -26,8 +26,6 @@ MISSING_ENDPOINT = "/api/missing"
 APP_LISTENERS_ENDPOINT_TEMPLATE = "/api/telemetry/app/{app_key}/listeners"
 TELEMETRY_STATUS_ENDPOINT = "/api/telemetry/status"
 
-# Helpers
-
 
 class SimpleModel(BaseModel):
     value: str
@@ -154,9 +152,6 @@ def stderr_for_connect_error(config: HassetteConfig, **client_kwargs: Any) -> st
     return stderr
 
 
-# Base URL construction & address substitution
-
-
 class TestBaseUrl:
     def test_default_address(self) -> None:
         config = make_host_port_config()
@@ -177,9 +172,6 @@ class TestBaseUrl:
         config = make_host_port_config("192.168.1.5", 9000)
         client = HassetteCLIClient(config, json_mode=False)
         assert client.base_url == "http://192.168.1.5:9000"
-
-
-# Successful deserialization
 
 
 class TestSuccessfulRequests:
@@ -431,9 +423,6 @@ class TestPostMalformedResponse:
         assert result.app_key == "my_app"
 
 
-# HTTP error handling (human mode)
-
-
 class TestHttpErrorsHumanMode:
     def test_404_exits_with_code_1(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = make_host_port_config()
@@ -468,9 +457,6 @@ class TestHttpErrorsHumanMode:
         assert captured.out == ""
 
 
-# HTTP error handling (json mode)
-
-
 class TestHttpErrorsJsonMode:
     def test_404_json_error_structure(self, capsys: pytest.CaptureFixture[str]) -> None:
         config = make_host_port_config()
@@ -488,9 +474,6 @@ class TestHttpErrorsJsonMode:
         # In json mode, error goes to stdout only
         parsed = get_json_error(client, capsys, CRASH_ENDPOINT)
         assert parsed["error"] is True
-
-
-# Network errors (connection refused / timeout)
 
 
 class TestNetworkErrors:
@@ -532,9 +515,6 @@ class TestNetworkErrors:
         assert parsed["status"] is None
 
 
-# App-key URL routing
-
-
 class TestAppKeyRouting:
     def test_no_app_uses_global_listener_url(self) -> None:
         client, captured_urls = url_capturing_client()
@@ -545,9 +525,6 @@ class TestAppKeyRouting:
         client, captured_urls = url_capturing_client()
         route_listeners(client, app_key="my_app")
         assert any(APP_LISTENERS_ENDPOINT_TEMPLATE.format(app_key="my_app") in u for u in captured_urls)
-
-
-# --instance flag
 
 
 class TestInstanceRouting:
@@ -695,9 +672,6 @@ class TestInstanceRouting:
         assert "--instance <index>" in buf.getvalue()
 
 
-# --debug flag
-
-
 class TestDebugMode:
     def test_debug_human_mode_shows_url_and_body(self) -> None:
         config = make_host_port_config()
@@ -734,9 +708,6 @@ class TestDebugMode:
         assert "debug" not in parsed
 
 
-# 3xx redirect responses: likely forward-auth login page
-
-
 class TestRedirectResponse:
     def test_302_mentions_redirect_forward_auth_and_docs(self) -> None:
         config = make_host_port_config()
@@ -754,9 +725,6 @@ class TestRedirectResponse:
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
         parsed = get_json_error(client, capsys)
         assert "redirect" in parsed["detail"].lower()
-
-
-# Full base URL (scheme + path prefix) in error messages
 
 
 class TestFullBaseUrlInErrorMessages:

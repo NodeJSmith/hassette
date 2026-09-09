@@ -29,9 +29,6 @@ DOCS_DIR = REPO_ROOT / "docs" / "pages"
 MIN_INLINE_CODE_LINES = 2
 
 
-# Page classification
-
-
 COPULA_AVOIDANCE = re.compile(r"\b(serves?\s+as|acts?\s+as|functions?\s+as)\b", re.IGNORECASE)
 SIGNIFICANCE_INFLATION = re.compile(
     r"\b(pivotal|crucial|fundamental|robust|essential|paramount|indispensable)\b", re.IGNORECASE
@@ -107,9 +104,6 @@ def classify_page(rel_path: str) -> str:
     return "other"
 
 
-# Section detection within a page
-
-
 def current_heading(lines: list[str], line_idx: int) -> str:
     """Return the most recent heading text above this line."""
     for i in range(line_idx, -1, -1):
@@ -127,9 +121,6 @@ def lines_since_heading(lines: list[str], line_idx: int) -> int:
     return line_idx
 
 
-# Fence tracking (computed once per page)
-
-
 def compute_code_block_lines(lines: list[str]) -> set[int]:
     """Return the set of line indices that are inside fenced code blocks."""
     inside: set[int] = set()
@@ -140,9 +131,6 @@ def compute_code_block_lines(lines: list[str]) -> set[int]:
         elif in_fence:
             inside.add(i)
     return inside
-
-
-# Findings
 
 
 @dataclass
@@ -160,9 +148,6 @@ class AuditResult:
 
     def add(self, file: str, line: int, rule: str, message: str, snippet: str = "") -> None:
         self.findings.append(Finding(file=file, line=line, rule=rule, message=message, snippet=snippet))
-
-
-# Pattern checks
 
 
 def is_prose_line(line: str) -> bool:
@@ -345,8 +330,6 @@ def audit_page(path: Path, result: AuditResult) -> None:
         if m:
             flag("negative-parallelism", "State the point directly")
 
-        # Em dashes (per-line)
-
         if EM_DASH.search(stripped):
             flag("em-dash", "Em dash — use period, comma, or parentheses")
 
@@ -372,8 +355,6 @@ def audit_page(path: Path, result: AuditResult) -> None:
             if m:
                 flag("category-definition", f'Define by function, not category: "{m.group()}"')
 
-        # "You/your" in concept pages
-
         if is_concept_like:
             m = YOU_YOUR.search(stripped)
             if m and not is_in_admonition(lines, i):
@@ -388,8 +369,6 @@ def audit_page(path: Path, result: AuditResult) -> None:
                 if m and not is_in_admonition(lines, i):
                     flag("you-in-how-it-works", f'"{m.group()}" in "How It Works" — use system-as-subject')
 
-        # Transition openers
-
         if stripped and stripped[0].isupper():
             m = TRANSITION_OPENERS.match(stripped)
             if m:
@@ -401,9 +380,6 @@ def audit_page(path: Path, result: AuditResult) -> None:
             m = REASSURANCE.search(stripped)
             if m:
                 flag("reassurance", f'Reassurance: "{m.group()}" — assume capable reader')
-
-
-# Output
 
 
 def format_findings(result: AuditResult) -> str:
@@ -440,9 +416,6 @@ def format_summary(result: AuditResult, page_count: int) -> str:
     file_count = len({finding.file for finding in result.findings})
     parts.append(f"\n  {len(result.findings)} total findings across {file_count} files ({page_count} pages scanned)")
     return "\n".join(parts)
-
-
-# Main
 
 
 def main() -> int:

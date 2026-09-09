@@ -229,9 +229,6 @@ def _is_detected(cls: type, name: str) -> bool:
     return getattr(return_ann, "__origin__", None) is collections.abc.Coroutine
 
 
-# Canonical list completeness/disjointness guard
-
-
 class TestCompletenessGuard:
     """Enumeration-based drift guard for the canonical protected-method list.
 
@@ -309,9 +306,6 @@ class TestCompletenessGuard:
         )
 
 
-# Annotation-origin guard — cross-class, canonical list
-
-
 class TestAnnotationOriginGuard:
     """Every method in the canonical list must have return annotation __origin__ == collections.abc.Coroutine.
 
@@ -368,9 +362,6 @@ class TestAnnotationOriginGuard:
 # across the full canonical list — catching drift that per-class tests miss.
 
 
-# Bus fixtures
-
-
 def _make_bus() -> Bus:
     """Minimal Bus with mocked bus_service.add_listener."""
     hassette_mock = MagicMock()
@@ -414,9 +405,6 @@ def _bus_call(method_name: str):
     return _calls[method_name]
 
 
-# Scheduler fixtures
-
-
 def _make_scheduler() -> Scheduler:
     """Minimal Scheduler with mocked scheduler_service.add_job."""
     hassette_mock = MagicMock()
@@ -455,12 +443,6 @@ def _sched_call(method_name: str):
     return _calls[method_name]
 
 
-# Api fixtures
-
-
-# Build parametrized cases
-
-
 def _build_warning_cases() -> list[pytest.param]:
     """Build one pytest.param per canonical method, skipping those with special setup."""
     cases = []
@@ -493,9 +475,6 @@ def test_canonical_method_warns_on_forgotten_await(resource: str, call_fn) -> No
         _ = call_fn(instance)
         del _
         gc.collect()
-
-
-# Special-case methods that need different argument construction
 
 
 def test_bus_add_listener_warns_on_forgotten_await() -> None:

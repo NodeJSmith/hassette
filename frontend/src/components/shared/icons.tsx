@@ -3,7 +3,7 @@
 // All other icons use stroke-based attributes.
 import type { ReactNode } from "react";
 
-// --- Stroke-based icons ---
+// Stroke-based icons
 
 /** Shared 24x24 stroke-style wrapper — every stroke icon differs only in its inner shape. */
 function StrokeIcon({ children }: { children: ReactNode }) {

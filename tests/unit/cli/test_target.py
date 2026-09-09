@@ -25,8 +25,6 @@ from hassette.exceptions import (
 from hassette.web.auth.tokens import TOKEN_FILENAME
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, REMOTE_SERVER_URL_BARE, make_cli_config
 
-# Target resolution precedence
-
 
 class TestServerTargetPrecedence:
     def test_flag_wins_over_config_and_derived(self, tmp_path: Path) -> None:
@@ -74,9 +72,6 @@ class TestServerTargetPrecedence:
         assert target.verify_ssl is False
 
 
-# URL normalization and composition
-
-
 class TestUrlNormalization:
     def test_path_prefix_composes_with_command_paths(self, tmp_path: Path) -> None:
         """The base_url, joined by httpx2, produces the expected full request URL."""
@@ -115,9 +110,6 @@ class TestUrlNormalization:
         assert target.is_loopback is True
 
 
-# URL validation
-
-
 class TestUrlValidation:
     def test_scheme_less_url_raises_naming_offending_value(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path)
@@ -145,9 +137,6 @@ class TestUrlValidation:
             resolve_server_target(config, server_url_flag="https://example.com/hassette/api/")
 
 
-# URL validation: distinct failure modes get distinct exception types
-
-
 class TestUrlValidationFailureModes:
     def test_non_numeric_port_raises_parse_error(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path)
@@ -168,9 +157,6 @@ class TestUrlValidationFailureModes:
         config = make_cli_config(data_dir=tmp_path)
         with pytest.raises(ServerUrlHostRequiredError, match=r"https:///foo"):
             resolve_server_target(config, server_url_flag="https:///foo")
-
-
-# Credential precedence chain
 
 
 class TestCredentialPrecedence:
@@ -230,9 +216,6 @@ class TestCredentialPrecedence:
         assert result == "file-token"
 
 
-# Credential scope gate (loopback suppression)
-
-
 class TestCredentialScopeGate:
     def test_web_api_auth_token_suppressed_for_non_loopback_target(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, web_api_auth_token="web-api-token")
@@ -271,9 +254,6 @@ class TestCredentialScopeGate:
             assert source.scope in ("cli", "server")
 
 
-# --token-file vs cli.token_file failure modes — edge cases
-
-
 class TestTokenFileFailureModes:
     def test_missing_token_file_flag_raises(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path)
@@ -297,9 +277,6 @@ class TestTokenFileFailureModes:
         target = resolve_server_target(config)
         result = resolve_cli_auth_token(config, target, token_file_flag=empty_file)
         assert result is None
-
-
-# Credential content validation
 
 
 class TestCredentialHeaderSafety:

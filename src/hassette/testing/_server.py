@@ -36,8 +36,6 @@ class SimpleTestServer:
         self._expectations: dict[Key, deque[Expected]] = defaultdict(deque)
         self._unexpected: list[Key] = []
 
-    # registering expectations
-
     def expect(
         self,
         method: str,
@@ -67,8 +65,6 @@ class SimpleTestServer:
             qs += "&minimal_response=true"
         return path, qs
 
-    # request handler
-
     async def handle_request(self, request: web.Request) -> web.StreamResponse:
         key = Key(request.method, request.path, request.query_string or "")
         bucket = self._expectations.get(key)
@@ -82,8 +78,6 @@ class SimpleTestServer:
         if exp.json is None:
             return web.Response(status=exp.status)
         return web.json_response(exp.json, status=exp.status, dumps=orjson_dump)
-
-    # teardown assertions
 
     def leftovers(self) -> list[tuple[Key, int]]:
         return [(k, len(v)) for k, v in self._expectations.items() if v]

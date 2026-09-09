@@ -106,9 +106,6 @@ def test_generated_entity_file_imports_coroutine_and_any(filename: str) -> None:
     assert "from typing import Any" in source, f"{filename} missing 'from typing import Any'"
 
 
-# Service methods are plain def, not async def
-
-
 def test_light_entity_turn_on_is_plain_def() -> None:
     """LightEntity.turn_on must be a plain def, not async def."""
     assert not inspect.iscoroutinefunction(LightEntity.turn_on), (
@@ -121,9 +118,6 @@ def test_humidifier_entity_set_humidity_is_plain_def() -> None:
     assert not inspect.iscoroutinefunction(HumidifierEntity.set_humidity), (
         "HumidifierEntity.set_humidity must be a plain def after conversion"
     )
-
-
-# Return annotation resolves to collections.abc.Coroutine
 
 
 def _get_return_annotation_origin(cls, method_name: str):
@@ -151,9 +145,6 @@ def test_humidifier_entity_set_humidity_return_annotation_is_coroutine() -> None
     assert origin is collections.abc.Coroutine, (
         f"HumidifierEntity.set_humidity return annotation __origin__ = {origin!r}, expected Coroutine"
     )
-
-
-# Forgotten await warns; attribution points at caller (this test file)
 
 
 def test_light_entity_turn_on_forgotten_await_warns() -> None:
@@ -210,9 +201,6 @@ def test_light_entity_toggle_forgotten_await_warns() -> None:
         context.HASSETTE_INSTANCE.reset(token)
 
 
-# Awaited call acts correctly (no warning, None returned)
-
-
 async def test_light_entity_turn_on_awaited_returns_none_no_warning() -> None:
     """Awaiting LightEntity.turn_on() returns None and emits no warning."""
     api = make_api()
@@ -250,9 +238,6 @@ async def test_light_entity_toggle_awaited_returns_none_no_warning() -> None:
         assert result is None
     finally:
         context.HASSETTE_INSTANCE.reset(token)
-
-
-# entity.sync.turn_on() still registers (via the domain facade)
 
 
 def test_entity_sync_turn_on_registers() -> None:
