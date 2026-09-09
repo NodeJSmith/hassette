@@ -51,6 +51,10 @@ _MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
 # Maximum seconds update_heartbeat() waits for its write to be queued and executed.
 # A wedged write worker stops draining the queue without ever raising, so an unbounded
 # await would park serve() forever and never reach its failure-count escalation.
+# Sized between the two clocks it sits between: comfortably above _BUSY_TIMEOUT_MS (5s), so a
+# healthy write merely blocked on the SQLite lock is never mistaken for a wedge, and well under
+# _HEARTBEAT_INTERVAL_SECONDS (300s), so a timed-out attempt cannot overlap the next tick.
+# Three strikes therefore escalate roughly _MAX_CONSECUTIVE_HEARTBEAT_FAILURES intervals in.
 _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
 
 # Ceiling on the seconds on_shutdown() waits for the write queue to drain. A worker that is
@@ -58,10 +62,15 @@ _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
 # complete on its own, so it must not outlast the shutdown hooks pool that run_hooks()
 # already bounds on_shutdown() with — the effective budget is the smaller of this and
 # _DRAIN_TIMEOUT_POOL_FRACTION of the pool remaining, never this constant on its own.
+# The pool share is what binds at stock settings: the default resource_shutdown_timeout_seconds
+# of 10s yields a 2.5s hooks pool, so the drain gets at most ~1.25s. This ceiling only takes
+# effect on installs that raise that timeout past roughly 18s, where half the pool exceeds 5s.
 _SHUTDOWN_DRAIN_TIMEOUT_SECONDS = 5
 
 # Share of the remaining hooks pool the drain may claim, leaving the rest for cancelling the
-# worker and closing both connections in the same hook.
+# worker and closing both connections in the same hook. An even split because neither half is
+# the clear loser: the drain is best-effort telemetry, while the close it funds is what keeps
+# the aiosqlite threads from falling through to the daemon-thread safety net.
 _DRAIN_TIMEOUT_POOL_FRACTION = 0.5
 
 _BUSY_TIMEOUT_MS = 5000
@@ -352,22 +361,7 @@ class DatabaseService(Service):
             if self._db_worker_task is not None:
                 queue, self._db_write_queue = self._db_write_queue, None
                 if queue is not None:
-                    drain_timeout = min(
-                        _SHUTDOWN_DRAIN_TIMEOUT_SECONDS,
-                        hooks_pool_remaining(self) * _DRAIN_TIMEOUT_POOL_FRACTION,
-                    )
-                    try:
-                        async with asyncio.timeout(drain_timeout):
-                            await queue.join()
-                    except TimeoutError:
-                        # qsize() excludes the item the worker already dequeued, which the
-                        # cancel() below abandons too — so it is a floor, not the total.
-                        self.logger.warning(
-                            "Write queue did not drain within %.2fs — abandoning %d queued write(s) "
-                            "plus any write already in flight",
-                            drain_timeout,
-                            queue.qsize(),
-                        )
+                    await self.drain_write_queue(queue)
                 self._db_worker_task.cancel()
                 await asyncio.gather(self._db_worker_task, return_exceptions=True)
                 self._db_worker_task = None
@@ -380,6 +374,32 @@ class DatabaseService(Service):
                 self._db_worker_task = None
             self.close_remaining_queue_items(queue)
             await self.close_connections()
+
+    async def drain_write_queue(self, queue: asyncio.Queue[_WriteQueueItem]) -> None:
+        """Wait for already-queued writes to finish, bounded by the remaining hooks pool.
+
+        A dead worker (nobody left to call task_done()) or a wedged one (stuck mid-write) never
+        lets ``queue.join()`` complete on its own. Left unbounded it outlasts the hooks pool that
+        ``run_hooks()`` bounds ``on_shutdown()`` with, which force-terminates the hook and skips
+        the connection close entirely.
+
+        Args:
+            queue: The write queue to drain. Already detached from ``_db_write_queue``, so no new
+                items can arrive while this waits.
+        """
+        timeout = min(_SHUTDOWN_DRAIN_TIMEOUT_SECONDS, hooks_pool_remaining(self) * _DRAIN_TIMEOUT_POOL_FRACTION)
+        try:
+            async with asyncio.timeout(timeout):
+                await queue.join()
+        except TimeoutError:
+            # qsize() excludes the item the worker already dequeued, which the caller's cancel()
+            # abandons too — so it is a floor, not the total.
+            self.logger.warning(
+                "Write queue did not drain within %.2fs — abandoning %d queued write(s) "
+                "plus any write already in flight",
+                timeout,
+                queue.qsize(),
+            )
 
     def close_remaining_queue_items(self, queue: asyncio.Queue[_WriteQueueItem] | None) -> None:
         """Close any coroutines left on the write queue without executing them.
@@ -668,7 +688,7 @@ class DatabaseService(Service):
         except TimeoutError:
             self._consecutive_heartbeat_failures += 1
             self.logger.exception(
-                "Heartbeat write timed out after %ss — write worker may be wedged (failure %d/%d)",
+                "Heartbeat write timed out after %ds — write worker may be wedged (failure %d/%d)",
                 _HEARTBEAT_WRITE_TIMEOUT_SECONDS,
                 self._consecutive_heartbeat_failures,
                 _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
