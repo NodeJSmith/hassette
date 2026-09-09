@@ -55,13 +55,13 @@ export interface ServiceStatusEntry {
   ready_phase: string | null;
 }
 
-/** Telemetry health fields polled from /api/telemetry/status. Used by setTelemetryHealth's partial update. */
-export interface TelemetryHealthFields {
-  telemetryDegraded: boolean;
+/** Telemetry health polled from `/api/telemetry/status`: drop counters and the degradation flag. */
+export interface TelemetryHealth {
   droppedOverflow: number;
   droppedExhausted: number;
   droppedShutdown: number;
   errorHandlerFailures: number;
+  telemetryDegraded: boolean;
 }
 
 export interface AppStore {
@@ -85,7 +85,7 @@ export interface AppStore {
   clearAppStatus: () => void;
   clearServiceStatus: () => void;
   setExecutionCompleted: (data: WsExecutionCompletedPayload[]) => void;
-  setTelemetryHealth: (data: Partial<TelemetryHealthFields>) => void;
+  setTelemetryHealth: (data: Partial<TelemetryHealth>) => void;
 
   // --- preferences ---
   theme: "dark" | "light";
