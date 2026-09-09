@@ -2,6 +2,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { act, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { BREAKPOINT_MOBILE } from "../../hooks/use-media-query";
 import { useAppStore } from "../../state/store";
 import { createListener } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
@@ -126,7 +127,7 @@ describe("HandlersTab rendering", () => {
     expect(observer?.element).toBeDefined();
 
     act(() => {
-      observer?.trigger(400); // narrower than BREAKPOINT_MOBILE (768)
+      observer?.trigger(BREAKPOINT_MOBILE - 1);
     });
 
     await waitFor(() => expect(getByTestId("back-to-list")).toBeDefined());
