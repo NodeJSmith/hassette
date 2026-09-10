@@ -22,6 +22,11 @@ from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
 
 CLOCK_PATCH_TARGET = "hassette.web.auth.session._current_timestamp"
 BASE_EPOCH = 1_000_000
+SESSION_TTL = 3600
+"""Session lifetime every test in this file mints and verifies against."""
+
+HALF_LIFE = SESSION_TTL // 2
+"""Age at which ``should_renew_session_cookie`` starts renewing, per its half-life rule."""
 
 
 @contextmanager
@@ -97,7 +102,7 @@ class TestSessionCookieMintAndVerify:
         token = "the-real-token"
 
         cookie_value = mint_session_cookie(token)
-        issued_at = verify_session_cookie(cookie_value, token, session_ttl=3600)
+        issued_at = verify_session_cookie(cookie_value, token, session_ttl=SESSION_TTL)
 
         assert issued_at is not None
 
@@ -113,15 +118,15 @@ class TestSessionCookieMintAndVerify:
         replayed_cookie_value = str(cookie_value)
         replayed_token = str(token)
 
-        assert verify_session_cookie(replayed_cookie_value, replayed_token, session_ttl=3600) is not None
+        assert verify_session_cookie(replayed_cookie_value, replayed_token, session_ttl=SESSION_TTL) is not None
 
     def test_cookie_minted_for_one_token_does_not_verify_against_another(self) -> None:
         cookie_value = mint_session_cookie("token-a")
 
-        assert verify_session_cookie(cookie_value, "token-b", session_ttl=3600) is None
+        assert verify_session_cookie(cookie_value, "token-b", session_ttl=SESSION_TTL) is None
 
     def test_malformed_cookie_value_does_not_verify(self) -> None:
-        assert verify_session_cookie("not-a-valid-cookie-shape", "the-real-token", session_ttl=3600) is None
+        assert verify_session_cookie("not-a-valid-cookie-shape", "the-real-token", session_ttl=SESSION_TTL) is None
 
     def test_tampered_signature_does_not_verify(self) -> None:
         token = "the-real-token"
@@ -129,24 +134,24 @@ class TestSessionCookieMintAndVerify:
         session_id, issued_at, _signature = cookie_value.split(".")
         tampered = f"{session_id}.{issued_at}.deadbeef"
 
-        assert verify_session_cookie(tampered, token, session_ttl=3600) is None
+        assert verify_session_cookie(tampered, token, session_ttl=SESSION_TTL) is None
 
     def test_none_cookie_value_never_authenticates(self) -> None:
-        assert verify_session_cookie(None, "the-real-token", session_ttl=3600) is None
+        assert verify_session_cookie(None, "the-real-token", session_ttl=SESSION_TTL) is None
 
     def test_none_resolved_token_never_authenticates(self) -> None:
         """A None resolved_token must return None without raising."""
         token = "the-real-token"
         cookie_value = mint_session_cookie(token)
 
-        assert verify_session_cookie(cookie_value, None, session_ttl=3600) is None
+        assert verify_session_cookie(cookie_value, None, session_ttl=SESSION_TTL) is None
 
     def test_uses_timing_safe_comparison_for_signature(self) -> None:
         token = "the-real-token"
         cookie_value = mint_session_cookie(token)
 
         with patch("hassette.web.auth.session.secrets.compare_digest", return_value=True) as mock_compare:
-            result = verify_session_cookie(cookie_value, token, session_ttl=3600)
+            result = verify_session_cookie(cookie_value, token, session_ttl=SESSION_TTL)
 
         mock_compare.assert_called_once()
         assert result is not None
@@ -162,26 +167,26 @@ class TestSessionCookieMintAndVerify:
         session_id, issued_at, _signature = cookie_value.split(".")
         mangled = f"{session_id}.{issued_at}.deadbeef\xff"
 
-        assert verify_session_cookie(mangled, token, session_ttl=3600) is None
+        assert verify_session_cookie(mangled, token, session_ttl=SESSION_TTL) is None
 
 
 class TestSessionCookieTtl:
     @pytest.mark.parametrize(
         ("elapsed", "expected_issued_at"),
         [
-            # 1000 seconds later, well within a 3600-second TTL.
             pytest.param(1000, BASE_EPOCH, id="within_ttl_accepted"),
-            pytest.param(3600, BASE_EPOCH, id="exactly_at_ttl_boundary_accepted"),
-            # 3601 seconds later, one second past a 3600-second TTL.
-            pytest.param(3601, None, id="past_ttl_rejected"),
+            # The TTL bound is inclusive - expiry is `elapsed > session_ttl`, not `>=`.
+            pytest.param(SESSION_TTL, BASE_EPOCH, id="exactly_at_ttl_boundary_accepted"),
+            pytest.param(SESSION_TTL + 1, None, id="past_ttl_rejected"),
         ],
     )
     def test_cookie_ttl_enforcement(self, elapsed: int, expected_issued_at: int | None) -> None:
-        with frozen_clock(elapsed=0):
+        # The cookie is always minted at t=0; `elapsed` is how far past minting it is verified.
+        with frozen_clock(0):
             cookie_value = mint_session_cookie("the-real-token")
 
         with frozen_clock(elapsed):
-            issued_at = verify_session_cookie(cookie_value, "the-real-token", session_ttl=3600)
+            issued_at = verify_session_cookie(cookie_value, "the-real-token", session_ttl=SESSION_TTL)
 
         assert issued_at == expected_issued_at
 
@@ -241,21 +246,20 @@ class TestShouldSetSecureCookieFlag:
 
 class TestShouldRenewSessionCookie:
     @pytest.mark.parametrize(
-        ("elapsed", "expected"),
+        ("elapsed", "expected_renewed"),
         [
             pytest.param(5, False, id="freshly_minted_not_renewed"),
-            # session_ttl=3600 -> half-life is 1800.
-            pytest.param(1799, False, id="just_before_half_life_not_renewed"),
-            pytest.param(1800, True, id="exactly_at_half_life_renewed"),
-            pytest.param(1801, True, id="past_half_life_renewed"),
+            pytest.param(HALF_LIFE - 1, False, id="just_before_half_life_not_renewed"),
+            pytest.param(HALF_LIFE, True, id="exactly_at_half_life_renewed"),
+            pytest.param(HALF_LIFE + 1, True, id="past_half_life_renewed"),
             # A cookie already past full session_ttl is rejected by verify_session_cookie in the
             # real request flow, so should_renew_session_cookie is never reached for it there. This
             # function still has its own upper bound (independent of verify) so a caller holding an
             # issued_at value without a fresh verify call gets "not renewed" rather than "renewed"
             # for an already-expired timestamp.
-            pytest.param(3601, False, id="past_full_ttl_not_renewed"),
+            pytest.param(SESSION_TTL + 1, False, id="past_full_ttl_not_renewed"),
         ],
     )
-    def test_renewal_window(self, elapsed: int, expected: bool) -> None:
+    def test_renewal_window(self, elapsed: int, expected_renewed: bool) -> None:
         with frozen_clock(elapsed):
-            assert should_renew_session_cookie(issued_at=BASE_EPOCH, session_ttl=3600) is expected
+            assert should_renew_session_cookie(issued_at=BASE_EPOCH, session_ttl=SESSION_TTL) is expected_renewed
