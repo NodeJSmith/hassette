@@ -386,13 +386,18 @@ def make_closing_task_bucket() -> MagicMock:
     """Build a task_bucket stub whose ``spawn()`` closes coroutines instead of running them.
 
     Every coroutine handed to ``spawn()`` is closed immediately so it is never reported as
-    "never awaited", and the returned task mock reports ``done() is True``. Unlike
+    "never awaited", and the returned task mock reports ``done() is True``. A callback registered
+    via ``add_done_callback`` is invoked synchronously rather than deferred through
+    ``loop.call_soon`` the way a real completed future defers it, so the ordering differs — but a
+    caller that decrements bookkeeping from that callback (e.g. ``BusService``'s dispatch-pending
+    counter) still ends up balanced instead of waiting on a callback that never fires. Unlike
     ``tests.support.helpers.make_task_bucket``, nothing is ever scheduled on the event loop —
     reach for this when a test asserts on what was spawned rather than on its effects.
     """
     bucket = MagicMock()
     task = MagicMock()
     task.done.return_value = True
+    task.add_done_callback.side_effect = lambda callback: callback(task)
 
     def spawn(coro: object, **kwargs: object) -> MagicMock:  # noqa: ARG001
         if asyncio.iscoroutine(coro):
