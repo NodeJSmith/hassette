@@ -512,7 +512,7 @@ def make_sync_executor(*, max_workers: int = 2) -> SyncExecutor:
 
 
 def wire_dependent_resource(
-    hassette: Any,
+    hassette: AsyncMock,
     dependent_cls: type[ResourceT],
     *dep_classes: type[Resource],
 ) -> tuple[ResourceT, list[Resource]]:
