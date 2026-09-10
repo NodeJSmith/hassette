@@ -122,6 +122,10 @@ class HassetteCLIClient:
         # this invocation, so it came from cli.verify_ssl in config — a silent, durable
         # opt-out rather than a conscious per-invocation choice.
         self._insecure_from_config = not target.verify_ssl and verify_ssl_flag is None
+        # ResolvedCredential.source, not CredentialSource.name: the qualifier-decorated
+        # "<setting> (<qualifier>)" form naming one concrete source, not the bare setting
+        # identifier credential_source_names() joins when reporting the whole chain. Both are
+        # plain str, so swapping one for the other type-checks and reads plausibly.
         self._credential_source = credential.source if credential is not None else None
         headers = {"Authorization": f"Bearer {credential.token}"} if credential is not None else {}
         self._client = httpx.Client(
