@@ -30,6 +30,21 @@ describe("AlertShell", () => {
     expect(getWarning("warning").className).toContain("bg-[var(--status-warning-bg)]");
   });
 
+  it("lets className override the shell's own geometry", () => {
+    // The className contract promises twMerge ordering, so a conflicting utility wins. Pinned
+    // because `panel.tsx`'s PANEL_BANNER_CLASS relies on it to drop the standalone bottom margin.
+    const { getByTestId } = render(
+      <AlertShell tone="warning" className="mb-0 rounded-sm" data-testid="b">
+        nested
+      </AlertShell>,
+    );
+    const el = getByTestId("b");
+    expect(el.className).toContain("mb-0");
+    expect(el.className).not.toContain("mb-4");
+    expect(el.className).toContain("rounded-sm");
+    expect(el.className).not.toContain("rounded-md");
+  });
+
   it("forwards role and extra classes", () => {
     const { getByTestId } = render(
       <AlertShell tone="warning" role="alert" className="text-[var(--status-warning)]" data-testid="b">

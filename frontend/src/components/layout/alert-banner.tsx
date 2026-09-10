@@ -13,9 +13,12 @@ interface AlertBannerProps {
 }
 
 /**
- * Failed-apps notice. Stays hand-rolled rather than using `AlertShell`: its `mx-8`, stacked
- * `flex-col` body and tighter `px-3 py-2` are a different container shape than the shell's,
- * so routing it through the shell would change its spacing.
+ * Failed-apps notice. Stays hand-rolled rather than using `AlertShell`: it borders with
+ * `border-destructive` (full-strength `--err`), while the shell's `danger` tone borders with
+ * `--destructive-border` (`--err` at 30% alpha). Only `tone` selects that token and callers are
+ * told not to override it via `className`, so the shell has no way to render this border. The
+ * container shape also differs (`mx-8`, stacked `flex-col`, tighter `px-3 py-2`), though that
+ * part `className` could express.
  */
 export function AlertBanner({ failedApps }: AlertBannerProps) {
   if (failedApps.length === 0) return null;
@@ -54,9 +57,9 @@ export function TelemetryDegradedBanner() {
   return (
     <AlertShell
       tone="warning"
+      className="flex items-center gap-3 text-[var(--status-warning)]"
       role="alert"
       data-testid="telemetry-degraded-banner"
-      className="flex items-center gap-3 text-[var(--status-warning)]"
     >
       <IconWarning />
       <span className="flex-1 leading-[var(--text-body-leading)]">
