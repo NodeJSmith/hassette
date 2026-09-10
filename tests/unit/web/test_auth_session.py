@@ -22,6 +22,8 @@ from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
 
 CLOCK_PATCH_TARGET = "hassette.web.auth.session._current_timestamp"
 BASE_EPOCH = 1_000_000
+"""Unix timestamp every test treats as t=0, the moment a cookie under test was minted."""
+
 SESSION_TTL = 3600
 """Session lifetime every test in this file mints and verifies against."""
 
@@ -175,7 +177,7 @@ class TestSessionCookieTtl:
         ("elapsed", "expected_issued_at"),
         [
             pytest.param(1000, BASE_EPOCH, id="within_ttl_accepted"),
-            # The TTL bound is inclusive - expiry is `elapsed > session_ttl`, not `>=`.
+            # The TTL bound is inclusive — expiry is `elapsed > session_ttl`, not `>=`.
             pytest.param(SESSION_TTL, BASE_EPOCH, id="exactly_at_ttl_boundary_accepted"),
             pytest.param(SESSION_TTL + 1, None, id="past_ttl_rejected"),
         ],
