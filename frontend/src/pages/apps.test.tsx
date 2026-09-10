@@ -31,11 +31,11 @@ const STATE_WITH_UPTIME = { storeOverrides: { uptimeSeconds: 120 } };
 const APP_GRID_URL = "/api/telemetry/dashboard/app-grid";
 
 /** Reads a stats-strip cell's value by its label, since cells carry no per-label testid. The
- *  value span is tagged `data-role`, not `data-testid` — see `components/shared/stats-strip.tsx`.
- *  Which labels exist is layout-dependent: "stopped" and "disabled" are separate cells only in
- *  the desktop set (mobile merges them into "inactive"), and jsdom's default viewport is
- *  desktop. Throws rather than returning undefined so a renamed or missing label reads as
- *  "no such cell" instead of a value mismatch. */
+ * value span is tagged `data-role`, not `data-testid` — see `components/shared/stats-strip.tsx`.
+ * Which labels exist is layout-dependent: "stopped" and "disabled" are separate cells only in
+ * the desktop set (mobile merges them into "inactive"), and jsdom's default viewport is
+ * desktop. Throws rather than returning undefined so a renamed or missing label reads as
+ * "no such cell" instead of a value mismatch. */
 function getStatValue(strip: HTMLElement, label: string): string {
   for (const cell of strip.querySelectorAll("[data-testid='stats-strip-cell']")) {
     if (cell.querySelector("[data-testid='stats-strip-label']")?.textContent !== label) continue;
@@ -92,7 +92,7 @@ describe("AppsPage", () => {
     // a refetch. The strip must count the live status, like the row badges and filter popover.
     // Statuses arrive after mount so this also pins the store subscription: a page that read
     // appStatus non-reactively would render the right initial counts and then never update.
-    // Covers every live-countable category the issue names: running, failed, stopped, disabled.
+    // Covers every live-countable category #1153 names: running, failed, stopped, disabled.
     server.use(
       http.get(APP_GRID_URL, () =>
         HttpResponse.json({
