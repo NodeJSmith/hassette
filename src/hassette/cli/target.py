@@ -107,7 +107,7 @@ class CredentialSource:
     the gate to apply — it cannot forget to extend a hand-written skip condition.
 
     ``name`` serves the same purpose for prose. It is the bare setting identifier with no
-    qualifier — the resolved-credential strings built by :func:`_ensure_header_safe` name one
+    qualifier — the resolved-credential strings built by :func:`_format_source` name one
     concrete source, whereas a message that reports *nothing* resolved has to list the whole
     chain. Deriving that list from this field (see :func:`credential_source_names`) is what
     keeps it from drifting when a source is added, renamed, or reordered here.

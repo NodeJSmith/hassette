@@ -587,7 +587,7 @@ class HassetteCLIClient:
                 self._print_tls_warning()
             if self.debug_mode:
                 cli_output.stderr_console.print(f"  [dim]URL:[/dim]    {response.request.method} {response.url}")
-                cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {response.text}")
+                cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {escape(response.text)}")
         sys.exit(1)
 
     def _handle_malformed_response(self, response: httpx.Response, exc: Exception) -> NoReturn:
@@ -622,14 +622,18 @@ class HassetteCLIClient:
             )
             _write_json_error(response.status_code, detail, debug_extra=extra, target=target, tls_verified=tls_verified)
         else:
-            cli_output.stderr_console.print(f"[bold red]Error:[/bold red] {detail}", highlight=False)
+            # escape(): detail quotes the validation failure, which echoes the offending body
+            # value, and the debug dump below prints the body verbatim. Rich parses square
+            # brackets as markup, so an unescaped closing tag in either raises MarkupError
+            # instead of printing the error.
+            cli_output.stderr_console.print(f"[bold red]Error:[/bold red] {escape(detail)}", highlight=False)
             if target is not None:
                 cli_output.stderr_console.print(f"[dim]Target:[/dim] {target}", highlight=False)
             if tls_verified is False:
                 self._print_tls_warning()
             if self.debug_mode:
                 cli_output.stderr_console.print(f"  [dim]URL:[/dim]    {response.request.method} {response.url}")
-                cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {body}")
+                cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {escape(body)}")
         sys.exit(1)
 
     def _handle_network_error(self, message: str) -> NoReturn:
