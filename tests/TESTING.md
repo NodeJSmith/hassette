@@ -234,8 +234,8 @@ changes = make_change_set(reload_apps={"app_a"})
 ### `make_log_entry(**kwargs)` — `tests/support/factories.py`
 
 Builds a `hassette.logging_.LogEntry` with all seven required fields defaulted to neutral placeholders
-and all nine optional correlation fields defaulted to `None`. Every field is an explicit keyword, so
-callers spell out only what they assert on. Distinct from the web-layer `make_log_entry_response()`
+and all nine optional fields (`exc_info`, plus eight correlation fields) defaulted to `None`. Every field
+is an explicit keyword, so callers spell out only what they assert on. Distinct from the web-layer `make_log_entry_response()`
 (`tests/support/web_telemetry_helpers.py`), which builds the `LogEntryResponse` pydantic model.
 
 ```python

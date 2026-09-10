@@ -395,8 +395,9 @@ def make_log_entry(
     """Build a `LogEntry`, defaulting every required field to a neutral placeholder.
 
     `LogEntry` has seven required constructor fields, most of which are irrelevant to any
-    given assertion, plus nine optional correlation fields. Every field is an explicit
-    keyword so callers spell out only what they assert on and pyright still checks the rest.
+    given assertion, plus nine optional fields (`exc_info`, plus eight correlation fields).
+    Every field is an explicit keyword so callers spell out only what they assert on and
+    pyright still checks the rest.
     """
     return LogEntry(
         seq=seq,
