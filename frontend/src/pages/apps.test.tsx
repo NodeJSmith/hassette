@@ -1,8 +1,9 @@
+import { act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { appStatusKey } from "../state/store";
+import { appStatusKey, useAppStore } from "../state/store";
 import { createAppGridEntry } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
@@ -85,10 +86,12 @@ describe("AppsPage", () => {
     expect(await findByTestId("apps-stats-strip")).toBeDefined();
   });
 
-  it("stats strip counts reflect live WS status over the stale grid payload", async () => {
+  it("stats strip counts follow live WS status updates over the stale grid payload", async () => {
     // The dashboard grid query is invalidated on execution events, not app_status_changed, so
     // a cached row.status stays "running" after an app is stopped until something else forces
     // a refetch. The strip must count the live status, like the row badges and filter popover.
+    // Statuses arrive after mount so this also pins the store subscription: a page that read
+    // appStatus non-reactively would render the right initial counts and then never update.
     // Covers every live-countable category the issue names: running, failed, stopped, disabled.
     server.use(
       http.get(APP_GRID_URL, () =>
@@ -102,22 +105,28 @@ describe("AppsPage", () => {
         }),
       ),
     );
-    const { findByTestId } = renderWithAppState(<AppsPage />, {
-      ...STATE_WITH_UPTIME,
-      storeOverrides: {
-        ...STATE_WITH_UPTIME.storeOverrides,
-        appStatus: {
-          [appStatusKey("b", 0)]: { status: "stopped", index: 0 },
-          [appStatusKey("c", 0)]: { status: "failed", index: 0 },
-          // "disabled" is a manifest-level config state that appLiveStatus resolves before it
-          // consults appStatuses, so a per-instance status left over from before the app was
-          // disabled must not mask it.
-          [appStatusKey("d", 0)]: { status: "stopped", index: 0 },
-        },
-      },
-    });
+    const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
 
     const strip = await findByTestId("apps-stats-strip");
+    expect(getStatValue(strip, "total")).toBe("4");
+    expect(getStatValue(strip, "running")).toBe("3");
+    expect(getStatValue(strip, "failed")).toBe("0");
+    expect(getStatValue(strip, "stopped")).toBe("0");
+    expect(getStatValue(strip, "disabled")).toBe("1");
+
+    // Drives the store directly rather than through a socket frame: `updateAppStatus` is the
+    // exact write the WS `app_status_changed` handler makes (see `hooks/use-websocket.ts`), and
+    // it is the boundary AppsPage subscribes to.
+    act(() => {
+      const { updateAppStatus } = useAppStore.getState();
+      updateAppStatus(appStatusKey("b", 0), { status: "stopped", index: 0 });
+      updateAppStatus(appStatusKey("c", 0), { status: "failed", index: 0 });
+      // "disabled" is a manifest-level config state that appLiveStatus resolves before it
+      // consults appStatuses, so a per-instance status left over from before the app was
+      // disabled must not mask it.
+      updateAppStatus(appStatusKey("d", 0), { status: "stopped", index: 0 });
+    });
+
     expect(getStatValue(strip, "total")).toBe("4");
     expect(getStatValue(strip, "running")).toBe("1");
     expect(getStatValue(strip, "failed")).toBe("1");
