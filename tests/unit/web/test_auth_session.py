@@ -24,6 +24,13 @@ CLOCK_PATCH_TARGET = "hassette.web.auth.session._current_timestamp"
 BASE_EPOCH = 1_000_000
 
 
+@contextmanager
+def frozen_clock(elapsed: int) -> Iterator[None]:
+    """Freeze the session module's clock at ``BASE_EPOCH + elapsed`` whole unix seconds."""
+    with patch(CLOCK_PATCH_TARGET, return_value=BASE_EPOCH + elapsed):
+        yield
+
+
 class TestCheckBearerToken:
     def test_correct_token_succeeds(self) -> None:
         assert check_bearer_token("the-real-token", "the-real-token") is True
@@ -252,10 +259,3 @@ class TestShouldRenewSessionCookie:
     def test_renewal_window(self, elapsed: int, expected: bool) -> None:
         with frozen_clock(elapsed):
             assert should_renew_session_cookie(issued_at=BASE_EPOCH, session_ttl=3600) is expected
-
-
-@contextmanager
-def frozen_clock(elapsed: int) -> Iterator[None]:
-    """Freeze the session module's clock at ``BASE_EPOCH + elapsed`` whole unix seconds."""
-    with patch(CLOCK_PATCH_TARGET, return_value=BASE_EPOCH + elapsed):
-        yield
