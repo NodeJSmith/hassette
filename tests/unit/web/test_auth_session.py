@@ -3,8 +3,11 @@ HMAC-derived cookie mint/verify with TTL enforcement, the cookie ``Secure``-flag
 (reusing the trusted-peer matcher), and the sliding-renewal predicate.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from unittest.mock import patch
 
+import pytest
 from starlette.datastructures import Headers
 
 from hassette.web.auth.session import (
@@ -16,6 +19,9 @@ from hassette.web.auth.session import (
     verify_session_cookie,
 )
 from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
+
+CLOCK_PATCH_TARGET = "hassette.web.auth.session._current_timestamp"
+BASE_EPOCH = 1_000_000
 
 
 class TestCheckBearerToken:
@@ -153,34 +159,24 @@ class TestSessionCookieMintAndVerify:
 
 
 class TestSessionCookieTtl:
-    def test_cookie_within_ttl_is_accepted(self) -> None:
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000):
+    @pytest.mark.parametrize(
+        ("elapsed", "expected_issued_at"),
+        [
+            # 1000 seconds later, well within a 3600-second TTL.
+            pytest.param(1000, BASE_EPOCH, id="within_ttl_accepted"),
+            pytest.param(3600, BASE_EPOCH, id="exactly_at_ttl_boundary_accepted"),
+            # 3601 seconds later, one second past a 3600-second TTL.
+            pytest.param(3601, None, id="past_ttl_rejected"),
+        ],
+    )
+    def test_cookie_ttl_enforcement(self, elapsed: int, expected_issued_at: int | None) -> None:
+        with frozen_clock(elapsed=0):
             cookie_value = mint_session_cookie("the-real-token")
 
-        # 1000 seconds later, well within a 3600-second TTL.
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000 + 1000):
+        with frozen_clock(elapsed):
             issued_at = verify_session_cookie(cookie_value, "the-real-token", session_ttl=3600)
 
-        assert issued_at == 1_000_000
-
-    def test_cookie_past_ttl_is_rejected(self) -> None:
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000):
-            cookie_value = mint_session_cookie("the-real-token")
-
-        # 3601 seconds later, one second past a 3600-second TTL.
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000 + 3601):
-            issued_at = verify_session_cookie(cookie_value, "the-real-token", session_ttl=3600)
-
-        assert issued_at is None
-
-    def test_cookie_exactly_at_ttl_boundary_is_accepted(self) -> None:
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000):
-            cookie_value = mint_session_cookie("the-real-token")
-
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000 + 3600):
-            issued_at = verify_session_cookie(cookie_value, "the-real-token", session_ttl=3600)
-
-        assert issued_at == 1_000_000
+        assert issued_at == expected_issued_at
 
 
 class TestShouldSetSecureCookieFlag:
@@ -237,29 +233,29 @@ class TestShouldSetSecureCookieFlag:
 
 
 class TestShouldRenewSessionCookie:
-    def test_freshly_minted_cookie_is_not_renewed(self) -> None:
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000 + 5):
-            assert should_renew_session_cookie(issued_at=1_000_000, session_ttl=3600) is False
+    @pytest.mark.parametrize(
+        ("elapsed", "expected"),
+        [
+            pytest.param(5, False, id="freshly_minted_not_renewed"),
+            # session_ttl=3600 -> half-life is 1800.
+            pytest.param(1799, False, id="just_before_half_life_not_renewed"),
+            pytest.param(1800, True, id="exactly_at_half_life_renewed"),
+            pytest.param(1801, True, id="past_half_life_renewed"),
+            # A cookie already past full session_ttl is rejected by verify_session_cookie in the
+            # real request flow, so should_renew_session_cookie is never reached for it there. This
+            # function still has its own upper bound (independent of verify) so a caller holding an
+            # issued_at value without a fresh verify call gets "not renewed" rather than "renewed"
+            # for an already-expired timestamp.
+            pytest.param(3601, False, id="past_full_ttl_not_renewed"),
+        ],
+    )
+    def test_renewal_window(self, elapsed: int, expected: bool) -> None:
+        with frozen_clock(elapsed):
+            assert should_renew_session_cookie(issued_at=BASE_EPOCH, session_ttl=3600) is expected
 
-    def test_past_half_life_is_renewed(self) -> None:
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000 + 1801):
-            # 1801 seconds elapsed, session_ttl=3600 -> half-life is 1800.
-            assert should_renew_session_cookie(issued_at=1_000_000, session_ttl=3600) is True
 
-    def test_exactly_at_half_life_is_renewed(self) -> None:
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000 + 1800):
-            assert should_renew_session_cookie(issued_at=1_000_000, session_ttl=3600) is True
-
-    def test_just_before_half_life_is_not_renewed(self) -> None:
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000 + 1799):
-            assert should_renew_session_cookie(issued_at=1_000_000, session_ttl=3600) is False
-
-    def test_past_full_ttl_is_not_renewed(self) -> None:
-        """A cookie already past full session_ttl is rejected by verify_session_cookie in the
-        real request flow, so should_renew_session_cookie is never reached for it there. This
-        function still has its own upper bound (independent of verify) so a caller holding an
-        issued_at value without a fresh verify call gets "not renewed" rather than "renewed" for
-        an already-expired timestamp.
-        """
-        with patch("hassette.web.auth.session._current_timestamp", return_value=1_000_000 + 3601):
-            assert should_renew_session_cookie(issued_at=1_000_000, session_ttl=3600) is False
+@contextmanager
+def frozen_clock(elapsed: int) -> Iterator[None]:
+    """Freeze the session module's clock at ``BASE_EPOCH + elapsed`` whole unix seconds."""
+    with patch(CLOCK_PATCH_TARGET, return_value=BASE_EPOCH + elapsed):
+        yield
