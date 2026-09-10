@@ -28,7 +28,7 @@ function ModifierChips({ listener }: { listener: ListenerData }) {
   if (listener.immediate) chips.push({ label: "immediate" });
   if (listener.duration) chips.push({ label: "duration", value: `${listener.duration}s` });
   // "block" is the default backpressure policy, so it carries no information worth a chip.
-  // The value shown is the literal policy name users write in their registration call.
+  // Excluding the default, rather than matching a named policy, keeps this correct as BackpressurePolicy grows.
   if (listener.backpressure !== "block") chips.push({ label: "backpressure", value: listener.backpressure });
 
   return <ChipsRow mode={listener.mode} variant="listener" testId="modifier-chips" chips={chips} />;

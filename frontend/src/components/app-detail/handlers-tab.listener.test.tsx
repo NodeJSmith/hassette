@@ -62,15 +62,15 @@ describe("HandlersTab listener detail", () => {
   });
 
   it("handler detail: shows a backpressure chip naming the policy when it is not the default", async () => {
-    const listener = createListener({ listener_id: 31, backpressure: "drop_newest" });
-    const { getByTestId } = renderHandlersTab([listener], [], "listener/31");
+    const listener = createListener({ listener_id: 4, backpressure: "drop_newest" });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/4");
     await waitFor(() => getByTestId("modifier-chips"));
     expect(getByTestId("modifier-chips").textContent).toContain("backpressure drop_newest");
   });
 
-  it("handler detail: omits the backpressure chip for the default 'block' policy", async () => {
-    const listener = createListener({ listener_id: 32, backpressure: "block" });
-    const { getByTestId } = renderHandlersTab([listener], [], "listener/32");
+  it("handler detail: omits the backpressure chip for the default policy", async () => {
+    const listener = createListener({ listener_id: 7, backpressure: "block" });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/7");
     await waitFor(() => getByTestId("modifier-chips"));
     expect(getByTestId("modifier-chips").textContent).not.toContain("backpressure");
   });
