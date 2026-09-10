@@ -15,6 +15,7 @@ const mockNavigate = vi.fn();
 vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/", mockNavigate] }));
 
 const APP_KEY = "my_app";
+// Epoch seconds for 2026-01-01T00:00:00Z — any non-null timestamp so the last-active stat row renders.
 const LAST_INVOKED_AT = 1767225600;
 
 const handlerRoute = (kind: HandlerKind, id: number) => `/apps/${APP_KEY}/handlers/${kind}/${id}`;
@@ -29,9 +30,15 @@ function makeJobItem(overrides: Parameters<typeof createJob>[0] = {}) {
   return buildItems([], [job])[0];
 }
 
+type RenderCardOptions = {
+  appKey?: string;
+  instanceQs?: string;
+  tabIndex?: 0 | -1;
+};
+
 function renderCard(
   item: ReturnType<typeof buildItems>[number],
-  { appKey = APP_KEY, instanceQs = "", tabIndex = 0 as 0 | -1 } = {},
+  { appKey = APP_KEY, instanceQs = "", tabIndex = 0 }: RenderCardOptions = {},
 ) {
   return renderWithAppState(
     <HandlerHealthCard item={item} appKey={appKey} instanceQs={instanceQs} tabIndex={tabIndex} />,
