@@ -372,6 +372,18 @@ class TestMalformedSuccessResponse:
         assert HEALTH_ENDPOINT in stderr
         assert '"unexpected"' in stderr
 
+    def test_malformed_body_error_survives_rich_markup_without_debug(self) -> None:
+        """The error line quotes the validation failure, which echoes the offending body value.
+
+        Reached without --debug, so the escaping cannot rely on the debug dump's own handling.
+        """
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "[/bold] shape"})
+        client = HassetteCLIClient(config, json_mode=False, debug_mode=False, transport=transport)
+        _code, stderr = get_expecting_exit(client)
+        assert "Traceback" not in stderr
+        assert "not a valid hassette API response" in stderr
+
 
 class TestPostMalformedResponse:
     """post() reuses get()'s _handle_malformed_response() path (see TestMalformedSuccessResponse
@@ -732,6 +744,29 @@ class TestDebugMode:
         client = HassetteCLIClient(config, json_mode=True, debug_mode=False, transport=transport)
         parsed = get_json_error(client, capsys, CRASH_ENDPOINT)
         assert "debug" not in parsed
+
+    def test_debug_body_dump_survives_rich_markup_on_an_error_status(self) -> None:
+        """A server body carrying Rich markup must not turn an error into a MarkupError.
+
+        The debug dump prints the raw body through the same markup-enabled console as the error
+        line above it, so an unescaped closing tag aborts the render and the operator gets a
+        traceback in place of both the error and the body they turned --debug on to see.
+        """
+        config = make_host_port_config()
+        transport = make_transport(500, {"detail": "boom [/bold] boom"})
+        client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=transport)
+        _code, stderr = get_expecting_exit(client, CRASH_ENDPOINT)
+        assert "[/bold]" in stderr
+        assert "Traceback" not in stderr
+
+    def test_debug_body_dump_survives_rich_markup_on_a_malformed_body(self) -> None:
+        """Same render path, reached through _handle_malformed_response rather than the HTTP-error one."""
+        config = make_host_port_config()
+        transport = make_transport(200, {"unexpected": "[/bold] shape"})
+        client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=transport)
+        _code, stderr = get_expecting_exit(client)
+        assert "[/bold]" in stderr
+        assert "Traceback" not in stderr
 
 
 # 3xx redirect responses: likely forward-auth login page
