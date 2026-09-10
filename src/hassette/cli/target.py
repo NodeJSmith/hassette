@@ -37,6 +37,25 @@ diagnosis when the CLI is pointed at a second instance on the same machine. Nami
 once keeps the two messages phrased identically.
 """
 
+CLI_AUTH_TOKEN_ENV = "HASSETTE__CLI__AUTH_TOKEN"  # noqa: S105 — an env var name, not a hardcoded credential
+"""Environment spelling of ``cli.auth_token``, named once because two modules print it."""
+
+WEB_API_AUTH_TOKEN_ENV = "HASSETTE__WEB_API__AUTH_TOKEN"  # noqa: S105 — an env var name, not a hardcoded credential
+"""Environment spelling of ``web_api.auth_token``."""
+
+# Setting identifiers for the credential chain, one constant per source. Each name is read from
+# two places that must agree: the resolver builds it into the ResolvedCredential source string
+# via _format_source(), and the matching CredentialSource entry exposes it to
+# credential_source_names(). Spelling it once means renaming a setting is a single edit rather
+# than two lines that can drift apart — the same guarantee credential_source_names() gives the
+# aggregate message. The noqa markers below are S105 false positives: these are setting names,
+# not credential values.
+SOURCE_TOKEN_FILE_FLAG = "--token-file"  # noqa: S105
+SOURCE_CLI_TOKEN_FILE = "cli.token_file"  # noqa: S105
+SOURCE_CLI_AUTH_TOKEN = "cli.auth_token"  # noqa: S105
+SOURCE_WEB_API_AUTH_TOKEN = "web_api.auth_token"  # noqa: S105
+SOURCE_DATA_DIR_TOKEN_FILE = f"<data_dir>/{TOKEN_FILENAME}"
+
 
 @dataclass(frozen=True)
 class ServerTarget:
@@ -245,7 +264,7 @@ def _resolve_token_file_flag(inputs: CredentialInputs) -> ResolvedCredential | N
         raise CredentialResolutionError(f"--token-file could not be read: {path} ({exc})") from exc
     if not content:
         return None
-    return _ensure_header_safe(content, _format_source("--token-file", str(path)))
+    return _ensure_header_safe(content, _format_source(SOURCE_TOKEN_FILE_FLAG, str(path)))
 
 
 def _read_token_file(path: Path, source: str) -> ResolvedCredential | None:
@@ -271,7 +290,7 @@ def _resolve_cli_token_file(inputs: CredentialInputs) -> ResolvedCredential | No
     path = inputs.config.cli.token_file
     if path is None:
         return None
-    return _read_token_file(path, _format_source("cli.token_file", str(path)))
+    return _read_token_file(path, _format_source(SOURCE_CLI_TOKEN_FILE, str(path)))
 
 
 def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> ResolvedCredential | None:
@@ -282,7 +301,7 @@ def _resolve_cli_auth_token_field(inputs: CredentialInputs) -> ResolvedCredentia
     value = token.get_secret_value().strip()
     if not value:
         return None
-    return _ensure_header_safe(value, _format_source("cli.auth_token", "or HASSETTE__CLI__AUTH_TOKEN"))
+    return _ensure_header_safe(value, _format_source(SOURCE_CLI_AUTH_TOKEN, f"or {CLI_AUTH_TOKEN_ENV}"))
 
 
 def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential | None:
@@ -296,7 +315,8 @@ def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential 
     if not value:
         return None
     return _ensure_header_safe(
-        value, _format_source("web_api.auth_token", f"or HASSETTE__WEB_API__AUTH_TOKEN — {SERVER_SCOPE_QUALIFIER}")
+        value,
+        _format_source(SOURCE_WEB_API_AUTH_TOKEN, f"or {WEB_API_AUTH_TOKEN_ENV} — {SERVER_SCOPE_QUALIFIER}"),
     )
 
 
@@ -308,15 +328,15 @@ def _resolve_data_dir_token_file(inputs: CredentialInputs) -> ResolvedCredential
     actually validates against.
     """
     path = inputs.config.data_dir / TOKEN_FILENAME
-    return _read_token_file(path, _format_source(f"<data_dir>/{TOKEN_FILENAME}", f"{path} — {SERVER_SCOPE_QUALIFIER}"))
+    return _read_token_file(path, _format_source(SOURCE_DATA_DIR_TOKEN_FILE, f"{path} — {SERVER_SCOPE_QUALIFIER}"))
 
 
 CREDENTIAL_SOURCES: tuple[CredentialSource, ...] = (
-    CredentialSource(name="--token-file", scope="cli", resolve=_resolve_token_file_flag),
-    CredentialSource(name="cli.token_file", scope="cli", resolve=_resolve_cli_token_file),
-    CredentialSource(name="cli.auth_token", scope="cli", resolve=_resolve_cli_auth_token_field),
-    CredentialSource(name="web_api.auth_token", scope="server", resolve=_resolve_web_api_auth_token),
-    CredentialSource(name=f"<data_dir>/{TOKEN_FILENAME}", scope="server", resolve=_resolve_data_dir_token_file),
+    CredentialSource(name=SOURCE_TOKEN_FILE_FLAG, scope="cli", resolve=_resolve_token_file_flag),
+    CredentialSource(name=SOURCE_CLI_TOKEN_FILE, scope="cli", resolve=_resolve_cli_token_file),
+    CredentialSource(name=SOURCE_CLI_AUTH_TOKEN, scope="cli", resolve=_resolve_cli_auth_token_field),
+    CredentialSource(name=SOURCE_WEB_API_AUTH_TOKEN, scope="server", resolve=_resolve_web_api_auth_token),
+    CredentialSource(name=SOURCE_DATA_DIR_TOKEN_FILE, scope="server", resolve=_resolve_data_dir_token_file),
 )
 """Credential precedence chain, in the order documented by design/specs/092-cli-remote-url/design.md
 (Architecture -> Credential scoping). See :class:`CredentialSource` for the scope gate."""

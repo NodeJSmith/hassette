@@ -15,10 +15,10 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 import hassette.cli as cli_pkg
 from hassette.cli.client import CLI_AUTH_DOCS_URL, HassetteCLIClient
-from hassette.cli.target import CREDENTIAL_SOURCES
+from hassette.cli.target import CLI_AUTH_TOKEN_ENV, CREDENTIAL_SOURCES
 from hassette.config.config import HassetteConfig
 from hassette.web.auth.tokens import TOKEN_FILENAME
-from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, make_cli_config
+from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, capture_stderr, make_cli_config
 from tests.unit.cli.test_client import (
     HEALTH_ENDPOINT,
     get_expecting_exit,
@@ -28,8 +28,6 @@ from tests.unit.cli.test_client import (
     stderr_for_connect_error,
     stderr_for_successful_get,
 )
-
-CLI_AUTH_TOKEN_ENV = "HASSETTE__CLI__AUTH_TOKEN"
 
 
 def unwrapped(stderr: str) -> str:
@@ -383,6 +381,22 @@ class TestAuthFailureNamesCredentialSource:
         assert code == 1
         assert "the credential sent came from" in message
         assert "--token-file" in message
+
+    def test_usage_error_survives_rich_markup_in_the_token_file_path(self, tmp_path: Path) -> None:
+        """An unreadable ``--token-file`` fails before any request, on a different render path.
+
+        The 401 hint and the usage error print through the same Rich console, so a path carrying
+        square brackets breaks both. Escaping only the 401 leaves the earlier failure — a path
+        that cannot even be read — raising MarkupError instead of naming the path at fault.
+        """
+        missing = tmp_path / "creds[" / "bold]token"
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
+        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
+            factory.build(make_transport(200, {"status": "ok"}), token_file_flag=missing)
+        message = unwrapped(buf.getvalue())
+        assert exc_info.value.code == 1
+        assert "--token-file could not be read" in message
+        assert "bold]token" in message
 
 
 # TLS-verification warning: config-sourced only, not the explicit flag

@@ -20,7 +20,14 @@ from rich.markup import escape
 
 import hassette.cli.output as cli_output
 from hassette.cli.context import CLIContext
-from hassette.cli.target import credential_source_names, resolve_cli_auth_token, resolve_server_target
+from hassette.cli.target import (
+    CLI_AUTH_TOKEN_ENV,
+    SOURCE_CLI_TOKEN_FILE,
+    SOURCE_TOKEN_FILE_FLAG,
+    credential_source_names,
+    resolve_cli_auth_token,
+    resolve_server_target,
+)
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import FatalError
 from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse
@@ -32,8 +39,11 @@ CLI_AUTH_DOCS_URL = "https://hassette.readthedocs.io/en/stable/pages/cli/configu
 the Home Assistant long-lived token, and nothing in a 401 hints that a second token even exists
 unless the message says so."""
 
-CLI_AUTH_REMEDIES = "--token-file, cli.token_file, or HASSETTE__CLI__AUTH_TOKEN"
-"""The credential-supplying knobs that apply to any target, loopback or not."""
+CLI_AUTH_REMEDIES = f"{SOURCE_TOKEN_FILE_FLAG}, {SOURCE_CLI_TOKEN_FILE}, or {CLI_AUTH_TOKEN_ENV}"
+"""The credential-supplying knobs that apply to any target, loopback or not.
+
+Built from the same identifiers the resolvers use so a renamed setting cannot leave this
+remedy naming a knob that no longer exists."""
 
 T = TypeVar("T")
 
@@ -70,7 +80,10 @@ def emit_usage_error(message: str, *, json_mode: bool = False) -> NoReturn:
     if json_mode:
         _write_json_error(None, message)
     else:
-        cli_output.stderr_console.print(f"[bold red]Usage error:[/bold red] {message}", highlight=False)
+        # escape(): a usage error interpolates values the operator controls — a --token-file
+        # path, an --app key, an --instance name. Rich reads square brackets as markup, so an
+        # unescaped "[/bold]" in any of them raises MarkupError instead of printing the error.
+        cli_output.stderr_console.print(f"[bold red]Usage error:[/bold red] {escape(message)}", highlight=False)
     sys.exit(1)
 
 
@@ -528,7 +541,7 @@ class HassetteCLIClient:
         # credential) and the other is remote (reconfigure the instance being queried).
         return (
             "no credential was attached to this remote request — server-scoped sources "
-            f"({credential_source_names('server')}) describe this machine's instance "
+            f"({credential_source_names(scope='server')}) describe this machine's instance "
             f"and are never sent to a remote target. Attach one locally with {CLI_AUTH_REMEDIES} — or, "
             "if this target sits behind a forward-auth proxy, configure trusted_proxies on the "
             "remote instance, which requires access to that host and a restart. "
