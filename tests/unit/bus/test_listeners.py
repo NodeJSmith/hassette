@@ -1,11 +1,14 @@
 """Unit tests for Listener immediate, duration, entity_id, error_handler, and cancel-listener factory."""
 
+from operator import attrgetter
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from hassette.bus.listeners import Listener, ListenerOptions, Subscription
 from hassette.event_handling.predicates import StateTo
+from hassette.types import Predicate
 from hassette.types.enums import BackpressurePolicy
 from tests.support.helpers import create_listener, make_task_bucket
 
@@ -16,6 +19,22 @@ def fn() -> None:
 
 def fn_other() -> None:
     pass
+
+
+def make_cancel_listener(
+    *,
+    owner_id: str = "test_owner",
+    topic: str = "hass.event.state_changed.light.kitchen",
+    predicate: Predicate | None = None,
+) -> Listener:
+    """Build a cancel-listener via Listener.create_cancel_listener() with a fresh task bucket and no-op handler."""
+    return Listener.create_cancel_listener(
+        task_bucket=make_task_bucket(),
+        owner_id=owner_id,
+        topic=topic,
+        handler=fn,
+        predicate=predicate,
+    )
 
 
 class TestListenerConfigMatches:
@@ -231,106 +250,35 @@ class TestCreateCancelListener:
 
     def test_source_tier_is_framework(self) -> None:
         """cancel_listener.identity.source_tier is 'framework'."""
-        tb = make_task_bucket()
-        listener = Listener.create_cancel_listener(
-            task_bucket=tb,
-            owner_id="test_owner",
-            topic="hass.event.state_changed.light.kitchen",
-            handler=lambda: None,
-        )
-        assert listener.identity.source_tier == "framework"
+        assert make_cancel_listener().identity.source_tier == "framework"
 
-    def test_owner_id_is_preserved(self) -> None:
-        """cancel_listener.identity.owner_id matches the supplied owner_id."""
-        tb = make_task_bucket()
-        listener = Listener.create_cancel_listener(
-            task_bucket=tb,
-            owner_id="my_owner",
-            topic="hass.event.state_changed.light.office",
-            handler=lambda: None,
-        )
-        assert listener.identity.owner_id == "my_owner"
+    @pytest.mark.parametrize(
+        "attr_path",
+        ["duration_config", "invoker.rate_limiter", "invoker.error_handler", "predicate"],
+        ids=["no_duration_config", "no_rate_limiter", "no_error_handler", "no_predicate"],
+    )
+    def test_unset_by_default(self, attr_path: str) -> None:
+        """cancel_listener has no duration config, rate limiter, error handler, or predicate unless supplied."""
+        assert attrgetter(attr_path)(make_cancel_listener()) is None
 
-    def test_no_duration_config(self) -> None:
-        """cancel_listener.duration_config is None."""
-        tb = make_task_bucket()
-        listener = Listener.create_cancel_listener(
-            task_bucket=tb,
-            owner_id="test_owner",
-            topic="hass.event.state_changed.sensor.temp",
-            handler=lambda: None,
-        )
-        assert listener.duration_config is None
-
-    def test_no_rate_limiter(self) -> None:
-        """cancel_listener has no rate limiter (debounce/throttle)."""
-        tb = make_task_bucket()
-        listener = Listener.create_cancel_listener(
-            task_bucket=tb,
-            owner_id="test_owner",
-            topic="hass.event.state_changed.light.kitchen",
-            handler=lambda: None,
-        )
-        assert listener.invoker.rate_limiter is None
-
-    def test_no_error_handler(self) -> None:
-        """cancel_listener has no error handler."""
-        tb = make_task_bucket()
-        listener = Listener.create_cancel_listener(
-            task_bucket=tb,
-            owner_id="test_owner",
-            topic="hass.event.state_changed.light.kitchen",
-            handler=lambda: None,
-        )
-        assert listener.invoker.error_handler is None
-
-    def test_topic_is_set(self) -> None:
-        """cancel_listener.topic matches the supplied topic."""
-        tb = make_task_bucket()
-        topic = "hass.event.state_changed.switch.fan"
-        listener = Listener.create_cancel_listener(
-            task_bucket=tb,
-            owner_id="owner",
-            topic=topic,
-            handler=lambda: None,
-        )
-        assert listener.topic == topic
-
-    def test_predicate_default_none(self) -> None:
-        """cancel_listener.predicate defaults to None when not supplied."""
-        tb = make_task_bucket()
-        listener = Listener.create_cancel_listener(
-            task_bucket=tb,
-            owner_id="owner",
-            topic="hass.event.state_changed.light.x",
-            handler=lambda: None,
-        )
-        assert listener.predicate is None
-
-    def test_predicate_can_be_set(self) -> None:
-        """cancel_listener.predicate is stored when supplied."""
-        tb = make_task_bucket()
-        pred = MagicMock(return_value=True)
-        listener = Listener.create_cancel_listener(
-            task_bucket=tb,
-            owner_id="owner",
-            topic="hass.event.state_changed.light.x",
-            handler=lambda: None,
-            predicate=pred,
-        )
-        assert listener.predicate is pred
+    @pytest.mark.parametrize(
+        ("kwarg", "value", "attr_path"),
+        [
+            ("owner_id", "my_owner", "identity.owner_id"),
+            ("topic", "hass.event.state_changed.switch.fan", "topic"),
+            ("predicate", StateTo("on"), "predicate"),
+        ],
+        ids=["owner_id", "topic", "predicate"],
+    )
+    def test_supplied_value_is_stored(self, kwarg: str, value: Any, attr_path: str) -> None:
+        """Each supplied argument is stored as-is on the resulting cancel_listener."""
+        listener = make_cancel_listener(**{kwarg: value})
+        assert attrgetter(attr_path)(listener) is value
 
     def test_works_without_bus_instance(self) -> None:
         """create_cancel_listener() requires no Bus instance — only task_bucket."""
-        tb = make_task_bucket()
         # This must not raise — no Bus, no BusService, no Hassette instance
-        listener = Listener.create_cancel_listener(
-            task_bucket=tb,
-            owner_id="standalone_owner",
-            topic="hass.event.state_changed.light.z",
-            handler=lambda: None,
-        )
-        assert listener.listener_id > 0
+        assert make_cancel_listener().listener_id > 0
 
     def test_cancel_subscription_has_no_registration_task(self) -> None:
         """A Subscription for a cancel-listener has no registration_task field.
