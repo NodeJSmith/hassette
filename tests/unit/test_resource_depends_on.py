@@ -103,11 +103,11 @@ async def test_empty_depends_on_is_noop() -> None:
 async def test_depends_on_waits_for_matching_instance() -> None:
     """When depends_on has a type and a matching child exists, wait_for_ready is called with it."""
     hassette = build_hassette()
-    resource, deps = wire_dependent_resource(hassette, _ResourceWithDepA, _SimpleDepA)
+    resource, (dep_a,) = wire_dependent_resource(hassette, _ResourceWithDepA, _SimpleDepA)
 
     await resource._auto_wait_dependencies()
 
-    hassette.wait_for_ready.assert_called_once_with(deps)
+    hassette.wait_for_ready.assert_called_once_with([dep_a])
 
 
 async def test_depends_on_missing_type_raises() -> None:
@@ -125,21 +125,21 @@ async def test_depends_on_missing_type_raises() -> None:
 async def test_depends_on_subclass_match() -> None:
     """depends_on=[BaseType] finds a ConcreteSubclass instance in children."""
     hassette = build_hassette()
-    resource, deps = wire_dependent_resource(hassette, _ResourceWithDepA, _SubclassOfA)
+    resource, (sub,) = wire_dependent_resource(hassette, _ResourceWithDepA, _SubclassOfA)
 
     await resource._auto_wait_dependencies()
 
-    hassette.wait_for_ready.assert_called_once_with(deps)
+    hassette.wait_for_ready.assert_called_once_with([sub])
 
 
 async def test_depends_on_multiple_matches() -> None:
     """All matching instances for all declared dep types are waited on together."""
     hassette = build_hassette()
-    resource, deps = wire_dependent_resource(hassette, _ResourceWithDepAB, _SimpleDepA, _SimpleDepB)
+    resource, (dep_a, dep_b) = wire_dependent_resource(hassette, _ResourceWithDepAB, _SimpleDepA, _SimpleDepB)
 
     await resource._auto_wait_dependencies()
 
-    hassette.wait_for_ready.assert_called_once_with(deps)
+    hassette.wait_for_ready.assert_called_once_with([dep_a, dep_b])
 
 
 async def test_depends_on_timeout_raises() -> None:
@@ -202,8 +202,8 @@ async def test_skip_dependency_check_bypasses() -> None:
 async def test_service_auto_wait_dependencies() -> None:
     """Service.initialize() calls _auto_wait_dependencies with the same semantics as Resource."""
     hassette = build_hassette()
-    service, deps = wire_dependent_resource(hassette, _ServiceWithDepA, _SimpleDepA)
+    service, (dep_a,) = wire_dependent_resource(hassette, _ServiceWithDepA, _SimpleDepA)
 
     await service._auto_wait_dependencies()
 
-    hassette.wait_for_ready.assert_called_once_with(deps)
+    hassette.wait_for_ready.assert_called_once_with([dep_a])

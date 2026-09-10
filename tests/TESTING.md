@@ -235,6 +235,22 @@ changes = make_change_set(reload_apps={"app_a"})
 
 Builds a `MagicMock` standing in for an owning `App` resource, with `app_key`, `index`, `unique_name`, `source_tier`, `class_name`, and `app_config` all set. Callers that only care about a subset of these get harmless extra attributes.
 
+### `wire_dependent_resource(hassette, dependent_cls, *dep_classes)` — `tests/support/factories.py`
+
+Arranges a `Resource`/`Service` whose declared `depends_on` types are satisfied: instantiates each
+class in `dep_classes`, replaces `hassette.children` with them so `_auto_wait_dependencies()` can
+find them, then builds the dependent. Returns `(dependent, deps)`.
+
+Takes an already-built hassette stub rather than making one, so each test module keeps its own
+`build_hassette()` flags (`wait_for_ready_return`, `shutdown_set`) instead of gaining a third
+parallel stub factory.
+
+```python
+resource, (dep_a,) = wire_dependent_resource(hassette, _ResourceWithDepA, _SimpleDepA)
+await resource._auto_wait_dependencies()
+hassette.wait_for_ready.assert_called_once_with([dep_a])
+```
+
 ## Shared Integration Fixtures
 
 `tests/integration/conftest.py` provides:

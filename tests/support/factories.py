@@ -518,16 +518,18 @@ def wire_dependent_resource(
 ) -> tuple[ResourceT, list[Resource]]:
     """Arrange a dependent resource whose declared ``depends_on`` types are satisfied.
 
-    Instantiates each class in ``dep_classes`` against ``hassette``, installs them as
-    ``hassette.children`` so ``_auto_wait_dependencies()`` can find them, then builds the
-    dependent resource. Returns the dependent plus the dependency instances in the order
-    given, which is also the order ``_auto_wait_dependencies()`` should resolve them in::
+    Instantiates each class in ``dep_classes`` against ``hassette``, replaces (not appends to)
+    ``hassette.children`` with them so ``_auto_wait_dependencies()`` can find them, then builds
+    the dependent resource. Returns the dependent plus the dependency instances, in the order
+    the classes were given::
 
-        resource, deps = wire_dependent_resource(hassette, _ResourceWithDepA, _SimpleDepA)
+        resource, (dep_a,) = wire_dependent_resource(hassette, _ResourceWithDepA, _SimpleDepA)
         await resource._auto_wait_dependencies()
-        hassette.wait_for_ready.assert_called_once_with(deps)
+        hassette.wait_for_ready.assert_called_once_with([dep_a])
 
-    A single class may satisfy several declared dependency types; pass it once.
+    ``_auto_wait_dependencies()`` resolves deps in ``dependent_cls.depends_on`` order, which this
+    helper does not read. Pass ``dep_classes`` in that same order when the test asserts on the
+    list contents. A single instance may satisfy several declared dep types; pass its class once.
     """
     deps: list[Resource] = [dep_cls(hassette=hassette) for dep_cls in dep_classes]
     hassette.children = deps
