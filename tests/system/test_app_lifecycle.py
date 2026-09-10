@@ -1,10 +1,13 @@
 """System tests for app lifecycle — real apps loaded from disk with working resources."""
 
 import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
 
+from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
@@ -33,6 +36,29 @@ def find_app(hassette, class_name: str):
     return key, hassette.app_handler.get(key, 0)
 
 
+@asynccontextmanager
+async def start_with_inline_app(ha_container: str, tmp_path: Path, **modules: str) -> AsyncIterator[Hassette]:
+    """Write inline app modules into the config's apps directory and start Hassette on them.
+
+    Args:
+        ha_container: Base URL of the running Home Assistant instance.
+        tmp_path: Per-test temporary directory, passed through to ``make_system_config`` — which
+            owns the apps directory, so callers never build or create that path themselves.
+        **modules: Module stem mapped to its app source, written as ``<stem>.py``. Pass more than
+            one to bring up several apps together.
+
+    Yields:
+        The running Hassette instance, with autodetection pointed at the apps directory.
+    """
+    config = make_system_config(ha_container, tmp_path)
+    apps_dir = config.apps.directory
+    for stem, source in modules.items():
+        (apps_dir / f"{stem}.py").write_text(source)
+
+    async with startup_context(enable_autodetect(config, apps_dir)) as hassette:
+        yield hassette
+
+
 async def test_trivial_app_initializes(ha_container: str, tmp_path: Path, system_app_dir: Path) -> None:
     """An app loaded from disk appears in the registry with RUNNING status after startup."""
     config = make_system_config(ha_container, tmp_path)
@@ -46,9 +72,6 @@ async def test_trivial_app_initializes(ha_container: str, tmp_path: Path, system
 
 async def test_app_gets_working_api(ha_container: str, tmp_path: Path) -> None:
     """An app can call get_states() in on_initialize and receives real entity data."""
-    apps_dir = tmp_path / "apps"
-    apps_dir.mkdir(exist_ok=True)
-
     app_code = """\
 from hassette import App
 
@@ -57,12 +80,8 @@ class ApiCheckApp(App):
     async def on_initialize(self) -> None:
         self.fetched_states = await self.api.get_states()
 """
-    (apps_dir / "api_check_app.py").write_text(app_code)
 
-    config = make_system_config(ha_container, tmp_path)
-    config = enable_autodetect(config, apps_dir)
-
-    async with startup_context(config) as hassette:
+    async with start_with_inline_app(ha_container, tmp_path, api_check_app=app_code) as hassette:
         _, app_instance = find_app(hassette, "ApiCheckApp")
         assert app_instance.status == ResourceStatus.RUNNING
 
@@ -94,9 +113,6 @@ async def test_app_bus_handler_fires(ha_container: str, tmp_path: Path, system_a
 
 async def test_app_scheduler_fires(ha_container: str, tmp_path: Path) -> None:
     """An app can schedule a run_in job in on_initialize and the callback fires."""
-    apps_dir = tmp_path / "apps"
-    apps_dir.mkdir(exist_ok=True)
-
     app_code = """\
 from hassette import App
 
@@ -109,12 +125,8 @@ class SchedulerCheckApp(App):
     async def _callback(self) -> None:
         self.fired.append(1)
 """
-    (apps_dir / "scheduler_check_app.py").write_text(app_code)
 
-    config = make_system_config(ha_container, tmp_path)
-    config = enable_autodetect(config, apps_dir)
-
-    async with startup_context(config) as hassette:
+    async with start_with_inline_app(ha_container, tmp_path, scheduler_check_app=app_code) as hassette:
         _, app_instance = find_app(hassette, "SchedulerCheckApp")
         assert app_instance.status == ResourceStatus.RUNNING
 
@@ -127,9 +139,6 @@ class SchedulerCheckApp(App):
 
 async def test_app_state_access(ha_container: str, tmp_path: Path) -> None:
     """An app can access light domain states via self.states.light in on_initialize."""
-    apps_dir = tmp_path / "apps"
-    apps_dir.mkdir(exist_ok=True)
-
     app_code = """\
 from hassette import App
 
@@ -138,12 +147,8 @@ class StateCheckApp(App):
     async def on_initialize(self) -> None:
         self.light_states = list(self.states.light.items())
 """
-    (apps_dir / "state_check_app.py").write_text(app_code)
 
-    config = make_system_config(ha_container, tmp_path)
-    config = enable_autodetect(config, apps_dir)
-
-    async with startup_context(config) as hassette:
+    async with start_with_inline_app(ha_container, tmp_path, state_check_app=app_code) as hassette:
         _, app_instance = find_app(hassette, "StateCheckApp")
         assert app_instance.status == ResourceStatus.RUNNING
 
@@ -153,9 +158,6 @@ class StateCheckApp(App):
 
 async def test_app_shutdown_hook(ha_container: str, tmp_path: Path) -> None:
     """An app's on_shutdown hook is called when Hassette shuts down."""
-    apps_dir = tmp_path / "apps"
-    apps_dir.mkdir(exist_ok=True)
-
     app_code = """\
 from hassette import App
 
@@ -167,12 +169,8 @@ class ShutdownCheckApp(App):
     async def on_shutdown(self) -> None:
         self.shutdown_called = True
 """
-    (apps_dir / "shutdown_check_app.py").write_text(app_code)
 
-    config = make_system_config(ha_container, tmp_path)
-    config = enable_autodetect(config, apps_dir)
-
-    async with startup_context(config) as hassette:
+    async with start_with_inline_app(ha_container, tmp_path, shutdown_check_app=app_code) as hassette:
         _, app_instance = find_app(hassette, "ShutdownCheckApp")
 
     # After startup_context exits, shutdown has completed
@@ -181,9 +179,6 @@ class ShutdownCheckApp(App):
 
 async def test_multiple_apps_isolation(ha_container: str, tmp_path: Path) -> None:
     """Two apps are isolated: events for one entity do not bleed into an unrelated app."""
-    apps_dir = tmp_path / "apps"
-    apps_dir.mkdir(exist_ok=True)
-
     app_a_code = """\
 from hassette import App
 from hassette.events import RawStateChangeEvent
@@ -206,13 +201,9 @@ class IsolationAppB(App):
         self.captured: list[object] = []
 """
 
-    (apps_dir / "isolation_app_a.py").write_text(app_a_code)
-    (apps_dir / "isolation_app_b.py").write_text(app_b_code)
-
-    config = make_system_config(ha_container, tmp_path)
-    config = enable_autodetect(config, apps_dir)
-
-    async with startup_context(config) as hassette:
+    async with start_with_inline_app(
+        ha_container, tmp_path, isolation_app_a=app_a_code, isolation_app_b=app_b_code
+    ) as hassette:
         _, app_a = find_app(hassette, "IsolationAppA")
         _, app_b = find_app(hassette, "IsolationAppB")
         assert app_a.status == ResourceStatus.RUNNING

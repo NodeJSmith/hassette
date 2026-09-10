@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -81,6 +82,30 @@ def assert_load_completed_count(event_capture: EventCapture, expected: int) -> N
     """
     completed = event_capture.by_topic(Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
     assert len(completed) == expected, f"expected {expected} APP_LOAD_COMPLETED event(s), got {len(completed)}"
+
+
+async def assert_acquires_app_key_lock_once(
+    lifecycle_service: AppLifecycleService,
+    app_key: str,
+    operation: Callable[[], Awaitable[Any]],
+) -> None:
+    """Run `operation` and assert it acquired `app_key`'s lock exactly once, then released it.
+
+    Every public lifecycle entry point that touches one app_key must take that key's lock once
+    for its whole sequence rather than delegating to another public, lock-acquiring method
+    partway through. Doing the latter would hang forever on the non-reentrant `asyncio.Lock`,
+    so the `wait_for` here is load-bearing: it turns that deadlock into a test failure instead
+    of a stuck test run.
+
+    Per-operation mock setup stays in the calling test -- only the lock assertion is shared.
+    """
+    lock = lifecycle_service._get_app_key_lock(app_key)
+    lock.acquire = AsyncMock(wraps=lock.acquire)  # pyright: ignore[reportAttributeAccessIssue]
+
+    await asyncio.wait_for(operation(), timeout=1)
+
+    assert lock.acquire.call_count == 1
+    assert not lock.locked()
 
 
 def stub_detected_changes(lifecycle_service: AppLifecycleService, changes: ChangeSet) -> None:
