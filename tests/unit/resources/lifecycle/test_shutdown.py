@@ -312,12 +312,19 @@ async def test_resource_own_hanging_hook_wins_race_against_coordinator_timeout()
     and letting ``_shutdown_body()`` proceed through its later stages — rather than losing the
     race to the coordinator's own outer ``asyncio.wait([body_task], timeout=timeout)`` bound.
 
-    The up-front budget's ``COORDINATOR_MARGIN_FRACTION`` guarantees that the body's stages
-    (hooks pool + mandatory tail) finish before the coordinator's outer wait, so the hook's
-    inner timeout always fires first by construction.
+    The up-front budget's ``COORDINATOR_MARGIN_FRACTION`` fixes the *ordering* by construction
+    (hooks pool < body deadline < total deadline), but ordering alone is not what makes this
+    test pass: the body task still has to be scheduled and reach ``run_hooks()`` before the
+    coordinator's outer bound expires. The real invariant is therefore the absolute wall-clock
+    gap between the hooks pool and the total deadline, which must stay generous enough to
+    absorb CI scheduling jitter — hence ``GENEROUS_SHUTDOWN_TIMEOUT_SECONDS`` rather than the
+    short timeout the force-terminal tests use. That short value leaves under 100ms of margin,
+    which a loaded ``-n 4`` runner reaches; the coordinator's outer wait then fires first and
+    the report carries ``FORCED_TERMINAL`` + ``SHUTDOWN_BODY_TIMED_OUT`` with no hook evidence
+    at all.
     """
     hassette = make_mock_hassette(sealed=False)
-    hassette.config.lifecycle.resource_shutdown_timeout_seconds = SHORT_SHUTDOWN_TIMEOUT_SECONDS
+    hassette.config.lifecycle.resource_shutdown_timeout_seconds = GENEROUS_SHUTDOWN_TIMEOUT_SECONDS
 
     resource = HangingChild(hassette)
     await resource.initialize()

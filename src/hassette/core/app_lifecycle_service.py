@@ -384,6 +384,18 @@ class AppLifecycleService(Resource):
     def _get_app_key_lock(self, app_key: str) -> asyncio.Lock:
         return self._app_key_locks.setdefault(app_key, asyncio.Lock())
 
+    def _resolve_manifest(self, app_key: str) -> "AppManifest | None":
+        """Fetch ``app_key``'s manifest, logging the standard skip message if it is absent.
+
+        A missing manifest means the app is disabled or unknown, which every lifecycle path
+        treats as a silent no-op skip. Callers keep their own ``return`` so this works the same
+        in public methods and in ``_unlocked`` helpers.
+        """
+        app_manifest = self.registry.get_manifest(app_key)
+        if app_manifest is None:
+            self.logger.debug("Skipping disabled or unknown app %s", app_key)
+        return app_manifest
+
     async def _admit_start(self, *, app_key: str, admission_mode: AppAdmissionMode) -> None:
         if admission_mode is AppAdmissionMode.WAIT_FOR_RELEASE:
             await self.bootstrap_coordinator.wait_released()
@@ -491,9 +503,8 @@ class AppLifecycleService(Resource):
             app_key: The app key to start
             force_reload: Whether to force-reload the app class from disk
         """
-        app_manifest = self.registry.get_manifest(app_key)
+        app_manifest = self._resolve_manifest(app_key)
         if not app_manifest:
-            self.logger.debug("Skipping disabled or unknown app %s", app_key)
             return
 
         await self._admit_start(app_key=app_key, admission_mode=admission_mode)
@@ -504,9 +515,8 @@ class AppLifecycleService(Resource):
             # reconciliation can remove or replace this app's manifest while that wait is
             # parked. Acting on the pre-wait manifest would create instances for an app that
             # no longer exists (or no longer matches current config).
-            app_manifest = self.registry.get_manifest(app_key)
+            app_manifest = self._resolve_manifest(app_key)
             if not app_manifest:
-                self.logger.debug("Skipping disabled or unknown app %s", app_key)
                 return
 
             await self._start_app_unlocked(app_key, app_manifest, force_reload)
@@ -661,9 +671,8 @@ class AppLifecycleService(Resource):
             async with self._get_app_key_lock(app_key):
                 await self._stop_app_unlocked(app_key)
 
-                app_manifest = self.registry.get_manifest(app_key)
+                app_manifest = self._resolve_manifest(app_key)
                 if not app_manifest:
-                    self.logger.debug("Skipping disabled or unknown app %s", app_key)
                     return
 
                 await self._start_app_unlocked(app_key, app_manifest, force_reload)
@@ -683,6 +692,8 @@ class AppLifecycleService(Resource):
         must re-validate the index after acquiring the per-app-key lock, mirroring
         ``start_app()``'s post-lock re-fetch pattern, since the manifest (and therefore the
         valid index range) can change while a caller was parked in ``_admit_start()``.
+        ``stop_instance`` consults this only for an index the registry no longer tracks: a
+        tracked out-of-range instance is an orphan that must stay stoppable.
         """
         valid_index_count = len(self.factory.normalize_configs(app_manifest.app_config))
         if index < 0 or index >= valid_index_count:
@@ -827,9 +838,8 @@ class AppLifecycleService(Resource):
         can acquire the lock once and reload several changed indices for the same app_key as a
         single atomic batch (see design doc "Data flow for selective restart").
         """
-        app_manifest = self.registry.get_manifest(app_key)
+        app_manifest = self._resolve_manifest(app_key)
         if not app_manifest:
-            self.logger.debug("Skipping disabled or unknown app %s", app_key)
             return
 
         if not self._instance_index_in_range(app_key, index, app_manifest):
@@ -851,7 +861,12 @@ class AppLifecycleService(Resource):
         async with self._get_app_key_lock(app_key):
             app_manifest = self.registry.get_manifest(app_key)
             if app_manifest is not None and not self._instance_index_in_range(app_key, index, app_manifest):
-                return
+                # A still-tracked instance whose index fell outside the configured range (the
+                # config shrank while it was still running) stays stoppable.
+                # `prune_stale_failed_indices` only prunes stale *failed* entries, so a running
+                # orphan would otherwise have no way to be shut down.
+                if index not in self.registry.get_instances(app_key):
+                    return
             await self._stop_instance_unlocked(app_key, index)
 
     async def start_instance(
@@ -874,9 +889,8 @@ class AppLifecycleService(Resource):
             app_key: The app key
             index: The instance index to start
         """
-        app_manifest = self.registry.get_manifest(app_key)
+        app_manifest = self._resolve_manifest(app_key)
         if not app_manifest:
-            self.logger.debug("Skipping disabled or unknown app %s", app_key)
             return
 
         await self._admit_start(app_key=app_key, admission_mode=admission_mode)
@@ -884,9 +898,8 @@ class AppLifecycleService(Resource):
         try:
             async with self._get_app_key_lock(app_key):
                 # Re-fetch under the lock — mirrors start_app()'s stale-manifest race guard.
-                app_manifest = self.registry.get_manifest(app_key)
+                app_manifest = self._resolve_manifest(app_key)
                 if not app_manifest:
-                    self.logger.debug("Skipping disabled or unknown app %s", app_key)
                     return
 
                 if not self._instance_index_in_range(app_key, index, app_manifest):
@@ -1131,9 +1144,8 @@ class AppLifecycleService(Resource):
         """
         self.logger.debug("Reloading changed instance(s) %s of app %s", changed_indices, app_key)
 
-        app_manifest = self.registry.get_manifest(app_key)
+        app_manifest = self._resolve_manifest(app_key)
         if not app_manifest:
-            self.logger.debug("Skipping disabled or unknown app %s", app_key)
             return
 
         valid_indices = [idx for idx in changed_indices if self._instance_index_in_range(app_key, idx, app_manifest)]

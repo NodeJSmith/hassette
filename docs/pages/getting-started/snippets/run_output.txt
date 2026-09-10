@@ -1,2 +1,4 @@
-INFO hassette ... ─ Connected to Home Assistant
-INFO hassette.MyApp.0 ... ─ Hello from Hassette!
+...
+2026-01-14T09:12:04.868953 [info     ] Connected to Home Assistant at ws://homeassistant.local:8123/api/websocket [hassette.WebsocketService] execution_id=None source_tier=framework
+...
+2026-01-14T09:12:04.998186 [info     ] Hello from Hassette!           [hassette.MyApp.0] app_key=apps.main.MyApp execution_id=None instance_index=0 instance_name=MyApp.0 source_tier=app

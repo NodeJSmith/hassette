@@ -52,13 +52,13 @@ Every app inherits five objects from Hassette: `self.logger` (Python logger), `s
 hassette run -e .env
 ```
 
-You see output like:
+Hassette logs each startup step. Two lines matter:
 
 ```
 --8<-- "pages/getting-started/snippets/run_output.txt"
 ```
 
-The second line (`Hello from Hassette!`) comes from your `on_initialize` method. If you change the `greeting` field in `MyAppConfig` and restart, you see your new text. Open a second terminal to confirm the connection:
+The `Connected to Home Assistant` line confirms your URL and token work. The `Hello from Hassette!` line comes from your `on_initialize` method. If you change the `greeting` field in `MyAppConfig` and restart, you see your new text. Open a second terminal to check on the running instance:
 
 ```bash
 hassette status

@@ -69,6 +69,38 @@ def make_host_port_config(host: str = "127.0.0.1", port: int = 8126) -> Hassette
     return HassetteConfig(token=None, web_api=WebApiConfig(host=host, port=port))
 
 
+def make_raw_body_client(
+    content: bytes,
+    *,
+    status_code: int = 200,
+    content_type: str | None = None,
+    json_mode: bool = False,
+    debug_mode: bool = False,
+) -> HassetteCLIClient:
+    """Build a default-target client whose every response returns ``content`` verbatim.
+
+    The sibling of ``make_transport()``, for the malformed-response tests: ``make_transport()``
+    JSON-encodes whatever body it is handed, so it cannot produce an HTML page, a bare ``not
+    json`` string, or deliberately malformed UTF-8 bytes. Omit ``content_type`` to leave the
+    header off entirely, as a proxy serving a raw error page would.
+
+    Everything after ``content`` is keyword-only: ``make_transport()`` takes its status code
+    first, so a positional second argument here would read as that helper's argument order
+    while meaning something else.
+    """
+    headers = {"content-type": content_type} if content_type is not None else {}
+
+    def _raw_response(_req: httpx.Request) -> httpx.Response:
+        return httpx.Response(status_code, content=content, headers=headers)
+
+    return HassetteCLIClient(
+        make_host_port_config(),
+        json_mode=json_mode,
+        debug_mode=debug_mode,
+        transport=httpx.MockTransport(_raw_response),
+    )
+
+
 def make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my_app"):
     """Wrap ``instances`` in a single-app manifest list, as ``/api/apps/manifests`` returns it."""
     manifest = make_manifest_response(app_key=app_key, instance_count=len(instances), instances=instances)
@@ -154,6 +186,20 @@ def stderr_for_connect_error(config: HassetteConfig, **client_kwargs: Any) -> st
     return stderr
 
 
+def stderr_for_malformed_response(config: HassetteConfig, **client_kwargs: Any) -> str:
+    """Return what a client built from ``config`` writes to stderr for an unusable 200 body.
+
+    The third sibling of ``stderr_for_successful_get`` and ``stderr_for_connect_error``: a 200
+    carrying valid JSON that doesn't match the requested model. The wrong-shape body is fixed —
+    only the config/flags that produced the client ever vary between these tests.
+    """
+    client = HassetteCLIClient(
+        config, json_mode=False, transport=make_transport(200, {"unexpected": "shape"}), **client_kwargs
+    )
+    _code, stderr = get_expecting_exit(client)
+    return stderr
+
+
 # Base URL construction & address substitution
 
 
@@ -231,12 +277,7 @@ class TestTolerate503:
 
     def test_503_with_non_json_body_exits_instead_of_crashing(self) -> None:
         """A tolerated 503 from a proxy/LB (HTML body, not JSON) exits cleanly, not a traceback."""
-        config = make_host_port_config()
-
-        def handler(_req: httpx.Request) -> httpx.Response:
-            return httpx.Response(503, content=b"<html>503 Service Unavailable</html>")
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client = make_raw_body_client(b"<html>503 Service Unavailable</html>", status_code=503)
         with pytest.raises(SystemExit) as exc_info:
             client.get(TELEMETRY_STATUS_ENDPOINT, SimpleModel, tolerate_503=True)
         assert exc_info.value.code == 1
@@ -262,35 +303,20 @@ class TestTolerate503:
 
 class TestMalformedSuccessResponse:
     def test_non_json_200_body_exits_code_1(self) -> None:
-        config = make_host_port_config()
-
-        def handler(_req: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, content=b"<html>not json</html>")
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client = make_raw_body_client(b"<html>not json</html>")
         with pytest.raises(SystemExit) as exc_info:
             client.get(HEALTH_ENDPOINT, SimpleModel)
         assert exc_info.value.code == 1
 
     def test_non_json_200_body_prints_clean_error_human_mode(self) -> None:
-        config = make_host_port_config()
-
-        def handler(_req: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, content=b"<html>not json</html>")
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client = make_raw_body_client(b"<html>not json</html>")
         _code, stderr = get_expecting_exit(client)
         assert "Error" in stderr
         assert "not valid JSON" in stderr
         assert "Traceback" not in stderr
 
     def test_non_json_200_body_json_mode_error_envelope(self, capsys: pytest.CaptureFixture[str]) -> None:
-        config = make_host_port_config()
-
-        def handler(_req: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, content=b"<html>not json</html>")
-
-        client = HassetteCLIClient(config, json_mode=True, transport=httpx.MockTransport(handler))
+        client = make_raw_body_client(b"<html>not json</html>", json_mode=True)
         parsed = get_json_error(client, capsys, expect_code=1)
         assert parsed["error"] is True
         assert parsed["status"] == 200
@@ -305,10 +331,7 @@ class TestMalformedSuccessResponse:
         assert exc_info.value.code == 1
 
     def test_valid_json_wrong_shape_200_prints_clean_error_human_mode(self) -> None:
-        config = make_host_port_config()
-        transport = make_transport(200, {"unexpected": "shape"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        _code, stderr = get_expecting_exit(client)
+        stderr = stderr_for_malformed_response(make_host_port_config())
         assert "Error" in stderr
         assert "does not match the expected shape" in stderr
         assert "Traceback" not in stderr
@@ -324,24 +347,14 @@ class TestMalformedSuccessResponse:
 
     def test_non_loopback_shows_target(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
-        transport = make_transport(200, {"unexpected": "shape"})
-        client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        _code, stderr = get_expecting_exit(client)
-        assert REMOTE_SERVER_URL in stderr
+        assert REMOTE_SERVER_URL in stderr_for_malformed_response(config)
 
     def test_non_utf8_200_body_prints_clean_error_human_mode(self) -> None:
         """A tolerated-503/2xx body with malformed UTF-8 bytes raises UnicodeDecodeError from
         response.json() (not JSONDecodeError) — must still route to the clean error path, not
         let the raw traceback escape.
         """
-        config = make_host_port_config()
-
-        def handler(_req: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                200, content=b'{"a": "\xff"}', headers={"content-type": "application/json; charset=utf-8"}
-            )
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client = make_raw_body_client(b'{"a": "\xff"}', content_type="application/json; charset=utf-8")
         _code, stderr = get_expecting_exit(client)
         assert "Error" in stderr
         assert "not valid UTF-8" in stderr
@@ -351,23 +364,13 @@ class TestMalformedSuccessResponse:
         """The debug-mode body dump must decode leniently -- response.text would re-raise the
         same UnicodeDecodeError the malformed-response handler was built to catch.
         """
-        config = make_host_port_config()
-
-        def handler(_req: httpx.Request) -> httpx.Response:
-            return httpx.Response(
-                200, content=b'{"a": "\xff"}', headers={"content-type": "application/json; charset=utf-8"}
-            )
-
-        client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=httpx.MockTransport(handler))
+        client = make_raw_body_client(b'{"a": "\xff"}', content_type="application/json; charset=utf-8", debug_mode=True)
         _code, stderr = get_expecting_exit(client)
         assert "not valid UTF-8" in stderr
         assert "Body" in stderr
 
     def test_debug_mode_shows_url_and_body(self) -> None:
-        config = make_host_port_config()
-        transport = make_transport(200, {"unexpected": "shape"})
-        client = HassetteCLIClient(config, json_mode=False, debug_mode=True, transport=transport)
-        _code, stderr = get_expecting_exit(client)
+        stderr = stderr_for_malformed_response(make_host_port_config(), debug_mode=True)
         assert "GET" in stderr
         assert HEALTH_ENDPOINT in stderr
         assert '"unexpected"' in stderr
@@ -391,23 +394,13 @@ class TestPostMalformedResponse:
     """
 
     def test_invalid_json_body_exits_instead_of_crashing(self) -> None:
-        config = make_host_port_config()
-
-        def handler(_req: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, content=b"not json", headers={"content-type": "application/json"})
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client = make_raw_body_client(b"not json", content_type="application/json")
         with pytest.raises(SystemExit) as exc_info:
             client.post("/api/apps/my_app/stop")
         assert exc_info.value.code == 1
 
     def test_invalid_json_body_prints_clean_error_to_stderr(self) -> None:
-        config = make_host_port_config()
-
-        def handler(_req: httpx.Request) -> httpx.Response:
-            return httpx.Response(200, content=b"not json", headers={"content-type": "application/json"})
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client = make_raw_body_client(b"not json", content_type="application/json")
         with capture_stderr() as buf, pytest.raises(SystemExit):
             client.post("/api/apps/my_app/stop")
         assert "not valid JSON" in buf.getvalue()

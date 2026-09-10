@@ -4,11 +4,13 @@ import socket
 import textwrap
 from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager, suppress
+from io import StringIO
 from logging import Logger, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import tomli_w
 
 from hassette.bus.listeners import (
@@ -43,11 +45,35 @@ PLACEHOLDER_SERVICE_NAME = "TestService"
 """Stand-in resource_name for the service-lifecycle event factories below. Tests that don't
 assert on the name should take this default rather than inventing another placeholder."""
 
+PLACEHOLDER_APP_NAME = "TestApp"
+"""Stand-in resource_name for APP-role lifecycle events, the counterpart to
+``PLACEHOLDER_SERVICE_NAME``. Apps emit on the same status topic services do, so tests covering
+role filtering need a name that reads as an app rather than a service."""
+
+PLACEHOLDER_RESOURCE_NAME = "TestResource"
+"""Stand-in resource_name for RESOURCE-role lifecycle events. Plain ``Resource`` subclasses
+(``AppLifecycleService``, ``StateProxy``, ``AppHandler``) emit on the same status topic under a
+third role, which role-filtering tests must distinguish from both SERVICE and APP."""
+
 SETTLE_SECONDS = 0.05
 """Default settle window: seconds to let a stray extra handler call land before a negative assertion."""
 
+APP_STATUS_WAIT_SECONDS = 3
+"""Default real-clock budget for an app to reach an expected status after a file-change event.
+
+Covers the full hot-reload pipeline — config reload, teardown of the outgoing instance, import
+and bootstrap of the new one — so it needs headroom for a loaded CI runner. Shared by every
+``emit_change_and_wait_for_app_status`` call so the budget lives in one place.
+"""
+
 SHORT_SHUTDOWN_TIMEOUT_SECONDS = 0.1
-"""Short ``resource_shutdown_timeout_seconds`` for tests that force a timeout/force-terminal branch."""
+"""Short ``resource_shutdown_timeout_seconds`` for tests that force a timeout/force-terminal branch.
+
+Only for tests that *want* the coordinator's outer bound to fire. It leaves under 100ms of real
+wall-clock margin between the hooks pool and the total deadline, so a test asserting that an
+inner bound (a hook's own ``asyncio.timeout``) wins that race will flake on a loaded CI runner.
+Use ``GENEROUS_SHUTDOWN_TIMEOUT_SECONDS`` for those.
+"""
 
 DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX = 500
 """``make_mock_hassette`` database queue-max override — smaller than the production default (1000) for test speed."""
@@ -277,14 +303,19 @@ def make_crashed_event(
     exception_type: str | None = "RuntimeError",
     exception: str | None = "something broke",
     exception_traceback: str | None = "Traceback ...",
+    role: ResourceRole = ResourceRole.SERVICE,
 ) -> HassetteServiceEvent:
-    """Build a CRASHED HassetteServiceEvent for testing."""
+    """Build a CRASHED HassetteServiceEvent for testing.
+
+    ``role`` defaults to SERVICE; pass APP to build the kind of event the ServiceWatcher's
+    role filter must reject.
+    """
     return HassetteServiceEvent(
         topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
         payload=HassettePayload(
             data=ServiceStatusPayload(
                 resource_name=resource_name,
-                role=ResourceRole.SERVICE,
+                role=role,
                 status=ResourceStatus.CRASHED,
                 previous_status=ResourceStatus.FAILED,
                 exception=exception,
@@ -326,9 +357,37 @@ async def wire_up_app_state_listener(
     )
 
 
-async def wire_up_app_running_listener(bus: "Bus", event: asyncio.Event, app_key: str) -> None:
-    """Wire up a listener that fires when a specific app reaches RUNNING status."""
-    await wire_up_app_state_listener(bus, event, app_key, ResourceStatus.RUNNING)
+async def emit_change_and_wait_for_app_status(
+    hassette: "Hassette",
+    changed_paths: set[Path],
+    *app_keys: str,
+    status: ResourceStatus = ResourceStatus.RUNNING,
+    timeout: float = APP_STATUS_WAIT_SECONDS,
+) -> None:
+    """Emit a synthetic file-change event and wait for each named app to reach ``status``.
+
+    The arrange-and-await half of a hot-reload test. Listeners are wired before the event is
+    emitted so a fast reload cannot fire before anything is listening, and all apps are awaited
+    under a single deadline.
+
+    Write the config or app-file changes before calling — this only announces them. ``status``
+    covers the non-RUNNING waits, e.g. ``ResourceStatus.STOPPED`` after an app is disabled.
+    Repeated ``app_keys`` are deduplicated, preserving order.
+    """
+    reached_events: list[asyncio.Event] = []
+    # Listeners are named per (app_key, status) and registered with if_exists="replace", so a
+    # repeated app_key would orphan the earlier event and hang until the deadline. Dedupe,
+    # preserving order.
+    for app_key in dict.fromkeys(app_keys):
+        reached = asyncio.Event()
+        await wire_up_app_state_listener(hassette.bus, reached, app_key, status)
+        reached_events.append(reached)
+
+    await emit_file_change_event(hassette, changed_paths)
+
+    with anyio.fail_after(timeout):
+        for reached_event in reached_events:
+            await reached_event.wait()
 
 
 def make_task_bucket() -> MagicMock:
@@ -544,3 +603,32 @@ async def cleanup_hassette_streams(instance: Hassette) -> None:
         await instance.event_stream_service.close_streams()
     with suppress(Exception):
         await instance.bus_service.stream.aclose()
+
+
+def last_json_record(stream: StringIO) -> dict[str, Any]:
+    """Parse the most recent JSON log record written to a test log stream.
+
+    Args:
+        stream: Stream that a JSON-rendering log handler wrote to.
+
+    Returns:
+        The last non-blank line of the stream, parsed as a dict.
+    """
+    lines = [line for line in stream.getvalue().strip().splitlines() if line.strip()]
+    assert lines, "no log records were emitted to the stream"
+    return json.loads(lines[-1])
+
+
+def first_json_record_containing(stream: StringIO, text: str) -> dict[str, Any]:
+    """Parse the first JSON log record in a test log stream whose raw line contains `text`.
+
+    Args:
+        stream: Stream that a JSON-rendering log handler wrote to.
+        text: Substring identifying the record of interest, usually its message.
+
+    Returns:
+        The first matching line, parsed as a dict.
+    """
+    lines = [line for line in stream.getvalue().strip().splitlines() if text in line]
+    assert lines, f"no log record containing {text!r} was emitted to the stream"
+    return json.loads(lines[0])

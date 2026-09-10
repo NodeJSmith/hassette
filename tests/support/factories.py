@@ -4,6 +4,7 @@ Override-friendly factories that replace per-file duplicates. Every field has
 a sensible default; callers pass only the fields they care about.
 """
 
+from collections.abc import Iterable
 from typing import Any, Literal
 from unittest.mock import AsyncMock, MagicMock, Mock
 
@@ -12,6 +13,7 @@ from whenever import ZonedDateTime
 import hassette.utils.date_utils as date_utils
 from hassette.commands import InvokeHandler
 from hassette.conversion import STATE_REGISTRY
+from hassette.core.app_change_detector import ChangeSet
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.state_proxy import StateProxy
@@ -345,6 +347,29 @@ def make_scheduler(
     scheduler.hassette = hassette_mock
 
     return scheduler
+
+
+def make_change_set(
+    *,
+    orphans: Iterable[str] = (),
+    new_apps: Iterable[str] = (),
+    reimport_apps: Iterable[str] = (),
+    reload_apps: Iterable[str] = (),
+    metadata_apps: Iterable[str] = (),
+) -> ChangeSet:
+    """Build a ChangeSet from plain iterables, defaulting every unlisted bucket to empty.
+
+    `ChangeSet` has no defaults of its own -- every one of its four lifecycle buckets is a
+    required field -- so constructing one to exercise a single bucket otherwise means spelling
+    out three empty `frozenset()` arguments that carry no meaning for the test.
+    """
+    return ChangeSet(
+        orphans=frozenset(orphans),
+        new_apps=frozenset(new_apps),
+        reimport_apps=frozenset(reimport_apps),
+        reload_apps=frozenset(reload_apps),
+        metadata_apps=frozenset(metadata_apps),
+    )
 
 
 def make_mock_executor() -> MagicMock:

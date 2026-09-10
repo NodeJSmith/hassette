@@ -12,7 +12,7 @@ import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
 import { type AppStatusEntry, useAppStore } from "../../state/store";
 import { appLiveStatus, instanceLiveStatus } from "../../utils/app-data";
 import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
-import { COMPACT_STATUS_DOT_SIZE, GROUP_HEADER_STATUS_SHAPE_SIZE, STATUS_DOT_SIZE } from "../../utils/constants";
+import { COMPACT_STATUS_SHAPE_SIZE, GROUP_HEADER_STATUS_SHAPE_SIZE, STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { SHORTCUT_HINT } from "../../utils/keyboard";
 import { statusToKind } from "../../utils/status";
 import { Spinner } from "../shared/spinner";
@@ -69,7 +69,7 @@ function AppEntry({ manifest, location, searchString, appStatuses }: AppEntryPro
             aria-current={isActive ? "page" : undefined}
             data-testid="app-link"
           >
-            <StatusShape kind={kind} size={STATUS_DOT_SIZE} />
+            <StatusShape kind={kind} size={STATUS_SHAPE_SIZE} />
             <span className="min-w-0 flex-1 truncate">{manifest.display_name}</span>
             {manifest.auto_loaded && (
               <Badge variant="muted" title="Auto-loaded">
@@ -113,7 +113,7 @@ function AppEntry({ manifest, location, searchString, appStatuses }: AppEntryPro
                       )}
                       aria-current={instActive ? "page" : undefined}
                     >
-                      <StatusShape kind={statusToKind(instStatus)} size={COMPACT_STATUS_DOT_SIZE} />
+                      <StatusShape kind={statusToKind(instStatus)} size={COMPACT_STATUS_SHAPE_SIZE} />
                       <span className="truncate">{inst.instance_name}</span>
                     </Link>
                   </li>

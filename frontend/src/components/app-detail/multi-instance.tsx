@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import type { AppInstance } from "../../api/endpoints";
 import { useAppStore } from "../../state/store";
 import { instanceLiveError, instanceLiveStatus } from "../../utils/app-data";
-import { BADGE_STATUS_DOT_SIZE, STATUS_DOT_SIZE } from "../../utils/constants";
+import { BADGE_STATUS_SHAPE_SIZE, STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 
@@ -47,7 +47,7 @@ export function InstanceSwitcher({
               if (!isActive) onNavigate(instance.index);
             }}
           >
-            <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_DOT_SIZE} />
+            <StatusShape kind={statusToKind(liveStatus)} size={BADGE_STATUS_SHAPE_SIZE} />
             <span className="max-w-[140px] overflow-hidden text-ellipsis">{instance.instance_name}</span>
           </button>
         );
@@ -78,7 +78,7 @@ function InstanceCard({
       aria-label={`View ${instance.instance_name}`}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <StatusShape kind={statusToKind(liveStatus)} size={STATUS_DOT_SIZE} />
+        <StatusShape kind={statusToKind(liveStatus)} size={STATUS_SHAPE_SIZE} />
         <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-medium">
           {instance.instance_name}
         </span>

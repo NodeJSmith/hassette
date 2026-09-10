@@ -1,7 +1,8 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { BootIssue } from "../../api/endpoints";
+import type { BootIssue } from "@/api/endpoints";
+
 import { BootIssuesPanel } from "./boot-issues-panel";
 
 describe("BootIssuesPanel", () => {
@@ -11,8 +12,7 @@ describe("BootIssuesPanel", () => {
       // @ts-expect-error intentionally invalid severity to exercise the unknown-severity sort fallback
       { severity: "unrecognized", label: "Mystery issue", detail: "no known severity" },
       { severity: "err", label: "Critical error", detail: "failed to load something" },
-      // @ts-expect-error "info" is not part of the BootIssueResponse schema but the panel's
-      // SEVERITY_ORDER handles it defensively — exercise that fallback tier explicitly
+      // @ts-expect-error "info" is absent from the response schema but has its own tier in the panel's sort order
       { severity: "info", label: "Informational issue", detail: "additional information" },
     ];
     const { getByTestId } = render(<BootIssuesPanel bootIssues={issues} />);

@@ -79,6 +79,17 @@ describe("validateWsMessage", () => {
     expect(() => validateWsMessage(null)).toThrow(WsValidationError);
   });
 
+  it("names the missing discriminator field in the synthetic error", () => {
+    expect.assertions(2);
+    try {
+      validateWsMessage({ data: {}, timestamp: BASE_TIME_S });
+    } catch (err) {
+      const { errors } = err as WsValidationError;
+      expect(errors).toHaveLength(1);
+      expect(errors[0].message).toBe("expected object with type field");
+    }
+  });
+
   it("exposes validation errors on the thrown error", () => {
     expect.assertions(3);
     try {

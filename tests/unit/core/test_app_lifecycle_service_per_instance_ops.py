@@ -16,6 +16,8 @@ from hassette.testing import EventCapture, wait_for
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 
+from .conftest import assert_acquires_app_key_lock_once
+
 
 class TestReloadInstanceEvents:
     async def test_reload_instance_emits_state_event_scoped_to_failed_index(
@@ -122,15 +124,41 @@ class TestStopInstanceBehavior:
         mock_factory: MagicMock,
         mock_manifest: MagicMock,
     ) -> None:
-        """stop_instance no-ops for an index beyond the current manifest's instance count."""
+        """stop_instance no-ops for an untracked index beyond the current manifest's count."""
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.get_instances = Mock(return_value={0: MagicMock()})
         mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
         mock_registry.unregister_app = Mock()
 
         await lifecycle_service.stop_instance("test_app", 5)
 
         mock_registry.unregister_app.assert_not_called()
+
+    async def test_tracked_out_of_range_index_is_still_stopped(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_factory: MagicMock,
+        mock_manifest: MagicMock,
+    ) -> None:
+        """An instance orphaned by a config shrink (still tracked, index now out of range) stays
+        stoppable — prune_stale_failed_indices only prunes stale *failed* entries, so refusing
+        here would leave it running with no way to shut it down.
+        """
+        mock_manifest.app_config = [{"instance_name": "a"}]
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        mock_registry.get_instances = Mock(return_value={0: MagicMock(), 2: MagicMock()})
+        mock_registry.get_failed_instance_infos = Mock(return_value={})
+        mock_factory.normalize_configs = Mock(side_effect=lambda cfg: cfg)
+        orphan = MagicMock()
+        mock_registry.unregister_app = Mock(return_value={2: orphan})
+        lifecycle_service.shutdown_instances = AsyncMock()
+
+        await lifecycle_service.stop_instance("test_app", 2)
+
+        mock_registry.unregister_app.assert_called_once_with("test_app", 2)
+        lifecycle_service.shutdown_instances.assert_called_once_with({2: orphan})
 
     async def test_succeeds_without_admission_check_before_bootstrap_release(
         self,
@@ -300,14 +328,11 @@ class TestPerInstanceLifecycleLocking:
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
 
-        lock = lifecycle_service._get_app_key_lock("test_app")
-        lock.acquire = AsyncMock(wraps=lock.acquire)
         lifecycle_service._reload_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        await asyncio.wait_for(lifecycle_service.reload_instance("test_app", 0), timeout=1)
-
-        assert lock.acquire.call_count == 1
-        assert not lock.locked()
+        await assert_acquires_app_key_lock_once(
+            lifecycle_service, "test_app", lambda: lifecycle_service.reload_instance("test_app", 0)
+        )
 
     async def test_stop_instance_acquires_app_key_lock_once(
         self,
@@ -321,13 +346,9 @@ class TestPerInstanceLifecycleLocking:
         mock_registry.unregister_app = Mock(return_value=None)
         mock_registry.get_failed_instance_infos = Mock(return_value={})
 
-        lock = lifecycle_service._get_app_key_lock("test_app")
-        lock.acquire = AsyncMock(wraps=lock.acquire)
-
-        await asyncio.wait_for(lifecycle_service.stop_instance("test_app", 0), timeout=1)
-
-        assert lock.acquire.call_count == 1
-        assert not lock.locked()
+        await assert_acquires_app_key_lock_once(
+            lifecycle_service, "test_app", lambda: lifecycle_service.stop_instance("test_app", 0)
+        )
 
     async def test_start_instance_acquires_app_key_lock_once(
         self,
@@ -344,13 +365,9 @@ class TestPerInstanceLifecycleLocking:
         mock_factory.get_load_error = Mock(return_value=ValueError("boom"))
         mock_registry.get_failed_instance_infos = Mock(return_value={})
 
-        lock = lifecycle_service._get_app_key_lock("test_app")
-        lock.acquire = AsyncMock(wraps=lock.acquire)
-
-        await asyncio.wait_for(lifecycle_service.start_instance("test_app", 0), timeout=1)
-
-        assert lock.acquire.call_count == 1
-        assert not lock.locked()
+        await assert_acquires_app_key_lock_once(
+            lifecycle_service, "test_app", lambda: lifecycle_service.start_instance("test_app", 0)
+        )
 
     async def test_reload_instance_serializes_with_concurrent_reload_app(
         self,

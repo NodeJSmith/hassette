@@ -25,6 +25,13 @@ from check_breakpoint_drift import (
 
 from tests.unit.tools.conftest import make_frontend_src
 
+# The consistent 768px seed shared by every `main()` test: a JS constant, a Tailwind `@theme`
+# registration, and a `@media` query, all agreeing so the checker reports no drift.
+JS_CONSTANT_SEED = "export const BREAKPOINT_MOBILE = 768;\n"
+THEME_REGISTRATION_SEED = "--breakpoint-mobile: 768px;\n"
+MEDIA_QUERY_SEED = "@media (max-width: 768px) { .x {} }\n"
+
+
 # Each case: (id, js constants, css breakpoints, expected missing values).
 FIND_MISSING_CASES: list[tuple[str, dict[int, str], dict[int, list[Path]], set[int]]] = [
     (
@@ -56,6 +63,31 @@ def frontend_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(check_breakpoint_drift, "MEDIA_QUERY_TS", src / "hooks" / "use-media-query.ts")
     monkeypatch.setattr(check_breakpoint_drift, "GLOBAL_CSS", src / "global.css")
     return src
+
+
+def seed_breakpoint_sources(
+    monkeypatch: pytest.MonkeyPatch,
+    src: Path | None = None,
+    *,
+    js: str | None = JS_CONSTANT_SEED,
+    theme: str | None = THEME_REGISTRATION_SEED,
+    media: str | None = MEDIA_QUERY_SEED,
+    argv: list[str] | None = None,
+) -> None:
+    """Write the three agreeing breakpoint layers into `src` and patch `sys.argv` for `main()`.
+
+    Pass `None` for `js`, `theme`, or `media` to omit that layer, or a replacement string to
+    perturb it. When `src` is omitted no files are written at all and only `sys.argv` is patched,
+    for the tests that need a bare tree or never reach the file-reading paths.
+    """
+    if src is not None:
+        if js is not None:
+            (src / "hooks" / "use-media-query.ts").write_text(js)
+        if theme is not None:
+            (src / "global.css").write_text(theme)
+        if media is not None:
+            (src / "a.css").write_text(media)
+    monkeypatch.setattr(sys, "argv", argv or ["check_breakpoint_drift.py"])
 
 
 @pytest.mark.parametrize(
@@ -158,20 +190,14 @@ def test_extract_tailwind_utility_breakpoints_min_arbitrary_folds_to_known_max(f
 
 
 def test_main_ok_when_all_breakpoints_covered(frontend_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    (frontend_env / "hooks" / "use-media-query.ts").write_text("export const BREAKPOINT_MOBILE = 768;\n")
-    (frontend_env / "global.css").write_text("--breakpoint-mobile: 768px;\n")
-    (frontend_env / "a.css").write_text("@media (max-width: 768px) { .x {} }\n")
-    monkeypatch.setattr(sys, "argv", ["check_breakpoint_drift.py"])
+    seed_breakpoint_sources(monkeypatch, frontend_env)
     assert main() == 0
 
 
 def test_main_ok_prints_covered_breakpoints(
     frontend_env: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (frontend_env / "hooks" / "use-media-query.ts").write_text("export const BREAKPOINT_MOBILE = 768;\n")
-    (frontend_env / "global.css").write_text("--breakpoint-mobile: 768px;\n")
-    (frontend_env / "a.css").write_text("@media (max-width: 768px) { .x {} }\n")
-    monkeypatch.setattr(sys, "argv", ["check_breakpoint_drift.py"])
+    seed_breakpoint_sources(monkeypatch, frontend_env)
     main()
     assert "OK" in capsys.readouterr().out
 
@@ -179,10 +205,12 @@ def test_main_ok_prints_covered_breakpoints(
 def test_main_fails_when_css_breakpoint_has_no_js_constant(
     frontend_env: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (frontend_env / "hooks" / "use-media-query.ts").write_text("export const BREAKPOINT_MOBILE = 768;\n")
-    (frontend_env / "global.css").write_text("--breakpoint-mobile: 768px;\n")
-    (frontend_env / "a.css").write_text("@media (max-width: 768px) { .x {} }\n@media (max-width: 600px) { .y {} }\n")
-    monkeypatch.setattr(sys, "argv", ["check_breakpoint_drift.py"])
+    # extra 600px query with no matching JS constant
+    seed_breakpoint_sources(
+        monkeypatch,
+        frontend_env,
+        media=MEDIA_QUERY_SEED + "@media (max-width: 600px) { .y {} }\n",
+    )
     assert main() == 1
     assert "600px" in capsys.readouterr().out
 
@@ -190,11 +218,9 @@ def test_main_fails_when_css_breakpoint_has_no_js_constant(
 def test_main_fails_on_unregistered_tailwind_screen(
     frontend_env: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (frontend_env / "hooks" / "use-media-query.ts").write_text("export const BREAKPOINT_MOBILE = 768;\n")
-    (frontend_env / "global.css").write_text("--breakpoint-mobile: 768px;\n")
-    (frontend_env / "a.css").write_text("@media (max-width: 768px) { .x {} }\n")
+    seed_breakpoint_sources(monkeypatch, frontend_env)
+    # utility prefix for a screen the @theme block never registers
     (frontend_env / "App.tsx").write_text('<div className="max-widescreen:flex" />\n')
-    monkeypatch.setattr(sys, "argv", ["check_breakpoint_drift.py"])
     assert main() == 1
     assert "widescreen" in capsys.readouterr().out
 
@@ -203,7 +229,8 @@ def test_main_fails_on_unregistered_tailwind_screen(
 def test_main_errors_when_no_js_constants_file(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr(sys, "argv", ["check_breakpoint_drift.py"])
+    # no layers seeded at all, so the JS constants file never exists
+    seed_breakpoint_sources(monkeypatch)
     assert main() == 1
     assert "no BREAKPOINT_* constants" in capsys.readouterr().err
 
@@ -211,8 +238,7 @@ def test_main_errors_when_no_js_constants_file(
 def test_main_errors_when_no_theme_registrations(
     frontend_env: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (frontend_env / "hooks" / "use-media-query.ts").write_text("export const BREAKPOINT_MOBILE = 768;\n")
-    monkeypatch.setattr(sys, "argv", ["check_breakpoint_drift.py"])
+    seed_breakpoint_sources(monkeypatch, frontend_env, theme=None, media=None)
     assert main() == 1
     assert "no Tailwind @theme breakpoint registrations" in capsys.readouterr().err
 
@@ -220,14 +246,12 @@ def test_main_errors_when_no_theme_registrations(
 def test_main_errors_when_no_media_queries(
     frontend_env: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    (frontend_env / "hooks" / "use-media-query.ts").write_text("export const BREAKPOINT_MOBILE = 768;\n")
-    (frontend_env / "global.css").write_text("--breakpoint-mobile: 768px;\n")
-    monkeypatch.setattr(sys, "argv", ["check_breakpoint_drift.py"])
+    seed_breakpoint_sources(monkeypatch, frontend_env, media=None)
     assert main() == 1
     assert "no @media (max-width: Npx) queries" in capsys.readouterr().err
 
 
 def test_main_smoke_test_flag_passes(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-    monkeypatch.setattr(sys, "argv", ["check_breakpoint_drift.py", "--smoke-test"])
+    seed_breakpoint_sources(monkeypatch, argv=["check_breakpoint_drift.py", "--smoke-test"])
     assert main() == 0
     assert "Smoke test passed." in capsys.readouterr().out

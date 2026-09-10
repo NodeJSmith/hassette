@@ -221,6 +221,16 @@ Builds a `RecordingApi` wired to an unsealed `make_mock_hassette()` (with the re
 
 Builds an `Event` carrying a `HassettePayload`.
 
+### `make_change_set(**buckets)` — `tests/support/factories.py`
+
+Builds a `ChangeSet` from plain iterables, defaulting every unlisted bucket to empty. `ChangeSet`
+has no defaults of its own -- all four lifecycle buckets are required fields -- so building one to
+exercise a single bucket otherwise means spelling out three meaningless `frozenset()` arguments.
+
+```python
+changes = make_change_set(reload_apps={"app_a"})
+```
+
 ### `make_mock_parent(**kwargs)` — `tests/support/factories.py`
 
 Builds a `MagicMock` standing in for an owning `App` resource, with `app_key`, `index`, `unique_name`, `source_tier`, `class_name`, and `app_config` all set. Callers that only care about a subset of these get harmless extra attributes.
@@ -342,6 +352,14 @@ async def test_connect_ws_sets_ws_and_authenticates(websocket_service):
 
     assert websocket_service._ws is fake_ws
 ```
+
+`hassette.testing._ws_mocks` also carries the stubs `serve()`-level tests need:
+`make_clean_connection_task()` and `make_dropped_connection_task(message=...)` build what a
+`make_connection` stub returns (a task that exits cleanly, or one that raises
+`RetryableConnectionClosedError` to drive the reconnect path), and
+`run_start_recv_and_subscribe(websocket_service, spawned_coros)` runs
+`start_recv_and_subscribe()` and disposes of everything it started -- pair it with
+`make_task_bucket_spawn_stub()`, whose recorded coroutine list it expects.
 
 `build_fake_ws()` returns a thin `ClientWebSocketResponse` stub (a `SimpleNamespace` cast) whose `send_json` / `receive_json` / `receive` / `close` methods are `AsyncMock`s and carries no Home Assistant protocol knowledge. Mocking only `session.ws_connect` (the aiohttp boundary) keeps the real `connect_ws` running. The fake session is built inline per test — it is not exported from `hassette.testing`'s public `__all__`.
 

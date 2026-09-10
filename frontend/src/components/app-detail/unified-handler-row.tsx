@@ -3,12 +3,12 @@ import { cn } from "@/lib/utils";
 
 import type { JobData, ListenerData } from "../../api/endpoints";
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { formatTimestamp, pluralize } from "../../utils/format";
 import { scheduleStatusLabel } from "../../utils/handler-rows";
 import type { StatusKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
-import { isFailing, itemErrorMessage, itemKindChip, itemRunCount } from "./overview-tab-helpers";
+import { isFailing, isIdle, itemErrorMessage, itemKindChip, itemRunCount } from "./overview-tab-helpers";
 
 export type UnifiedItemKind = "listener" | "job";
 
@@ -65,7 +65,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
       ? scheduleStatusLabel(item.data.schedule_status ?? null, item.data.schedule_status_reason ?? null)
       : null;
   const callLabel = item.kind === "listener" ? "call" : "run";
-  const isIdle = item.statusKind === "mute";
+  const idle = isIdle(item);
   const label = item.humanDescription ? `${item.name}: ${item.humanDescription}` : item.name;
 
   return (
@@ -77,7 +77,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
         "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-0",
         isSelected &&
           "bg-[var(--primary-soft)] font-medium opacity-100 [box-shadow:inset_var(--border-width-thick)_0_0_0_var(--primary)]",
-        isIdle && !isSelected && "opacity-60",
+        idle && !isSelected && "opacity-60",
       )}
       data-testid={`unified-row-${item.kind}-${item.id}`}
       aria-pressed={isSelected}
@@ -85,7 +85,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
       onClick={onSelect}
     >
       <span className="shrink-0 pt-0" aria-hidden="true">
-        <StatusShape kind={item.statusKind} size={STATUS_DOT_SIZE} />
+        <StatusShape kind={item.statusKind} size={STATUS_SHAPE_SIZE} />
       </span>
       <div className="flex min-w-0 flex-col gap-0">
         <div className="flex min-w-0 items-baseline gap-2">

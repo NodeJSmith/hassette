@@ -9,12 +9,12 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
-from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.testing import wait_for
+from tests.support.factories import make_change_set
 
-from .conftest import set_registry_apps
+from .conftest import assert_acquires_app_key_lock_once, set_registry_apps
 
 
 class TestApplyChanges:
@@ -28,11 +28,11 @@ class TestApplyChanges:
         lifecycle_service.should_autostart = Mock(return_value=True)
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
 
-        changes = ChangeSet(
-            orphans=frozenset({"orphan_app"}),
-            new_apps=frozenset({"new_app"}),
-            reimport_apps=frozenset({"reimport_app"}),
-            reload_apps=frozenset({"reload_app"}),
+        changes = make_change_set(
+            orphans={"orphan_app"},
+            new_apps={"new_app"},
+            reimport_apps={"reimport_app"},
+            reload_apps={"reload_app"},
         )
 
         await lifecycle_service.apply_changes(changes, {}, {})
@@ -62,12 +62,7 @@ class TestApplyChanges:
         lifecycle_service.should_autostart = Mock(return_value=True)
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
 
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset({"blocked_app", "healthy_app"}),
-            reimport_apps=frozenset({"reimport_app"}),
-            reload_apps=frozenset(),
-        )
+        changes = make_change_set(new_apps={"blocked_app", "healthy_app"}, reimport_apps={"reimport_app"})
 
         await lifecycle_service.apply_changes(changes, {}, {})  # must not raise
 
@@ -151,20 +146,16 @@ class TestReloadAppLocking:
         sequence, rather than each half separately acquiring it. This is a deadlock guard: if
         reload_app instead called the public, lock-acquiring stop_app()/start_app() from
         inside its own lock acquisition, the second acquire would hang forever on the
-        non-reentrant asyncio.Lock — asyncio.wait_for below turns that hang into a test
-        failure instead of a stuck test run.
+        non-reentrant asyncio.Lock — the helper's asyncio.wait_for turns that hang into a
+        test failure instead of a stuck test run.
         """
         mock_registry.unregister_app = Mock(return_value=None)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_running_apps = Mock(return_value={})
 
-        lock = lifecycle_service._get_app_key_lock("test_app")
-        lock.acquire = AsyncMock(wraps=lock.acquire)
-
-        await asyncio.wait_for(lifecycle_service.reload_app("test_app"), timeout=1)
-
-        assert lock.acquire.call_count == 1
-        assert not lock.locked()
+        await assert_acquires_app_key_lock_once(
+            lifecycle_service, "test_app", lambda: lifecycle_service.reload_app("test_app")
+        )
 
     async def test_concurrent_reload_app_calls_serialize_the_whole_stop_and_start_pair(
         self,
@@ -266,9 +257,7 @@ class TestApplyChangesPerInstanceRestart:
         lifecycle_service.should_auto_reconcile = Mock(return_value=True)
         lifecycle_service.shutdown_instance = AsyncMock()
 
-        changes = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
-        )
+        changes = make_change_set(reload_apps={"app_a"})
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
@@ -295,12 +284,7 @@ class TestApplyChangesPerInstanceRestart:
         lifecycle_service.reload_app = AsyncMock()
         lifecycle_service._reload_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        changes = ChangeSet(
-            orphans=frozenset(),
-            new_apps=frozenset(),
-            reimport_apps=frozenset({"app_a"}),
-            reload_apps=frozenset(),
-        )
+        changes = make_change_set(reimport_apps={"app_a"})
 
         # original/current configs are irrelevant to the reimport_apps branch — it always does
         # a full reload, so pass configs that (if they leaked into the reload_apps branch) would
@@ -335,9 +319,7 @@ class TestApplyChangesPerInstanceRestart:
         lifecycle_service.reload_app = AsyncMock()
         lifecycle_service._reload_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        changes = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
-        )
+        changes = make_change_set(reload_apps={"app_a"})
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
@@ -369,9 +351,7 @@ class TestApplyChangesPerInstanceRestart:
         lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        changes = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
-        )
+        changes = make_change_set(reload_apps={"app_a"})
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
@@ -407,9 +387,7 @@ class TestApplyChangesPerInstanceRestart:
         lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        changes = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
-        )
+        changes = make_change_set(reload_apps={"app_a"})
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
@@ -442,9 +420,7 @@ class TestApplyChangesPerInstanceRestart:
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        changes = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
-        )
+        changes = make_change_set(reload_apps={"app_a"})
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
@@ -494,9 +470,7 @@ class TestApplyChangesPerInstanceRestart:
             side_effect=create_side_effect
         )
 
-        changes = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
-        )
+        changes = make_change_set(reload_apps={"app_a"})
 
         # Must not raise — the failure at index 0 is caught and logged, not propagated.
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
@@ -546,9 +520,7 @@ class TestApplyChangesPerInstanceRestart:
             side_effect=create_side_effect
         )
 
-        changes = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
-        )
+        changes = make_change_set(reload_apps={"app_a"})
         task = asyncio.create_task(
             lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
         )
@@ -584,9 +556,7 @@ class TestApplyChangesPerInstanceRestart:
         lifecycle_service.reload_app = AsyncMock()
         lifecycle_service._reload_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        changes = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
-        )
+        changes = make_change_set(reload_apps={"app_a"})
 
         await lifecycle_service.apply_changes(changes, {"app_a": old_manifest}, {"app_a": new_manifest})
 
@@ -612,9 +582,7 @@ class TestApplyChangesPerInstanceRestart:
         lifecycle_service._stop_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
         lifecycle_service._create_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        changes = ChangeSet(
-            orphans=frozenset(), new_apps=frozenset(), reimport_apps=frozenset(), reload_apps=frozenset({"app_a"})
-        )
+        changes = make_change_set(reload_apps={"app_a"})
 
         await lifecycle_service.apply_changes(changes, {"app_a": MagicMock()}, {"app_a": MagicMock()})
 

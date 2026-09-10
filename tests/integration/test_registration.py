@@ -344,3 +344,73 @@ async def test_group_persisted_at_registration(
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] == "morning", f"Expected group='morning' in DB, got {row[0]!r}"
+
+
+class PredicateDemo:
+    """Stand-in for an app class whose bound method is used as a ``where=`` predicate."""
+
+    def is_motion_detected(self) -> bool:
+        return True
+
+
+class _ComposedPredicate:
+    """Stand-in for a composed predicate object (``AllOf``, ``EntityMatches``, ...)."""
+
+    def summarize(self) -> str:
+        return "entity light.kitchen"
+
+    def __repr__(self) -> str:
+        return "EntityMatches(entity_id='light.kitchen')"
+
+
+async def test_job_callable_predicate_registers_qualified_name(db_hassette: AsyncMock) -> None:
+    """A bound-method ``where=`` is persisted as its qualified name, not an object repr."""
+    executor_mock = MagicMock()
+    executor_mock.register_job = AsyncMock(return_value=42)
+    scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
+    scheduler_service.task_bucket = stub_task_bucket()
+    scheduler_service._job_queue = AsyncMock()
+
+    job = make_mock_job(app_key="my_app", instance_index=1)
+    job.predicate = PredicateDemo().is_motion_detected
+
+    await scheduler_service.add_job(job)
+
+    reg_arg = executor_mock.register_job.call_args.args[0]
+    assert reg_arg.predicate_description == "PredicateDemo.is_motion_detected"
+    assert reg_arg.human_description == "PredicateDemo.is_motion_detected"
+
+
+async def test_job_composed_predicate_keeps_structured_description(db_hassette: AsyncMock) -> None:
+    """A predicate object exposing summarize() keeps its structured repr."""
+    executor_mock = MagicMock()
+    executor_mock.register_job = AsyncMock(return_value=43)
+    scheduler_service = SchedulerService(db_hassette, executor=executor_mock, parent=db_hassette)
+    scheduler_service.task_bucket = stub_task_bucket()
+    scheduler_service._job_queue = AsyncMock()
+
+    job = make_mock_job(app_key="my_app", instance_index=1)
+    job.predicate = _ComposedPredicate()
+
+    await scheduler_service.add_job(job)
+
+    reg_arg = executor_mock.register_job.call_args.args[0]
+    assert reg_arg.predicate_description == "EntityMatches(entity_id='light.kitchen')"
+    assert reg_arg.human_description == "entity light.kitchen"
+
+
+async def test_listener_callable_predicate_registers_qualified_name(db_hassette: AsyncMock) -> None:
+    """A bound-method ``where=`` on the bus is persisted as its qualified name too."""
+    executor_mock = MagicMock()
+    executor_mock.register_listener = AsyncMock(return_value=44)
+    stream = MagicMock()
+    bus_service = BusService(db_hassette, stream=stream, executor=executor_mock, parent=db_hassette)
+    bus_service.task_bucket = stub_task_bucket()
+
+    listener = make_mock_listener(app_key="my_app", instance_index=1)
+    listener.predicate = PredicateDemo().is_motion_detected
+
+    await bus_service.add_listener(listener)
+
+    reg_arg = executor_mock.register_listener.call_args.args[0]
+    assert reg_arg.predicate_description == "PredicateDemo.is_motion_detected"

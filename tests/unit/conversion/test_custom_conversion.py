@@ -59,6 +59,19 @@ class RobotState(BaseState[RobotMode | None]):
     value_type: ClassVar[type[Any] | tuple[type[Any], ...]] = (RobotMode, type(None))
 
 
+@pytest.fixture
+def robot_mode_converter(_isolate_type_registry: None) -> None:
+    """Register the plain ``str -> RobotMode`` converter for the duration of one test.
+
+    Opt-in rather than autouse: some tests need the converter absent, and others register
+    their own variant of it.
+    """
+
+    @register_type_converter_fn
+    def str_to_robot_mode(value: str) -> RobotMode:
+        return RobotMode(value.lower())
+
+
 class TestCustomStateWithAttributes:
     """Custom state models with typed AttributesBase subclasses."""
 
@@ -147,31 +160,19 @@ class TestCustomStateValueCoercion:
 class TestCustomEnumValueType:
     """Custom state model with a user-defined StrEnum value_type and registered converter."""
 
-    def test_custom_enum_coercion_via_model_validate(self) -> None:
-        @register_type_converter_fn
-        def str_to_robot_mode(value: str) -> RobotMode:
-            return RobotMode(value.lower())
-
+    def test_custom_enum_coercion_via_model_validate(self, robot_mode_converter: None) -> None:
         raw = make_state_dict("custom_robot_test.vacuum", "cleaning")
         state = RobotState.model_validate(raw)
         assert state.value == RobotMode.CLEANING
         assert isinstance(state.value, RobotMode)
 
-    def test_custom_enum_coercion_via_try_convert_state(self) -> None:
-        @register_type_converter_fn
-        def str_to_robot_mode(value: str) -> RobotMode:
-            return RobotMode(value.lower())
-
+    def test_custom_enum_coercion_via_try_convert_state(self, robot_mode_converter: None) -> None:
         raw = make_state_dict("custom_robot_test.vacuum", "idle")
         state = STATE_REGISTRY.try_convert_state(raw)
         assert type(state) is RobotState
         assert state.value == RobotMode.IDLE
 
-    def test_custom_enum_unknown_yields_none(self) -> None:
-        @register_type_converter_fn
-        def str_to_robot_mode(value: str) -> RobotMode:
-            return RobotMode(value.lower())
-
+    def test_custom_enum_unknown_yields_none(self, robot_mode_converter: None) -> None:
         raw = make_state_dict("custom_robot_test.vacuum", "unknown")
         state = STATE_REGISTRY.try_convert_state(raw)
         assert type(state) is RobotState
@@ -189,11 +190,7 @@ class TestCustomEnumValueType:
 class TestRegisterTypeConverterFn:
     """The @register_type_converter_fn decorator registers converters in TypeRegistry."""
 
-    def test_bare_decorator_registers_converter(self) -> None:
-        @register_type_converter_fn
-        def str_to_robot_mode(value: str) -> RobotMode:
-            return RobotMode(value.lower())
-
+    def test_bare_decorator_registers_converter(self, robot_mode_converter: None) -> None:
         result = TYPE_REGISTRY.convert("cleaning", RobotMode)
         assert result == RobotMode.CLEANING
 

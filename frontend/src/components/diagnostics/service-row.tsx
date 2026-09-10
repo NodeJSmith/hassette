@@ -3,12 +3,11 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 import { useRelativeTime } from "../../hooks/use-relative-time";
-import { STATUS_DOT_SIZE } from "../../utils/constants";
+import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
 import type { MergedService } from "./merge-services";
 
-/** Both ServiceRow and its ServiceRowMeta child take exactly the merged service and nothing else. */
 interface ServiceRowProps {
   service: MergedService;
 }
@@ -61,7 +60,7 @@ export function ServiceRow({ service }: ServiceRowProps) {
       data-testid={`diag-service-row-${service.resource_name}`}
     >
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <StatusShape kind={statusToKind(service.status)} size={STATUS_DOT_SIZE} />
+        <StatusShape kind={statusToKind(service.status)} size={STATUS_SHAPE_SIZE} />
         <span className="overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[length:var(--text-mono-sm)] font-medium text-foreground">
           {service.resource_name}
         </span>
@@ -69,7 +68,7 @@ export function ServiceRow({ service }: ServiceRowProps) {
         {service.exception && (
           <button
             type="button"
-            className="cursor-pointer border-0 bg-transparent p-0 font-inherit text-sm text-muted-foreground underline hover:text-foreground-secondary"
+            className="cursor-pointer border-0 bg-transparent p-0 text-sm text-muted-foreground underline hover:text-foreground-secondary"
             aria-expanded={exceptionOpen}
             onClick={() => setExceptionOpen((v) => !v)}
           >
