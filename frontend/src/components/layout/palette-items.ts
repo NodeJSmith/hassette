@@ -42,24 +42,26 @@ export function buildStaticPageItems(navigate: (path: string) => void): PaletteI
   }));
 }
 
+/** Removed apps (in_current_config: false) are historical/DB-only — the runtime doesn't know
+ *  about them, so they're excluded from every actionable palette result (stop/reload would 404
+ *  or no-op, and "jump to…" is for apps a user can actually act on). */
+function activeManifests(manifests: AppManifest[]): AppManifest[] {
+  return manifests.filter((m) => m.in_current_config);
+}
+
 export function buildActionItems(
   manifests: AppManifest[],
   appStatuses: Record<string, AppStatusEntry>,
   onClose: () => void,
 ): PaletteItem[] {
-  // Removed apps (in_current_config: false) aren't loaded — stop/reload would 404 or no-op
-  // against an app the runtime doesn't know about, so exclude them the same way buildAppItems does.
-  const active = manifests.filter((m) => m.in_current_config);
+  const active = activeManifests(manifests);
   return [
     {
       id: "action-reload-all",
       kind: "action",
       label: "Reload all apps",
       action: () => {
-        // Selection is derived from live per-instance WS status, not the cached manifest's
-        // m.status — app_status_changed updates only the Zustand status map and does not
-        // invalidate useManifests(), so a manifest can go stale (e.g. still "running" after an
-        // instance fails) for as long as no execution event happens to refetch the palette data.
+        // Live status, not m.status — see appLiveStatus for why the cached manifest can be stale.
         const reloadable = active.filter((m) => isReloadableStatus(appLiveStatus(appStatuses, m)));
         void Promise.allSettled(reloadable.map((m) => reloadApp(m.app_key)));
         onClose();
@@ -72,7 +74,6 @@ export function buildActionItems(
       action: () => {
         // Not isReloadableStatus's stop-side counterpart — this targets apps recovery should
         // stop (any failure status), not "is stop meaningful for this app" (which running is too).
-        // Same live-status derivation as reload-all above, for the same reason.
         const failing = active.filter((m) => isFailureStatus(appLiveStatus(appStatuses, m)));
         void Promise.allSettled(failing.map((m) => stopApp(m.app_key)));
         onClose();
@@ -97,16 +98,13 @@ export function buildAppItems(
   onClose: () => void,
 ): PaletteItem[] {
   const items: PaletteItem[] = [];
-  // Removed apps (in_current_config: false) are historical/DB-only — excluded from "jump
-  // to…" results, which are for navigating to apps a user can actually act on.
-  const sorted = [...manifests].filter((m) => m.in_current_config).sort((a, b) => a.app_key.localeCompare(b.app_key));
+  const sorted = activeManifests(manifests).sort((a, b) => a.app_key.localeCompare(b.app_key));
   for (const m of sorted) {
     items.push({
       id: `app-${m.app_key}`,
       kind: "app",
       label: m.display_name,
       sub: m.app_key,
-      // Live overlay, not m.status directly — same staleness reasoning as buildActionItems above.
       status: appLiveStatus(appStatuses, m),
       action: () => {
         navigate(appDetailPath(m.app_key));
@@ -120,7 +118,6 @@ export function buildAppItems(
           kind: "instance",
           label: inst.instance_name,
           sub: `${m.app_key} · #${inst.index}`,
-          // Live overlay for this one instance — same reasoning as the app row above.
           status: instanceLiveStatus(appStatuses, m.app_key, inst),
           action: () => {
             navigate(appDetailPath(m.app_key, undefined, { instance: inst.index }));
