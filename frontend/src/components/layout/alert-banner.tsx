@@ -12,6 +12,11 @@ interface AlertBannerProps {
   failedApps: FailedApp[];
 }
 
+/**
+ * Failed-apps notice. Stays hand-rolled rather than using `AlertShell`: its `mx-8`, stacked
+ * `flex-col` body and tighter `px-3 py-2` are a different container shape than the shell's,
+ * so routing it through the shell would change its spacing.
+ */
 export function AlertBanner({ failedApps }: AlertBannerProps) {
   if (failedApps.length === 0) return null;
 

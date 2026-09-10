@@ -18,7 +18,11 @@ const TONE_CLASSES: Record<AlertTone, string> = {
 interface AlertShellProps {
   tone: AlertTone;
   children: ReactNode;
-  /** Extra classes for content-level styling (text color, size); the shell is fixed. */
+  /**
+   * Extra classes, merged through twMerge: content styling (text color, size), row layout the
+   * shell has no opinion on, and overrides of the shell's own `mb-4 rounded-md` geometry. Only
+   * the tone's border/background pair is fixed.
+   */
   className?: string;
   role?: string;
   "data-testid"?: string;
