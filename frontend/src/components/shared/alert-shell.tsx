@@ -19,9 +19,9 @@ interface AlertShellProps {
   tone: AlertTone;
   children: ReactNode;
   /**
-   * Extra classes, merged through twMerge: content styling (text color, size), row layout the
-   * shell has no opinion on, and overrides of the shell's own `mb-4 rounded-md` geometry. Only
-   * the tone's border/background pair is fixed.
+   * Extra classes, merged through twMerge after the shell's own, so a conflicting utility here
+   * wins: content styling (text color, size), row layout, and geometry overrides such as
+   * `mb-0 rounded-sm`. Don't pass border or background classes — those come from `tone`.
    */
   className?: string;
   role?: string;
@@ -34,7 +34,8 @@ interface AlertShellProps {
  * Distinct from `components/layout/alert-banner.tsx`'s `AlertBanner`, which is a specific
  * failed-apps notice rather than a reusable container.
  *
- * Owns the container geometry so tone variants can't drift apart; callers supply content.
+ * Supplies the default geometry and the tone's border/background so tone variants can't drift
+ * apart; callers supply content and may adjust geometry through `className`.
  */
 export function AlertShell({ tone, children, className, role, "data-testid": testId }: AlertShellProps) {
   return (
