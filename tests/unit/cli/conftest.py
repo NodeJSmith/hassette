@@ -23,6 +23,9 @@ NOW_EPOCH = 1_748_000_000.0
 REMOTE_SERVER_URL = "https://example.com/hassette"
 REMOTE_SERVER_URL_BARE = "https://example.com"
 
+CAPTURE_WIDTH = 10_000
+"""Console width for captured output, set high enough that nothing ever wraps."""
+
 
 def make_cli_config(
     *,
@@ -162,9 +165,17 @@ def capture_human(func, *args, **kwargs) -> tuple[str, str]:
 
 @contextmanager
 def capture_stderr():
-    """Capture Rich stderr console output."""
+    """Capture Rich stderr console output.
+
+    The width is pinned wide enough that no captured message wraps. Left at Rich's default,
+    the width is 80 columns and an error long enough to exceed it wraps at whatever column the
+    text happens to reach — which for a message carrying an absolute path depends on how long
+    ``tmp_path`` is on the machine running the suite. An unbreakable token straddling that
+    column is split mid-word, so a phrase assertion fails on console geometry rather than on
+    the message's content, and it does so only for some path lengths.
+    """
     buf = StringIO()
-    mock_console = Console(file=buf, stderr=True, highlight=False, force_terminal=False)
+    mock_console = Console(file=buf, stderr=True, highlight=False, force_terminal=False, width=CAPTURE_WIDTH)
     with patch.object(output_module, "stderr_console", mock_console):
         yield buf
 
