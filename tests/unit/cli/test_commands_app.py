@@ -377,6 +377,51 @@ def _manifest_route(instances: list[AppInstanceResponse], app_key: str = "my_app
     return ("GET", "/api/apps/manifests", 200, manifest_list.model_dump())
 
 
+def _instance_action_routes(
+    action: str,
+    *,
+    app_key: str = "my_app",
+    instances: list[AppInstanceResponse] | None = None,
+    requested_index: int = 1,
+    confirmed_index: int | None = None,
+    manifest_status: int = 200,
+    manifest_detail: str = "",
+    action_status: int = 200,
+    action_detail: str = "",
+) -> list[tuple[str, str, int, Any]]:
+    """Route pair for an instance-scoped app action: the manifest lookup plus the action POST.
+
+    ``instances`` defaults to a single instance at ``requested_index`` named ``inst{index}``;
+    pass an explicit list to exercise multi-instance manifests or an index that resolves to no
+    entry. ``confirmed_index`` is the index the server echoes back, defaulting to
+    ``requested_index`` — pass a different value to exercise the mismatch warning. A non-200
+    ``manifest_status`` or ``action_status`` makes that route fail with the matching
+    ``*_detail`` as its error body instead of returning its normal successful payload.
+    """
+    if instances is None:
+        instances = [_instance(requested_index, f"inst{requested_index}", app_key=app_key)]
+    if confirmed_index is None:
+        confirmed_index = requested_index
+
+    if manifest_status != 200:
+        manifest_route = ("GET", "/api/apps/manifests", manifest_status, {"detail": manifest_detail})
+    else:
+        manifest_route = _manifest_route(instances, app_key=app_key)
+
+    action_path = f"/api/apps/{app_key}/instances/{requested_index}/{action}"
+    if action_status != 200:
+        action_route = ("POST", action_path, action_status, {"detail": action_detail})
+    else:
+        action_route = (
+            "POST",
+            action_path,
+            200,
+            _action_response(app_key=app_key, action=action, instance_index=confirmed_index).model_dump(),
+        )
+
+    return [manifest_route, action_route]
+
+
 class TestCmdAppActionRouting:
     """Routing and messaging behavior shared by start/stop/reload.
 
@@ -405,17 +450,7 @@ class TestCmdAppActionRouting:
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
         """--instance 1 resolves the index and sends POST /api/apps/{key}/instances/1/{action}."""
-        client = cli_client_factory.build_with_routes(
-            [
-                _manifest_route([_instance(1, "inst1")]),
-                (
-                    "POST",
-                    f"/api/apps/my_app/instances/1/{action}",
-                    200,
-                    _action_response(action=action, instance_index=1).model_dump(),
-                ),
-            ]
-        )
+        client = cli_client_factory.build_with_routes(_instance_action_routes(action))
         spy = make_post_spy(client)
         with patch.object(client, "post", spy):
             runner.stdout(client, cmd, "my_app", instance="1", **extra)
@@ -438,17 +473,7 @@ class TestCmdAppActionRouting:
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
         """Success message includes the resolved instance name when --instance is provided."""
-        client = cli_client_factory.build_with_routes(
-            [
-                _manifest_route([_instance(1, "inst1")]),
-                (
-                    "POST",
-                    f"/api/apps/my_app/instances/1/{action}",
-                    200,
-                    _action_response(action=action, instance_index=1).model_dump(),
-                ),
-            ]
-        )
+        client = cli_client_factory.build_with_routes(_instance_action_routes(action))
         parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
         assert parsed["message"] == f"Instance 'inst1' of 'my_app' {verb}"
 
@@ -468,17 +493,7 @@ class TestCmdAppActionRouting:
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
         """Instance-scoped JSON output includes the server-confirmed instance_index."""
-        client = cli_client_factory.build_with_routes(
-            [
-                _manifest_route([_instance(1, "inst1")]),
-                (
-                    "POST",
-                    f"/api/apps/my_app/instances/1/{action}",
-                    200,
-                    _action_response(action=action, instance_index=1).model_dump(),
-                ),
-            ]
-        )
+        client = cli_client_factory.build_with_routes(_instance_action_routes(action))
         parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
         assert parsed["instance_index"] == 1
 
@@ -488,15 +503,7 @@ class TestCmdAppActionRouting:
     ) -> None:
         """A numeric --instance with no matching manifest entry falls back to the raw selector."""
         client = cli_client_factory.build_with_routes(
-            [
-                _manifest_route([_instance(0, "inst0")]),
-                (
-                    "POST",
-                    f"/api/apps/my_app/instances/5/{action}",
-                    200,
-                    _action_response(action=action, instance_index=5).model_dump(),
-                ),
-            ]
+            _instance_action_routes(action, instances=[_instance(0, "inst0")], requested_index=5)
         )
         parsed = runner.json_output(client, cmd, "my_app", instance="5", **extra)
         assert parsed["message"] == f"Instance '5' of 'my_app' {verb}"
@@ -511,15 +518,7 @@ class TestCmdAppActionRouting:
         has no telemetry dependency, so a degraded telemetry DB must not block it.
         """
         client = cli_client_factory.build_with_routes(
-            [
-                ("GET", "/api/apps/manifests", 503, {"detail": "Telemetry store unavailable"}),
-                (
-                    "POST",
-                    f"/api/apps/my_app/instances/1/{action}",
-                    200,
-                    _action_response(action=action, instance_index=1).model_dump(),
-                ),
-            ]
+            _instance_action_routes(action, manifest_status=503, manifest_detail="Telemetry store unavailable")
         )
         parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
         assert parsed["message"] == f"Instance '1' of 'my_app' {verb}"
@@ -529,17 +528,7 @@ class TestCmdAppActionRouting:
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
         """A server-confirmed instance_index that disagrees with the requested one prints a warning."""
-        client = cli_client_factory.build_with_routes(
-            [
-                _manifest_route([_instance(1, "inst1")]),
-                (
-                    "POST",
-                    f"/api/apps/my_app/instances/1/{action}",
-                    200,
-                    _action_response(action=action, instance_index=2).model_dump(),
-                ),
-            ]
-        )
+        client = cli_client_factory.build_with_routes(_instance_action_routes(action, confirmed_index=2))
         stderr = runner.stderr(client, cmd, "my_app", instance="1", **extra)
         assert "requested instance 1" in stderr
         assert "server confirmed instance 2" in stderr
@@ -549,17 +538,7 @@ class TestCmdAppActionRouting:
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
         """No mismatch warning when the server echoes the same instance_index that was requested."""
-        client = cli_client_factory.build_with_routes(
-            [
-                _manifest_route([_instance(1, "inst1")]),
-                (
-                    "POST",
-                    f"/api/apps/my_app/instances/1/{action}",
-                    200,
-                    _action_response(action=action, instance_index=1).model_dump(),
-                ),
-            ]
-        )
+        client = cli_client_factory.build_with_routes(_instance_action_routes(action))
         stderr = runner.stderr(client, cmd, "my_app", instance="1", **extra)
         assert "requested instance" not in stderr
 
@@ -653,10 +632,13 @@ class TestCmdAppStop:
         server's authoritative job (see ``_require_valid_instance_index``).
         """
         client = cli_client_factory.build_with_routes(
-            [
-                _manifest_route([_instance(0, "inst0"), _instance(1, "inst1")]),
-                ("POST", "/api/apps/my_app/instances/9/stop", 404, {"detail": "Instance not found"}),
-            ]
+            _instance_action_routes(
+                "stop",
+                instances=[_instance(0, "inst0"), _instance(1, "inst1")],
+                requested_index=9,
+                action_status=404,
+                action_detail="Instance not found",
+            )
         )
         code, stderr = runner.usage_error(client, cmd_app_stop, "my_app", instance="9", yes=True)
         assert code == 1
@@ -666,25 +648,8 @@ class TestCmdAppStop:
 class TestCmdAppReload:
     def test_prompts_for_confirmation_with_instance_name(self, cli_client_factory: CLIClientFactory) -> None:
         """Reload --instance office prompts with the instance name in the message."""
-        instance_resp = AppInstanceResponse(
-            app_key="my_app",
-            index=1,
-            instance_name="office",
-            class_name="MyApp",
-            status="running",  # pyright: ignore[reportArgumentType]
-        )
-        manifest_resp = make_manifest_response(app_key="my_app", instances=[instance_resp])
-        manifest_list = make_manifest_list_response([manifest_resp])
         client = cli_client_factory.build_with_routes(
-            [
-                ("GET", "/api/apps/manifests", 200, manifest_list.model_dump()),
-                (
-                    "POST",
-                    "/api/apps/my_app/instances/1/reload",
-                    200,
-                    _action_response(action="reload", instance_index=1).model_dump(),
-                ),
-            ]
+            _instance_action_routes("reload", instances=[_instance(1, "office")])
         )
         with patch("builtins.input", return_value="y") as mock_input:
             runner.stdout(client, cmd_app_reload, "my_app", instance="office")

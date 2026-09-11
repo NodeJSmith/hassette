@@ -24,6 +24,25 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 SERVICE_STATUS_PATH = "payload.data.status"
+SERVICE_ROLE_PATH = "payload.data.role"
+
+IS_NOT_APP_ROLE = ~P.ValueIs(source=get_path(SERVICE_ROLE_PATH), condition=ResourceRole.APP)
+"""Excludes APP-role resources from a service-status subscription.
+
+Every ``Resource`` emits ``HASSETTE_EVENT_SERVICE_STATUS`` through the shared lifecycle
+machinery, so an app's status transitions land on the same topic the framework's own do. This
+guards the watcher's *acting* handlers — the ones that do something to the resource they
+observe (restart it, or take the process down), as opposed to ``log_service_event``, which only
+describes it. One app's failure is not a framework failure.
+
+Excludes APP rather than admitting SERVICE only, and the difference matters: the watcher is not
+services-only. ``shutdown_if_crashed`` is the process-level fatal handler for every framework
+resource, and several of those are plain ``Resource`` subclasses (RESOURCE role), not
+``Service`` — ``AppLifecycleService`` reaches ``handle_crash`` when ``bootstrap_apps()`` fails,
+and that crash must still stop the process. A SERVICE-only filter would swallow it, leaving
+Hassette running with no apps bootstrapped. Negating APP also fails open on a missing or
+malformed role, matching the unfiltered behavior this narrows.
+"""
 
 _STATUS_EVENT_DISPATCH_TIMEOUT_SECONDS = 5.0
 """Upper bound on how long dispatch_status_event_best_effort() waits for send_event() to accept
@@ -602,6 +621,13 @@ class ServiceWatcher(Resource):
             self._restarting.discard(key)
 
     async def log_service_event(self, event: HassetteServiceEvent) -> None:
+        """Log every status transition on the service-status topic at debug level.
+
+        Deliberately not role-filtered, unlike the watcher's other subscriptions: this handler
+        takes no action on the resource it observes, so an APP-role event costs a debug line and
+        nothing else. Keeping apps in makes the watcher's log a complete transition trace for the
+        topic, which is what it is read for when reconstructing a startup or shutdown sequence.
+        """
         status_payload = event.payload.data
         name = status_payload.resource_name
         role = status_payload.role
@@ -623,12 +649,14 @@ class ServiceWatcher(Resource):
     async def shutdown_if_crashed(self, event: HassetteServiceEvent) -> None:
         """Record the fatal reason and request shutdown when a service has crashed.
 
-        Universal reaction to a CRASHED event from any source. Records the fatal reason
-        (unless a more specific one is already set) before calling request_shutdown() so
-        run_forever()'s shutdown_event.wait() unblocks, runs the full teardown (including
-        finalize_session), and then raises FatalError via _raise_if_fatal_shutdown(). This
-        makes a crash-driven exit non-zero to external supervisors (systemd Restart=on-failure,
-        Docker healthcheck).
+        Reacts to a CRASHED event from any framework resource — SERVICE and RESOURCE roles
+        alike; the subscription's role filter keeps only APP-role crashes out, so one crashed app
+        cannot take the process down while a crashed framework resource still can (see
+        ``IS_NOT_APP_ROLE``). Records the fatal reason (unless a more specific one is already set)
+        before calling request_shutdown() so run_forever()'s shutdown_event.wait() unblocks, runs
+        the full teardown (including finalize_session), and then raises FatalError via
+        _raise_if_fatal_shutdown(). This makes a crash-driven exit non-zero to external
+        supervisors (systemd Restart=on-failure, Docker healthcheck).
         """
         status_payload = event.payload.data
         name = status_payload.resource_name
@@ -756,13 +784,13 @@ class ServiceWatcher(Resource):
             topic=topic,
             handler=self.restart_service,
             name="hassette.service_watcher.restart_service",
-            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.FAILED),
+            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.FAILED) & IS_NOT_APP_ROLE,
         )
         await self.bus.on(
             topic=topic,
             handler=self.shutdown_if_crashed,
             name="hassette.service_watcher.shutdown_if_crashed",
-            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.CRASHED),
+            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.CRASHED) & IS_NOT_APP_ROLE,
         )
         await self.bus.on(
             topic=topic,
@@ -773,7 +801,7 @@ class ServiceWatcher(Resource):
             topic=topic,
             handler=self.on_service_running,
             name="hassette.service_watcher.on_service_running",
-            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.RUNNING),
+            where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.RUNNING) & IS_NOT_APP_ROLE,
         )
         await self.bus.on(
             topic=topic,
@@ -783,7 +811,12 @@ class ServiceWatcher(Resource):
         )
 
     async def on_bus_service_running(self, event: HassetteServiceEvent) -> None:
-        """Trigger reconciliation scan when BusService recovers."""
+        """Trigger reconciliation scan when BusService recovers.
+
+        Carries no role filter, unlike the watcher's other acting subscriptions: it narrows to a
+        single named resource below, and only a SERVICE can be named ``BusService``, so an
+        APP-role event cannot reach the reconciliation call (see ``IS_NOT_APP_ROLE``).
+        """
         status_payload = event.payload.data
         if status_payload.resource_name != BusService.__name__:
             return
