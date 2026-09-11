@@ -18,6 +18,20 @@ from hassette.testing import make_test_config
 from tests.support.helpers import write_app
 
 
+@pytest.fixture
+def app_dir(tmp_path: Path) -> Path:
+    """Return an existing, empty app directory under `tmp_path`.
+
+    The `test_apps` name is load-bearing, not scaffolding: autodetect_apps() passes
+    `app_dir.name` as the package name, so a discovered app's key is
+    "{app_dir.name}.{module_stem}.{class_name}" — the key literals asserted in the
+    autodetect tests below change if this directory is renamed.
+    """
+    path = tmp_path / "test_apps"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 class TestValidateApps:
     """Test the validate_apps function."""
 
@@ -36,10 +50,8 @@ class TestValidateApps:
             apps_cfg["apps"] = apps
         return make_test_config(data_dir=tmp_path, apps=apps_cfg)
 
-    def test_validate_apps_sets_app_dir(self, tmp_path: Path) -> None:
+    def test_validate_apps_sets_app_dir(self, tmp_path: Path, app_dir: Path) -> None:
         """Test that validate_apps sets app_dir for apps that don't have it."""
-        app_dir = tmp_path / "test_apps"
-        app_dir.mkdir(parents=True, exist_ok=True)
         config = self.make_config(
             tmp_path,
             directory=app_dir,
@@ -57,10 +69,8 @@ class TestValidateApps:
             f"Expected app_key to be 'my_app', got {results['my_app'].app_key}"
         )
 
-    def test_validate_apps_preserves_existing_app_dir(self, tmp_path: Path) -> None:
+    def test_validate_apps_preserves_existing_app_dir(self, tmp_path: Path, app_dir: Path) -> None:
         """Test that validate_apps preserves existing app_dir values."""
-        app_dir = tmp_path / "test_apps"
-        app_dir.mkdir(parents=True, exist_ok=True)
         custom_dir = Path("/custom/location")
 
         config = self.make_config(
@@ -77,11 +87,8 @@ class TestValidateApps:
             f"Expected app_dir to be {custom_dir}, got {results['my_app'].app_dir}"
         )
 
-    def test_validate_apps_removes_invalid_apps(self, tmp_path: Path) -> None:
+    def test_validate_apps_removes_invalid_apps(self, tmp_path: Path, app_dir: Path) -> None:
         """Test that validate_apps removes apps missing required keys."""
-        app_dir = tmp_path / "test_apps"
-        app_dir.mkdir(parents=True, exist_ok=True)
-
         config = self.make_config(
             tmp_path,
             directory=app_dir,
@@ -121,12 +128,8 @@ class TestValidateApps:
             f"Expected app_key to be 'valid_app', got {result['valid_app'].app_key}"
         )
 
-    def test_validate_apps_merges_autodetected_and_manual_apps(self, tmp_path: Path) -> None:
+    def test_validate_apps_merges_autodetected_and_manual_apps(self, tmp_path: Path, app_dir: Path) -> None:
         """Real discovery runs when autodetect=True and merges with manually configured apps."""
-        # `app_dir.name` is load-bearing, not scaffolding: autodetect_apps() passes it as the
-        # package name, so a discovered app's key is "{app_dir.name}.{module_stem}.{class_name}"
-        # — the literals asserted below change if this directory is renamed.
-        app_dir = tmp_path / "test_apps"
         write_app(
             app_dir,
             "validate_auto_app.py",
@@ -180,15 +183,13 @@ class TestValidateApps:
             f"Expected the manually configured file to be skipped by discovery, got {sorted(result)}"
         )
 
-    def test_validate_apps_skips_conflicting_autodetected(self, tmp_path: Path) -> None:
+    def test_validate_apps_skips_conflicting_autodetected(self, tmp_path: Path, app_dir: Path) -> None:
         """Auto-detected apps whose key is already claimed by a manual app are dropped.
 
         The manual entry deliberately points at a *different* file than the one discovery finds:
         a manually configured file is excluded from discovery via known_paths, so pointing both
         at the same file would never reach the key-conflict branch.
         """
-        # Same "{app_dir.name}.{module_stem}.{class_name}" key format as the test above.
-        app_dir = tmp_path / "test_apps"
         write_app(
             app_dir,
             "validate_conflict_app.py",
@@ -236,11 +237,8 @@ class TestValidateApps:
             f"Expected class_name to be 'ValidateOverrideApp', got {manifest.class_name}"
         )
 
-    def test_validate_apps_skips_autodetect_when_disabled(self, tmp_path: Path) -> None:
+    def test_validate_apps_skips_autodetect_when_disabled(self, tmp_path: Path, app_dir: Path) -> None:
         """Test that validate_apps skips auto-detection when autodetect=False."""
-        app_dir = tmp_path / "test_apps"
-        app_dir.mkdir(parents=True, exist_ok=True)
-
         config = self.make_config(
             tmp_path,
             directory=app_dir,
@@ -264,16 +262,15 @@ class TestValidateApps:
             assert len(result) == 1, f"Expected 1 app, got {len(result)}"
             assert "manual_app" in result, "Expected to find 'manual_app' in detected apps"
 
-    def test_validate_apps_warns_on_cache_key_collision(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    def test_validate_apps_warns_on_cache_key_collision(
+        self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Two apps with different app_key but the same explicit cache_key log a WARNING."""
         # Some other test in this session may have left the "hassette" logger's propagate flag
         # set to False (e.g. via enable_basic_logging()); caplog relies on propagation to the
         # root logger, so restore it here. See src/hassette/testing/_harness.py:337-340 for
         # the same workaround applied elsewhere.
         logging.getLogger("hassette").propagate = True
-        app_dir = tmp_path / "test_apps"
-        app_dir.mkdir(parents=True, exist_ok=True)
-
         config = self.make_config(
             tmp_path,
             directory=app_dir,
@@ -299,12 +296,9 @@ class TestValidateApps:
         )
 
     def test_validate_apps_no_warning_when_cache_keys_unique(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+        self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Apps with distinct (or default) cache_keys produce no collision warning."""
-        app_dir = tmp_path / "test_apps"
-        app_dir.mkdir(parents=True, exist_ok=True)
-
         config = self.make_config(
             tmp_path,
             directory=app_dir,
@@ -322,7 +316,7 @@ class TestValidateApps:
         )
 
     def test_validate_apps_warns_on_multi_instance_default_key_collision(
-        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+        self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """A multi-instance app's default `{app_key}/{idx}` key can collide with another
         app's explicit cache_key — the collision check must expand multi-instance app_config
@@ -330,9 +324,6 @@ class TestValidateApps:
         """
         # See comment in test_validate_apps_warns_on_cache_key_collision above.
         logging.getLogger("hassette").propagate = True
-        app_dir = tmp_path / "test_apps"
-        app_dir.mkdir(parents=True, exist_ok=True)
-
         config = self.make_config(
             tmp_path,
             directory=app_dir,

@@ -29,6 +29,7 @@ from hassette.resources.service import Service
 from hassette.resources.teardown import TeardownCause
 from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
+from tests.support.factories import wire_dependent_resource
 from tests.support.helpers import (
     GENEROUS_SHUTDOWN_TIMEOUT_SECONDS,
     SHORT_SHUTDOWN_TIMEOUT_SECONDS,
@@ -115,11 +116,8 @@ class TestServiceInitializeDependencyFailure:
     async def test_shutdown_during_dependency_wait_returns_gracefully(self) -> None:
         hassette = build_hassette()
         hassette.shutdown_event.set()
-        dep = _DepType(hassette)
-        hassette.children = [dep]
         hassette.wait_for_ready = AsyncMock(return_value=False)
-
-        svc = ServiceWithDep(hassette)
+        svc, _ = wire_dependent_resource(hassette, ServiceWithDep, _DepType)
 
         await svc.initialize()  # must NOT raise — shutdown-during-wait path returns gracefully
 

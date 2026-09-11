@@ -2,9 +2,15 @@ import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createWouterMock } from "../../test/mock-wouter";
-import { Breadcrumbs } from "./breadcrumbs";
+import { Breadcrumbs, type Crumb, SIDEBAR_VISIBLE_CRUMBS } from "./breadcrumbs";
 
 vi.mock("wouter", () => createWouterMock());
+
+const THREE_CRUMB_TRAIL: Crumb[] = [
+  { label: "apps", href: "/apps" },
+  { label: "demo_app", href: "/apps/demo_app" },
+  { label: "handlers" },
+];
 
 describe("Breadcrumbs", () => {
   it("renders nothing when the trail is empty", () => {
@@ -13,11 +19,7 @@ describe("Breadcrumbs", () => {
   });
 
   it("links every crumb except the current page", () => {
-    const { getByTestId } = render(
-      <Breadcrumbs
-        items={[{ label: "apps", href: "/apps" }, { label: "demo_app", href: "/apps/demo_app" }, { label: "handlers" }]}
-      />,
-    );
+    const { getByTestId } = render(<Breadcrumbs items={THREE_CRUMB_TRAIL} />);
     const links = getByTestId("breadcrumbs").querySelectorAll("a");
     expect(Array.from(links).map((a) => a.textContent)).toEqual(["apps", "demo_app"]);
   });
@@ -57,11 +59,20 @@ describe("Breadcrumbs", () => {
   });
 
   it("adds an ellipsis stand-in once ancestors can be hidden", () => {
-    const { getByTestId } = render(
-      <Breadcrumbs
-        items={[{ label: "apps", href: "/apps" }, { label: "demo_app", href: "/apps/demo_app" }, { label: "handlers" }]}
-      />,
-    );
+    const { getByTestId } = render(<Breadcrumbs items={THREE_CRUMB_TRAIL} />);
     expect(getByTestId("breadcrumbs").textContent).toContain("…");
+  });
+
+  it("keeps the CSS selectors in step with SIDEBAR_VISIBLE_CRUMBS", () => {
+    // The selectors carry their own literals rather than reading the constant; this fails if
+    // either one drifts from it. See breadcrumbs.tsx for why they cannot be interpolated.
+    const { getByTestId } = render(<Breadcrumbs items={THREE_CRUMB_TRAIL} />);
+    // Every crumb carries the same static class string; the ellipsis stand-in is aria-hidden.
+    const crumbs = getByTestId("breadcrumbs").querySelectorAll("li:not([aria-hidden='true'])");
+    expect(crumbs).toHaveLength(THREE_CRUMB_TRAIL.length);
+    for (const crumb of Array.from(crumbs)) {
+      expect(crumb.className).toContain(`nth-last-child(-n+${SIDEBAR_VISIBLE_CRUMBS})`);
+      expect(crumb.className).toContain(`nth-last-child(${SIDEBAR_VISIBLE_CRUMBS})`);
+    }
   });
 });

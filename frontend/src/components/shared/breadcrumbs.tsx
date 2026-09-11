@@ -2,6 +2,9 @@ import { Link } from "wouter";
 
 import { cn } from "@/lib/utils";
 
+/** Crumbs kept visible below the sidebar breakpoint. The nth-last-child selectors below hard-code it. */
+export const SIDEBAR_VISIBLE_CRUMBS = 2;
+
 export interface Crumb {
   label: string;
   /** Omit on the final crumb — the page you are already on. */
@@ -16,10 +19,11 @@ interface Props {
 /**
  * Ancestor trail. Linked crumbs carry the accent so the path reads as navigation.
  *
- * Below the sidebar breakpoint all but the last two crumbs are visually clipped by CSS and an ellipsis
- * stands in for them, so a deep trail cannot crowd the hamburger and time selector out of
- * the status bar. They are clipped rather than removed, so screen readers still get the
- * whole path at every width and no layout-dependent state has to be tracked in JS.
+ * Below the sidebar breakpoint all but the last `SIDEBAR_VISIBLE_CRUMBS` crumbs are visually
+ * clipped by CSS and an ellipsis stands in for them, so a deep trail cannot crowd the hamburger
+ * and time selector out of the status bar. They are clipped rather than removed, so screen
+ * readers still get the whole path at every width and no layout-dependent state has to be
+ * tracked in JS.
  */
 export function Breadcrumbs({ items, "data-testid": testId = "breadcrumbs" }: Props) {
   if (items.length === 0) return null;
@@ -27,7 +31,7 @@ export function Breadcrumbs({ items, "data-testid": testId = "breadcrumbs" }: Pr
   return (
     <nav className="min-w-0 overflow-hidden" aria-label="Breadcrumb" data-testid={testId}>
       <ol className="m-0 flex list-none items-center gap-1 p-0 font-sans text-sm">
-        {items.length > 2 && (
+        {items.length > SIDEBAR_VISIBLE_CRUMBS && (
           <li
             className="hidden text-foreground-faint max-sidebar:inline-flex max-sidebar:items-center"
             aria-hidden="true"
@@ -40,6 +44,11 @@ export function Breadcrumbs({ items, "data-testid": testId = "breadcrumbs" }: Pr
             key={`${crumb.label}-${i}`}
             className={cn(
               "inline-flex min-w-0 items-center gap-1",
+              // Both selectors hard-code SIDEBAR_VISIBLE_CRUMBS, because Tailwind extracts class
+              // names statically from source and cannot interpolate it; a test asserts both stay
+              // in step with the constant. They are not the same idiom: -n+N is a range, clipping
+              // every crumb outside the last N, while (N) is a position, hiding the leading
+              // separator on the Nth-from-last crumb — the first one still visible.
               "max-sidebar:[&:not(:nth-last-child(-n+2))]:sr-only",
               "max-sidebar:[&:nth-last-child(2)>span]:hidden",
             )}
