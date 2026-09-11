@@ -45,6 +45,7 @@ describe("DetailStats", () => {
     ];
     const { getByTestId } = render(<DetailStats cells={cells} data-testid={STATS_TEST_ID} />);
     const statCells = getByTestId(STATS_TEST_ID).querySelectorAll(STATS_CELL_SELECTOR);
+    // Each cell renders exactly two children, in order: the label span, then the value span.
     const labelValuePairs = Array.from(statCells, (cell) => Array.from(cell.children, (child) => child.textContent));
     expect(labelValuePairs).toEqual([
       ["Min", "—"],
@@ -54,7 +55,7 @@ describe("DetailStats", () => {
 
   it("generates per-cell testids from parent testid", () => {
     const { getByTestId } = render(<DetailStats cells={baseCells} data-testid={STATS_TEST_ID} />);
-    const cells = getByTestId(STATS_TEST_ID).querySelectorAll(STATS_CELL_SELECTOR);
-    expect(cells.length).toBe(3);
+    const statCells = getByTestId(STATS_TEST_ID).querySelectorAll(STATS_CELL_SELECTOR);
+    expect(statCells.length).toBe(3);
   });
 });
