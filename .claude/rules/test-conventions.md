@@ -33,6 +33,9 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `make_hass_event(event_type=..., data=..., origin=...)` — `Event` carrying a `HassPayload` (Home Assistant origin)
 - `make_mock_parent(**kw)` — `MagicMock` standing in for an owning App resource
 - `make_change_set(**buckets)` — `ChangeSet` from plain iterables, every unlisted bucket defaulting to empty
+- `make_closing_task_bucket()` — task_bucket stub whose `spawn()` closes coroutines instead of scheduling them (contrast `make_task_bucket()` in `helpers.py`, which spawns real tasks)
+- `make_bus_service_with_mock_executor(hassette, registration_id=...)` — `(BusService, executor mock)` wired to a stubbed task bucket
+- `make_scheduler_service_with_mock_executor(hassette, registration_id=...)` — `(SchedulerService, executor mock)`, job queue stubbed too
 - `wire_dependent_resource(hassette, dependent_cls, *dep_classes)` — dependent `Resource`/`Service` plus its declared `depends_on` types instantiated into `hassette.children`
 
 `tests/support/helpers.py` — event/state builders and misc test helpers:
