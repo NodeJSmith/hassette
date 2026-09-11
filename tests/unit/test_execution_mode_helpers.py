@@ -20,9 +20,11 @@ from hassette.execution_mode import (
 from hassette.testing import wait_for
 from hassette.types.enums import ExecutionMode
 
-#: Hang guard for TestRunThroughGuard's event handshakes, which complete in milliseconds. It only
-#: converts a genuine hang into a failure, so it needs generous headroom over xdist scheduling
-#: jitter on a loaded CI runner — well above the ``wait_for`` helper's own 3.0s default.
+#: Hang guard for this module's event handshakes, which complete in milliseconds. It only converts
+#: a genuine hang into a failure, so it needs generous headroom over xdist scheduling jitter on a
+#: loaded CI runner — well above the ``wait_for`` helper's own 3.0s default. Distinct from the
+#: ``threshold`` argument passed to ``run_with_stall_watch``/``run_through_guard``, which is the
+#: production stall-warning value under test rather than a test-side wait budget.
 HANG_GUARD_TIMEOUT = 10.0
 
 
@@ -85,10 +87,10 @@ class TestRunWithStallWatch:
 
         threshold = 0.05  # short threshold for testing
         task = asyncio.create_task(run_with_stall_watch(invoke, warn, threshold=threshold))
-        await asyncio.wait_for(started.wait(), timeout=2.0)
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
         # warn.set() unblocks the gate, so awaiting the task is the deterministic
         # signal that the watchdog fired.
-        await asyncio.wait_for(task, timeout=2.0)
+        await asyncio.wait_for(task, timeout=HANG_GUARD_TIMEOUT)
 
         assert warn_calls == [threshold], f"expected warn called with {threshold}, got {warn_calls}"
 
@@ -120,7 +122,7 @@ class TestRunWithStallWatch:
             await asyncio.sleep(10)  # will be cancelled
 
         task = asyncio.create_task(run_with_stall_watch(invoke, warn, threshold=0.05))
-        await asyncio.wait_for(started.wait(), timeout=2.0)
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
