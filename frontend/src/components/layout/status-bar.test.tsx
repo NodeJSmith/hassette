@@ -1,6 +1,6 @@
 import userEvent from "@testing-library/user-event";
 import { type ComponentProps, createRef } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAppStore } from "../../state/store";
 import { createWouterMock } from "../../test/mock-wouter";
@@ -20,7 +20,7 @@ vi.mock("../../utils/local-storage", () => ({
   getStoredValue: vi.fn(),
 }));
 
-// TimePresetSelector now calls useQueryParams (useSearch from wouter).
+// TimePresetSelector calls useQueryParams (useSearch from wouter).
 // StatusBar tests render without a Router provider, so mock the hook.
 vi.mock("../../hooks/use-query-params", () => ({
   useQueryParams: () => ({ get: () => null, set: vi.fn() }),
@@ -35,11 +35,14 @@ vi.mock("../../hooks/use-breadcrumbs", () => ({
 }));
 
 // Drives the "is the sidebar on screen" branch without a real matchMedia.
-// Plain mutable box (not a signal) — only needs to feed a mocked hook's return value.
 const sidebarHidden = { value: false };
 vi.mock("../../hooks/use-sidebar-hidden", () => ({
   useSidebarHidden: () => sidebarHidden.value,
 }));
+
+beforeEach(() => {
+  sidebarHidden.value = false;
+});
 
 describe("StatusBar — breadcrumbs", () => {
   it("renders the ancestor trail for the current route", () => {
@@ -57,11 +60,9 @@ describe("StatusBar — system health fallback", () => {
       storeOverrides: { connection: "disconnected" },
     });
     expect(getByTestId("ws-indicator").textContent).toBe("Disconnected");
-    sidebarHidden.value = false;
   });
 
   it("omits the health cluster when the sidebar owns it", () => {
-    sidebarHidden.value = false;
     const { queryByTestId } = renderWithAppState(<StatusBar {...baseProps} />, {
       storeOverrides: { connection: "disconnected" },
     });
@@ -89,8 +90,8 @@ describe("StatusBar — sidebar expand control", () => {
 
 describe("StatusBar — time preset selector", () => {
   it("renders the time preset selector", () => {
-    const { container } = renderWithAppState(<StatusBar {...baseProps} />);
-    expect(container.querySelector("[data-testid='time-preset-selector']")).not.toBeNull();
+    const { getByTestId } = renderWithAppState(<StatusBar {...baseProps} />);
+    expect(getByTestId("time-preset-selector")).toBeDefined();
   });
 
   it("renders all 4 time preset buttons", () => {
