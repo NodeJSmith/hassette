@@ -2,7 +2,7 @@ import { formatDurationOrDash, formatRate } from "../../utils/format";
 import type { DetailStatsCell } from "../shared/detail-stats";
 
 /** Number of fixed cells `buildCommonStatCells` always produces, before any conditional cells. */
-const COMMON_STAT_CELL_COUNT = 5;
+export const COMMON_STAT_CELL_COUNT = 5;
 
 const LABEL_TIMED_OUT = "Timed Out";
 const LABEL_CANCELLED = "Cancelled";
