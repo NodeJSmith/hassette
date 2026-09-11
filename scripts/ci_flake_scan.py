@@ -42,11 +42,27 @@ KNOWN_FLAKES_PATH = REPO_ROOT / "scripts" / "known_flakes.yaml"
 # "Known-failing lint checks") -- not test flakiness, skip entirely.
 SKIP_JOB_NAMES = frozenset({"file-sizes", "duplicate-code"})
 
-# Matches pytest's short test summary line, e.g.:
+# Matches pytest's short test summary lines, e.g.:
 #   FAILED tests/unit/test_foo.py::test_bar - AssertionError: boom
+#   ERROR tests/unit/test_foo.py::test_bar - fixture 'db' not found
+# ERROR lines come from collection/fixture/teardown failures, not assertion
+# failures -- still a test-level signal, not infra noise, so they're matched
+# alongside FAILED rather than falling through to GH_ERROR_RE below.
 # `gh run view --log-failed` prefixes every line with "<job>\t<step>\t<timestamp> ",
 # so this intentionally does not anchor to the start of the line.
-FAILED_TEST_RE = re.compile(r"FAILED (\S+) - (.+)$", re.MULTILINE)
+#
+# Deliberately only applied to the "short test summary info" section (see
+# PYTEST_SUMMARY_BANNER below) rather than the whole log -- an unscoped
+# search for "ERROR <token> - <message>" would also match ordinary
+# "LEVEL name - message"-shaped log output from application or third-party
+# code captured in the same job log, misclassifying it as a test failure.
+# Pytest's summary section is the one place this shape is guaranteed to mean
+# an actual test outcome.
+PYTEST_FAILURE_RE = re.compile(r"(?:FAILED|ERROR) (\S+) - (.+)$", re.MULTILINE)
+
+# Marks the start of pytest's summary section; everything after it is exactly
+# one line per failed/errored test, nothing else.
+PYTEST_SUMMARY_BANNER = "short test summary info"
 
 # Matches a GitHub Actions error annotation, e.g.:
 #   ##[error]The operation was aborted due to timeout
@@ -186,7 +202,9 @@ def scan_run(run: dict) -> tuple[dict[str, list[Occurrence]], dict[str, list[Occ
             )
             continue
 
-        test_matches = FAILED_TEST_RE.findall(log)
+        summary_start = log.find(PYTEST_SUMMARY_BANNER)
+        pytest_summary = log[summary_start:] if summary_start != -1 else ""
+        test_matches = PYTEST_FAILURE_RE.findall(pytest_summary)
         if test_matches:
             for test_id, error in test_matches:
                 test_failures[test_id].append(Occurrence(error=error.strip(), **occurrence_base))
@@ -215,8 +233,13 @@ def classify_verdict(
     if match:
         return f"known (#{match.issue})", match
 
-    if len(occurrences) < RECURRING_THRESHOLD:
-        return "single occurrence", None
+    # A single run fans a test out across multiple job-level occurrences (one
+    # per Python version in the test matrix) while still being one commit's
+    # worth of signal -- count distinct runs, not raw occurrences, so matrix
+    # fanout within one run doesn't look like recurrence across commits.
+    distinct_runs = {o.run_id for o in occurrences}
+    if len(distinct_runs) < RECURRING_THRESHOLD:
+        return "single run", None
 
     branches = {o.branch for o in occurrences}
     non_main_branches = branches - {"main"}
