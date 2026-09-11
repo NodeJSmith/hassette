@@ -22,6 +22,7 @@ from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
+from hassette.logging_ import LogEntry
 from hassette.resources.base import Resource
 from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.scheduler import Scheduler
@@ -378,6 +379,52 @@ def make_change_set(
         reimport_apps=frozenset(reimport_apps),
         reload_apps=frozenset(reload_apps),
         metadata_apps=frozenset(metadata_apps),
+    )
+
+
+def make_log_entry(
+    *,
+    seq: int = 1,
+    timestamp: float = 0.0,
+    level: str = "INFO",
+    logger_name: str = "hassette.test",
+    func_name: str = "fn",
+    lineno: int = 1,
+    message: str = "msg",
+    exc_info: str | None = None,
+    app_key: str | None = None,
+    source_tier: str | None = None,
+    execution_id: str | None = None,
+    instance_name: str | None = None,
+    instance_index: int | None = None,
+    execution_kind: str | None = None,
+    listener_id: int | None = None,
+    job_id: int | None = None,
+) -> LogEntry:
+    """Build a `LogEntry`, defaulting every required field to a neutral placeholder.
+
+    `LogEntry` has seven required constructor fields, most of which are irrelevant to any
+    given assertion, plus nine optional fields (`exc_info`, plus eight correlation fields).
+    Every field is an explicit keyword so callers spell out only what they assert on and
+    pyright still checks the rest.
+    """
+    return LogEntry(
+        seq=seq,
+        timestamp=timestamp,
+        level=level,
+        logger_name=logger_name,
+        func_name=func_name,
+        lineno=lineno,
+        message=message,
+        exc_info=exc_info,
+        app_key=app_key,
+        source_tier=source_tier,
+        execution_id=execution_id,
+        instance_name=instance_name,
+        instance_index=instance_index,
+        execution_kind=execution_kind,
+        listener_id=listener_id,
+        job_id=job_id,
     )
 
 
