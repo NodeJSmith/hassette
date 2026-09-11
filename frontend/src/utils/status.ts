@@ -197,6 +197,22 @@ export function statusToKind(status: StatusKindMapKey): StatusKind {
   return STATUS_KIND_MAP[status] ?? "mute";
 }
 
+/**
+ * Text-color utility for each StatusKind, for callers that tint plain text
+ * rather than render a badge or shape. Most values are CSS-variable-backed
+ * arbitrary utilities so they follow the theme's status palette.
+ *
+ * Distinct from alert-shell.tsx's AlertTone-keyed TONE_CLASSES, which carries
+ * border and background classes for a different tone vocabulary.
+ */
+export const STATUS_TONE_CLASSES: Record<StatusKind, string> = {
+  ok: "text-[var(--status-success)]",
+  warn: "text-[var(--status-warning)]",
+  err: "text-destructive",
+  cancel: "text-[var(--status-cancel)]",
+  mute: "text-muted-foreground",
+};
+
 export const TIMED_OUT_LABEL = "timed out";
 
 /** Derive a display chip label from handler/job metadata.

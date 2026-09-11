@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/utils";
 
-import type { StatusKind } from "../../utils/status";
+import { STATUS_TONE_CLASSES, type StatusKind } from "../../utils/status";
 
 export interface StatsStripCell {
   label: string;
@@ -15,14 +15,6 @@ interface StatsStripProps {
   cols?: number;
   "data-testid"?: string;
 }
-
-const toneClass: Record<StatusKind, string> = {
-  err: "text-destructive",
-  warn: "text-[var(--status-warning)]",
-  ok: "text-[var(--status-success)]",
-  cancel: "text-[var(--status-cancel)]",
-  mute: "text-muted-foreground",
-};
 
 function isZero(value: string | number): boolean {
   if (typeof value === "number") return value === 0;
@@ -60,7 +52,7 @@ export function StatsStrip({ cells, cols, "data-testid": testId }: StatsStripPro
             <span
               className={cn(
                 "mt-0 flex min-w-0 items-baseline gap-1.5 truncate font-sans text-[length:var(--text-stat)] leading-[var(--text-h1-leading)] font-medium text-foreground max-sidebar:text-[length:var(--text-h3)]",
-                c.tone && toneClass[c.tone],
+                c.tone && STATUS_TONE_CLASSES[c.tone],
                 zero && "text-foreground-faint",
               )}
               data-role="stats-strip-value"
