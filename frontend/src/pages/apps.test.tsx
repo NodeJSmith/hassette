@@ -1,7 +1,9 @@
+import { act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { appStatusKey, useAppStore } from "../state/store";
 import { createAppGridEntry } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
@@ -27,6 +29,20 @@ vi.mock("../components/shared/spinner", () => ({
 const STATE_WITH_UPTIME = { storeOverrides: { uptimeSeconds: 120 } };
 
 const APP_GRID_URL = "/api/telemetry/dashboard/app-grid";
+
+/** Reads a stats-strip cell's value by its label, since cells carry no per-label testid. The
+ * value span is tagged `data-role`, not `data-testid` — see `components/shared/stats-strip.tsx`.
+ * Which labels exist is layout-dependent: "stopped" and "disabled" are separate cells only in
+ * the desktop set (mobile merges them into "inactive"), and jsdom's default viewport is
+ * desktop. Throws rather than returning undefined so a renamed or missing label reads as
+ * "no such cell" instead of a value mismatch. */
+function getStatValue(strip: HTMLElement, label: string): string {
+  for (const cell of strip.querySelectorAll("[data-testid='stats-strip-cell']")) {
+    if (cell.querySelector("[data-testid='stats-strip-label']")?.textContent !== label) continue;
+    return cell.querySelector("[data-role='stats-strip-value']")?.textContent ?? "";
+  }
+  throw new Error(`no stats-strip cell labeled "${label}"`);
+}
 
 describe("AppsPage", () => {
   beforeEach(() => {
@@ -68,6 +84,54 @@ describe("AppsPage", () => {
     );
     const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
     expect(await findByTestId("apps-stats-strip")).toBeDefined();
+  });
+
+  it("stats strip counts follow live WS status updates over the stale grid payload", async () => {
+    // The dashboard grid query is invalidated on execution events, not app_status_changed, so
+    // a cached row.status stays "running" after an app is stopped until something else forces
+    // a refetch. The strip must count the live status, like the row badges and filter popover.
+    // Statuses arrive after mount so this also pins the store subscription: a page that read
+    // appStatus non-reactively would render the right initial counts and then never update.
+    // Covers every live-countable category #1153 names: running, failed, stopped, disabled.
+    server.use(
+      http.get(APP_GRID_URL, () =>
+        HttpResponse.json({
+          apps: [
+            createAppGridEntry({ app_key: "a", status: "running" }),
+            createAppGridEntry({ app_key: "b", status: "running" }),
+            createAppGridEntry({ app_key: "c", status: "running" }),
+            createAppGridEntry({ app_key: "d", status: "disabled" }),
+          ],
+        }),
+      ),
+    );
+    const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
+
+    const strip = await findByTestId("apps-stats-strip");
+    expect(getStatValue(strip, "total")).toBe("4");
+    expect(getStatValue(strip, "running")).toBe("3");
+    expect(getStatValue(strip, "failed")).toBe("0");
+    expect(getStatValue(strip, "stopped")).toBe("0");
+    expect(getStatValue(strip, "disabled")).toBe("1");
+
+    // Drives the store directly rather than through a socket frame: `updateAppStatus` is the
+    // exact write the WS `app_status_changed` handler makes (see `hooks/use-websocket.ts`), and
+    // it is the boundary AppsPage subscribes to.
+    act(() => {
+      const { updateAppStatus } = useAppStore.getState();
+      updateAppStatus(appStatusKey("b", 0), { status: "stopped", index: 0 });
+      updateAppStatus(appStatusKey("c", 0), { status: "failed", index: 0 });
+      // "disabled" is a manifest-level config state that appLiveStatus resolves before it
+      // consults appStatuses, so a per-instance status left over from before the app was
+      // disabled must not mask it.
+      updateAppStatus(appStatusKey("d", 0), { status: "stopped", index: 0 });
+    });
+
+    expect(getStatValue(strip, "total")).toBe("4");
+    expect(getStatValue(strip, "running")).toBe("1");
+    expect(getStatValue(strip, "failed")).toBe("1");
+    expect(getStatValue(strip, "stopped")).toBe("1");
+    expect(getStatValue(strip, "disabled")).toBe("1");
   });
 
   it("does not render legacy filter pills", async () => {

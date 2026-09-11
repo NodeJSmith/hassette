@@ -61,6 +61,20 @@ describe("HandlersTab listener detail", () => {
     expect(getByText(/debounce/i)).toBeDefined();
   });
 
+  it("handler detail: shows a backpressure chip naming the policy when it is not the default", async () => {
+    const listener = createListener({ listener_id: 4, backpressure: "drop_newest" });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/4");
+    await waitFor(() => getByTestId("modifier-chips"));
+    expect(getByTestId("modifier-chips").textContent).toContain("backpressure drop_newest");
+  });
+
+  it("handler detail: omits the backpressure chip for the default policy", async () => {
+    const listener = createListener({ listener_id: 7, backpressure: "block" });
+    const { getByTestId } = renderHandlersTab([listener], [], "listener/7");
+    await waitFor(() => getByTestId("modifier-chips"));
+    expect(getByTestId("modifier-chips").textContent).not.toContain("backpressure");
+  });
+
   it("handler detail: shows source location when available", async () => {
     const listener = createListener({
       listener_id: 8,
