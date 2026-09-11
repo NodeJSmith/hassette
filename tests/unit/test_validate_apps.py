@@ -130,7 +130,6 @@ class TestValidateApps:
 
     def test_validate_apps_merges_autodetected_and_manual_apps(self, tmp_path: Path, app_dir: Path) -> None:
         """Real discovery runs when autodetect=True and merges with manually configured apps."""
-        # The derived-key literals asserted below depend on the `app_dir` fixture's name.
         write_app(
             app_dir,
             "validate_auto_app.py",
@@ -191,7 +190,6 @@ class TestValidateApps:
         a manually configured file is excluded from discovery via known_paths, so pointing both
         at the same file would never reach the key-conflict branch.
         """
-        # Same fixture-name-derived key format as the test above.
         write_app(
             app_dir,
             "validate_conflict_app.py",
