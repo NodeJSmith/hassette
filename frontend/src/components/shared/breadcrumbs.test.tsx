@@ -2,7 +2,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createWouterMock } from "../../test/mock-wouter";
-import { Breadcrumbs } from "./breadcrumbs";
+import { Breadcrumbs, SIDEBAR_VISIBLE_CRUMBS } from "./breadcrumbs";
 
 vi.mock("wouter", () => createWouterMock());
 
@@ -63,5 +63,19 @@ describe("Breadcrumbs", () => {
       />,
     );
     expect(getByTestId("breadcrumbs").textContent).toContain("…");
+  });
+
+  it("keeps the hard-coded nth-last-child selectors in step with SIDEBAR_VISIBLE_CRUMBS", () => {
+    // Tailwind cannot interpolate the constant into class names, so the selectors carry their
+    // own literals. Changing one without the other moves the ellipsis threshold while the
+    // clipping and separator-hiding stay put.
+    const { getByTestId } = render(
+      <Breadcrumbs
+        items={[{ label: "apps", href: "/apps" }, { label: "demo_app", href: "/apps/demo_app" }, { label: "handlers" }]}
+      />,
+    );
+    const crumb = getByTestId("breadcrumbs").querySelector("[aria-current='page']")?.closest("li");
+    expect(crumb?.className).toContain(`nth-last-child(-n+${SIDEBAR_VISIBLE_CRUMBS})`);
+    expect(crumb?.className).toContain(`nth-last-child(${SIDEBAR_VISIBLE_CRUMBS})`);
   });
 });

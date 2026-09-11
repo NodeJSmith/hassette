@@ -2,8 +2,8 @@ import { Link } from "wouter";
 
 import { cn } from "@/lib/utils";
 
-/** Crumbs kept visible below the sidebar breakpoint. The nth-last-child selectors below hard-code this value. */
-const SIDEBAR_VISIBLE_CRUMBS = 2;
+/** Crumbs kept visible below the sidebar breakpoint. */
+export const SIDEBAR_VISIBLE_CRUMBS = 2;
 
 export interface Crumb {
   label: string;
@@ -19,10 +19,11 @@ interface Props {
 /**
  * Ancestor trail. Linked crumbs carry the accent so the path reads as navigation.
  *
- * Below the sidebar breakpoint all but the last two crumbs are visually clipped by CSS and an ellipsis
- * stands in for them, so a deep trail cannot crowd the hamburger and time selector out of
- * the status bar. They are clipped rather than removed, so screen readers still get the
- * whole path at every width and no layout-dependent state has to be tracked in JS.
+ * Below the sidebar breakpoint all but the last `SIDEBAR_VISIBLE_CRUMBS` crumbs are visually
+ * clipped by CSS and an ellipsis stands in for them, so a deep trail cannot crowd the hamburger
+ * and time selector out of the status bar. They are clipped rather than removed, so screen
+ * readers still get the whole path at every width and no layout-dependent state has to be
+ * tracked in JS.
  */
 export function Breadcrumbs({ items, "data-testid": testId = "breadcrumbs" }: Props) {
   if (items.length === 0) return null;
@@ -44,10 +45,10 @@ export function Breadcrumbs({ items, "data-testid": testId = "breadcrumbs" }: Pr
             className={cn(
               "inline-flex min-w-0 items-center gap-1",
               // Both selectors hard-code SIDEBAR_VISIBLE_CRUMBS, because Tailwind extracts class
-              // names statically from source and cannot interpolate it. They are not the same
-              // idiom: -n+2 is a range, clipping every crumb outside the last N, while (2) is a
-              // position, hiding the leading separator on the Nth-from-last crumb — the first one
-              // still visible.
+              // names statically from source and cannot interpolate it; breadcrumbs.test.tsx
+              // fails if either drifts from the constant. They are not the same idiom: -n+N is a
+              // range, clipping every crumb outside the last N, while (N) is a position, hiding
+              // the leading separator on the Nth-from-last crumb — the first one still visible.
               "max-sidebar:[&:not(:nth-last-child(-n+2))]:sr-only",
               "max-sidebar:[&:nth-last-child(2)>span]:hidden",
             )}
