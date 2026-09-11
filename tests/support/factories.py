@@ -5,7 +5,7 @@ a sensible default; callers pass only the fields they care about.
 """
 
 from collections.abc import Iterable
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 from whenever import ZonedDateTime
@@ -19,6 +19,7 @@ from hassette.core.registration import ListenerRegistration, ScheduledJobRegistr
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
+from hassette.resources.base import Resource
 from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.scheduler import Scheduler
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
@@ -28,6 +29,8 @@ from hassette.types.enums import DEFAULT_OVERLAP_MODE, ExecutionMode
 from hassette.types.types import ExecutionStatus, SchedulerPredicate, SourceTier
 from tests.support.mock_hassette import make_mock_hassette
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
+
+ResourceT = TypeVar("ResourceT", bound=Resource)
 
 
 def make_listener_registration(
@@ -506,3 +509,28 @@ def make_sync_executor(*, max_workers: int = 2) -> SyncExecutor:
     executor = SyncExecutor()
     executor.rebuild_pool(max_workers=max_workers)
     return executor
+
+
+def wire_dependent_resource(
+    hassette: AsyncMock,
+    dependent_cls: type[ResourceT],
+    *dep_classes: type[Resource],
+) -> tuple[ResourceT, list[Resource]]:
+    """Arrange a dependent resource whose declared ``depends_on`` types are satisfied.
+
+    Instantiates each class in ``dep_classes`` against ``hassette``, replaces (not appends to)
+    ``hassette.children`` with them so ``_auto_wait_dependencies()`` can find them, then builds
+    the dependent resource. Returns the dependent plus the dependency instances, in the order
+    the classes were given::
+
+        resource, (dep_a,) = wire_dependent_resource(hassette, _ResourceWithDepA, _SimpleDepA)
+        await resource._auto_wait_dependencies()
+        hassette.wait_for_ready.assert_called_once_with([dep_a])
+
+    ``_auto_wait_dependencies()`` resolves deps in ``dependent_cls.depends_on`` order, which this
+    helper does not read. Pass ``dep_classes`` in that same order when the test asserts on the
+    list contents. A single instance may satisfy several declared dep types; pass its class once.
+    """
+    deps: list[Resource] = [dep_cls(hassette=hassette) for dep_cls in dep_classes]
+    hassette.children = deps
+    return dependent_cls(hassette=hassette), deps
