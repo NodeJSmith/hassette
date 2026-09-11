@@ -15,6 +15,11 @@ describe("EmptyState", () => {
     expect(screen.getByText("🔍")).toBeTruthy();
   });
 
+  it("marks the decorative icon as aria-hidden", () => {
+    render(<EmptyState title="No items found" />);
+    expect(screen.getByText("∅").getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("renders body text when provided", () => {
     render(<EmptyState title="Empty" body="Try adjusting your filters." />);
     expect(screen.getByText("Try adjusting your filters.")).toBeTruthy();
