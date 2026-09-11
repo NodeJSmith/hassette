@@ -4,7 +4,9 @@ import type { AppStatusEntry } from "../../state/store";
 import { createInstance, createManifest } from "../../test/factories";
 import { getGroupKey, groupAndSortApps } from "./sidebar-groups";
 
-const NO_LIVE_STATUSES: Record<string, AppStatusEntry> = {};
+type LiveStatuses = Record<string, AppStatusEntry>;
+
+const NO_LIVE_STATUSES: LiveStatuses = {};
 
 describe("getGroupKey", () => {
   it("groups a degraded manifest under the warn (SLOW) group, not healthy", () => {
@@ -28,11 +30,10 @@ describe("getGroupKey", () => {
   });
 
   it("derives the group from live WS status, not a stale cached manifest.status", () => {
-    // The sidebar's manifests query isn't invalidated by app_status_changed, so a manifest
-    // fetched while an app was healthy can still read status: "running" after an instance has
-    // since failed. The FAILING group membership must catch this via the live appStatus store.
+    // Regression: manifest.status can lag a since-failed instance (see getGroupKey's doc comment).
+    // FAILING group membership must catch this via the live appStatus store.
     const manifest = createManifest({ app_key: "stale_running_app", status: "running", instance_count: 1 });
-    const liveStatuses: Record<string, AppStatusEntry> = {
+    const liveStatuses: LiveStatuses = {
       "stale_running_app:0": { status: "failed", index: 0 },
     };
     expect(getGroupKey(manifest, liveStatuses)).toBe("err");
@@ -43,7 +44,7 @@ describe("getGroupKey", () => {
     // that lingers in the live appStatus store after the manifest becomes disabled. The
     // manifest-level config state must win over that stale per-instance status.
     const manifest = createManifest({ app_key: "disabled_app", status: "disabled", instance_count: 1 });
-    const liveStatuses: Record<string, AppStatusEntry> = {
+    const liveStatuses: LiveStatuses = {
       "disabled_app:0": { status: "stopped", index: 0 },
     };
     expect(getGroupKey(manifest, liveStatuses)).toBe("disabled");
@@ -51,7 +52,7 @@ describe("getGroupKey", () => {
 
   it("groups a blocked app under BLOCKED despite a leftover per-instance WS status", () => {
     const manifest = createManifest({ app_key: "blocked_app", status: "blocked", instance_count: 1 });
-    const liveStatuses: Record<string, AppStatusEntry> = {
+    const liveStatuses: LiveStatuses = {
       "blocked_app:0": { status: "failed", index: 0 },
     };
     expect(getGroupKey(manifest, liveStatuses)).toBe("blocked");
@@ -67,7 +68,7 @@ describe("getGroupKey", () => {
         createInstance({ app_key: "recovered_app", index: 1, status: "failed" }),
       ],
     });
-    const liveStatuses: Record<string, AppStatusEntry> = {
+    const liveStatuses: LiveStatuses = {
       "recovered_app:0": { status: "running", index: 0 },
       "recovered_app:1": { status: "running", index: 1 },
     };
@@ -78,7 +79,7 @@ describe("getGroupKey", () => {
 describe("groupAndSortApps", () => {
   it("threads live statuses through to each manifest's group assignment", () => {
     const manifest = createManifest({ app_key: "stale_running_app", status: "running", instance_count: 1 });
-    const liveStatuses: Record<string, AppStatusEntry> = {
+    const liveStatuses: LiveStatuses = {
       "stale_running_app:0": { status: "failed", index: 0 },
     };
     const { groups } = groupAndSortApps([manifest], liveStatuses);
