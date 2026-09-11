@@ -2,7 +2,7 @@ import { Link } from "wouter";
 
 import { cn } from "@/lib/utils";
 
-/** Crumbs kept visible below the sidebar breakpoint. */
+/** Crumbs kept visible below the sidebar breakpoint. The nth-last-child selectors below hard-code it. */
 export const SIDEBAR_VISIBLE_CRUMBS = 2;
 
 export interface Crumb {
