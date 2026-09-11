@@ -16,6 +16,8 @@ from hassette.testing import EventCapture, wait_for
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
 
+from .conftest import assert_acquires_app_key_lock_once
+
 
 class TestReloadInstanceEvents:
     async def test_reload_instance_emits_state_event_scoped_to_failed_index(
@@ -326,14 +328,11 @@ class TestPerInstanceLifecycleLocking:
         mock_manifest.app_config = [{"instance_name": "a"}]
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
 
-        lock = lifecycle_service._get_app_key_lock("test_app")
-        lock.acquire = AsyncMock(wraps=lock.acquire)
         lifecycle_service._reload_instance_unlocked = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        await asyncio.wait_for(lifecycle_service.reload_instance("test_app", 0), timeout=1)
-
-        assert lock.acquire.call_count == 1
-        assert not lock.locked()
+        await assert_acquires_app_key_lock_once(
+            lifecycle_service, "test_app", lambda: lifecycle_service.reload_instance("test_app", 0)
+        )
 
     async def test_stop_instance_acquires_app_key_lock_once(
         self,
@@ -347,13 +346,9 @@ class TestPerInstanceLifecycleLocking:
         mock_registry.unregister_app = Mock(return_value=None)
         mock_registry.get_failed_instance_infos = Mock(return_value={})
 
-        lock = lifecycle_service._get_app_key_lock("test_app")
-        lock.acquire = AsyncMock(wraps=lock.acquire)
-
-        await asyncio.wait_for(lifecycle_service.stop_instance("test_app", 0), timeout=1)
-
-        assert lock.acquire.call_count == 1
-        assert not lock.locked()
+        await assert_acquires_app_key_lock_once(
+            lifecycle_service, "test_app", lambda: lifecycle_service.stop_instance("test_app", 0)
+        )
 
     async def test_start_instance_acquires_app_key_lock_once(
         self,
@@ -370,13 +365,9 @@ class TestPerInstanceLifecycleLocking:
         mock_factory.get_load_error = Mock(return_value=ValueError("boom"))
         mock_registry.get_failed_instance_infos = Mock(return_value={})
 
-        lock = lifecycle_service._get_app_key_lock("test_app")
-        lock.acquire = AsyncMock(wraps=lock.acquire)
-
-        await asyncio.wait_for(lifecycle_service.start_instance("test_app", 0), timeout=1)
-
-        assert lock.acquire.call_count == 1
-        assert not lock.locked()
+        await assert_acquires_app_key_lock_once(
+            lifecycle_service, "test_app", lambda: lifecycle_service.start_instance("test_app", 0)
+        )
 
     async def test_reload_instance_serializes_with_concurrent_reload_app(
         self,

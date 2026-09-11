@@ -106,14 +106,10 @@ vi.mock("./hooks/use-query-params", () => ({
   useQueryParams: () => ({ get: () => null, set: vi.fn() }),
 }));
 
-// Spy on TelemetryDegradedBanner to verify it is mounted in the layout shell.
-// Component-level signal behaviour is fully tested in alert-banner.test.tsx;
-// here we only care that app.tsx renders the component at all.
-//
-// AlertBanner is also wrapped (not replaced) to count how many times FailedAppsAlert's child
-// actually re-renders — the render-count seam for the "App — FailedAppsAlert re-render scoping"
-// tests below. It still delegates to the real component so the existing content-based
-// "App — FailedAppsAlert" tests above keep working unmodified.
+// TelemetryDegradedBanner is replaced with a spy to confirm app.tsx mounts it; its own signal
+// behaviour is covered in alert-banner.test.tsx.
+// AlertBanner is wrapped rather than replaced so it still renders for real while exposing a render
+// count to the "App — FailedAppsAlert re-render scoping" tests.
 const alertBannerRenderCount = vi.hoisted(() => ({ renders: 0 }));
 
 vi.mock("./components/layout/alert-banner", async (importOriginal) => {
@@ -252,14 +248,10 @@ describe("App — visibilitychange tick recovery", () => {
 
     Object.defineProperty(document, "hidden", { value: false, writable: true, configurable: true });
 
+    // Smoke test only — tick-increment re-render behavior is covered in useRelativeTime's own tests.
     act(() => {
       handlers.forEach((handler) => handler(new Event("visibilitychange")));
     });
-
-    // The handler should not throw — functional smoke test.
-    // Tick increment is verified implicitly: the handler calls state.tick.value++
-    // which would throw if state were invalid. The useRelativeTime hook tests
-    // verify that tick increments cause re-renders with updated strings.
 
     addSpy.mockRestore();
   });
@@ -494,8 +486,11 @@ describe("App — command palette", () => {
         return HttpResponse.json<ListenerWithSummary[]>([]);
       }),
     );
+    seedManifests([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
     render(<App />);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Settle on the manifests fetch resolving (the sidebar renders one entry per manifest), so the
+    // assertion reflects a mounted app whose initial data path ran rather than one event-loop tick.
+    await screen.findByTestId("app-entry-garage_app");
     expect(callCount).toBe(0);
   });
 });
@@ -564,10 +559,9 @@ describe("App — FailedAppsAlert", () => {
   });
 
   it("includes a multi-instance app whose live overlay shows one running and one failed instance", async () => {
-    // Exercises appLiveStatus()'s multi-instance branch (app-data.ts), not just its fast-path
-    // passthrough of a manifest already tagged "degraded" — the harder, real-world case this
-    // fix's rationale is built on: a cached manifest can still read "running" while one of its
-    // instances has actually failed, until an execution event refetches the grid.
+    // Covers appLiveStatus()'s multi-instance branch (app-data.ts), not just its fast-path
+    // passthrough of a manifest already tagged "degraded": a cached manifest can read "running"
+    // while one of its instances has already failed, until an execution event refetches the grid.
     seedManifests([
       createManifest({
         app_key: "multi_instance_app",

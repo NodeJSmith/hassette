@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as endpoints from "../../api/endpoints";
 import type { AppStatusEntry } from "../../state/store";
@@ -6,6 +6,13 @@ import { createInstance, createManifest } from "../../test/factories";
 import { buildActionItems, buildAppItems } from "./palette-items";
 
 const NO_LIVE_STATUSES: Record<string, AppStatusEntry> = {};
+
+// vitest.config.ts sets neither clearMocks nor restoreMocks, so spies on the endpoints
+// namespace keep their call history across tests. Without this reset, the
+// not.toHaveBeenCalledWith assertions below pass or fail on earlier tests' calls.
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("buildAppItems", () => {
   it("includes apps that are in the current config", () => {

@@ -11,6 +11,7 @@ import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
+from hassette.resources.lifecycle import compute_shutdown_budget
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.factories import TEST_SOURCE_LOCATION
 from tests.support.helpers import (
@@ -383,6 +384,81 @@ async def test_serve_raises_after_max_heartbeat_failures(initialized_service: Da
         pytest.raises(RuntimeError, match="Heartbeat failed 3 consecutive times"),
     ):
         await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
+
+
+async def test_serve_raises_when_write_worker_is_wedged(initialized_service: DatabaseService) -> None:
+    """A wedged write worker escalates to RuntimeError instead of parking serve() forever.
+
+    The worker never raises — it just stops draining the queue — so only the submit()
+    timeout in update_heartbeat() can turn the hang into a counted heartbeat failure.
+    """
+    gate = asyncio.Event()
+    wedged = asyncio.Event()
+
+    async def wedge() -> None:
+        wedged.set()
+        await gate.wait()
+
+    # Occupy the worker with a coroutine that never completes, so nothing queued behind
+    # it is ever executed.
+    assert initialized_service.enqueue(wedge()) is True
+    await asyncio.wait_for(wedged.wait(), timeout=1)
+
+    try:
+        with (
+            patch("hassette.core.database_service._HEARTBEAT_INTERVAL_SECONDS", 0.01),
+            patch("hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", 0.05),
+            pytest.raises(RuntimeError, match="Heartbeat failed 3 consecutive times"),
+        ):
+            await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
+
+        assert initialized_service._consecutive_heartbeat_failures == 3
+    finally:
+        gate.set()
+
+
+async def test_shutdown_drain_is_bounded_when_worker_is_dead(service: DatabaseService) -> None:
+    """on_shutdown() gives up on queue.join() rather than blocking on a dead worker."""
+    await service.on_initialize()
+
+    # Kill the worker with an item still queued — nothing will ever call task_done() for it,
+    # so an unbounded queue.join() could never complete.
+    assert service._db_worker_task is not None
+    service._db_worker_task.cancel()
+    await asyncio.gather(service._db_worker_task, return_exceptions=True)
+    assert service.enqueue(async_noop()) is True
+
+    with patch("hassette.core.database_service._SHUTDOWN_DRAIN_TIMEOUT_SECONDS", 0.05):
+        await asyncio.wait_for(service.on_shutdown(), timeout=5.0)
+
+    assert service._db is None, "Database connection should be closed after a bounded drain"
+    assert service._db_write_queue is None
+
+
+async def test_shutdown_drain_is_bounded_by_the_remaining_hooks_pool(service: DatabaseService) -> None:
+    """A hooks pool smaller than _SHUTDOWN_DRAIN_TIMEOUT_SECONDS is what bounds the drain.
+
+    run_hooks() already cancels on_shutdown() at the hooks-pool deadline, so a drain that
+    outlasts the pool loses close_connections() entirely. Note this test deliberately does not
+    patch _SHUTDOWN_DRAIN_TIMEOUT_SECONDS — the 5s constant must lose to the pool share.
+    """
+    await service.on_initialize()
+
+    assert service._db_worker_task is not None
+    service._db_worker_task.cancel()
+    await asyncio.gather(service._db_worker_task, return_exceptions=True)
+    assert service.enqueue(async_noop()) is True
+
+    # A tiny total scales every stage down proportionally, leaving a hooks pool far under 5s.
+    loop = asyncio.get_running_loop()
+    service._shutdown_budget = compute_shutdown_budget(0.2, loop.time())
+
+    started = loop.time()
+    await asyncio.wait_for(service.on_shutdown(), timeout=5.0)
+    elapsed = loop.time() - started
+
+    assert elapsed < 1.0, f"drain ignored the hooks pool and used the 5s constant instead ({elapsed:.2f}s)"
+    assert service._db is None, "Database connection should be closed after a bounded drain"
 
 
 async def test_drain_on_shutdown(service: DatabaseService) -> None:

@@ -17,6 +17,7 @@ Fixtures below are defined in family-scoped `_fixtures_*.py` modules in this dir
 ## Shared helpers and constants (module-level, not fixtures)
 
 - `assert_load_completed_count(event_capture, expected)` — assert how many `APP_LOAD_COMPLETED` broadcasts fired (the signal a connected dashboard refetches on)
+- `assert_acquires_app_key_lock_once(lifecycle_service, app_key, operation)` — await `operation()` and assert it took the per-app-key lock exactly once and released it; the internal `asyncio.wait_for` turns a non-reentrant-lock deadlock into a test failure instead of a hung run
 - `stub_detected_changes(lifecycle_service, changes)` — make `detect_changes` report `changes` and stub `apply_changes`, for tests of `handle_change_event`'s own apply/defer/broadcast decisions
 - `set_registry_apps(registry, apps)` — configures a `mock_registry`'s `__contains__`, `app_keys()`, `get_running_apps()`, and `get()` from an `apps`-shaped dict (`dict[str, dict[int, App]]`); use instead of assigning `mock_registry.apps = ...` directly (that attribute no longer exists on the real `AppRegistry`)
 - `make_manifest_obj(app_key, **kw)` — `SimpleNamespace` AppManifest stand-in for `AppRegistry` tests; shared by `test_app_registry.py` and `test_app_registry_snapshot.py`

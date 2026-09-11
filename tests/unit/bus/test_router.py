@@ -3,8 +3,35 @@
 import importlib.util
 import pathlib
 
+from hassette.bus.listeners import Listener
 from hassette.bus.router import Router
 from tests.support.helpers import create_listener
+
+
+def router_with_two_owners(topic: str = "state_changed") -> tuple[Router, Listener, Listener]:
+    """Build a router holding two listeners on `topic`, owned by "owner1" and "owner2"."""
+    router = Router()
+    l1 = create_listener(topic=topic, owner_id="owner1")
+    l2 = create_listener(topic=topic, owner_id="owner2")
+
+    router.add_route(topic, l1)
+    router.add_route(topic, l2)
+
+    return router, l1, l2
+
+
+def router_with_two_topics(
+    topic1: str = "state_changed", topic2: str = "call_service", owner_id: str = "owner1"
+) -> tuple[Router, Listener, Listener]:
+    """Build a router holding two listeners owned by `owner_id`, one per topic."""
+    router = Router()
+    l1 = create_listener(topic=topic1, owner_id=owner_id)
+    l2 = create_listener(topic=topic2, owner_id=owner_id)
+
+    router.add_route(topic1, l1)
+    router.add_route(topic2, l2)
+
+    return router, l1, l2
 
 
 class TestRouterImport:
@@ -46,12 +73,8 @@ class TestRouterAddRouteExactMatch:
 
     def test_add_route_multiple_listeners_same_topic(self) -> None:
         """Multiple listeners on the same topic are all returned."""
-        router = Router()
-        l1 = create_listener(topic="state_changed", owner_id="owner1")
-        l2 = create_listener(topic="state_changed", owner_id="owner2")
+        router, l1, l2 = router_with_two_owners()
 
-        router.add_route("state_changed", l1)
-        router.add_route("state_changed", l2)
         result = router.get_topic_listeners("state_changed")
 
         assert l1 in result
@@ -132,12 +155,8 @@ class TestRouterRemoveListenerById:
 
     def test_remove_listener_by_id_leaves_other_listeners(self) -> None:
         """remove_listener_by_id only removes the targeted listener."""
-        router = Router()
-        l1 = create_listener(topic="state_changed", owner_id="owner1")
-        l2 = create_listener(topic="state_changed", owner_id="owner2")
+        router, l1, l2 = router_with_two_owners()
 
-        router.add_route("state_changed", l1)
-        router.add_route("state_changed", l2)
         router.remove_listener_by_id("state_changed", l1.listener_id)
         result = router.get_topic_listeners("state_changed")
 
@@ -170,12 +189,8 @@ class TestRouterRemoveListenerById:
 class TestRouterClearOwner:
     def test_clear_owner_removes_all_owner_listeners(self) -> None:
         """clear_owner removes all listeners for the given owner."""
-        router = Router()
-        l1 = create_listener(topic="state_changed", owner_id="owner1")
-        l2 = create_listener(topic="call_service", owner_id="owner1")
+        router, l1, l2 = router_with_two_topics()
 
-        router.add_route("state_changed", l1)
-        router.add_route("call_service", l2)
         removed = router.clear_owner("owner1")
 
         assert sorted([id(r) for r in removed]) == sorted([id(l1), id(l2)])
@@ -184,12 +199,8 @@ class TestRouterClearOwner:
 
     def test_clear_owner_leaves_other_owners(self) -> None:
         """clear_owner does not remove listeners for other owners."""
-        router = Router()
-        l1 = create_listener(topic="state_changed", owner_id="owner1")
-        l2 = create_listener(topic="state_changed", owner_id="owner2")
+        router, l1, l2 = router_with_two_owners()
 
-        router.add_route("state_changed", l1)
-        router.add_route("state_changed", l2)
         router.clear_owner("owner1")
         result = router.get_topic_listeners("state_changed")
 
@@ -229,12 +240,8 @@ class TestRouterClearOwner:
 class TestRouterGetListenersByOwner:
     def test_get_listeners_by_owner_returns_added_listeners(self) -> None:
         """get_listeners_by_owner returns listeners added for the given owner."""
-        router = Router()
-        l1 = create_listener(topic="state_changed", owner_id="owner1")
-        l2 = create_listener(topic="call_service", owner_id="owner1")
+        router, l1, l2 = router_with_two_topics()
 
-        router.add_route("state_changed", l1)
-        router.add_route("call_service", l2)
         result = router.get_listeners_by_owner("owner1")
 
         assert l1 in result
@@ -248,12 +255,8 @@ class TestRouterGetListenersByOwner:
 
     def test_get_listeners_by_owner_does_not_return_other_owners(self) -> None:
         """get_listeners_by_owner is isolated by owner."""
-        router = Router()
-        l1 = create_listener(topic="state_changed", owner_id="owner1")
-        l2 = create_listener(topic="state_changed", owner_id="owner2")
+        router, l1, l2 = router_with_two_owners()
 
-        router.add_route("state_changed", l1)
-        router.add_route("state_changed", l2)
         result = router.get_listeners_by_owner("owner1")
 
         assert l1 in result
