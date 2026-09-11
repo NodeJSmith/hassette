@@ -85,8 +85,8 @@ describe("Card", () => {
   });
 
   describe("pass-through attributes", () => {
-    // Deliberately not CARD_TEST_ID: this test proves an arbitrary caller-supplied
-    // id reaches the DOM, so it must use a value no other test in this file renders.
+    // Needs an id no other test in this file renders, so the assertion can only pass
+    // if an arbitrary caller-supplied id actually reached the DOM.
     it("passes data-testid through to the div element", () => {
       const { getByTestId } = render(<Card data-testid={PASSTHROUGH_TEST_ID}>content</Card>);
       expect(getByTestId(PASSTHROUGH_TEST_ID)).not.toBeNull();
