@@ -219,7 +219,8 @@ def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     """Multi-instance apps show an expand button in the sidebar."""
     open_apps_page_with_running_group(page, base_url)
     # multi_app has 3 instances — expanding it reveals the instance list
-    expand_app_instances(page, "multi_app")
+    instance_list = expand_app_instances(page, "multi_app")
+    expect(instance_list.locator("a")).to_have_count(3)
 
 
 def test_spa_navigates_without_full_reload(page: Page, base_url: str) -> None:

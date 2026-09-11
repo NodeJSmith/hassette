@@ -363,6 +363,14 @@ def expand_app_instances(page: Page, app_key: str) -> Locator:
     """Expand a multi-instance app in the sidebar and return its visible instance list.
 
     The app's status group must already be open (see ``open_apps_page_with_running_group``).
+
+    Args:
+        page: The Playwright page, already on /apps with the app's status group open.
+        app_key: The app's key, used to scope the expand button and instance list locators.
+
+    Returns:
+        The app's ``instance-list`` locator, scoped to this app's sidebar entry and
+        asserted visible.
     """
     expand_btn = page.locator(f"[data-testid='app-expand-{app_key}']")
     expect(expand_btn).to_be_visible()
