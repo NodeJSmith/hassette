@@ -5,7 +5,13 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import ANIMATION_SETTLE_MS, DESKTOP_VIEWPORT, MOBILE_VIEWPORT
+from tests.e2e.conftest import (
+    ANIMATION_SETTLE_MS,
+    DESKTOP_VIEWPORT,
+    MOBILE_VIEWPORT,
+    expand_app_instances,
+    open_apps_page_with_running_group,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -177,20 +183,12 @@ def test_sidebar_icons_are_aria_hidden(page: Page, base_url: str) -> None:
 
 def test_sidebar_app_list_renders(page: Page, base_url: str) -> None:
     """Sidebar renders the app list with app names from seed data."""
-    page.set_viewport_size(DESKTOP_VIEWPORT)
-    page.goto(base_url + "/apps")
-    page.wait_for_load_state("networkidle")
+    open_apps_page_with_running_group(page, base_url)
     # Apps are grouped by status in the sidebar app-nav section.
     # FAILING group (broken_app) is open by default.
     app_nav = page.locator("[data-testid='app-nav']")
     expect(app_nav).to_be_visible()
     expect(app_nav).to_contain_text("Broken App")
-    # RUNNING group is collapsed by default when other groups exist;
-    # open it, then verify My App appears.
-    running_header = page.locator("[data-testid='group-header']", has_text="RUNNING")
-    expect(running_header).to_be_visible()
-    running_header.click()
-    page.wait_for_timeout(ANIMATION_SETTLE_MS)
     expect(app_nav).to_contain_text("My App")
 
 
@@ -211,12 +209,7 @@ def test_sidebar_app_search_filters(page: Page, base_url: str) -> None:
 
 def test_sidebar_clicking_app_navigates(page: Page, base_url: str) -> None:
     """Clicking an app in the sidebar navigates to its detail page."""
-    page.set_viewport_size(DESKTOP_VIEWPORT)
-    page.goto(base_url + "/apps")
-    page.wait_for_load_state("networkidle")
-    # my_app is in the RUNNING group which is collapsed — open it first
-    page.locator("[data-testid='group-header']", has_text="RUNNING").click()
-    page.wait_for_timeout(ANIMATION_SETTLE_MS)
+    open_apps_page_with_running_group(page, base_url)
     # Click the app link in the sidebar
     page.locator("[data-testid='app-link']", has_text="My App").click()
     expect(page).to_have_url(re.compile(r"/apps/my_app"))
@@ -224,22 +217,9 @@ def test_sidebar_clicking_app_navigates(page: Page, base_url: str) -> None:
 
 def test_sidebar_multi_instance_expand(page: Page, base_url: str) -> None:
     """Multi-instance apps show an expand button in the sidebar."""
-    page.set_viewport_size(DESKTOP_VIEWPORT)
-    page.goto(base_url + "/apps")
-    page.wait_for_load_state("networkidle")
-    # multi_app is RUNNING; the RUNNING group starts collapsed when other
-    # status groups have apps. Open the RUNNING group first.
-    running_header = page.locator("[data-testid='group-header']", has_text="RUNNING")
-    expect(running_header).to_be_visible()
-    running_header.click()
-    page.wait_for_timeout(ANIMATION_SETTLE_MS)
-    # multi_app has 3 instances — expand button should be visible
-    expand_btn = page.locator("[data-testid='app-expand-multi_app']")
-    expect(expand_btn).to_be_visible()
-    expand_btn.click()
-    page.wait_for_timeout(ANIMATION_SETTLE_MS)
-    # Instance list should now be visible
-    expect(page.locator("[data-testid='instance-list']").first).to_be_visible()
+    open_apps_page_with_running_group(page, base_url)
+    # multi_app has 3 instances — expanding it reveals the instance list
+    expand_app_instances(page, "multi_app")
 
 
 def test_spa_navigates_without_full_reload(page: Page, base_url: str) -> None:
