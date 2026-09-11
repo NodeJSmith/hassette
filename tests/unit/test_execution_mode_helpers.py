@@ -20,6 +20,11 @@ from hassette.execution_mode import (
 from hassette.testing import wait_for
 from hassette.types.enums import ExecutionMode
 
+#: Hang guard for TestRunThroughGuard's event handshakes, which complete in milliseconds. It only
+#: converts a genuine hang into a failure, so it needs generous headroom over xdist scheduling
+#: jitter on a loaded CI runner — well above the ``wait_for`` helper's own 3.0s default.
+HANG_GUARD_TIMEOUT = 10.0
+
 
 def make_spawn() -> tuple[Callable[..., asyncio.Task[None]], list[asyncio.Task[None]]]:
     """Return a spawn callable (wrapping create_task) and the list of tasks it created."""
@@ -175,7 +180,7 @@ class TestRunThroughGuard:
         first_task = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, first_invoke, MagicMock(), "t", 60.0)
         )
-        await asyncio.wait_for(first_started.wait(), timeout=2.0)
+        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT)
 
         # Second call — guard will SUPPRESS it; must return without hanging.
         warn = MagicMock()
@@ -189,14 +194,14 @@ class TestRunThroughGuard:
         second_task = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, second_invoke, warn, "t2", 60.0)
         )
-        await asyncio.wait_for(second_task, timeout=2.0)
+        await asyncio.wait_for(second_task, timeout=HANG_GUARD_TIMEOUT)
         assert not second_task.exception(), "second task raised unexpectedly"
         # The suppressed future was added then resolved+discarded inline, so the
         # set is back to exactly what it held before (the running first future).
         assert len(pending_done) == pending_before_second
 
         gate.set()
-        await asyncio.wait_for(first_task, timeout=2.0)
+        await asyncio.wait_for(first_task, timeout=HANG_GUARD_TIMEOUT)
 
     async def test_dropped_resolves_future_inline(self) -> None:
         """DROPPED outcome: future is resolved inline; function returns."""
@@ -221,24 +226,24 @@ class TestRunThroughGuard:
         first = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke_running, MagicMock(), "r", 60.0)
         )
-        await asyncio.wait_for(started.wait(), timeout=2.0)
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
 
         second = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", 60.0)
         )
         # Deterministically wait until the queued factory is parked before the
         # third call, so the third is guaranteed to hit the cap and be DROPPED.
-        await wait_for(lambda: len(guard.pending) >= 1)
+        await wait_for(lambda: len(guard.pending) >= 1, timeout=HANG_GUARD_TIMEOUT)
 
         # Third — queue is full; this should be DROPPED and return quickly.
         third = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke_dropped, MagicMock(), "d", 60.0)
         )
-        await asyncio.wait_for(third, timeout=2.0)
+        await asyncio.wait_for(third, timeout=HANG_GUARD_TIMEOUT)
 
         gate.set()
-        await asyncio.wait_for(first, timeout=2.0)
-        await asyncio.wait_for(second, timeout=2.0)
+        await asyncio.wait_for(first, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(second, timeout=HANG_GUARD_TIMEOUT)
 
     async def test_ran_awaits_done_future(self) -> None:
         """RAN outcome: await completes after the spawned task finishes."""
@@ -274,12 +279,12 @@ class TestRunThroughGuard:
         dispatch_task = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "n", 60.0)
         )
-        await asyncio.wait_for(started.wait(), timeout=2.0)
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
         # While the spawned task is running, pending_done should have the future.
         assert len(pending_done) == 1
 
         gate.set()
-        await asyncio.wait_for(dispatch_task, timeout=2.0)
+        await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT)
         # After completion it should be gone.
         assert len(pending_done) == 0
 
@@ -332,20 +337,20 @@ class TestRunThroughGuard:
         first = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke_running, MagicMock(), "r", 60.0)
         )
-        await asyncio.wait_for(started.wait(), timeout=2.0)
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
 
         second = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", 60.0)
         )
-        await wait_for(lambda: len(guard.pending) >= 1)
+        await wait_for(lambda: len(guard.pending) >= 1, timeout=HANG_GUARD_TIMEOUT)
 
         # Seal, then let the running invocation finish so drain_next pops the queued factory
         # and its spawn is rejected.
         sealed = True
         gate.set()
 
-        await asyncio.wait_for(first, timeout=2.0)
-        await asyncio.wait_for(second, timeout=2.0)
+        await asyncio.wait_for(first, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(second, timeout=HANG_GUARD_TIMEOUT)
         assert len(pending_done) == 0
         assert len(guard.pending) == 0
 
@@ -389,20 +394,20 @@ class TestRunThroughGuard:
         first = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke_running, MagicMock(), "r", 60.0)
         )
-        await asyncio.wait_for(started.wait(), timeout=2.0)
+        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
 
         # Queue one invocation; its future is in pending_done but the factory won't run until drain.
         second = asyncio.create_task(
             run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", 60.0)
         )
         # Deterministically wait until the queued factory is parked before releasing.
-        await wait_for(lambda: len(guard.pending) >= 1)
+        await wait_for(lambda: len(guard.pending) >= 1, timeout=HANG_GUARD_TIMEOUT)
 
         # Release + drain.
         await guard.release()
         drain_pending_done(pending_done)
 
         # Both futures should now be resolved; second_task should complete.
-        await asyncio.wait_for(second, timeout=2.0)
-        await asyncio.wait_for(first, timeout=2.0)
+        await asyncio.wait_for(second, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(first, timeout=HANG_GUARD_TIMEOUT)
         assert len(pending_done) == 0
