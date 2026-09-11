@@ -46,6 +46,13 @@ const HEAD_CLASS =
 
 const CELL_CLASS = "px-2 py-1 max-mobile:px-1 max-mobile:text-xs";
 
+// The table is `table-fixed`, so each column's header and cell must share the same width.
+const COL_W_STATUS = "w-[18%] max-mobile:w-auto";
+const COL_W_DURATION = "w-[14%] max-mobile:w-auto";
+const COL_W_TIME = "w-[18%] max-mobile:w-auto";
+
+const STATUS_TEXT_BASE = "font-mono text-xs whitespace-nowrap";
+
 const STATUS_LABEL: Record<StatusKind, string> = {
   ok: "ok",
   err: "failed",
@@ -68,18 +75,19 @@ export interface ExecutionRecord {
   thread_leaked: boolean;
 }
 
-function statusLabelClass(kind: StatusKind): string {
+// Only the per-kind part of the status label's classes; callers compose it with STATUS_TEXT_BASE.
+function statusKindClass(kind: StatusKind): string | undefined {
   switch (kind) {
     case "ok":
-      return "font-mono text-xs whitespace-nowrap text-[var(--status-success)]";
+      return "text-[var(--status-success)]";
     case "err":
-      return "truncate font-mono text-xs whitespace-nowrap text-destructive";
+      return "truncate text-destructive";
     case "warn":
-      return "font-mono text-xs whitespace-nowrap text-[var(--status-warning)]";
+      return "text-[var(--status-warning)]";
     case "cancel":
-      return "font-mono text-xs whitespace-nowrap text-[var(--status-cancel)]";
+      return "text-[var(--status-cancel)]";
     case "mute":
-      return "font-mono text-xs whitespace-nowrap";
+      return undefined;
   }
 }
 
@@ -90,14 +98,14 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
   {
     id: "status",
     header: "Status",
-    meta: { headerClassName: "w-[18%] max-mobile:w-auto", cellClassName: "w-[18%] max-mobile:w-auto" },
+    meta: { headerClassName: COL_W_STATUS, cellClassName: COL_W_STATUS },
     cell: ({ row }) => {
       const record = row.original;
       const statusKind = executionStatusKind(record.status);
       return (
         <div className="flex items-center gap-2">
           <StatusShape kind={statusKind} size={STATUS_SHAPE_SIZE} />
-          <span className={statusLabelClass(statusKind)}>{STATUS_LABEL[statusKind]}</span>
+          <span className={cn(STATUS_TEXT_BASE, statusKindClass(statusKind))}>{STATUS_LABEL[statusKind]}</span>
           {record.thread_leaked && (
             <Badge variant="warning" size="sm" aria-label="thread leaked past timeout">
               thread leaked
@@ -117,7 +125,7 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     header: "Execution",
     meta: {
       headerClassName: "[overflow-wrap:anywhere] max-mobile:hidden",
-      cellClassName: cn("font-mono text-xs [overflow-wrap:anywhere] max-mobile:hidden"),
+      cellClassName: "font-mono text-xs [overflow-wrap:anywhere] max-mobile:hidden",
     },
     cell: ({ row }) => row.original.execution_id ?? "—",
   },
@@ -125,8 +133,8 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     id: "duration",
     header: "Duration",
     meta: {
-      headerClassName: "w-[14%] max-mobile:w-auto",
-      cellClassName: "w-[14%] whitespace-nowrap max-mobile:w-auto",
+      headerClassName: COL_W_DURATION,
+      cellClassName: cn(COL_W_DURATION, "whitespace-nowrap"),
     },
     cell: ({ row }) => formatDuration(row.original.duration_ms),
   },
@@ -134,8 +142,8 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     id: "time",
     header: "Time",
     meta: {
-      headerClassName: "w-[18%] max-mobile:w-auto",
-      cellClassName: cn("w-[18%] font-mono text-xs whitespace-nowrap max-mobile:w-auto"),
+      headerClassName: COL_W_TIME,
+      cellClassName: cn(COL_W_TIME, "font-mono text-xs whitespace-nowrap"),
       cellProps: (record: ExecutionRecord) => ({ title: formatTimestamp(record.execution_start_ts) }),
     },
     cell: ({ row }) => formatRelativeTime(row.original.execution_start_ts),
@@ -340,7 +348,7 @@ export function ExecutionTable({
         />
       </Table>
       {records.length > INITIAL_ROWS && (
-        <ShowMoreButton showAll={showAll} onToggle={() => setShowAll((v) => !v)} totalCount={records.length} />
+        <ShowMoreButton showAll={showAll} onToggle={() => setShowAll((prev) => !prev)} totalCount={records.length} />
       )}
     </>
   );
