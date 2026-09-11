@@ -45,9 +45,14 @@ SKIP_JOB_NAMES = frozenset({"file-sizes", "duplicate-code"})
 # Matches pytest's short test summary lines, e.g.:
 #   FAILED tests/unit/test_foo.py::test_bar - AssertionError: boom
 #   ERROR tests/unit/test_foo.py::test_bar - fixture 'db' not found
+#   FAILED tests/unit/test_foo.py::test_bar[media_artist-Artist Name] - ...
 # ERROR lines come from collection/fixture/teardown failures, not assertion
 # failures -- still a test-level signal, not infra noise, so they're matched
-# alongside FAILED rather than falling through to GH_ERROR_RE below.
+# alongside FAILED rather than falling through to GH_ERROR_RE below. The node
+# id is captured non-greedily up to the first " - " rather than with \S+ --
+# parametrized test ids can contain spaces (e.g. readable ids like
+# "Artist Name"), and \S+ would stop at the first space and drop the rest of
+# the id into the message capture instead.
 # `gh run view --log-failed` prefixes every line with "<job>\t<step>\t<timestamp> ",
 # so this intentionally does not anchor to the start of the line.
 #
@@ -58,7 +63,7 @@ SKIP_JOB_NAMES = frozenset({"file-sizes", "duplicate-code"})
 # code captured in the same job log, misclassifying it as a test failure.
 # Pytest's summary section is the one place this shape is guaranteed to mean
 # an actual test outcome.
-PYTEST_FAILURE_RE = re.compile(r"(?:FAILED|ERROR) (\S+) - (.+)$", re.MULTILINE)
+PYTEST_FAILURE_RE = re.compile(r"(?:FAILED|ERROR) (.+?) - (.+)$", re.MULTILINE)
 
 # Marks the start of pytest's summary section; everything after it is exactly
 # one line per failed/errored test, nothing else.
@@ -90,6 +95,7 @@ INFRA_ERROR_TRUNCATE_LEN = 120
 @dataclass
 class Occurrence:
     run_id: str
+    commit_sha: str
     branch: str
     created_at: str
     error: str
@@ -141,7 +147,7 @@ def list_failed_runs(workflow: str, since_date: str) -> list[dict]:
         "--limit",
         str(GH_RUN_LIST_LIMIT),
         "--json",
-        "databaseId,headBranch,createdAt",
+        "databaseId,headBranch,headSha,createdAt",
     )
     if runs is None:
         print(f"warning: could not list failed runs for workflow {workflow!r}, skipping it", file=sys.stderr)
@@ -193,7 +199,12 @@ def scan_run(run: dict) -> tuple[dict[str, list[Occurrence]], dict[str, list[Occ
 
     run_id = str(run["databaseId"])
     for job in failed_jobs(run_id):
-        occurrence_base = {"run_id": run_id, "branch": run["headBranch"], "created_at": run["createdAt"]}
+        occurrence_base = {
+            "run_id": run_id,
+            "commit_sha": run["headSha"],
+            "branch": run["headBranch"],
+            "created_at": run["createdAt"],
+        }
 
         log = job_log(str(job["databaseId"]))
         if log is None:
@@ -224,26 +235,31 @@ def classify_verdict(
 
     Every `push`-triggered run on `main` is a separate, already-merged commit --
     unlike a feature branch, "main" is never "one PR's diff." So a test recurring
-    on main (even under one branch name), or recurring across 2+ different
+    on main across 2+ distinct commits, or recurring across 2+ different
     non-main branches, is the real flakiness signature: independent commits
     hitting the same nondeterminism. A test recurring only within one feature
     branch is more likely that branch's own unfixed bug, not a suite-wide flake.
+
+    Recurrence is counted by distinct commit SHA, not by run or occurrence
+    count, for two reasons: a single run fans a test out across multiple
+    job-level occurrences (one per Python version in the test matrix) while
+    still being one commit's worth of signal, and both workflows also support
+    `workflow_dispatch` -- a manual rerun gets a new run id but the same SHA,
+    so run-id counting alone would still misread repeated manual reruns of one
+    main commit as independent recurrence.
     """
     match = next((k for k in known if k.pattern.search(test_id)), None)
     if match:
         return f"known (#{match.issue})", match
 
-    # A single run fans a test out across multiple job-level occurrences (one
-    # per Python version in the test matrix) while still being one commit's
-    # worth of signal -- count distinct runs, not raw occurrences, so matrix
-    # fanout within one run doesn't look like recurrence across commits.
-    distinct_runs = {o.run_id for o in occurrences}
-    if len(distinct_runs) < RECURRING_THRESHOLD:
-        return "single run", None
+    distinct_shas = {o.commit_sha for o in occurrences}
+    if len(distinct_shas) < RECURRING_THRESHOLD:
+        return "single commit", None
 
     branches = {o.branch for o in occurrences}
     non_main_branches = branches - {"main"}
-    if "main" in branches or len(non_main_branches) >= 2:
+    main_shas = {o.commit_sha for o in occurrences if o.branch == "main"}
+    if len(main_shas) >= RECURRING_THRESHOLD or len(non_main_branches) >= 2:
         return "NEW -- recurring across independent commits, consider filing", None
     return "recurring on one branch -- likely a real bug in that PR, not a suite flake", None
 
