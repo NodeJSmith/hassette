@@ -357,6 +357,10 @@ def open_apps_page_with_running_group(page: Page, base_url: str) -> None:
     expect(running_header).to_be_visible()
     running_header.click()
     page.wait_for_timeout(ANIMATION_SETTLE_MS)
+    # The header is a toggle, so the click only opens the group because a fresh page load
+    # always starts it collapsed. Assert that post-condition here so seed data that leaves
+    # RUNNING already expanded fails on this line instead of on an unrelated locator later.
+    expect(page.locator("[data-testid='app-nav'] ul[aria-label='RUNNING apps']")).to_be_visible()
 
 
 def expand_app_instances(page: Page, app_key: str) -> Locator:
