@@ -235,10 +235,12 @@ def classify_verdict(
 
     Every `push`-triggered run on `main` is a separate, already-merged commit --
     unlike a feature branch, "main" is never "one PR's diff." So a test recurring
-    on main across 2+ distinct commits, or recurring across 2+ different
-    non-main branches, is the real flakiness signature: independent commits
-    hitting the same nondeterminism. A test recurring only within one feature
-    branch is more likely that branch's own unfixed bug, not a suite-wide flake.
+    across 2+ distinct branches (main+branch or branch+branch -- either pairing
+    is necessarily 2 independent lines of history), or recurring on main alone
+    across 2+ distinct commits, is the real flakiness signature: independent
+    commits hitting the same nondeterminism. A test recurring only within one
+    feature branch is more likely that branch's own unfixed bug, not a
+    suite-wide flake.
 
     Recurrence is counted by distinct commit SHA, not by run or occurrence
     count, for two reasons: a single run fans a test out across multiple
@@ -257,9 +259,8 @@ def classify_verdict(
         return "single commit", None
 
     branches = {o.branch for o in occurrences}
-    non_main_branches = branches - {"main"}
     main_shas = {o.commit_sha for o in occurrences if o.branch == "main"}
-    if len(main_shas) >= RECURRING_THRESHOLD or len(non_main_branches) >= 2:
+    if len(branches) >= 2 or len(main_shas) >= RECURRING_THRESHOLD:
         return "NEW -- recurring across independent commits, consider filing", None
     return "recurring on one branch -- likely a real bug in that PR, not a suite flake", None
 
