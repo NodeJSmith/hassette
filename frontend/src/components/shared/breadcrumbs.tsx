@@ -45,10 +45,10 @@ export function Breadcrumbs({ items, "data-testid": testId = "breadcrumbs" }: Pr
             className={cn(
               "inline-flex min-w-0 items-center gap-1",
               // Both selectors hard-code SIDEBAR_VISIBLE_CRUMBS, because Tailwind extracts class
-              // names statically from source and cannot interpolate it; breadcrumbs.test.tsx
-              // fails if either drifts from the constant. They are not the same idiom: -n+N is a
-              // range, clipping every crumb outside the last N, while (N) is a position, hiding
-              // the leading separator on the Nth-from-last crumb — the first one still visible.
+              // names statically from source and cannot interpolate it; a test asserts both stay
+              // in step with the constant. They are not the same idiom: -n+N is a range, clipping
+              // every crumb outside the last N, while (N) is a position, hiding the leading
+              // separator on the Nth-from-last crumb — the first one still visible.
               "max-sidebar:[&:not(:nth-last-child(-n+2))]:sr-only",
               "max-sidebar:[&:nth-last-child(2)>span]:hidden",
             )}
