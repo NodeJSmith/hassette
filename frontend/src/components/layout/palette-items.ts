@@ -43,8 +43,8 @@ export function buildStaticPageItems(navigate: (path: string) => void): PaletteI
 }
 
 /** Removed apps (in_current_config: false) are historical/DB-only — the runtime doesn't know
- *  about them, so they're excluded from every actionable palette result (stop/reload would 404
- *  or no-op, and "jump to…" is for apps a user can actually act on). */
+ * about them, so they're excluded from every actionable palette result (stop/reload would 404
+ * or no-op, and "jump to…" is for apps a user can actually act on). */
 function activeManifests(manifests: AppManifest[]): AppManifest[] {
   return manifests.filter((m) => m.in_current_config);
 }
@@ -105,6 +105,8 @@ export function buildAppItems(
       kind: "app",
       label: m.display_name,
       sub: m.app_key,
+      // Live overlay here and on the instance rows below, not m.status — see appLiveStatus for
+      // why the cached manifest can be stale.
       status: appLiveStatus(appStatuses, m),
       action: () => {
         navigate(appDetailPath(m.app_key));
