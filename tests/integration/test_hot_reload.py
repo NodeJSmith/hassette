@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from hassette.config.classes import AppManifest
 from hassette.testing import HassetteHarness
 from hassette.types import ResourceStatus
 from tests.support.harness import preserve_config
@@ -46,8 +47,8 @@ def hassette_and_handler(
             shutil.rmtree(f)
 
 
-class TestBasicHotReload:
-    """Basic hot reload functionality tests."""
+class HotReloadTestBase:
+    """Shared setup for hot reload test classes: the harness, app handler, app dir, and TOML file."""
 
     hassette: HassetteHarness
     app_handler: "AppHandler"
@@ -60,25 +61,33 @@ class TestBasicHotReload:
         self.app_dir = self.hassette.config.apps.directory
         self.toml_file = list(self.hassette.config.toml_files)[0]
 
+
+class TestBasicHotReload(HotReloadTestBase):
+    """Basic hot reload functionality tests."""
+
+    async def deploy_running_app(
+        self, suffix: str, *, app_config: dict | None = None, config_fields: dict | None = None
+    ) -> AppManifest:
+        """Write one app's module and TOML entry, announce both, and wait until the app is RUNNING."""
+        manifest = create_app_manifest(suffix=suffix, app_dir=self.app_dir, enabled=True, app_config=app_config)
+        write_test_app_with_decorator(
+            app_file=manifest.full_path, class_name=manifest.class_name, config_fields=config_fields
+        )
+
+        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[manifest])
+        await emit_change_and_wait_for_app_status(self.hassette, {self.toml_file, manifest.full_path}, manifest.app_key)
+        return manifest
+
     async def test_hot_reload_starts_newly_enabled_app(self):
         """Enable a disabled app and verify it starts."""
-        app1 = create_app_manifest(suffix="enabled", app_dir=self.app_dir, enabled=True)
-        write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
-
-        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
-        await emit_change_and_wait_for_app_status(self.hassette, {self.toml_file, app1.full_path}, app1.app_key)
+        app1 = await self.deploy_running_app("enabled")
 
         snapshot = self.hassette.app_handler.registry.get_snapshot()
         assert self.hassette.app_handler.registry.get(app1.app_key, 0) is not None, f"Registry snapshot: {snapshot}"
 
     async def test_hot_reload_stops_newly_disabled_app(self):
         """Disable an enabled app via config change and verify it stops."""
-        # Start an app
-        app1 = create_app_manifest(suffix="stoppable", app_dir=self.app_dir, enabled=True)
-        write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
-
-        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
-        await emit_change_and_wait_for_app_status(self.hassette, {self.toml_file, app1.full_path}, app1.app_key)
+        app1 = await self.deploy_running_app("stoppable")
 
         app = self.app_handler.registry.get(app1.app_key, 0)
         assert app is not None
@@ -93,16 +102,9 @@ class TestBasicHotReload:
 
     async def test_hot_reload_reloads_app_with_config_change(self):
         """Change app config value and verify app is reloaded with new config."""
-        # Start app with initial config
-        app1 = create_app_manifest(
-            suffix="cfgtest", app_dir=self.app_dir, enabled=True, app_config={"test_value": "initial"}
+        app1 = await self.deploy_running_app(
+            "cfgtest", app_config={"test_value": "initial"}, config_fields={"test_value": "str"}
         )
-        write_test_app_with_decorator(
-            app_file=app1.full_path, class_name=app1.class_name, config_fields={"test_value": "str"}
-        )
-
-        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
-        await emit_change_and_wait_for_app_status(self.hassette, {self.toml_file, app1.full_path}, app1.app_key)
 
         inst = self.app_handler.registry.get(app1.app_key, 0)
         assert inst is not None
@@ -122,11 +124,7 @@ class TestBasicHotReload:
 
     async def test_hot_reload_reimports_app_when_file_changes(self):
         """Modify app Python file and verify app is reimported."""
-        app1 = create_app_manifest(suffix="reimport", app_dir=self.app_dir, enabled=True)
-        write_test_app_with_decorator(app_file=app1.full_path, class_name=app1.class_name)
-
-        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[app1])
-        await emit_change_and_wait_for_app_status(self.hassette, {self.toml_file, app1.full_path}, app1.app_key)
+        app1 = await self.deploy_running_app("reimport")
 
         inst = self.app_handler.registry.get(app1.app_key, 0)
         assert inst is not None
@@ -145,19 +143,8 @@ class TestBasicHotReload:
         assert inst.__class__ is not original_class
 
 
-class TestOnlyAppsConfigFilter:
+class TestOnlyAppsConfigFilter(HotReloadTestBase):
     """Tests for the `hassette run --app` filter (config.only_apps) through the reload pipeline."""
-
-    hassette: HassetteHarness
-    app_handler: "AppHandler"
-    app_dir: Path
-    toml_file: Path
-
-    @pytest.fixture(autouse=True)
-    def setup(self, hassette_and_handler: tuple[HassetteHarness, "AppHandler"]):
-        self.hassette, self.app_handler = hassette_and_handler
-        self.app_dir = self.hassette.config.apps.directory
-        self.toml_file = list(self.hassette.config.toml_files)[0]
 
     async def test_only_apps_starts_named_apps_and_blocks_the_rest(self, monkeypatch: pytest.MonkeyPatch):
         """With two keys in the filter, both named apps run and the third is blocked."""
