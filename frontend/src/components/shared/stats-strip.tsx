@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/utils";
 
-import { type StatusKind, TONE_CLASS } from "../../utils/status";
+import { STATUS_TONE_CLASSES, type StatusKind } from "../../utils/status";
 
 export interface StatsStripCell {
   label: string;
@@ -52,7 +52,7 @@ export function StatsStrip({ cells, cols, "data-testid": testId }: StatsStripPro
             <span
               className={cn(
                 "mt-0 flex min-w-0 items-baseline gap-1.5 truncate font-sans text-[length:var(--text-stat)] leading-[var(--text-h1-leading)] font-medium text-foreground max-sidebar:text-[length:var(--text-h3)]",
-                c.tone && TONE_CLASS[c.tone],
+                c.tone && STATUS_TONE_CLASSES[c.tone],
                 zero && "text-foreground-faint",
               )}
               data-role="stats-strip-value"

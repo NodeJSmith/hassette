@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-import { type StatusKind, TONE_CLASS } from "../../utils/status";
+import { STATUS_TONE_CLASSES, type StatusKind } from "../../utils/status";
 
 export interface DetailStatsCell {
   label: string;
@@ -30,7 +30,7 @@ export function DetailStats({ cells, "data-testid": testId }: DetailStatsProps) 
           <span className="whitespace-nowrap text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground">
             {cell.label}
           </span>
-          <span className={cn(STAT_VALUE_CLASS, cell.tone && TONE_CLASS[cell.tone])} data-tone={cell.tone}>
+          <span className={cn(STAT_VALUE_CLASS, cell.tone && STATUS_TONE_CLASSES[cell.tone])} data-tone={cell.tone}>
             {cell.value}
           </span>
         </div>
