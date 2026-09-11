@@ -7,9 +7,13 @@ import { LogTableWithDrawer } from "./log-table-with-drawer";
 import { rowKey } from "./types";
 import type { LogDrawerProps } from "./use-log-table";
 
+// vi.hoisted so the id is available inside the hoisted vi.mock factory below as well as
+// in the assertions further down, keeping the stub's test id and the queries for it in sync.
+const { DRAWER_TEST_ID } = vi.hoisted(() => ({ DRAWER_TEST_ID: "drawer" }));
+
 vi.mock("./log-detail-drawer", () => ({
   LogDetailDrawer: (props: { selectedKey: string | null }) =>
-    props.selectedKey ? <aside data-testid="drawer" role="complementary" /> : null,
+    props.selectedKey ? <aside data-testid={DRAWER_TEST_ID} role="complementary" /> : null,
 }));
 
 const WRAPPER_TEST_ID = "log-table-with-drawer";
@@ -77,12 +81,12 @@ describe("LogTableWithDrawer", () => {
   describe("LogDetailDrawer", () => {
     it("renders the drawer when selectedKey is not null", () => {
       const { getByTestId } = renderWithDrawer(makeSelectedDrawerProps());
-      expect(getByTestId("drawer")).not.toBeNull();
+      expect(getByTestId(DRAWER_TEST_ID)).not.toBeNull();
     });
 
     it("does not render the drawer when selectedKey is null", () => {
       const { queryByTestId } = renderWithDrawer(makeDrawerProps({ selectedKey: null }));
-      expect(queryByTestId("drawer")).toBeNull();
+      expect(queryByTestId(DRAWER_TEST_ID)).toBeNull();
     });
   });
 });
