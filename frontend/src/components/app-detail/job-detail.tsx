@@ -49,13 +49,13 @@ interface RunNowFeedback {
 /** Suppressed/dropped invocations never emit an execution event, so a timeout fallback toast is the only signal for them. */
 function useRunNowFeedback(jobId: number): RunNowFeedback {
   const execution = useJobExecution(jobId);
-  const watchingRef = useRef(false);
+  const isWatchingRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!watchingRef.current) return;
+    if (!isWatchingRef.current) return;
     if (execution === undefined) return;
-    watchingRef.current = false;
+    isWatchingRef.current = false;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     toast.success("Execution recorded");
   }, [execution]);
@@ -68,17 +68,17 @@ function useRunNowFeedback(jobId: number): RunNowFeedback {
   );
 
   const startWatching = () => {
-    watchingRef.current = true;
+    isWatchingRef.current = true;
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      if (!watchingRef.current) return;
-      watchingRef.current = false;
+      if (!isWatchingRef.current) return;
+      isWatchingRef.current = false;
       toast.error("No execution recorded");
     }, RUN_NOW_FEEDBACK_TIMEOUT_MS);
   };
 
   const cancelWatching = () => {
-    watchingRef.current = false;
+    isWatchingRef.current = false;
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
@@ -130,31 +130,43 @@ function RunNowButton({ jobId }: { jobId: number }) {
   );
 }
 
+/** Prefixed summary of a job's upcoming run, composed from a raw `useRelativeTime` label. */
+function resolveNextRunSummary(job: JobData, nextRunLabel: string, fireAtLabel: string): string | null {
+  if (job.next_run) return `next ${nextRunLabel}`;
+  if (job.fire_at) return `fire at ${fireAtLabel}`;
+  return null;
+}
+
 /**
  * Status-specific text for a job's `schedule_status`, per design/specs/090 Operator Surfaces.
- * Returns null for a normally-scheduled job with live timing — `nextRunText` already conveys
+ * Returns null for a normally-scheduled job with live timing — `nextRunSummary` already conveys
  * that state, so the caller falls back to it.
  */
-function scheduleStatusText(job: JobData, nextRunText: string | null): string | null {
+function scheduleStatusText(job: JobData, nextRunSummary: string | null): string | null {
   const display = scheduleStatusDisplay(job.schedule_status, job.schedule_status_reason);
   if (display) return display.text;
-  if (job.schedule_status === "scheduled") return nextRunText === null ? "Timing unavailable." : null;
+  if (job.schedule_status === "scheduled") return nextRunSummary === null ? "Timing unavailable." : null;
   return null;
+}
+
+interface LastCellDisplay {
+  label: string;
+  fieldLabel: string;
 }
 
 function resolveLastCell(
   statusText: string | null,
-  nextRunText: string | null,
+  nextRunSummary: string | null,
   lastExecutedLabel: string,
-): { label: string; fieldLabel: string } {
+): LastCellDisplay {
   if (statusText) return { label: statusText, fieldLabel: "Schedule" };
-  if (nextRunText) return { label: nextRunText, fieldLabel: "Next" };
+  if (nextRunSummary) return { label: nextRunSummary, fieldLabel: "Next" };
   return { label: lastExecutedLabel || "—", fieldLabel: "Last" };
 }
 
-function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunText: string | null): DetailStatsCell[] {
-  const statusText = scheduleStatusText(job, nextRunText);
-  const lastCell = resolveLastCell(statusText, nextRunText, lastExecutedLabel);
+function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunSummary: string | null): DetailStatsCell[] {
+  const statusText = scheduleStatusText(job, nextRunSummary);
+  const lastCell = resolveLastCell(statusText, nextRunSummary, lastExecutedLabel);
   const input: CommonStatInput = {
     totalLabel: "Runs",
     total: job.total_executions,
@@ -197,9 +209,7 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
   const testId = `job-detail-${job.job_id}`;
   const predicateDescription = job.human_description || job.predicate_description || null;
 
-  let nextRunText: string | null = null;
-  if (job.next_run) nextRunText = `next ${nextRunLabel}`;
-  else if (job.fire_at) nextRunText = `fire at ${fireAtLabel}`;
+  const nextRunSummary = resolveNextRunSummary(job, nextRunLabel, fireAtLabel);
 
   return (
     <HandlerDetailLayout testId={testId}>
@@ -236,7 +246,7 @@ export function JobDetail({ job, appKey, instanceQs, onSwitchToCode }: Props) {
         />
       )}
 
-      <DetailStats cells={buildJobStatsCells(job, lastExecutedLabel, nextRunText)} data-testid="job-stats-row" />
+      <DetailStats cells={buildJobStatsCells(job, lastExecutedLabel, nextRunSummary)} data-testid="job-stats-row" />
 
       <ExecutionSection
         heading="executions"

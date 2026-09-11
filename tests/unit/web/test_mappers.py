@@ -1,6 +1,8 @@
 """Unit tests for web/mappers.py — domain-to-response model conversions."""
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppStatusSnapshot
+import pytest
+
+from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
@@ -24,7 +26,7 @@ from hassette.web.models import (
     ReadinessResponse,
     SystemStatusResponse,
 )
-from tests.support.web_manifest_helpers import make_manifest
+from tests.support.web_manifest_helpers import make_full_snapshot, make_manifest
 from tests.support.web_telemetry_helpers import make_listener_summary
 
 
@@ -152,11 +154,7 @@ def test_app_manifest_list_response_from_builds_nested_instances():
     inst0 = make_instance("app_a", 0, ResourceStatus.RUNNING)
     inst1 = make_instance("app_a", 1, ResourceStatus.RUNNING)
     manifest = make_manifest("app_a", status=ManifestStatus.RUNNING, instances=[inst0, inst1], instance_count=2)
-    full = AppFullSnapshot(
-        manifests=[manifest],
-        total=1,
-        status_counts={"running": 1, "failed": 0, "stopped": 0, "disabled": 0, "blocked": 0, "degraded": 0},
-    )
+    full = make_full_snapshot([manifest])
 
     result = app_manifest_list_response_from(full)
 
@@ -174,7 +172,7 @@ def test_app_manifest_list_response_from_coerces_resource_status_enum():
     """AppInstanceInfo.status (ResourceStatus enum) → string in response."""
     inst = make_instance("app_a", 0, ResourceStatus.RUNNING)
     manifest = make_manifest("app_a", status=ManifestStatus.RUNNING, instances=[inst], instance_count=1)
-    full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"running": 1})
+    full = make_full_snapshot([manifest])
 
     result = app_manifest_list_response_from(full)
 
@@ -182,14 +180,30 @@ def test_app_manifest_list_response_from_coerces_resource_status_enum():
     assert isinstance(result.manifests[0].instances[0].status, str)
 
 
-def test_app_manifest_list_response_from_manifest_status_passes_through():
-    """AppManifestInfo.status (ManifestStatus enum) — verify it passes through without error."""
-    manifest = make_manifest("app_a", status=ManifestStatus.STOPPED)
-    full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"stopped": 1})
+@pytest.mark.parametrize(
+    ("manifest_kwargs", "response_attr", "expected"),
+    [
+        pytest.param({"status": ManifestStatus.STOPPED}, "status", "stopped", id="status_stopped"),
+        pytest.param({"autostart": True}, "autostart", True, id="autostart_true"),
+        pytest.param({"autostart": False}, "autostart", False, id="autostart_false"),
+        pytest.param({"in_current_config": True}, "in_current_config", True, id="in_current_config_true"),
+        pytest.param({"in_current_config": False}, "in_current_config", False, id="in_current_config_false"),
+    ],
+)
+def test_app_manifest_list_response_from_passes_manifest_field_through(
+    manifest_kwargs: dict[str, ManifestStatus | bool], response_attr: str, expected: bool | str
+):
+    """Single-value manifest fields are carried from AppManifestInfo to AppManifestResponse.
+
+    The ``status`` case also covers the ManifestStatus enum being coerced to its string value;
+    the boolean cases are plain identity pass-through.
+    """
+    manifest = make_manifest("app_a", **manifest_kwargs)
+    full = make_full_snapshot([manifest])
 
     result = app_manifest_list_response_from(full)
 
-    assert result.manifests[0].status == "stopped"
+    assert getattr(result.manifests[0], response_attr) == expected
 
 
 def test_app_manifest_list_response_from_preserves_counts():
@@ -201,11 +215,7 @@ def test_app_manifest_list_response_from_preserves_counts():
         make_manifest("app_d", status=ManifestStatus.DISABLED),
         make_manifest("app_e", status=ManifestStatus.BLOCKED),
     ]
-    full = AppFullSnapshot(
-        manifests=manifests,
-        total=5,
-        status_counts={"running": 1, "failed": 1, "stopped": 1, "disabled": 1, "blocked": 1},
-    )
+    full = make_full_snapshot(manifests)
 
     result = app_manifest_list_response_from(full)
 
@@ -215,46 +225,6 @@ def test_app_manifest_list_response_from_preserves_counts():
     assert result.status_counts["stopped"] == 1
     assert result.status_counts["disabled"] == 1
     assert result.status_counts["blocked"] == 1
-
-
-def test_app_manifest_list_response_from_passes_autostart_true():
-    """Mapper carries autostart=True from AppManifestInfo to AppManifestResponse."""
-    manifest = make_manifest("app_a", status=ManifestStatus.STOPPED, autostart=True)
-    full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"stopped": 1})
-
-    result = app_manifest_list_response_from(full)
-
-    assert result.manifests[0].autostart is True
-
-
-def test_app_manifest_list_response_from_passes_autostart_false():
-    """Mapper carries autostart=False from AppManifestInfo to AppManifestResponse."""
-    manifest = make_manifest("app_b", status=ManifestStatus.STOPPED, autostart=False)
-    full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"stopped": 1})
-
-    result = app_manifest_list_response_from(full)
-
-    assert result.manifests[0].autostart is False
-
-
-def test_app_manifest_list_response_from_passes_in_current_config_false():
-    """Mapper carries in_current_config=False (DB-only/removed app) through to the response."""
-    manifest = make_manifest("app_c", status=ManifestStatus.STOPPED, in_current_config=False)
-    full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"stopped": 1})
-
-    result = app_manifest_list_response_from(full)
-
-    assert result.manifests[0].in_current_config is False
-
-
-def test_app_manifest_list_response_from_passes_in_current_config_true():
-    """Mapper carries in_current_config=True (default, currently-configured app) through."""
-    manifest = make_manifest("app_d", status=ManifestStatus.RUNNING, in_current_config=True)
-    full = AppFullSnapshot(manifests=[manifest], total=1, status_counts={"running": 1})
-
-    result = app_manifest_list_response_from(full)
-
-    assert result.manifests[0].in_current_config is True
 
 
 def make_system_status(**overrides) -> SystemStatus:

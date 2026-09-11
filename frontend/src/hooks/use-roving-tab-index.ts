@@ -6,6 +6,9 @@ const ROVING_SELECTOR = "[data-roving-item]";
 
 type Direction = "vertical" | "both";
 
+/** Tabindex value produced by the roving-tabindex convention: 0 for the active item, -1 for the rest. */
+export type RovingTabIndex = 0 | -1;
+
 export function useRovingTabIndex<T extends HTMLElement = HTMLElement>(
   itemCount: number,
   direction: Direction = "vertical",
@@ -51,7 +54,7 @@ export function useRovingTabIndex<T extends HTMLElement = HTMLElement>(
   // Stable identity across renders (unless clampedIndex changes) so callers
   // that memoize on it (e.g. log-table-view.tsx's detailColumn) get a real
   // cache hit instead of recomputing every render.
-  const getTabIndex = useCallback((i: number): 0 | -1 => (i === clampedIndex ? 0 : -1), [clampedIndex]);
+  const getTabIndex = useCallback((i: number): RovingTabIndex => (i === clampedIndex ? 0 : -1), [clampedIndex]);
 
   return {
     containerRef,

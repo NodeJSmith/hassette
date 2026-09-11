@@ -6,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 
 import { useRelativeTime } from "../../hooks/use-relative-time";
+import type { RovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { formatDuration, formatRate, pluralize } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
@@ -13,6 +14,7 @@ import { StatusShape } from "../shared/status-shape";
 import {
   handlerHref,
   isFailing,
+  isIdle,
   itemErrorLabel,
   itemErrorMessage,
   itemKindChip,
@@ -27,7 +29,7 @@ interface HandlerHealthCardProps {
   item: UnifiedItem;
   appKey: string;
   instanceQs: string;
-  tabIndex: 0 | -1;
+  tabIndex: RovingTabIndex;
 }
 
 interface StatTooltipProps {
@@ -37,7 +39,7 @@ interface StatTooltipProps {
    * Mirrors the owning card's roving tabindex so a non-active card contributes no tab stops
    * of its own, while the active card keeps its tooltips keyboard-reachable.
    */
-  tabIndex: 0 | -1;
+  tabIndex: RovingTabIndex;
   children: ReactNode;
 }
 
@@ -70,7 +72,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
 
   const navigateToHandler = () => navigate(href);
 
-  const idle = item.statusKind === "mute";
+  const idle = isIdle(item);
 
   return (
     <TooltipProvider>

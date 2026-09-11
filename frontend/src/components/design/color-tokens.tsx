@@ -6,9 +6,14 @@ import {
   designTokenCodeClassName,
 } from "./design-showcase";
 
+interface ColorToken {
+  name: string;
+  cssVar: string;
+}
+
 interface SwatchGroup {
   label: string;
-  tokens: { name: string; cssVar: string }[];
+  tokens: ColorToken[];
 }
 
 const GROUPS: SwatchGroup[] = [
