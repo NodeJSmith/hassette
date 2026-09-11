@@ -1,6 +1,5 @@
 """Unit tests for Listener immediate, duration, entity_id, error_handler, and cancel-listener factory."""
 
-from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -251,18 +250,21 @@ class TestCreateCancelListener:
         """cancel_listener.identity.source_tier is 'framework'."""
         assert make_cancel_listener().identity.source_tier == "framework"
 
-    @pytest.mark.parametrize(
-        "get_attr",
-        [
-            pytest.param(lambda listener: listener.duration_config, id="no_duration_config"),
-            pytest.param(lambda listener: listener.invoker.rate_limiter, id="no_rate_limiter"),
-            pytest.param(lambda listener: listener.invoker.error_handler, id="no_error_handler"),
-            pytest.param(lambda listener: listener.predicate, id="no_predicate"),
-        ],
-    )
-    def test_unset_by_default(self, get_attr: Callable[[Listener], object]) -> None:
-        """cancel_listener has no duration config, rate limiter, error handler, or predicate unless supplied."""
-        assert get_attr(make_cancel_listener()) is None
+    def test_no_duration_config(self) -> None:
+        """cancel_listener.duration_config is None."""
+        assert make_cancel_listener().duration_config is None
+
+    def test_no_rate_limiter(self) -> None:
+        """cancel_listener has no rate limiter (debounce/throttle)."""
+        assert make_cancel_listener().invoker.rate_limiter is None
+
+    def test_no_error_handler(self) -> None:
+        """cancel_listener has no error handler."""
+        assert make_cancel_listener().invoker.error_handler is None
+
+    def test_predicate_default_none(self) -> None:
+        """cancel_listener.predicate defaults to None when not supplied."""
+        assert make_cancel_listener().predicate is None
 
     def test_owner_id_is_preserved(self) -> None:
         """cancel_listener.identity.owner_id matches the supplied owner_id."""
