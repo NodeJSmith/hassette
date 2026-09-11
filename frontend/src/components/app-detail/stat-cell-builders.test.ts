@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCommonStatCells, type CommonStatInput } from "./stat-cell-builders";
+import type { DetailStatsCell } from "../shared/detail-stats";
+import { buildCommonStatCells, COMMON_STAT_CELL_COUNT, type CommonStatInput } from "./stat-cell-builders";
 
 function baseInput(overrides: Partial<CommonStatInput> = {}): CommonStatInput {
   return {
@@ -65,39 +66,22 @@ describe("buildCommonStatCells", () => {
     expect(labels).not.toContain("Dropped");
   });
 
-  it("includes Timed Out with warn tone when timedOut > 0", () => {
-    const cells = buildCommonStatCells(baseInput({ timedOut: 2 }));
+  const conditionalCellCases: { overrides: Partial<CommonStatInput>; expected: DetailStatsCell }[] = [
+    { overrides: { timedOut: 2 }, expected: { label: "Timed Out", value: 2, tone: "warn" } },
+    { overrides: { cancelled: 1 }, expected: { label: "Cancelled", value: 1, tone: "cancel" } },
+    { overrides: { threadLeaked: 4 }, expected: { label: "Thread Leaked", value: 4, tone: "warn" } },
+    { overrides: { suppressedCount: 6 }, expected: { label: "Suppressed", value: 6, tone: "mute" } },
+    { overrides: { droppedCount: 7 }, expected: { label: "Dropped", value: 7, tone: "warn" } },
+  ];
 
-    expect(cells.find((c) => c.label === "Timed Out")).toEqual({ label: "Timed Out", value: 2, tone: "warn" });
-  });
+  it.each(conditionalCellCases)(
+    "includes $expected.label with $expected.tone tone when its count is > 0",
+    ({ overrides, expected }) => {
+      const cells = buildCommonStatCells(baseInput(overrides));
 
-  it("includes Cancelled with cancel tone when cancelled > 0", () => {
-    const cells = buildCommonStatCells(baseInput({ cancelled: 1 }));
-
-    expect(cells.find((c) => c.label === "Cancelled")).toEqual({ label: "Cancelled", value: 1, tone: "cancel" });
-  });
-
-  it("includes Thread Leaked with warn tone when threadLeaked > 0", () => {
-    const cells = buildCommonStatCells(baseInput({ threadLeaked: 4 }));
-
-    expect(cells.find((c) => c.label === "Thread Leaked")).toEqual({
-      label: "Thread Leaked",
-      value: 4,
-      tone: "warn",
-    });
-  });
-
-  it("includes Suppressed with mute tone when suppressedCount > 0", () => {
-    const cells = buildCommonStatCells(baseInput({ suppressedCount: 6 }));
-
-    expect(cells.find((c) => c.label === "Suppressed")).toEqual({ label: "Suppressed", value: 6, tone: "mute" });
-  });
-
-  it("includes Dropped with warn tone when droppedCount > 0", () => {
-    const cells = buildCommonStatCells(baseInput({ droppedCount: 7 }));
-
-    expect(cells.find((c) => c.label === "Dropped")).toEqual({ label: "Dropped", value: 7, tone: "warn" });
-  });
+      expect(cells.find((c) => c.label === expected.label)).toEqual(expected);
+    },
+  );
 
   it("returns only the common cells — no domain-specific cells like Backpressure Dropped or Skipped", () => {
     const cells = buildCommonStatCells(baseInput());
@@ -111,7 +95,7 @@ describe("buildCommonStatCells", () => {
     const cells = buildCommonStatCells(
       baseInput({ timedOut: 1, cancelled: 1, threadLeaked: 1, suppressedCount: 1, droppedCount: 1 }),
     );
-    const conditionalLabels = cells.slice(5).map((c) => c.label);
+    const conditionalLabels = cells.slice(COMMON_STAT_CELL_COUNT).map((c) => c.label);
 
     expect(conditionalLabels).toEqual(["Timed Out", "Cancelled", "Thread Leaked", "Suppressed", "Dropped"]);
   });
@@ -126,7 +110,7 @@ describe("buildCommonStatCells", () => {
         }),
       );
 
-      expect(cells.slice(5).map((c) => c.label)).toEqual(["Timed Out", "Cancelled", "Skipped"]);
+      expect(cells.slice(COMMON_STAT_CELL_COUNT).map((c) => c.label)).toEqual(["Timed Out", "Cancelled", "Skipped"]);
     });
 
     it("inserts right after Timed Out when Cancelled does not render", () => {
@@ -138,7 +122,7 @@ describe("buildCommonStatCells", () => {
         }),
       );
 
-      expect(cells.slice(5).map((c) => c.label)).toEqual(["Timed Out", "Skipped"]);
+      expect(cells.slice(COMMON_STAT_CELL_COUNT).map((c) => c.label)).toEqual(["Timed Out", "Skipped"]);
     });
 
     it("inserts at the start of the conditional zone when neither Timed Out nor Cancelled render", () => {
@@ -151,7 +135,7 @@ describe("buildCommonStatCells", () => {
         }),
       );
 
-      expect(cells.slice(5).map((c) => c.label)).toEqual(["Skipped", "Thread Leaked"]);
+      expect(cells.slice(COMMON_STAT_CELL_COUNT).map((c) => c.label)).toEqual(["Skipped", "Thread Leaked"]);
     });
 
     it("omits the cell entirely when not provided", () => {

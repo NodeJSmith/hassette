@@ -24,7 +24,7 @@ from hassette.cli.output import (
     render_table,
 )
 from hassette.types.types import CliFormat
-from tests.unit.cli.conftest import capture_human, parse_json_stdout
+from tests.unit.cli.conftest import CAPTURE_CONSOLE_WIDTH, capture_human, parse_json_stdout
 
 # Simple test models
 
@@ -424,7 +424,7 @@ class TestRenderTablePipeDetection:
 
         stdout_buf = StringIO()
         # Simulate non-TTY: is_terminal=False, large width so content isn't wrapped
-        new_stdout_console = Console(file=stdout_buf, highlight=False, no_color=True, width=200)
+        new_stdout_console = Console(file=stdout_buf, highlight=False, no_color=True, width=CAPTURE_CONSOLE_WIDTH)
         new_stderr_console = Console(file=StringIO(), highlight=False, no_color=True)
         with (
             patch.object(output_module, "stdout_console", new_stdout_console),

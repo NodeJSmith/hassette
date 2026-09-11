@@ -68,7 +68,7 @@ export function ServiceRow({ service }: ServiceRowProps) {
         {service.exception && (
           <button
             type="button"
-            className="cursor-pointer border-0 bg-transparent p-0 font-inherit text-sm text-muted-foreground underline hover:text-foreground-secondary"
+            className="cursor-pointer border-0 bg-transparent p-0 text-sm text-muted-foreground underline hover:text-foreground-secondary"
             aria-expanded={exceptionOpen}
             onClick={() => setExceptionOpen((v) => !v)}
           >
