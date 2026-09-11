@@ -1,6 +1,7 @@
 """Debounce, throttle, and rate-limiter cancellation behavior."""
 
 import asyncio
+from collections.abc import Awaitable, Callable
 
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.task_bucket import TaskBucket
@@ -8,18 +9,29 @@ from hassette.testing import wait_for
 from tests.support.helpers import make_controlled_clock, settle
 
 
+def make_recording_handler_factory() -> tuple[list[str], Callable[[str], Callable[[], Awaitable[None]]]]:
+    """Build a call recorder and a factory for labeled no-arg async handlers.
+
+    Returns the shared ``calls`` accumulator plus a factory that builds a no-arg async
+    handler appending its own label to that list, so a test can assert on execution order.
+    """
+    calls: list[str] = []
+
+    def make_handler(label: str) -> Callable[[], Awaitable[None]]:
+        async def handler() -> None:
+            calls.append(label)
+
+        return handler
+
+    return calls, make_handler
+
+
 class TestDebounceLogic:
     """Test debounce functionality via RateLimiter directly."""
 
     async def test_debounce_delays_execution(self, bucket: TaskBucket):
         """Test that debounce delays execution until quiet period."""
-        calls: list[str] = []
-
-        def make_handler(label: str):
-            async def handler():
-                calls.append(label)
-
-            return handler
+        calls, make_handler = make_recording_handler_factory()
 
         limiter = RateLimiter(bucket, debounce=0.1)
 
@@ -49,13 +61,7 @@ class TestDebounceLogic:
 
     async def test_debounce_cancels_previous_calls(self, bucket: TaskBucket):
         """Test that new debounce calls cancel previous pending calls."""
-        calls: list[str] = []
-
-        def make_handler(label: str):
-            async def handler():
-                calls.append(label)
-
-            return handler
+        calls, make_handler = make_recording_handler_factory()
 
         limiter = RateLimiter(bucket, debounce=0.2)
 
@@ -101,13 +107,7 @@ class TestDebounceLogic:
 
     async def test_debounce_reset_cancellation_is_silent(self, bucket: TaskBucket):
         """CancelledError from debounce reset (new event superseding old) should be silent."""
-        calls: list[str] = []
-
-        def make_handler(label: str):
-            async def handler():
-                calls.append(label)
-
-            return handler
+        calls, make_handler = make_recording_handler_factory()
 
         limiter = RateLimiter(bucket, debounce=0.1)
 
@@ -170,13 +170,7 @@ class TestThrottleLogic:
 
     async def test_throttle_limits_execution_frequency(self, bucket: TaskBucket):
         """Test that throttle limits how often handler is called."""
-        calls: list[str] = []
-
-        def make_handler(label: str):
-            async def handler():
-                calls.append(label)
-
-            return handler
+        calls, make_handler = make_recording_handler_factory()
 
         clock = make_controlled_clock()
         limiter = RateLimiter(bucket, throttle=0.1, clock=clock)
@@ -202,13 +196,7 @@ class TestThrottleLogic:
         dropping it. `_throttle_last_time` now starts as `None` and the elapsed-window
         check is bypassed until a timestamp has actually been recorded.
         """
-        calls: list[str] = []
-
-        def make_handler(label: str):
-            async def handler():
-                calls.append(label)
-
-            return handler
+        calls, make_handler = make_recording_handler_factory()
 
         clock = make_controlled_clock(start=0.0)
         limiter = RateLimiter(bucket, throttle=0.1, clock=clock)
@@ -243,13 +231,7 @@ class TestThrottleLogic:
 
     async def test_throttle_tracks_time_correctly(self, bucket: TaskBucket):
         """Test that throttle timing works correctly using an injected clock."""
-        calls: list[str] = []
-
-        def make_handler(label: str):
-            async def handler():
-                calls.append(label)
-
-            return handler
+        calls, make_handler = make_recording_handler_factory()
 
         clock = make_controlled_clock(start=1000.0)
 

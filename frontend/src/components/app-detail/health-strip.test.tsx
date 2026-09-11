@@ -16,9 +16,9 @@ const COL_ERROR_RATE = 3;
 const COL_AVG_DURATION = 4;
 
 function renderStrip(listeners: ListenerData[] = [], jobs: JobData[] = []) {
-  const utils = render(<OverviewHealthStrip listeners={listeners} jobs={jobs} />);
-  const cards = utils.container.querySelectorAll(CELL_SELECTOR);
-  return { ...utils, cards };
+  const result = render(<OverviewHealthStrip listeners={listeners} jobs={jobs} />);
+  const cards = result.container.querySelectorAll(CELL_SELECTOR);
+  return { ...result, cards };
 }
 
 describe("OverviewHealthStrip", () => {

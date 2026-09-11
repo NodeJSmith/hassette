@@ -27,11 +27,7 @@ export type ResourceStatus =
 /**
  * Status values for handler invocations and job executions.
  *
- * Covers all values allowed by the ``executions.status`` CHECK constraint: migration 001
- * introduced the original four values (``success``, ``error``, ``cancelled``, ``timed_out``);
- * migration 009 added ``skipped``.
- * Pydantic v2 coerces plain strings to enum members on construction and
- * serialises back to plain strings in JSON responses.
+ * Must stay in sync with the ``executions.status`` CHECK constraint.
  */
 export type ExecutionStatus = "success" | "error" | "cancelled" | "timed_out" | "skipped";
 
@@ -153,12 +149,9 @@ export interface AppManifestsChangedWsMessage {
 /**
  * Payload for a manifest refresh broadcast over WebSocket.
  *
- * Carries no fields — it is a refetch signal, not a diff. The event that triggers it
- * (``HASSETTE_EVENT_APP_LOAD_COMPLETED``) fires after a full bootstrap or reload pass over
- * all apps, and also after a live config edit that only changes manifest metadata (e.g.
- * ``display_name``) with no lifecycle action to take. Either way it does not identify which
- * app(s) changed, so clients should treat receipt as "manifest status may be stale, refetch"
- * rather than inspect the payload for detail.
+ * Carries no fields and does not identify which apps changed — it is a refetch
+ * signal, not a diff. Clients should treat receipt as "manifest status may be
+ * stale, refetch" rather than inspect the payload.
  */
 export type AppManifestsChangedData = Record<string, never>;
 
