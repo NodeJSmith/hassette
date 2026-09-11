@@ -197,10 +197,36 @@ describe("ExecutionTable", () => {
     expect(container.textContent).toContain("cancelled");
   });
 
+  it("shows a skipped label on a skipped row", () => {
+    const { container } = render(
+      <ExecutionTable
+        records={[createExecution("job", { status: "skipped" })]}
+        kind="job"
+        tableId={INCIDENTAL_TABLE_ID}
+      />,
+    );
+    expect(container.textContent).toContain("skipped");
+  });
+
   it("shows Show More button when records exceed 5", () => {
     const records = Array.from({ length: 6 }, (_, i) => createExecution("job", { execution_start_ts: BASE_TS + i }));
     const { getByRole } = render(<ExecutionTable records={records} kind="job" tableId={INCIDENTAL_TABLE_ID} />);
     expect(getByRole("button", { name: /show all/i })).toBeDefined();
+  });
+
+  it("clicking Show More reveals the remaining rows and flips the button to Show less", async () => {
+    const user = userEvent.setup();
+    const records = Array.from({ length: 6 }, (_, i) => createExecution("job", { execution_start_ts: BASE_TS + i }));
+    const { container, getByRole } = render(
+      <ExecutionTable records={records} kind="job" tableId={INCIDENTAL_TABLE_ID} />,
+    );
+    expect(container.querySelectorAll("[data-testid='execution-row']").length).toBe(5);
+
+    await user.click(getByRole("button", { name: /show all/i }));
+    expect(container.querySelectorAll("[data-testid='execution-row']").length).toBe(6);
+
+    await user.click(getByRole("button", { name: /show less/i }));
+    expect(container.querySelectorAll("[data-testid='execution-row']").length).toBe(5);
   });
 
   it("does not show Show More button for 5 or fewer", () => {
