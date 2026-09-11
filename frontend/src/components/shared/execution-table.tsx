@@ -51,7 +51,9 @@ const COL_W_STATUS = "w-[18%] max-mobile:w-auto";
 const COL_W_DURATION = "w-[14%] max-mobile:w-auto";
 const COL_W_TIME = "w-[18%] max-mobile:w-auto";
 
-const STATUS_TEXT_BASE = "font-mono text-xs whitespace-nowrap";
+// Shared by the Status label and the Time cell, which render the same monospaced,
+// non-wrapping text at the same size.
+const MONO_TEXT_CLASS = "font-mono text-xs whitespace-nowrap";
 
 const STATUS_LABEL: Record<StatusKind, string> = {
   ok: "ok",
@@ -75,7 +77,7 @@ export interface ExecutionRecord {
   thread_leaked: boolean;
 }
 
-// Only the per-kind part of the status label's classes; callers compose it with STATUS_TEXT_BASE.
+// Only the per-kind part of the status label's classes; callers compose it with MONO_TEXT_CLASS.
 function statusKindClass(kind: StatusKind): string | undefined {
   switch (kind) {
     case "ok":
@@ -105,7 +107,7 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
       return (
         <div className="flex items-center gap-2">
           <StatusShape kind={statusKind} size={STATUS_SHAPE_SIZE} />
-          <span className={cn(STATUS_TEXT_BASE, statusKindClass(statusKind))}>{STATUS_LABEL[statusKind]}</span>
+          <span className={cn(MONO_TEXT_CLASS, statusKindClass(statusKind))}>{STATUS_LABEL[statusKind]}</span>
           {record.thread_leaked && (
             <Badge variant="warning" size="sm" aria-label="thread leaked past timeout">
               thread leaked
@@ -143,7 +145,7 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     header: "Time",
     meta: {
       headerClassName: COL_W_TIME,
-      cellClassName: cn(COL_W_TIME, "font-mono text-xs whitespace-nowrap"),
+      cellClassName: cn(COL_W_TIME, MONO_TEXT_CLASS),
       cellProps: (record: ExecutionRecord) => ({ title: formatTimestamp(record.execution_start_ts) }),
     },
     cell: ({ row }) => formatRelativeTime(row.original.execution_start_ts),
