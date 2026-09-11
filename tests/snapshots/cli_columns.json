@@ -271,6 +271,13 @@
         "overflow": "ellipsis"
       },
       {
+        "field": "skipped",
+        "formatter": null,
+        "header": "Skipped",
+        "max_width": 7,
+        "overflow": "ellipsis"
+      },
+      {
         "field": "avg_duration_ms",
         "formatter": "fmt_duration_ms",
         "header": "Avg",

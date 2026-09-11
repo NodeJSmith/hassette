@@ -20,6 +20,8 @@ from hassette.testing import wait_for
 from hassette.types import ResourceStatus, Topic
 from hassette.types.enums import ResourceRole, RestartType
 from tests.support.helpers import (
+    PLACEHOLDER_APP_NAME,
+    PLACEHOLDER_RESOURCE_NAME,
     PLACEHOLDER_SERVICE_NAME,
     make_crashed_event,
     make_service_failed_event,
@@ -94,6 +96,44 @@ class TestRegisterInternalEventListeners:
         assert registered_by_name["hassette.service_watcher.shutdown_if_crashed"].get("where") is not None
         assert registered_by_name["hassette.service_watcher.on_service_running"].get("where") is not None
         assert registered_by_name["hassette.service_watcher.on_bus_service_running"].get("where") is not None
+
+    @pytest.mark.parametrize(
+        ("handler_name", "status"),
+        [
+            ("hassette.service_watcher.restart_service", ResourceStatus.FAILED),
+            ("hassette.service_watcher.shutdown_if_crashed", ResourceStatus.CRASHED),
+            ("hassette.service_watcher.on_service_running", ResourceStatus.RUNNING),
+        ],
+    )
+    async def test_acting_handler_excludes_apps_but_not_framework_resources(
+        self, handler_name: str, status: ResourceStatus
+    ) -> None:
+        """Each acting handler rejects APP-role events and accepts every other framework role.
+
+        RESOURCE is asserted alongside SERVICE on purpose: plain ``Resource`` subclasses such as
+        ``AppLifecycleService`` reach ``handle_crash``, and a SERVICE-only filter would drop
+        those framework crashes along with the app noise this filter exists to remove.
+        """
+        hassette = make_watcher_hassette()
+        watcher = make_watcher(hassette)
+
+        await watcher.register_internal_event_listeners()
+        registered_by_name = {call.kwargs["name"]: call.kwargs for call in watcher.bus.on.await_args_list}
+
+        where = registered_by_name[handler_name]["where"]
+        service_event = HassetteServiceEvent.from_service_status(
+            resource_name=PLACEHOLDER_SERVICE_NAME, role=ResourceRole.SERVICE, status=status
+        )
+        resource_event = HassetteServiceEvent.from_service_status(
+            resource_name=PLACEHOLDER_RESOURCE_NAME, role=ResourceRole.RESOURCE, status=status
+        )
+        app_event = HassetteServiceEvent.from_service_status(
+            resource_name=PLACEHOLDER_APP_NAME, role=ResourceRole.APP, status=status
+        )
+
+        assert where(service_event), f"{handler_name} should accept SERVICE-role events"
+        assert where(resource_event), f"{handler_name} should accept RESOURCE-role events"
+        assert not where(app_event), f"{handler_name} should reject APP-role events"
 
 
 def make_running_event(

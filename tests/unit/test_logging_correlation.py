@@ -6,13 +6,13 @@ test_logging_persistence.py (LogPersistenceHandler batching/flush).
 """
 
 import asyncio
-import json
 import logging
 
 import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_ import CorrelationFilter, LogCaptureHandler, LogEntry, add_execution_id
+from tests.support.helpers import first_json_record_containing
 from tests.unit.conftest import LoggingPipelineFixture
 
 
@@ -336,10 +336,7 @@ class TestCorrelationFilterAppliesToChildLoggers:
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
-        output = logging_pipeline.stream.getvalue()
-        assert "framework record" in output, "framework record not in stream output"
-        record_line = [line for line in output.strip().split("\n") if "framework record" in line][0]
-        parsed = json.loads(record_line)
+        parsed = first_json_record_containing(logging_pipeline.stream, "framework record")
         assert parsed.get("source_tier") == "framework"
 
     def test_app_child_logger_gets_app_tier(self, logging_pipeline: LoggingPipelineFixture) -> None:

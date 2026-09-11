@@ -14,7 +14,7 @@ from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.testing import wait_for
 from tests.support.factories import make_change_set
 
-from .conftest import set_registry_apps
+from .conftest import assert_acquires_app_key_lock_once, set_registry_apps
 
 
 class TestApplyChanges:
@@ -146,20 +146,16 @@ class TestReloadAppLocking:
         sequence, rather than each half separately acquiring it. This is a deadlock guard: if
         reload_app instead called the public, lock-acquiring stop_app()/start_app() from
         inside its own lock acquisition, the second acquire would hang forever on the
-        non-reentrant asyncio.Lock — asyncio.wait_for below turns that hang into a test
-        failure instead of a stuck test run.
+        non-reentrant asyncio.Lock — the helper's asyncio.wait_for turns that hang into a
+        test failure instead of a stuck test run.
         """
         mock_registry.unregister_app = Mock(return_value=None)
         mock_registry.get_manifest = Mock(return_value=mock_manifest)
         mock_registry.get_running_apps = Mock(return_value={})
 
-        lock = lifecycle_service._get_app_key_lock("test_app")
-        lock.acquire = AsyncMock(wraps=lock.acquire)
-
-        await asyncio.wait_for(lifecycle_service.reload_app("test_app"), timeout=1)
-
-        assert lock.acquire.call_count == 1
-        assert not lock.locked()
+        await assert_acquires_app_key_lock_once(
+            lifecycle_service, "test_app", lambda: lifecycle_service.reload_app("test_app")
+        )
 
     async def test_concurrent_reload_app_calls_serialize_the_whole_stop_and_start_pair(
         self,

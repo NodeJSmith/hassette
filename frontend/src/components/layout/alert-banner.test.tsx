@@ -49,7 +49,7 @@ describe("AlertBanner", () => {
 
   it("does not render error span when error_message is null", () => {
     const { container } = render(<AlertBanner failedApps={[{ app_key: "my_app", error_message: null }]} />);
-    expect(container.textContent).not.toContain(" — ");
+    expect(container.querySelector("li span")).toBeNull();
   });
 
   it("renders all failed apps in the list", () => {
@@ -73,14 +73,14 @@ describe("AlertBanner", () => {
 describe("TelemetryDegradedBanner", () => {
   it("renders nothing when telemetryDegraded is false", () => {
     const { container } = renderWithAppState(<TelemetryDegradedBanner />, {
-      storeOverrides: { telemetryDegraded: false, droppedOverflow: 0, droppedExhausted: 0 },
+      storeOverrides: { telemetryDegraded: false },
     });
     expect(container.firstChild).toBeNull();
   });
 
   it("renders banner when telemetryDegraded is true", () => {
     const { getByTestId } = renderWithAppState(<TelemetryDegradedBanner />, {
-      storeOverrides: { telemetryDegraded: true, droppedOverflow: 0, droppedExhausted: 0 },
+      storeOverrides: { telemetryDegraded: true },
     });
     expect(getByTestId("telemetry-degraded-banner")).toBeDefined();
   });
@@ -94,7 +94,7 @@ describe("TelemetryDegradedBanner", () => {
 
   it("has role=alert for screen reader announcement", () => {
     const { container } = renderWithAppState(<TelemetryDegradedBanner />, {
-      storeOverrides: { telemetryDegraded: true, droppedOverflow: 0, droppedExhausted: 0 },
+      storeOverrides: { telemetryDegraded: true },
     });
     const banner = container.querySelector("[role='alert']");
     expect(banner).not.toBeNull();

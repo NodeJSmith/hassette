@@ -13,7 +13,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
 from hassette.testing._harness import TEST_TOKEN
 from hassette.testing.config import LATEST_MIGRATION_VERSION
-from hassette.types.types import SourceTier
+from hassette.types.types import ExecutionStatus, SourceTier
 from tests.support.sql import insert_execution_row, sqlite_conn
 
 
@@ -141,6 +141,38 @@ class TestFreshMigration:
             conn.commit()
             row = conn.execute("SELECT status, duration_ms FROM executions WHERE status = 'skipped'").fetchone()
             assert row == ("skipped", 0.0)
+
+    @pytest.mark.parametrize("status", list(ExecutionStatus))
+    def test_check_constraints_accept_every_execution_status(self, status: ExecutionStatus, tmp_path: Path) -> None:
+        """Every ExecutionStatus member is accepted by the live executions.status CHECK constraint.
+
+        ExecutionStatus documents itself as staying in sync with that constraint. Parametrizing over
+        every member makes the claim enforceable: adding a member without a migration that widens
+        the CHECK fails here instead of at a raw insert against a real database.
+        """
+        db_path = tmp_path / "test.db"
+        run_migrations(db_path)
+
+        with sqlite_conn(db_path, foreign_keys=True) as conn:
+            conn.execute("INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (1.0, 1.0, 'running')")
+            conn.execute(
+                "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+                " VALUES ('app', 0, 'my_listener', 'on_x', 'light.kitchen', 'app.py:1')"
+            )
+            conn.commit()
+            insert_execution_row(
+                conn,
+                kind="handler",
+                listener_id=1,
+                session_id=1,
+                execution_start_ts=1.0,
+                duration_ms=5.0,
+                status=status,
+            )
+            conn.commit()
+
+            row = conn.execute("SELECT status FROM executions").fetchone()
+            assert row == (status,)
 
     def test_check_constraints_reject_negative_duration(self, tmp_path: Path) -> None:
         """Executions with negative duration_ms raises IntegrityError."""

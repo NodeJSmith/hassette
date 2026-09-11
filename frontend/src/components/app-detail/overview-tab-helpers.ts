@@ -13,6 +13,10 @@ export function isFailing(item: UnifiedItem): boolean {
   return item.statusKind === "err";
 }
 
+export function isIdle(item: UnifiedItem): boolean {
+  return item.statusKind === "mute";
+}
+
 export function itemRunCount(item: UnifiedItem): number {
   return item.kind === "listener" ? item.data.total_invocations : item.data.total_executions;
 }
