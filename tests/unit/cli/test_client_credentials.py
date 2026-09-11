@@ -14,10 +14,11 @@ import pytest
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 import hassette.cli as cli_pkg
-from hassette.cli.client import HassetteCLIClient
+from hassette.cli.client import CLI_AUTH_DOCS_URL, HassetteCLIClient
+from hassette.cli.target import CLI_AUTH_TOKEN_ENV, CREDENTIAL_SOURCES
 from hassette.config.config import HassetteConfig
 from hassette.web.auth.tokens import TOKEN_FILENAME
-from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, make_cli_config
+from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, capture_stderr, make_cli_config
 from tests.unit.cli.test_client import (
     HEALTH_ENDPOINT,
     get_expecting_exit,
@@ -29,7 +30,15 @@ from tests.unit.cli.test_client import (
     stderr_for_successful_get,
 )
 
-CLI_AUTH_TOKEN_ENV = "HASSETTE__CLI__AUTH_TOKEN"
+
+def unwrapped(stderr: str) -> str:
+    """Collapse Rich's soft line wrapping so a phrase assertion isn't a width assertion.
+
+    The captured stderr console has no terminal, so Rich hard-wraps at its default 80 columns.
+    A message long enough to wrap would otherwise fail an ``in`` check for reasons that have
+    nothing to do with the message's content.
+    """
+    return " ".join(stderr.split())
 
 
 # Web API bearer-token credential attachment
@@ -150,15 +159,15 @@ class TestCredentialAttachment:
         client = factory.build(transport)
         code, stderr = get_expecting_exit(client)
         assert code == 1
-        assert "has hassette been started" in stderr
+        assert "has hassette been started" in unwrapped(stderr)
 
     def test_resolved_token_401_omits_missing_token_hint(self, tmp_path: Path) -> None:
-        """A wrong-but-present token gets the plain server error, not the missing-token hint."""
+        """A wrong-but-present token is diagnosed as rejected, not as missing."""
         factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, web_api_auth_token="wrong-token"))
         transport = make_transport(401, {"detail": "Invalid token"})
         client = factory.build(transport)
         _code, stderr = get_expecting_exit(client)
-        assert "has hassette been started" not in stderr
+        assert "has hassette been started" not in unwrapped(stderr)
 
     def test_empty_string_config_token_401_gives_clear_hint(self, tmp_path: Path) -> None:
         """An empty-string config token must not attach a header and must not resolve as
@@ -169,7 +178,7 @@ class TestCredentialAttachment:
         transport = make_transport(401, {"detail": "Unauthorized"})
         client = factory.build(transport)
         _code, stderr = get_expecting_exit(client)
-        assert "has hassette been started" in stderr
+        assert "has hassette been started" in unwrapped(stderr)
 
 
 # No literal --token CLI argument for the web API credential
@@ -240,22 +249,155 @@ class TestNonLoopback401Message:
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         code, stderr = get_expecting_exit(client)
         assert code == 1
-        assert "--token-file" in stderr
-        assert "cli.token_file" in stderr
-        assert CLI_AUTH_TOKEN_ENV in stderr
-        assert "trusted_proxies" in stderr
-        assert "on the remote instance" in stderr
-        assert "has hassette been started" not in stderr
+        message = unwrapped(stderr)
+        assert "--token-file" in message
+        assert "cli.token_file" in message
+        assert CLI_AUTH_TOKEN_ENV in message
+        assert "trusted_proxies" in message
+        assert "on the remote instance" in message
+        assert "has hassette been started" not in message
 
-    def test_401_with_resolved_credential_omits_the_new_hint(self, tmp_path: Path) -> None:
-        """A wrong-but-present credential for a remote target gets the plain server error,
-        not the suppressed-credential hint — mirrors the existing loopback equivalent.
+    def test_401_with_resolved_credential_omits_the_suppressed_credential_hint(self, tmp_path: Path) -> None:
+        """A wrong-but-present credential for a remote target is diagnosed as rejected.
+
+        It gets neither the suppressed-credential remedy (nothing was suppressed — a CLI-scoped
+        source resolved) nor the ``trusted_proxies`` one, which only applies when no credential
+        is available at all. It does get the proxy caveat: a forward-auth gateway in front of a
+        remote target can answer 401 itself, so the rejection cannot be pinned on Hassette.
         """
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_auth_token="wrong-token")
         transport = make_transport(401, {"detail": "Invalid token"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         _code, stderr = get_expecting_exit(client)
-        assert "trusted_proxies" not in stderr
+        message = unwrapped(stderr)
+        assert "trusted_proxies" not in message
+        assert "cli.auth_token" in message
+        assert "the proxy may be rejecting the request" in message
+
+    def test_loopback_401_with_resolved_credential_omits_the_proxy_caveat(self, tmp_path: Path) -> None:
+        """The proxy caveat is remote-only — a loopback rejection has no gateway to blame."""
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, cli_auth_token="wrong-token"))
+        client = factory.build(make_transport(401, {"detail": "Invalid token"}))
+        _code, stderr = get_expecting_exit(client)
+        assert "the proxy may be rejecting the request" not in unwrapped(stderr)
+
+
+# 401 messaging: name the credential source that was actually sent
+#
+# Content assertions run in JSON mode, where ``detail`` is the raw string the client built.
+# Human mode renders the same string through Rich, which hard-wraps at the captured console's
+# width and will split a long filesystem path mid-token — asserting a path against that output
+# tests the console width, not the message.
+
+
+class TestAuthFailureNamesCredentialSource:
+    def test_401_names_the_local_token_file_that_was_attached(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The companion trap: a loopback target that is a *different* local instance.
+
+        The CLI attaches this machine's own ``.web_api_token``; without naming it, the 401 is
+        indistinguishable from a plain bad-token rejection.
+        """
+        token_path = tmp_path / TOKEN_FILENAME
+        token_path.write_text("local-token", encoding="utf-8")
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
+        client = factory.build(make_transport(401, {"detail": "Not authenticated"}), json_mode=True)
+        detail = get_json_error(client, capsys, expect_code=1)["detail"]
+        assert str(token_path) in detail
+        assert "--token-file" in detail
+        assert CLI_AUTH_TOKEN_ENV in detail
+        assert CLI_AUTH_DOCS_URL in detail
+
+    def test_401_names_the_cli_auth_token_source(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, cli_auth_token="wrong-token"))
+        client = factory.build(make_transport(401, {"detail": "Not authenticated"}), json_mode=True)
+        detail = get_json_error(client, capsys, expect_code=1)["detail"]
+        assert "cli.auth_token" in detail
+        assert CLI_AUTH_DOCS_URL in detail
+
+    def test_401_with_no_credential_says_so_and_links_the_docs(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
+        client = factory.build(make_transport(401, {"detail": "Not authenticated"}), json_mode=True)
+        detail = get_json_error(client, capsys, expect_code=1)["detail"]
+        assert "no credential was attached" in detail
+        # every loopback-applicable source is named, so the message can't be read as
+        # "the token file is missing" while a configured web_api.auth_token sits unmentioned.
+        # Derived from CREDENTIAL_SOURCES rather than spelled out, so adding or renaming a
+        # source fails here instead of silently leaving the message listing a stale chain.
+        for source in CREDENTIAL_SOURCES:
+            assert source.name in detail
+        assert TOKEN_FILENAME in detail
+        assert "--token-file" in detail
+        assert CLI_AUTH_TOKEN_ENV in detail
+        assert CLI_AUTH_DOCS_URL in detail
+
+    def test_401_with_unusable_configured_token_file_does_not_claim_nothing_is_configured(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A configured ``cli.token_file`` that is empty resolves to nothing, silently.
+
+        The resolver falls through on missing/unreadable/empty content, so the client cannot
+        tell "unset" from "configured but unusable". The message must therefore describe the
+        resolution outcome and point at the file, not assert that no ``cli.*`` credential is
+        configured — which would send the operator looking for a setting that is already there.
+        """
+        token_file = tmp_path / "empty-token"
+        token_file.write_text("", encoding="utf-8")
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path, cli_token_file=token_file))
+        client = factory.build(make_transport(401, {"detail": "Not authenticated"}), json_mode=True)
+        detail = get_json_error(client, capsys, expect_code=1)["detail"]
+        assert "no cli.* credential is configured" not in detail
+        assert "nothing in the credential chain resolved" in detail
+        assert "readable" in detail
+
+    def test_human_mode_401_carries_the_hint_too(self, tmp_path: Path) -> None:
+        """The hint is not a ``--json``-only affordance — stderr gets it as well."""
+        (tmp_path / TOKEN_FILENAME).write_text("local-token", encoding="utf-8")
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
+        client = factory.build(make_transport(401, {"detail": "Not authenticated"}))
+        code, stderr = get_expecting_exit(client)
+        message = unwrapped(stderr)
+        assert code == 1
+        assert "the credential sent came from" in message
+        assert "this machine's instance" in message
+
+    def test_401_survives_rich_markup_in_the_credential_source_path(self, tmp_path: Path) -> None:
+        """A credential path containing Rich markup must not turn a 401 into a MarkupError.
+
+        The source name is a filesystem path, and Rich reads square brackets in a printed string
+        as style tags. An unescaped closing tag aborts the render, so the operator gets a
+        traceback in place of the one message that would have explained the failure.
+        """
+        markup_dir = tmp_path / "creds["
+        markup_dir.mkdir()
+        token_file = markup_dir / "bold]token"
+        token_file.write_text("path-token", encoding="utf-8")
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
+        client = factory.build(make_transport(401, {"detail": "Not authenticated"}), token_file_flag=token_file)
+        code, stderr = get_expecting_exit(client)
+        message = unwrapped(stderr)
+        assert code == 1
+        assert "the credential sent came from" in message
+        assert "--token-file" in message
+
+    def test_usage_error_survives_rich_markup_in_the_token_file_path(self, tmp_path: Path) -> None:
+        """An unreadable ``--token-file`` fails before any request, on a different render path.
+
+        The 401 hint and the usage error print through the same Rich console, so a path carrying
+        square brackets breaks both. Escaping only the 401 leaves the earlier failure — a path
+        that cannot even be read — raising MarkupError instead of naming the path at fault.
+        """
+        missing = tmp_path / "creds[" / "bold]token"
+        factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
+        with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
+            factory.build(make_transport(200, {"status": "ok"}), token_file_flag=missing)
+        message = unwrapped(buf.getvalue())
+        assert exc_info.value.code == 1
+        assert "--token-file could not be read" in message
+        assert "bold]token" in message
 
 
 # TLS-verification warning: config-sourced only, not the explicit flag

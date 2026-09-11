@@ -16,15 +16,34 @@ from typing import Any, Literal, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
 from pydantic import ValidationError
+from rich.markup import escape
 
 import hassette.cli.output as cli_output
 from hassette.cli.context import CLIContext
-from hassette.cli.target import resolve_cli_auth_token, resolve_server_target
+from hassette.cli.target import (
+    CLI_AUTH_TOKEN_ENV,
+    SOURCE_CLI_TOKEN_FILE,
+    SOURCE_TOKEN_FILE_FLAG,
+    credential_source_names,
+    resolve_cli_auth_token,
+    resolve_server_target,
+)
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import FatalError
 from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse
 
 DEFAULT_TIMEOUT = 10.0
+
+CLI_AUTH_DOCS_URL = "https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token"
+"""Where an operator hitting a 401 goes next. The web API credential is a separate concept from
+the Home Assistant long-lived token, and nothing in a 401 hints that a second token even exists
+unless the message says so."""
+
+CLI_AUTH_REMEDIES = f"{SOURCE_TOKEN_FILE_FLAG}, {SOURCE_CLI_TOKEN_FILE}, or {CLI_AUTH_TOKEN_ENV}"
+"""The credential-supplying knobs that apply to any target, loopback or not.
+
+Built from the same identifiers the resolvers use so a renamed setting cannot leave this
+remedy naming a knob that no longer exists."""
 
 T = TypeVar("T")
 
@@ -61,7 +80,10 @@ def emit_usage_error(message: str, *, json_mode: bool = False) -> NoReturn:
     if json_mode:
         _write_json_error(None, message)
     else:
-        cli_output.stderr_console.print(f"[bold red]Usage error:[/bold red] {message}", highlight=False)
+        # escape(): a usage error interpolates values the operator controls — a --token-file
+        # path, an --app key, an --instance name. Rich reads square brackets as markup, so an
+        # unescaped "[/bold]" in any of them raises MarkupError instead of printing the error.
+        cli_output.stderr_console.print(f"[bold red]Usage error:[/bold red] {escape(message)}", highlight=False)
     sys.exit(1)
 
 
@@ -90,7 +112,7 @@ class HassetteCLIClient:
 
         try:
             target = resolve_server_target(config, server_url_flag=server_url_flag, verify_ssl_flag=verify_ssl_flag)
-            token = resolve_cli_auth_token(config, target, token_file_flag=token_file_flag)
+            credential = resolve_cli_auth_token(config, target, token_file_flag=token_file_flag)
         except FatalError as exc:
             self.error_usage(str(exc))
 
@@ -100,8 +122,12 @@ class HassetteCLIClient:
         # this invocation, so it came from cli.verify_ssl in config — a silent, durable
         # opt-out rather than a conscious per-invocation choice.
         self._insecure_from_config = not target.verify_ssl and verify_ssl_flag is None
-        self._token_resolved = bool(token)
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        # ResolvedCredential.source, not CredentialSource.name: the qualifier-decorated
+        # "<setting> (<qualifier>)" form naming one concrete source, not the bare setting
+        # identifier credential_source_names() joins when reporting the whole chain. Both are
+        # plain str, so swapping one for the other type-checks and reads plausibly.
+        self._credential_source = credential.source if credential is not None else None
+        headers = {"Authorization": f"Bearer {credential.token}"} if credential is not None else {}
         self._client = httpx.Client(
             base_url=self.base_url, transport=transport, headers=headers, verify=target.verify_ssl
         )
@@ -461,6 +487,71 @@ class HassetteCLIClient:
             highlight=False,
         )
 
+    def _auth_failure_hint(self) -> str:
+        """Explain a 401 in terms of the credential this invocation actually sent.
+
+        A 401 with no context leaves three different failures looking identical: no credential
+        exists, a credential exists but belongs to a *different* instance, or the target is
+        simply not running yet. Naming the resolved source separates them — in particular the
+        loopback case where the CLI attached this machine's own instance token to a request
+        aimed at a second instance on the same host, which is indistinguishable from a plain
+        bad token unless the message says where the value came from.
+
+        Three branches, in the order they are tested:
+
+        - a credential resolved: names the source and says it was rejected
+        - none resolved, loopback: lists the chain that came up empty, then asks whether
+          hassette has been started
+        - none resolved, remote: explains why server-scoped sources were withheld
+
+        Returns:
+            The parenthetical appended to the server's own 401 detail.
+        """
+        if self._credential_source is not None:
+            # Deliberately not split by loopback/remote the way the no-credential cases are: the
+            # remedy is the same either way. The proxy clause is remote-only on noise grounds,
+            # not because loopback rules a proxy out — a local forward-auth gateway on a
+            # loopback port is possible, but it is rare next to the dominant local case (a
+            # stale or wrong instance token), and the sentence above stays true either way
+            # since it never claims Hassette itself was the rejecter.
+            # Joined rather than concatenated so the spacing between clauses is visible in the
+            # source: with += the correct output depends on every fragment carrying a trailing
+            # space, which nothing in the code signals and a formatter could silently strip.
+            sentences = [
+                f"the credential sent came from {self._credential_source}, and it was rejected.",
+                f"Point the CLI at the target's own credential with {CLI_AUTH_REMEDIES}.",
+            ]
+            if not self.is_loopback:
+                sentences.append(
+                    "If this target sits behind a forward-auth proxy, the proxy may be rejecting "
+                    "the request before it reaches Hassette."
+                )
+            sentences.append(f"See {CLI_AUTH_DOCS_URL}")
+            return " ".join(sentences)
+        if self.is_loopback:
+            # Nothing resolved — distinguish this from "token was wrong" so the operator isn't
+            # left guessing why an unauthenticated request failed. Phrased as an outcome rather
+            # than a claim about configuration: a configured cli.token_file that is missing,
+            # unreadable, or empty falls through to the next source silently, so "unset" and
+            # "configured but unusable" are indistinguishable from here.
+            return (
+                "no credential was attached — nothing in the credential chain resolved to a usable "
+                f"value ({credential_source_names()}). If one of those is configured, check that the "
+                "file exists, is readable, and is not empty; otherwise, has hassette been started? "
+                f"Attach one with {CLI_AUTH_REMEDIES}. See {CLI_AUTH_DOCS_URL}"
+            )
+        # A server-scoped credential source was suppressed for this remote target —
+        # separate the remedies by where they apply, since one is local (attach a
+        # credential) and the other is remote (reconfigure the instance being queried).
+        return (
+            "no credential was attached to this remote request — server-scoped sources "
+            f"({credential_source_names(scope='server')}) describe this machine's instance "
+            f"and are never sent to a remote target. Attach one locally with {CLI_AUTH_REMEDIES} — or, "
+            "if this target sits behind a forward-auth proxy, configure trusted_proxies on the "
+            "remote instance, which requires access to that host and a restart. "
+            f"See {CLI_AUTH_DOCS_URL}"
+        )
+
     def _handle_http_error(self, response: httpx.Response) -> NoReturn:
         """Print HTTP error and exit with code 1."""
         try:
@@ -468,23 +559,8 @@ class HassetteCLIClient:
         except (ValueError, AttributeError):
             detail = response.text
 
-        if response.status_code == 401 and not self._token_resolved:
-            if self.is_loopback:
-                # No config value and no token file — distinguish this from "token was
-                # wrong" so the operator isn't left guessing why an unauthenticated
-                # request failed.
-                detail = f"{detail} (no auth token found — has hassette been started?)"
-            else:
-                # A server-scoped credential source was suppressed for this remote target —
-                # separate the remedies by where they apply, since one is local (attach a
-                # credential) and the other is remote (reconfigure the instance being queried).
-                detail = (
-                    f"{detail} (no credential was attached to this remote request. Attach one "
-                    "locally via --token-file, cli.token_file, or the HASSETTE__CLI__AUTH_TOKEN "
-                    "environment variable — or, if this target sits behind a forward-auth proxy, "
-                    "configure trusted_proxies on the remote instance, which requires access to "
-                    "that host and a restart)"
-                )
+        if response.status_code == 401:
+            detail = f"{detail} ({self._auth_failure_hint()})"
         elif 300 <= response.status_code < 400:
             detail = (
                 f"{detail} (this response is a redirect — likely a forward-auth login page in "
@@ -504,14 +580,18 @@ class HassetteCLIClient:
                 response.status_code, str(detail), debug_extra=extra, target=target, tls_verified=tls_verified
             )
         else:
-            cli_output.stderr_console.print(f"[bold red]Error {response.status_code}:[/bold red] {detail}")
+            # escape(): detail carries a server-supplied body and, for a 401, the resolved
+            # credential source — which can be a filesystem path. Rich parses square brackets as
+            # markup, so an unescaped "[/bold]" in either one raises MarkupError instead of
+            # printing the error the operator needs.
+            cli_output.stderr_console.print(f"[bold red]Error {response.status_code}:[/bold red] {escape(str(detail))}")
             if target is not None:
                 cli_output.stderr_console.print(f"[dim]Target:[/dim] {target}", highlight=False)
             if tls_verified is False:
                 self._print_tls_warning()
             if self.debug_mode:
                 cli_output.stderr_console.print(f"  [dim]URL:[/dim]    {response.request.method} {response.url}")
-                cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {response.text}")
+                cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {escape(response.text)}")
         sys.exit(1)
 
     def _handle_malformed_response(self, response: httpx.Response, exc: Exception) -> NoReturn:
@@ -546,14 +626,18 @@ class HassetteCLIClient:
             )
             _write_json_error(response.status_code, detail, debug_extra=extra, target=target, tls_verified=tls_verified)
         else:
-            cli_output.stderr_console.print(f"[bold red]Error:[/bold red] {detail}", highlight=False)
+            # escape(): detail quotes the validation failure, which echoes the offending body
+            # value, and the debug dump below prints the body verbatim. Rich parses square
+            # brackets as markup, so an unescaped closing tag in either raises MarkupError
+            # instead of printing the error.
+            cli_output.stderr_console.print(f"[bold red]Error:[/bold red] {escape(detail)}", highlight=False)
             if target is not None:
                 cli_output.stderr_console.print(f"[dim]Target:[/dim] {target}", highlight=False)
             if tls_verified is False:
                 self._print_tls_warning()
             if self.debug_mode:
                 cli_output.stderr_console.print(f"  [dim]URL:[/dim]    {response.request.method} {response.url}")
-                cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {body}")
+                cli_output.stderr_console.print(f"  [dim]Body:[/dim]   {escape(body)}")
         sys.exit(1)
 
     def _handle_network_error(self, message: str) -> NoReturn:
