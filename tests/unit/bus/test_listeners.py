@@ -1,7 +1,6 @@
 """Unit tests for Listener immediate, duration, entity_id, error_handler, and cancel-listener factory."""
 
-from operator import attrgetter
-from typing import Any
+from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -253,27 +252,31 @@ class TestCreateCancelListener:
         assert make_cancel_listener().identity.source_tier == "framework"
 
     @pytest.mark.parametrize(
-        "attr_path",
-        ["duration_config", "invoker.rate_limiter", "invoker.error_handler", "predicate"],
-        ids=["no_duration_config", "no_rate_limiter", "no_error_handler", "no_predicate"],
-    )
-    def test_unset_by_default(self, attr_path: str) -> None:
-        """cancel_listener has no duration config, rate limiter, error handler, or predicate unless supplied."""
-        assert attrgetter(attr_path)(make_cancel_listener()) is None
-
-    @pytest.mark.parametrize(
-        ("kwarg", "value", "attr_path"),
+        "get_attr",
         [
-            ("owner_id", "my_owner", "identity.owner_id"),
-            ("topic", "hass.event.state_changed.switch.fan", "topic"),
-            ("predicate", StateTo("on"), "predicate"),
+            pytest.param(lambda listener: listener.duration_config, id="no_duration_config"),
+            pytest.param(lambda listener: listener.invoker.rate_limiter, id="no_rate_limiter"),
+            pytest.param(lambda listener: listener.invoker.error_handler, id="no_error_handler"),
+            pytest.param(lambda listener: listener.predicate, id="no_predicate"),
         ],
-        ids=["owner_id", "topic", "predicate"],
     )
-    def test_supplied_value_is_stored(self, kwarg: str, value: Any, attr_path: str) -> None:
-        """Each supplied argument is stored as-is on the resulting cancel_listener."""
-        listener = make_cancel_listener(**{kwarg: value})
-        assert attrgetter(attr_path)(listener) is value
+    def test_unset_by_default(self, get_attr: Callable[[Listener], object]) -> None:
+        """cancel_listener has no duration config, rate limiter, error handler, or predicate unless supplied."""
+        assert get_attr(make_cancel_listener()) is None
+
+    def test_owner_id_is_preserved(self) -> None:
+        """cancel_listener.identity.owner_id matches the supplied owner_id."""
+        assert make_cancel_listener(owner_id="my_owner").identity.owner_id == "my_owner"
+
+    def test_topic_is_set(self) -> None:
+        """cancel_listener.topic matches the supplied topic."""
+        topic = "hass.event.state_changed.switch.fan"
+        assert make_cancel_listener(topic=topic).topic == topic
+
+    def test_predicate_can_be_set(self) -> None:
+        """cancel_listener.predicate is the supplied predicate object, stored without wrapping."""
+        predicate = StateTo("on")
+        assert make_cancel_listener(predicate=predicate).predicate is predicate
 
     def test_works_without_bus_instance(self) -> None:
         """create_cancel_listener() requires no Bus instance — only task_bucket."""
