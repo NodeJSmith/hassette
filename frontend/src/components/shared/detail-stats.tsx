@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-import type { StatusKind } from "../../utils/status";
+import { type StatusKind, TONE_CLASS } from "../../utils/status";
 
 export interface DetailStatsCell {
   label: string;
@@ -12,14 +12,6 @@ export interface DetailStatsCell {
 // leading "mb-2". These are stat values inside a gap-1 flex column that already supplies the
 // spacing, and shared/ must not depend on app-detail/.
 const STAT_VALUE_CLASS = "font-sans text-[length:var(--text-h3)] font-semibold text-foreground";
-
-const toneClass: Record<StatusKind, string> = {
-  err: "text-destructive",
-  warn: "text-[var(--status-warning)]",
-  ok: "text-[var(--status-success)]",
-  cancel: "text-[var(--status-cancel)]",
-  mute: "text-muted-foreground",
-};
 
 interface DetailStatsProps {
   cells: DetailStatsCell[];
@@ -38,7 +30,7 @@ export function DetailStats({ cells, "data-testid": testId }: DetailStatsProps) 
           <span className="whitespace-nowrap text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground">
             {cell.label}
           </span>
-          <span className={cn(STAT_VALUE_CLASS, cell.tone && toneClass[cell.tone])} data-tone={cell.tone}>
+          <span className={cn(STAT_VALUE_CLASS, cell.tone && TONE_CLASS[cell.tone])} data-tone={cell.tone}>
             {cell.value}
           </span>
         </div>

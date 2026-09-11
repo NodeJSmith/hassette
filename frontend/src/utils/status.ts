@@ -197,6 +197,15 @@ export function statusToKind(status: StatusKindMapKey): StatusKind {
   return STATUS_KIND_MAP[status] ?? "mute";
 }
 
+/** Tailwind text-color class for each StatusKind tone. */
+export const TONE_CLASS: Record<StatusKind, string> = {
+  ok: "text-[var(--status-success)]",
+  warn: "text-[var(--status-warning)]",
+  err: "text-destructive",
+  cancel: "text-[var(--status-cancel)]",
+  mute: "text-muted-foreground",
+};
+
 export const TIMED_OUT_LABEL = "timed out";
 
 /** Derive a display chip label from handler/job metadata.
