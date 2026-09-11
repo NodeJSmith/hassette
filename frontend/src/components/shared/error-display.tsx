@@ -18,6 +18,9 @@ interface ResultDisplay {
   message: string;
 }
 
+// The toneClass values below duplicate STATUS_TONE_CLASSES (utils/status.ts), keyed on
+// ExecutionStatus rather than StatusKind, and `success` deliberately carries no tone here.
+// Folding this onto the shared map is tracked in #2169.
 export function resolveResultDisplay(
   status: ExecutionStatus,
   durationMs: number,

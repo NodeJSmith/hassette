@@ -68,6 +68,9 @@ export interface ExecutionRecord {
   thread_leaked: boolean;
 }
 
+// The color values below duplicate STATUS_TONE_CLASSES (utils/status.ts) with per-branch
+// font and truncation classes baked in, and `mute` deliberately carries no tone here.
+// Folding this onto the shared map is tracked in #2175.
 function statusLabelClass(kind: StatusKind): string {
   switch (kind) {
     case "ok":

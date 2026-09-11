@@ -211,7 +211,7 @@ export const STATUS_TONE_CLASSES: Record<StatusKind, string> = {
   err: "text-destructive",
   cancel: "text-[var(--status-cancel)]",
   mute: "text-muted-foreground",
-};
+} satisfies Record<StatusKind, string>;
 
 export const TIMED_OUT_LABEL = "timed out";
 
