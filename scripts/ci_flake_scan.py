@@ -23,6 +23,7 @@ Requires the `gh` CLI, authenticated for this repo.
 import json
 import re
 import subprocess
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -63,6 +64,12 @@ GH_TIMEOUT_SECONDS = 30
 # hundreds) -- see `gh run list --help` for the underlying API page cap.
 GH_RUN_LIST_LIMIT = 500
 
+# Truncation lengths for the "latest error" line in the report. Test failures
+# carry pytest's assertion detail (more useful, worth more room); infra
+# failures are usually a single short GitHub Actions annotation.
+TEST_ERROR_TRUNCATE_LEN = 160
+INFRA_ERROR_TRUNCATE_LEN = 120
+
 
 @dataclass
 class Occurrence:
@@ -78,8 +85,20 @@ class KnownFlake(NamedTuple):
     note: str
 
 
-def gh_json(*args: str) -> Any:
-    result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True, timeout=GH_TIMEOUT_SECONDS)
+def gh_json(*args: str) -> Any | None:
+    """Run a `gh` CLI command and parse its JSON output.
+
+    Returns None if `gh` exits non-zero (auth hiccup, rate limit, transient
+    network error) instead of raising -- mirrors job_log()'s handling so one
+    bad call doesn't crash the whole scan and discard every run's signal
+    already gathered. A hung call still raises subprocess.TimeoutExpired
+    (see GH_TIMEOUT_SECONDS) -- that failure mode is deliberately not caught.
+    """
+    try:
+        result = subprocess.run(["gh", *args], capture_output=True, text=True, check=True, timeout=GH_TIMEOUT_SECONDS)
+    except subprocess.CalledProcessError as exc:
+        print(f"warning: gh {' '.join(args)} failed: {exc.stderr.strip()}", file=sys.stderr)
+        return None
     return json.loads(result.stdout)
 
 
@@ -94,7 +113,7 @@ def load_known_flakes() -> list[KnownFlake]:
 
 
 def list_failed_runs(workflow: str, since_date: str) -> list[dict]:
-    return gh_json(
+    runs = gh_json(
         "run",
         "list",
         "--workflow",
@@ -108,10 +127,23 @@ def list_failed_runs(workflow: str, since_date: str) -> list[dict]:
         "--json",
         "databaseId,headBranch,createdAt",
     )
+    if runs is None:
+        print(f"warning: could not list failed runs for workflow {workflow!r}, skipping it", file=sys.stderr)
+        return []
+    if len(runs) == GH_RUN_LIST_LIMIT:
+        print(
+            f"warning: hit the {GH_RUN_LIST_LIMIT}-run cap for workflow {workflow!r} -- "
+            "results for this lookback window may be truncated",
+            file=sys.stderr,
+        )
+    return runs
 
 
 def failed_jobs(run_id: str) -> list[dict]:
     data = gh_json("run", "view", run_id, "--json", "jobs")
+    if data is None:
+        print(f"warning: could not fetch jobs for run {run_id}, skipping it", file=sys.stderr)
+        return []
     jobs = data["jobs"]
     return [j for j in jobs if j["conclusion"] == "failure" and j["name"] not in SKIP_JOB_NAMES]
 
@@ -134,11 +166,15 @@ def job_log(job_id: str) -> str | None:
     return result.stdout
 
 
-def scan_run(
-    run: dict,
-    test_failures: dict[str, list[Occurrence]],
-    infra_failures: dict[str, list[Occurrence]],
-) -> None:
+def scan_run(run: dict) -> tuple[dict[str, list[Occurrence]], dict[str, list[Occurrence]]]:
+    """Scan one run's failed jobs and return (test_failures, infra_failures) for it.
+
+    Returns fresh dicts rather than mutating caller-owned state -- the caller
+    merges them into its running totals.
+    """
+    test_failures: dict[str, list[Occurrence]] = defaultdict(list)
+    infra_failures: dict[str, list[Occurrence]] = defaultdict(list)
+
     run_id = str(run["databaseId"])
     for job in failed_jobs(run_id):
         occurrence_base = {"run_id": run_id, "branch": run["headBranch"], "created_at": run["createdAt"]}
@@ -159,6 +195,8 @@ def scan_run(
         error_matches = GH_ERROR_RE.findall(log)
         summary = error_matches[0].strip() if error_matches else "(no FAILED line or ##[error] found in log)"
         infra_failures[job["name"]].append(Occurrence(error=summary, **occurrence_base))
+
+    return test_failures, infra_failures
 
 
 def classify_verdict(
@@ -205,7 +243,7 @@ def render_report(
             print(f"{test_id}")
             print(f"  {len(occurrences)}x -- {verdict}")
             print(f"  branches: {', '.join(branches)}")
-            print(f"  latest error: {occurrences[-1].error[:160]}")
+            print(f"  latest error: {occurrences[-1].error[:TEST_ERROR_TRUNCATE_LEN]}")
             if match and match.note:
                 print(f"  note: {match.note}")
             print()
@@ -213,7 +251,7 @@ def render_report(
     if infra_failures:
         print("Non-test (infra) job failures -- not test flakiness, shown for awareness:")
         for job_name, occurrences in sorted(infra_failures.items(), key=lambda kv: -len(kv[1])):
-            print(f"  {job_name}: {len(occurrences)}x -- {occurrences[-1].error[:120]}")
+            print(f"  {job_name}: {len(occurrences)}x -- {occurrences[-1].error[:INFRA_ERROR_TRUNCATE_LEN]}")
 
 
 @app.default
@@ -235,7 +273,11 @@ def main(*, days: int = 7, workflow: list[str] | None = None) -> None:
 
     for wf in workflows:
         for run in list_failed_runs(wf, since_date):
-            scan_run(run, test_failures, infra_failures)
+            run_test_failures, run_infra_failures = scan_run(run)
+            for test_id, occurrences in run_test_failures.items():
+                test_failures[test_id].extend(occurrences)
+            for job_name, occurrences in run_infra_failures.items():
+                infra_failures[job_name].extend(occurrences)
 
     render_report(days, workflows, test_failures, infra_failures, known)
 
