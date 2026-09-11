@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+const DEFAULT_EMPTY_ICON = "∅";
+
 interface EmptyStateProps {
   icon?: string;
   title: string;
@@ -8,10 +10,20 @@ interface EmptyStateProps {
   children?: ReactNode;
 }
 
-export function EmptyState({ icon = "∅", title, body, "data-testid": testId, children }: EmptyStateProps) {
+export function EmptyState({
+  icon = DEFAULT_EMPTY_ICON,
+  title,
+  body,
+  "data-testid": testId,
+  children,
+}: EmptyStateProps) {
   return (
     <div className="p-6 text-center" data-testid={testId}>
-      {icon && <div className="mb-2 text-[length:var(--text-h1)] text-foreground-faint">{icon}</div>}
+      {icon && (
+        <div className="mb-2 text-[length:var(--text-h1)] text-foreground-faint" aria-hidden="true">
+          {icon}
+        </div>
+      )}
       <div className="mb-1 text-sm font-medium text-foreground-secondary">{title}</div>
       {body && <div className="mx-auto max-w-[var(--size-content-narrow)] text-xs text-muted-foreground">{body}</div>}
       {children}

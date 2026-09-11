@@ -24,6 +24,7 @@ import pytest
 
 from hassette.bus.listeners import Listener, Subscription
 from hassette.exceptions import DuplicateListenerError
+from hassette.types import HandlerType
 from tests.support.helpers import create_listener
 
 from .conftest import mock_add_listener
@@ -38,6 +39,22 @@ async def handler_a(event) -> None:
 
 async def handler_b(event) -> None:
     pass
+
+
+def make_bus_listener(bus: "Bus", *, handler: HandlerType = handler_a, name: str = "test_listener") -> Listener:
+    """Build a listener whose identity fields (app key, instance index, owner) come off `bus`."""
+    return create_listener(
+        handler=handler,
+        app_key=bus.parent.app_key,
+        instance_index=bus.parent.index,
+        name=name,
+        owner_id=bus.owner_id,
+    )
+
+
+def listener_key(bus: "Bus", *, name: str = "my_listener", topic: str = "test.topic") -> tuple[str, int, str, str]:
+    """Return the natural key `bus._registered_listeners` stores a listener under."""
+    return (bus.parent.app_key, bus.parent.index, name, topic)
 
 
 async def test_error_default_raises_on_duplicate(bus: "Bus") -> None:
@@ -93,7 +110,7 @@ async def test_skip_leaves_one_listener_in_registry(bus: "Bus") -> None:
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         await bus.on(topic="test.topic", handler=handler_a, name="my_listener", if_exists="skip")
 
-    key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
+    key = listener_key(bus)
     # Only one entry in the registry
     assert key in bus._registered_listeners
     assert len(bus._registered_listeners) == 1
@@ -101,7 +118,7 @@ async def test_skip_leaves_one_listener_in_registry(bus: "Bus") -> None:
 
 async def test_registration_failure_rolls_back_registry_key(bus: "Bus") -> None:
     """A failed add_listener must not leave a phantom key — a retry under the same name succeeds."""
-    key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
+    key = listener_key(bus)
 
     with mock_add_listener(bus) as mock:
         mock.side_effect = RuntimeError("registration boom")
@@ -122,7 +139,7 @@ async def test_replace_then_add_listener_fails_propagates(bus: "Bus") -> None:
     add_listener call then fails, the exception propagates (no silent degradation) and the
     key is left open for a later retry — no handler stays stuck routed under this name.
     """
-    key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
+    key = listener_key(bus)
 
     with mock_add_listener(bus):
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
@@ -145,7 +162,7 @@ async def test_replace_then_add_listener_fails_propagates(bus: "Bus") -> None:
 
 async def test_failed_registration_does_not_evict_concurrent_replace(bus: "Bus") -> None:
     """A failed add must not pop a key a concurrent replace already re-pointed to a new listener."""
-    key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
+    key = listener_key(bus)
 
     gate = asyncio.Event()
     calls: list[Listener] = []
@@ -259,7 +276,7 @@ async def test_replace_leaves_one_routed_listener(bus: "Bus") -> None:
         sub1 = await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
         sub2 = await bus.on(topic="test.topic", handler=handler_b, name="my_listener", if_exists="replace")
 
-    key = (bus.parent.app_key, bus.parent.index, "my_listener", "test.topic")
+    key = listener_key(bus)
     assert key in bus._registered_listeners
     # The stored listener should be the new one
     stored = bus._registered_listeners[key]
@@ -436,13 +453,7 @@ async def test_replace_cancel_old_spawns_mark_cancelled(bus: "Bus") -> None:
 async def test_add_listener_returns_subscription(bus: "Bus") -> None:
     """add_listener returns a Subscription."""
     with mock_add_listener(bus):
-        listener = create_listener(
-            handler=handler_a,
-            app_key=bus.parent.app_key,
-            instance_index=bus.parent.index,
-            name="test_listener",
-            owner_id=bus.owner_id,
-        )
+        listener = make_bus_listener(bus)
         result = await bus.add_listener(listener)
 
     assert isinstance(result, Subscription)
@@ -452,22 +463,10 @@ async def test_add_listener_returns_subscription(bus: "Bus") -> None:
 async def test_add_listener_skip_returns_existing_subscription(bus: "Bus") -> None:
     """add_listener with if_exists='skip' returns subscription to existing listener."""
     with mock_add_listener(bus):
-        listener1 = create_listener(
-            handler=handler_a,
-            app_key=bus.parent.app_key,
-            instance_index=bus.parent.index,
-            name="test_listener",
-            owner_id=bus.owner_id,
-        )
+        listener1 = make_bus_listener(bus)
         sub1 = await bus.add_listener(listener1)
 
-        listener2 = create_listener(
-            handler=handler_a,
-            app_key=bus.parent.app_key,
-            instance_index=bus.parent.index,
-            name="test_listener",
-            owner_id=bus.owner_id,
-        )
+        listener2 = make_bus_listener(bus)
         sub2 = await bus.add_listener(listener2, if_exists="skip")
 
     assert sub2.listener is sub1.listener, "skip should return existing listener's subscription"

@@ -8,6 +8,7 @@ import { formatTimestamp } from "@/utils/format";
 
 import type { ColumnFilters } from "../table-types";
 import { DEFAULT_SORT } from "./constants";
+import { LogTableView } from "./log-table-view";
 import type { ColumnId } from "./types";
 
 vi.mock("@/hooks/use-media-query", () => ({
@@ -20,8 +21,6 @@ vi.mock("@/hooks/use-relative-time", () => ({
 }));
 
 vi.mock("wouter", () => createWouterMock());
-
-import { LogTableView } from "./log-table-view";
 
 function makeEntry(seq: number) {
   return createLogEntry({ seq, timestamp: 1000 + seq, message: `msg-${seq}`, app_key: "app", source_tier: "app" });

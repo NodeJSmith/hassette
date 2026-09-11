@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from playwright.sync_api import Locator, Page, expect
 
 from hassette.logging_ import LogCaptureHandler, LogEntry
 from hassette.web.app import create_fastapi_app
@@ -340,6 +341,44 @@ def seed_time_preset_1h(page, origin_url: str) -> None:
     """
     page.goto(origin_url + "/")
     page.evaluate("localStorage.setItem('hassette:timePreset', JSON.stringify('1h'));")
+
+
+def open_apps_page_with_running_group(page: Page, base_url: str) -> None:
+    """Load /apps at desktop width and open the sidebar's RUNNING status group.
+
+    The sidebar collapses the RUNNING group by default whenever other status groups
+    have apps (the seed data always has a FAILING app), so any test that interacts
+    with a running app in the sidebar must open the group first.
+    """
+    page.set_viewport_size(DESKTOP_VIEWPORT)
+    page.goto(base_url + "/apps")
+    page.wait_for_load_state("networkidle")
+    running_header = page.locator("[data-testid='group-header']", has_text="RUNNING")
+    expect(running_header).to_be_visible()
+    running_header.click()
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
+
+
+def expand_app_instances(page: Page, app_key: str) -> Locator:
+    """Expand a multi-instance app in the sidebar and return its visible instance list.
+
+    The app's status group must already be open (see ``open_apps_page_with_running_group``).
+
+    Args:
+        page: The Playwright page, already on /apps with the app's status group open.
+        app_key: The app's key, used to scope the expand button and instance list locators.
+
+    Returns:
+        The app's ``instance-list`` locator, scoped to this app's sidebar entry and
+        asserted visible.
+    """
+    expand_btn = page.locator(f"[data-testid='app-expand-{app_key}']")
+    expect(expand_btn).to_be_visible()
+    expand_btn.click()
+    page.wait_for_timeout(ANIMATION_SETTLE_MS)
+    instance_list = page.locator(f"[data-testid='app-entry-{app_key}'] [data-testid='instance-list']")
+    expect(instance_list).to_be_visible()
+    return instance_list
 
 
 @pytest.fixture(autouse=True)

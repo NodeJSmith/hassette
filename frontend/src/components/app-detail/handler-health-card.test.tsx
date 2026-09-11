@@ -15,6 +15,8 @@ const mockNavigate = vi.fn();
 vi.mock("wouter", () => createWouterMock({ useLocation: () => ["/", mockNavigate] }));
 
 const APP_KEY = "my_app";
+// Epoch seconds for 2026-01-01T00:00:00Z — any non-null timestamp so the last-active stat row renders.
+const LAST_INVOKED_AT = 1767225600;
 
 const handlerRoute = (kind: HandlerKind, id: number) => `/apps/${APP_KEY}/handlers/${kind}/${id}`;
 
@@ -28,8 +30,19 @@ function makeJobItem(overrides: Parameters<typeof createJob>[0] = {}) {
   return buildItems([], [job])[0];
 }
 
-function renderCard(item: ReturnType<typeof buildItems>[number], { appKey = APP_KEY, instanceQs = "" } = {}) {
-  return renderWithAppState(<HandlerHealthCard item={item} appKey={appKey} instanceQs={instanceQs} tabIndex={0} />);
+type RenderCardOptions = {
+  appKey?: string;
+  instanceQs?: string;
+  tabIndex?: 0 | -1;
+};
+
+function renderCard(
+  item: ReturnType<typeof buildItems>[number],
+  { appKey = APP_KEY, instanceQs = "", tabIndex = 0 }: RenderCardOptions = {},
+) {
+  return renderWithAppState(
+    <HandlerHealthCard item={item} appKey={appKey} instanceQs={instanceQs} tabIndex={tabIndex} />,
+  );
 }
 
 beforeEach(() => {
@@ -121,7 +134,6 @@ describe("HandlerHealthCard — error display", () => {
     });
     const { container } = renderCard(item);
 
-    // 2/10 = 20%
     expect(container.textContent).toContain("20%");
   });
 
@@ -244,9 +256,7 @@ describe("HandlerHealthCard — accessibility", () => {
 
   it("renders the provided tabIndex", () => {
     const item = makeListenerItem({ listener_id: 1 });
-    const { getByTestId } = renderWithAppState(
-      <HandlerHealthCard item={item} appKey={APP_KEY} instanceQs="" tabIndex={-1} />,
-    );
+    const { getByTestId } = renderCard(item, { tabIndex: -1 });
     expect(getByTestId(cardTestId("listener", 1)).getAttribute("tabindex")).toBe("-1");
   });
 
@@ -256,14 +266,12 @@ describe("HandlerHealthCard — accessibility", () => {
       total_invocations: 10,
       failed: 3,
       avg_duration_ms: 12,
-      last_invoked_at: 1767225600,
+      last_invoked_at: LAST_INVOKED_AT,
       last_error_message: "boom",
       last_error_type: "ValueError",
     });
-    const { getByTestId } = renderWithAppState(
-      <HandlerHealthCard item={item} appKey="test_app" instanceQs="" tabIndex={-1} />,
-    );
-    const card = getByTestId("overview-health-card-listener-1");
+    const { getByTestId } = renderCard(item, { tabIndex: -1 });
+    const card = getByTestId(cardTestId("listener", 1));
     const inner = Array.from(card.querySelectorAll("[tabindex]"));
 
     expect(inner.length).toBeGreaterThan(1);
@@ -278,10 +286,10 @@ describe("HandlerHealthCard — accessibility", () => {
       total_invocations: 10,
       failed: 3,
       avg_duration_ms: 12,
-      last_invoked_at: 1767225600,
+      last_invoked_at: LAST_INVOKED_AT,
     });
     const { getByTestId } = renderCard(item);
-    const card = getByTestId("overview-health-card-listener-1");
+    const card = getByTestId(cardTestId("listener", 1));
     const inner = Array.from(card.querySelectorAll("[tabindex]"));
 
     expect(inner.length).toBeGreaterThan(1);

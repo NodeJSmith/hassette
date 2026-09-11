@@ -6,6 +6,8 @@ type AppManifest = components["schemas"]["AppManifestResponse"];
 
 export type GroupKey = "err" | "blocked" | "warn" | "ok" | "stopped" | "disabled";
 
+export const HEALTHY_GROUP_KEY: GroupKey = "ok";
+
 export interface GroupDef {
   key: GroupKey;
   label: string;
@@ -17,7 +19,7 @@ export const GROUP_DEFS: GroupDef[] = [
   { key: "err", label: "FAILING", tone: "err", defaultOpen: true },
   { key: "blocked", label: "BLOCKED", tone: "err", defaultOpen: true },
   { key: "warn", label: "SLOW", tone: "warn", defaultOpen: true },
-  { key: "ok", label: "RUNNING", tone: "ok", defaultOpen: false },
+  { key: HEALTHY_GROUP_KEY, label: "RUNNING", tone: "ok", defaultOpen: false },
   { key: "stopped", label: "STOPPED", tone: "mute", defaultOpen: true },
   { key: "disabled", label: "DISABLED", tone: "mute", defaultOpen: false },
 ];
@@ -30,7 +32,7 @@ export interface GroupedApps {
 }
 
 export function groupAndSortApps(manifests: AppManifest[], appStatuses: Record<string, AppStatusEntry>): GroupedApps {
-  const groups = new Map<GroupKey, AppManifest[]>(GROUP_DEFS.map((g) => [g.key, []]));
+  const groups = new Map<GroupKey, AppManifest[]>(GROUP_DEFS.map((def) => [def.key, []]));
   for (const m of manifests) {
     const key = getGroupKey(m, appStatuses);
     groups.get(key)!.push(m);
@@ -59,5 +61,5 @@ export function getGroupKey(manifest: AppManifest, appStatuses: Record<string, A
   if (WARN_STATUSES.has(status)) return "warn";
   if (status === "stopped" || status === "not_started") return "stopped";
   // "running", "starting", and any unknown status map to the healthy group
-  return "ok";
+  return HEALTHY_GROUP_KEY;
 }

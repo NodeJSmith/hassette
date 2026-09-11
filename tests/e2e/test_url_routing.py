@@ -19,7 +19,13 @@ import re
 import pytest
 from playwright.sync_api import Page, expect
 
-from tests.e2e.conftest import ANIMATION_SETTLE_MS, DATA_LOAD_TIMEOUT_MS, DESKTOP_VIEWPORT, EXTENDED_SETTLE_MS
+from tests.e2e.conftest import (
+    ANIMATION_SETTLE_MS,
+    DATA_LOAD_TIMEOUT_MS,
+    EXTENDED_SETTLE_MS,
+    expand_app_instances,
+    open_apps_page_with_running_group,
+)
 
 pytestmark = pytest.mark.e2e
 
@@ -448,23 +454,9 @@ def test_clicking_tab_button_produces_path_segment_url(page: Page, base_url: str
 
 def test_sidebar_instance_link_uses_query_param_format(page: Page, base_url: str) -> None:
     """Instance links in sidebar use ?instance=N format, not path segment."""
-    page.set_viewport_size(DESKTOP_VIEWPORT)
-    page.goto(base_url + "/apps")
-    page.wait_for_load_state("networkidle")
-    # Open the RUNNING sidebar group first (collapsed by default when
-    # other status groups have apps)
-    running_header = page.locator("[data-testid='group-header']", has_text="RUNNING")
-    expect(running_header).to_be_visible()
-    running_header.click()
-    page.wait_for_timeout(ANIMATION_SETTLE_MS)
-    # Expand multi_app in sidebar
-    expand_btn = page.get_by_label("Expand Multi App", exact=False)
-    expect(expand_btn).to_be_visible()
-    expand_btn.click()
-    page.wait_for_timeout(ANIMATION_SETTLE_MS)
+    open_apps_page_with_running_group(page, base_url)
+    instance_list = expand_app_instances(page, "multi_app")
     # Click instance 0 link
-    instance_list = page.locator("[data-testid='instance-list']").first
-    expect(instance_list).to_be_visible()
     first_instance_link = instance_list.locator("a").first
     expect(first_instance_link).to_be_visible()
     href = first_instance_link.get_attribute("href")
