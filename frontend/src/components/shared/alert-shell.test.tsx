@@ -15,19 +15,22 @@ describe("AlertShell", () => {
     expect(el.className).toContain("rounded-md");
   });
 
-  it("applies tone-specific background tokens", () => {
-    const { getByTestId: getDanger } = render(
-      <AlertShell tone="danger" data-testid="danger">
+  it("applies the danger background token", () => {
+    const { getByTestId } = render(
+      <AlertShell tone="danger" data-testid="b">
         x
       </AlertShell>,
     );
-    const { getByTestId: getWarning } = render(
-      <AlertShell tone="warning" data-testid="warning">
+    expect(getByTestId("b").className).toContain("bg-[var(--destructive-bg)]");
+  });
+
+  it("applies the warning background token", () => {
+    const { getByTestId } = render(
+      <AlertShell tone="warning" data-testid="b">
         x
       </AlertShell>,
     );
-    expect(getDanger("danger").className).toContain("bg-[var(--destructive-bg)]");
-    expect(getWarning("warning").className).toContain("bg-[var(--status-warning-bg)]");
+    expect(getByTestId("b").className).toContain("bg-[var(--status-warning-bg)]");
   });
 
   it("lets className override the shell's own geometry", () => {
