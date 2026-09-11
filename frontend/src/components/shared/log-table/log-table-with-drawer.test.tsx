@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createLogEntry } from "@/test/factories";
 
+import { LogTableWithDrawer } from "./log-table-with-drawer";
+import type { LogDrawerProps } from "./use-log-table";
+
 vi.mock("./log-detail-drawer", () => ({
   LogDetailDrawer: (props: { selectedKey: string | null }) =>
     props.selectedKey ? <aside data-testid="drawer" role="complementary" /> : null,
 }));
-
-import { LogTableWithDrawer } from "./log-table-with-drawer";
-import type { LogDrawerProps } from "./use-log-table";
 
 function makeEntry(seq: number) {
   return createLogEntry({ seq, timestamp: 1000 + seq, message: `msg-${seq}`, app_key: "app", source_tier: "app" });
