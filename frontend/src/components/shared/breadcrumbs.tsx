@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
 /** Crumbs kept visible below the sidebar breakpoint. The nth-last-child selectors below hard-code this value. */
-const MOBILE_VISIBLE_CRUMBS = 2;
+const SIDEBAR_VISIBLE_CRUMBS = 2;
 
 export interface Crumb {
   label: string;
@@ -30,7 +30,7 @@ export function Breadcrumbs({ items, "data-testid": testId = "breadcrumbs" }: Pr
   return (
     <nav className="min-w-0 overflow-hidden" aria-label="Breadcrumb" data-testid={testId}>
       <ol className="m-0 flex list-none items-center gap-1 p-0 font-sans text-sm">
-        {items.length > MOBILE_VISIBLE_CRUMBS && (
+        {items.length > SIDEBAR_VISIBLE_CRUMBS && (
           <li
             className="hidden text-foreground-faint max-sidebar:inline-flex max-sidebar:items-center"
             aria-hidden="true"
@@ -43,8 +43,11 @@ export function Breadcrumbs({ items, "data-testid": testId = "breadcrumbs" }: Pr
             key={`${crumb.label}-${i}`}
             className={cn(
               "inline-flex min-w-0 items-center gap-1",
-              // The 2s in these nth-last-child selectors must match MOBILE_VISIBLE_CRUMBS. Tailwind
-              // extracts class names statically from source, so they can't be interpolated.
+              // Both selectors hard-code SIDEBAR_VISIBLE_CRUMBS, because Tailwind extracts class
+              // names statically from source and cannot interpolate it. They are not the same
+              // idiom: -n+2 is a range, clipping every crumb outside the last N, while (2) is a
+              // position, hiding the leading separator on the Nth-from-last crumb — the first one
+              // still visible.
               "max-sidebar:[&:not(:nth-last-child(-n+2))]:sr-only",
               "max-sidebar:[&:nth-last-child(2)>span]:hidden",
             )}
