@@ -115,7 +115,7 @@ describe("TableFooter", () => {
         },
       };
       render(<TableFooter count="5 apps" columnFilters={filters} />);
-      expect(screen.getByTestId("filter-icon-dot")).toBeTruthy();
+      expect(screen.queryByTestId("filter-icon-dot")).not.toBeNull();
     });
 
     it("shows reset button in mobile panel when onResetFilters provided and a filter is active", async () => {
