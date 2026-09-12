@@ -46,13 +46,16 @@ SKIP_JOB_NAMES = frozenset({"file-sizes", "duplicate-code"})
 #   FAILED tests/unit/test_foo.py::test_bar - AssertionError: boom
 #   ERROR tests/unit/test_foo.py::test_bar - fixture 'db' not found
 #   FAILED tests/unit/test_foo.py::test_bar[media_artist-Artist Name] - ...
+#   ERROR tests/unit/test_syntax_error.py
 # ERROR lines come from collection/fixture/teardown failures, not assertion
 # failures -- still a test-level signal, not infra noise, so they're matched
 # alongside FAILED rather than falling through to GH_ERROR_RE below. The node
 # id is captured non-greedily up to the first " - " rather than with \S+ --
 # parametrized test ids can contain spaces (e.g. readable ids like
 # "Artist Name"), and \S+ would stop at the first space and drop the rest of
-# the id into the message capture instead.
+# the id into the message capture instead. The " - <message>" suffix is
+# optional -- a collection error (e.g. a syntax error) produces an ERROR line
+# with just the path and no message at all.
 # `gh run view --log-failed` prefixes every line with "<job>\t<step>\t<timestamp> ",
 # so this intentionally does not anchor to the start of the line.
 #
@@ -63,7 +66,12 @@ SKIP_JOB_NAMES = frozenset({"file-sizes", "duplicate-code"})
 # code captured in the same job log, misclassifying it as a test failure.
 # Pytest's summary section is the one place this shape is guaranteed to mean
 # an actual test outcome.
-PYTEST_FAILURE_RE = re.compile(r"(?:FAILED|ERROR) (.+?) - (.+)$", re.MULTILINE)
+PYTEST_FAILURE_RE = re.compile(r"(?:FAILED|ERROR) (.+?)(?: - (.+))?$", re.MULTILINE)
+
+# Message text used when a matched ERROR line has no " - <message>" suffix
+# (a bare collection error, e.g. a syntax error) -- PYTEST_FAILURE_RE's
+# message group doesn't participate in the match for these lines.
+COLLECTION_ERROR_PLACEHOLDER = "(collection error, no message in summary line)"
 
 # Marks the start of pytest's summary section; everything after it is exactly
 # one line per failed/errored test, nothing else.
@@ -105,6 +113,16 @@ class KnownFlake(NamedTuple):
     pattern: re.Pattern[str]
     issue: int
     note: str
+
+
+def latest_occurrence(occurrences: list[Occurrence]) -> Occurrence:
+    """Return the most recent occurrence by created_at, not by list/insertion order.
+
+    `gh run list` returns newest-first, and results are combined across
+    multiple workflows -- occurrences[-1] would silently pick whichever
+    occurrence happened to be appended last, not the actual latest one.
+    """
+    return max(occurrences, key=lambda o: Instant.parse_iso(o.created_at))
 
 
 def gh_json(*args: str) -> Any | None:
@@ -218,7 +236,8 @@ def scan_run(run: dict) -> tuple[dict[str, list[Occurrence]], dict[str, list[Occ
         test_matches = PYTEST_FAILURE_RE.findall(pytest_summary)
         if test_matches:
             for test_id, error in test_matches:
-                test_failures[test_id].append(Occurrence(error=error.strip(), **occurrence_base))
+                error_text = error.strip() or COLLECTION_ERROR_PLACEHOLDER
+                test_failures[test_id].append(Occurrence(error=error_text, **occurrence_base))
             continue
 
         error_matches = GH_ERROR_RE.findall(log)
@@ -283,7 +302,7 @@ def render_report(
             print(f"{test_id}")
             print(f"  {len(occurrences)}x -- {verdict}")
             print(f"  branches: {', '.join(branches)}")
-            print(f"  latest error: {occurrences[-1].error[:TEST_ERROR_TRUNCATE_LEN]}")
+            print(f"  latest error: {latest_occurrence(occurrences).error[:TEST_ERROR_TRUNCATE_LEN]}")
             if match and match.note:
                 print(f"  note: {match.note}")
             print()
@@ -291,7 +310,8 @@ def render_report(
     if infra_failures:
         print("Non-test (infra) job failures -- not test flakiness, shown for awareness:")
         for job_name, occurrences in sorted(infra_failures.items(), key=lambda kv: -len(kv[1])):
-            print(f"  {job_name}: {len(occurrences)}x -- {occurrences[-1].error[:INFRA_ERROR_TRUNCATE_LEN]}")
+            latest_error = latest_occurrence(occurrences).error[:INFRA_ERROR_TRUNCATE_LEN]
+            print(f"  {job_name}: {len(occurrences)}x -- {latest_error}")
 
 
 @app.default
