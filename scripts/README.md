@@ -19,6 +19,15 @@ Operational scripts for building, running, and demoing hassette.
 - **`release_contributors.py`** — find external contributors between two git
   tags. Filters bots and repo owner, resolves GitHub usernames from noreply
   emails. Used by the `changelog-review` command during release prep.
+- **`ci_flake_scan.py`** — scan recent GitHub Actions runs (`Tests`, `E2E Tests`
+  by default) for recurring pytest failures, separating real flaky tests from
+  GitHub Actions infra noise (network hiccups, artifact-permission errors).
+  Cross-references `known_flakes.yaml` so already-tracked flakes are reported
+  as known rather than resurfacing every scan. `--days N` to change the
+  lookback window, `--workflow` (repeatable) to scope to specific workflows.
+- **`known_flakes.yaml`** — registry of already-tracked flaky tests, read by
+  `ci_flake_scan.py`. Add an entry after filing an issue for a newly
+  discovered flake.
 - **`docker_start.sh`** — Docker container entrypoint.
 - **`docker/`** — Docker Compose configs for demo/test environments
   (`ha-demo.yml` defines the HA + hassette + Vite demo stack;

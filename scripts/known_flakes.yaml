@@ -1,0 +1,21 @@
+# Registry of already-tracked flaky tests, read by scripts/ci_flake_scan.py.
+#
+# When the scanner reports a test as "NEW — recurring", investigate it. If it
+# turns out to be a genuine flake (not a one-off real bug) and you file an
+# issue for it, add an entry here so future scans report it as known instead
+# of re-flagging it.
+#
+# `pattern` is matched with re.search against the full pytest test id
+# (e.g. "tests/unit/core/test_execution.py::TestRunThroughGuard::test_foo").
+
+flakes:
+  - pattern: "test_emit_completion_events_unowned_warning_fires_after_rate_limit_window"
+    issue: 1773
+    note: >
+      Process-wide time.monotonic patch races asyncio's own clock reads.
+      See CLAUDE.md ("time.monotonic patch flake").
+
+  - pattern: "TestRunThroughGuard::test_dropped_at_drain_time_resolves_its_own_future"
+    issue: 2178
+    note: >
+      Same clock-racing family as #1773, different test file.
