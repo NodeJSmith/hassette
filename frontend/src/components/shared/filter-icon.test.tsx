@@ -38,8 +38,7 @@ describe("FilterIcon", () => {
 
   it("shows active dot when active=true", () => {
     render(<FilterIcon active={true} />);
-    const dot = screen.getByTestId("filter-icon-dot");
-    expect(dot).toBeTruthy();
+    expect(screen.queryByTestId("filter-icon-dot")).not.toBeNull();
   });
 
   it("does not show active dot when active=false", () => {
