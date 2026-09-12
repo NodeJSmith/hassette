@@ -422,7 +422,7 @@ describe("SortHeader — hasActiveFilter", () => {
         Status
       </SortHeader>,
     );
-    expect(screen.getByTestId("filter-icon-dot")).toBeTruthy();
+    expect(screen.queryByTestId("filter-icon-dot")).not.toBeNull();
   });
 
   it("does not show the active dot when hasActiveFilter=false", () => {
