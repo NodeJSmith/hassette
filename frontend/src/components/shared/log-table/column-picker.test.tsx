@@ -132,7 +132,7 @@ describe("ColumnPicker", () => {
       }
     });
 
-    it("disabled rows drop the pointer cursor via has-[:disabled]:cursor-default", async () => {
+    it("disabled rows do not advertise a pointer cursor", async () => {
       const user = userEvent.setup();
       const { getByTestId, getAllByRole } = renderPicker();
       await user.click(getByTestId("column-picker"));
@@ -142,8 +142,9 @@ describe("ColumnPicker", () => {
 
       expect(disabledLabels.length).toBeGreaterThan(0);
       for (const label of disabledLabels) {
-        // The row is never toggleable, so it must not advertise a pointer cursor. The
-        // has-[:disabled] variant outranks the base cursor-pointer on specificity.
+        // A disabled row is never toggleable, so it must not show a pointer cursor. jsdom
+        // applies no Tailwind CSS, so this pins the utility's presence rather than the
+        // computed cursor; the cascade itself is Tailwind's guarantee, not this test's.
         expect(label?.className).toContain("has-[:disabled]:cursor-default");
       }
     });
