@@ -6,14 +6,19 @@ import { cn } from "@/lib/utils";
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
 
-interface Props {
+// Shared affordance for the bare inline buttons in this popover: no chrome of their own,
+// muted until hovered, with a visible keyboard focus ring.
+const BARE_BUTTON_CLASSES =
+  "cursor-pointer border-none bg-transparent text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
+
+export interface ColumnPickerProps {
   selectedColumns: ColumnId[];
   viewportHidden: ReadonlySet<ColumnId>;
   onToggle: (id: ColumnId) => void;
   onReset: () => void;
 }
 
-export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onReset }: Props) {
+export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onReset }: ColumnPickerProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -21,10 +26,7 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={cn(
-            "inline-flex cursor-pointer items-center rounded-sm border-none bg-transparent p-1 text-muted-foreground transition-colors",
-            "hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
-          )}
+          className={cn(BARE_BUTTON_CLASSES, "inline-flex items-center rounded-sm p-1")}
           aria-label="Choose visible columns"
           data-testid="column-picker"
         >
@@ -44,7 +46,7 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
             return (
               <label
                 key={col.id}
-                className="flex cursor-pointer items-center justify-between gap-2 py-0 text-sm text-foreground has-[:disabled]:text-muted-foreground [&_input[type=checkbox]]:accent-[var(--primary)]"
+                className="flex cursor-pointer items-center justify-between gap-2 text-sm text-foreground has-[:disabled]:cursor-default has-[:disabled]:text-muted-foreground [&_input[type=checkbox]]:accent-[var(--primary)]"
                 title={isViewportHidden ? "Hidden at this screen size" : undefined}
               >
                 <span>{col.label}</span>
@@ -58,11 +60,7 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
             );
           })}
         </div>
-        <button
-          type="button"
-          className="cursor-pointer border-none bg-transparent px-0 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-          onClick={onReset}
-        >
+        <button type="button" className={cn(BARE_BUTTON_CLASSES, "px-0 py-1 text-xs")} onClick={onReset}>
           Reset to defaults
         </button>
       </PopoverContent>

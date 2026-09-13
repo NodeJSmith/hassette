@@ -7,6 +7,7 @@ import { useAppStore } from "@/state/store";
 import { pluralize } from "@/utils/format";
 
 import type { ColumnFilters } from "../table-types";
+import type { ColumnPickerProps } from "./column-picker";
 import { DEFAULT_LEVEL, LEVEL_OPTIONS, RENDER_CAP, TIER_OPTIONS } from "./constants";
 import type { ColumnId, LevelFilter, LogSortState, RowKey, ViewContext } from "./types";
 import { rowKey } from "./types";
@@ -39,13 +40,6 @@ export interface LogDrawerProps {
   entries: LogEntry[];
   onClose: () => void;
   onNavigate: (key: RowKey) => void;
-}
-
-export interface ColumnPickerProps {
-  selectedColumns: ColumnId[];
-  viewportHidden: ReadonlySet<ColumnId>;
-  onToggle: (id: ColumnId) => void;
-  onReset: () => void;
 }
 
 export interface UseLogTableResult {
