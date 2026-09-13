@@ -1,9 +1,5 @@
 // Shared SVG icon components
-// Sidebar icons use fill-based paths (no stroke attributes).
-// All other icons use stroke-based attributes.
 import type { ReactNode } from "react";
-
-// --- Stroke-based icons ---
 
 /** Shared 24x24 stroke-style wrapper — every stroke icon differs only in its inner shape. */
 function StrokeIcon({ children }: { children: ReactNode }) {
@@ -60,8 +56,8 @@ export const IconWarning = () => (
 );
 
 /** Small inline chevron for expand/collapse toggles. */
-export const IconChevron = ({ open, size = 10 }: { open: boolean; size?: number }) => (
-  <svg viewBox="0 0 12 12" width={size} height={size} aria-hidden="true">
+export const IconChevron = ({ open }: { open: boolean }) => (
+  <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true">
     <polyline points={open ? "2,4 6,8 10,4" : "4,2 8,6 4,10"} fill="none" stroke="currentColor" strokeWidth="1.5" />
   </svg>
 );
