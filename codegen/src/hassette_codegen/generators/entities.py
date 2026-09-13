@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
 from hassette_codegen.extractors.features import ExtractedEnum
+from hassette_codegen.extractors.services import SupportsResponseValue
 from hassette_codegen.generators._env import get_jinja_env
 from hassette_codegen.generators.states import rename_collisions
 from hassette_codegen.rendering import escape_docstring_text, require_identifier
@@ -43,6 +44,11 @@ class ServiceForTemplate:
     method_name: str
     params: list[ServiceParam]
     doc: str
+    supports_response: SupportsResponseValue = "NONE"
+
+    @property
+    def has_response(self) -> bool:
+        return self.supports_response in ("OPTIONAL", "ONLY")
 
 
 def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
@@ -146,9 +152,11 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
                 method_name=service.method_name,
                 params=sorted_params,
                 doc=build_method_docstring(summary, sorted_params),
+                supports_response=service.supports_response,
             )
         )
 
+    has_response_services = any(s.has_response for s in services_for_template)
     return template.render(
         domain=domain.name,
         domain_title=domain_title,
@@ -156,6 +164,7 @@ def generate_entity_wrapper(domain: ExtractedDomain) -> str | None:
         extra_imports=extra_imports,
         type_aliases=type_aliases,
         enum_imports=sorted(used_enums),
+        has_response_services=has_response_services,
     )
 
 

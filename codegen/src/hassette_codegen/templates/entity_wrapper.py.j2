@@ -4,6 +4,10 @@ from typing import Any{% if type_aliases %}, Literal{% endif %}
 from hassette.models.states import {{ domain_title }}State
 from hassette.models.states.{{ domain }} import {{ domain_title }}Attributes{% for enum in enum_imports %}, {{ enum }}{% endfor %}
 
+{% if has_response_services %}
+from hassette.models.services import ServiceResponse
+
+{% endif %}
 from .base import BaseEntity, BaseEntitySyncFacade
 {% for imp in extra_imports %}
 {{ imp }}
@@ -36,7 +40,7 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
         {{ param.name }}: {{ param.python_type }} = None,
 {% endif %}
 {% endfor %}
-    ) -> Coroutine[Any, Any, None]:
+    ) -> Coroutine[Any, Any, {{ "ServiceResponse" if service.has_response else "None" }}]:
 {{ service.doc }}
         return self.api.call_service(
             domain=self.domain,
@@ -45,15 +49,21 @@ class {{ domain_title }}Entity(BaseEntity[{{ domain_title }}State, str]):
 {% for param in service.params %}
             {{ param.name }}={{ param.name }},
 {% endfor %}
+{% if service.has_response %}
+            return_response=True,
+{% endif %}
         )
 {% else %}
 
-    def {{ service.method_name }}(self) -> Coroutine[Any, Any, None]:
+    def {{ service.method_name }}(self) -> Coroutine[Any, Any, {{ "ServiceResponse" if service.has_response else "None" }}]:
 {{ service.doc }}
         return self.api.call_service(
             domain=self.domain,
             service={{ service.name | py_literal }},
             target={"entity_id": self.entity_id},
+{% if service.has_response %}
+            return_response=True,
+{% endif %}
         )
 {% endif %}
 {% endfor %}
@@ -74,23 +84,37 @@ class {{ domain_title }}EntitySyncFacade(BaseEntitySyncFacade[{{ domain_title }}
         {{ param.name }}: {{ param.python_type }} = None,
 {% endif %}
 {% endfor %}
-    ) -> None:
+    ) -> {{ "ServiceResponse | None" if service.has_response else "None" }}:
 {{ service.doc }}
+{% if service.has_response %}
+        return self.entity.api.sync.call_service(
+{% else %}
         self.entity.api.sync.call_service(
+{% endif %}
             domain=self.entity.domain,
             service={{ service.name | py_literal }},
             target={"entity_id": self.entity.entity_id},
 {% for param in service.params %}
             {{ param.name }}={{ param.name }},
 {% endfor %}
+{% if service.has_response %}
+            return_response=True,
+{% endif %}
         )
 {% else %}
-    def {{ service.method_name }}(self) -> None:
+    def {{ service.method_name }}(self) -> {{ "ServiceResponse | None" if service.has_response else "None" }}:
 {{ service.doc }}
+{% if service.has_response %}
+        return self.entity.api.sync.call_service(
+{% else %}
         self.entity.api.sync.call_service(
+{% endif %}
             domain=self.entity.domain,
             service={{ service.name | py_literal }},
             target={"entity_id": self.entity.entity_id},
+{% if service.has_response %}
+            return_response=True,
+{% endif %}
         )
 {% endif %}
 {% endfor %}

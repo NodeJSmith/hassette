@@ -1,6 +1,7 @@
 from collections.abc import Coroutine
 from typing import Any, Literal
 
+from hassette.models.services import ServiceResponse
 from hassette.models.states import WeatherState
 from hassette.models.states.weather import WeatherAttributes
 
@@ -40,7 +41,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
         self,
         *,
         type: WeatherType,
-    ) -> Coroutine[Any, Any, None]:
+    ) -> Coroutine[Any, Any, ServiceResponse]:
         """Retrieves the forecasts from one or more weather services.
 
         Args:
@@ -51,6 +52,7 @@ class WeatherEntity(BaseEntity[WeatherState, str]):
             service="get_forecasts",
             target={"entity_id": self.entity_id},
             type=type,
+            return_response=True,
         )
 
 
@@ -78,15 +80,16 @@ class WeatherEntitySyncFacade(BaseEntitySyncFacade[WeatherState, str]):
         self,
         *,
         type: WeatherType,
-    ) -> None:
+    ) -> ServiceResponse | None:
         """Retrieves the forecasts from one or more weather services.
 
         Args:
             type: The scope of the weather forecast.
         """
-        self.entity.api.sync.call_service(
+        return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_forecasts",
             target={"entity_id": self.entity.entity_id},
             type=type,
+            return_response=True,
         )

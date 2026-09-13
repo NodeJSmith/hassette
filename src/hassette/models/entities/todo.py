@@ -1,6 +1,7 @@
 from collections.abc import Coroutine
 from typing import Any
 
+from hassette.models.services import ServiceResponse
 from hassette.models.states import TodoState
 from hassette.models.states.todo import TodoAttributes, TodoItemStatus
 
@@ -21,7 +22,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
         self,
         *,
         status: list[TodoItemStatus] | None = None,
-    ) -> Coroutine[Any, Any, None]:
+    ) -> Coroutine[Any, Any, ServiceResponse]:
         """Gets items on a to-do list.
 
         Args:
@@ -32,6 +33,7 @@ class TodoEntity(BaseEntity[TodoState, str]):
             service="get_items",
             target={"entity_id": self.entity_id},
             status=status,
+            return_response=True,
         )
 
     def add_item(
@@ -127,17 +129,18 @@ class TodoEntitySyncFacade(BaseEntitySyncFacade[TodoState, str]):
         self,
         *,
         status: list[TodoItemStatus] | None = None,
-    ) -> None:
+    ) -> ServiceResponse | None:
         """Gets items on a to-do list.
 
         Args:
             status: Only return to-do items with the specified statuses. Returns not completed actions by default.
         """
-        self.entity.api.sync.call_service(
+        return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="get_items",
             target={"entity_id": self.entity.entity_id},
             status=status,
+            return_response=True,
         )
 
     def add_item(

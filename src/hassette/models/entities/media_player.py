@@ -1,6 +1,7 @@
 from collections.abc import Coroutine
 from typing import Any
 
+from hassette.models.services import ServiceResponse
 from hassette.models.states import MediaPlayerState
 from hassette.models.states.media_player import MediaPlayerAttributes, MediaPlayerEnqueue, MediaType, RepeatMode
 
@@ -184,7 +185,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         *,
         media_content_id: str | None = None,
         media_type: MediaType | None = None,
-    ) -> Coroutine[Any, Any, None]:
+    ) -> Coroutine[Any, Any, ServiceResponse]:
         """Browses the available media.
 
         Args:
@@ -198,6 +199,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
             target={"entity_id": self.entity_id},
             media_content_id=media_content_id,
             media_type=media_type,
+            return_response=True,
         )
 
     def search_media(
@@ -207,7 +209,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
         media_content_id: str | None = None,
         media_filter_classes: list[str] | None = None,
         media_type: MediaType | None = None,
-    ) -> Coroutine[Any, Any, None]:
+    ) -> Coroutine[Any, Any, ServiceResponse]:
         """Searches the available media.
 
         Args:
@@ -225,6 +227,7 @@ class MediaPlayerEntity(BaseEntity[MediaPlayerState, str]):
             media_content_id=media_content_id,
             media_filter_classes=media_filter_classes,
             media_type=media_type,
+            return_response=True,
         )
 
     def select_source(
@@ -499,7 +502,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         *,
         media_content_id: str | None = None,
         media_type: MediaType | None = None,
-    ) -> None:
+    ) -> ServiceResponse | None:
         """Browses the available media.
 
         Args:
@@ -507,12 +510,13 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
             media_type: The type of the content to browse, such as image, music, TV show, video, episode, channel, or
                 playlist.
         """
-        self.entity.api.sync.call_service(
+        return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="browse_media",
             target={"entity_id": self.entity.entity_id},
             media_content_id=media_content_id,
             media_type=media_type,
+            return_response=True,
         )
 
     def search_media(
@@ -522,7 +526,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
         media_content_id: str | None = None,
         media_filter_classes: list[str] | None = None,
         media_type: MediaType | None = None,
-    ) -> None:
+    ) -> ServiceResponse | None:
         """Searches the available media.
 
         Args:
@@ -532,7 +536,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
             media_type: The type of the content to browse, such as image, music, TV show, video, episode, channel, or
                 playlist.
         """
-        self.entity.api.sync.call_service(
+        return self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="search_media",
             target={"entity_id": self.entity.entity_id},
@@ -540,6 +544,7 @@ class MediaPlayerEntitySyncFacade(BaseEntitySyncFacade[MediaPlayerState, str]):
             media_content_id=media_content_id,
             media_filter_classes=media_filter_classes,
             media_type=media_type,
+            return_response=True,
         )
 
     def select_source(
