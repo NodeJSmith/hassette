@@ -132,6 +132,22 @@ describe("ColumnPicker", () => {
       }
     });
 
+    it("disabled rows drop the pointer cursor via has-[:disabled]:cursor-default", async () => {
+      const user = userEvent.setup();
+      const { getByTestId, getAllByRole } = renderPicker();
+      await user.click(getByTestId("column-picker"));
+
+      const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
+      const disabledLabels = checkboxes.filter((cb) => cb.disabled).map((cb) => cb.closest("label"));
+
+      expect(disabledLabels.length).toBeGreaterThan(0);
+      for (const label of disabledLabels) {
+        // The row is never toggleable, so it must not advertise a pointer cursor. The
+        // has-[:disabled] variant outranks the base cursor-pointer on specificity.
+        expect(label?.className).toContain("has-[:disabled]:cursor-default");
+      }
+    });
+
     it("non-required, non-hidden columns are not disabled", async () => {
       const user = userEvent.setup();
       // "app" and "function" are optional and not viewport-hidden

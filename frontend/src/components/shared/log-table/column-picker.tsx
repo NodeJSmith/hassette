@@ -6,9 +6,9 @@ import { cn } from "@/lib/utils";
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
 
-// Shared affordance for the bare inline buttons in this popover: no chrome of their own,
-// muted until hovered, with a visible keyboard focus ring.
-const BARE_BUTTON_CLASSES =
+// Hover and focus-ring affordance shared by this popover's two chrome-less buttons, so the
+// pair cannot drift apart. Per-button layout and sizing stay at the call sites.
+const BARE_BUTTON_CLASS =
   "cursor-pointer border-none bg-transparent text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
 
 export interface ColumnPickerProps {
@@ -26,7 +26,7 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
       <PopoverTrigger asChild>
         <button
           type="button"
-          className={cn(BARE_BUTTON_CLASSES, "inline-flex items-center rounded-sm p-1")}
+          className={cn(BARE_BUTTON_CLASS, "inline-flex items-center rounded-sm p-1")}
           aria-label="Choose visible columns"
           data-testid="column-picker"
         >
@@ -60,7 +60,7 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
             );
           })}
         </div>
-        <button type="button" className={cn(BARE_BUTTON_CLASSES, "px-0 py-1 text-xs")} onClick={onReset}>
+        <button type="button" className={cn(BARE_BUTTON_CLASS, "px-0 py-1 text-xs")} onClick={onReset}>
           Reset to defaults
         </button>
       </PopoverContent>
