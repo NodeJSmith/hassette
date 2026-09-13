@@ -138,14 +138,15 @@ describe("ColumnPicker", () => {
       await user.click(getByTestId("column-picker"));
 
       const checkboxes = getAllByRole("checkbox") as HTMLInputElement[];
-      const disabledLabels = checkboxes.filter((cb) => cb.disabled).map((cb) => cb.closest("label"));
+      expect(checkboxes.some((cb) => cb.disabled)).toBe(true);
 
-      expect(disabledLabels.length).toBeGreaterThan(0);
-      for (const label of disabledLabels) {
-        // A disabled row is never toggleable, so it must not show a pointer cursor. jsdom
-        // applies no Tailwind CSS, so this pins the utility's presence rather than the
-        // computed cursor; the cascade itself is Tailwind's guarantee, not this test's.
-        expect(label?.className).toContain("has-[:disabled]:cursor-default");
+      // Every row carries the utility unconditionally; the `:has(:disabled)` selector, not
+      // React, is what narrows it to disabled rows. So this asserts across all rows rather
+      // than filtering to the disabled ones, which would imply a per-row conditional that
+      // does not exist. jsdom applies no Tailwind CSS, so this pins the utility's presence
+      // rather than the computed cursor; the cascade itself is Tailwind's guarantee.
+      for (const checkbox of checkboxes) {
+        expect(checkbox.closest("label")?.className).toContain("has-[:disabled]:cursor-default");
       }
     });
 

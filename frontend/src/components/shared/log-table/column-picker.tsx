@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
 
-// Hover and focus-ring affordance shared by this popover's two chrome-less buttons, so the
-// pair cannot drift apart. Per-button layout and sizing stay at the call sites.
+// The bare-button look (no border or background) plus the hover and focus-ring affordance,
+// shared by this popover's two buttons so the pair cannot drift apart. Per-button layout
+// and sizing stay at the call sites.
 const BARE_BUTTON_CLASS =
   "cursor-pointer border-none bg-transparent text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
 
