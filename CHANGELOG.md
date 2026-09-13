@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.0](https://github.com/NodeJSmith/hassette/compare/v0.54.0...v0.55.0) (2026-09-13)
+
+
+### Features
+
+* add CI flake scanner for recurring test failures ([#2192](https://github.com/NodeJSmith/hassette/issues/2192)) ([fef214d](https://github.com/NodeJSmith/hassette/commit/fef214d6590d4fae539ff7b433c669bd3584017f))
+* add extra_loggers setting to attach non-hassette-namespaced loggers to the logging pipeline ([#1949](https://github.com/NodeJSmith/hassette/issues/1949)) ([dfff757](https://github.com/NodeJSmith/hassette/commit/dfff757bbdb089e2ee0731471d37d2627a344275))
+
+
+### Bug Fixes
+
+* clean up CLI dead code and error-path inconsistencies ([#1917](https://github.com/NodeJSmith/hassette/issues/1917)) ([e859dba](https://github.com/NodeJSmith/hassette/commit/e859dba73a3ee1b19d06762fcd819807e2fbbbe2)), closes [#1858](https://github.com/NodeJSmith/hassette/issues/1858)
+* clean up query-param parsing and error-label handling in overview-tab-helpers ([#1928](https://github.com/NodeJSmith/hassette/issues/1928)) ([9c5930b](https://github.com/NodeJSmith/hassette/commit/9c5930bbbd0fe9bb6ba3d16b1553d77838d6054a)), closes [#1871](https://github.com/NodeJSmith/hassette/issues/1871)
+* **deps:** bump httpx2/httpcore2 to clear pip-audit CVEs ([#2151](https://github.com/NodeJSmith/hassette/issues/2151)) ([9b06348](https://github.com/NodeJSmith/hassette/commit/9b06348a0ec2bb4d36f93078f1f13209ee5a3372))
+* detect a wedged database write worker as a heartbeat failure ([#1953](https://github.com/NodeJSmith/hassette/issues/1953)) ([d80acd3](https://github.com/NodeJSmith/hassette/commit/d80acd3d17b4c394982cc6f19b953fc2d2ff1613)), closes [#1223](https://github.com/NodeJSmith/hassette/issues/1223)
+* **frontend:** export COMMON_STAT_CELL_COUNT from stat-cell-builders ([#2189](https://github.com/NodeJSmith/hassette/issues/2189)) ([89a3c5f](https://github.com/NodeJSmith/hassette/commit/89a3c5f3265bbeba2fd98218a5316fec4935fbf9))
+* hide decorative empty-state icon from screen readers ([#2202](https://github.com/NodeJSmith/hassette/issues/2202)) ([9ffe6ae](https://github.com/NodeJSmith/hassette/commit/9ffe6ae9cc821bc05c0b4b797fffc32093c7047a)), closes [#2165](https://github.com/NodeJSmith/hassette/issues/2165)
+* keep a tracked orphaned instance stoppable when its config shrinks ([#1962](https://github.com/NodeJSmith/hassette/issues/1962)) ([943f0b8](https://github.com/NodeJSmith/hassette/commit/943f0b8cea38fffc55d72ea2ef03ab3189a32290)), closes [#1882](https://github.com/NodeJSmith/hassette/issues/1882)
+* log Home Assistant connection state changes at INFO ([#1959](https://github.com/NodeJSmith/hassette/issues/1959)) ([179d842](https://github.com/NodeJSmith/hassette/commit/179d842e0c52ba92b7d89b4484a17a5e5446f40e)), closes [#1821](https://github.com/NodeJSmith/hassette/issues/1821)
+* remove loop-blocking not-ready retry from StateProxy read path ([#1956](https://github.com/NodeJSmith/hassette/issues/1956)) ([843d8af](https://github.com/NodeJSmith/hassette/commit/843d8afc5b025e96fe8104c505da53b2145407bb)), closes [#1803](https://github.com/NodeJSmith/hassette/issues/1803)
+* render callable predicates as qualified names in predicate_description ([#1961](https://github.com/NodeJSmith/hassette/issues/1961)) ([fb60124](https://github.com/NodeJSmith/hassette/commit/fb60124e4d01fe00973abb15824d6300f673b0ff)), closes [#1831](https://github.com/NodeJSmith/hassette/issues/1831)
+* resolve dropped queued-invocation futures so dispatch slots are not leaked ([#1957](https://github.com/NodeJSmith/hassette/issues/1957)) ([56eb5a6](https://github.com/NodeJSmith/hassette/commit/56eb5a6ffb67bfe03a0bc21b4770c20e67ad642d)), closes [#1805](https://github.com/NodeJSmith/hassette/issues/1805)
+* show skipped executions in the hassette job table ([#1958](https://github.com/NodeJSmith/hassette/issues/1958)) ([24f6b4d](https://github.com/NodeJSmith/hassette/commit/24f6b4d560852c057bd4ed671163c672bac5e640)), closes [#1818](https://github.com/NodeJSmith/hassette/issues/1818)
+* stop app failures from triggering ServiceWatcher restarts and process shutdown ([#1955](https://github.com/NodeJSmith/hassette/issues/1955)) ([a9160d5](https://github.com/NodeJSmith/hassette/commit/a9160d5f9486e45e9f1157318817abee98f0dc80))
+* **ui:** deduplicate AppStatus type and rename wsConnected to isWsConnected ([#1930](https://github.com/NodeJSmith/hassette/issues/1930)) ([a02d59c](https://github.com/NodeJSmith/hassette/commit/a02d59c94b41085b95b3ff161fbecd88fad3556f)), closes [#1876](https://github.com/NodeJSmith/hassette/issues/1876)
+
+
+### Refactoring
+
+* clean up readability and duplication in recent-activity-section ([#1932](https://github.com/NodeJSmith/hassette/issues/1932)) ([ba799df](https://github.com/NodeJSmith/hassette/commit/ba799dfdc632789ee5dabcc740fbc01ce04378e8)), closes [#1883](https://github.com/NodeJSmith/hassette/issues/1883)
+* **core:** decompose command_executor.py into focused modules ([#1919](https://github.com/NodeJSmith/hassette/issues/1919)) ([63466c8](https://github.com/NodeJSmith/hassette/commit/63466c82a30388f384acf32e83e2f20b48d7b7f9))
+* deduplicate API error format and credentials literal in client.ts ([#1976](https://github.com/NodeJSmith/hassette/issues/1976)) ([f81eccf](https://github.com/NodeJSmith/hassette/commit/f81eccf8887d1c44d80743d626ef2a1c5d370a01)), closes [#1967](https://github.com/NodeJSmith/hassette/issues/1967)
+* deduplicate column-picker button styling and share its props type ([#2232](https://github.com/NodeJSmith/hassette/issues/2232)) ([851090c](https://github.com/NodeJSmith/hassette/commit/851090c7532ea5584b4058854b559f82775f60b9)), closes [#2230](https://github.com/NodeJSmith/hassette/issues/2230)
+* derive ws-validator error message from DISCRIMINATOR_FIELD ([#2031](https://github.com/NodeJSmith/hassette/issues/2031)) ([347f757](https://github.com/NodeJSmith/hassette/commit/347f7572bb3d765345190f77ccbbd9f0b3d37365)), closes [#1983](https://github.com/NodeJSmith/hassette/issues/1983)
+* extract repeated manifest-lookup-and-skip guard in AppLifecycleService ([#2135](https://github.com/NodeJSmith/hassette/issues/2135)) ([b1efcf5](https://github.com/NodeJSmith/hassette/commit/b1efcf5a40687a4abc4320af8a114564fdf18f93)), closes [#2056](https://github.com/NodeJSmith/hassette/issues/2056)
+* **frontend:** decouple stat cell labels from lookup literals ([#2142](https://github.com/NodeJSmith/hassette/issues/2142)) ([3b25fcc](https://github.com/NodeJSmith/hassette/commit/3b25fcce045541e809d9249086bd9121cee7ea25)), closes [#2065](https://github.com/NodeJSmith/hassette/issues/2065)
+* **frontend:** share the idle-status helper and roving-tabindex type across handler components ([#2086](https://github.com/NodeJSmith/hassette/issues/2086)) ([727e480](https://github.com/NodeJSmith/hassette/commit/727e48035349674a6c1a811ab1f908b81a10e65a)), closes [#2013](https://github.com/NodeJSmith/hassette/issues/2013)
+* name grid column widths and unify token typing in spacing-tokens showcase ([#1966](https://github.com/NodeJSmith/hassette/issues/1966)) ([9e051c4](https://github.com/NodeJSmith/hassette/commit/9e051c4977a50cd55379bf9936823ebfb8c548db)), closes [#1924](https://github.com/NodeJSmith/hassette/issues/1924)
+* name the color token type in color-tokens.tsx ([#2144](https://github.com/NodeJSmith/hassette/issues/2144)) ([864968e](https://github.com/NodeJSmith/hassette/commit/864968ead60f52090b6d0b4f33865e2313be4ba7)), closes [#2072](https://github.com/NodeJSmith/hassette/issues/2072)
+* name the healthy sidebar group key and clarify group-def callback names ([#2186](https://github.com/NodeJSmith/hassette/issues/2186)) ([bd9906e](https://github.com/NodeJSmith/hassette/commit/bd9906e36441d3ae1bc9872fa359924ac730bfa7)), closes [#2124](https://github.com/NodeJSmith/hassette/issues/2124)
+* rename WEIGHTS map callback param for consistency in typography-tokens showcase ([#1968](https://github.com/NodeJSmith/hassette/issues/1968)) ([fa762ac](https://github.com/NodeJSmith/hassette/commit/fa762ac14d9144a24aebbac4ed5a1e3dfdc4b120))
+* render TelemetryDegradedBanner through the shared AlertShell ([#2170](https://github.com/NodeJSmith/hassette/issues/2170)) ([f4853f1](https://github.com/NodeJSmith/hassette/commit/f4853f1e6abb4e503e5d666cce92dc459a7f0a7f)), closes [#2096](https://github.com/NodeJSmith/hassette/issues/2096)
+* replace FilterIcon inline styles with Tailwind utilities ([#2224](https://github.com/NodeJSmith/hassette/issues/2224)) ([5257d88](https://github.com/NodeJSmith/hassette/commit/5257d88b6a9fcdf7a5df250b6fda5f62ade45b3d)), closes [#2219](https://github.com/NodeJSmith/hassette/issues/2219)
+* replace scattered magic-number config/timeout literals with named constants ([#1931](https://github.com/NodeJSmith/hassette/issues/1931)) ([91b283b](https://github.com/NodeJSmith/hassette/commit/91b283b9ca329c953d83587b0f768e40cbda8ef7)), closes [#1879](https://github.com/NodeJSmith/hassette/issues/1879)
+* share one StatusKind tone-class map across stats components ([#2201](https://github.com/NodeJSmith/hassette/issues/2201)) ([9a9b786](https://github.com/NodeJSmith/hassette/commit/9a9b786803364376412f10f1de3704d834f156c6)), closes [#2161](https://github.com/NodeJSmith/hassette/issues/2161)
+* **ui:** deduplicate live-status and in_current_config explanations in command palette items ([#2181](https://github.com/NodeJSmith/hassette/issues/2181)) ([a8077f9](https://github.com/NodeJSmith/hassette/commit/a8077f922496b719f46e2542dcfde302d3b465e1)), closes [#2103](https://github.com/NodeJSmith/hassette/issues/2103)
+* **ui:** unify StatusShape size constants on the _STATUS_SHAPE_SIZE suffix ([#1970](https://github.com/NodeJSmith/hassette/issues/1970)) ([ae84106](https://github.com/NodeJSmith/hassette/commit/ae84106d1985d035f0101238de964143f5b26281)), closes [#1941](https://github.com/NodeJSmith/hassette/issues/1941)
+
+
+### Documentation
+
+* trim narrated history from ExecutionStatus and AppManifestsChangedData docstrings ([#2015](https://github.com/NodeJSmith/hassette/issues/2015)) ([4dfbc74](https://github.com/NodeJSmith/hassette/commit/4dfbc74f6033dad13b2aaa3e605f69fa2e8e597c)), closes [#1978](https://github.com/NodeJSmith/hassette/issues/1978)
+
 ## [0.54.0](https://github.com/NodeJSmith/hassette/compare/v0.53.0...v0.54.0) (2026-09-05)
 
 
