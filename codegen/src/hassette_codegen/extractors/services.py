@@ -6,11 +6,15 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 import yaml
 
 _KEY_REF = re.compile(r"^\[%key:(.+?)%\]$")
 _MAX_KEY_REF_DEPTH = 6  # bounds recursion through chained [%key:...%] references
+
+SupportsResponseValue = Literal["NONE", "OPTIONAL", "ONLY"]
+_VALID_SUPPORTS_RESPONSE: set[str] = {"NONE", "OPTIONAL", "ONLY"}
 
 
 @dataclass
@@ -29,6 +33,7 @@ class ExtractedService:
     fields: list[ServiceField] = field(default_factory=list)
     required_features: list[str] = field(default_factory=list)
     description: str | None = None
+    supports_response: SupportsResponseValue = "NONE"
 
 
 def extract_services(component_dir: Path) -> list[ExtractedService]:
@@ -46,7 +51,7 @@ def extract_services(component_dir: Path) -> list[ExtractedService]:
     if not raw or not isinstance(raw, dict):
         return []
 
-    method_map = _extract_service_registrations(component_dir / "__init__.py")
+    registrations = _extract_service_registrations(component_dir / "__init__.py")
     service_descs, field_descs = _extract_descriptions(component_dir)
 
     services: list[ExtractedService] = []
@@ -57,16 +62,22 @@ def extract_services(component_dir: Path) -> list[ExtractedService]:
             continue
 
         fields = _extract_fields(service_def, field_descs.get(service_name, {}))
-        method_name = method_map.get(service_name, service_name)
-        required_features = method_map.get(f"{service_name}__features", [])
+        # method_name: exact lookup only, preserving the old behavior (callers may rely on the
+        # literal AST key). supports_response: fuzzy lookup, because HA registers services under
+        # unresolved constants (SERVICE_BROWSE_MEDIA) or enum members (TodoServices.GET_ITEMS)
+        # that don't match the yaml key without normalization.
+        direct_reg = registrations.get(service_name)
+        method_name = direct_reg.method_name if direct_reg and direct_reg.method_name else service_name
+        fuzzy_reg = _find_registration(service_name, registrations)
+        supports_response = fuzzy_reg.supports_response if fuzzy_reg else "NONE"
 
         services.append(
             ExtractedService(
                 name=service_name,
-                method_name=method_name if isinstance(method_name, str) else service_name,
+                method_name=method_name,
                 fields=fields,
-                required_features=required_features if isinstance(required_features, list) else [],
                 description=service_descs.get(service_name),
+                supports_response=supports_response,
             )
         )
 
@@ -206,10 +217,18 @@ def _resolve_key_ref(value: str, components_dir: Path, depth: int = 0) -> str | 
     return None
 
 
-def _extract_service_registrations(init_py: Path) -> dict:
+@dataclass
+class _ServiceRegistration:
+    method_name: str | None = None
+    supports_response: SupportsResponseValue = "NONE"
+
+
+def _extract_service_registrations(init_py: Path) -> dict[str, _ServiceRegistration]:
     """Extract service registration calls from __init__.py via AST.
 
-    Returns a dict mapping service_name -> method_name.
+    Returns a dict mapping service_name -> _ServiceRegistration. Service names may be
+    raw string literals ("browse_media") or unresolved AST identifiers ("SERVICE_BROWSE_MEDIA",
+    "TodoServices.GET_ITEMS") — callers must try multiple lookup forms.
     """
     if not init_py.exists():
         return {}
@@ -220,7 +239,7 @@ def _extract_service_registrations(init_py: Path) -> dict:
     except SyntaxError:
         return {}
 
-    result: dict = {}
+    result: dict[str, _ServiceRegistration] = {}
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
@@ -242,11 +261,67 @@ def _extract_service_registrations(init_py: Path) -> dict:
             service_name = service_name_node.value
         elif isinstance(service_name_node, ast.Name):
             service_name = service_name_node.id
+        elif isinstance(service_name_node, ast.Attribute):
+            service_name = service_name_node.attr
         else:
             continue
 
+        reg = _ServiceRegistration()
+
         method_node = node.args[2] if len(node.args) > 2 else None
         if isinstance(method_node, ast.Constant) and isinstance(method_node.value, str):
-            result[service_name] = method_node.value
+            reg.method_name = method_node.value
+
+        sr_value = _extract_supports_response(node)
+        if sr_value is not None:
+            reg.supports_response = sr_value
+
+        result[service_name] = reg
 
     return result
+
+
+def _find_registration(
+    service_name: str, registrations: dict[str, _ServiceRegistration]
+) -> _ServiceRegistration | None:
+    """Look up a service registration by yaml service name.
+
+    AST-extracted keys may be string literals ("browse_media"), unresolved constants
+    ("SERVICE_BROWSE_MEDIA"), or enum members ("GET_ITEMS"). Try direct match first,
+    then normalize: HA convention is SERVICE_<UPPER> or just <UPPER>.
+    """
+    if service_name in registrations:
+        return registrations[service_name]
+
+    upper = service_name.upper()
+    for key, reg in registrations.items():
+        normalized = key.upper()
+        if normalized == upper or normalized == f"SERVICE_{upper}":
+            return reg
+
+    return None
+
+
+def _extract_supports_response(node: ast.Call) -> SupportsResponseValue | None:
+    """Extract the SupportsResponse enum member from an async_register_entity_service call.
+
+    Checks both keyword (`supports_response=SupportsResponse.ONLY`) and positional
+    (arg index 4) forms. Returns the member name ("NONE", "OPTIONAL", "ONLY") or
+    None if the argument is absent or unrecognizable.
+    """
+    for kw in node.keywords:
+        if kw.arg == "supports_response":
+            return _resolve_supports_response_node(kw.value)
+
+    if len(node.args) > 4:
+        return _resolve_supports_response_node(node.args[4])
+
+    return None
+
+
+def _resolve_supports_response_node(value_node: ast.expr) -> SupportsResponseValue | None:
+    """Resolve an AST node to a SupportsResponse member name."""
+    if isinstance(value_node, ast.Attribute) and isinstance(value_node.value, ast.Name):
+        if value_node.value.id == "SupportsResponse" and value_node.attr in _VALID_SUPPORTS_RESPONSE:
+            return value_node.attr  # pyright: ignore[reportReturnType]
+    return None
