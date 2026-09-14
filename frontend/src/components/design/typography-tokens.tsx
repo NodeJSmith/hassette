@@ -1,9 +1,8 @@
 import {
-  designGroupClassName,
-  designGroupLabelClassName,
   designHeadingClassName,
   designSectionClassName,
   designTokenCodeClassName,
+  ShowcaseGroup,
 } from "./design-showcase";
 
 interface TypeSpec {
@@ -54,8 +53,7 @@ export function TypographyTokens() {
     <section className={designSectionClassName}>
       <h2 className={designHeadingClassName}>Typography</h2>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Font Stacks</h3>
+      <ShowcaseGroup label="Font Stacks">
         <div className="flex flex-col gap-4">
           {FONT_STACKS.map((stack) => (
             <div key={stack.cssVar} className="flex flex-col gap-1">
@@ -69,10 +67,9 @@ export function TypographyTokens() {
             </div>
           ))}
         </div>
-      </div>
+      </ShowcaseGroup>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Type Scale</h3>
+      <ShowcaseGroup label="Type Scale">
         <div className="flex flex-col gap-5">
           {TYPE_SCALE.map((spec) => (
             <div
@@ -96,10 +93,9 @@ export function TypographyTokens() {
             </div>
           ))}
         </div>
-      </div>
+      </ShowcaseGroup>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Weights</h3>
+      <ShowcaseGroup label="Weights">
         <div className="flex flex-col gap-3">
           {WEIGHTS.map((weight) => (
             <div key={weight.cssVar} className="flex items-baseline gap-4">
@@ -113,7 +109,7 @@ export function TypographyTokens() {
             </div>
           ))}
         </div>
-      </div>
+      </ShowcaseGroup>
     </section>
   );
 }

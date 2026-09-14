@@ -1,9 +1,8 @@
 import {
-  designGroupClassName,
-  designGroupLabelClassName,
   designHeadingClassName,
   designSectionClassName,
   designTokenCodeClassName,
+  ShowcaseGroup,
 } from "./design-showcase";
 
 interface ColorToken {
@@ -76,8 +75,7 @@ export function ColorTokens() {
     <section className={designSectionClassName}>
       <h2 className={designHeadingClassName}>Color Palette</h2>
       {GROUPS.map((group) => (
-        <div key={group.label} className={designGroupClassName}>
-          <h3 className={designGroupLabelClassName}>{group.label}</h3>
+        <ShowcaseGroup key={group.label} label={group.label}>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
             {group.tokens.map((token) => (
               <div key={token.cssVar} className="flex flex-col gap-1">
@@ -90,7 +88,7 @@ export function ColorTokens() {
               </div>
             ))}
           </div>
-        </div>
+        </ShowcaseGroup>
       ))}
     </section>
   );
