@@ -4,12 +4,7 @@ import { Card } from "@/components/ui/card";
 
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
-import {
-  designGroupClassName,
-  designGroupLabelClassName,
-  designHeadingClassName,
-  designSectionClassName,
-} from "./design-showcase";
+import { designHeadingClassName, designSectionClassName, ShowcaseGroup } from "./design-showcase";
 
 const rowClassName = "flex flex-wrap items-center gap-2";
 const cardContentClassName =
@@ -20,25 +15,34 @@ export function ComponentShowcase() {
     <section className={designSectionClassName}>
       <h2 className={designHeadingClassName}>Components</h2>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Button</h3>
+      <ShowcaseGroup label="Button">
         <div className={rowClassName}>
           <Button>Default</Button>
-          <Button variant="default">Primary</Button>
+          <Button variant="secondary">Secondary</Button>
+          <Button variant="outline">Outline</Button>
+          <Button variant="ghost">Ghost</Button>
+          <Button variant="link">Link</Button>
+          <Button variant="destructive">Destructive</Button>
+        </div>
+        <div className={rowClassName}>
           <Button variant="success">Success</Button>
           <Button variant="warning">Warning</Button>
           <Button variant="danger">Danger</Button>
           <Button variant="info">Info</Button>
         </div>
         <div className={rowClassName}>
+          <Button variant="success-ghost">Success Ghost</Button>
+          <Button variant="warning-ghost">Warning Ghost</Button>
+          <Button variant="info-ghost">Info Ghost</Button>
+        </div>
+        <div className={rowClassName}>
           <Button size="sm">Small</Button>
           <Button size="xs">Extra Small</Button>
           <Button disabled>Disabled</Button>
         </div>
-      </div>
+      </ShowcaseGroup>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Badge</h3>
+      <ShowcaseGroup label="Badge">
         <div className={rowClassName}>
           <Badge variant="success">Running</Badge>
           <Badge variant="warning">Degraded</Badge>
@@ -57,10 +61,9 @@ export function ComponentShowcase() {
             Medium
           </Badge>
         </div>
-      </div>
+      </ShowcaseGroup>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Badge (chip variants)</h3>
+      <ShowcaseGroup label="Badge (chip variants)">
         <div className={rowClassName}>
           <Badge variant="listener">Listener</Badge>
           <Badge variant="job">Job</Badge>
@@ -73,10 +76,9 @@ export function ComponentShowcase() {
             Small
           </Badge>
         </div>
-      </div>
+      </ShowcaseGroup>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>StatusShape</h3>
+      <ShowcaseGroup label="StatusShape">
         <div className={rowClassName}>
           <StatusShape kind="ok" />
           <StatusShape kind="warn" />
@@ -84,10 +86,9 @@ export function ComponentShowcase() {
           <StatusShape kind="cancel" />
           <StatusShape kind="mute" />
         </div>
-      </div>
+      </ShowcaseGroup>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Card</h3>
+      <ShowcaseGroup label="Card">
         <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
           <Card>
             <div className={cardContentClassName}>
@@ -108,14 +109,13 @@ export function ComponentShowcase() {
             </div>
           </Card>
         </div>
-      </div>
+      </ShowcaseGroup>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Spinner</h3>
+      <ShowcaseGroup label="Spinner">
         <div className={rowClassName}>
           <Spinner />
         </div>
-      </div>
+      </ShowcaseGroup>
     </section>
   );
 }
