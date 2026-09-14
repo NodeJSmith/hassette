@@ -1,9 +1,8 @@
 import {
-  designGroupClassName,
-  designGroupLabelClassName,
   designHeadingClassName,
   designSectionClassName,
   designTokenCodeClassName,
+  ShowcaseGroup,
 } from "./design-showcase";
 
 interface SpacingToken {
@@ -71,8 +70,7 @@ export function SpacingTokens() {
     <section className={designSectionClassName}>
       <h2 className={designHeadingClassName}>Spacing, Radii & Shadows</h2>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Spacing Scale</h3>
+      <ShowcaseGroup label="Spacing Scale">
         <div className="flex flex-col gap-2">
           {SPACING.map((token) => (
             <div
@@ -91,10 +89,9 @@ export function SpacingTokens() {
             </div>
           ))}
         </div>
-      </div>
+      </ShowcaseGroup>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Border Radius</h3>
+      <ShowcaseGroup label="Border Radius">
         <div className="grid grid-cols-[repeat(auto-fill,minmax(100px,1fr))] gap-4">
           {RADII.map((radius) => (
             <div key={radius.cssVar} className="flex flex-col items-center gap-1">
@@ -109,10 +106,9 @@ export function SpacingTokens() {
             </div>
           ))}
         </div>
-      </div>
+      </ShowcaseGroup>
 
-      <div className={designGroupClassName}>
-        <h3 className={designGroupLabelClassName}>Elevation</h3>
+      <ShowcaseGroup label="Elevation">
         <div className="grid grid-cols-3 gap-7 rounded-lg bg-muted px-4 py-6">
           {SHADOWS.map((shadow) => (
             <div key={shadow.cssVar} className="flex flex-col items-center gap-3">
@@ -122,7 +118,7 @@ export function SpacingTokens() {
             </div>
           ))}
         </div>
-      </div>
+      </ShowcaseGroup>
     </section>
   );
 }
