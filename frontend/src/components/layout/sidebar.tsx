@@ -19,7 +19,7 @@ import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 import { SystemHealth } from "../shared/system-health";
 import { ThemeToggle } from "../shared/theme-toggle";
-import { GROUP_DEFS, groupAndSortApps, type GroupDef } from "./sidebar-groups";
+import { findDuplicateDisplayNames, GROUP_DEFS, groupAndSortApps, type GroupDef } from "./sidebar-groups";
 import { useGroupOpen } from "./use-group-open";
 
 type AppManifest = components["schemas"]["AppManifestResponse"];
@@ -38,14 +38,16 @@ interface AppEntryProps {
   location: string;
   searchString: string;
   appStatuses: Record<string, AppStatusEntry>;
+  labelIsAmbiguous: boolean;
 }
 
-function AppEntry({ manifest, location, searchString, appStatuses }: AppEntryProps) {
+function AppEntry({ manifest, location, searchString, appStatuses, labelIsAmbiguous }: AppEntryProps) {
   const [expanded, setExpanded] = useState(false);
   const isMulti = manifest.instance_count > 1;
   const displayStatus = appLiveStatus(appStatuses, manifest);
   const kind = statusToKind(displayStatus);
   const isBlocked = displayStatus === "blocked";
+  const label = labelIsAmbiguous ? manifest.app_key : manifest.display_name;
 
   // Active when on any sub-path of this app
   const appPath = appDetailPath(manifest.app_key);
@@ -70,7 +72,7 @@ function AppEntry({ manifest, location, searchString, appStatuses }: AppEntryPro
             data-testid="app-link"
           >
             <StatusShape kind={kind} size={STATUS_SHAPE_SIZE} />
-            <span className="min-w-0 flex-1 truncate">{manifest.display_name}</span>
+            <span className="min-w-0 flex-1 truncate">{label}</span>
             {manifest.auto_loaded && (
               <Badge variant="muted" title="Auto-loaded">
                 auto
@@ -82,7 +84,7 @@ function AppEntry({ manifest, location, searchString, appStatuses }: AppEntryPro
               <button
                 type="button"
                 className="mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm border-none bg-transparent text-[var(--ink-3)] transition-colors hover:bg-[var(--bg-active)] hover:text-[var(--ink-1)] max-[900px]:size-11"
-                aria-label={expanded ? `Collapse ${manifest.display_name}` : `Expand ${manifest.display_name}`}
+                aria-label={expanded ? `Collapse ${label}` : `Expand ${label}`}
                 data-testid={`app-expand-${manifest.app_key}`}
               >
                 <SidebarChevron open={expanded} />
@@ -187,6 +189,8 @@ export function Sidebar({ onOpenPalette, mobileDrawer = false }: SidebarProps = 
   // apps page (which badges them explicitly), not in primary navigation where they'd be
   // indistinguishable from live apps.
   const liveManifests = manifestsData.filter((m) => m.in_current_config);
+  // Computed once against the full list, not the search-filtered subset — see #1452.
+  const duplicateDisplayNames = findDuplicateDisplayNames(liveManifests);
   const [search, setSearch] = useState("");
 
   const version = systemVersion;
@@ -327,6 +331,7 @@ export function Sidebar({ onOpenPalette, mobileDrawer = false }: SidebarProps = 
                         location={location}
                         searchString={searchString}
                         appStatuses={appStatus}
+                        labelIsAmbiguous={duplicateDisplayNames.has(m.display_name)}
                       />
                     ))}
                   </ul>

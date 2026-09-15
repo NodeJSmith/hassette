@@ -347,6 +347,52 @@ describe("Sidebar — APPS section header", () => {
   });
 });
 
+describe("Sidebar — display name collision (#1452)", () => {
+  it("shows app_key instead of display_name when two apps share the same display_name", async () => {
+    withManifests([
+      createManifest({ app_key: "blocking_io_lab", display_name: "BlockingIOLab", status: "running" }),
+      createManifest({ app_key: "blocking_io_lab_ignore", display_name: "BlockingIOLab", status: "running" }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    // Both entries should render their unique app_key, not the shared display_name
+    expect(await screen.findByText("blocking_io_lab")).toBeDefined();
+    expect(await screen.findByText("blocking_io_lab_ignore")).toBeDefined();
+    // The ambiguous display_name itself should not appear as a label
+    expect(screen.queryByText("BlockingIOLab")).toBeNull();
+  });
+
+  it("does not affect entries with unique display names", async () => {
+    withManifests([
+      createManifest({ app_key: "blocking_io_lab", display_name: "BlockingIOLab", status: "running" }),
+      createManifest({ app_key: "blocking_io_lab_ignore", display_name: "BlockingIOLab", status: "running" }),
+      createManifest({ app_key: "unique_app", display_name: "Unique App", status: "running" }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    // The unique app still shows its display_name
+    expect(await screen.findByText("Unique App")).toBeDefined();
+    // The colliding apps show app_key
+    expect(screen.getByText("blocking_io_lab")).toBeDefined();
+    expect(screen.getByText("blocking_io_lab_ignore")).toBeDefined();
+  });
+
+  it("collision detection is independent of search filtering", async () => {
+    const user = userEvent.setup();
+    withManifests([
+      createManifest({ app_key: "blocking_io_lab", display_name: "BlockingIOLab", status: "running" }),
+      createManifest({ app_key: "blocking_io_lab_ignore", display_name: "BlockingIOLab", status: "running" }),
+    ]);
+    const { container } = renderWithAppState(<Sidebar />);
+    // Wait for entries
+    await screen.findByText("blocking_io_lab");
+    // Filter to show only one of the colliding apps
+    const input = container.querySelector("input[type='search']")!;
+    await user.type(input, "blocking_io_lab_ignore");
+    // The remaining entry should still show app_key (not flip to display_name)
+    expect(screen.getByText("blocking_io_lab_ignore")).toBeDefined();
+    expect(screen.queryByText("BlockingIOLab")).toBeNull();
+  });
+});
+
 describe("Sidebar — status groups", () => {
   it("groups failed apps under FAILING header", async () => {
     withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);

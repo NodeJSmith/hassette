@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AppStatusEntry } from "../../state/store";
 import { createInstance, createManifest } from "../../test/factories";
-import { getGroupKey, groupAndSortApps } from "./sidebar-groups";
+import { findDuplicateDisplayNames, getGroupKey, groupAndSortApps } from "./sidebar-groups";
 
 type LiveStatuses = Record<string, AppStatusEntry>;
 
@@ -73,6 +73,32 @@ describe("getGroupKey", () => {
       "recovered_app:1": { status: "running", index: 1 },
     };
     expect(getGroupKey(manifest, liveStatuses)).toBe("ok");
+  });
+});
+
+describe("findDuplicateDisplayNames", () => {
+  it("returns an empty set when all display names are unique", () => {
+    const manifests = [
+      createManifest({ app_key: "a", display_name: "Alpha" }),
+      createManifest({ app_key: "b", display_name: "Beta" }),
+    ];
+    expect(findDuplicateDisplayNames(manifests)).toEqual(new Set());
+  });
+
+  it("returns the colliding display name when two manifests share it", () => {
+    const manifests = [
+      createManifest({ app_key: "blocking_io_lab", display_name: "BlockingIOLab" }),
+      createManifest({ app_key: "blocking_io_lab_ignore", display_name: "BlockingIOLab" }),
+    ];
+    expect(findDuplicateDisplayNames(manifests)).toEqual(new Set(["BlockingIOLab"]));
+  });
+
+  it("returns an empty set for a single manifest", () => {
+    expect(findDuplicateDisplayNames([createManifest()])).toEqual(new Set());
+  });
+
+  it("returns an empty set for an empty list", () => {
+    expect(findDuplicateDisplayNames([])).toEqual(new Set());
   });
 });
 
