@@ -54,6 +54,17 @@ CHILDREN_FLOOR_SECONDS = 1.0
 ``CHILDREN_SHUTDOWN_BUDGET_FLOOR_SECONDS`` — the floor concept is preserved, but now
 children also benefit from any slack the hooks pool didn't use."""
 
+CHILDREN_WAVE_FLOOR_SECONDS = 0.1
+"""Minimum guaranteed budget per wave when ``Hassette._shutdown_children()`` divides the
+remaining body time across multiple dependency-ordered waves (see
+``children_budget_remaining()``'s ``waves_left`` parameter). Applies to waves 2..N; the
+final wave (``waves_left=1``) falls back to ``CHILDREN_FLOOR_SECONDS`` via the same default
+path ``Resource._shutdown_children()`` uses, giving the most-foundational resources (DB,
+sync executor) a bigger grace window. Deliberately much smaller than
+``CHILDREN_FLOOR_SECONDS`` — that floor is sized for a single call; applied per-wave across
+every wave in a multi-wave shutdown, it can blow past ``COORDINATOR_MARGIN_FRACTION``'s
+margin on its own. Worst case with W waves: ``(W-1) * 0.1 + 1.0``. See #1809."""
+
 HOOKS_FLOOR_SECONDS = 0.5
 """Minimum guaranteed budget for hooks/serve-wait/initializer observation, even when the
 total timeout is too small to fit the full tail reservation. Without this floor, any
@@ -95,13 +106,14 @@ class ShutdownBudget:
 
     body_deadline: float
     """Absolute loop time by which the entire ``_shutdown_body()`` must finish.
-    Children get ``max(children_floor_seconds, body_deadline - loop.time())``
-    after task-cancel and cleanup have run — so early-finishing hooks pass their
-    slack to children naturally. Also the deadline the root's own
-    ``Hassette._shutdown_body()`` bounds itself with internally, via its own
-    ``asyncio.timeout()`` -- deliberately *tighter* than ``total_deadline`` below so its
-    graceful ``TOTAL_TIMEOUT``/stream-closing fallback gets a chance to run before the
-    coordinator's cruder outer force-cancel does."""
+    Children get the remaining time after task-cancel and cleanup have run — so
+    early-finishing hooks pass their slack to children naturally. For single-batch
+    callers this is floored at ``children_floor_seconds``; for multi-wave callers
+    the remaining time is divided across waves (see ``children_budget_remaining()``).
+    Also the deadline the root's own ``Hassette._shutdown_body()`` bounds itself with
+    internally, via its own ``asyncio.timeout()`` -- deliberately *tighter* than
+    ``total_deadline`` below so its graceful ``TOTAL_TIMEOUT``/stream-closing fallback
+    gets a chance to run before the coordinator's cruder outer force-cancel does."""
 
     total_deadline: float
     """Absolute loop time by which the coordinator's own outer wait on the whole shutdown
@@ -567,17 +579,30 @@ def hooks_pool_remaining(resource: _LifecycleHostP) -> float:
     return max(0.0, budget.hooks_pool_deadline - asyncio.get_running_loop().time())
 
 
-def children_budget_remaining(resource: _LifecycleHostP) -> float:
-    """Seconds available for ``_shutdown_children()``.
+def children_budget_remaining(resource: _LifecycleHostP, *, waves_left: int = 1) -> float:
+    """Seconds available for the next ``_shutdown_children()`` wave.
 
-    Children run last and benefit from any slack the earlier stages left behind.
-    Returns at least ``children_floor_seconds`` even when the body is over budget.
+    Children run last and benefit from any slack the earlier stages left behind. Returns at
+    least ``children_floor_seconds`` when ``waves_left=1`` (the default — matches
+    ``Resource._shutdown_children()``'s single ``shutdown_batch()`` call, and also the final
+    wave of a multi-wave shutdown) even when the body is over budget.
+
+    When more than one wave shares this budget (``Hassette._shutdown_children()``'s
+    dependency-ordered waves), pass the actual remaining wave count via ``waves_left`` so the
+    remaining time is divided across waves instead of each wave independently claiming a fresh
+    floor — otherwise W hung waves could overrun ``body_deadline`` by up to W * the floor,
+    exceeding the coordinator's own margin. The final wave (``waves_left=1``) naturally falls
+    back to the larger ``children_floor_seconds`` floor, giving the most-foundational
+    resources a bigger grace window. See #1809.
     """
     resource = typing.cast("LifecycleMixin", resource)
     budget = resource._shutdown_budget
     if budget is None:
         return resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
-    return max(budget.children_floor_seconds, budget.body_deadline - asyncio.get_running_loop().time())
+    remaining = budget.body_deadline - asyncio.get_running_loop().time()
+    if waves_left <= 1:
+        return max(budget.children_floor_seconds, remaining)
+    return max(CHILDREN_WAVE_FLOOR_SECONDS, remaining / waves_left)
 
 
 def total_deadline_remaining(resource: _LifecycleHostP) -> float:

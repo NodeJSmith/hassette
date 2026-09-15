@@ -23,6 +23,7 @@ from hassette.core.core import Hassette
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
 from hassette.resources.base import Resource
+from hassette.resources.lifecycle import COORDINATOR_MARGIN_FRACTION, compute_shutdown_budget
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
@@ -377,6 +378,53 @@ class TestShutdownChildren:
         h._app_handler._force_terminal.assert_called_once()
         h._sync_executor_service.shutdown.assert_awaited_once()
         h._database_service.shutdown.assert_awaited_once()
+
+    async def test_multi_wave_hang_finishes_within_coordinator_margin(self, wired_hassette: Hassette) -> None:
+        """When every wave hangs, _shutdown_children() must still finish within the coordinator
+        margin — i.e. the sum of per-wave floors must not exceed the margin.
+
+        Before the fix (#1809), each wave independently claimed CHILDREN_FLOOR_SECONDS (1.0s).
+        With ~7 waves, that's 7.0s of overrun against a 3.0s margin at the 30s default, so the
+        coordinator's outer SHUTDOWN_BODY_TIMED_OUT would fire first — defeating the graceful
+        wave-by-wave force-terminate path. After the fix, waves 2..N use
+        CHILDREN_WAVE_FLOOR_SECONDS (0.1s) via the waves_left parameter, while the final wave
+        (waves_left=1) falls back to the larger CHILDREN_FLOOR_SECONDS (1.0s) for the
+        most-foundational resources. Worst case: (N-1)*0.1 + 1.0 = 1.6s at ~7 waves, well
+        within the 3.0s margin.
+        """
+        h = wired_hassette
+        total_timeout = 30.0
+
+        async def hang(*_args, **_kwargs):
+            await asyncio.sleep(1000)
+
+        for child in h.children:
+            child.shutdown = hang
+            child._force_terminal = Mock()
+
+        loop = asyncio.get_running_loop()
+
+        with preserve_config(h.config):
+            h.config.lifecycle.resource_shutdown_timeout_seconds = total_timeout
+            h._shutdown_budget = compute_shutdown_budget(total_timeout, loop.time())
+
+            start_time = loop.time()
+            result = await h._shutdown_children()
+            elapsed = loop.time() - start_time
+
+        margin = total_timeout * COORDINATOR_MARGIN_FRACTION
+        body_budget = total_timeout - margin
+
+        # Every wave should have been force-terminated.
+        assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
+
+        # The total elapsed time for _shutdown_children() must stay within the body budget
+        # plus at most the margin — if it exceeds body_budget + margin, the coordinator's
+        # outer wait would have fired first.
+        assert elapsed < body_budget + margin, (
+            f"_shutdown_children() took {elapsed:.2f}s; body_budget={body_budget:.1f}s, "
+            f"margin={margin:.1f}s — the coordinator would have fired first"
+        )
 
 
 @contextmanager
