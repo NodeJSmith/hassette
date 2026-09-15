@@ -96,6 +96,16 @@ class _ResourceContextFilter(Filter):
         record.source_tier = self.source_tier  # pyright: ignore[reportAttributeAccessIssue]
         return True
 
+    # Value-based equality so stdlib Filterer.addFilter()'s `filter not in self.filters`
+    # dedup works across repeated Resource constructions sharing a process-global logger
+    # (e.g. hot-reload). Without this, every construction appends a duplicate filter.
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, _ResourceContextFilter) and self.source_tier == other.source_tier
+
+    def __hash__(self) -> int:
+        return hash((_ResourceContextFilter, self.source_tier))
+
 
 class Resource(LifecycleMixin, metaclass=FinalMeta):
     """Base class for resources in the Hassette framework."""
