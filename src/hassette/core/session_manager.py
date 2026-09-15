@@ -143,12 +143,12 @@ class SessionManager(Resource):
     async def _do_mark_orphaned_sessions(self) -> None:
         """Execute the orphan-session UPDATE; called by the write-queue worker.
 
-        Matches any session left with stopped_at IS NULL from a previous process run --
+        Matches any session left with stopped_at IS NULL from a previous process run —
         not just status='running'. A session that recorded a crash (status='failure') but never
         reached finalize_session() before the process died is just as orphaned as one still
         marked 'running'; both need stopped_at backfilled so downstream liveness checks (the
         once=True listener cleanup's session join, in particular) treat them as ended. Only rows
-        still 'running' get their status overwritten to 'unknown' -- a 'failure' row already
+        still 'running' get their status overwritten to 'unknown' — a 'failure' row already
         recorded a real outcome and keeps it, gaining only the backfilled stopped_at.
         """
         db = self._database_service.db

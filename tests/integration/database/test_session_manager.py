@@ -317,13 +317,13 @@ async def test_mark_orphaned_sessions_backfills_crashed_session(
     cursor = await db.execute("SELECT id FROM sessions WHERE status = 'failure'")
     row = await cursor.fetchone()
     assert row is not None
-    crashed_id = row[0]
+    crashed_session_id = row[0]
 
     await session_manager.mark_orphaned_sessions()
 
     cursor = await db.execute(
         "SELECT status, stopped_at, error_type, error_message FROM sessions WHERE id = ?",
-        (crashed_id,),
+        (crashed_session_id,),
     )
     row = await cursor.fetchone()
     assert row is not None
