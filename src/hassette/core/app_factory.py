@@ -51,9 +51,11 @@ class AppFactory:
         # Try to load the class
         app_class = self.load_class(app_key, manifest, force_reload)
         if app_class is None:
-            # Class loading failed - record failure at index 0
+            # Class loading failed — record failure at index 0, but only if that index isn't
+            # already running (same guard as the per-index loop below).
             load_error = self.get_load_error(manifest)
-            self.registry.record_failure(app_key, 0, load_error)
+            if self.registry.get(app_key, 0) is None:
+                self.registry.record_failure(app_key, 0, load_error)
             return set()
 
         app_configs = self.normalize_configs(manifest.app_config)
