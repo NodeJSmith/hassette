@@ -48,6 +48,17 @@ export function groupAndSortApps(manifests: AppManifest[], appStatuses: Record<s
   return { groups, allHealthy };
 }
 
+/** Display names that appear on 2+ manifests — these need a disambiguating label instead
+ * of the bare (colliding) display_name. Computed against the full manifest list so a given
+ * app's label doesn't flip based on unrelated search-filtering state. */
+export function findDuplicateDisplayNames(manifests: AppManifest[]): Set<string> {
+  const counts = new Map<string, number>();
+  for (const m of manifests) {
+    counts.set(m.display_name, (counts.get(m.display_name) ?? 0) + 1);
+  }
+  return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([name]) => name));
+}
+
 // The sidebar's manifests query isn't invalidated by app_status_changed, so a manifest's own
 // status/instances can be stale in either direction (see appLiveStatus's own doc comment) —
 // deriving the group from the live WS-overlaid status, not manifest.status/instances directly,
