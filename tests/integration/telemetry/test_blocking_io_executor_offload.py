@@ -421,7 +421,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
                     warnings.simplefilter("always", HassetteBlockingIOWarning)
 
                     # Stall the loop thread long enough that the watchdog detects it
-                    # (0.3s >> the 0.05s threshold, so detection is deterministic).
+                    # (0.3s >> the 0.15s threshold, so detection is deterministic).
                     time.sleep(0.3)  # noqa: ASYNC251
 
                     # Let the watchdog recover and process the (suppressed) episode.
