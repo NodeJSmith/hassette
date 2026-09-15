@@ -174,8 +174,9 @@ class AppLifecycleService(Resource):
         instances: dict[int, "App[AppConfig]"],
         manifest: "AppManifest",
         instance_index: int | None = None,
+        only_indices: set[int] | None = None,
     ) -> None:
-        """Initialize all instances for an app key.
+        """Initialize instances for an app key.
 
         Records failures directly to the registry. After all instances are
         initialized, awaits pending DB registrations and runs post-ready
@@ -183,15 +184,21 @@ class AppLifecycleService(Resource):
 
         Args:
             app_key: The app key
-            instances: Dict of index -> App to initialize
+            instances: Dict of index -> App. Used for both the initialization loop (filtered
+                by ``only_indices`` when provided) and post-ready reconciliation (always uses
+                the full dict so that pre-existing instances' listener/job rows are not retired).
             manifest: The app manifest
             instance_index: When provided, scopes post-ready reconciliation to this instance
                 only, so restarting one instance does not retire sibling instances' rows.
                 When None (default), reconciliation is app_key-scoped only — unchanged behavior.
+            only_indices: When provided, only instances at these indices are initialized.
+                Others are skipped but still included in reconciliation.
         """
         class_name = manifest.class_name
 
         for idx, inst in instances.items():
+            if only_indices is not None and idx not in only_indices:
+                continue
             structlog.contextvars.bind_contextvars(
                 app_key=app_key,
                 instance_name=inst.app_config.instance_name,
@@ -499,6 +506,10 @@ class AppLifecycleService(Resource):
     ) -> None:
         """Create instances for an app and await their initialization.
 
+        No-ops for any index that already has a live registry entry — calling start on an
+        already-running app does not recreate its instances. Use ``reload_app()`` to
+        stop-then-recreate.
+
         Args:
             app_key: The app key to start
             force_reload: Whether to force-reload the app class from disk
@@ -555,7 +566,7 @@ class AppLifecycleService(Resource):
 
         try:
             self.logger.debug("Creating instances for app %s", app_key)
-            self.factory.create_instances(app_key, app_manifest, force_reload=force_reload)
+            created_indices = self.factory.create_instances(app_key, app_manifest, force_reload=force_reload)
         except (UndefinedUserConfigError, InvalidInheritanceError):
             self.logger.error(
                 "Failed to load app '%s' due to bad configuration - check previous logs for details", app_key
@@ -584,12 +595,17 @@ class AppLifecycleService(Resource):
         for info in self.registry.get_failed_instance_infos(app_key).values():
             await self.hassette.send_event(HassetteAppStateEvent.from_instance_info(info))
 
+        # Pass all running instances so reconciliation sees every live listener/job ID.
+        # only_indices restricts which instances actually run on_initialize() — pre-existing
+        # ones are skipped but still contribute to the reconciliation's live-ID set, preventing
+        # their telemetry rows from being retired.
         instances = self.registry.get_running_apps(app_key)
         if instances:
-            for inst in instances.values():
-                event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)
-                await self.hassette.send_event(event)
-            await self.initialize_instances(app_key, instances, app_manifest)
+            for idx, inst in instances.items():
+                if idx in created_indices:
+                    event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)
+                    await self.hassette.send_event(event)
+            await self.initialize_instances(app_key, instances, app_manifest, only_indices=created_indices)
 
     async def _emit_stopped_events(self, infos: "dict[int, AppInstanceInfo]") -> None:
         """Emit a STOPPED event for each given failed-entry snapshot.
