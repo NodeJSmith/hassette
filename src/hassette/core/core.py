@@ -768,10 +768,13 @@ class Hassette(Resource):
         safe: nothing in a later wave can still be depended on by anything left half-shut-down
         above it.
 
-        Each wave's own timeout is capped at ``children_budget_remaining()`` — the time
-        left until ``body_deadline``, floored at ``children_floor_seconds``. Multiple waves
-        share this budget rather than each independently claiming a fresh full window, so the
-        body finishes before the coordinator's outer wait.
+        Each wave's own timeout is capped at ``children_budget_remaining()`` — the time left
+        until ``body_deadline``, divided across the remaining non-empty waves and floored at
+        ``CHILDREN_WAVE_FLOOR_SECONDS``. The final wave (``waves_left=1``) falls back to the
+        larger ``CHILDREN_FLOOR_SECONDS`` floor, giving the most-foundational resources (DB,
+        sync executor) a bigger grace window. Worst-case total overrun with W waves is
+        ``(W-1) * CHILDREN_WAVE_FLOOR_SECONDS + CHILDREN_FLOOR_SECONDS`` — at ~7 waves,
+        1.6s vs. the 3.0s coordinator margin (see #1809).
         """
         type_to_instance = {type(c): c for c in self.children}
 
@@ -779,12 +782,16 @@ class Hassette(Resource):
         causes: list[TeardownCause] = []
         affected: list[str] = []
 
+        non_empty_waves = [wt for wt in reversed(self._init_waves) if any(t in type_to_instance for t in wt)]
+        waves_left = len(non_empty_waves)
+
         waves_start = asyncio.get_running_loop().time()
-        for wave_types in reversed(self._init_waves):
+        for wave_types in non_empty_waves:
             wave = [type_to_instance[t] for t in wave_types if t in type_to_instance]
-            if not wave:
-                continue
-            timeout = min(self.config.lifecycle.resource_shutdown_timeout_seconds, children_budget_remaining(self))
+            timeout = min(
+                self.config.lifecycle.resource_shutdown_timeout_seconds,
+                children_budget_remaining(self, waves_left=waves_left),
+            )
             self.logger.debug("Shutting down wave: [%s]", ", ".join(c.class_name for c in wave))
             wave_start = asyncio.get_running_loop().time()
             result = await shutdown_batch(self, wave, timeout)
@@ -796,6 +803,7 @@ class Hassette(Resource):
             child_reports.extend(result.reports)
             causes.extend(result.causes)
             affected.extend(result.affected)
+            waves_left -= 1
 
         self.logger.debug("All shutdown waves completed in %.2fs", elapsed_since(waves_start))
         return finalize_shutdown_report(child_reports, causes, affected)

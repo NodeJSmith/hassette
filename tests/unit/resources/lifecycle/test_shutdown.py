@@ -744,6 +744,90 @@ def test_compute_shutdown_budget_honors_configured_task_cancel_ceiling():
     assert budget.task_cancel_seconds == 5.0
 
 
+async def test_children_budget_remaining_single_wave_returns_floor_when_over_budget():
+    """Pin: waves_left=1 (default) returns at least children_floor_seconds, preserving
+    Resource._shutdown_children()'s single-batch behavior even when body_deadline has passed.
+    """
+    loop = asyncio.get_running_loop()
+    past_deadline = loop.time() - 5.0
+    budget = lifecycle.ShutdownBudget(
+        hooks_pool_deadline=past_deadline,
+        task_cancel_seconds=1.0,
+        cleanup_seconds=0.5,
+        children_floor_seconds=lifecycle.CHILDREN_FLOOR_SECONDS,
+        body_deadline=past_deadline,
+        total_deadline=loop.time() + 30.0,
+    )
+
+    hassette_stub = make_mock_hassette(sealed=False)
+    hassette_stub.config.lifecycle.resource_shutdown_timeout_seconds = 30.0
+    parent = SimpleParent(hassette_stub)
+    parent._shutdown_budget = budget
+
+    result = lifecycle.children_budget_remaining(parent)
+    assert result == lifecycle.CHILDREN_FLOOR_SECONDS
+
+
+async def test_children_budget_remaining_single_wave_benefits_from_slack():
+    """Pin: waves_left=1 (default) returns remaining time when it exceeds the floor."""
+    hassette_stub = make_mock_hassette(sealed=False)
+    hassette_stub.config.lifecycle.resource_shutdown_timeout_seconds = 30.0
+
+    parent = SimpleParent(hassette_stub)
+    loop = asyncio.get_running_loop()
+    parent._shutdown_budget = compute_shutdown_budget(30.0, loop.time())
+
+    result = lifecycle.children_budget_remaining(parent)
+    # Body deadline is ~27s from now (30 - 10% margin), and children floor is 1.0s.
+    # The remaining time is much larger than the floor.
+    assert result > lifecycle.CHILDREN_FLOOR_SECONDS
+
+
+async def test_children_budget_remaining_multi_wave_divides_across_waves():
+    """When waves_left > 1, the remaining time is divided across waves and floored
+    at CHILDREN_WAVE_FLOOR_SECONDS, not CHILDREN_FLOOR_SECONDS.
+    """
+    hassette_stub = make_mock_hassette(sealed=False)
+    hassette_stub.config.lifecycle.resource_shutdown_timeout_seconds = 30.0
+
+    parent = SimpleParent(hassette_stub)
+    loop = asyncio.get_running_loop()
+    parent._shutdown_budget = compute_shutdown_budget(30.0, loop.time())
+
+    remaining = parent._shutdown_budget.body_deadline - loop.time()
+    result = lifecycle.children_budget_remaining(parent, waves_left=7)
+    # Should be approximately remaining / 7, not the full remaining time.
+    assert result == pytest.approx(remaining / 7, abs=0.1)
+
+
+async def test_children_budget_remaining_multi_wave_uses_wave_floor_when_over_budget():
+    """When waves_left > 1 and body_deadline has passed, each wave gets at most
+    CHILDREN_WAVE_FLOOR_SECONDS (0.1s), not CHILDREN_FLOOR_SECONDS (1.0s).
+    """
+    hassette_stub = make_mock_hassette(sealed=False)
+    hassette_stub.config.lifecycle.resource_shutdown_timeout_seconds = 30.0
+
+    parent = SimpleParent(hassette_stub)
+    loop = asyncio.get_running_loop()
+    past_deadline = loop.time() - 5.0
+    parent._shutdown_budget = lifecycle.ShutdownBudget(
+        hooks_pool_deadline=past_deadline,
+        task_cancel_seconds=1.0,
+        cleanup_seconds=0.5,
+        children_floor_seconds=1.0,
+        body_deadline=past_deadline,
+        total_deadline=loop.time() + 30.0,
+    )
+
+    result = lifecycle.children_budget_remaining(parent, waves_left=7)
+    assert result == lifecycle.CHILDREN_WAVE_FLOOR_SECONDS
+    # Worst-case total overrun from 7 waves: 6 * 0.1 + 1.0 = 1.6s (the final wave
+    # falls back to CHILDREN_FLOOR_SECONDS via waves_left=1), well within the
+    # 3s margin (10% of 30s).
+    worst_case = (7 - 1) * lifecycle.CHILDREN_WAVE_FLOOR_SECONDS + lifecycle.CHILDREN_FLOOR_SECONDS
+    assert worst_case < 30.0 * lifecycle.COORDINATOR_MARGIN_FRACTION
+
+
 class _ObserveTimer:
     """Fake ``_observe_active_initializer``: sleeps for ``seconds``, then records the actually
     measured duration in ``actual_elapsed`` -- read after the sleep so callers self-calibrate
