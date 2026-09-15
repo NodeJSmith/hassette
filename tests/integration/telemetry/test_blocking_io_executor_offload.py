@@ -377,7 +377,10 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
         db_svc, mock_hassette, _ = ignore_db
         loop = asyncio.get_running_loop()
 
-        mock_hassette.config.blocking_io.lag_threshold_seconds = 0.05
+        # CI scheduling jitter + coverage-instrumentation overhead produce 58-71ms
+        # loop lag; 50ms tripped false positives. 150ms tolerates jitter while still
+        # detecting real stalls (multi-hundred-ms). See #1593 / sibling test above.
+        mock_hassette.config.blocking_io.lag_threshold_seconds = 0.15
         mock_hassette.config.blocking_io.watchdog_interval_seconds = 0.1
 
         # The watchdog only acts when an execution marker is live (it attributes the stall to the
@@ -418,7 +421,7 @@ class TestIgnoreBehaviorSuppressesRowAndWarning:
                     warnings.simplefilter("always", HassetteBlockingIOWarning)
 
                     # Stall the loop thread long enough that the watchdog detects it
-                    # (0.3s >> the 0.05s threshold, so detection is deterministic).
+                    # (0.3s >> the 0.15s threshold, so detection is deterministic).
                     time.sleep(0.3)  # noqa: ASYNC251
 
                     # Let the watchdog recover and process the (suppressed) episode.
