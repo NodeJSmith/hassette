@@ -782,7 +782,9 @@ class Hassette(Resource):
         causes: list[TeardownCause] = []
         affected: list[str] = []
 
-        non_empty_waves = [wt for wt in reversed(self._init_waves) if any(t in type_to_instance for t in wt)]
+        non_empty_waves = [
+            wave_types for wave_types in reversed(self._init_waves) if any(t in type_to_instance for t in wave_types)
+        ]
         waves_left = len(non_empty_waves)
 
         waves_start = asyncio.get_running_loop().time()
