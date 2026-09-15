@@ -48,17 +48,27 @@ class AppFactory:
             manifest: The app manifest with config
             force_reload: Whether to force reload the class
         """
+        app_configs = self.normalize_configs(manifest.app_config)
+
         # Try to load the class
         app_class = self.load_class(app_key, manifest, force_reload)
         if app_class is None:
-            # Class loading failed — record failure at index 0, but only if that index isn't
-            # already running (same guard as the per-index loop below).
+            # Class loading failed — this affects every configured index (one shared class
+            # serves all instances of this app_key), but we only ever record one representative
+            # failure. Record it against the first configured index that isn't already running,
+            # not always index 0: if index 0 is preserved from a prior successful start, blindly
+            # recording there would both overwrite its live entry and leave a genuinely-failed,
+            # unstarted sibling index unreported (looking like an ordinary stopped index instead
+            # of FAILED). If every configured index already has a live entry, there's no
+            # unstarted index left to report against, so skip recording entirely.
             load_error = self.get_load_error(manifest)
-            if self.registry.get(app_key, 0) is None:
-                self.registry.record_failure(app_key, 0, load_error)
+            target_index = next(
+                (idx for idx in range(len(app_configs)) if self.registry.get(app_key, idx) is None),
+                None,
+            )
+            if target_index is not None:
+                self.registry.record_failure(app_key, target_index, load_error)
             return set()
-
-        app_configs = self.normalize_configs(manifest.app_config)
 
         # Create instances, skipping indices that already have a live registry entry.
         # Without this guard, a second start_app() call silently overwrites running instances

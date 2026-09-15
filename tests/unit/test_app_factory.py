@@ -113,6 +113,50 @@ class TestAppFactoryCreateInstances:
         mock_registry.record_failure.assert_called_once_with("test_app", 0, cached_error)
         mock_registry.register_app.assert_not_called()
 
+    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
+    @patch("hassette.core.app_factory.get_class_load_error")
+    def test_create_instances_class_load_failure_reports_unoccupied_sibling(
+        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """When index 0 is already running (preserved) and class loading fails for a
+        multi-instance app, the failure must be recorded against the first unstarted sibling
+        index instead of being swallowed entirely — otherwise a genuinely-failed index 1 would
+        report no FAILED status at all and look like an ordinary stopped index (Codex P2 finding
+        on #2245).
+        """
+        cached_error = ValueError("Failed to load")
+        mock_get_error.return_value = cached_error
+        mock_manifest.app_config = [
+            {"instance_name": "instance_0"},
+            {"instance_name": "instance_1"},
+        ]
+        existing_app = Mock()
+        mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 0 else None)
+
+        factory.create_instances("test_app", mock_manifest)
+
+        mock_registry.record_failure.assert_called_once_with("test_app", 1, cached_error)
+        mock_registry.register_app.assert_not_called()
+
+    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
+    @patch("hassette.core.app_factory.get_class_load_error")
+    def test_create_instances_class_load_failure_all_indices_occupied(
+        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """When every configured index already has a live entry, there is no unstarted index
+        to report the failure against -- skip recording entirely rather than overwriting a
+        running instance's registry entry.
+        """
+        cached_error = ValueError("Failed to load")
+        mock_get_error.return_value = cached_error
+        mock_manifest.app_config = [{"instance_name": "instance_0"}]
+        mock_registry.get = Mock(return_value=Mock())
+
+        factory.create_instances("test_app", mock_manifest)
+
+        mock_registry.record_failure.assert_not_called()
+        mock_registry.register_app.assert_not_called()
+
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_missing_instance_name(
         self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
