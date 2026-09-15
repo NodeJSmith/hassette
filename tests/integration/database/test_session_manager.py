@@ -289,3 +289,117 @@ async def test_cleanup_once_listeners_removes_stale_once_listener(
         f"once=True listener (id={listener_id}) from stopped session {stopped_session_id} "
         f"should be deleted; current_session_id={current_session_id}"
     )
+
+
+async def test_mark_orphaned_sessions_backfills_crashed_session(
+    session_manager: SessionManager, db_service: DatabaseService
+) -> None:
+    """A session with status='failure' and stopped_at NULL gets stopped_at backfilled but keeps its status.
+
+    Reproduces the bug where a service crash set status='failure' but the process died before
+    finalize_session() could set stopped_at. The old orphan-marking query only matched
+    status='running', so these rows stayed with stopped_at NULL forever — making their
+    once=True listeners permanently ineligible for cleanup.
+    """
+    db = db_service.db
+
+    # Insert a crashed session: status='failure', stopped_at NULL (simulates crash then kill)
+    heartbeat_ts = time.time() - 600
+    await db.execute(
+        """
+        INSERT INTO sessions (started_at, last_heartbeat_at, status, error_type, error_message)
+        VALUES (?, ?, 'failure', 'ConnectionError', 'lost connection')
+        """,
+        (heartbeat_ts - 100, heartbeat_ts),
+    )
+    await db.commit()
+
+    cursor = await db.execute("SELECT id FROM sessions WHERE status = 'failure'")
+    row = await cursor.fetchone()
+    assert row is not None
+    crashed_id = row[0]
+
+    await session_manager.mark_orphaned_sessions()
+
+    cursor = await db.execute(
+        "SELECT status, stopped_at, error_type, error_message FROM sessions WHERE id = ?",
+        (crashed_id,),
+    )
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == "failure", "status must stay 'failure', not be overwritten to 'unknown'"
+    assert row[1] == pytest.approx(heartbeat_ts, abs=1), "stopped_at must be backfilled from last_heartbeat_at"
+    assert row[2] == "ConnectionError", "error_type must be preserved"
+    assert row[3] == "lost connection", "error_message must be preserved"
+
+
+async def test_crashed_session_once_listeners_eligible_after_orphan_mark(
+    session_manager: SessionManager, db_service: DatabaseService
+) -> None:
+    """once=True listeners from a crashed-then-killed session become cleanup-eligible after orphan-marking.
+
+    End-to-end: insert a crashed session (status='failure', stopped_at NULL) with a fired once=True
+    listener, orphan-mark it (backfills stopped_at), then run once-listener cleanup — the listener
+    must be deleted.
+    """
+    db = db_service.db
+    now = time.time()
+
+    # Insert a crashed session with stopped_at NULL
+    cursor = await db.execute(
+        """
+        INSERT INTO sessions (started_at, last_heartbeat_at, status, error_type, error_message)
+        VALUES (?, ?, 'failure', 'RuntimeError', 'boom')
+        """,
+        (now - 600, now - 300),
+    )
+    await db.commit()
+    crashed_session_id = cursor.lastrowid
+    assert crashed_session_id is not None
+
+    # Insert a once=True listener
+    cursor = await db.execute(
+        """
+        INSERT INTO listeners
+            (app_key, instance_index, name, handler_method, topic, once, source_location, source_tier)
+        VALUES ('test_app', 0, 'crashed_once', 'on_event', 'test/topic', 1, 'test.py:1', 'app')
+        """,
+    )
+    await db.commit()
+    listener_id = cursor.lastrowid
+    assert listener_id is not None
+
+    # Insert an execution for that listener in the crashed session
+    cursor = await db.execute(
+        """
+        INSERT INTO executions
+            (kind, listener_id, session_id, execution_start_ts, duration_ms, status, source_tier)
+        VALUES ('handler', ?, ?, ?, 5.0, 'success', 'app')
+        """,
+        (listener_id, crashed_session_id, now - 400),
+    )
+    await db.commit()
+
+    # Before orphan-marking: stopped_at is NULL, so the liveness join treats it as live
+    cursor = await db.execute("SELECT stopped_at FROM sessions WHERE id = ?", (crashed_session_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is None, "stopped_at must be NULL before orphan-marking"
+
+    # Orphan-mark: backfills stopped_at
+    await session_manager.mark_orphaned_sessions()
+
+    cursor = await db.execute("SELECT stopped_at FROM sessions WHERE id = ?", (crashed_session_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] is not None, "stopped_at must be backfilled after orphan-marking"
+
+    # Create a current session so the cleanup has a live session to compare against
+    await session_manager.create_session()
+
+    # Run once-listener cleanup — the listener should now be eligible
+    await session_manager.cleanup_stale_once_listeners()
+
+    cursor = await db.execute("SELECT id FROM listeners WHERE id = ?", (listener_id,))
+    row = await cursor.fetchone()
+    assert row is None, "once=True listener from crashed-then-orphaned session must be cleaned up"
