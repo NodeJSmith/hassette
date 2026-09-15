@@ -15,6 +15,7 @@ from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.testing import EventCapture
 from hassette.types import Topic
 from hassette.types.enums import ResourceStatus
+from tests.unit.core._fixtures_app_lifecycle import make_mock_app_instance
 
 
 class TestStartApp:
@@ -306,6 +307,36 @@ class TestStartApp:
         await lifecycle_service.start_app("test_app")
 
         mock_registry.get_running_apps.assert_not_called()
+
+    # dup-ignore-start: pytest test function signature
+    async def test_does_not_reinitialize_pre_existing_instances(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        mock_factory: MagicMock,
+        mock_hassette: MagicMock,
+    ) -> None:
+        """Calling start_app() when some indices are already running must not re-initialize
+        the pre-existing instances — only newly created ones get on_initialize(). Without this
+        guard, the preserved instance would have listeners, jobs, and tasks duplicated (#1688).
+        """
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+
+        existing_app = make_mock_app_instance(instance_name="existing")
+        new_app = make_mock_app_instance(instance_name="new")
+
+        # Factory reports only index 2 was created; index 0 was pre-existing.
+        mock_factory.create_instances = Mock(return_value={2})
+
+        # Registry returns both: index 0 (pre-existing) and index 2 (newly created).
+        mock_registry.get_running_apps = Mock(return_value={0: existing_app, 2: new_app})
+
+        await lifecycle_service.start_app("test_app")
+
+        # Only the newly created instance should be initialized.
+        new_app.initialize.assert_awaited_once()
+        existing_app.initialize.assert_not_awaited()
 
 
 class TestStartAppStaleManifestRace:

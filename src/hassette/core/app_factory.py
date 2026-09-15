@@ -37,8 +37,11 @@ class AppFactory:
         app_key: str,
         manifest: "AppManifest",
         force_reload: bool = False,
-    ) -> None:
+    ) -> set[int]:
         """Create all app instances for a manifest and register them.
+
+        Returns the set of indices that were actually created. Indices that already have a
+        live registry entry are skipped — callers use this to initialize only the new instances.
 
         Args:
             app_key: The app key from configuration
@@ -51,7 +54,7 @@ class AppFactory:
             # Class loading failed - record failure at index 0
             load_error = self.get_load_error(manifest)
             self.registry.record_failure(app_key, 0, load_error)
-            return
+            return set()
 
         app_configs = self.normalize_configs(manifest.app_config)
 
@@ -62,11 +65,14 @@ class AppFactory:
         # should use reload_app(), which stops before recreating. A no-op on the reload_app()
         # path: _stop_app_unlocked() already removed all entries before create_instances() runs.
         # Mirrors the per-index guard in start_instance() (#1688).
+        created: set[int] = set()
         for idx, config in enumerate(app_configs):
             if self.registry.get(app_key, idx) is not None:
                 self.logger.debug("Index %d of app %s is already running — skipping", idx, app_key)
                 continue
             self.create_single_instance(app_key, manifest, idx, config, app_class)
+            created.add(idx)
+        return created
 
     def create_single_instance(
         self,

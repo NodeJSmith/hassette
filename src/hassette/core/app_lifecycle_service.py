@@ -559,7 +559,7 @@ class AppLifecycleService(Resource):
 
         try:
             self.logger.debug("Creating instances for app %s", app_key)
-            self.factory.create_instances(app_key, app_manifest, force_reload=force_reload)
+            created_indices = self.factory.create_instances(app_key, app_manifest, force_reload=force_reload)
         except (UndefinedUserConfigError, InvalidInheritanceError):
             self.logger.error(
                 "Failed to load app '%s' due to bad configuration - check previous logs for details", app_key
@@ -588,12 +588,17 @@ class AppLifecycleService(Resource):
         for info in self.registry.get_failed_instance_infos(app_key).values():
             await self.hassette.send_event(HassetteAppStateEvent.from_instance_info(info))
 
-        instances = self.registry.get_running_apps(app_key)
-        if instances:
-            for inst in instances.values():
+        # Initialize only newly created instances — pre-existing ones were preserved by
+        # create_instances() and must not re-run on_initialize() (which would duplicate
+        # listeners, jobs, and tasks). See AppFactory.create_instances() for the guard.
+        new_instances = {
+            idx: inst for idx, inst in self.registry.get_running_apps(app_key).items() if idx in created_indices
+        }
+        if new_instances:
+            for inst in new_instances.values():
                 event = HassetteAppStateEvent.from_app(app=inst, status=NOT_STARTED)
                 await self.hassette.send_event(event)
-            await self.initialize_instances(app_key, instances, app_manifest)
+            await self.initialize_instances(app_key, new_instances, app_manifest)
 
     async def _emit_stopped_events(self, infos: "dict[int, AppInstanceInfo]") -> None:
         """Emit a STOPPED event for each given failed-entry snapshot.

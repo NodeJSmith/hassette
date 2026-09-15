@@ -161,9 +161,14 @@ def mock_registry() -> MagicMock:
 
 @pytest.fixture
 def mock_factory() -> MagicMock:
-    """Create a mock AppFactory."""
+    """Create a mock AppFactory.
+
+    ``create_instances`` returns ``frozenset(range(100))`` by default so all indices are
+    treated as newly created — the "fresh start" default.  Tests verifying the pre-existing
+    guard override this with a specific return value (e.g. ``Mock(return_value={2})``).
+    """
     factory = MagicMock()
-    factory.create_instances = Mock()
+    factory.create_instances = Mock(return_value=frozenset(range(100)))
     return factory
 
 

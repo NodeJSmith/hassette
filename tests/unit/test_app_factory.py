@@ -253,9 +253,10 @@ class TestAppFactoryCreateInstances:
         existing_app = Mock()
         mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 1 else None)
 
-        factory.create_instances("test_app", mock_manifest)
+        created = factory.create_instances("test_app", mock_manifest)
 
         # Only indices 0 and 2 should be created (2 calls, not 3).
+        assert created == {0, 2}
         assert mock_app_class.call_count == 2
         assert mock_registry.register_app.call_count == 2
         mock_registry.register_app.assert_any_call("test_app", 0, mock_app_class.return_value)
