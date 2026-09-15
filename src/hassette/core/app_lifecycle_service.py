@@ -499,6 +499,10 @@ class AppLifecycleService(Resource):
     ) -> None:
         """Create instances for an app and await their initialization.
 
+        No-ops for any index that already has a live registry entry — calling start on an
+        already-running app does not recreate its instances. Use ``reload_app()`` to
+        stop-then-recreate.
+
         Args:
             app_key: The app key to start
             force_reload: Whether to force-reload the app class from disk

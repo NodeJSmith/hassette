@@ -55,8 +55,17 @@ class AppFactory:
 
         app_configs = self.normalize_configs(manifest.app_config)
 
-        # Create instances
+        # Create instances, skipping indices that already have a live registry entry.
+        # Without this guard, a second start_app() call silently overwrites running instances
+        # via register_app() (which replaces any prior entry at that index), orphaning the
+        # originals' listeners, scheduler jobs, and tasks. Callers that want a fresh instance
+        # should use reload_app(), which stops before recreating. A no-op on the reload_app()
+        # path: _stop_app_unlocked() already removed all entries before create_instances() runs.
+        # Mirrors the per-index guard in start_instance() (#1688).
         for idx, config in enumerate(app_configs):
+            if self.registry.get(app_key, idx) is not None:
+                self.logger.debug("Index %d of app %s is already running — skipping", idx, app_key)
+                continue
             self.create_single_instance(app_key, manifest, idx, config, app_class)
 
     def create_single_instance(

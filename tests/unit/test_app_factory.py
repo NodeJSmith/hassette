@@ -21,6 +21,7 @@ def mock_registry():
     registry = Mock()
     registry.register_app = Mock()
     registry.record_failure = Mock()
+    registry.get = Mock(return_value=None)
     return cast("AppRegistry", registry)
 
 
@@ -233,6 +234,32 @@ class TestAppFactoryCreateInstances:
 
         # When force_reload=True, should call load_app_class_from_manifest even if already loaded
         mock_load_class.assert_called_once_with(mock_manifest, force_reload=True)
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_create_instances_skips_already_running_indices(
+        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """create_instances skips indices that already have a live registry entry, rather
+        than overwriting them via register_app() and orphaning the originals' listeners,
+        scheduler jobs, and tasks (#1688). Only indices without a live entry are created.
+        """
+        mock_load_class.return_value = mock_app_class = Mock()
+        mock_manifest.app_config = [
+            {"instance_name": "instance_0"},
+            {"instance_name": "instance_1"},
+            {"instance_name": "instance_2"},
+        ]
+        # Index 1 is already running; indices 0 and 2 are not.
+        existing_app = Mock()
+        mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 1 else None)
+
+        factory.create_instances("test_app", mock_manifest)
+
+        # Only indices 0 and 2 should be created (2 calls, not 3).
+        assert mock_app_class.call_count == 2
+        assert mock_registry.register_app.call_count == 2
+        mock_registry.register_app.assert_any_call("test_app", 0, mock_app_class.return_value)
+        mock_registry.register_app.assert_any_call("test_app", 2, mock_app_class.return_value)
 
 
 class TestAppFactoryCreateSingleInstance:
