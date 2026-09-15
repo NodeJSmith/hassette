@@ -101,7 +101,9 @@ class _ResourceContextFilter(Filter):
     # (e.g. hot-reload). Without this, every construction appends a duplicate filter.
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, _ResourceContextFilter) and self.source_tier == other.source_tier
+        if not isinstance(other, _ResourceContextFilter):
+            return NotImplemented
+        return self.source_tier == other.source_tier
 
     def __hash__(self) -> int:
         return hash((_ResourceContextFilter, self.source_tier))
