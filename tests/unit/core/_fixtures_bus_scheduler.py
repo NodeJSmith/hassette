@@ -79,7 +79,6 @@ def make_scheduler_service(
     svc._executor.mark_job_status = AsyncMock()
 
     svc.task_bucket = MagicMock()
-    svc.task_bucket.is_sealed = False
     svc.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
 
     # Close coroutines immediately to avoid "coroutine was never awaited" warnings

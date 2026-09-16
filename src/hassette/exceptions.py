@@ -254,6 +254,17 @@ class ResourceNotReadyError(HassetteError):
     """Custom exception to indicate that a resource is not ready for use."""
 
 
+class TaskBucketSealedError(RuntimeError, HassetteError):
+    """Raised when a sealed ``TaskBucket`` rejects new work.
+
+    Subclasses ``RuntimeError`` so callers that only care that spawning failed keep
+    working. The distinct type exists so a call site that is willing to accept *this*
+    specific rejection can catch it without also swallowing unrelated ``spawn()``
+    failures, and without a check-then-spawn pre-check that a cross-thread caller can
+    race against the loop thread sealing the bucket.
+    """
+
+
 class AppBootstrapNotReleasedError(HassetteError):
     """Raised when an app start/reload is requested before bootstrap release opens."""
 

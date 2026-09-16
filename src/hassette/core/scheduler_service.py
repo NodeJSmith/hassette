@@ -18,7 +18,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
-from hassette.exceptions import JobRemovedError
+from hassette.exceptions import JobRemovedError, TaskBucketSealedError
 from hassette.execution_mode import STALL_THRESHOLD_SECONDS, drain_pending_done, run_through_guard
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
@@ -851,7 +851,8 @@ class SchedulerService(Service):
         When that bucket is already sealed (reachable only after a force-terminal teardown,
         which seals without running hooks), the tail is skipped with a debug log rather than
         raising: the guard is left unreleased and ``removed_at`` is never persisted for this
-        job. Live state removal still happens either way.
+        job. Live state removal still happens either way. Only the sealed rejection is
+        absorbed; any other ``spawn()`` failure still propagates.
 
         Args:
             job: The job to remove.
@@ -860,16 +861,19 @@ class SchedulerService(Service):
             True if the job was found and removed from the heap, False otherwise.
         """
         removed_from_heap = self._remove_from_live_state(job)
-        if self.task_bucket.is_sealed:
+        try:
+            self.task_bucket.spawn(self._finish_removal(job), name="scheduler:guard_release")
+        except TaskBucketSealedError:
             # Accepted gap (force-terminal only): both the guard release and the removed_at
             # persistence write are skipped, not just cleanup — mark_job_removed() never runs for
             # this job. Narrower than the listener-side gap (real data, not just in-memory state),
             # but the same trigger applies, and a force-terminated service's process exits shortly
             # after today. Must not raise here — dequeue_job() is the sync, non-awaited removal
             # API and its callers cannot handle a spawn rejection.
+            # Caught rather than pre-checked via ``is_sealed``: Scheduler.remove_job() is reachable
+            # from a sync handler on a worker thread, which can observe an open bucket and still be
+            # rejected when the loop thread seals it before the cross-thread spawn lands.
             self.logger.debug("Task bucket sealed, skipping guard release for job %r", job.name)
-        else:
-            self.task_bucket.spawn(self._finish_removal(job), name="scheduler:guard_release")
         return removed_from_heap
 
     async def remove_job(self, job: "Job") -> bool:

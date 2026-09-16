@@ -343,7 +343,6 @@ def make_scheduler(
         return Mock()
 
     mock_service.task_bucket = Mock()
-    mock_service.task_bucket.is_sealed = False
     mock_service.task_bucket.spawn = Mock(side_effect=_default_spawn)
     scheduler.scheduler_service = mock_service
     scheduler._jobs_by_name = {}
@@ -446,16 +445,12 @@ def make_closing_task_bucket() -> MagicMock:
     was spawned rather than on its effects. Contrast ``tests.support.helpers.make_task_bucket``,
     which spawns real tasks.
 
-    ``is_sealed`` defaults to ``False`` so callers that skip work on a sealed bucket (e.g.
-    ``SchedulerService.dequeue_job()``) take the normal spawning path.
-
     Timing caveat: ``add_done_callback`` invokes its callback synchronously, where a real
     completed future defers it through ``loop.call_soon``. A caller that decrements bookkeeping
     from that callback (e.g. ``BusService``'s dispatch-pending counter) still ends up balanced,
     but the ordering relative to surrounding awaits differs.
     """
     bucket = MagicMock()
-    bucket.is_sealed = False
     task = MagicMock()
     task.done.return_value = True
     task.add_done_callback.side_effect = lambda callback: callback(task)

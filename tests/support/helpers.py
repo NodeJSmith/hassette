@@ -25,7 +25,7 @@ from hassette.core.core import Hassette
 from hassette.events import RawStateChangeEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent, ServiceStatusPayload
-from hassette.exceptions import RestartRefusedError
+from hassette.exceptions import RestartRefusedError, TaskBucketSealedError
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import create_state_change_event
 from hassette.testing._simulation import create_component_loaded_event as create_component_loaded_event
@@ -402,14 +402,11 @@ def make_task_bucket() -> MagicMock:
     stages in ``hassette.resources.base``) see "nothing pending" by default, matching a real,
     freshly constructed ``TaskBucket``. ``cancel_all()`` defaults to an ``AsyncMock`` returning
     the same empty tuple, mirroring the real ``TaskBucket.cancel_all()`` return shape.
-    ``is_sealed`` defaults to ``False`` (not a truthy ``MagicMock``) for the same reason —
-    callers that skip work on a sealed bucket (e.g. ``Listener.cancel()``) must see an open one.
     """
     tb = MagicMock()
     tb.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
     tb.pending_task_names = MagicMock(return_value=())
     tb.cancel_all = AsyncMock(return_value=())
-    tb.is_sealed = False
 
     def spawn_side_effect(coro: Any, *, name: str | None = None) -> Any:  # noqa: ARG001
         try:
@@ -424,6 +421,29 @@ def make_task_bucket() -> MagicMock:
 
     tb.spawn = MagicMock(side_effect=spawn_side_effect)
     return tb
+
+
+def make_rejecting_task_bucket(error: BaseException | None = None) -> MagicMock:
+    """A task bucket mock whose ``spawn()`` rejects every submission.
+
+    Mirrors the real ``TaskBucket.spawn`` rejection contract: the unsubmitted coroutine is
+    closed before the error is raised, so a caller that absorbs the rejection does not leave
+    a "coroutine was never awaited" warning behind. Without that, a test asserting the
+    absorbing behavior fails on an unrelated ``PytestUnraisableExceptionWarning``.
+
+    Defaults to ``TaskBucketSealedError`` (the sealed-bucket rejection). Pass ``error`` to
+    simulate an unrelated ``spawn()`` failure instead.
+    """
+    rejection = error if error is not None else TaskBucketSealedError("bucket is sealed")
+    bucket = make_task_bucket()
+
+    def reject(coro: Any, *, name: str | None = None) -> Any:  # noqa: ARG001
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        raise rejection
+
+    bucket.spawn = MagicMock(side_effect=reject)
+    return bucket
 
 
 class ControlledClock:

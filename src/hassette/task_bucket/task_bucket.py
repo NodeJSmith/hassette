@@ -9,6 +9,7 @@ from concurrent.futures import TimeoutError as CfTimeoutError  # aliased to dist
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
+from hassette.exceptions import TaskBucketSealedError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import elapsed_since, mark_ready
 from hassette.resources.operations import register_task_bucket_factory
@@ -108,8 +109,8 @@ class TaskBucket(Resource):
         self._sealed = False
         self.logger.debug("Reopened bucket %s; accepting new owner work", self.unique_name)
 
-    def _sealed_rejection(self, name: str) -> RuntimeError:
-        return RuntimeError(f"TaskBucket({self.unique_name}) is sealed and rejected new work: {name}")
+    def _sealed_rejection(self, name: str) -> TaskBucketSealedError:
+        return TaskBucketSealedError(f"TaskBucket({self.unique_name}) is sealed and rejected new work: {name}")
 
     def _close_rejected_coro(self, coro: "CoroLikeT[Any]") -> None:
         close = getattr(coro, "close", None)
@@ -130,8 +131,9 @@ class TaskBucket(Resource):
 
         If the bucket is sealed, the task is cancelled and its eventual exception
         (including ``CancelledError``) is consumed via a done callback so rejection
-        cannot produce an unobserved-task-exception warning. Raises ``RuntimeError``
-        identifying the bucket in that case; the task is never tracked.
+        cannot produce an unobserved-task-exception warning. Raises
+        ``TaskBucketSealedError`` identifying the bucket in that case; the task is
+        never tracked.
         """
         if self._sealed:
             task.cancel()
@@ -202,9 +204,12 @@ class TaskBucket(Resource):
     def spawn(self, coro: CoroLikeT[T], *, name: str | None = None) -> asyncio.Task[T]:
         """Convenience: create and track a new task.
 
-        Raises ``RuntimeError`` without creating a task if the bucket is sealed. The
-        unsubmitted coroutine is closed first (when it supports ``close()``) so a
-        rejection never produces a "coroutine was never awaited" warning.
+        Raises ``TaskBucketSealedError`` (a ``RuntimeError`` subclass) without creating a
+        task if the bucket is sealed. The unsubmitted coroutine is closed first (when it
+        supports ``close()``) so a rejection never produces a "coroutine was never
+        awaited" warning. The sealed check is re-applied on the loop thread for
+        cross-thread spawns, so a caller cannot pre-check ``is_sealed`` and assume the
+        spawn will be admitted — catch ``TaskBucketSealedError`` instead.
         """
         # Assign once to a fixed-type local: a nested closure below captures the enclosing
         # scope's *declared* parameter type, not a narrowed one, so re-narrowing `name` after
