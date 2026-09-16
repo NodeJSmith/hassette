@@ -177,14 +177,7 @@ class DatabaseService(Service):
     """Background task that drains _db_write_queue sequentially."""
 
     _write_queue_detached: bool
-    """Whether a teardown path has taken ``_db_write_queue`` away.
-
-    ``_db_write_queue`` is ``None`` both before ``on_initialize()`` creates it and after
-    ``detach_write_queue()`` removes it, and the resource's own status cannot tell those apart
-    (an ``on_initialize()`` failure lands in ``FAILED``/``CRASHED`` without any teardown having
-    run). This flag records the teardown directly so ``queue_unavailable_error()`` names the
-    real cause.
-    """
+    """Whether a teardown path has taken ``_db_write_queue`` away — see ``detach_write_queue()``."""
 
     _consecutive_size_triggers: int
     """Counter for consecutive hourly size failsafe triggers; logged as a warning."""
@@ -315,11 +308,12 @@ class DatabaseService(Service):
 
         Detaches ``_db_write_queue`` via ``detach_write_queue()`` (mirroring ``on_shutdown()``'s
         drain-and-close pattern, minus the graceful ``queue.join()`` this synchronous path can't
-        await) before closing remaining items via ``close_remaining_queue_items()``. Without this, two things
-        go wrong: any coroutine still queued when the worker is cancelled is never closed (GC
-        eventually raises "coroutine was never awaited"), and ``submit()``/``enqueue()`` only
-        reject once ``_db_write_queue`` is ``None`` -- leaving it set would let a caller enqueue
-        into a queue with a cancelled worker, hanging ``submit()``'s awaited future forever.
+        await) before closing remaining items via ``close_remaining_queue_items()``. Without this,
+        two things go wrong: any coroutine still queued when the worker is cancelled is never
+        closed (GC eventually raises "coroutine was never awaited"), and ``submit()``/``enqueue()``
+        only reject once ``_db_write_queue`` is ``None`` -- leaving it set would let a caller
+        enqueue into a queue with a cancelled worker, hanging ``submit()``'s awaited future
+        forever.
 
         Closing ``_db``/``_read_db`` here (via the same synchronous ``stop_connection_sync()``
         used by ``App._force_terminal()`` for its cache) matters for the same reason: this path
@@ -511,9 +505,10 @@ class DatabaseService(Service):
         """Take the write queue away so ``submit()``/``enqueue()`` start rejecting, and return it.
 
         Both teardown paths (``on_shutdown()``, ``_force_terminal()``) go through here so the
-        detach and the ``_write_queue_detached`` flag that records it can never drift apart. The
-        flag is only raised when there was a queue to take, so a teardown of a service whose
-        ``on_initialize()`` never got far enough to create one still reports the pre-init cause.
+        detach and the ``_write_queue_detached`` flag that records it can never drift apart — see
+        ``queue_unavailable_error()`` for what that flag buys. The flag is only raised when there
+        was a queue to take, so tearing down a service whose ``on_initialize()`` never got far
+        enough to create one still reports the pre-init cause.
         """
         queue, self._db_write_queue = self._db_write_queue, None
         if queue is not None:

@@ -328,9 +328,14 @@ class Job:
     ``Scheduler``."""
 
     app_error_handler_resolver: "Callable[[], SchedulerErrorHandlerType | None] | None" = field(
-        default=None, init=False, repr=False
+        default=None, init=False, repr=False, compare=False
     )
-    """Closure that resolves the app-level error handler at dispatch time."""
+    """Closure that resolves the app-level error handler at dispatch time.
+
+    ``compare=False`` for the same reason as every other non-``sort_index`` field: a callable in
+    the ``@dataclass(order=True)`` comparison tuple would corrupt heap ordering the moment two
+    jobs shared a ``sort_index``, and it makes ``__hash__``'s "``sort_index`` only" contract true
+    rather than merely unreachable."""
 
     _dequeued: bool = field(default=False, repr=False, compare=False)
     """True after the job has been synchronously removed from the heap via dequeue_job()."""
@@ -519,8 +524,10 @@ class Job:
 
         When ``next_run`` is ``None`` (a job with no concrete automatic occurrence —
         waiting, completed, or manual), both ``next_run`` and ``fire_at`` are cleared to
-        ``None`` and ``sort_index`` is left untouched: a job in this state must never be
-        inserted into the heap, so a stale ``sort_index`` is never read.
+        ``None`` and ``sort_index`` is left untouched — whether that leaves the
+        ``UNSCHEDULED_SORT_KEY`` placeholder from ``__post_init__`` or a real key from an
+        earlier scheduled run. A job in this state must never be inserted into the heap, so
+        neither value is ever read for ordering.
         """
         if next_run is None:
             self.next_run = None
