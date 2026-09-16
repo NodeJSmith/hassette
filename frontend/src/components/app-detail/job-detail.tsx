@@ -150,7 +150,7 @@ function scheduleStatusText(job: JobData, nextRunSummary: string | null): string
 }
 
 interface LastCellDisplay {
-  label: string;
+  value: string;
   fieldLabel: string;
 }
 
@@ -159,9 +159,9 @@ function resolveLastCell(
   nextRunSummary: string | null,
   lastExecutedLabel: string,
 ): LastCellDisplay {
-  if (statusText) return { label: statusText, fieldLabel: "Schedule" };
-  if (nextRunSummary) return { label: nextRunSummary, fieldLabel: "Next" };
-  return { label: lastExecutedLabel || "—", fieldLabel: "Last" };
+  if (statusText) return { value: statusText, fieldLabel: "Schedule" };
+  if (nextRunSummary) return { value: nextRunSummary, fieldLabel: "Next" };
+  return { value: lastExecutedLabel || "—", fieldLabel: "Last" };
 }
 
 function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunSummary: string | null): DetailStatsCell[] {
@@ -172,7 +172,7 @@ function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunSumm
     total: job.total_executions,
     failed: job.failed,
     avgDurationMs: job.avg_duration_ms,
-    lastLabel: lastCell.label,
+    lastValue: lastCell.value,
     lastFieldLabel: lastCell.fieldLabel,
     timedOut: job.timed_out,
     cancelled: job.cancelled,

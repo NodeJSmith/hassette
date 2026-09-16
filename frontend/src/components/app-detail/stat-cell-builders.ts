@@ -12,7 +12,8 @@ export interface CommonStatInput {
   total: number;
   failed: number;
   avgDurationMs: number | null;
-  lastLabel: string;
+  /** Value rendered in the "last" cell (e.g. "2m ago", "next in 5m") — paired with `lastFieldLabel`. */
+  lastValue: string;
   /** Label for the "last" cell — defaults to "Last"; job passes "Next" when showing next-run/fire-at text. */
   lastFieldLabel?: string;
   timedOut: number;
@@ -46,7 +47,7 @@ export function buildCommonStatCells(input: CommonStatInput): DetailStatsCell[] 
     { label: "Failed", value: input.failed, tone: failedTone },
     { label: "Err %", value: formatRate(input.failed, input.total), tone: failedTone },
     { label: "Avg", value: formatDurationOrDash(input.avgDurationMs) },
-    { label: input.lastFieldLabel ?? "Last", value: input.lastLabel },
+    { label: input.lastFieldLabel ?? "Last", value: input.lastValue },
   ];
   if (input.timedOut > 0) cells.push({ label: LABEL_TIMED_OUT, value: input.timedOut, tone: "warn" });
   if (input.cancelled > 0) cells.push({ label: LABEL_CANCELLED, value: input.cancelled, tone: "cancel" });
