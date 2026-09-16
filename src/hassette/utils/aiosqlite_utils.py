@@ -1,4 +1,4 @@
-"""aiosqlite lifecycle helpers: daemon-thread connection opening, and async/sync teardown."""
+"""aiosqlite lifecycle helpers: daemon-thread connection opening and async/sync teardown."""
 
 import asyncio
 import logging
@@ -69,38 +69,37 @@ async def close_connection_pair(
     owner: object,
     attrs: tuple[str, str],
     logger: logging.Logger,
-    *,
-    reraise_non_cancel: bool,
 ) -> None:
     """Close a read/write aiosqlite connection pair, tolerating ``CancelledError``.
 
-    Always attempts *and clears* both connections even if the first raises -- including when the
-    cancellation arrives during the background-thread join rather than during ``close()`` itself.
-    The first ``CancelledError`` is re-raised once both connections are handled, unconditionally: a
-    cancelled close always means an aborted shutdown and callers always need to know. Non-cancel
-    exceptions are logged via ``logger.exception()``; whether they are also re-raised is controlled
-    by ``reraise_non_cancel`` so each caller keeps the re-raise contract its own shutdown/cleanup
-    accounting depends on (see #1902 for why both callers currently re-raise).
+    Every connection is always attempted, always joined, and always cleared, whatever the one
+    before it did. Each is then handled one of three ways:
 
-    Joins each connection's background thread whenever it is still alive after the close attempt --
-    including the clean-close path, since ``close()`` returning does not guarantee the background
-    thread has fully exited. Which join runs depends on whether there is any time budget left:
+    - **Clean close:** join the background thread, bounded by
+      ``CONNECTION_CLOSE_JOIN_TIMEOUT_SECONDS`` and run off the event loop via
+      ``asyncio.to_thread()``. ``close()`` returning does not mean the thread has exited.
+    - **Close raised:** log it, ``stop()`` the connection, then join as above. There is still a
+      time budget, so it is worth waiting for the worker to wind down.
+    - **Cancelled** (during either the close or that join): ``stop_connection_sync()``'s short
+      blocking join instead of the long one, and on to the next connection.
 
-    - **Not cancelled:** the long join, bounded by ``CONNECTION_CLOSE_JOIN_TIMEOUT_SECONDS`` and run
-      off the event loop thread via ``asyncio.to_thread()``.
-    - **Cancelled** (during either the close or the join): ``stop_connection_sync()``'s short
-      blocking join instead. Cancellation means the caller's shutdown deadline has already expired,
-      and asyncio cancellation is edge-triggered -- an expired ``asyncio.timeout()`` does not
-      interrupt a subsequent ``await``, so a long join here would silently overrun the caller's
-      hook/cleanup budget by seconds per connection.
+    Re-raises the first failure once both connections are handled, a ``CancelledError`` taking
+    precedence over a non-cancel error regardless of which connection raised first. Nothing is
+    swallowed: both callers feed teardown accounting that has to tell a clean close from one that
+    left a connection in an unknown state, and a close that never confirmed must not be recorded as
+    a restart-safe teardown.
 
     Args:
         owner: The object holding the connection attributes (e.g. an ``AsyncCache`` or
             ``DatabaseService`` instance).
-        attrs: The two attribute names on *owner* holding ``aiosqlite.Connection | None``.
+        attrs: The two attribute names on *owner* holding ``aiosqlite.Connection | None``, closed
+            in the order given. Order is load-bearing: the connection closed last is the one that
+            performs the WAL checkpoint, and an earlier connection's failure is the one re-raised.
         logger: Logger to report non-cancel close failures and slow thread exits to.
-        reraise_non_cancel: Whether to re-raise the first non-cancel exception after both
-            connections are handled.
+
+    Raises:
+        BaseException: The first ``CancelledError`` if either connection's close or join was
+            cancelled, otherwise the first non-cancel close exception, if any.
     """
     first_error: Exception | None = None
     first_cancel: BaseException | None = None
@@ -121,10 +120,13 @@ async def close_connection_pair(
                 first_error = exc
 
         if cancelled is None:
-            cancelled = await _join_worker_thread(conn, attr, logger)
+            cancelled = await _join_worker_thread_or_cancellation(conn, attr, logger)
 
         if cancelled is not None:
-            # Out of shutdown budget — force the worker down with the short blocking join.
+            # Cancellation means the caller's shutdown deadline has already expired, and asyncio
+            # cancellation is edge-triggered -- an expired asyncio.timeout() will not interrupt any
+            # further await here. Force the worker down with the short blocking join rather than
+            # silently overrunning the caller's hook/cleanup budget by seconds per connection.
             stop_connection_sync(conn)
             if first_cancel is None:
                 first_cancel = cancelled
@@ -132,21 +134,24 @@ async def close_connection_pair(
         setattr(owner, attr, None)
     if first_cancel is not None:
         raise first_cancel
-    if reraise_non_cancel and first_error is not None:
+    if first_error is not None:
         raise first_error
 
 
-async def _join_worker_thread(
+async def _join_worker_thread_or_cancellation(
     conn: aiosqlite.Connection,
     attr: str,
     logger: logging.Logger,
 ) -> asyncio.CancelledError | None:
     """Wait off the event loop for *conn*'s background thread to exit, bounded and non-fatal.
 
-    Returns the ``CancelledError`` if the wait was cancelled, so the caller can finish handling
-    this connection and move on to the next instead of unwinding mid-teardown. A thread that is
-    still alive at the timeout is logged and left alone -- ``connect_daemon()`` makes these threads
-    daemons precisely so a wedged one cannot block interpreter exit.
+    **Returns** a ``CancelledError`` rather than raising it, so the caller can finish handling this
+    connection and move on to the next instead of unwinding mid-teardown. Turning that return into
+    a ``raise`` -- the otherwise idiomatic thing to do -- silently breaks
+    ``close_connection_pair()``'s guarantee that both connections are always closed and cleared.
+
+    A thread still alive at the timeout is logged and left alone: ``connect_daemon()`` makes these
+    threads daemons precisely so a wedged one cannot block interpreter exit.
     """
     thread = getattr(conn, "_thread", None)
     if thread is None or not thread.is_alive():

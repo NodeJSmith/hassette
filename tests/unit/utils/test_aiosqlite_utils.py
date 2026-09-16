@@ -21,7 +21,7 @@ from hassette.utils.aiosqlite_utils import (
 )
 
 ATTRS = ("_write", "_read")
-LOGGER = logging.getLogger("tests.aiosqlite_utils")
+logger = logging.getLogger("tests.aiosqlite_utils")
 
 
 class FakeThread:
@@ -34,10 +34,11 @@ class FakeThread:
     same ``CancelledError`` it would see from a real cancellation.
     """
 
-    def __init__(self, *, alive: bool = True, cancel_on_join: bool = False) -> None:
+    def __init__(self, *, alive: bool = True, cancel_on_join: bool = False, wedged: bool = False) -> None:
         self.daemon = True
         self._alive = alive
         self._cancel_on_join = cancel_on_join
+        self._wedged = wedged
         self.join_timeouts: list[float | None] = []
 
     def is_alive(self) -> bool:
@@ -49,6 +50,9 @@ class FakeThread:
             # One-shot: real cancellation is delivered once, not on every subsequent await.
             self._cancel_on_join = False
             raise asyncio.CancelledError
+        if self._wedged:
+            # A worker stuck on a long query outlives its join timeout.
+            return
         self._alive = False
 
 
@@ -88,7 +92,7 @@ async def test_cancelled_join_still_closes_and_clears_second_connection() -> Non
     owner = FakeOwner(write, read)
 
     with pytest.raises(asyncio.CancelledError):
-        await close_connection_pair(owner, ATTRS, LOGGER, reraise_non_cancel=True)
+        await close_connection_pair(owner, ATTRS, logger)
 
     assert read.close_called, "read connection must still be closed when the write join is cancelled"
     assert write.stop_called >= 1, "a cancelled join must still force the worker thread to stop"
@@ -109,7 +113,7 @@ async def test_cancelled_close_skips_the_long_join() -> None:
     owner = FakeOwner(write, read)
 
     with pytest.raises(asyncio.CancelledError):
-        await close_connection_pair(owner, ATTRS, LOGGER, reraise_non_cancel=True)
+        await close_connection_pair(owner, ATTRS, logger)
 
     assert write.stop_called >= 1, "a cancelled close must still force the worker thread to stop"
     assert write._thread.join_timeouts == [STOP_JOIN_TIMEOUT_SECONDS], (
@@ -126,7 +130,7 @@ async def test_clean_close_joins_with_the_long_timeout() -> None:
     read = FakeConnection(thread=FakeThread(alive=True))
     owner = FakeOwner(write, read)
 
-    await close_connection_pair(owner, ATTRS, LOGGER, reraise_non_cancel=True)
+    await close_connection_pair(owner, ATTRS, logger)
 
     assert write._thread.join_timeouts == [CONNECTION_CLOSE_JOIN_TIMEOUT_SECONDS]
     assert read._thread.join_timeouts == [CONNECTION_CLOSE_JOIN_TIMEOUT_SECONDS]
@@ -141,21 +145,73 @@ async def test_cancel_takes_precedence_over_a_non_cancel_error() -> None:
     owner = FakeOwner(write, read)
 
     with pytest.raises(asyncio.CancelledError):
-        await close_connection_pair(owner, ATTRS, LOGGER, reraise_non_cancel=True)
+        await close_connection_pair(owner, ATTRS, logger)
 
     assert owner._write is None
     assert owner._read is None
 
 
-async def test_non_cancel_error_is_swallowed_when_not_reraising() -> None:
-    """``reraise_non_cancel=False`` logs the failure but still clears both attributes."""
+async def test_non_cancel_error_is_raised_after_both_connections_are_handled() -> None:
+    """A close failure propagates, but only once the second connection has been closed too.
+
+    Both callers record a ``TeardownCause`` from the escaping exception; swallowing it would let a
+    connection left in an unknown state be reported as a restart-safe teardown.
+    """
     write = FakeConnection(close_raises=RuntimeError("write boom"))
     read = FakeConnection()
     owner = FakeOwner(write, read)
 
-    await close_connection_pair(owner, ATTRS, LOGGER, reraise_non_cancel=False)
+    with pytest.raises(RuntimeError, match="write boom"):
+        await close_connection_pair(owner, ATTRS, logger)
 
     assert write.stop_called >= 1
+    assert read.close_called
+    assert owner._write is None
+    assert owner._read is None
+
+
+async def test_missing_connection_is_skipped_without_blocking_the_other() -> None:
+    """A half-open owner (one connection never opened) still closes the one it has.
+
+    Reachable whenever connection setup fails partway through.
+    """
+    read = FakeConnection(thread=FakeThread(alive=True))
+    owner = FakeOwner(None, read)
+
+    await close_connection_pair(owner, ATTRS, logger)
+
+    assert read.close_called
+    assert owner._read is None
+
+
+async def test_already_exited_thread_is_not_joined() -> None:
+    """No join is attempted when the worker thread has already exited."""
+    write = FakeConnection(thread=FakeThread(alive=False))
+    read = FakeConnection(thread=FakeThread(alive=False))
+    owner = FakeOwner(write, read)
+
+    await close_connection_pair(owner, ATTRS, logger)
+
+    assert write._thread.join_timeouts == []
+    assert read._thread.join_timeouts == []
+    assert owner._write is None
+    assert owner._read is None
+
+
+async def test_wedged_thread_does_not_block_the_remaining_connection() -> None:
+    """A worker still alive after its bounded join is abandoned, not waited on further.
+
+    ``connect_daemon()`` makes these threads daemons precisely so a wedged one cannot block
+    interpreter exit, so timing out here must not raise or strand the second connection.
+    """
+    write = FakeConnection(thread=FakeThread(alive=True, wedged=True))
+    read = FakeConnection(thread=FakeThread(alive=True))
+    owner = FakeOwner(write, read)
+
+    await close_connection_pair(owner, ATTRS, logger)
+
+    assert write._thread.join_timeouts == [CONNECTION_CLOSE_JOIN_TIMEOUT_SECONDS]
+    assert write._thread.is_alive(), "the fake must still be wedged -- otherwise this tests nothing"
     assert read.close_called
     assert owner._write is None
     assert owner._read is None

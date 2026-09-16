@@ -45,6 +45,12 @@ class AsyncCache:
     read/write pair) in WAL mode, matching the pattern in ``database_service.py``.
     """
 
+    CONN_ATTRS = ("_write", "_read")
+    """Connection attributes, in the order both teardown paths close them.
+
+    Named once so a rename cannot leave one of the two reflection-based loops behind.
+    """
+
     def __init__(self, db_path: Path, default_ttl: int | None = None) -> None:
         self.db_path = db_path
         self.default_ttl = default_ttl
@@ -131,19 +137,14 @@ class AsyncCache:
     async def _close_connections(self) -> None:
         """Close both connections, attempting each even if the other fails.
 
-        Raises the first close error encountered (after both attempts complete) instead of
-        swallowing it -- a caller (``App.cleanup()``) relies on this to distinguish a clean
-        close from one that left a connection/background thread in an unknown state, so
-        ``_run_post_hook_shutdown_stage()`` can record ``TeardownCause.CLEANUP_FAILED`` rather
-        than reporting a restart-safe teardown that never actually confirmed the cache closed.
-
-        Handles ``CancelledError`` explicitly: catches it, falls back to synchronous ``stop()``
-        for the current connection, continues to the next, and re-raises after both are handled.
-        Without this, a cancellation during the first ``close()`` skips the second connection
-        entirely -- the leaked connection triggers ``Connection.__del__`` ``ResourceWarning``
-        and skips the clean WAL checkpoint (#923, #1900).
+        Propagates the first close failure rather than swallowing it: ``App.cleanup()`` relies on
+        that to distinguish a clean close from one that left a connection or background thread in
+        an unknown state, so ``_run_post_hook_shutdown_stage()`` records
+        ``TeardownCause.CLEANUP_FAILED`` instead of reporting a restart-safe teardown for a cache
+        that never confirmed it closed. See ``close_connection_pair()`` for the close and
+        cancellation mechanics.
         """
-        await close_connection_pair(self, ("_write", "_read"), logger, reraise_non_cancel=True)
+        await close_connection_pair(self, self.CONN_ATTRS, logger)
 
     def _delete_db_files(self) -> None:
         self.db_path.unlink(missing_ok=True)
@@ -250,6 +251,6 @@ class AsyncCache:
         Used by ``App._force_terminal()``, which cannot ``await`` anything. See
         ``stop_connection_sync()`` for why this is safe to call from a force-terminal path.
         """
-        for attr in ("_write", "_read"):
+        for attr in self.CONN_ATTRS:
             stop_connection_sync(getattr(self, attr))
             setattr(self, attr, None)

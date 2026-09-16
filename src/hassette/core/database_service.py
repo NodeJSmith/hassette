@@ -164,6 +164,13 @@ class DatabaseService(Service):
     """Dedicated read-only connection for TelemetryQueryService. Opened on a separate
     WAL snapshot so reads never block the write worker."""
 
+    CONN_ATTRS = ("_read_db", "_db")
+    """Connection attributes, in the order both teardown paths close them.
+
+    Read first so the write connection closes last and performs the WAL checkpoint. Named once so
+    a rename cannot leave one of the two reflection-based loops behind.
+    """
+
     _db_path: Path
     """Resolved path to the SQLite database file."""
 
@@ -326,7 +333,7 @@ class DatabaseService(Service):
         if self._db_worker_task is not None and not self._db_worker_task.done():
             self._db_worker_task.cancel()
         self.close_remaining_queue_items(self.detach_write_queue())
-        for attr in ("_read_db", "_db"):
+        for attr in self.CONN_ATTRS:
             stop_connection_sync(getattr(self, attr))
             setattr(self, attr, None)
         super()._force_terminal()
@@ -431,20 +438,19 @@ class DatabaseService(Service):
             self.logger.debug("Closed %d remaining coroutine(s) from write queue during shutdown", closed)
 
     async def close_connections(self) -> None:
-        """Close both database connections. Idempotent — safe to call multiple times.
+        """Close both database connections. Idempotent -- safe to call multiple times.
 
-        Always attempts both connections even if the first close fails. aiosqlite's worker threads
-        are set to daemon in on_initialize() as a safety net, but this method still does a
-        best-effort close to avoid resource warnings and ensure clean WAL checkpoints.
+        aiosqlite's worker threads are set to daemon in on_initialize() as a safety net, but this
+        method still does a best-effort close to avoid resource warnings and ensure clean WAL
+        checkpoints.
 
-        Raises after both attempts complete rather than swallowing: both call sites feed teardown
-        accounting that needs to tell a clean close from one that left a connection in an unknown
+        Propagates the first close failure rather than swallowing it: both call sites feed teardown
+        accounting that has to tell a clean close from one that left a connection in an unknown
         state -- ``cleanup()`` records ``TeardownCause.CLEANUP_FAILED`` and ``on_shutdown()``
-        records ``TeardownCause.SHUTDOWN_HOOK_FAILED`` on an escaping exception. A
-        ``CancelledError`` takes precedence over a non-cancel error regardless of which connection
-        raised first; see ``close_connection_pair()``.
+        records ``TeardownCause.SHUTDOWN_HOOK_FAILED`` on an escaping exception. See
+        ``close_connection_pair()`` for the close and cancellation mechanics.
         """
-        await close_connection_pair(self, ("_read_db", "_db"), self.logger, reraise_non_cancel=True)
+        await close_connection_pair(self, self.CONN_ATTRS, self.logger)
 
     async def cleanup(self, timeout: float | None = None) -> None:
         """Close database connections if on_shutdown was interrupted or never ran."""
