@@ -1,6 +1,5 @@
 """Async cache backed by ``aiosqlite``, using a read/write connection pair in WAL mode."""
 
-import asyncio
 import contextlib
 import logging
 import sqlite3
@@ -22,7 +21,7 @@ from hassette.cache._helpers import (
     validate_key,
 )
 from hassette.cache.sync import SyncCache
-from hassette.utils.aiosqlite_utils import connect_daemon, stop_connection_sync
+from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +43,12 @@ class AsyncCache:
     A plain class (not a ``Resource``) -- ``App`` creates it and manages its lifecycle
     explicitly via ``initialize()``/``close()``. Uses two ``aiosqlite`` connections (a
     read/write pair) in WAL mode, matching the pattern in ``database_service.py``.
+    """
+
+    CONN_ATTRS = ("_write", "_read")
+    """Connection attributes, in the order both teardown paths close them.
+
+    Named once so a rename cannot leave one of the two reflection-based loops behind.
     """
 
     def __init__(self, db_path: Path, default_ttl: int | None = None) -> None:
@@ -132,41 +137,14 @@ class AsyncCache:
     async def _close_connections(self) -> None:
         """Close both connections, attempting each even if the other fails.
 
-        Raises the first close error encountered (after both attempts complete) instead of
-        swallowing it -- a caller (``App.cleanup()``) relies on this to distinguish a clean
-        close from one that left a connection/background thread in an unknown state, so
-        ``_run_post_hook_shutdown_stage()`` can record ``TeardownCause.CLEANUP_FAILED`` rather
-        than reporting a restart-safe teardown that never actually confirmed the cache closed.
-
-        Handles ``CancelledError`` explicitly: catches it, falls back to synchronous ``stop()``
-        for the current connection, continues to the next, and re-raises after both are handled.
-        Without this, a cancellation during the first ``close()`` skips the second connection
-        entirely -- the leaked connection triggers ``Connection.__del__`` ``ResourceWarning``
-        and skips the clean WAL checkpoint (#923, #1900).
+        Propagates the first close failure rather than swallowing it: ``App.cleanup()`` relies on
+        that to distinguish a clean close from one that left a connection or background thread in
+        an unknown state, so ``_run_post_hook_shutdown_stage()`` records
+        ``TeardownCause.CLEANUP_FAILED`` instead of reporting a restart-safe teardown for a cache
+        that never confirmed it closed. See ``close_connection_pair()`` for the close and
+        cancellation mechanics.
         """
-        first_error: Exception | None = None
-        first_cancel: BaseException | None = None
-        for attr in ("_write", "_read"):
-            conn: aiosqlite.Connection | None = getattr(self, attr)
-            if conn is None:
-                continue
-            try:
-                await conn.close()
-            except asyncio.CancelledError as exc:  # noqa: ASYNC103 — re-raised after both connections are handled
-                stop_connection_sync(conn)
-                if first_cancel is None:
-                    first_cancel = exc
-            except Exception as exc:
-                logger.exception("Error closing cache connection (%s)", attr)
-                stop_connection_sync(conn)
-                if first_error is None:
-                    first_error = exc
-            finally:
-                setattr(self, attr, None)
-        if first_cancel is not None:
-            raise first_cancel
-        if first_error is not None:
-            raise first_error
+        await close_connection_pair(self, self.CONN_ATTRS, logger)
 
     def _delete_db_files(self) -> None:
         self.db_path.unlink(missing_ok=True)
@@ -273,6 +251,6 @@ class AsyncCache:
         Used by ``App._force_terminal()``, which cannot ``await`` anything. See
         ``stop_connection_sync()`` for why this is safe to call from a force-terminal path.
         """
-        for attr in ("_write", "_read"):
+        for attr in self.CONN_ATTRS:
             stop_connection_sync(getattr(self, attr))
             setattr(self, attr, None)

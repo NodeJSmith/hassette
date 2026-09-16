@@ -17,7 +17,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
-from hassette.utils.aiosqlite_utils import connect_daemon, stop_connection_sync
+from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -163,6 +163,13 @@ class DatabaseService(Service):
     _read_db: aiosqlite.Connection | None
     """Dedicated read-only connection for TelemetryQueryService. Opened on a separate
     WAL snapshot so reads never block the write worker."""
+
+    CONN_ATTRS = ("_read_db", "_db")
+    """Connection attributes, in the order both teardown paths close them.
+
+    Read first so the write connection closes last and performs the WAL checkpoint. Named once so
+    a rename cannot leave one of the two reflection-based loops behind.
+    """
 
     _db_path: Path
     """Resolved path to the SQLite database file."""
@@ -326,7 +333,7 @@ class DatabaseService(Service):
         if self._db_worker_task is not None and not self._db_worker_task.done():
             self._db_worker_task.cancel()
         self.close_remaining_queue_items(self.detach_write_queue())
-        for attr in ("_read_db", "_db"):
+        for attr in self.CONN_ATTRS:
             stop_connection_sync(getattr(self, attr))
             setattr(self, attr, None)
         super()._force_terminal()
@@ -431,36 +438,19 @@ class DatabaseService(Service):
             self.logger.debug("Closed %d remaining coroutine(s) from write queue during shutdown", closed)
 
     async def close_connections(self) -> None:
-        """Close both database connections. Idempotent — safe to call multiple times.
+        """Close both database connections. Idempotent -- safe to call multiple times.
 
-        Always attempts both connections even if the first close raises CancelledError.
-        aiosqlite's worker threads are set to daemon in on_initialize() as a safety net,
-        but this method still does a best-effort close to avoid resource warnings and
-        ensure clean WAL checkpoints.
+        aiosqlite's worker threads are set to daemon in on_initialize() as a safety net, but this
+        method still does a best-effort close to avoid resource warnings and ensure clean WAL
+        checkpoints.
+
+        Propagates the first close failure rather than swallowing it: both call sites feed teardown
+        accounting that has to tell a clean close from one that left a connection in an unknown
+        state -- ``cleanup()`` records ``TeardownCause.CLEANUP_FAILED`` and ``on_shutdown()``
+        records ``TeardownCause.SHUTDOWN_HOOK_FAILED`` on an escaping exception. See
+        ``close_connection_pair()`` for the close and cancellation mechanics.
         """
-        first_cancel: BaseException | None = None
-        for attr in ("_read_db", "_db"):
-            conn: aiosqlite.Connection | None = getattr(self, attr)
-            if conn is None:
-                continue
-            try:
-                await conn.close()
-            except asyncio.CancelledError as exc:  # noqa: ASYNC103 — re-raised after both connections are handled
-                conn.stop()
-                if first_cancel is None:
-                    first_cancel = exc
-            except Exception:
-                self.logger.exception("Failed to close %s — falling back to sync stop()", attr)
-                conn.stop()
-            finally:
-                thread = getattr(conn, "_thread", None)
-                if thread is not None and thread.is_alive():
-                    await asyncio.to_thread(thread.join, 5.0)
-                    if thread.is_alive():
-                        self.logger.warning("aiosqlite background thread for %s did not exit within 5s", attr)
-                setattr(self, attr, None)
-        if first_cancel is not None:
-            raise first_cancel
+        await close_connection_pair(self, self.CONN_ATTRS, self.logger)
 
     async def cleanup(self, timeout: float | None = None) -> None:
         """Close database connections if on_shutdown was interrupted or never ran."""
