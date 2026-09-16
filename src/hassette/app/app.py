@@ -247,7 +247,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         ``TeardownCause.CLEANUP_FAILED`` (it already logs the exception there). Swallowing it
         here would report a restart-safe teardown for a cache that never confirmed it closed.
         """
-        timeout = timeout or self.hassette.config.lifecycle.app_shutdown_timeout_seconds
+        if timeout is None:
+            timeout = self.hassette.config.lifecycle.app_shutdown_timeout_seconds
         await super().cleanup(timeout=timeout)
         await self.cache.close()
 

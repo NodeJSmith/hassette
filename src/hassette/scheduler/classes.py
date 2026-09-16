@@ -6,7 +6,7 @@ from logging import getLogger
 from typing import Any
 
 from croniter import croniter
-from whenever import ZonedDateTime
+from whenever import Instant, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.execution_mode import ExecutionModeGuard
@@ -14,6 +14,14 @@ from hassette.types.enums import ExecutionMode
 from hassette.types.types import SourceTier
 
 MAX_CRON_ITERATIONS = 10_000
+
+UNSCHEDULED_SORT_KEY = Instant.MAX.timestamp_nanos() + 1
+"""Placeholder ordering key for a job that has never been scheduled.
+
+One nanosecond past the largest instant ``whenever`` can represent, so it sorts after every real
+``next_run`` on any platform. Derived rather than hardcoded: a word-size constant such as
+``sys.maxsize`` sits *below* the nanosecond timestamp domain on a 32-bit build (and below
+far-future timestamps everywhere), which would silently invert the intended ordering."""
 
 if typing.TYPE_CHECKING:
     import asyncio
@@ -179,10 +187,10 @@ class Job:
     sort_index: tuple[int, int] = field(init=False, repr=False)
     """Tuple of (next_run timestamp with nanoseconds, object id) for ordering in a priority queue.
 
-    Assigned only when the job transitions to ``SCHEDULED`` with a concrete ``next_run``
-    (see ``set_next_run``/``transition_to``). Unset on a freshly constructed ``WAITING``,
-    ``COMPLETED``, or ``MANUAL`` job — such a job must never be inserted into the heap, so a
-    stale or absent ``sort_index`` is never read.
+    Assigned the real ordering key when the job transitions to ``SCHEDULED`` with a concrete
+    ``next_run`` (see ``set_next_run``/``transition_to``). A job constructed as ``WAITING``,
+    ``COMPLETED``, or ``MANUAL`` gets a placeholder key from ``__post_init__`` instead; such a
+    job must never be inserted into the heap, so that placeholder is never read for ordering.
     """
 
     owner_id: str = field(compare=False)
@@ -320,9 +328,15 @@ class Job:
     ``Scheduler``."""
 
     app_error_handler_resolver: "Callable[[], SchedulerErrorHandlerType | None] | None" = field(
-        default=None, init=False, repr=False
+        default=None, init=False, repr=False, compare=False
     )
-    """Closure that resolves the app-level error handler at dispatch time."""
+    """Closure that resolves the app-level error handler at dispatch time.
+
+    ``compare=False`` like every other non-``sort_index`` field: functions have no ordering, so
+    leaving this in the ``@dataclass(order=True)`` comparison tuple would raise ``TypeError`` on
+    any ``<`` between two jobs that shared a ``sort_index``. Nothing can share one today (see
+    ``__hash__``), which is exactly why it must stay out — the breakage would only appear if that
+    invariant ever changed."""
 
     _dequeued: bool = field(default=False, repr=False, compare=False)
     """True after the job has been synchronously removed from the heap via dequeue_job()."""
@@ -366,6 +380,15 @@ class Job:
             raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
         if self.schedule_status is ScheduleStatus.SCHEDULED and self.next_run is None:
             raise ValueError("Job(schedule_status=ScheduleStatus.SCHEDULED, ...) requires a concrete next_run")
+
+        if self.schedule_status is not ScheduleStatus.SCHEDULED:
+            # A job that has never been scheduled (WAITING, COMPLETED, MANUAL) still needs
+            # some sort_index so an accidental ==/</in against it never raises AttributeError.
+            # id(self) stays the tiebreaker (matching __hash__'s comment above) so two different
+            # never-scheduled jobs never compare equal. Such a job must still never be inserted
+            # into the heap regardless of this value — set_next_run() assigns the real ordering
+            # key once the job actually transitions to SCHEDULED.
+            self.sort_index = (UNSCHEDULED_SORT_KEY, id(self))
 
         self.guard = ExecutionModeGuard(self.mode)
         if self.next_run is not None:
@@ -502,8 +525,10 @@ class Job:
 
         When ``next_run`` is ``None`` (a job with no concrete automatic occurrence —
         waiting, completed, or manual), both ``next_run`` and ``fire_at`` are cleared to
-        ``None`` and ``sort_index`` is left untouched: a job in this state must never be
-        inserted into the heap, so a stale ``sort_index`` is never read.
+        ``None`` and ``sort_index`` is left untouched — whether that leaves the
+        ``UNSCHEDULED_SORT_KEY`` placeholder from ``__post_init__`` or a real key from an
+        earlier scheduled run. A job in this state must never be inserted into the heap, so
+        neither value is ever read for ordering.
         """
         if next_run is None:
             self.next_run = None

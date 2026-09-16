@@ -674,7 +674,8 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         own directly (caches, connections, etc.); the base implementation only cancels and
         observes the resource's own initialization task, if one is still pending.
         """
-        timeout = timeout or self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+        if timeout is None:
+            timeout = self.hassette.config.lifecycle.resource_shutdown_timeout_seconds
 
         cancel(self)
         if self._init_task and not self._init_task.done():

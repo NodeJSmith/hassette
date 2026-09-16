@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, RetentionTarget, _WriteQueueItem
+from hassette.types.enums import ResourceStatus
 from tests.support.helpers import (
     DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
     DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
@@ -173,7 +174,8 @@ async def test_force_terminal_drains_write_queue(
 
     assert service._db_write_queue is None
     assert future.cancelled()
-    with pytest.raises(RuntimeError, match="before on_initialize"):
+    # detach_write_queue() recorded the teardown, so the rejection names the real cause.
+    with pytest.raises(RuntimeError, match="after shutdown"):
         service.enqueue(sentinel_coro())
 
 
@@ -500,3 +502,76 @@ def test_retention_target_is_frozen() -> None:
     target = _RETENTION_TABLES[0]
     with pytest.raises(dataclasses.FrozenInstanceError):
         target.table = "mutated"  # pyright: ignore[reportGeneralTypeIssues]
+
+
+class TestQueueUnavailableErrorMessage:
+    """``submit()``/``enqueue()`` distinguish pre-init from post-teardown when the queue is gone.
+
+    ``_db_write_queue`` is ``None`` both before ``on_initialize()`` creates it and after a
+    teardown path detaches it. Resource status cannot tell the two apart — an ``on_initialize()``
+    failure lands in ``FAILED``/``CRASHED`` with no teardown having run — so the message is
+    driven by ``detach_write_queue()``'s own flag instead.
+    """
+
+    async def test_submit_before_initialize(self, service: DatabaseService) -> None:
+        assert service._db_write_queue is None
+
+        with pytest.raises(RuntimeError, match=r"submit\(\) called before on_initialize\(\)"):
+            await service.submit(async_noop())
+
+    def test_enqueue_before_initialize(self, service: DatabaseService) -> None:
+        assert service._db_write_queue is None
+
+        with pytest.raises(RuntimeError, match=r"enqueue\(\) called before on_initialize\(\)"):
+            service.enqueue(async_noop())
+
+    @pytest.mark.parametrize("status", [ResourceStatus.FAILED, ResourceStatus.CRASHED])
+    async def test_failed_initialization_still_reports_before_initialize(
+        self, service: DatabaseService, status: ResourceStatus
+    ) -> None:
+        """An ``on_initialize()`` failure never created the queue, so teardown is not the cause.
+
+        Lifecycle handling drops the service into ``FAILED``/``CRASHED`` when ``on_initialize()``
+        raises (schema validation, migrations, connection setup — all of which run before the
+        queue exists). Reporting that as "called after shutdown" would hide a startup failure.
+        """
+        service._status = status
+
+        with pytest.raises(RuntimeError, match=r"submit\(\) called before on_initialize\(\)"):
+            await service.submit(async_noop())
+        with pytest.raises(RuntimeError, match=r"enqueue\(\) called before on_initialize\(\)"):
+            service.enqueue(async_noop())
+
+    async def test_after_on_shutdown_reports_after_shutdown(
+        self, initialized_service_with_worker: DatabaseService
+    ) -> None:
+        service = initialized_service_with_worker
+        await service.on_shutdown()
+
+        assert service._db_write_queue is None
+        with pytest.raises(RuntimeError, match=r"submit\(\) called after shutdown"):
+            await service.submit(async_noop())
+        with pytest.raises(RuntimeError, match=r"enqueue\(\) called after shutdown"):
+            service.enqueue(async_noop())
+
+    async def test_failed_restart_reports_before_initialize_not_stale_teardown(
+        self, initialized_service_with_worker: DatabaseService
+    ) -> None:
+        """A restart that fails before creating a queue must not report the previous teardown.
+
+        ``on_initialize()`` clears the teardown flag up front precisely so this second failure
+        is diagnosed as a startup failure rather than as a call after the first shutdown.
+        """
+        service = initialized_service_with_worker
+        await service.on_shutdown()
+        assert service._write_queue_detached is True
+
+        with (
+            patch.object(service, "run_migrations", side_effect=sqlite3.OperationalError("boom")),
+            pytest.raises(sqlite3.OperationalError),
+        ):
+            await service.on_initialize()
+
+        assert service._db_write_queue is None
+        with pytest.raises(RuntimeError, match=r"enqueue\(\) called before on_initialize\(\)"):
+            service.enqueue(async_noop())
