@@ -46,6 +46,8 @@ class FakeThread:
     def join(self, timeout: float | None = None) -> None:
         self.join_timeouts.append(timeout)
         if self._cancel_on_join:
+            # One-shot: real cancellation is delivered once, not on every subsequent await.
+            self._cancel_on_join = False
             raise asyncio.CancelledError
         self._alive = False
 
@@ -89,6 +91,8 @@ async def test_cancelled_join_still_closes_and_clears_second_connection() -> Non
         await close_connection_pair(owner, ATTRS, LOGGER, reraise_non_cancel=True)
 
     assert read.close_called, "read connection must still be closed when the write join is cancelled"
+    assert write.stop_called >= 1, "a cancelled join must still force the worker thread to stop"
+    assert write._thread.join_timeouts == [CONNECTION_CLOSE_JOIN_TIMEOUT_SECONDS, STOP_JOIN_TIMEOUT_SECONDS]
     assert owner._write is None
     assert owner._read is None
 
