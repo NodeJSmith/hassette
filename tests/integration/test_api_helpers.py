@@ -518,7 +518,7 @@ async def test_delete_timer(api: Api):
 
 
 async def test_increment_counter_calls_service(api: Api):
-    """increment_counter calls call_service with correct args and return_response=True."""
+    """increment_counter calls call_service with correct args and wait_for_ack=True."""
     api.call_service = AsyncMock(return_value=SERVICE_RESPONSE)
 
     await api.helpers.increment("counter.motion_count")
@@ -527,7 +527,7 @@ async def test_increment_counter_calls_service(api: Api):
         "counter",
         "increment",
         target={"entity_id": "counter.motion_count"},
-        return_response=True,
+        wait_for_ack=True,
     )
 
 
@@ -542,7 +542,7 @@ async def test_increment_counter_propagates_failed_message_error(api: Api):
 
 
 async def test_decrement_counter_calls_service(api: Api):
-    """decrement_counter calls call_service with correct args and return_response=True."""
+    """decrement_counter calls call_service with correct args and wait_for_ack=True."""
     api.call_service = AsyncMock(return_value=SERVICE_RESPONSE)
 
     await api.helpers.decrement("counter.motion_count")
@@ -551,7 +551,7 @@ async def test_decrement_counter_calls_service(api: Api):
         "counter",
         "decrement",
         target={"entity_id": "counter.motion_count"},
-        return_response=True,
+        wait_for_ack=True,
     )
 
 
@@ -565,7 +565,7 @@ async def test_decrement_counter_propagates_failed_message_error(api: Api):
 
 
 async def test_reset_counter_calls_service(api: Api):
-    """reset_counter calls call_service with correct args and return_response=True."""
+    """reset_counter calls call_service with correct args and wait_for_ack=True."""
     api.call_service = AsyncMock(return_value=SERVICE_RESPONSE)
 
     await api.helpers.reset("counter.motion_count")
@@ -574,7 +574,7 @@ async def test_reset_counter_calls_service(api: Api):
         "counter",
         "reset",
         target={"entity_id": "counter.motion_count"},
-        return_response=True,
+        wait_for_ack=True,
     )
 
 

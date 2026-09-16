@@ -183,6 +183,8 @@ class ApiSyncFacade(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> ServiceResponse | None:
         """Call a Home Assistant service.
@@ -192,12 +194,21 @@ class ApiSyncFacade(Resource):
             service: The name of the service to call (e.g., "turn_on").
             target: Target entity IDs or areas.
             return_response: Whether to return the response from Home Assistant. Defaults to False.
+                Only valid for services Home Assistant declares as returning a response —
+                requesting it for any other service is rejected by Home Assistant.
+            wait_for_ack: Whether to wait for Home Assistant's result envelope instead of sending
+                fire-and-forget. Defaults to False. Surfaces HA-side failures as
+                ``FailedMessageError`` without asking for response data, so it is safe for
+                services that return no response. Adds nothing when ``return_response`` is True —
+                that path already waits on the same envelope.
             **data: Additional data to send with the service call.
 
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
         """
-        return self.task_bucket.run_sync(self._api.call_service(domain, service, target, return_response, **data))  # pyright: ignore[reportCallIssue, reportArgumentType]
+        return self.task_bucket.run_sync(
+            self._api.call_service(domain, service, target, return_response, wait_for_ack=wait_for_ack, **data)
+        )  # pyright: ignore[reportCallIssue, reportArgumentType]
 
     def turn_on(self, entity_id: str | StrEnum, domain: str | None = None, **data: Any) -> None:
         """Turn on a specific entity in Home Assistant.

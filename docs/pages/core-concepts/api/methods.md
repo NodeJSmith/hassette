@@ -208,12 +208,21 @@ The generic service call method. Service data passes as keyword arguments. They 
 | `domain` | `str` | — | Service domain (e.g., `"light"`). |
 | `service` | `str` | — | Service name (e.g., `"turn_on"`). |
 | `target` | `dict \| None` | `None` | Target entity IDs, areas, or devices. |
-| `return_response` | `bool` | `False` | When `True`, returns the service response payload. |
+| `return_response` | `bool` | `False` | When `True`, returns the service response payload. Only valid for services that declare a response — see [Getting a response](#getting-a-response). |
+| `wait_for_ack` | `bool` | `False` | When `True`, waits for Home Assistant to confirm the call so failures raise instead of being dropped. |
 | `**data` | `Any` | — | Service data fields passed as keyword arguments. |
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_call_service.py"
 ```
+
+`call_service` is fire-and-forget by default. The payload goes out and a Home Assistant-side
+failure — a misspelled entity, a rejected value — is never reported back.
+
+`wait_for_ack=True` waits for Home Assistant's confirmation instead, and raises
+[`FailedMessageError`][hassette.exceptions.FailedMessageError] when the call fails. The wait
+costs a round trip, so it suits calls where a silent failure would matter rather than every call.
+Unlike `return_response=True`, it works with every service, because it asks for no response data.
 
 ### `turn_on(entity_id, domain, **data)`
 
@@ -300,6 +309,9 @@ at send time.
 Some services return data. `weather.get_forecasts` returns forecast arrays; `conversation.process`
 returns a reply. Set `return_response=True` to include the response payload. Without it,
 `call_service` returns `None`.
+
+Home Assistant rejects `return_response=True` for any service that does not declare a response.
+It is not a general "did this work?" check — `wait_for_ack=True` covers that case.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_response.py"

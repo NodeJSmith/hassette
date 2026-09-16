@@ -220,6 +220,8 @@ class ApiProtocol(Protocol):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> ServiceResponse | None: ...
     async def set_state(
@@ -503,15 +505,15 @@ class RecordingHelperClient:
 
     async def increment(self, entity_id: str) -> None:
         """Record an increment call via the parent's call_service (matches HelperClient)."""
-        await self._parent.call_service("counter", "increment", target={"entity_id": entity_id}, return_response=True)
+        await self._parent.call_service("counter", "increment", target={"entity_id": entity_id}, wait_for_ack=True)
 
     async def decrement(self, entity_id: str) -> None:
         """Record a decrement call via the parent's call_service (matches HelperClient)."""
-        await self._parent.call_service("counter", "decrement", target={"entity_id": entity_id}, return_response=True)
+        await self._parent.call_service("counter", "decrement", target={"entity_id": entity_id}, wait_for_ack=True)
 
     async def reset(self, entity_id: str) -> None:
         """Record a reset call via the parent's call_service (matches HelperClient)."""
-        await self._parent.call_service("counter", "reset", target={"entity_id": entity_id}, return_response=True)
+        await self._parent.call_service("counter", "reset", target={"entity_id": entity_id}, wait_for_ack=True)
 
 
 class RecordingApi(Resource):
@@ -648,9 +650,14 @@ class RecordingApi(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> ServiceResponse | None:
-        """Record a call_service call. Returns stub ServiceResponse when return_response=True."""
+        """Record a call_service call, including return_response and wait_for_ack.
+
+        Returns a stub ServiceResponse when return_response=True.
+        """
         self._record_call(
             ApiCall(
                 method="call_service",
@@ -660,6 +667,7 @@ class RecordingApi(Resource):
                     "service": service,
                     "target": copy.deepcopy(target),
                     "return_response": return_response,
+                    "wait_for_ack": wait_for_ack,
                     **data,
                 },
             )

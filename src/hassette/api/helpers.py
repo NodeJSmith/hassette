@@ -303,7 +303,9 @@ class HelperClient(Resource):
             "counter",
             "increment",
             target={"entity_id": entity_id},
-            return_response=True,  # surfaces HA errors instead of fire-and-forget
+            # Surfaces HA errors instead of fire-and-forget, without asking for response data:
+            # counter actions return no response, so return_response=True is rejected by HA.
+            wait_for_ack=True,
         )
         self.logger.debug("Incremented counter %r", entity_id)
 
@@ -317,7 +319,7 @@ class HelperClient(Resource):
             "counter",
             "decrement",
             target={"entity_id": entity_id},
-            return_response=True,
+            wait_for_ack=True,
         )
         self.logger.debug("Decremented counter %r", entity_id)
 
@@ -331,6 +333,6 @@ class HelperClient(Resource):
             "counter",
             "reset",
             target={"entity_id": entity_id},
-            return_response=True,
+            wait_for_ack=True,
         )
         self.logger.debug("Reset counter %r", entity_id)

@@ -519,6 +519,8 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: typing.Literal[False] | None = None,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> "Coroutine[Any, Any, None]": ...
 
@@ -532,6 +534,8 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: Literal[True] = True,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> "Coroutine[Any, Any, ServiceResponse]": ...
 
@@ -544,6 +548,8 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> "Coroutine[Any, Any, ServiceResponse | None]":
         # dup-ignore-end
@@ -556,6 +562,13 @@ class Api(Resource):
             service: The name of the service to call (e.g., "turn_on").
             target: Target entity IDs or areas.
             return_response: Whether to return the response from Home Assistant. Defaults to False.
+                Only valid for services Home Assistant declares as returning a response —
+                requesting it for any other service is rejected by Home Assistant.
+            wait_for_ack: Whether to wait for Home Assistant's result envelope instead of sending
+                fire-and-forget. Defaults to False. Surfaces HA-side failures as
+                ``FailedMessageError`` without asking for response data, so it is safe for
+                services that return no response. Adds nothing when ``return_response`` is True —
+                that path already waits on the same envelope.
             **data: Additional data to send with the service call.
 
         Returns:
@@ -565,7 +578,7 @@ class Api(Resource):
         source_location = capture_source_location()
         # Coroutine[...] supertype annotation is load-bearing — see hassette/utils/await_guard.py / design/071.
         return guard_await(
-            self._call_service(domain, service, target, return_response, **data),
+            self._call_service(domain, service, target, return_response, wait_for_ack=wait_for_ack, **data),
             owner=self.parent,
             source_location=source_location,
             method_name="call_service",
@@ -578,6 +591,8 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> ServiceResponse | None:
         # dup-ignore-end
@@ -600,6 +615,15 @@ class Api(Resource):
         if return_response:
             resp = await self.ws_send_and_wait(**payload)
             return ServiceResponse(**resp)
+
+        if wait_for_ack:
+            # Waits on the same result envelope as the return_response path, without asking HA
+            # for response data. Services declared as returning no response (e.g.
+            # counter.increment) reject return_response=True outright, so this is the only way
+            # to surface their HA-side errors. ws_send_and_wait raises FailedMessageError on a
+            # failed envelope, so no envelope parsing is needed here.
+            await self.ws_send_and_wait(**payload)
+            return None
 
         await self.ws_send_json(**payload)
         return None
