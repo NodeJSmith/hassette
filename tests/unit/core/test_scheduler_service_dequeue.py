@@ -12,11 +12,13 @@ Tests verify:
 import inspect
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from fair_async_rlock import FairAsyncRLock
 
 from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
 from hassette.scheduler.classes import ScheduleStatus
 from tests.support.factories import make_scheduled_job
+from tests.support.helpers import make_rejecting_task_bucket
 
 from .conftest import make_scheduler_service
 
@@ -305,3 +307,87 @@ class TestDispatchRaceGuard:
 
         await svc.dispatch_and_log(job)
         assert run_called, "run_job_with_guard must be called when job._dequeued is False"
+
+
+class TestDequeueJobSealedBucket:
+    """Regression tests for dequeue_job against a sealed task bucket (#1810).
+
+    Reachable only after a force-terminal teardown, which seals the bucket without running
+    shutdown hooks. dequeue_job is the sync, non-awaited removal API — its callers cannot
+    handle a spawn rejection, so it must absorb ``TaskBucketSealedError`` rather than let it
+    escape. The rejection is caught at the spawn boundary rather than pre-checked via
+    ``is_sealed``, because ``Scheduler.remove_job()`` is reachable from a sync handler on a
+    worker thread that can be sealed out from under a pre-check.
+    """
+
+    async def test_dequeue_job_on_sealed_bucket_does_not_raise(self) -> None:
+        """A sealed bucket rejects new work; dequeue_job must still return normally."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=7)
+        svc._jobs_by_id[7] = job
+        await svc._job_queue.add(job)
+
+        svc.task_bucket = make_rejecting_task_bucket()
+
+        assert svc.dequeue_job(job) is True
+        svc.task_bucket.spawn.assert_called_once()
+
+    async def test_dequeue_job_on_sealed_bucket_logs_debug_and_skips_persistence(self) -> None:
+        """The skipped tail means removed_at is never persisted — logged at debug level."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=7)
+        svc._jobs_by_id[7] = job
+        svc._executor.mark_job_removed = AsyncMock()
+
+        svc.task_bucket = make_rejecting_task_bucket()
+
+        svc.dequeue_job(job)
+
+        svc._executor.mark_job_removed.assert_not_awaited()
+        assert svc.logger.debug.called, "sealed-bucket skip must emit a debug log"
+
+    async def test_dequeue_job_on_sealed_bucket_still_removes_live_state(self) -> None:
+        """Live-state removal happens regardless of whether the tail could be spawned."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=7)
+        svc._jobs_by_id[7] = job
+        await svc._job_queue.add(job)
+
+        svc.task_bucket = make_rejecting_task_bucket()
+
+        svc.dequeue_job(job)
+
+        assert job._dequeued is True
+        assert 7 not in svc._jobs_by_id
+
+    async def test_dequeue_job_absorbs_rejection_from_an_unsealed_looking_bucket(self) -> None:
+        """The race a pre-check could not close: bucket reads open, spawn still rejects.
+
+        A cross-thread ``spawn()`` re-checks the seal on the loop thread, so a worker-thread
+        caller can read ``is_sealed`` as False and still be rejected. Catching at the spawn
+        boundary covers that window; an ``is_sealed`` pre-check would let the error escape.
+        """
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=7)
+        svc._jobs_by_id[7] = job
+        await svc._job_queue.add(job)
+
+        # is_sealed reports open while spawn() rejects anyway — the state a cross-thread
+        # caller observes mid-race. Illustrative of the window, not read by dequeue_job().
+        svc.task_bucket = make_rejecting_task_bucket()
+        svc.task_bucket.is_sealed = False
+
+        assert svc.dequeue_job(job) is True
+        assert 7 not in svc._jobs_by_id
+
+    async def test_dequeue_job_still_propagates_unrelated_spawn_failures(self) -> None:
+        """Only the sealed rejection is absorbed — other spawn failures must surface."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=7)
+        svc._jobs_by_id[7] = job
+        await svc._job_queue.add(job)
+
+        svc.task_bucket = make_rejecting_task_bucket(RuntimeError("loop is congested"))
+
+        with pytest.raises(RuntimeError, match="congested"):
+            svc.dequeue_job(job)

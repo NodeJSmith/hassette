@@ -25,7 +25,7 @@ from hassette.core.core import Hassette
 from hassette.events import RawStateChangeEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent, ServiceStatusPayload
-from hassette.exceptions import RestartRefusedError
+from hassette.exceptions import RestartRefusedError, TaskBucketSealedError
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import create_state_change_event
 from hassette.testing._simulation import create_component_loaded_event as create_component_loaded_event
@@ -421,6 +421,34 @@ def make_task_bucket() -> MagicMock:
 
     tb.spawn = MagicMock(side_effect=spawn_side_effect)
     return tb
+
+
+def make_rejecting_task_bucket(error: BaseException | None = None) -> MagicMock:
+    """A task bucket mock whose ``spawn()`` rejects every submission.
+
+    Mirrors the real ``TaskBucket.spawn`` sealed-rejection contract: the unsubmitted
+    coroutine is closed before the error is raised, so a caller that absorbs the rejection
+    does not leave a "coroutine was never awaited" warning behind. Without that, a test
+    asserting the absorbing behavior fails on an unrelated
+    ``PytestUnraisableExceptionWarning``.
+
+    Defaults to ``TaskBucketSealedError`` (the sealed-bucket rejection). Pass ``error`` to
+    simulate an unrelated ``spawn()`` failure instead. Note that the close-before-raise
+    applies to both cases here, whereas the real ``spawn()`` only closes on the sealed path
+    — a non-sealed failure out of ``asyncio.create_task`` leaks the coroutine. That
+    divergence is deliberate: these doubles exist to assert the caller's absorb/propagate
+    behavior, not to characterize ``spawn()``'s own leak on an unrelated failure.
+    """
+    rejection = error if error is not None else TaskBucketSealedError("bucket is sealed")
+    bucket = make_task_bucket()
+
+    def reject(coro: Any, *, name: str | None = None) -> Any:  # noqa: ARG001
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        raise rejection
+
+    bucket.spawn = MagicMock(side_effect=reject)
+    return bucket
 
 
 class ControlledClock:

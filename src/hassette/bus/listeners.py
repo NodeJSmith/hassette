@@ -9,6 +9,7 @@ from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
 from hassette.event_handling.predicates import normalize_where
+from hassette.exceptions import TaskBucketSealedError
 from hassette.execution_mode import (
     STALL_THRESHOLD_SECONDS,
     ExecutionModeGuard,
@@ -483,6 +484,11 @@ class Listener:
         (cancelling any in-flight handler task and dropping queued factories) so no event/listener
         references leak.
 
+        Never raises on a sealed task bucket. Sealing is reachable only after a force-terminal
+        teardown, which seals without running hooks; the guard release is then skipped with a
+        debug log so bulk-removal loops still cancel every listener. Only that sealed rejection
+        is absorbed — any other ``spawn()`` failure still propagates.
+
         Terminal operation: the listener must not be reused after this call.
         """
         self._cancelled = True
@@ -493,7 +499,17 @@ class Listener:
         # release_guard is async (it awaits the cancelled task's settling under a lock); cancel()
         # is sync, so spawn the release on the same bucket that runs handler tasks. For ``parallel``
         # listeners this is a cheap no-op; for the others it drops the in-flight task and queue.
-        self.invoker.task_bucket.spawn(self.invoker.release_guard(), name="bus:release_guard")
+        try:
+            self.invoker.task_bucket.spawn(self.invoker.release_guard(), name="bus:release_guard")
+        except TaskBucketSealedError:
+            # Accepted gap (force-terminal only): the bucket rejects new work, so the guard's
+            # in-flight task and queued factories are left unreleased. _force_terminal() already
+            # documents "stale subscriptions remain" for this same path; this is the same
+            # acceptance, not a new one. Must not raise here — remove_listeners_by_owner()'s loop
+            # depends on cancel() completing for every listener even when one hits this condition.
+            # See TaskBucketSealedError for why this is caught rather than pre-checked via
+            # is_sealed. spawn() closes the rejected coroutine itself.
+            self.logger.debug("%s: task bucket sealed, skipping release_guard()", self)
 
     def config_matches(self, other: "Listener") -> bool:
         """Check whether two listeners represent the same logical configuration.
