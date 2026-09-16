@@ -549,7 +549,8 @@ For HA endpoints without a typed method — the device registry, area registry, 
 a read, but the re-send goes out under a fresh message id, so a command Home Assistant already
 applied before the response was lost gets applied a second time. Pass `retry_on_timeout=False`
 for a command that must not run twice — it then raises on the first timeout, leaving the outcome
-unknown rather than duplicating the effect.
+unknown rather than duplicating the effect. `retry_on_timeout` is the one keyword this escape
+hatch reads itself rather than forwarding, so it cannot double as a raw payload field name.
 
 ---
 

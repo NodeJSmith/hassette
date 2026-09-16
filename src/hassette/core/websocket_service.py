@@ -680,7 +680,8 @@ class WebsocketService(Service):
                 Callers sending a non-idempotent command must pass False and accept a
                 ``FailedMessageError`` on the first timeout. (``subscribe_events`` solves the same
                 problem with its own retry loop, which unsubscribes the abandoned attempt.)
-            **data: The data to send as a JSON payload.
+            **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
+                policy and is consumed here, so it cannot double as a payload field name.
 
         Returns:
             The response data from the WebSocket.

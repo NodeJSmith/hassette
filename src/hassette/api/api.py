@@ -334,7 +334,9 @@ class Api(Resource):
                 Pass False for a non-idempotent command — a retry re-sends it, duplicating a side
                 effect Home Assistant may already have applied. See
                 :meth:`WebsocketService.send_and_wait`.
-            **data: The data to send as a JSON payload.
+            **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
+                policy and is consumed here, so it is the one name this escape hatch cannot
+                forward as a payload field.
         """
         if not self._api_service.ws_conn.is_connected:
             raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
