@@ -8,18 +8,21 @@ Verifies:
 """
 
 import asyncio
+import logging
 from contextlib import suppress
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from hassette.app.app import App
+from hassette.app.app_config import AppConfig
+from hassette.resources.base import Resource
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource
 
 
-async def _pending_init_task(resource: ConcreteResource) -> None:
+async def _pending_init_task(resource: Resource) -> None:
     """Attach a never-finishing ``_init_task`` so ``cleanup()`` reaches its ``wait_for``."""
     started = asyncio.Event()
 
@@ -31,7 +34,7 @@ async def _pending_init_task(resource: ConcreteResource) -> None:
     await asyncio.wait_for(started.wait(), timeout=1)
 
 
-async def _record_cleanup_timeouts(resource: ConcreteResource, timeout: float | None) -> list[float | None]:
+async def _record_cleanup_timeouts(resource: Resource, timeout: float | None) -> list[float | None]:
     """Call ``resource.cleanup(timeout=timeout)`` and return the timeouts it passed to ``wait_for``."""
     seen: list[float | None] = []
     real_wait_for = asyncio.wait_for
@@ -49,34 +52,34 @@ async def _record_cleanup_timeouts(resource: ConcreteResource, timeout: float | 
 
 
 class TestResourceCleanupTimeout:
-    async def test_zero_timeout_is_not_replaced_by_config_default(self) -> None:
+    @pytest.mark.parametrize(("passed", "expected"), [(0, 0), (None, 30)])
+    async def test_timeout_reaches_wait_for(self, passed: float | None, expected: float) -> None:
         hassette = make_mock_hassette(sealed=False)
         hassette.config.lifecycle.resource_shutdown_timeout_seconds = 30
         resource = ConcreteResource(hassette=hassette)
         await _pending_init_task(resource)
 
-        assert await _record_cleanup_timeouts(resource, 0) == [0]
-
-    async def test_none_timeout_falls_back_to_config_default(self) -> None:
-        hassette = make_mock_hassette(sealed=False)
-        hassette.config.lifecycle.resource_shutdown_timeout_seconds = 30
-        resource = ConcreteResource(hassette=hassette)
-        await _pending_init_task(resource)
-
-        assert await _record_cleanup_timeouts(resource, None) == [30]
+        assert await _record_cleanup_timeouts(resource, passed) == [expected]
 
 
 class TestAppCleanupTimeout:
     @pytest.mark.parametrize(("passed", "expected"), [(0, 0), (None, 45)])
-    async def test_timeout_forwarded_to_resource_cleanup(self, passed: float | None, expected: float) -> None:
-        """``App.cleanup()`` forwards an explicit ``0`` rather than substituting the default."""
+    async def test_timeout_reaches_wait_for(self, passed: float | None, expected: float) -> None:
+        """``App.cleanup()`` resolves its own default, then runs the real inherited cleanup."""
         hassette = make_mock_hassette(sealed=False)
         hassette.config.lifecycle.app_shutdown_timeout_seconds = 45
+        hassette.config.lifecycle.resource_shutdown_timeout_seconds = 30
+
+        # App's real __init__ needs a full manifest/config wiring that none of this exercises;
+        # the inherited cleanup path only reads the attributes set below.
         app = object.__new__(App)
         app.hassette = hassette
-        app.cache = AsyncMock()
+        app.app_config = AppConfig(instance_name="TestApp.0")
+        app.logger = logging.getLogger("TestApp.0")
+        app._pending_start_task = None
+        app.cache = AsyncMock()  # filesystem-backed cache — a genuine boundary
+        await _pending_init_task(app)
 
-        with patch("hassette.resources.base.Resource.cleanup", new=AsyncMock()) as base_cleanup:
-            await App.cleanup(app, timeout=passed)
-
-        base_cleanup.assert_awaited_once_with(timeout=expected)
+        # Only the timeout resolution is asserted here: with timeout=0 the inherited wait
+        # legitimately expires, so App.cleanup() never reaches its own cache.close().
+        assert await _record_cleanup_timeouts(app, passed) == [expected]

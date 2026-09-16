@@ -1,4 +1,3 @@
-import sys
 import typing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -7,7 +6,7 @@ from logging import getLogger
 from typing import Any
 
 from croniter import croniter
-from whenever import ZonedDateTime
+from whenever import Instant, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.execution_mode import ExecutionModeGuard
@@ -15,6 +14,14 @@ from hassette.types.enums import ExecutionMode
 from hassette.types.types import SourceTier
 
 MAX_CRON_ITERATIONS = 10_000
+
+UNSCHEDULED_SORT_KEY = Instant.MAX.timestamp_nanos() + 1
+"""Placeholder ordering key for a job that has never been scheduled.
+
+One nanosecond past the largest instant ``whenever`` can represent, so it sorts after every real
+``next_run`` on any platform. Derived rather than hardcoded: a word-size constant such as
+``sys.maxsize`` sits *below* the nanosecond timestamp domain on a 32-bit build (and below
+far-future timestamps everywhere), which would silently invert the intended ordering."""
 
 if typing.TYPE_CHECKING:
     import asyncio
@@ -369,13 +376,13 @@ class Job:
             raise ValueError("Job(schedule_status=ScheduleStatus.SCHEDULED, ...) requires a concrete next_run")
 
         if self.schedule_status is not ScheduleStatus.SCHEDULED:
-            # Placeholder ordering key for a job that has never been scheduled (WAITING,
-            # COMPLETED, MANUAL) so an accidental ==/</in against such a job never raises
-            # AttributeError. Keeps id(self) as the tiebreaker (matching __hash__'s comment
-            # above) so two different never-scheduled jobs never compare equal. Such a job must
-            # still never be inserted into the heap regardless of this value — set_next_run()
-            # assigns the real ordering key once the job actually transitions to SCHEDULED.
-            self.sort_index = (sys.maxsize, id(self))
+            # A job that has never been scheduled (WAITING, COMPLETED, MANUAL) still needs
+            # some sort_index so an accidental ==/</in against it never raises AttributeError.
+            # id(self) stays the tiebreaker (matching __hash__'s comment above) so two different
+            # never-scheduled jobs never compare equal. Such a job must still never be inserted
+            # into the heap regardless of this value — set_next_run() assigns the real ordering
+            # key once the job actually transitions to SCHEDULED.
+            self.sort_index = (UNSCHEDULED_SORT_KEY, id(self))
 
         self.guard = ExecutionModeGuard(self.mode)
         if self.next_run is not None:

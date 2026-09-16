@@ -15,7 +15,7 @@ from hassette.exceptions import SchemaVersionError
 from hassette.resources.lifecycle import create_lifecycle_task, hooks_pool_remaining, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types.enums import ResourceStatus, RestartType
+from hassette.types.enums import ACTIVE_STATUSES, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.aiosqlite_utils import connect_daemon, stop_connection_sync
 
@@ -493,6 +493,19 @@ class DatabaseService(Service):
             finally:
                 queue.task_done()
 
+    def queue_unavailable_error(self, method: str) -> RuntimeError:
+        """Build the rejection raised when ``_db_write_queue`` is gone.
+
+        The queue is ``None`` both before ``on_initialize()`` creates it and after a teardown
+        path (``on_shutdown()``, ``_force_terminal()``) detaches it, so the message has to come
+        from the resource's own status rather than the queue. Anything outside
+        ``ACTIVE_STATUSES`` means teardown has already begun, whether it ended in ``STOPPED``,
+        ``FAILED``, ``CRASHED``, or an exhausted state.
+        """
+        if self.status not in ACTIVE_STATUSES:
+            return RuntimeError(f"DatabaseService.{method}() called after shutdown")
+        return RuntimeError(f"DatabaseService.{method}() called before on_initialize()")
+
     async def submit(self, coro: Coroutine[Any, Any, Any]) -> Any:
         """Submit a coroutine for serialized execution and await its result.
 
@@ -510,9 +523,7 @@ class DatabaseService(Service):
         """
         if self._db_write_queue is None:
             coro.close()
-            if self.status in (ResourceStatus.STOPPING, ResourceStatus.STOPPED):
-                raise RuntimeError("DatabaseService.submit() called after shutdown")
-            raise RuntimeError("DatabaseService.submit() called before on_initialize()")
+            raise self.queue_unavailable_error("submit")
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         try:
             await self._db_write_queue.put((coro, future))
@@ -537,9 +548,7 @@ class DatabaseService(Service):
         """
         if self._db_write_queue is None:
             coro.close()
-            if self.status in (ResourceStatus.STOPPING, ResourceStatus.STOPPED):
-                raise RuntimeError("DatabaseService.enqueue() called after shutdown")
-            raise RuntimeError("DatabaseService.enqueue() called before on_initialize()")
+            raise self.queue_unavailable_error("enqueue")
         try:
             self._db_write_queue.put_nowait((coro, None))
         except asyncio.QueueFull:
