@@ -15,7 +15,7 @@ from hassette.exceptions import SchemaVersionError
 from hassette.resources.lifecycle import create_lifecycle_task, hooks_pool_remaining, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types.enums import RestartType
+from hassette.types.enums import ResourceStatus, RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.aiosqlite_utils import connect_daemon, stop_connection_sync
 
@@ -510,6 +510,8 @@ class DatabaseService(Service):
         """
         if self._db_write_queue is None:
             coro.close()
+            if self.status in (ResourceStatus.STOPPING, ResourceStatus.STOPPED):
+                raise RuntimeError("DatabaseService.submit() called after shutdown")
             raise RuntimeError("DatabaseService.submit() called before on_initialize()")
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         try:
@@ -535,6 +537,8 @@ class DatabaseService(Service):
         """
         if self._db_write_queue is None:
             coro.close()
+            if self.status in (ResourceStatus.STOPPING, ResourceStatus.STOPPED):
+                raise RuntimeError("DatabaseService.enqueue() called after shutdown")
             raise RuntimeError("DatabaseService.enqueue() called before on_initialize()")
         try:
             self._db_write_queue.put_nowait((coro, None))

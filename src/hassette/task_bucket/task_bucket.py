@@ -255,6 +255,14 @@ class TaskBucket(Resource):
             try:
                 return result.result(timeout=_CROSS_THREAD_SPAWN_TIMEOUT_SECS)
             except CfTimeoutError:
+                # Accepted risk, not fixed: _create() is scheduled via call_soon_threadsafe()
+                # and may still run on the loop thread after this timeout fires here on the
+                # calling thread. If it does, the task is created and tracked by this bucket
+                # (bounded, not leaked) even though the caller already saw this timeout and the
+                # RuntimeError below. Closing the race would need a handshake between the two
+                # threads; the trigger condition — an event loop frozen for the full timeout — is
+                # itself a serious problem this bucket cannot mask, so the complexity is not
+                # justified. See hassette issue #1811.
                 self.logger.error(
                     "Cross-thread spawn of '%s' timed out after %.0fs waiting for the event loop",
                     task_name,

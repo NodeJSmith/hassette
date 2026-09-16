@@ -6,6 +6,7 @@ Verifies:
 - Invalid transitions log WARNING (and still proceed) in non-strict mode
 - _force_terminal() bypasses the setter and skips validation
 - Restart transitions (FAILED→STARTING, CRASHED→STARTING) are accepted
+- STOPPING→CRASHED is accepted (serve() raising after the shutdown window opened)
 - EXHAUSTED states transition table is correct
 - Terminal EXHAUSTED_DEAD rejects further transitions in strict mode
 - hasattr guard: no hassette attribute → no error (construction-time guard)
@@ -127,6 +128,21 @@ async def test_restart_transitions_valid():
     # Should not raise
     resource2.status = ResourceStatus.STARTING
     assert resource2.status == ResourceStatus.STARTING
+
+
+async def test_stopping_to_crashed_is_valid():
+    """STOPPING → CRASHED is valid: serve() can raise a FatalError after shutdown has begun.
+
+    STOPPING already accepts FAILED for the same reason; CRASHED is the sibling terminal
+    outcome that RUNNING's own transition set has always allowed alongside it.
+    """
+    hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
+
+    resource = ConcreteResource(hassette)
+    resource._status = ResourceStatus.STOPPING
+    resource.status = ResourceStatus.CRASHED
+
+    assert resource.status == ResourceStatus.CRASHED
 
 
 async def test_exhausted_transitions_valid():

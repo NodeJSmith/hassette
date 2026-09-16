@@ -1,3 +1,4 @@
+import sys
 import typing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -179,10 +180,10 @@ class Job:
     sort_index: tuple[int, int] = field(init=False, repr=False)
     """Tuple of (next_run timestamp with nanoseconds, object id) for ordering in a priority queue.
 
-    Assigned only when the job transitions to ``SCHEDULED`` with a concrete ``next_run``
-    (see ``set_next_run``/``transition_to``). Unset on a freshly constructed ``WAITING``,
-    ``COMPLETED``, or ``MANUAL`` job — such a job must never be inserted into the heap, so a
-    stale or absent ``sort_index`` is never read.
+    Assigned the real ordering key when the job transitions to ``SCHEDULED`` with a concrete
+    ``next_run`` (see ``set_next_run``/``transition_to``). A job constructed as ``WAITING``,
+    ``COMPLETED``, or ``MANUAL`` gets a placeholder key from ``__post_init__`` instead; such a
+    job must never be inserted into the heap, so that placeholder is never read for ordering.
     """
 
     owner_id: str = field(compare=False)
@@ -366,6 +367,15 @@ class Job:
             raise ValueError("Cannot specify both 'timeout' and 'timeout_disabled=True'")
         if self.schedule_status is ScheduleStatus.SCHEDULED and self.next_run is None:
             raise ValueError("Job(schedule_status=ScheduleStatus.SCHEDULED, ...) requires a concrete next_run")
+
+        if self.schedule_status is not ScheduleStatus.SCHEDULED:
+            # Placeholder ordering key for a job that has never been scheduled (WAITING,
+            # COMPLETED, MANUAL) so an accidental ==/</in against such a job never raises
+            # AttributeError. Keeps id(self) as the tiebreaker (matching __hash__'s comment
+            # above) so two different never-scheduled jobs never compare equal. Such a job must
+            # still never be inserted into the heap regardless of this value — set_next_run()
+            # assigns the real ordering key once the job actually transitions to SCHEDULED.
+            self.sort_index = (sys.maxsize, id(self))
 
         self.guard = ExecutionModeGuard(self.mode)
         if self.next_run is not None:

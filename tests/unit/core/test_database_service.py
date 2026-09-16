@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, RetentionTarget, _WriteQueueItem
+from hassette.types.enums import ResourceStatus
 from tests.support.helpers import (
     DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
     DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
@@ -173,7 +174,8 @@ async def test_force_terminal_drains_write_queue(
 
     assert service._db_write_queue is None
     assert future.cancelled()
-    with pytest.raises(RuntimeError, match="before on_initialize"):
+    # _force_terminal() lands the resource in STOPPED, so the rejection names the real cause.
+    with pytest.raises(RuntimeError, match="after shutdown"):
         service.enqueue(sentinel_coro())
 
 
@@ -500,3 +502,39 @@ def test_retention_target_is_frozen() -> None:
     target = _RETENTION_TABLES[0]
     with pytest.raises(dataclasses.FrozenInstanceError):
         target.table = "mutated"  # pyright: ignore[reportGeneralTypeIssues]
+
+
+class TestQueueUnavailableErrorMessage:
+    """``submit()``/``enqueue()`` distinguish pre-init from post-shutdown when the queue is gone.
+
+    ``_db_write_queue`` is ``None`` both before ``on_initialize()`` runs and after
+    ``on_shutdown()`` tears it down; the resource's own status is what tells the two apart.
+    """
+
+    @pytest.mark.parametrize("status", [ResourceStatus.STOPPING, ResourceStatus.STOPPED])
+    async def test_submit_reports_after_shutdown(self, service: DatabaseService, status: ResourceStatus) -> None:
+        service._db_write_queue = None
+        service._status = status
+
+        with pytest.raises(RuntimeError, match="submit\\(\\) called after shutdown"):
+            await service.submit(async_noop())
+
+    @pytest.mark.parametrize("status", [ResourceStatus.STOPPING, ResourceStatus.STOPPED])
+    def test_enqueue_reports_after_shutdown(self, service: DatabaseService, status: ResourceStatus) -> None:
+        service._db_write_queue = None
+        service._status = status
+
+        with pytest.raises(RuntimeError, match="enqueue\\(\\) called after shutdown"):
+            service.enqueue(async_noop())
+
+    async def test_submit_reports_before_initialize(self, service: DatabaseService) -> None:
+        assert service._db_write_queue is None
+
+        with pytest.raises(RuntimeError, match="submit\\(\\) called before on_initialize\\(\\)"):
+            await service.submit(async_noop())
+
+    def test_enqueue_reports_before_initialize(self, service: DatabaseService) -> None:
+        assert service._db_write_queue is None
+
+        with pytest.raises(RuntimeError, match="enqueue\\(\\) called before on_initialize\\(\\)"):
+            service.enqueue(async_noop())

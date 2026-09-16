@@ -1,7 +1,10 @@
 """Tests for Job dataclass — group, jitter, trigger_id matching."""
 
+import pytest
 from whenever import ZonedDateTime
 
+import hassette.utils.date_utils as date_utils
+from hassette.scheduler.classes import ScheduleStatus
 from hassette.scheduler.triggers import Every
 from tests.support.factories import make_scheduled_job
 from tests.support.helpers import noop
@@ -90,3 +93,37 @@ class TestFireAt:
 
 
 # mark_registered() coverage lives in tests/unit/scheduler/test_scheduled_job_mark_registered.py.
+
+
+class TestUnscheduledJobComparison:
+    """A never-scheduled Job carries a placeholder ``sort_index`` so ordering never raises.
+
+    ``sort_index`` is ``init=False`` with no default, so before this it was simply unset on a
+    WAITING/COMPLETED/MANUAL job and any ``==``/``<``/``in`` against one raised AttributeError.
+    """
+
+    @pytest.mark.parametrize("status", [ScheduleStatus.WAITING, ScheduleStatus.COMPLETED, ScheduleStatus.MANUAL])
+    def test_comparison_does_not_raise(self, status: ScheduleStatus) -> None:
+        job = make_scheduled_job(job=noop, schedule_status=status)
+        other = make_scheduled_job(job=noop, schedule_status=status)
+
+        assert job == job
+        assert job != other
+        assert (job < other) is not (other < job)
+        assert job in [job, other]
+
+    def test_distinct_unscheduled_jobs_are_unequal(self) -> None:
+        """The id(self) tiebreaker is preserved, keeping __hash__'s documented contract true."""
+        jobs = [make_scheduled_job(job=noop, schedule_status=ScheduleStatus.WAITING) for _ in range(3)]
+
+        assert len({job.sort_index for job in jobs}) == 3
+        assert len(set(jobs)) == 3
+
+    def test_scheduled_job_keeps_real_ordering_key(self) -> None:
+        """A SCHEDULED job still sorts by next_run, not by the placeholder."""
+        earlier = make_scheduled_job(job=noop, next_run=date_utils.now())
+        later = make_scheduled_job(job=noop, next_run=date_utils.now().add(hours=1))
+        unscheduled = make_scheduled_job(job=noop, schedule_status=ScheduleStatus.WAITING)
+
+        assert earlier < later
+        assert later < unscheduled

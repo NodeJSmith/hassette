@@ -47,7 +47,13 @@ VALID_TRANSITIONS: dict[ResourceStatus, frozenset[ResourceStatus]] = {
             ResourceStatus.EXHAUSTED_DEAD,  # budget exhausted while running (timing edge)
         }
     ),
-    ResourceStatus.STOPPING: frozenset({ResourceStatus.STOPPED, ResourceStatus.FAILED}),
+    ResourceStatus.STOPPING: frozenset(
+        {
+            ResourceStatus.STOPPED,
+            ResourceStatus.FAILED,
+            ResourceStatus.CRASHED,  # serve() raised while the shutdown window was already open
+        }
+    ),
     ResourceStatus.STOPPED: frozenset({ResourceStatus.STARTING}),  # restart
     ResourceStatus.FAILED: frozenset(
         {
