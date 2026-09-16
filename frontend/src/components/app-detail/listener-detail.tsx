@@ -40,7 +40,7 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
     total: listener.total_invocations,
     failed: listener.failed,
     avgDurationMs: listener.avg_duration_ms,
-    lastLabel: lastInvokedLabel || "—",
+    lastValue: lastInvokedLabel || "—",
     timedOut: listener.timed_out,
     cancelled: listener.cancelled,
     threadLeaked: listener.thread_leaked,

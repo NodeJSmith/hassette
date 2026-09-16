@@ -172,7 +172,7 @@ function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunSumm
     total: job.total_executions,
     failed: job.failed,
     avgDurationMs: job.avg_duration_ms,
-    lastLabel: lastCell.label,
+    lastValue: lastCell.label,
     lastFieldLabel: lastCell.fieldLabel,
     timedOut: job.timed_out,
     cancelled: job.cancelled,

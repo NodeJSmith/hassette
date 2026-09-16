@@ -9,7 +9,7 @@ function baseInput(overrides: Partial<CommonStatInput> = {}): CommonStatInput {
     total: 10,
     failed: 0,
     avgDurationMs: 1234,
-    lastLabel: "2m ago",
+    lastValue: "2m ago",
     timedOut: 0,
     cancelled: 0,
     threadLeaked: 0,
@@ -53,7 +53,7 @@ describe("buildCommonStatCells", () => {
   });
 
   it("uses lastFieldLabel override when provided", () => {
-    const cells = buildCommonStatCells(baseInput({ lastFieldLabel: "Next", lastLabel: "next in 5m" }));
+    const cells = buildCommonStatCells(baseInput({ lastFieldLabel: "Next", lastValue: "next in 5m" }));
 
     expect(findCell(cells, "Next")).toEqual({ label: "Next", value: "next in 5m" });
     expect(findCell(cells, "Last")).toBeUndefined();

@@ -12,7 +12,7 @@ export interface CommonStatInput {
   total: number;
   failed: number;
   avgDurationMs: number | null;
-  lastLabel: string;
+  lastValue: string;
   /** Label for the "last" cell — defaults to "Last"; job passes "Next" when showing next-run/fire-at text. */
   lastFieldLabel?: string;
   timedOut: number;
@@ -46,8 +46,13 @@ export function buildCommonStatCells(input: CommonStatInput): DetailStatsCell[] 
     { label: "Failed", value: input.failed, tone: failedTone },
     { label: "Err %", value: formatRate(input.failed, input.total), tone: failedTone },
     { label: "Avg", value: formatDurationOrDash(input.avgDurationMs) },
-    { label: input.lastFieldLabel ?? "Last", value: input.lastLabel },
+    { label: input.lastFieldLabel ?? "Last", value: input.lastValue },
   ];
+  if (cells.length !== COMMON_STAT_CELL_COUNT) {
+    throw new Error(
+      `COMMON_STAT_CELL_COUNT (${COMMON_STAT_CELL_COUNT}) does not match the ${cells.length} fixed cells built here; update the constant.`,
+    );
+  }
   if (input.timedOut > 0) cells.push({ label: LABEL_TIMED_OUT, value: input.timedOut, tone: "warn" });
   if (input.cancelled > 0) cells.push({ label: LABEL_CANCELLED, value: input.cancelled, tone: "cancel" });
   if (input.extraCell) cells.splice(resolveExtraCellIndex(cells), 0, input.extraCell);
