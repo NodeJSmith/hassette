@@ -332,10 +332,11 @@ class Job:
     )
     """Closure that resolves the app-level error handler at dispatch time.
 
-    ``compare=False`` for the same reason as every other non-``sort_index`` field: a callable in
-    the ``@dataclass(order=True)`` comparison tuple would corrupt heap ordering the moment two
-    jobs shared a ``sort_index``, and it makes ``__hash__``'s "``sort_index`` only" contract true
-    rather than merely unreachable."""
+    ``compare=False`` like every other non-``sort_index`` field: functions have no ordering, so
+    leaving this in the ``@dataclass(order=True)`` comparison tuple would raise ``TypeError`` on
+    any ``<`` between two jobs that shared a ``sort_index``. Nothing can share one today (see
+    ``__hash__``), which is exactly why it must stay out — the breakage would only appear if that
+    invariant ever changed."""
 
     _dequeued: bool = field(default=False, repr=False, compare=False)
     """True after the job has been synchronously removed from the heap via dequeue_job()."""
