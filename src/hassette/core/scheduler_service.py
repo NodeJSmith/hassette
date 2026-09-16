@@ -848,6 +848,11 @@ class SchedulerService(Service):
         service's own ``task_bucket`` so the guard release and ``removed_at`` write survive
         the caller's own shutdown/cancellation window.
 
+        When that bucket is already sealed (reachable only after a force-terminal teardown,
+        which seals without running hooks), the tail is skipped with a debug log rather than
+        raising: the guard is left unreleased and ``removed_at`` is never persisted for this
+        job. Live state removal still happens either way.
+
         Args:
             job: The job to remove.
 
@@ -855,7 +860,16 @@ class SchedulerService(Service):
             True if the job was found and removed from the heap, False otherwise.
         """
         removed_from_heap = self._remove_from_live_state(job)
-        self.task_bucket.spawn(self._finish_removal(job), name="scheduler:guard_release")
+        if self.task_bucket.is_sealed:
+            # Accepted gap (force-terminal only): both the guard release and the removed_at
+            # persistence write are skipped, not just cleanup — mark_job_removed() never runs for
+            # this job. Narrower than the listener-side gap (real data, not just in-memory state),
+            # but the same trigger applies, and a force-terminated service's process exits shortly
+            # after today. Must not raise here — dequeue_job() is the sync, non-awaited removal
+            # API and its callers cannot handle a spawn rejection.
+            self.logger.debug("Task bucket sealed, skipping guard release for job %r", job.name)
+        else:
+            self.task_bucket.spawn(self._finish_removal(job), name="scheduler:guard_release")
         return removed_from_heap
 
     async def remove_job(self, job: "Job") -> bool:

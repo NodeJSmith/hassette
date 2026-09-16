@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 
 from tests.support.helpers import create_listener, make_task_bucket
 
-from ._fixtures_bus_scheduler import make_bus_service
+from .conftest import make_bus_service
 
 OWNER = "sealed_owner"
 
