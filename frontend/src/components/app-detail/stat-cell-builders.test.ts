@@ -36,6 +36,15 @@ describe("buildCommonStatCells", () => {
     ]);
   });
 
+  it("keeps COMMON_STAT_CELL_COUNT in sync with the fixed cells actually built", () => {
+    // The constant is the boundary between fixed and conditional cells: resolveExtraCellIndex
+    // falls back to it, and these tests slice on it. Adding or removing a fixed cell without
+    // updating it would silently misplace extraCell, so pin the two together here.
+    const cells = buildCommonStatCells(baseInput());
+
+    expect(cells).toHaveLength(COMMON_STAT_CELL_COUNT);
+  });
+
   it("uses the provided totalLabel", () => {
     const cells = buildCommonStatCells(baseInput({ totalLabel: "Runs", total: 5 }));
 
