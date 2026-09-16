@@ -21,7 +21,7 @@ from .conftest import make_bus_service
 OWNER = "sealed_owner"
 
 
-class TestRemoveListenersByOwnerWithSealedBucket:
+class TestListenerCancelWithSealedBucket:
     async def test_cancel_does_not_raise_on_sealed_bucket(self) -> None:
         """Listener.cancel() must never raise out — the bulk-removal loop depends on it."""
         listener = create_listener(owner_id=OWNER, task_bucket=make_rejecting_task_bucket())

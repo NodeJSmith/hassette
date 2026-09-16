@@ -484,10 +484,10 @@ class Listener:
         (cancelling any in-flight handler task and dropping queued factories) so no event/listener
         references leak.
 
-        Never raises. If the invoker's task bucket is already sealed (reachable only after a
-        force-terminal teardown, which seals without running hooks), the guard release is skipped
-        with a debug log so bulk-removal loops still cancel every listener. Only the sealed
-        rejection is absorbed; any other ``spawn()`` failure still propagates.
+        Never raises on a sealed task bucket. Sealing is reachable only after a force-terminal
+        teardown, which seals without running hooks; the guard release is then skipped with a
+        debug log so bulk-removal loops still cancel every listener. Only that sealed rejection
+        is absorbed — any other ``spawn()`` failure still propagates.
 
         Terminal operation: the listener must not be reused after this call.
         """
@@ -507,9 +507,8 @@ class Listener:
             # documents "stale subscriptions remain" for this same path; this is the same
             # acceptance, not a new one. Must not raise here — remove_listeners_by_owner()'s loop
             # depends on cancel() completing for every listener even when one hits this condition.
-            # Caught rather than pre-checked via ``is_sealed``: a sync handler on a worker thread
-            # can observe an open bucket and still be rejected when the loop thread seals it
-            # before the cross-thread spawn lands. spawn() closes the rejected coroutine itself.
+            # See TaskBucketSealedError for why this is caught rather than pre-checked via
+            # is_sealed. spawn() closes the rejected coroutine itself.
             self.logger.debug("%s: task bucket sealed, skipping release_guard()", self)
 
     def config_matches(self, other: "Listener") -> bool:

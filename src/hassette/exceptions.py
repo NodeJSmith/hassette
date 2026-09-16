@@ -257,11 +257,16 @@ class ResourceNotReadyError(HassetteError):
 class TaskBucketSealedError(RuntimeError, HassetteError):
     """Raised when a sealed ``TaskBucket`` rejects new work.
 
-    Subclasses ``RuntimeError`` so callers that only care that spawning failed keep
-    working. The distinct type exists so a call site that is willing to accept *this*
-    specific rejection can catch it without also swallowing unrelated ``spawn()``
-    failures, and without a check-then-spawn pre-check that a cross-thread caller can
-    race against the loop thread sealing the bucket.
+    Subclasses ``RuntimeError`` so callers that only care that spawning failed keep working.
+    The distinct type exists so a call site willing to accept *this* specific rejection can
+    catch it without also swallowing unrelated ``spawn()`` failures — the reason the sync
+    removal paths catch it rather than pre-checking ``TaskBucket.is_sealed``.
+
+    A pre-check cannot be correct for a cross-thread caller: ``spawn()`` hands the work to
+    the loop thread via ``call_soon_threadsafe`` and re-checks the seal there, so a caller
+    on a worker thread can read ``is_sealed`` as ``False`` and still be rejected when the
+    loop thread seals the bucket before the queued callback runs. Catching at the spawn
+    boundary makes the admission decision atomic with the spawn itself.
     """
 
 

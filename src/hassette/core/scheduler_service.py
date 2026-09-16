@@ -851,8 +851,8 @@ class SchedulerService(Service):
         When that bucket is already sealed (reachable only after a force-terminal teardown,
         which seals without running hooks), the tail is skipped with a debug log rather than
         raising: the guard is left unreleased and ``removed_at`` is never persisted for this
-        job. Live state removal still happens either way. Only the sealed rejection is
-        absorbed; any other ``spawn()`` failure still propagates.
+        job. Live state removal still happens either way. Only that sealed rejection is
+        absorbed — any other ``spawn()`` failure still propagates.
 
         Args:
             job: The job to remove.
@@ -870,9 +870,8 @@ class SchedulerService(Service):
             # but the same trigger applies, and a force-terminated service's process exits shortly
             # after today. Must not raise here — dequeue_job() is the sync, non-awaited removal
             # API and its callers cannot handle a spawn rejection.
-            # Caught rather than pre-checked via ``is_sealed``: Scheduler.remove_job() is reachable
-            # from a sync handler on a worker thread, which can observe an open bucket and still be
-            # rejected when the loop thread seals it before the cross-thread spawn lands.
+            # See TaskBucketSealedError for why this is caught rather than pre-checked via
+            # is_sealed; Scheduler.remove_job() is one of the cross-thread callers that motivates it.
             self.logger.debug("Task bucket sealed, skipping guard release for job %r", job.name)
         return removed_from_heap
 

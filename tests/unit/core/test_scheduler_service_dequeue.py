@@ -372,6 +372,8 @@ class TestDequeueJobSealedBucket:
         svc._jobs_by_id[7] = job
         await svc._job_queue.add(job)
 
+        # is_sealed reports open while spawn() rejects anyway — the state a cross-thread
+        # caller observes mid-race. Illustrative of the window, not read by dequeue_job().
         svc.task_bucket = make_rejecting_task_bucket()
         svc.task_bucket.is_sealed = False
 

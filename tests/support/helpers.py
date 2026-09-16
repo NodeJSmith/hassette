@@ -426,13 +426,18 @@ def make_task_bucket() -> MagicMock:
 def make_rejecting_task_bucket(error: BaseException | None = None) -> MagicMock:
     """A task bucket mock whose ``spawn()`` rejects every submission.
 
-    Mirrors the real ``TaskBucket.spawn`` rejection contract: the unsubmitted coroutine is
-    closed before the error is raised, so a caller that absorbs the rejection does not leave
-    a "coroutine was never awaited" warning behind. Without that, a test asserting the
-    absorbing behavior fails on an unrelated ``PytestUnraisableExceptionWarning``.
+    Mirrors the real ``TaskBucket.spawn`` sealed-rejection contract: the unsubmitted
+    coroutine is closed before the error is raised, so a caller that absorbs the rejection
+    does not leave a "coroutine was never awaited" warning behind. Without that, a test
+    asserting the absorbing behavior fails on an unrelated
+    ``PytestUnraisableExceptionWarning``.
 
     Defaults to ``TaskBucketSealedError`` (the sealed-bucket rejection). Pass ``error`` to
-    simulate an unrelated ``spawn()`` failure instead.
+    simulate an unrelated ``spawn()`` failure instead. Note that the close-before-raise
+    applies to both cases here, whereas the real ``spawn()`` only closes on the sealed path
+    — a non-sealed failure out of ``asyncio.create_task`` leaks the coroutine. That
+    divergence is deliberate: these doubles exist to assert the caller's absorb/propagate
+    behavior, not to characterize ``spawn()``'s own leak on an unrelated failure.
     """
     rejection = error if error is not None else TaskBucketSealedError("bucket is sealed")
     bucket = make_task_bucket()
