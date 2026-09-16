@@ -231,6 +231,7 @@ class TestDequeueJobRemovalPersistence:
 
         spawned: list = []
         svc.task_bucket = MagicMock()
+        svc.task_bucket.is_sealed = False
         svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: spawned.append(coro))
 
         svc.dequeue_job(job)
@@ -248,6 +249,7 @@ class TestDequeueJobRemovalPersistence:
 
         spawned: list = []
         svc.task_bucket = MagicMock()
+        svc.task_bucket.is_sealed = False
         svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: spawned.append(coro))
 
         svc.dequeue_job(job)
@@ -305,3 +307,58 @@ class TestDispatchRaceGuard:
 
         await svc.dispatch_and_log(job)
         assert run_called, "run_job_with_guard must be called when job._dequeued is False"
+
+
+class TestDequeueJobSealedBucket:
+    """Regression tests for dequeue_job against a sealed task bucket (#1810).
+
+    Reachable only after a force-terminal teardown, which seals the bucket without running
+    shutdown hooks. dequeue_job is the sync, non-awaited removal API — its callers cannot
+    handle a spawn rejection, so it must skip the tail rather than let RuntimeError escape.
+    """
+
+    async def test_dequeue_job_on_sealed_bucket_does_not_raise(self) -> None:
+        """A sealed bucket rejects new work; dequeue_job must still return normally."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=7)
+        svc._jobs_by_id[7] = job
+        await svc._job_queue.add(job)
+
+        svc.task_bucket = MagicMock()
+        svc.task_bucket.is_sealed = True
+        svc.task_bucket.spawn = MagicMock(side_effect=RuntimeError("bucket is sealed"))
+
+        assert svc.dequeue_job(job) is True
+        svc.task_bucket.spawn.assert_not_called()
+
+    async def test_dequeue_job_on_sealed_bucket_logs_debug_and_skips_persistence(self) -> None:
+        """The skipped tail means removed_at is never persisted — logged at debug level."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=7)
+        svc._jobs_by_id[7] = job
+        svc._executor.mark_job_removed = AsyncMock()
+
+        svc.task_bucket = MagicMock()
+        svc.task_bucket.is_sealed = True
+        svc.task_bucket.spawn = MagicMock(side_effect=RuntimeError("bucket is sealed"))
+
+        svc.dequeue_job(job)
+
+        svc._executor.mark_job_removed.assert_not_awaited()
+        assert svc.logger.debug.called, "sealed-bucket skip must emit a debug log"
+
+    async def test_dequeue_job_on_sealed_bucket_still_removes_live_state(self) -> None:
+        """Live-state removal happens regardless of whether the tail could be spawned."""
+        svc = make_dequeue_service()
+        job = make_scheduled_job(db_id=7)
+        svc._jobs_by_id[7] = job
+        await svc._job_queue.add(job)
+
+        svc.task_bucket = MagicMock()
+        svc.task_bucket.is_sealed = True
+        svc.task_bucket.spawn = MagicMock(side_effect=RuntimeError("bucket is sealed"))
+
+        svc.dequeue_job(job)
+
+        assert job._dequeued is True
+        assert 7 not in svc._jobs_by_id
