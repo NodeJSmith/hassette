@@ -17,7 +17,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
-from hassette.utils.aiosqlite_utils import connect_daemon, stop_connection_sync
+from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -433,34 +433,18 @@ class DatabaseService(Service):
     async def close_connections(self) -> None:
         """Close both database connections. Idempotent — safe to call multiple times.
 
-        Always attempts both connections even if the first close raises CancelledError.
-        aiosqlite's worker threads are set to daemon in on_initialize() as a safety net,
-        but this method still does a best-effort close to avoid resource warnings and
-        ensure clean WAL checkpoints.
+        Always attempts both connections even if the first close fails. aiosqlite's worker threads
+        are set to daemon in on_initialize() as a safety net, but this method still does a
+        best-effort close to avoid resource warnings and ensure clean WAL checkpoints.
+
+        Raises after both attempts complete rather than swallowing: both call sites feed teardown
+        accounting that needs to tell a clean close from one that left a connection in an unknown
+        state -- ``cleanup()`` records ``TeardownCause.CLEANUP_FAILED`` and ``on_shutdown()``
+        records ``TeardownCause.SHUTDOWN_HOOK_FAILED`` on an escaping exception. A
+        ``CancelledError`` takes precedence over a non-cancel error regardless of which connection
+        raised first; see ``close_connection_pair()``.
         """
-        first_cancel: BaseException | None = None
-        for attr in ("_read_db", "_db"):
-            conn: aiosqlite.Connection | None = getattr(self, attr)
-            if conn is None:
-                continue
-            try:
-                await conn.close()
-            except asyncio.CancelledError as exc:  # noqa: ASYNC103 — re-raised after both connections are handled
-                conn.stop()
-                if first_cancel is None:
-                    first_cancel = exc
-            except Exception:
-                self.logger.exception("Failed to close %s — falling back to sync stop()", attr)
-                conn.stop()
-            finally:
-                thread = getattr(conn, "_thread", None)
-                if thread is not None and thread.is_alive():
-                    await asyncio.to_thread(thread.join, 5.0)
-                    if thread.is_alive():
-                        self.logger.warning("aiosqlite background thread for %s did not exit within 5s", attr)
-                setattr(self, attr, None)
-        if first_cancel is not None:
-            raise first_cancel
+        await close_connection_pair(self, ("_read_db", "_db"), self.logger, reraise_non_cancel=True)
 
     async def cleanup(self, timeout: float | None = None) -> None:
         """Close database connections if on_shutdown was interrupted or never ran."""

@@ -1,6 +1,5 @@
 """Async cache backed by ``aiosqlite``, using a read/write connection pair in WAL mode."""
 
-import asyncio
 import contextlib
 import logging
 import sqlite3
@@ -22,7 +21,7 @@ from hassette.cache._helpers import (
     validate_key,
 )
 from hassette.cache.sync import SyncCache
-from hassette.utils.aiosqlite_utils import connect_daemon, stop_connection_sync
+from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
 
 logger = logging.getLogger(__name__)
 
@@ -144,29 +143,7 @@ class AsyncCache:
         entirely -- the leaked connection triggers ``Connection.__del__`` ``ResourceWarning``
         and skips the clean WAL checkpoint (#923, #1900).
         """
-        first_error: Exception | None = None
-        first_cancel: BaseException | None = None
-        for attr in ("_write", "_read"):
-            conn: aiosqlite.Connection | None = getattr(self, attr)
-            if conn is None:
-                continue
-            try:
-                await conn.close()
-            except asyncio.CancelledError as exc:  # noqa: ASYNC103 — re-raised after both connections are handled
-                stop_connection_sync(conn)
-                if first_cancel is None:
-                    first_cancel = exc
-            except Exception as exc:
-                logger.exception("Error closing cache connection (%s)", attr)
-                stop_connection_sync(conn)
-                if first_error is None:
-                    first_error = exc
-            finally:
-                setattr(self, attr, None)
-        if first_cancel is not None:
-            raise first_cancel
-        if first_error is not None:
-            raise first_error
+        await close_connection_pair(self, ("_write", "_read"), logger, reraise_non_cancel=True)
 
     def _delete_db_files(self) -> None:
         self.db_path.unlink(missing_ok=True)
