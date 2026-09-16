@@ -15,7 +15,7 @@ from hassette.exceptions import SchemaVersionError
 from hassette.resources.lifecycle import create_lifecycle_task, hooks_pool_remaining, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types.enums import ACTIVE_STATUSES, RestartType
+from hassette.types.enums import RestartType
 from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.aiosqlite_utils import connect_daemon, stop_connection_sync
 
@@ -176,6 +176,16 @@ class DatabaseService(Service):
     _db_worker_task: asyncio.Task[None] | None
     """Background task that drains _db_write_queue sequentially."""
 
+    _write_queue_detached: bool
+    """Whether a teardown path has taken ``_db_write_queue`` away.
+
+    ``_db_write_queue`` is ``None`` both before ``on_initialize()`` creates it and after
+    ``detach_write_queue()`` removes it, and the resource's own status cannot tell those apart
+    (an ``on_initialize()`` failure lands in ``FAILED``/``CRASHED`` without any teardown having
+    run). This flag records the teardown directly so ``queue_unavailable_error()`` names the
+    real cause.
+    """
+
     _consecutive_size_triggers: int
     """Counter for consecutive hourly size failsafe triggers; logged as a warning."""
 
@@ -188,6 +198,7 @@ class DatabaseService(Service):
         self._consecutive_size_triggers = 0
         self._db_write_queue = None
         self._db_worker_task = None
+        self._write_queue_detached = False
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -234,6 +245,10 @@ class DatabaseService(Service):
         """Set up the database: check schema version, run migrations and open connection."""
         self._consecutive_heartbeat_failures = 0
         self._consecutive_size_triggers = 0
+        # Cleared up front, not at queue-creation time below: a restart whose initialization
+        # fails before it gets that far must still report the pre-init cause rather than a
+        # stale post-teardown one left over from the previous lifecycle.
+        self._write_queue_detached = False
         self._db_path = self.resolve_db_path()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -298,9 +313,9 @@ class DatabaseService(Service):
         ``on_shutdown()``, the only other place this task is cancelled) leaves the worker
         and its queue/connections running after the process has declared shutdown complete.
 
-        Swaps ``_db_write_queue`` out to ``None`` (mirroring ``on_shutdown()``'s drain-and-close
-        pattern, minus the graceful ``queue.join()`` this synchronous path can't await) before
-        closing remaining items via ``close_remaining_queue_items()``. Without this, two things
+        Detaches ``_db_write_queue`` via ``detach_write_queue()`` (mirroring ``on_shutdown()``'s
+        drain-and-close pattern, minus the graceful ``queue.join()`` this synchronous path can't
+        await) before closing remaining items via ``close_remaining_queue_items()``. Without this, two things
         go wrong: any coroutine still queued when the worker is cancelled is never closed (GC
         eventually raises "coroutine was never awaited"), and ``submit()``/``enqueue()`` only
         reject once ``_db_write_queue`` is ``None`` -- leaving it set would let a caller enqueue
@@ -316,8 +331,7 @@ class DatabaseService(Service):
         """
         if self._db_worker_task is not None and not self._db_worker_task.done():
             self._db_worker_task.cancel()
-        queue, self._db_write_queue = self._db_write_queue, None
-        self.close_remaining_queue_items(queue)
+        self.close_remaining_queue_items(self.detach_write_queue())
         for attr in ("_read_db", "_db"):
             stop_connection_sync(getattr(self, attr))
             setattr(self, attr, None)
@@ -359,7 +373,7 @@ class DatabaseService(Service):
         queue: asyncio.Queue[_WriteQueueItem] | None = None
         try:
             if self._db_worker_task is not None:
-                queue, self._db_write_queue = self._db_write_queue, None
+                queue = self.detach_write_queue()
                 if queue is not None:
                     await self.drain_write_queue(queue)
                 self._db_worker_task.cancel()
@@ -493,16 +507,30 @@ class DatabaseService(Service):
             finally:
                 queue.task_done()
 
+    def detach_write_queue(self) -> asyncio.Queue[_WriteQueueItem] | None:
+        """Take the write queue away so ``submit()``/``enqueue()`` start rejecting, and return it.
+
+        Both teardown paths (``on_shutdown()``, ``_force_terminal()``) go through here so the
+        detach and the ``_write_queue_detached`` flag that records it can never drift apart. The
+        flag is only raised when there was a queue to take, so a teardown of a service whose
+        ``on_initialize()`` never got far enough to create one still reports the pre-init cause.
+        """
+        queue, self._db_write_queue = self._db_write_queue, None
+        if queue is not None:
+            self._write_queue_detached = True
+        return queue
+
     def queue_unavailable_error(self, method: str) -> RuntimeError:
         """Build the rejection raised when ``_db_write_queue`` is gone.
 
         The queue is ``None`` both before ``on_initialize()`` creates it and after a teardown
-        path (``on_shutdown()``, ``_force_terminal()``) detaches it, so the message has to come
-        from the resource's own status rather than the queue. Anything outside
-        ``ACTIVE_STATUSES`` means teardown has already begun, whether it ended in ``STOPPED``,
-        ``FAILED``, ``CRASHED``, or an exhausted state.
+        path detaches it, so the message comes from ``_write_queue_detached`` -- the flag
+        ``detach_write_queue()`` sets -- rather than from the resource's status. Status cannot
+        answer this: an ``on_initialize()`` failure before the queue is created leaves the
+        service in ``FAILED``/``CRASHED`` with no teardown having run, which would otherwise be
+        reported as a post-shutdown call.
         """
-        if self.status not in ACTIVE_STATUSES:
+        if self._write_queue_detached:
             return RuntimeError(f"DatabaseService.{method}() called after shutdown")
         return RuntimeError(f"DatabaseService.{method}() called before on_initialize()")
 
