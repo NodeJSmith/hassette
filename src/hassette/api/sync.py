@@ -51,9 +51,17 @@ class ApiSyncFacade(Resource):
     def config_log_level(self) -> LOG_LEVEL_TYPE:
         return self.hassette.config.logging.api
 
-    def ws_send_and_wait(self, **data: Any) -> Any:
-        """Send a WebSocket message and wait for a response."""
-        return self.task_bucket.run_sync(self._api.ws_send_and_wait(**data))
+    def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
+        """Send a WebSocket message and wait for a response.
+
+        Args:
+            retry_on_timeout: Whether a response timeout may be retried. Defaults to True.
+                Pass False for a non-idempotent command — a retry re-sends it, duplicating a side
+                effect Home Assistant may already have applied. See
+                :meth:`WebsocketService.send_and_wait`.
+            **data: The data to send as a JSON payload.
+        """
+        return self.task_bucket.run_sync(self._api.ws_send_and_wait(retry_on_timeout=retry_on_timeout, **data))
 
     def ws_send_json(self, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response."""
@@ -196,11 +204,15 @@ class ApiSyncFacade(Resource):
             return_response: Whether to return the response from Home Assistant. Defaults to False.
                 Only valid for services Home Assistant declares as returning a response —
                 requesting it for any other service is rejected by Home Assistant.
-            wait_for_ack: Whether to wait for Home Assistant's result envelope instead of sending
-                fire-and-forget. Defaults to False. Surfaces HA-side failures as
-                ``FailedMessageError`` without asking for response data, so it is safe for
-                services that return no response. Adds nothing when ``return_response`` is True —
-                that path already waits on the same envelope.
+            wait_for_ack: Whether to treat this call as a non-idempotent command. Defaults to
+                False. Waits on Home Assistant's result envelope instead of sending
+                fire-and-forget, surfacing HA-side failures as ``FailedMessageError`` without
+                asking for response data — so it is safe for services that return no response.
+                Also sends the call exactly once: if the envelope never arrives it raises rather
+                than re-sending, because Home Assistant may already have applied the call. A
+                timeout therefore means the outcome is unknown, not that the call was skipped.
+                Setting it alongside ``return_response`` adds only that send-exactly-once
+                guarantee, since that path already waits on the same envelope.
             **data: Additional data to send with the service call.
 
         Returns:

@@ -12,7 +12,7 @@ pytestmark = [pytest.mark.system]
 
 # HA registers the entity and applies counter actions asynchronously after acking the WS
 # command, so every read below polls rather than asserting on a single fetch.
-STATE_TIMEOUT_SECONDS = 10
+STATE_TIMEOUT_SECONDS = 10.0
 
 
 async def wait_for_counter_value(hassette: Hassette, entity_id: str, expected: int) -> None:

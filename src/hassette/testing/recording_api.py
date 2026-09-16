@@ -189,7 +189,7 @@ class ApiProtocol(Protocol):
     """
 
     # WebSocket methods
-    async def ws_send_and_wait(self, **data: Any) -> Any: ...
+    async def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any: ...
     async def ws_send_json(self, **data: Any) -> None: ...
 
     # REST methods
@@ -838,7 +838,7 @@ class RecordingApi(Resource):
         """Not implemented — raises NotImplementedError."""
         not_implemented("render_template")
 
-    async def ws_send_and_wait(self, **data: Any) -> Any:
+    async def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
         """Not implemented — raises NotImplementedError."""
         not_implemented("ws_send_and_wait")
 

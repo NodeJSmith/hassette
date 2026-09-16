@@ -127,8 +127,7 @@ def make_service(
 def make_api() -> Api:
     """Create an Api instance with mocked WebSocket and REST layers.
 
-    Shared factory used by test_api_coroutine_conversion and
-    test_entity_coroutine_conversion. Stubs out:
+    Shared factory for tests that need a real Api with its transports stubbed. Stubs out:
     - ws_send_and_wait → returns {} (enough for call_service/fire_event)
     - ws_send_json     → returns None
     - post_rest_request → returns a mock response (for set_state)

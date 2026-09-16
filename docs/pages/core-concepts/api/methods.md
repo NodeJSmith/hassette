@@ -224,6 +224,11 @@ failure — a misspelled entity, a rejected value — is never reported back.
 costs a round trip, so it suits calls where a silent failure would matter rather than every call.
 Unlike `return_response=True`, it works with every service, because it asks for no response data.
 
+The ack wait sends the call exactly once. If the confirmation never arrives, it raises rather than
+re-sending, because a service call is a side effect and Home Assistant may already have applied it.
+A `FailedMessageError` from a timeout therefore means the outcome is unknown, not that the call was
+skipped.
+
 ### `turn_on(entity_id, domain, **data)`
 
 Shorthand for `call_service(domain, "turn_on", ...)`. Extra keyword arguments pass

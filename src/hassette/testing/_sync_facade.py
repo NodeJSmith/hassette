@@ -113,7 +113,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         raise NotImplementedError(STUB_MSG_GENERIC.format(name=name))
 
-    def ws_send_and_wait(self, **data: Any) -> Any:
+    def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="ws_send_and_wait"))
 
     def ws_send_json(self, **data: Any) -> None:

@@ -54,6 +54,19 @@ async def test_call_service_wait_for_ack_waits_without_requesting_response() -> 
     assert payload["return_response"] is False
 
 
+async def test_call_service_wait_for_ack_does_not_retry_on_timeout() -> None:
+    """The ack wait sends once — a retry would re-apply an already-applied service call.
+
+    ws_send_and_wait retries a lost response envelope under a fresh message id by default, which
+    would let a single counter.increment count several times during a transient timeout.
+    """
+    api = make_api()
+
+    await api.call_service("counter", "increment", target={"entity_id": "counter.motion"}, wait_for_ack=True)
+
+    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
+
+
 async def test_call_service_wait_for_ack_surfaces_ha_errors() -> None:
     """A failed result envelope reaches the caller instead of being silently dropped."""
     api = make_api()
@@ -75,4 +88,18 @@ async def test_call_service_return_response_still_parses_response() -> None:
 
     assert isinstance(result, ServiceResponse)
     api.ws_send_json.assert_not_awaited()
-    assert api.ws_send_and_wait.await_args.kwargs["return_response"] is True
+    kwargs = api.ws_send_and_wait.await_args.kwargs
+    assert kwargs["return_response"] is True
+    # wait_for_ack still declares the call non-idempotent, so the send-exactly-once guarantee
+    # holds even on the branch that also asks for response data.
+    assert kwargs["retry_on_timeout"] is False
+
+
+async def test_call_service_return_response_alone_keeps_retrying() -> None:
+    """Without wait_for_ack, return_response keeps its long-standing retry-on-timeout behavior."""
+    api = make_api()
+    api.ws_send_and_wait = AsyncMock(return_value={"response": {}, "context": {}})
+
+    await api.call_service("weather", "get_forecasts", return_response=True)
+
+    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is True
