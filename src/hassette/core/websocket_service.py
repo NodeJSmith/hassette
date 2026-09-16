@@ -666,14 +666,22 @@ class WebsocketService(Service):
 
         await super().cleanup()
 
-    async def send_and_wait(self, **data: Any) -> dict[str, Any]:
+    async def send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> dict[str, Any]:
         """Send a message and wait for a response.
 
         Retries on transient failures (timeouts) with exponential backoff,
         matching the retry behavior of the REST API layer.
 
         Args:
-            **data: The data to send as a JSON payload.
+            retry_on_timeout: Whether a response timeout may be retried. Defaults to True.
+                A retry re-sends the payload under a fresh message id, so Home Assistant applies
+                the command again. That is safe for reads, but duplicates the side effect of a
+                command Home Assistant already applied before its response envelope was lost.
+                Callers sending a non-idempotent command must pass False and accept a
+                ``FailedMessageError`` on the first timeout. (``subscribe_events`` solves the same
+                problem with its own retry loop, which unsubscribes the abandoned attempt.)
+            **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
+                policy and is consumed here, so it cannot double as a payload field name.
 
         Returns:
             The response data from the WebSocket.
@@ -685,7 +693,7 @@ class WebsocketService(Service):
 
         @retry(
             retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
-            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS),
+            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS if retry_on_timeout else 1),
             wait=wait_exponential_jitter(),
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
             reraise=True,

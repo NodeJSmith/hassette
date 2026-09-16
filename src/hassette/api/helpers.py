@@ -292,6 +292,11 @@ class HelperClient(Resource):
     # service actions are one-off calls that benefit from the full call_service()
     # signature. Counter actions get wrappers because the pattern "increment on
     # every event" is common enough to warrant a two-word call site.
+    #
+    # All three pass wait_for_ack=True so an HA-side failure raises instead of being dropped
+    # fire-and-forget. return_response=True cannot serve that purpose here: HA declares the
+    # counter actions as returning no response and rejects any payload requesting one. The ack
+    # wait also sends each call exactly once, so a lost envelope cannot double-count a counter.
 
     async def increment(self, entity_id: str) -> None:
         """Increment a counter entity's current value (live state, not stored config).
@@ -303,7 +308,7 @@ class HelperClient(Resource):
             "counter",
             "increment",
             target={"entity_id": entity_id},
-            return_response=True,  # surfaces HA errors instead of fire-and-forget
+            wait_for_ack=True,
         )
         self.logger.debug("Incremented counter %r", entity_id)
 
@@ -317,7 +322,7 @@ class HelperClient(Resource):
             "counter",
             "decrement",
             target={"entity_id": entity_id},
-            return_response=True,
+            wait_for_ack=True,
         )
         self.logger.debug("Decremented counter %r", entity_id)
 
@@ -331,6 +336,6 @@ class HelperClient(Resource):
             "counter",
             "reset",
             target={"entity_id": entity_id},
-            return_response=True,
+            wait_for_ack=True,
         )
         self.logger.debug("Reset counter %r", entity_id)

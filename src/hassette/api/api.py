@@ -326,11 +326,21 @@ class Api(Resource):
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.api
 
-    async def ws_send_and_wait(self, **data: Any) -> Any:
-        """Send a WebSocket message and wait for a response."""
+    async def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
+        """Send a WebSocket message and wait for a response.
+
+        Args:
+            retry_on_timeout: Whether a response timeout may be retried. Defaults to True.
+                Pass False for a non-idempotent command — a retry re-sends it, duplicating a side
+                effect Home Assistant may already have applied. See
+                :meth:`WebsocketService.send_and_wait`.
+            **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
+                policy and is consumed here, so it is the one name this escape hatch cannot
+                forward as a payload field.
+        """
         if not self._api_service.ws_conn.is_connected:
             raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
-        return await self._api_service.ws_conn.send_and_wait(**data)
+        return await self._api_service.ws_conn.send_and_wait(retry_on_timeout=retry_on_timeout, **data)
 
     async def ws_send_json(self, **data: Any) -> None:
         """Send a WebSocket message without waiting for a response."""
@@ -519,6 +529,8 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: typing.Literal[False] | None = None,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> "Coroutine[Any, Any, None]": ...
 
@@ -532,6 +544,8 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: Literal[True] = True,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> "Coroutine[Any, Any, ServiceResponse]": ...
 
@@ -544,6 +558,8 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> "Coroutine[Any, Any, ServiceResponse | None]":
         # dup-ignore-end
@@ -556,6 +572,20 @@ class Api(Resource):
             service: The name of the service to call (e.g., "turn_on").
             target: Target entity IDs or areas.
             return_response: Whether to return the response from Home Assistant. Defaults to False.
+                Only valid for services Home Assistant declares as returning a response —
+                requesting it for any other service is rejected by Home Assistant. Services
+                declared as returning *only* a response require it, so those need it alongside
+                ``wait_for_ack`` rather than ``wait_for_ack`` on its own.
+            wait_for_ack: Whether to wait for Home Assistant to acknowledge the call. Defaults to
+                False. Waits on Home Assistant's result envelope instead of sending
+                fire-and-forget, surfacing HA-side failures as ``FailedMessageError`` without
+                asking for response data — so it works for services that return no response,
+                which ``return_response`` cannot. Waiting also declares the call non-idempotent:
+                it is sent exactly once, and if the envelope never arrives it raises rather than
+                re-sending, because Home Assistant may already have applied it. A timeout
+                therefore means the outcome is unknown, not that the call was skipped. Setting it
+                alongside ``return_response`` adds only that send-exactly-once guarantee, since
+                that path already waits on the same envelope.
             **data: Additional data to send with the service call.
 
         Returns:
@@ -565,7 +595,7 @@ class Api(Resource):
         source_location = capture_source_location()
         # Coroutine[...] supertype annotation is load-bearing — see hassette/utils/await_guard.py / design/071.
         return guard_await(
-            self._call_service(domain, service, target, return_response, **data),
+            self._call_service(domain, service, target, return_response, wait_for_ack=wait_for_ack, **data),
             owner=self.parent,
             source_location=source_location,
             method_name="call_service",
@@ -578,6 +608,8 @@ class Api(Resource):
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> ServiceResponse | None:
         # dup-ignore-end
@@ -597,9 +629,25 @@ class Api(Resource):
             self.logger.debug("Adding extra data to service call: %s", data)
             payload["service_data"] = data
 
+        # wait_for_ack is the caller's declaration that this service call is non-idempotent. A
+        # retry re-sends the payload under a fresh message id, and a lost response envelope does
+        # not mean HA skipped the call — so re-sending would apply it twice (counter.increment
+        # would count twice). This governs re-sending on both waiting paths below, independently
+        # of whether response data was requested.
+        retry_on_timeout = not wait_for_ack
+
         if return_response:
-            resp = await self.ws_send_and_wait(**payload)
+            resp = await self.ws_send_and_wait(retry_on_timeout=retry_on_timeout, **payload)
             return ServiceResponse(**resp)
+
+        if wait_for_ack:
+            # Waits on the same result envelope as the return_response path, without asking HA
+            # for response data. Services declared as returning no response (e.g.
+            # counter.increment) reject return_response=True outright, so this is the only way
+            # to surface their HA-side errors. ws_send_and_wait raises FailedMessageError on a
+            # failed envelope, so no envelope parsing is needed here.
+            await self.ws_send_and_wait(retry_on_timeout=retry_on_timeout, **payload)
+            return None
 
         await self.ws_send_json(**payload)
         return None

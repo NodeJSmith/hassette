@@ -101,6 +101,7 @@ async def test_sync_call_service_records_with_correct_shape():
         "service": "turn_on",
         "target": {"entity_id": "light.kitchen"},
         "return_response": False,
+        "wait_for_ack": False,
     }
 
 

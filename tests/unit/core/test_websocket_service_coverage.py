@@ -111,6 +111,35 @@ class TestSendAndWaitCallerProvidedId:
         assert sent_id == 99
 
 
+class TestSendAndWaitRetryOnTimeout:
+    async def test_retry_on_timeout_false_sends_exactly_once(self, websocket_service: WebsocketService) -> None:
+        """A non-idempotent command is not re-sent when its response envelope never arrives.
+
+        A retry allocates a fresh message id and re-sends the payload, so Home Assistant applies
+        the command a second time. For a command HA may already have applied before the envelope
+        was lost (counter.increment), that turns one timeout into a duplicated side effect.
+        """
+        websocket_service.hassette.config.websocket.response_timeout_seconds = 0
+        websocket_service.send_json = AsyncMock()
+
+        with pytest.raises(FailedMessageError):
+            await websocket_service.send_and_wait(
+                type="call_service", domain="counter", service="increment", retry_on_timeout=False
+            )
+
+        assert websocket_service.send_json.await_count == 1, "a timed-out non-idempotent command must not be re-sent"
+
+    async def test_retry_on_timeout_true_resends(self, websocket_service: WebsocketService) -> None:
+        """The default keeps the existing retry behavior for idempotent reads."""
+        websocket_service.hassette.config.websocket.response_timeout_seconds = 0
+        websocket_service.send_json = AsyncMock()
+
+        with patch("hassette.core.websocket_service.MAX_RETRY_ATTEMPTS", 2), pytest.raises(FailedMessageError):
+            await websocket_service.send_and_wait(type="get_states")
+
+        assert websocket_service.send_json.await_count == 2
+
+
 class TestMakeConnectionRetries:
     async def test_make_connection_retries_transient_failures_then_succeeds(
         self, websocket_service: WebsocketService

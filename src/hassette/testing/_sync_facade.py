@@ -113,7 +113,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
 
         raise NotImplementedError(STUB_MSG_GENERIC.format(name=name))
 
-    def ws_send_and_wait(self, **data: Any) -> Any:
+    def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
         raise NotImplementedError(STUB_MSG_GENERIC.format(name="ws_send_and_wait"))
 
     def ws_send_json(self, **data: Any) -> None:
@@ -173,9 +173,14 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
         service: str,
         target: dict[str, str] | dict[str, list[str]] | None = None,
         return_response: bool | None = False,
+        *,
+        wait_for_ack: bool = False,
         **data: Any,
     ) -> ServiceResponse | None:
-        """Record a call_service call. Returns stub ServiceResponse when return_response=True."""
+        """Record a call_service call, including return_response and wait_for_ack.
+
+        Returns a stub ServiceResponse when return_response=True.
+        """
         self._parent._record_call(
             ApiCall(
                 method="call_service",
@@ -185,6 +190,7 @@ class RecordingSyncFacade:  # pyright: ignore[reportUnusedClass]
                     "service": service,
                     "target": copy.deepcopy(target),
                     "return_response": return_response,
+                    "wait_for_ack": wait_for_ack,
                     **data,
                 },
             )

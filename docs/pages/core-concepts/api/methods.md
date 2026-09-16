@@ -208,12 +208,30 @@ The generic service call method. Service data passes as keyword arguments. They 
 | `domain` | `str` | — | Service domain (e.g., `"light"`). |
 | `service` | `str` | — | Service name (e.g., `"turn_on"`). |
 | `target` | `dict \| None` | `None` | Target entity IDs, areas, or devices. |
-| `return_response` | `bool` | `False` | When `True`, returns the service response payload. |
+| `return_response` | `bool` | `False` | When `True`, returns the service response payload. Only valid for services that declare a response — see [Getting a response](#getting-a-response). |
+| `wait_for_ack` | `bool` | `False` | When `True`, waits for Home Assistant to confirm the call so failures raise instead of being dropped. |
 | `**data` | `Any` | — | Service data fields passed as keyword arguments. |
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_call_service.py"
 ```
+
+`call_service` is fire-and-forget by default. The payload goes out and a Home Assistant-side
+failure — a misspelled entity, a rejected value — is never reported back.
+
+`wait_for_ack=True` waits for Home Assistant's confirmation instead, and raises
+[`FailedMessageError`][hassette.exceptions.FailedMessageError] when the call fails. The wait
+costs a round trip, so it suits calls where a silent failure would matter rather than every call.
+Unlike `return_response=True`, it works with any service that returns no response, because it
+asks for none. The exception is the small set of services Home Assistant declares as
+*response-only* (`weather.get_forecasts`, `conversation.process`): those reject a call that does
+not request the response. Pass `return_response=True` for them — combining the two keeps the
+send-exactly-once guarantee while still returning the payload.
+
+The ack wait sends the call exactly once. If the confirmation never arrives, it raises rather than
+re-sending, because a service call is a side effect and Home Assistant may already have applied it.
+A `FailedMessageError` from a timeout therefore means the outcome is unknown, not that the call was
+skipped.
 
 ### `turn_on(entity_id, domain, **data)`
 
@@ -300,6 +318,10 @@ at send time.
 Some services return data. `weather.get_forecasts` returns forecast arrays; `conversation.process`
 returns a reply. Set `return_response=True` to include the response payload. Without it,
 `call_service` returns `None`.
+
+Home Assistant rejects `return_response=True` for any service that does not declare a response,
+and rejects a call that omits it for a service that returns *only* a response. `return_response`
+is therefore not a general "did this work?" check — `wait_for_ack=True` covers that case.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_response.py"
@@ -518,10 +540,17 @@ For HA endpoints without a typed method — the device registry, area registry, 
 
 | Method | Sends | Returns |
 |---|---|---|
-| `ws_send_and_wait(**data)` | A WebSocket command (e.g., `type="config/device_registry/list"`) | The command's result |
+| `ws_send_and_wait(retry_on_timeout=True, **data)` | A WebSocket command (e.g., `type="config/device_registry/list"`) | The command's result |
 | `ws_send_json(**data)` | A WebSocket command, without waiting | Nothing |
 | `rest_request(method, url, ...)` | A request to any REST path | The raw `aiohttp` response |
 | `get_rest_request` / `post_rest_request` / `delete_rest_request` | Method-specific wrappers around `rest_request` | The raw `aiohttp` response |
+
+`ws_send_and_wait` re-sends the command when Home Assistant's response never arrives. That suits
+a read, but the re-send goes out under a fresh message id, so a command Home Assistant already
+applied before the response was lost gets applied a second time. Pass `retry_on_timeout=False`
+for a command that must not run twice — it then raises on the first timeout, leaving the outcome
+unknown rather than duplicating the effect. `retry_on_timeout` is the one keyword this escape
+hatch reads itself rather than forwarding, so it cannot double as a raw payload field name.
 
 ---
 
