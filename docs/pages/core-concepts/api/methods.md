@@ -222,7 +222,11 @@ failure — a misspelled entity, a rejected value — is never reported back.
 `wait_for_ack=True` waits for Home Assistant's confirmation instead, and raises
 [`FailedMessageError`][hassette.exceptions.FailedMessageError] when the call fails. The wait
 costs a round trip, so it suits calls where a silent failure would matter rather than every call.
-Unlike `return_response=True`, it works with every service, because it asks for no response data.
+Unlike `return_response=True`, it works with any service that returns no response, because it
+asks for none. The exception is the small set of services Home Assistant declares as
+*response-only* (`weather.get_forecasts`, `conversation.process`): those reject a call that does
+not request the response. Pass `return_response=True` for them — combining the two keeps the
+send-exactly-once guarantee while still returning the payload.
 
 The ack wait sends the call exactly once. If the confirmation never arrives, it raises rather than
 re-sending, because a service call is a side effect and Home Assistant may already have applied it.
@@ -315,8 +319,9 @@ Some services return data. `weather.get_forecasts` returns forecast arrays; `con
 returns a reply. Set `return_response=True` to include the response payload. Without it,
 `call_service` returns `None`.
 
-Home Assistant rejects `return_response=True` for any service that does not declare a response.
-It is not a general "did this work?" check — `wait_for_ack=True` covers that case.
+Home Assistant rejects `return_response=True` for any service that does not declare a response,
+and rejects a call that omits it for a service that returns *only* a response. `return_response`
+is therefore not a general "did this work?" check — `wait_for_ack=True` covers that case.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_response.py"
@@ -535,10 +540,16 @@ For HA endpoints without a typed method — the device registry, area registry, 
 
 | Method | Sends | Returns |
 |---|---|---|
-| `ws_send_and_wait(**data)` | A WebSocket command (e.g., `type="config/device_registry/list"`) | The command's result |
+| `ws_send_and_wait(retry_on_timeout=True, **data)` | A WebSocket command (e.g., `type="config/device_registry/list"`) | The command's result |
 | `ws_send_json(**data)` | A WebSocket command, without waiting | Nothing |
 | `rest_request(method, url, ...)` | A request to any REST path | The raw `aiohttp` response |
 | `get_rest_request` / `post_rest_request` / `delete_rest_request` | Method-specific wrappers around `rest_request` | The raw `aiohttp` response |
+
+`ws_send_and_wait` re-sends the command when Home Assistant's response never arrives. That suits
+a read, but the re-send goes out under a fresh message id, so a command Home Assistant already
+applied before the response was lost gets applied a second time. Pass `retry_on_timeout=False`
+for a command that must not run twice — it then raises on the first timeout, leaving the outcome
+unknown rather than duplicating the effect.
 
 ---
 

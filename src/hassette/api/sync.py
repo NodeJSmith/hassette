@@ -203,16 +203,19 @@ class ApiSyncFacade(Resource):
             target: Target entity IDs or areas.
             return_response: Whether to return the response from Home Assistant. Defaults to False.
                 Only valid for services Home Assistant declares as returning a response —
-                requesting it for any other service is rejected by Home Assistant.
-            wait_for_ack: Whether to treat this call as a non-idempotent command. Defaults to
+                requesting it for any other service is rejected by Home Assistant. Services
+                declared as returning *only* a response require it, so those need it alongside
+                ``wait_for_ack`` rather than ``wait_for_ack`` on its own.
+            wait_for_ack: Whether to wait for Home Assistant to acknowledge the call. Defaults to
                 False. Waits on Home Assistant's result envelope instead of sending
                 fire-and-forget, surfacing HA-side failures as ``FailedMessageError`` without
-                asking for response data — so it is safe for services that return no response.
-                Also sends the call exactly once: if the envelope never arrives it raises rather
-                than re-sending, because Home Assistant may already have applied the call. A
-                timeout therefore means the outcome is unknown, not that the call was skipped.
-                Setting it alongside ``return_response`` adds only that send-exactly-once
-                guarantee, since that path already waits on the same envelope.
+                asking for response data — so it works for services that return no response,
+                which ``return_response`` cannot. Waiting also declares the call non-idempotent:
+                it is sent exactly once, and if the envelope never arrives it raises rather than
+                re-sending, because Home Assistant may already have applied it. A timeout
+                therefore means the outcome is unknown, not that the call was skipped. Setting it
+                alongside ``return_response`` adds only that send-exactly-once guarantee, since
+                that path already waits on the same envelope.
             **data: Additional data to send with the service call.
 
         Returns:

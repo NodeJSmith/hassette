@@ -571,16 +571,19 @@ class Api(Resource):
             target: Target entity IDs or areas.
             return_response: Whether to return the response from Home Assistant. Defaults to False.
                 Only valid for services Home Assistant declares as returning a response —
-                requesting it for any other service is rejected by Home Assistant.
-            wait_for_ack: Whether to treat this call as a non-idempotent command. Defaults to
+                requesting it for any other service is rejected by Home Assistant. Services
+                declared as returning *only* a response require it, so those need it alongside
+                ``wait_for_ack`` rather than ``wait_for_ack`` on its own.
+            wait_for_ack: Whether to wait for Home Assistant to acknowledge the call. Defaults to
                 False. Waits on Home Assistant's result envelope instead of sending
                 fire-and-forget, surfacing HA-side failures as ``FailedMessageError`` without
-                asking for response data — so it is safe for services that return no response.
-                Also sends the call exactly once: if the envelope never arrives it raises rather
-                than re-sending, because Home Assistant may already have applied the call. A
-                timeout therefore means the outcome is unknown, not that the call was skipped.
-                Setting it alongside ``return_response`` adds only that send-exactly-once
-                guarantee, since that path already waits on the same envelope.
+                asking for response data — so it works for services that return no response,
+                which ``return_response`` cannot. Waiting also declares the call non-idempotent:
+                it is sent exactly once, and if the envelope never arrives it raises rather than
+                re-sending, because Home Assistant may already have applied it. A timeout
+                therefore means the outcome is unknown, not that the call was skipped. Setting it
+                alongside ``return_response`` adds only that send-exactly-once guarantee, since
+                that path already waits on the same envelope.
             **data: Additional data to send with the service call.
 
         Returns:
@@ -624,11 +627,15 @@ class Api(Resource):
             self.logger.debug("Adding extra data to service call: %s", data)
             payload["service_data"] = data
 
+        # wait_for_ack is the caller's declaration that this service call is non-idempotent. A
+        # retry re-sends the payload under a fresh message id, and a lost response envelope does
+        # not mean HA skipped the call — so re-sending would apply it twice (counter.increment
+        # would count twice). This governs re-sending on both waiting paths below, independently
+        # of whether response data was requested.
+        retry_on_timeout = not wait_for_ack
+
         if return_response:
-            # wait_for_ack stays meaningful here: it is the caller's declaration that this service
-            # call is non-idempotent, which governs re-sending independently of whether response
-            # data was requested. Without it this path keeps its long-standing retry behavior.
-            resp = await self.ws_send_and_wait(retry_on_timeout=not wait_for_ack, **payload)
+            resp = await self.ws_send_and_wait(retry_on_timeout=retry_on_timeout, **payload)
             return ServiceResponse(**resp)
 
         if wait_for_ack:
@@ -637,12 +644,7 @@ class Api(Resource):
             # counter.increment) reject return_response=True outright, so this is the only way
             # to surface their HA-side errors. ws_send_and_wait raises FailedMessageError on a
             # failed envelope, so no envelope parsing is needed here.
-            #
-            # retry_on_timeout=False because a service call is a side effect: a lost response
-            # envelope does not mean HA skipped the call, and re-sending would apply it twice
-            # (counter.increment would count twice). A timeout surfaces as FailedMessageError
-            # with the outcome genuinely unknown, which is the honest answer here.
-            await self.ws_send_and_wait(retry_on_timeout=False, **payload)
+            await self.ws_send_and_wait(retry_on_timeout=retry_on_timeout, **payload)
             return None
 
         await self.ws_send_json(**payload)
