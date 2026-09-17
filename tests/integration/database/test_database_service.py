@@ -263,6 +263,45 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     assert row[0] == 2
 
 
+async def test_retention_cleanup_rolls_back_on_partial_failure(initialized_service: DatabaseService) -> None:
+    """A forced failure partway through _RETENTION_TABLES rolls back the whole cleanup,
+    including the delete that already succeeded for the first RetentionTarget.
+
+    Pins the pre-refactor rollback behavior of _do_run_retention_cleanup: this is the
+    characterization test required before extracting _execute_target_delete.
+    """
+    db = initialized_service.db
+
+    now = time.time()
+    old_ts = now - (8 * SECONDS_PER_DAY)  # older than every retention window in play
+
+    # log_records is the first RetentionTarget in _RETENTION_TABLES — its delete succeeds
+    # before the forced failure on the second target (executions).
+    await db.execute(
+        "INSERT INTO log_records (seq, timestamp, level, logger_name, func_name, lineno, message,"
+        " exc_info, app_key, instance_name, instance_index, execution_id, source_tier)"
+        " VALUES (0, ?, 'INFO', 'test', 'test_func', 1, 'msg', NULL, NULL, NULL, NULL, NULL, 'app')",
+        (old_ts,),
+    )
+    await db.commit()
+
+    real_execute = db.execute
+
+    async def failing_execute(sql: str, *args: object, **kwargs: object):
+        if sql.startswith("DELETE FROM executions"):
+            raise sqlite3.OperationalError("forced failure")
+        return await real_execute(sql, *args, **kwargs)
+
+    with patch.object(db, "execute", side_effect=failing_execute):
+        # Must not propagate — _do_run_retention_cleanup catches and logs.
+        await initialized_service._do_run_retention_cleanup()
+
+    cursor = await db.execute("SELECT COUNT(*) FROM log_records WHERE timestamp = ?", (old_ts,))
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == 1, "rollback() should have reverted the first target's delete"
+
+
 async def test_serve_exits_on_shutdown(initialized_service: DatabaseService) -> None:
     """serve() exits when the shutdown event is set."""
 

@@ -8,9 +8,17 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiosqlite
 import pytest
 
-from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, RetentionTarget, _WriteQueueItem
+from hassette.core.database_service import (
+    _RETENTION_TABLES,
+    DatabaseService,
+    RetentionTarget,
+    _execute_failsafe_delete,
+    _execute_target_delete,
+    _WriteQueueItem,
+)
 from hassette.types.enums import ResourceStatus
 from tests.support.helpers import (
     DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
@@ -18,6 +26,14 @@ from tests.support.helpers import (
     async_noop,
 )
 from tests.support.mock_hassette import make_mock_hassette
+
+WIDGETS_TARGET = RetentionTarget(
+    table="widgets",
+    timestamp_col="ts",
+    priority=0,
+    retention_days_getter=lambda _cfg: 0,
+    failsafe_label="widgets",
+)
 
 
 @pytest.fixture
@@ -502,6 +518,59 @@ def test_retention_target_is_frozen() -> None:
     target = _RETENTION_TABLES[0]
     with pytest.raises(dataclasses.FrozenInstanceError):
         target.table = "mutated"  # pyright: ignore[reportGeneralTypeIssues]
+
+
+@pytest.fixture
+async def memory_db() -> AsyncIterator[aiosqlite.Connection]:
+    """In-memory SQLite connection with a table shaped like a RetentionTarget's target table."""
+    async with aiosqlite.connect(":memory:") as db:
+        await db.execute("CREATE TABLE widgets (id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL)")
+        await db.commit()
+        yield db
+
+
+async def test_execute_target_delete_removes_rows_older_than_cutoff(memory_db: aiosqlite.Connection) -> None:
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (5.0), (10.0)")
+    await memory_db.commit()
+
+    deleted = await _execute_target_delete(memory_db, WIDGETS_TARGET, cutoff=6.0)
+
+    assert deleted == 2
+
+    cursor = await memory_db.execute("SELECT ts FROM widgets")
+    rows = await cursor.fetchall()
+    assert [row[0] for row in rows] == [10.0]
+
+
+async def test_execute_target_delete_returns_zero_when_nothing_matches(memory_db: aiosqlite.Connection) -> None:
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (10.0)")
+    await memory_db.commit()
+
+    deleted = await _execute_target_delete(memory_db, WIDGETS_TARGET, cutoff=1.0)
+
+    assert deleted == 0
+
+
+async def test_execute_failsafe_delete_removes_oldest_n_rows(memory_db: aiosqlite.Connection) -> None:
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0), (3.0), (4.0)")
+    await memory_db.commit()
+
+    deleted = await _execute_failsafe_delete(memory_db, WIDGETS_TARGET, batch_limit=2)
+
+    assert deleted == 2
+
+    cursor = await memory_db.execute("SELECT ts FROM widgets ORDER BY ts")
+    rows = await cursor.fetchall()
+    assert [row[0] for row in rows] == [3.0, 4.0]
+
+
+async def test_execute_failsafe_delete_caps_at_available_rows(memory_db: aiosqlite.Connection) -> None:
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0)")
+    await memory_db.commit()
+
+    deleted = await _execute_failsafe_delete(memory_db, WIDGETS_TARGET, batch_limit=100)
+
+    assert deleted == 1
 
 
 class TestQueueUnavailableErrorMessage:

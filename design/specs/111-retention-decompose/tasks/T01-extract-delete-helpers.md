@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Extract shared delete functions and refactor both paths to use them"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#1", "FR#2", "FR#5", "AC#1", "AC#5"]
 ---

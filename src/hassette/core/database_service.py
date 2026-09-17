@@ -143,6 +143,40 @@ _RETENTION_TABLES: list[RetentionTarget] = [
 ]
 
 
+async def _execute_target_delete(
+    db: aiosqlite.Connection,
+    target: RetentionTarget,
+    *,
+    cutoff: float,
+) -> int:
+    """Delete rows in ``target.table`` older than ``cutoff``, for age-based retention cleanup.
+
+    Does not manage transactions -- the caller owns BEGIN/commit/rollback.
+    """
+    cursor = await db.execute(
+        f"DELETE FROM {target.table} WHERE {target.timestamp_col} < ?",
+        (cutoff,),
+    )
+    return cursor.rowcount or 0
+
+
+async def _execute_failsafe_delete(
+    db: aiosqlite.Connection,
+    target: RetentionTarget,
+    batch_limit: int,
+) -> int:
+    """Delete the oldest ``batch_limit`` rows in ``target.table``, for the size failsafe.
+
+    Does not manage transactions -- the caller owns commit.
+    """
+    cursor = await db.execute(
+        f"DELETE FROM {target.table} WHERE id IN "
+        f"(SELECT id FROM {target.table} ORDER BY {target.timestamp_col} ASC LIMIT ?)",
+        (batch_limit,),
+    )
+    return cursor.rowcount or 0
+
+
 class DatabaseService(Service):
     """Manages the SQLite database for operational telemetry.
 
@@ -772,11 +806,7 @@ class DatabaseService(Service):
 
             for target in _RETENTION_TABLES:
                 cutoff = now - (target.retention_days_getter(config) * SECONDS_PER_DAY)
-                cursor = await self.db.execute(
-                    f"DELETE FROM {target.table} WHERE {target.timestamp_col} < ?",
-                    (cutoff,),
-                )
-                deleted_by_table[target.table] = cursor.rowcount or 0
+                deleted_by_table[target.table] = await _execute_target_delete(self.db, target, cutoff=cutoff)
 
             # Use the standard retention window for parent-guard deletes.
             cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
@@ -874,12 +904,7 @@ class DatabaseService(Service):
             for iteration in range(_SIZE_FAILSAFE_MAX_ITERATIONS):
                 group_deleted = 0
                 for target in group:
-                    cursor = await db.execute(
-                        f"DELETE FROM {target.table} WHERE id IN "
-                        f"(SELECT id FROM {target.table} ORDER BY {target.timestamp_col} ASC LIMIT ?)",
-                        (_SIZE_FAILSAFE_DELETE_BATCH,),
-                    )
-                    n = cursor.rowcount or 0
+                    n = await _execute_failsafe_delete(db, target, _SIZE_FAILSAFE_DELETE_BATCH)
                     total_deleted_by_table[target.table] += n
                     group_deleted += n
                 # Commit the batch before vacuuming. PRAGMA wal_checkpoint(TRUNCATE) below
