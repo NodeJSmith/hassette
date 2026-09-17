@@ -1,12 +1,12 @@
-import type { JobData, ListenerData } from "@/api/endpoints";
-import { StatusShape } from "@/components/shared/status-shape";
 import { Badge } from "@/components/ui/badge";
-import { useRelativeTime } from "@/hooks/use-relative-time";
 import { cn } from "@/lib/utils";
-import { STATUS_SHAPE_SIZE } from "@/utils/constants";
-import { pluralize } from "@/utils/format";
-import type { StatusKind } from "@/utils/status";
 
+import type { JobData, ListenerData } from "../../api/endpoints";
+import { useRelativeTime } from "../../hooks/use-relative-time";
+import { STATUS_SHAPE_SIZE } from "../../utils/constants";
+import { pluralize } from "../../utils/format";
+import type { StatusKind } from "../../utils/status";
+import { StatusShape } from "../shared/status-shape";
 import {
   isFailing,
   isIdle,
@@ -20,7 +20,7 @@ import {
 export type UnifiedItemKind = "listener" | "job";
 
 /** Shared look for the small inline chips on the row's second line; callers add border/background color. */
-const CHIP_BASE_CLASSES =
+const CHIP_BASE_CLASS =
   "shrink-0 rounded-sm border px-1 py-px font-mono text-xs font-medium leading-[var(--text-micro-leading)] lowercase tracking-[var(--text-label-tracking-tight)] text-muted-foreground";
 
 /** Discriminated union for items that can appear in the unified list. */
@@ -96,7 +96,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span
             className={cn(
-              CHIP_BASE_CLASSES,
+              CHIP_BASE_CLASS,
               "border-border bg-muted",
               item.kind === "job" &&
                 "border-[var(--handler-job-border)] bg-[var(--handler-job-bg)] text-[var(--handler-job)]",
@@ -110,7 +110,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
           </span>
           {item.kind === "listener" && item.data.mode && (
             <span
-              className={cn(CHIP_BASE_CLASSES, "border-[var(--handler-mode-border)] bg-[var(--handler-mode-bg)]")}
+              className={cn(CHIP_BASE_CLASS, "border-[var(--handler-mode-border)] bg-[var(--handler-mode-bg)]")}
               aria-label={`mode: ${item.data.mode}`}
               data-testid="handler-row-mode-chip"
             >
