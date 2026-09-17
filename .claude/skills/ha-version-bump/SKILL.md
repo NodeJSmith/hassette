@@ -154,14 +154,13 @@ upstream HA source per Phase 3 before accepting it.
 Present a summary: version old to new, which files changed, test/lint results, blog
 findings, review findings.
 
-**Unattended invocation.** This skill is also invoked from the Dotfiles repo's
-`hassette-autofix` pipeline (`services/user/scripts/hassette_autofix.py`), whose Phase 1
-fix session picks up the `size:small` tracking issues that `ha-version-drift.yml` files.
-That pipeline runs with no human present to answer a question, and its invoking prompt
-explicitly disallows `AskUserQuestion`. Either of these is sufficient on its own to put
-you in this mode, not a primary check with a fallback: the invoking prompt telling you
-this is a one-shot, non-interactive invocation, or `AskUserQuestion` simply not being in
-your available tools.
+**Unattended invocation.** This skill is also invoked from an external automated pipeline
+(`hassette-autofix`) whose fix session picks up the `size:small` tracking issues that
+`ha-version-drift.yml` files. That pipeline runs with no human present to answer a
+question, and its invoking prompt explicitly disallows `AskUserQuestion`. Either of these
+is sufficient on its own to put you in this mode, not a primary check with a fallback:
+the invoking prompt telling you this is a one-shot, non-interactive invocation, or
+`AskUserQuestion` simply not being in your available tools.
 
 In that mode: if Phase 3 or Phase 5 flagged something needing a human call (a breaking
 change, or any other judgment item), there is no one to consult — stop and report it now
