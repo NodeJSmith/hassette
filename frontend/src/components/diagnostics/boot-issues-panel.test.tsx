@@ -6,7 +6,7 @@ import type { BootIssue } from "@/api/endpoints";
 import { BootIssuesPanel } from "./boot-issues-panel";
 
 describe("BootIssuesPanel", () => {
-  it("sorts errors ahead of warnings", () => {
+  it("sorts errors ahead of warnings and keeps same-severity issues in input order", () => {
     const issues: BootIssue[] = [
       { severity: "warn", label: "Config warning", detail: "check your config" },
       { severity: "err", label: "Critical error", detail: "failed to load something" },
