@@ -69,7 +69,7 @@ Automation currently checks two different concerns:
 - `.github/workflows/lint.yml` clones the exact `codegen/ha-version.txt` tag and verifies that committed output matches it.
 - `.github/workflows/ha-version-drift.yml` runs daily, queries `repos/home-assistant/core/releases/latest`, and opens an issue whenever the latest version differs from the pin. It compares version strings, not generated output.
 
-The current codegen pin is `2026.9.0`. The Docker/system-test environment still says `HA_VERSION=2026.8`; that mismatch is outside this investigation, but a future design should avoid assuming the two pins always move together.
+The current codegen pin is `2026.9.0`, while the Docker/system-test environment still says `HA_VERSION=2026.8`. The documented monthly procedure says a new-month codegen bump must also update `scripts/docker/.env` to the corresponding minor-only image tag, but the current mismatch shows that procedure was not followed for the latest bump. Whether to reconcile that existing mismatch is outside this investigation. An urgent same-month patch bump is different: `HA_VERSION` cannot encode a patch version, so it stays at that month's existing `YYYY.M` value.
 
 ### Home Assistant's stable release model
 
@@ -99,7 +99,9 @@ The authoritative source was the clean local Home Assistant Core clone at `/home
 
 The first local tag in scope is `2024.10.0` (2024-10-02); the last is `2026.9.0` (2026-09-02). Tags were grouped by `YYYY.M`, and every adjacent pair inside each group was treated as one patch edge. There is no 2026.9 patch edge in the local clone because that line contains only `.0`.
 
-For all 87 edges, the scan covered the exact upstream file classes consumed by `ha_source.py` and the extractors: `homeassistant/const.py`; generated-domain `__init__.py`, `const.py`, `services.yaml`, and `strings.json`; and the base `homeassistant` strings used by description references. The 34 domains generated at the local head were diffed pairwise. A full-history discovery-marker scan found one additional historical generated domain, `tts`, and no other domain-set transition in the window. `tts` had only two patch-range source edits (`2025.8.0` -> `2025.8.1` and `2026.6.0` -> `2026.6.1`); both were pairwise diffed and were runtime-only. This gives a 35-domain union for the historical source scan, including manual-override domains.
+For all 87 edges, the scan covered the exact upstream file classes consumed by `ha_source.py` and the extractors: `homeassistant/const.py`; generated-domain `__init__.py`, `const.py`, and `services.yaml`; and every component `strings.json` file, including `homeassistant/components/homeassistant/strings.json`. The broad strings scan found 282 changed files. For each endpoint, the audit collected every generated service and field description from the 35-domain historical union, then recursively followed its Home Assistant key references using the same base-string and `component::<domain>` rules as `_resolve_key_ref()`. Five changed files were in domains reached by such references: `water_heater` on `2024.11.1` -> `2024.11.2`, `light` on `2025.4.1` -> `2025.4.2`, `fan` and `light` on `2025.9.0` -> `2025.9.1`, and `media_player` on `2026.4.0` -> `2026.4.1`. Comparing the resolved descriptions at both endpoints found output changes only on the already-reported light and media-player edges. No changed base-string or other cross-domain target added a positive edge.
+
+The 34 domains generated at the local head were diffed pairwise. A full-history discovery-marker scan found one additional historical generated domain, `tts`, and no other domain-set transition in the window. `tts` had only two patch-range source edits (`2025.8.0` -> `2025.8.1` and `2026.6.0` -> `2026.6.1`); both were pairwise diffed and were runtime-only. This gives a 35-domain union for the historical source scan, including manual-override domains.
 
 Every non-version-only candidate was classified against the actual extractor behavior, not by filename alone. In particular, only the `services` tree of `strings.json` affects generated output; selector `reorder`, device-automation translations, ordinary integration titles, and runtime methods are not consumed. Positive candidates were followed through `extractors/services.py` into `generators/entities.py`, where requiredness changes alter parameter annotations/defaults and description changes alter generated docstrings.
 
@@ -115,10 +117,21 @@ git -C /home/jessica/source/core for-each-ref \
   refs/tags | \
   grep -E '^(2024\.(10|11|12)|2025\.([1-9]|1[0-2])|2026\.([1-9]))\.[0-9]+ '
 
-# For each adjacent pair OLD -> NEW in one YYYY.M line, inspect consumed candidates.
+# For each adjacent pair OLD -> NEW in one YYYY.M line, inspect every changed
+# component string file. This includes base strings and cross-domain targets.
+git -C /home/jessica/source/core diff --name-status OLD NEW -- \
+  ':(glob)homeassistant/components/*/strings.json'
+
+# Inspect the remaining consumed candidates for the generated-domain union.
 git -C /home/jessica/source/core diff --name-status OLD NEW -- \
   homeassistant/const.py \
-  homeassistant/components/{alarm_control_panel,automation,binary_sensor,button,camera,climate,cover,date,datetime,event,fan,geo_location,humidifier,image,lawn_mower,light,lock,media_player,number,remote,script,select,sensor,siren,sun,switch,text,time,timer,todo,tts,update,vacuum,water_heater,weather}/{__init__.py,const.py,services.yaml,strings.json}
+  homeassistant/components/{alarm_control_panel,automation,binary_sensor,button,camera,climate,cover,date,datetime,event,fan,geo_location,humidifier,image,lawn_mower,light,lock,media_player,number,remote,script,select,sensor,siren,sun,switch,text,time,timer,todo,tts,update,vacuum,water_heater,weather}/{__init__.py,const.py,services.yaml}
+
+# For each changed strings.json candidate, collect description values under every
+# generated domain's services tree at OLD and NEW. Resolve [%key:...%] values
+# recursively as _resolve_key_ref() does, then compare the resolved values.
+# A changed file matters only when that comparison changes a generated service
+# or field description.
 
 # Verify historical changes to automatic domain discovery.
 git -C /home/jessica/source/core log --oneline --name-only \
@@ -288,7 +301,7 @@ If the check is clean, record or cache that tag and do nothing else. If generate
 
 - [ ] Should a clean patch check be recorded durably in the repository, or is GitHub Actions history/cache sufficient? Code does not state an auditability requirement.
 - [ ] Should description-only generated drift trigger an immediate patch bump, or may it wait for the monthly update? The stated threshold counts any output change, but urgency policy was not found in code or docs.
-- [ ] Should the current Docker/system-test `HA_VERSION` pin move when codegen takes an urgent patch bump? The repository currently allows these versions to differ, and this investigation did not find a documented coupling rule.
+- [ ] Should the monthly procedure explicitly say that an urgent same-month patch bump leaves Docker/system-test `HA_VERSION` unchanged? The existing pin is minor-only; the procedure intends new-month bumps to move both pins, although the current repository state is out of sync.
 
 ## Recommendation
 
@@ -300,7 +313,7 @@ The scheduled job should classify releases before acting:
 2. If it is a new monthly line, retain the existing monthly drift issue and full review procedure.
 3. If it is a newer patch in the pinned monthly line, run full codegen `--check` against that tag.
 4. On a clean result, remain silent after recording the checked tag outside the codegen pin.
-5. On generated or guard drift, open one issue with the diff and bump promptly.
+5. On generated or guard drift, open one issue with the diff and bump promptly. Keep `HA_VERSION` unchanged for a same-month patch bump. For a new monthly line, enforce the documented procedure by updating it with the codegen pin rather than repeating the current mismatch.
 6. On command failure, open one distinct issue containing the failure output.
 
 This recommendation is grounded in direct source and generator evidence. The exact workflow state mechanism remains a design choice; the codebase does not reveal whether durable in-repository audit history is valuable enough to justify another committed marker.
