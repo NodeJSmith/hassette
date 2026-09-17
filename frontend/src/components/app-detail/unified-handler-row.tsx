@@ -1,16 +1,27 @@
+import type { JobData, ListenerData } from "@/api/endpoints";
+import { StatusShape } from "@/components/shared/status-shape";
 import { Badge } from "@/components/ui/badge";
+import { useRelativeTime } from "@/hooks/use-relative-time";
 import { cn } from "@/lib/utils";
+import { STATUS_SHAPE_SIZE } from "@/utils/constants";
+import { pluralize } from "@/utils/format";
+import type { StatusKind } from "@/utils/status";
 
-import type { JobData, ListenerData } from "../../api/endpoints";
-import { useRelativeTime } from "../../hooks/use-relative-time";
-import { STATUS_SHAPE_SIZE } from "../../utils/constants";
-import { formatTimestamp, pluralize } from "../../utils/format";
-import { scheduleStatusLabel } from "../../utils/handler-rows";
-import type { StatusKind } from "../../utils/status";
-import { StatusShape } from "../shared/status-shape";
-import { isFailing, isIdle, itemErrorMessage, itemKindChip, itemRunCount } from "./overview-tab-helpers";
+import {
+  isFailing,
+  isIdle,
+  itemErrorMessage,
+  itemKindChip,
+  itemNextRunDisplay,
+  itemRunCount,
+  itemScheduleStatus,
+} from "./overview-tab-helpers";
 
 export type UnifiedItemKind = "listener" | "job";
+
+/** Shared look for the small inline chips on the row's second line; callers add border/background color. */
+const CHIP_BASE_CLASSES =
+  "shrink-0 rounded-sm border px-1 py-px font-mono text-xs font-medium leading-[var(--text-micro-leading)] lowercase tracking-[var(--text-label-tracking-tight)] text-muted-foreground";
 
 /** Discriminated union for items that can appear in the unified list. */
 export type UnifiedItem =
@@ -48,22 +59,8 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
   const errorMessage = failing ? itemErrorMessage(item) : null;
   const { failed, timed_out: timedOut } = item.data;
 
-  let nextRunLabel: string | null = null;
-  let nextRunTitle: string | null = null;
-  if (item.kind === "job") {
-    if (item.data.next_run) {
-      nextRunLabel = `next ${nextRunRelative}`;
-      nextRunTitle = formatTimestamp(item.data.next_run);
-    } else if (item.data.fire_at) {
-      nextRunLabel = `fire at ${fireAtRelative}`;
-      nextRunTitle = formatTimestamp(item.data.fire_at);
-    }
-  }
-
-  const scheduleStatus =
-    item.kind === "job"
-      ? scheduleStatusLabel(item.data.schedule_status ?? null, item.data.schedule_status_reason ?? null)
-      : null;
+  const { label: nextRunLabel, title: nextRunTitle } = itemNextRunDisplay(item, nextRunRelative, fireAtRelative);
+  const scheduleStatus = itemScheduleStatus(item);
   const callLabel = item.kind === "listener" ? "call" : "run";
   const idle = isIdle(item);
   const label = item.humanDescription ? `${item.name}: ${item.humanDescription}` : item.name;
@@ -99,7 +96,8 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span
             className={cn(
-              "shrink-0 rounded-sm border border-border bg-muted px-1 py-px font-mono text-xs font-medium leading-[var(--text-micro-leading)] lowercase tracking-[var(--text-label-tracking-tight)] text-muted-foreground",
+              CHIP_BASE_CLASSES,
+              "border-border bg-muted",
               item.kind === "job" &&
                 "border-[var(--handler-job-border)] bg-[var(--handler-job-bg)] text-[var(--handler-job)]",
               item.kind === "listener" &&
@@ -112,7 +110,7 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
           </span>
           {item.kind === "listener" && item.data.mode && (
             <span
-              className="shrink-0 rounded-sm border border-[color-mix(in_srgb,var(--primary)_25%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)] px-1 py-px font-mono text-xs font-medium leading-[var(--text-micro-leading)] lowercase tracking-[var(--text-label-tracking-tight)] text-muted-foreground"
+              className={cn(CHIP_BASE_CLASSES, "border-[var(--handler-mode-border)] bg-[var(--handler-mode-bg)]")}
               aria-label={`mode: ${item.data.mode}`}
               data-testid="handler-row-mode-chip"
             >
@@ -120,13 +118,13 @@ export function UnifiedHandlerRow({ item, isSelected, onSelect }: Props) {
             </span>
           )}
           {scheduleStatus !== null && (
-            <Badge variant="muted" size="xs" data-testid="schedule-status-badge">
+            <Badge variant="muted" size="xs" data-testid="handler-row-schedule-status-badge">
               {scheduleStatus}
             </Badge>
           )}
           <span title={`Total ${callLabel}s`}>{pluralize(runCount, callLabel)}</span>
           {failed > 0 && (
-            <span className="font-medium text-destructive" data-testid="handler-failed-count">
+            <span className="font-medium text-destructive" data-testid="handler-row-failed-count">
               {failed} failed
             </span>
           )}

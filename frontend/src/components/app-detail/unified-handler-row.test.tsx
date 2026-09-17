@@ -12,7 +12,7 @@ import { rowTestId } from "./unified-row.test-helpers";
 const SUBLINE_ERR_TESTID = "handler-row-subline-err";
 const MODE_CHIP_TESTID = "handler-row-mode-chip";
 const NEXT_RUN_TESTID = "handler-row-next-run";
-const SCHEDULE_STATUS_BADGE_TESTID = "schedule-status-badge";
+const SCHEDULE_STATUS_BADGE_TESTID = "handler-row-schedule-status-badge";
 
 /** Seconds past "now" used when a job needs a next_run that has not fired yet. */
 const FUTURE_OFFSET_SECONDS = 60;

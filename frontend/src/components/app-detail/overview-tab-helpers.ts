@@ -1,4 +1,6 @@
 import { handlerPath, parseInstanceParam } from "../../utils/app-routes";
+import { formatTimestamp } from "../../utils/format";
+import { scheduleStatusLabel } from "../../utils/handler-rows";
 import { handlerKindLabel, TIMED_OUT_LABEL } from "../../utils/status";
 import { compareFailingFirst } from "./handler-sort";
 import type { UnifiedItem } from "./unified-handler-row";
@@ -46,4 +48,26 @@ export function itemKindChip(item: UnifiedItem): string {
     return handlerKindLabel("listener", item.data.listener_kind);
   }
   return handlerKindLabel("job", null, item.data.trigger_type);
+}
+
+/** Display label plus tooltip for a job's upcoming run, or nulls when there is none to show. */
+export function itemNextRunDisplay(
+  item: UnifiedItem,
+  nextRunRelative: string,
+  fireAtRelative: string,
+): { label: string | null; title: string | null } {
+  if (item.kind !== "job") return { label: null, title: null };
+  if (item.data.next_run) {
+    return { label: `next ${nextRunRelative}`, title: formatTimestamp(item.data.next_run) };
+  }
+  if (item.data.fire_at) {
+    return { label: `fire at ${fireAtRelative}`, title: formatTimestamp(item.data.fire_at) };
+  }
+  return { label: null, title: null };
+}
+
+/** Human-readable schedule status for a job, or null for listeners and unlabeled statuses. */
+export function itemScheduleStatus(item: UnifiedItem): string | null {
+  if (item.kind !== "job") return null;
+  return scheduleStatusLabel(item.data.schedule_status ?? null, item.data.schedule_status_reason ?? null);
 }

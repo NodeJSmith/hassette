@@ -97,6 +97,11 @@
   --job-border: color-mix(in srgb, var(--job) 30%, transparent);
   --listener-bg: color-mix(in srgb, var(--listener) var(--chip-tint), transparent);
   --listener-border: color-mix(in srgb, var(--listener) 30%, transparent);
+  /* Mode chip tint, declared here only for the same reason as --err-border above:
+     var(--primary) resolves lazily against the consuming element, so this already
+     tracks the dark palette — do not duplicate it there. */
+  --mode-bg: color-mix(in srgb, var(--primary) 10%, transparent);
+  --mode-border: color-mix(in srgb, var(--primary) 25%, transparent);
   --input-bg: #ffffff;
   --code-bg: var(--bg-sunken);
   --font-display: "Newsreader", "Source Serif Pro", Georgia, serif;
@@ -268,6 +273,8 @@
   --handler-job-border: var(--job-border);
   --handler-listener-bg: var(--listener-bg);
   --handler-listener-border: var(--listener-border);
+  --handler-mode-bg: var(--mode-bg);
+  --handler-mode-border: var(--mode-border);
   --code-background: var(--code-bg);
   --code-annotate-background: var(--code-annotate-bg);
   --code-focus-background: var(--code-focus-bg);
