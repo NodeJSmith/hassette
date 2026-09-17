@@ -20,13 +20,13 @@ export function mergeServices(
   const merged = new Map<string, MergedService>();
 
   // Seed from HTTP
-  for (const svc of httpServices) {
-    merged.set(svc.name, {
-      resource_name: svc.name,
-      status: svc.status,
-      role: svc.role ?? "",
-      ready_phase: svc.ready_phase ?? null,
-      retry_at: svc.retry_at ?? null,
+  for (const entry of httpServices) {
+    merged.set(entry.name, {
+      resource_name: entry.name,
+      status: entry.status,
+      role: entry.role ?? "",
+      ready_phase: entry.ready_phase ?? null,
+      retry_at: entry.retry_at ?? null,
       exception: null,
     });
   }
