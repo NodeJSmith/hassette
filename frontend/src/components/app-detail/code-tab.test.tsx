@@ -38,6 +38,7 @@ window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
 // Long enough to observe the request in flight, short enough not to slow the suite.
 const IN_FLIGHT_DELAY_MS = 100;
+const SOURCE_ENDPOINT = "/api/apps/:app_key/source";
 
 describe("CodeTab", () => {
   const defaultSource = {
@@ -58,7 +59,7 @@ describe("CodeTab", () => {
   beforeEach(() => {
     mockLineParam = null;
     server.use(
-      http.get("/api/apps/:app_key/source", () => {
+      http.get(SOURCE_ENDPOINT, () => {
         return HttpResponse.json(defaultSource);
       }),
     );
@@ -75,25 +76,24 @@ describe("CodeTab", () => {
 
   it("includes Shiki token color utilities for light and dark themes", async () => {
     await renderAndWaitForLoad();
-    const body = screen.getByTestId("code-tab-content").lastElementChild;
-    expect(body?.className).toContain(
+    const contentWrapper = screen.getByTestId("code-tab-content").lastElementChild;
+    expect(contentWrapper?.className).toContain(
       "[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-light,var(--ink-1))]",
     );
-    expect(body?.className).toContain(
+    expect(contentWrapper?.className).toContain(
       "dark:[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-dark,var(--ink-1))]",
     );
   });
 
   it("renders line numbers in gutter", async () => {
     await renderAndWaitForLoad();
-    // Line numbers 1, 2, 3 should appear in gutter
     const gutterLines = screen.getAllByTestId(/^code-line-\d+$/);
-    expect(gutterLines.length).toBeGreaterThanOrEqual(1);
+    expect(gutterLines.length).toBe(defaultSource.line_count);
   });
 
   it("shows error message when source file not found", async () => {
     server.use(
-      http.get("/api/apps/:app_key/source", () => {
+      http.get(SOURCE_ENDPOINT, () => {
         return HttpResponse.json({ detail: "not found" }, { status: 404 });
       }),
     );
@@ -133,7 +133,6 @@ describe("CodeTab", () => {
   it("reads focusLine from ?line= query param and applies line--focus class", async () => {
     mockLineParam = "2";
     await renderAndWaitForLoad();
-    // Wait for the focus effect to run
     await waitFor(() => {
       const line2 = screen.getByTestId("code-line-2");
       expect(line2.classList.contains("line--focus")).toBe(true);
@@ -151,7 +150,7 @@ describe("CodeTab", () => {
     let requestSignal: AbortSignal | undefined;
 
     server.use(
-      http.get("/api/apps/:app_key/source", async ({ request }) => {
+      http.get(SOURCE_ENDPOINT, async ({ request }) => {
         requestSignal = request.signal;
         await delay(IN_FLIGHT_DELAY_MS);
         return HttpResponse.json(defaultSource);
@@ -161,7 +160,6 @@ describe("CodeTab", () => {
     const { unmount } = render(<CodeTab appKey={defaultSource.app_key} listeners={[]} />);
     expect(screen.getByRole("status")).toBeDefined();
 
-    // Wait for the request to be initiated
     await waitFor(() => expect(requestSignal).toBeDefined());
     unmount();
 

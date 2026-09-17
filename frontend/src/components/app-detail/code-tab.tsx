@@ -36,13 +36,16 @@ function escapeHtml(s: string): string {
 const SHIKI_LINE_RE = /<span class="line">/g;
 const DETAIL_LABEL_CLASS = "text-xs font-medium uppercase tracking-[var(--text-label-tracking)] text-muted-foreground";
 
-function injectLineNumbers(html: string, annotationMap: Map<number, string[]>): string {
+function injectLineNumbers(html: string, annotationMap: Map<number, string[]>, lineCount: number): string {
   if (!SHIKI_LINE_RE.test(html)) return html;
   SHIKI_LINE_RE.lastIndex = 0;
 
   let lineNum = 0;
-  return html.replace(SHIKI_LINE_RE, () => {
+  return html.replace(SHIKI_LINE_RE, (match) => {
     lineNum++;
+    // Shiki emits one extra, empty line span when the source ends in a newline. Leaving any
+    // span past lineCount un-numbered keeps the gutter in agreement with the header's count.
+    if (lineNum > lineCount) return match;
     const annotations = annotationMap.get(lineNum);
     const annotatedClass = annotations ? " line--annotated" : "";
     const safe = annotations?.map(escapeHtml);
@@ -132,7 +135,7 @@ export function CodeTab({ appKey, listeners }: Props) {
   const lines = source.content.replace(/\r\n/g, "\n").split("\n");
   const lineCount = lines[lines.length - 1] === "" ? lines.length - 1 : lines.length;
 
-  const processedHtml = injectLineNumbers(highlightedHtml, annotationMap);
+  const processedHtml = injectLineNumbers(highlightedHtml, annotationMap, lineCount);
 
   const handleCopyPath = () => {
     if (source?.filename) {
