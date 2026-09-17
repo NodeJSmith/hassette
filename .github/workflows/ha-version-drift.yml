@@ -66,6 +66,7 @@ jobs:
                       --label "type:CICD" \
                       --label "topic:codegen" \
                       --label "ha-version-drift" \
+                      --label "size:small" \
                       --body "## HA Version Drift Detected
 
                   The codegen pin in \`codegen/ha-version.txt\` (\`$PINNED\`) is behind the latest Home Assistant release (\`$LATEST\`).
