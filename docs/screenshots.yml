@@ -111,8 +111,8 @@
   width: 1400
   height: 900
   wait: 2000
-  wait_for: "document.querySelector('[data-testid=\"handler-failed-count\"]')"
-  javascript: "document.querySelector('[data-testid=\"handler-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]')?.click()"
+  wait_for: "document.querySelector('[data-testid=\"handler-row-failed-count\"]')"
+  javascript: "document.querySelector('[data-testid=\"handler-row-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]')?.click()"
 
 # manual_job_app: triggers a job via the API, then captures the "manual" badge
 # in the execution table. The async JS clicks the job row, fires a POST trigger,
@@ -234,7 +234,7 @@
   height: 900
   wait: 2000
   wait_for: "document.querySelector('[data-testid=\"job-error-banner\"]')"
-  javascript: "document.querySelector('[data-testid=\"handler-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]')?.click()"
+  javascript: "document.querySelector('[data-testid=\"handler-row-failed-count\"]')?.closest('[data-testid^=\"unified-row-\"]')?.click()"
 
 # instance=0 selects a specific instance so the switcher tab bar renders
 - url: "http://localhost:{port}/apps/motion_lights/overview?instance=0"
@@ -290,7 +290,7 @@
   javascript: >-
     (async()=>{
     const poll=(sel,ms=20000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout: '+sel)),ms);(function c(){const e=document.querySelector(sel);if(e){clearTimeout(t);res(e)}else{requestAnimationFrame(c)}})()});
-    const chip=await poll('[data-testid="handler-failed-count"]');
+    const chip=await poll('[data-testid="handler-row-failed-count"]');
     chip.closest('[data-testid^="unified-row-"]').click();
     const row=await poll('[data-testid="invocation-row"],[data-testid="execution-row"]');
     row.click();

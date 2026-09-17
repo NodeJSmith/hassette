@@ -12,7 +12,7 @@ import { rowTestId } from "./unified-row.test-helpers";
 const SUBLINE_ERR_TESTID = "handler-row-subline-err";
 const MODE_CHIP_TESTID = "handler-row-mode-chip";
 const NEXT_RUN_TESTID = "handler-row-next-run";
-const SCHEDULE_STATUS_BADGE_TESTID = "schedule-status-badge";
+const SCHEDULE_STATUS_BADGE_TESTID = "handler-row-schedule-status-badge";
 
 /** Seconds past "now" used when a job needs a next_run that has not fired yet. */
 const FUTURE_OFFSET_SECONDS = 60;
@@ -241,7 +241,22 @@ describe("UnifiedHandlerRow — subline switching", () => {
       { name: "my_job", humanDescription: null },
     );
     const { queryByTestId } = renderRow(item);
-    expect(queryByTestId(NEXT_RUN_TESTID)).not.toBeNull();
+    expect(queryByTestId(NEXT_RUN_TESTID)?.textContent).toMatch(/^next /);
+  });
+
+  it("falls back to the fire-at line for one-shot jobs with no next_run", () => {
+    const item = makeJobItem(
+      { job_id: 1, next_run: null, fire_at: Math.floor(Date.now() / 1000) + FUTURE_OFFSET_SECONDS },
+      { name: "my_job", humanDescription: null },
+    );
+    const { queryByTestId } = renderRow(item);
+    expect(queryByTestId(NEXT_RUN_TESTID)?.textContent).toMatch(/^fire at /);
+  });
+
+  it("omits the next-run line when the job has neither next_run nor fire_at", () => {
+    const item = makeJobItem({ job_id: 1, next_run: null, fire_at: null }, { name: "my_job", humanDescription: null });
+    const { queryByTestId } = renderRow(item);
+    expect(queryByTestId(NEXT_RUN_TESTID)).toBeNull();
   });
 });
 
