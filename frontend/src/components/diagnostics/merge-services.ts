@@ -20,26 +20,26 @@ export function mergeServices(
   const merged = new Map<string, MergedService>();
 
   // Seed from HTTP
-  for (const entry of httpServices) {
-    merged.set(entry.name, {
-      resource_name: entry.name,
-      status: entry.status,
-      role: entry.role ?? "",
-      ready_phase: entry.ready_phase ?? null,
-      retry_at: entry.retry_at ?? null,
+  for (const httpEntry of httpServices) {
+    merged.set(httpEntry.name, {
+      resource_name: httpEntry.name,
+      status: httpEntry.status,
+      role: httpEntry.role ?? "",
+      ready_phase: httpEntry.ready_phase ?? null,
+      retry_at: httpEntry.retry_at ?? null,
       exception: null,
     });
   }
 
   // Overlay with WS updates (live data wins)
-  for (const [name, entry] of Object.entries(wsStatus)) {
+  for (const [name, wsEntry] of Object.entries(wsStatus)) {
     merged.set(name, {
       resource_name: name,
-      status: entry.status,
-      role: entry.role ?? "",
-      ready_phase: entry.ready_phase ?? null,
-      retry_at: entry.retry_at ?? null,
-      exception: entry.exception ?? null,
+      status: wsEntry.status,
+      role: wsEntry.role ?? "",
+      ready_phase: wsEntry.ready_phase ?? null,
+      retry_at: wsEntry.retry_at ?? null,
+      exception: wsEntry.exception ?? null,
     });
   }
 
