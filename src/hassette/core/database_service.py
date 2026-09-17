@@ -867,6 +867,91 @@ class DatabaseService(Service):
                 total += path.stat().st_size
         return total / (1024 * 1024)
 
+    async def _run_failsafe_tier(
+        self,
+        db: aiosqlite.Connection,
+        group: list[RetentionTarget],
+        batch_limit: int,
+        max_iterations: int,
+        max_size_mb: float,
+    ) -> tuple[dict[str, int], bool]:
+        """Run the delete-vacuum-check cycle for one priority tier of the size failsafe.
+
+        Iterates up to ``max_iterations`` batches, deleting from every target in ``group``
+        each iteration, committing, vacuuming, and checking the database size. A failure on
+        any single target's delete is logged and skipped so the remaining targets in the
+        group still get their batch deleted; a failure in commit or vacuum/checkpoint is
+        logged and ends this tier's loop early so the caller can move on to the next tier.
+
+        Returns a tuple of (per-table deleted counts for this tier, whether the database is
+        now at or under ``max_size_mb``). The size check always runs after the loop exits,
+        regardless of exit reason (iterations exhausted, zero rows deleted, or under limit).
+        Per-iteration counts are only merged into the returned totals after a successful
+        commit — a failed commit means that iteration's deletes were not durably persisted,
+        so they must not be reported as deleted.
+        """
+        deleted_by_table: dict[str, int] = {t.table: 0 for t in group}
+        group_label = ", ".join(t.failsafe_label for t in group)
+
+        for iteration in range(max_iterations):
+            iteration_deleted: dict[str, int] = {t.table: 0 for t in group}
+            group_deleted = 0
+            for target in group:
+                try:
+                    n = await _execute_failsafe_delete(db, target, batch_limit)
+                    iteration_deleted[target.table] += n
+                    group_deleted += n
+                except Exception:
+                    self.logger.exception(
+                        "Size failsafe: failed to delete from %s, continuing with remaining targets",
+                        target.table,
+                    )
+
+            # Commit the batch before vacuuming. PRAGMA wal_checkpoint(TRUNCATE) below
+            # cannot run while the delete statements hold a write lock — without this
+            # commit it fails with "database table is locked".
+            try:
+                await db.commit()
+            except Exception:
+                self.logger.exception(
+                    "Size failsafe: commit failed for %s, moving to next tier",
+                    group_label,
+                )
+                break
+
+            for table, count in iteration_deleted.items():
+                deleted_by_table[table] += count
+
+            if group_deleted == 0:
+                break
+
+            try:
+                vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({_SIZE_FAILSAFE_VACUUM_PAGES})")
+                await vacuum_cursor.close()
+                await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            except Exception:
+                self.logger.exception(
+                    "Size failsafe: vacuum/checkpoint failed for %s, moving to next tier",
+                    group_label,
+                )
+                break
+
+            current_size = self.get_db_size_mb()
+            if current_size <= max_size_mb:
+                break
+
+            if iteration == max_iterations - 1:
+                self.logger.warning(
+                    "Size failsafe %s capped at %d iterations; database still %.1f MB (limit %.1f MB)",
+                    group_label,
+                    max_iterations,
+                    current_size,
+                    max_size_mb,
+                )
+
+        under_limit = self.get_db_size_mb() <= max_size_mb
+        return deleted_by_table, under_limit
+
     async def _check_size_failsafe(self) -> None:
         """Delete oldest records if database exceeds the configured size limit.
 
@@ -899,43 +984,21 @@ class DatabaseService(Service):
         priorities = sorted({t.priority for t in _RETENTION_TABLES})
         for priority in priorities:
             group = [t for t in _RETENTION_TABLES if t.priority == priority]
-            group_label = ", ".join(t.failsafe_label for t in group)
-
-            for iteration in range(_SIZE_FAILSAFE_MAX_ITERATIONS):
-                group_deleted = 0
-                for target in group:
-                    n = await _execute_failsafe_delete(db, target, _SIZE_FAILSAFE_DELETE_BATCH)
-                    total_deleted_by_table[target.table] += n
-                    group_deleted += n
-                # Commit the batch before vacuuming. PRAGMA wal_checkpoint(TRUNCATE) below
-                # cannot run while the delete statements hold a write lock — without this
-                # commit it fails with "database table is locked".
-                await db.commit()
-
-                if group_deleted == 0:
-                    break
-
-                vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({_SIZE_FAILSAFE_VACUUM_PAGES})")
-                await vacuum_cursor.close()
-                await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-
-                current_size = self.get_db_size_mb()
-                if current_size <= max_size_mb:
-                    break
-
-                if iteration == _SIZE_FAILSAFE_MAX_ITERATIONS - 1:
-                    self.logger.warning(
-                        "Size failsafe %s capped at %d iterations; database still %.1f MB (limit %.1f MB)",
-                        group_label,
-                        _SIZE_FAILSAFE_MAX_ITERATIONS,
-                        current_size,
-                        max_size_mb,
-                    )
-
-            current_size = self.get_db_size_mb()
-            if current_size <= max_size_mb:
+            tier_deleted, under_limit = await self._run_failsafe_tier(
+                db,
+                group,
+                _SIZE_FAILSAFE_DELETE_BATCH,
+                _SIZE_FAILSAFE_MAX_ITERATIONS,
+                max_size_mb,
+            )
+            for table, count in tier_deleted.items():
+                total_deleted_by_table[table] += count
+            if under_limit:
                 break
 
+        # get_db_size_mb() is recomputed here for the summary log line since
+        # _run_failsafe_tier returns under_limit as a bool, not the raw size.
+        current_size = self.get_db_size_mb()
         deleted_summary = {table: count for table, count in total_deleted_by_table.items() if count > 0}
         if deleted_summary:
             parts = ", ".join(f"{count} {table}" for table, count in deleted_summary.items())

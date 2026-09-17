@@ -573,6 +573,94 @@ async def test_execute_failsafe_delete_caps_at_available_rows(memory_db: aiosqli
     assert deleted == 1
 
 
+async def test_run_failsafe_tier_returns_counts_and_under_limit_true(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """_run_failsafe_tier() reports the deleted count and under_limit=True once size drops."""
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0), (3.0)")
+    await memory_db.commit()
+
+    # First call happens mid-iteration (still over limit); second happens after the loop
+    # exits because the next iteration deleted zero rows (nothing left to delete).
+    with patch.object(service, "get_db_size_mb", side_effect=[10.0, 1.0]):
+        deleted_by_table, under_limit = await service._run_failsafe_tier(
+            memory_db, [WIDGETS_TARGET], batch_limit=10, max_iterations=5, max_size_mb=5.0
+        )
+
+    assert deleted_by_table == {"widgets": 3}
+    assert under_limit is True
+
+
+async def test_run_failsafe_tier_returns_under_limit_false_when_iterations_exhausted(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """_run_failsafe_tier() reports under_limit=False when max_iterations is capped out."""
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES " + ", ".join(f"({i}.0)" for i in range(20)))
+    await memory_db.commit()
+
+    with patch.object(service, "get_db_size_mb", return_value=100.0):
+        deleted_by_table, under_limit = await service._run_failsafe_tier(
+            memory_db, [WIDGETS_TARGET], batch_limit=5, max_iterations=2, max_size_mb=1.0
+        )
+
+    assert deleted_by_table == {"widgets": 10}
+    assert under_limit is False
+
+
+async def test_run_failsafe_tier_commit_failure_breaks_without_counting_deletes(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """A failed commit logs, breaks the loop, and does not report undurable deletes as deleted."""
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0)")
+    await memory_db.commit()
+
+    with (
+        patch.object(memory_db, "commit", AsyncMock(side_effect=sqlite3.OperationalError("database is locked"))),
+        patch.object(service, "get_db_size_mb", return_value=100.0),
+        patch.object(service.logger, "exception") as mock_exception,
+    ):
+        deleted_by_table, under_limit = await service._run_failsafe_tier(
+            memory_db, [WIDGETS_TARGET], batch_limit=10, max_iterations=5, max_size_mb=5.0
+        )
+
+    assert deleted_by_table == {"widgets": 0}
+    assert under_limit is False
+    mock_exception.assert_called_once()
+    assert "commit failed" in mock_exception.call_args[0][0]
+
+
+async def test_run_failsafe_tier_vacuum_failure_breaks_after_commit_counts_deletes(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """A failed vacuum/checkpoint logs and breaks the loop, but the already-committed deletes for
+    that iteration are still counted -- only a commit failure discards counts (see the sibling
+    commit-failure test above).
+    """
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0)")
+    await memory_db.commit()
+
+    real_execute = memory_db.execute
+
+    async def fake_execute(sql: str, *args: object, **kwargs: object):
+        if sql.startswith("PRAGMA incremental_vacuum"):
+            raise sqlite3.OperationalError("disk I/O error")
+        return await real_execute(sql, *args, **kwargs)
+
+    with (
+        patch.object(memory_db, "execute", side_effect=fake_execute),
+        patch.object(service, "get_db_size_mb", return_value=100.0),
+        patch.object(service.logger, "exception") as mock_exception,
+    ):
+        deleted_by_table, under_limit = await service._run_failsafe_tier(
+            memory_db, [WIDGETS_TARGET], batch_limit=10, max_iterations=5, max_size_mb=5.0
+        )
+
+    assert deleted_by_table == {"widgets": 2}
+    assert under_limit is False
+    mock_exception.assert_called_once()
+    assert "vacuum/checkpoint failed" in mock_exception.call_args[0][0]
+
+
 class TestQueueUnavailableErrorMessage:
     """``submit()``/``enqueue()`` distinguish pre-init from post-teardown when the queue is gone.
 

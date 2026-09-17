@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Extract per-tier loop from size failsafe and add error handling"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#3", "FR#4", "AC#2", "AC#3"]
 ---

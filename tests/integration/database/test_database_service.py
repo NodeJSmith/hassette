@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.core.database_service import DatabaseService
+from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, _execute_failsafe_delete
 from hassette.resources.lifecycle import compute_shutdown_budget
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.factories import TEST_SOURCE_LOCATION
@@ -677,6 +677,67 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
         assert any("consecutive" in c for c in warning_calls), (
             f"Expected consecutive-trigger warning on second call, got: {warning_calls}"
         )
+
+
+async def test_run_failsafe_tier_isolates_per_target_delete_failures(initialized_service: DatabaseService) -> None:
+    """A simulated DELETE failure on one target in a tier does not prevent deletion of others.
+
+    _RETENTION_TABLES only has one target per priority tier on main, so this exercises
+    _run_failsafe_tier() directly with a two-target group built from real tables -- a
+    same-tier group with one failing target and one succeeding target.
+    """
+    session_id = initialized_service.hassette.session_id
+    db = initialized_service.db
+
+    # Insert a listener for FK reference (name is NOT NULL in the unified schema)
+    await db.execute(
+        "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        ("test.App", 0, "test_listener", "on_event", "state_changed", TEST_SOURCE_LOCATION),
+    )
+    await db.commit()
+
+    now = time.time()
+    for i in range(5):
+        ts = now - (100 - i)
+        await db.execute(
+            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
+            (session_id, ts),
+        )
+        await db.execute(
+            "INSERT INTO log_records (seq, timestamp, level, logger_name, func_name, lineno, message, exc_info,"
+            " app_key, instance_name, instance_index, execution_id, source_tier)"
+            " VALUES (?, ?, 'INFO', 'test', 'f', 1, 'msg', NULL, NULL, NULL, NULL, NULL, 'app')",
+            (i, ts),
+        )
+    await db.commit()
+
+    by_table = {t.table: t for t in _RETENTION_TABLES}
+    group = [by_table["log_records"], by_table["executions"]]
+
+    async def failing_delete(conn, target, batch_limit):
+        if target.table == "executions":
+            raise sqlite3.OperationalError("simulated failure")
+        return await _execute_failsafe_delete(conn, target, batch_limit)
+
+    with patch("hassette.core.database_service._execute_failsafe_delete", side_effect=failing_delete):
+        deleted_by_table, _under_limit = await initialized_service._run_failsafe_tier(
+            db, group, batch_limit=1000, max_iterations=1, max_size_mb=0.0001
+        )
+
+    assert deleted_by_table["log_records"] == 5
+    assert deleted_by_table["executions"] == 0
+
+    cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == 0
+
+    cursor = await db.execute("SELECT COUNT(*) FROM executions")
+    row = await cursor.fetchone()
+    assert row is not None
+    assert row[0] == 5
 
 
 async def test_force_terminal_closes_real_connections(initialized_service: DatabaseService) -> None:
