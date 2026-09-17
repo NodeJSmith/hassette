@@ -20,7 +20,7 @@ DRIFT_WORKFLOWS = (
     PROJECT_ROOT / ".github" / "workflows" / "ha-version-drift.yml",
     PROJECT_ROOT / ".github" / "workflows" / "pypi-drift-check.yml",
 )
-CI_DRIFT_PATHS = (*DRIFT_WORKFLOWS, SCRIPT)
+CI_DRIFT_PATHS = (*DRIFT_WORKFLOWS, SCRIPT, PROJECT_ROOT / "codegen" / "ha-version.txt")
 SUBPROCESS_TIMEOUT_SECONDS = 30
 STUB_GH = """#!/usr/bin/env bash
 case "$1 $2" in
