@@ -1,9 +1,8 @@
 """Verify tools/release/drift_check.py — the shared compare/dedup logic used by
 pypi-drift-check.yml, docker-drift-check.yml, and ha-version-drift.yml.
 
-Runs the script as a subprocess (it's a standalone `uv run --script`, not an importable module —
-see tools/release/check_wheel_spa.py and test_packaging.py for the established pattern) against
-a stub `gh` binary placed first on PATH, so no real GitHub API calls happen.
+Runs the script as a subprocess with the same preinstalled `python3` used by the workflows,
+against a stub `gh` binary placed first on PATH, so no real GitHub API calls happen.
 """
 
 import os
@@ -15,6 +14,13 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = PROJECT_ROOT / "tools" / "release" / "drift_check.py"
+CI_TEST_WORKFLOW = PROJECT_ROOT / ".github" / "workflows" / "tests.yml"
+DRIFT_WORKFLOWS = (
+    PROJECT_ROOT / ".github" / "workflows" / "docker-drift-check.yml",
+    PROJECT_ROOT / ".github" / "workflows" / "ha-version-drift.yml",
+    PROJECT_ROOT / ".github" / "workflows" / "pypi-drift-check.yml",
+)
+CI_DRIFT_PATHS = (*DRIFT_WORKFLOWS, SCRIPT)
 SUBPROCESS_TIMEOUT_SECONDS = 30
 STUB_GH = """#!/usr/bin/env bash
 case "$1 $2" in
@@ -57,6 +63,22 @@ def stub_gh_path(tmp_path: Path) -> Path:
     return bin_dir
 
 
+@pytest.mark.parametrize("workflow", DRIFT_WORKFLOWS, ids=lambda path: path.name)
+def test_workflow_runs_shared_script_with_preinstalled_python(workflow: Path) -> None:
+    workflow_source = workflow.read_text()
+
+    assert "python3 ./tools/release/drift_check.py" in workflow_source
+    assert "uv run ./tools/release/drift_check.py" not in workflow_source
+
+
+@pytest.mark.parametrize("path", CI_DRIFT_PATHS, ids=lambda path: path.name)
+def test_drift_changes_trigger_ci_tests(path: Path) -> None:
+    workflow_source = CI_TEST_WORKFLOW.read_text()
+    relative_path = path.relative_to(PROJECT_ROOT).as_posix()
+
+    assert f"- '{relative_path}'" in workflow_source
+
+
 def parse_github_output(text: str) -> dict[str, str]:
     r"""Parse GITHUB_OUTPUT's `key<<DELIM\nvalue\nDELIM\n` heredoc format into a dict.
 
@@ -94,7 +116,7 @@ def run_drift_check(
     env["STUB_ISSUE_LIST_FAIL"] = "1" if fail_issue_list else ""
     env["GITHUB_OUTPUT"] = str(output_file)
 
-    args = ["uv", "run", str(SCRIPT)]
+    args = ["python3", str(SCRIPT)]
     for key, value in extra_args.items():
         args += [f"--{key.replace('_', '-')}", value]
 

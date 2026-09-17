@@ -46,7 +46,7 @@ jobs:
                       exit 0
                   fi
 
-                  uv run ./tools/release/drift_check.py \
+                  python3 ./tools/release/drift_check.py \
                       --current "$PINNED" \
                       --latest "$LATEST" \
                       --label "ha-version-drift" \

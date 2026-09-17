@@ -1,7 +1,4 @@
-#!/usr/bin/env -S uv run --script
-# /// script
-# requires-python = ">=3.11"
-# ///
+#!/usr/bin/env python3
 r"""Shared compare/dedup logic for pypi-drift-check.yml, docker-drift-check.yml, and
 ha-version-drift.yml.
 
@@ -14,7 +11,7 @@ looking up an already-open tracking issue by that label. Filing, commenting on, 
 tracking issue itself stays in each workflow, since title/body/labels differ per check.
 
 Usage:
-    uv run ./tools/release/drift_check.py --current "$CURRENT" --latest "$LATEST" \
+    python3 ./tools/release/drift_check.py --current "$CURRENT" --latest "$LATEST" \
         --label "pypi-drift" --label-description "..." [--label-color HEXCOLOR]
 
 Writes to $GITHUB_OUTPUT (or stdout, for local runs): current, latest, drift (true/false), and
