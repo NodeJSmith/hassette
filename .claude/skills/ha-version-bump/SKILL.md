@@ -32,7 +32,9 @@ If `$LATEST`'s year component is ahead of `$PINNED`'s (a year rollover, e.g. `20
 to carry breaking entity/API changes than a routine minor bump, and this skill is now the
 only gate on that risk (Renovate's old `dependencyDashboardApproval` rule for major jumps
 was removed along with the rest of its `homeassistant/home-assistant` handling — see
-Phase 2). Ask whether to continue or wait for a closer look.
+Phase 2). Ask whether to continue or wait for a closer look. In an unattended run there's
+no one to ask (see Phase 6's "Unattended invocation" note for how to tell you're in one)
+— stop and report this instead of guessing.
 
 ## Phase 2: Update every pinned reference
 
@@ -68,7 +70,10 @@ cd ~/source/core && git status --short
 ```
 
 If that shows uncommitted changes, stop and ask the user how to proceed (stash, discard,
-or investigate) rather than switching tags out from under in-progress work. If clean, run
+or investigate) rather than switching tags out from under in-progress work. In an
+unattended run there's no one to ask (see Phase 6's "Unattended invocation" note for how
+to tell you're in one) — stop and report this instead of guessing which option is safe.
+If clean, run
 the checkout as its own self-contained command — re-`cd` explicitly and substitute the
 literal version from Phase 1 rather than a shell variable, since neither the working
 directory nor `$LATEST` can be assumed to have survived from the previous command:
@@ -147,7 +152,27 @@ Mandatory Code Review Before Commit). Verify any flagged enum/alias finding agai
 upstream HA source per Phase 3 before accepting it.
 
 Present a summary: version old to new, which files changed, test/lint results, blog
-findings, review findings. Then:
+findings, review findings.
+
+**Unattended invocation.** This skill is also invoked from the Dotfiles repo's
+`hassette-autofix` pipeline (`services/user/scripts/hassette_autofix.py`), whose Phase 1
+fix session picks up the `size:small` tracking issues that `ha-version-drift.yml` files.
+That pipeline runs with no human present to answer a question, and its invoking prompt
+explicitly disallows `AskUserQuestion`. Either of these is sufficient on its own to put
+you in this mode, not a primary check with a fallback: the invoking prompt telling you
+this is a one-shot, non-interactive invocation, or `AskUserQuestion` simply not being in
+your available tools.
+
+In that mode: if Phase 3 or Phase 5 flagged something needing a human call (a breaking
+change, or any other judgment item), there is no one to consult — stop and report it now
+instead of committing, the same way Phase 1's year-rollover check and Phase 2's
+dirty-checkout check already do for their own gates. Otherwise, treat a clean review as
+an implicit "yes, commit": skip straight to committing, using the summary presented
+above.
+
+Otherwise (a human is running this interactively), gate on confirmation — this applies
+even when Phase 3 or Phase 5 flagged something, since the summary above already surfaces
+it and the human can decide in the moment:
 
 ```yaml
 AskUserQuestion:
