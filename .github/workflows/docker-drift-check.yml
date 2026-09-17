@@ -63,7 +63,7 @@ jobs:
                       FOUND_TAG="not-in-registry"
                   fi
 
-                  uv run ./tools/release/drift_check.py \
+                  python3 ./tools/release/drift_check.py \
                       --current "$EXPECTED_TAG" \
                       --latest "$FOUND_TAG" \
                       --label "docker-drift" \

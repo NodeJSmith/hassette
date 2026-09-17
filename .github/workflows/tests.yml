@@ -35,7 +35,12 @@ jobs:
                         - 'uv.lock'
                         - 'noxfile.py'
                         - 'scripts/**'
+                        - '.github/workflows/docker-drift-check.yml'
+                        - '.github/workflows/ha-version-drift.yml'
+                        - '.github/workflows/pypi-drift-check.yml'
                         - '.github/workflows/tests.yml'
+                        - 'codegen/ha-version.txt'
+                        - 'tools/release/drift_check.py'
 
     frontend:
         needs: changes

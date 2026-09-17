@@ -48,7 +48,7 @@ jobs:
                       sys.exit(1)
                   ")
 
-                  uv run ./tools/release/drift_check.py \
+                  python3 ./tools/release/drift_check.py \
                       --current "$GITHUB_VERSION" \
                       --latest "$PYPI_VERSION" \
                       --label "pypi-drift" \
