@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.config.models import WebApiConfig
-from hassette.web.models import ActionResponse, AppInstanceResponse
+from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse
 from tests.support.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, capture_stderr, make_cli_config
 
@@ -101,18 +101,32 @@ def make_raw_body_client(
     )
 
 
-def make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my_app"):
+def make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my_app") -> AppManifestListResponse:
     """Wrap ``instances`` in a single-app manifest list, as ``/api/apps/manifests`` returns it."""
     manifest = make_manifest_response(app_key=app_key, instance_count=len(instances), instances=instances)
     return make_manifest_list_response(manifests=[manifest])
 
 
-def url_capturing_client() -> tuple[HassetteCLIClient, list[str]]:
-    """Build a default-target client plus the list its request URLs are recorded into."""
+def url_capturing_client(
+    manifest_instances: list[AppInstanceResponse] | None = None,
+) -> tuple[HassetteCLIClient, list[str]]:
+    """Build a default-target client plus the list its request URLs are recorded into.
+
+    Every request answers with an empty JSON array, except that when ``manifest_instances`` is
+    given, ``/api/apps/manifests`` serves those instances as a single-app manifest list so the
+    instance-name lookup can resolve. The empty array is enough for the downstream listener call,
+    since the routing tests assert on the recorded URL rather than the payload.
+    """
+    manifest_body = (
+        make_manifest_list(manifest_instances).model_dump_json().encode() if manifest_instances is not None else None
+    )
     captured_urls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        captured_urls.append(str(request.url))
+        url = str(request.url)
+        captured_urls.append(url)
+        if manifest_body is not None and MANIFESTS_ENDPOINT in url:
+            return httpx.Response(200, content=manifest_body, headers={"content-type": "application/json"})
         return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
 
     transport = httpx.MockTransport(handler)
@@ -550,8 +564,6 @@ class TestInstanceRouting:
         assert any("instance_index=1" in u for u in captured_urls)
 
     def test_name_instance_resolves_to_index(self) -> None:
-        config = make_host_port_config()
-        call_count = 0
         instances = [
             AppInstanceResponse(
                 app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"
@@ -560,53 +572,21 @@ class TestInstanceRouting:
                 app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="running"
             ),
         ]
-        manifest_list = make_manifest_list(instances)
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            nonlocal call_count
-            call_count += 1
-            if MANIFESTS_ENDPOINT in str(request.url):
-                return httpx.Response(
-                    200,
-                    content=manifest_list.model_dump_json().encode(),
-                    headers={"content-type": "application/json"},
-                )
-            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
-
-        captured_urls: list[str] = []
-        original_handler = handler
-
-        def tracking_handler(request: httpx.Request) -> httpx.Response:
-            captured_urls.append(str(request.url))
-            return original_handler(request)
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(tracking_handler))
+        client, captured_urls = url_capturing_client(instances)
         route_listeners(client, app_key="my_app", instance="office")
         assert any("instance_index=1" in u for u in captured_urls)
 
     def test_unknown_instance_name_exits_nonzero(self) -> None:
-        config = make_host_port_config()
         instances = [
             AppInstanceResponse(
                 app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"
             ),
         ]
-        manifest_list = make_manifest_list(instances)
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            if MANIFESTS_ENDPOINT in str(request.url):
-                return httpx.Response(
-                    200,
-                    content=manifest_list.model_dump_json().encode(),
-                    headers={"content-type": "application/json"},
-                )
-            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client, _ = url_capturing_client(instances)
         with pytest.raises(SystemExit) as exc_info:
             route_listeners(client, app_key="my_app", instance="nonexistent")
         assert exc_info.value.code != 0
-        client2 = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client2, _ = url_capturing_client(instances)
         with capture_stderr() as buf, pytest.raises(SystemExit):
             route_listeners(client2, app_key="my_app", instance="nonexistent")
         assert "default" in buf.getvalue()
@@ -625,7 +605,6 @@ class TestInstanceRouting:
         still appears in the manifest's instance list and resolves normally — the CLI does
         not filter by status, so a stopped instance stays addressable by name.
         """
-        config = make_host_port_config()
         instances = [
             AppInstanceResponse(
                 app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"
@@ -634,24 +613,7 @@ class TestInstanceRouting:
                 app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"
             ),
         ]
-        manifest_list = make_manifest_list(instances)
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            if MANIFESTS_ENDPOINT in str(request.url):
-                return httpx.Response(
-                    200,
-                    content=manifest_list.model_dump_json().encode(),
-                    headers={"content-type": "application/json"},
-                )
-            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
-
-        captured_urls: list[str] = []
-
-        def tracking_handler(request: httpx.Request) -> httpx.Response:
-            captured_urls.append(str(request.url))
-            return handler(request)
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(tracking_handler))
+        client, captured_urls = url_capturing_client(instances)
         route_listeners(client, app_key="my_app", instance="office")
         assert any("instance_index=1" in u for u in captured_urls)
 
@@ -660,7 +622,6 @@ class TestInstanceRouting:
         validation) must not silently resolve to whichever one comes first — the CLI
         rejects the ambiguous selector and tells the operator to use --instance <index>.
         """
-        config = make_host_port_config()
         instances = [
             AppInstanceResponse(
                 app_key="my_app", index=0, instance_name="office", class_name="MyApp", status="running"
@@ -669,18 +630,7 @@ class TestInstanceRouting:
                 app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"
             ),
         ]
-        manifest_list = make_manifest_list(instances)
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            if MANIFESTS_ENDPOINT in str(request.url):
-                return httpx.Response(
-                    200,
-                    content=manifest_list.model_dump_json().encode(),
-                    headers={"content-type": "application/json"},
-                )
-            return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
-
-        client = HassetteCLIClient(config, json_mode=False, transport=httpx.MockTransport(handler))
+        client, _ = url_capturing_client(instances)
         with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:
             route_listeners(client, app_key="my_app", instance="office")
         assert exc_info.value.code != 0
