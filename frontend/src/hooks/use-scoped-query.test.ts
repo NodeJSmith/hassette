@@ -8,13 +8,13 @@ import { useFakeTimersForEachTest, waitForCallCount } from "../test/query-test-u
 import { expectFetchSince, renderAndWaitForFirstFetch, renderScopedQuery } from "../test/scoped-query-test-utils";
 // dup-ignore-end
 
-const BASE_TIME_S = 1_700_000_000;
+const BASE_TIMESTAMP_SECONDS = 1_700_000_000;
 
 describe("useScopedQuery", () => {
   useFakeTimersForEachTest();
 
   beforeEach(() => {
-    vi.setSystemTime(BASE_TIME_S * 1000);
+    vi.setSystemTime(BASE_TIMESTAMP_SECONDS * 1000);
   });
 
   it("blocks fetches until uptimeSeconds is available for since-restart preset", async () => {
@@ -57,7 +57,7 @@ describe("useScopedQuery", () => {
 
     renderScopedQuery("test-since-restart", fetcher, { storeOverrides: { timePreset: "since-restart" } });
 
-    const expectedSince = BASE_TIME_S - 300;
+    const expectedSince = BASE_TIMESTAMP_SECONDS - 300;
     act(() => {
       useAppStore.setState({ uptimeSeconds: 300 });
     });
@@ -72,7 +72,7 @@ describe("useScopedQuery", () => {
 
     renderScopedQuery("test-1h", fetcher, { storeOverrides: { timePreset: "1h", uptimeSeconds: 7200 } });
 
-    await expectFetchSince(fetcher, BASE_TIME_S - 3600);
+    await expectFetchSince(fetcher, BASE_TIMESTAMP_SECONDS - 3600);
   });
 
   it("computes since = now - 86400 for 24h preset", async () => {
@@ -80,7 +80,7 @@ describe("useScopedQuery", () => {
 
     renderScopedQuery("test-24h", fetcher, { storeOverrides: { timePreset: "24h", uptimeSeconds: null } });
 
-    await expectFetchSince(fetcher, BASE_TIME_S - 86400);
+    await expectFetchSince(fetcher, BASE_TIMESTAMP_SECONDS - 86400);
   });
 
   it("computes since = now - 604800 for 7d preset", async () => {
@@ -88,7 +88,7 @@ describe("useScopedQuery", () => {
 
     renderScopedQuery("test-7d", fetcher, { storeOverrides: { timePreset: "7d", uptimeSeconds: null } });
 
-    await expectFetchSince(fetcher, BASE_TIME_S - 604800);
+    await expectFetchSince(fetcher, BASE_TIMESTAMP_SECONDS - 604800);
   });
 
   it("respects effectiveTimePreset — urlWindowParam overrides timePreset", async () => {
@@ -99,7 +99,7 @@ describe("useScopedQuery", () => {
     });
 
     // Should use 7d (urlWindowParam), not 1h (timePreset)
-    await expectFetchSince(fetcher, BASE_TIME_S - 604800);
+    await expectFetchSince(fetcher, BASE_TIMESTAMP_SECONDS - 604800);
   });
 
   it("refetches when preset changes (different query key)", async () => {
@@ -117,7 +117,7 @@ describe("useScopedQuery", () => {
 
     // Second call should use 24h window; use toBeCloseTo for floating-point tolerance
     const lastCallArg = fetcher.mock.calls[1][0] as number;
-    expect(lastCallArg).toBeCloseTo(BASE_TIME_S - 86400, 0);
+    expect(lastCallArg).toBeCloseTo(BASE_TIMESTAMP_SECONDS - 86400, 0);
   });
 
   it("refetches when uptimeSeconds changes for since-restart preset (uptime is in key)", async () => {
@@ -135,7 +135,7 @@ describe("useScopedQuery", () => {
 
     // since = now - 5; use toBeCloseTo for floating-point tolerance
     const lastCallArg = fetcher.mock.calls[1][0] as number;
-    expect(lastCallArg).toBeCloseTo(BASE_TIME_S - 5, 0);
+    expect(lastCallArg).toBeCloseTo(BASE_TIMESTAMP_SECONDS - 5, 0);
   });
 
   it("does NOT refetch when uptimeSeconds changes for fixed-window presets (uptime not in key)", async () => {
@@ -196,7 +196,7 @@ describe("useScopedQuery", () => {
     await waitForCallCount(fetcher, 2);
 
     const lastCallArg = fetcher.mock.calls[1][0];
-    expect(lastCallArg).toBeCloseTo(BASE_TIME_S - 300, 0);
+    expect(lastCallArg).toBeCloseTo(BASE_TIMESTAMP_SECONDS - 300, 0);
   });
 
   it("does not refetch when timePreset changes while urlWindowParam is overriding", async () => {

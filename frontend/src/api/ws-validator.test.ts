@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { validateWsMessage, WsValidationError } from "./ws-validator";
 
-const BASE_TIME_S = 1_700_000_000; // arbitrary fixed epoch in seconds
+const BASE_TIMESTAMP_SECONDS = 1_700_000_000; // arbitrary fixed epoch in seconds
 
 describe("validateWsMessage", () => {
   it("validates a connected message", () => {
     const msg = {
       type: "connected",
       data: { uptime_seconds: 123.4, entity_count: 50, app_count: 3, version: "0.25.0" },
-      timestamp: BASE_TIME_S,
+      timestamp: BASE_TIMESTAMP_SECONDS,
     };
     expect(validateWsMessage(msg)).toEqual(msg);
   });
@@ -28,7 +28,7 @@ describe("validateWsMessage", () => {
           error_type: null,
         },
       ],
-      timestamp: BASE_TIME_S,
+      timestamp: BASE_TIMESTAMP_SECONDS,
     };
     expect(validateWsMessage(msg)).toEqual(msg);
   });
@@ -38,7 +38,7 @@ describe("validateWsMessage", () => {
       type: "log",
       data: {
         seq: 1,
-        timestamp: BASE_TIME_S,
+        timestamp: BASE_TIMESTAMP_SECONDS,
         level: "INFO",
         logger_name: "hassette.test",
         func_name: null,
@@ -51,7 +51,7 @@ describe("validateWsMessage", () => {
         instance_index: null,
         source_tier: null,
       },
-      timestamp: BASE_TIME_S,
+      timestamp: BASE_TIMESTAMP_SECONDS,
     };
     expect(validateWsMessage(msg)).toEqual(msg);
   });
@@ -68,7 +68,7 @@ describe("validateWsMessage", () => {
     const msg = {
       type: "unknown_type",
       data: {},
-      timestamp: BASE_TIME_S,
+      timestamp: BASE_TIMESTAMP_SECONDS,
     };
     expect(() => validateWsMessage(msg)).toThrow(WsValidationError);
   });
@@ -82,7 +82,7 @@ describe("validateWsMessage", () => {
   it("names the missing discriminator field in the synthetic error", () => {
     expect.assertions(2);
     try {
-      validateWsMessage({ data: {}, timestamp: BASE_TIME_S });
+      validateWsMessage({ data: {}, timestamp: BASE_TIMESTAMP_SECONDS });
     } catch (err) {
       const { errors } = err as WsValidationError;
       expect(errors).toHaveLength(1);

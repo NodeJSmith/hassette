@@ -162,12 +162,12 @@ describe("formatTriggerDetail", () => {
   });
 });
 
-const BASE_TIME_S = 1_700_000_000; // arbitrary fixed epoch in seconds
+const BASE_TIMESTAMP_SECONDS = 1_700_000_000; // arbitrary fixed epoch in seconds
 
 describe("formatRelativeTime", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(BASE_TIME_S * 1000);
+    vi.setSystemTime(BASE_TIMESTAMP_SECONDS * 1000);
   });
 
   afterEach(() => {
@@ -175,70 +175,70 @@ describe("formatRelativeTime", () => {
   });
 
   it("diff < 60s returns 'just now'", () => {
-    expect(formatRelativeTime(BASE_TIME_S - 0)).toBe("just now");
-    expect(formatRelativeTime(BASE_TIME_S - 1)).toBe("just now");
-    expect(formatRelativeTime(BASE_TIME_S - 59)).toBe("just now");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 0)).toBe("just now");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 1)).toBe("just now");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 59)).toBe("just now");
   });
 
   it("59s diff is still 'just now'", () => {
-    expect(formatRelativeTime(BASE_TIME_S - 59)).toBe("just now");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 59)).toBe("just now");
   });
 
   it("exactly 60s diff switches to minutes", () => {
-    expect(formatRelativeTime(BASE_TIME_S - 60)).toBe("1m ago");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 60)).toBe("1m ago");
   });
 
   it("minutes between 1 and 59", () => {
-    expect(formatRelativeTime(BASE_TIME_S - 120)).toBe("2m ago");
-    expect(formatRelativeTime(BASE_TIME_S - 3599)).toBe("59m ago");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 120)).toBe("2m ago");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 3599)).toBe("59m ago");
   });
 
   it("3599s diff is still minutes", () => {
-    expect(formatRelativeTime(BASE_TIME_S - 3599)).toBe("59m ago");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 3599)).toBe("59m ago");
   });
 
   it("exactly 3600s diff switches to hours", () => {
-    expect(formatRelativeTime(BASE_TIME_S - 3600)).toBe("1h ago");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 3600)).toBe("1h ago");
   });
 
   it("hours between 1 and 23", () => {
-    expect(formatRelativeTime(BASE_TIME_S - 10800)).toBe("3h ago");
-    expect(formatRelativeTime(BASE_TIME_S - 86399)).toBe("23h ago");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 10800)).toBe("3h ago");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 86399)).toBe("23h ago");
   });
 
   it("86399s diff is still hours", () => {
-    expect(formatRelativeTime(BASE_TIME_S - 86399)).toBe("23h ago");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 86399)).toBe("23h ago");
   });
 
   it("exactly 86400s diff switches to days", () => {
-    expect(formatRelativeTime(BASE_TIME_S - 86400)).toBe("1d ago");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 86400)).toBe("1d ago");
   });
 
   it("multiple days", () => {
-    expect(formatRelativeTime(BASE_TIME_S - 432000)).toBe("5d ago");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 432000)).toBe("5d ago");
   });
 
   it("future timestamp <60s returns 'in <1m'", () => {
-    expect(formatRelativeTime(BASE_TIME_S + 30)).toBe("in <1m");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS + 30)).toBe("in <1m");
   });
 
   it("future timestamp minutes", () => {
-    expect(formatRelativeTime(BASE_TIME_S + 480)).toBe("in 8m");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS + 480)).toBe("in 8m");
   });
 
   it("future timestamp hours", () => {
-    expect(formatRelativeTime(BASE_TIME_S + 7200)).toBe("in 2h");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS + 7200)).toBe("in 2h");
   });
 
   it("future timestamp days", () => {
-    expect(formatRelativeTime(BASE_TIME_S + 172800)).toBe("in 2d");
+    expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS + 172800)).toBe("in 2d");
   });
 });
 
 describe("formatAge", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(BASE_TIME_S * 1000);
+    vi.setSystemTime(BASE_TIMESTAMP_SECONDS * 1000);
   });
 
   afterEach(() => {
@@ -246,39 +246,39 @@ describe("formatAge", () => {
   });
 
   it("returns seconds for < 60s", () => {
-    expect(formatAge(BASE_TIME_S - 12)).toBe("12s");
+    expect(formatAge(BASE_TIMESTAMP_SECONDS - 12)).toBe("12s");
   });
 
   it("returns 0s for current time", () => {
-    expect(formatAge(BASE_TIME_S)).toBe("0s");
+    expect(formatAge(BASE_TIMESTAMP_SECONDS)).toBe("0s");
   });
 
   it("clamps future timestamps to 0s", () => {
-    expect(formatAge(BASE_TIME_S + 100)).toBe("0s");
+    expect(formatAge(BASE_TIMESTAMP_SECONDS + 100)).toBe("0s");
   });
 
   it("returns minutes at 60s boundary", () => {
-    expect(formatAge(BASE_TIME_S - 60)).toBe("1m");
+    expect(formatAge(BASE_TIMESTAMP_SECONDS - 60)).toBe("1m");
   });
 
   it("returns minutes for < 3600s", () => {
-    expect(formatAge(BASE_TIME_S - 300)).toBe("5m");
+    expect(formatAge(BASE_TIMESTAMP_SECONDS - 300)).toBe("5m");
   });
 
   it("returns hours at 3600s boundary", () => {
-    expect(formatAge(BASE_TIME_S - 3600)).toBe("1h");
+    expect(formatAge(BASE_TIMESTAMP_SECONDS - 3600)).toBe("1h");
   });
 
   it("returns hours for < 86400s", () => {
-    expect(formatAge(BASE_TIME_S - 7200)).toBe("2h");
+    expect(formatAge(BASE_TIMESTAMP_SECONDS - 7200)).toBe("2h");
   });
 
   it("returns days at 86400s boundary", () => {
-    expect(formatAge(BASE_TIME_S - 86400)).toBe("1d");
+    expect(formatAge(BASE_TIMESTAMP_SECONDS - 86400)).toBe("1d");
   });
 
   it("returns days for large values", () => {
-    expect(formatAge(BASE_TIME_S - 432000)).toBe("5d");
+    expect(formatAge(BASE_TIMESTAMP_SECONDS - 432000)).toBe("5d");
   });
 });
 
