@@ -9,7 +9,7 @@ import { ExecutionTable } from "./execution-table";
 
 const INCIDENTAL_TABLE_ID = "t";
 const TEST_EXECUTION_ID = "abc12345-6789-abcd-ef01-234567890abc";
-const BASE_TS = 1_700_000_000;
+const BASE_TIMESTAMP_SECONDS = 1_700_000_000;
 const TEN_MINUTES_IN_SECONDS = 600;
 const NAVIGABLE_PROPS = { appKey: "my_app", handlerKind: "job", handlerId: 1 } as const;
 const EXPECTED_DETAIL_PATH = `/apps/${NAVIGABLE_PROPS.appKey}/handlers/${NAVIGABLE_PROPS.handlerKind}/${NAVIGABLE_PROPS.handlerId}/exec/${TEST_EXECUTION_ID}`;
@@ -55,9 +55,9 @@ describe("ExecutionTable", () => {
 
   it("renders correct number of rows", () => {
     const records = [
-      createExecution("job", { execution_start_ts: BASE_TS + 1 }),
-      createExecution("job", { execution_start_ts: BASE_TS + 2 }),
-      createExecution("job", { execution_start_ts: BASE_TS + 3 }),
+      createExecution("job", { execution_start_ts: BASE_TIMESTAMP_SECONDS + 1 }),
+      createExecution("job", { execution_start_ts: BASE_TIMESTAMP_SECONDS + 2 }),
+      createExecution("job", { execution_start_ts: BASE_TIMESTAMP_SECONDS + 3 }),
     ];
     const { container } = render(<ExecutionTable records={records} kind="job" tableId={INCIDENTAL_TABLE_ID} />);
     expect(container.querySelectorAll("[data-testid='execution-row']").length).toBe(3);
@@ -98,8 +98,8 @@ describe("ExecutionTable", () => {
   });
 
   it("renders formatted duration, relative time, and timestamp tooltip", () => {
-    const executionStart = BASE_TS;
-    const now = BASE_TS + TEN_MINUTES_IN_SECONDS;
+    const executionStart = BASE_TIMESTAMP_SECONDS;
+    const now = BASE_TIMESTAMP_SECONDS + TEN_MINUTES_IN_SECONDS;
     vi.useFakeTimers();
     vi.setSystemTime(now * 1000);
 
@@ -209,14 +209,18 @@ describe("ExecutionTable", () => {
   });
 
   it("shows Show More button when records exceed 5", () => {
-    const records = Array.from({ length: 6 }, (_, i) => createExecution("job", { execution_start_ts: BASE_TS + i }));
+    const records = Array.from({ length: 6 }, (_, i) =>
+      createExecution("job", { execution_start_ts: BASE_TIMESTAMP_SECONDS + i }),
+    );
     const { getByRole } = render(<ExecutionTable records={records} kind="job" tableId={INCIDENTAL_TABLE_ID} />);
     expect(getByRole("button", { name: /show all/i })).toBeDefined();
   });
 
   it("clicking Show More reveals the remaining rows and flips the button to Show less", async () => {
     const user = userEvent.setup();
-    const records = Array.from({ length: 6 }, (_, i) => createExecution("job", { execution_start_ts: BASE_TS + i }));
+    const records = Array.from({ length: 6 }, (_, i) =>
+      createExecution("job", { execution_start_ts: BASE_TIMESTAMP_SECONDS + i }),
+    );
     const { container, getByRole } = render(
       <ExecutionTable records={records} kind="job" tableId={INCIDENTAL_TABLE_ID} />,
     );
@@ -230,7 +234,9 @@ describe("ExecutionTable", () => {
   });
 
   it("does not show Show More button for 5 or fewer", () => {
-    const records = Array.from({ length: 5 }, (_, i) => createExecution("job", { execution_start_ts: BASE_TS + i }));
+    const records = Array.from({ length: 5 }, (_, i) =>
+      createExecution("job", { execution_start_ts: BASE_TIMESTAMP_SECONDS + i }),
+    );
     const { queryByRole } = render(<ExecutionTable records={records} kind="job" tableId={INCIDENTAL_TABLE_ID} />);
     expect(queryByRole("button", { name: /show all/i })).toBeNull();
   });
@@ -270,8 +276,8 @@ describe("ExecutionTable", () => {
   it("moves the roving tabindex between rows with arrow keys", async () => {
     const user = userEvent.setup();
     const records = [
-      createExecution("job", { execution_start_ts: BASE_TS + 1 }),
-      createExecution("job", { execution_start_ts: BASE_TS + 2 }),
+      createExecution("job", { execution_start_ts: BASE_TIMESTAMP_SECONDS + 1 }),
+      createExecution("job", { execution_start_ts: BASE_TIMESTAMP_SECONDS + 2 }),
     ];
     const { container } = render(<ExecutionTable records={records} kind="job" tableId={INCIDENTAL_TABLE_ID} />);
     const rows = container.querySelectorAll<HTMLElement>("[data-testid='execution-row']");
