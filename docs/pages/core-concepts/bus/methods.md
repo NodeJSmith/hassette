@@ -217,6 +217,13 @@ Raises `asyncio.TimeoutError` when no matching event arrives within `timeout` se
 
 `wait_for` skips `guard_await`, the wrapper the other registration methods use to catch a forgotten `await`. It returns an `Event`, not a `Subscription`, so there's no listener handle to silently drop — Python's own `coroutine was never awaited` warning already covers this case.
 
+!!! warning "`wait_for` holds resources for the entire wait — prefer a finite `timeout`"
+    A pending `wait_for` ties up shared resources until it resolves, times out, or is cancelled. Three cases matter:
+
+    - **Dispatch slots.** A handler that calls `wait_for` holds its dispatch slot (`max_concurrent_dispatches`, default 50) for the full duration of the wait. Enough concurrent handlers parked in `wait_for` exhaust all slots and block all new event delivery — including the events the waiters need. The default `mode="single"` helps here — it caps each listener to one in-flight invocation, so a single listener can only park one `wait_for` at a time. Avoid `mode="parallel"` on handlers that call `wait_for`, since every concurrent re-fire spawns another parked wait. Use a finite `timeout` and keep the total number of concurrent `wait_for` calls well below the dispatch limit.
+    - **Sync worker threads.** `self.sync.bus.wait_for(topic, timeout=None)` pins one of the small, fixed `SyncExecutor` pool threads with no cancellation path. Always use a finite `timeout` from sync code.
+    - **Shutdown race.** If `remove_all_listeners()` runs while a `wait_for` registration is still completing its DB write (~1ms), the listener misses the sweep. With a finite `timeout` the wait times out normally; with `timeout=None` it hangs until process exit. The window is extremely narrow in practice.
+
 ### Composition Recipes
 
 `wait_for` composes with `self.api.call_service()` to write automations that wait for a physical effect before moving on. Two patterns cover most cases.

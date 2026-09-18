@@ -224,9 +224,13 @@ class Bus(Resource):
                 else:
                     self.logger.warning(
                         "Cancelling pending wait_for future for listener '%s' on topic '%s' "
-                        "(listener removed before a matching event arrived; %d wait_for future(s) still pending)",
+                        "(app_key=%s, instance=%s, db_id=%s; listener removed before a matching event arrived; "
+                        "%d wait_for future(s) still pending)",
                         listener.identity.name,
                         listener.topic,
+                        listener.identity.app_key,
+                        listener.identity.instance_index,
+                        listener.db_id,
                         len(self._wait_for_futures),
                     )
                 fut.cancel()
@@ -1753,14 +1757,19 @@ class Bus(Resource):
         )
 
         db_id = subscription.listener.db_id
-        assert db_id is not None, "listener db_id must be set immediately after registration"
+        if db_id is None:
+            subscription.cancel()
+            raise RuntimeError("listener db_id was None after registration — listener has been cancelled")
         self._wait_for_futures[db_id] = fut
 
         if len(self._wait_for_futures) == WAIT_FOR_PENDING_WARNING_THRESHOLD:
             self.logger.warning(
-                "Bus has %d pending wait_for futures — this may indicate a leak "
-                "(e.g. a retry loop that never lets prior waits resolve or time out)",
+                "Bus has %d pending wait_for futures (app_key=%s, instance=%s) — this may indicate a leak "
+                "(e.g. a retry loop that never lets prior waits resolve or time out). "
+                "Note: this count is per-Bus instance, not process-wide",
                 len(self._wait_for_futures),
+                subscription.listener.identity.app_key,
+                subscription.listener.identity.instance_index,
             )
 
         try:

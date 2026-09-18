@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 
 from hassette import App, AppConfig, P
 
@@ -23,9 +24,15 @@ class WaitForApp(App[AppConfig]):
                 timeout=5,
             )
         )
-        await self.api.call_service(
-            "light", "turn_on", entity_id="light.kitchen"
-        )
+        try:
+            await self.api.call_service(
+                "light", "turn_on", entity_id="light.kitchen"
+            )
+        except Exception:
+            wait_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await wait_task
+            raise
         event = await wait_task
         # --8<-- [end:arm_before_fire]
         self.logger.info("Confirmed on: %s", event.topic)
@@ -41,9 +48,15 @@ class WaitForApp(App[AppConfig]):
                 timeout=5,
             )
         )
-        await self.api.call_service(
-            "media_player", "media_play", entity_id=entity_id
-        )
+        try:
+            await self.api.call_service(
+                "media_player", "media_play", entity_id=entity_id
+            )
+        except Exception:
+            started.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await started
+            raise
         await started
 
         await self.bus.wait_for(
