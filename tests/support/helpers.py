@@ -668,7 +668,7 @@ def first_json_record_containing(stream: StringIO, text: str) -> dict[str, Any]:
 
 
 @contextmanager
-def failed_auth_warn_capture(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
+def capture_failed_auth_warn(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
     """Capture WARN records from the failed-auth middleware logger for the wrapped block.
 
     Shared by `tests/unit/web/test_middleware.py` (drives `_FailedAuthTracker` directly) and
@@ -686,4 +686,6 @@ def assert_failed_auth_warn_count(caplog: pytest.LogCaptureFixture, expected: in
     `src/hassette/web/middleware.py` can't silently make every call site match zero records.
     """
     warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
-    assert len(warn_records) == expected
+    assert len(warn_records) == expected, (
+        f"expected {expected} 'failed auth attempts' WARN record(s), got {len(warn_records)}: {warn_records!r}"
+    )

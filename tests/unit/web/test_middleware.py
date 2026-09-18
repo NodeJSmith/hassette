@@ -27,7 +27,7 @@ from hassette.web.middleware import (
     MAX_TRACKED_SOURCES,
     _FailedAuthTracker,
 )
-from tests.support.helpers import assert_failed_auth_warn_count, failed_auth_warn_capture
+from tests.support.helpers import assert_failed_auth_warn_count, capture_failed_auth_warn
 
 
 class _FakeClock:
@@ -52,7 +52,7 @@ class TestFailedAuthTracker:
     def test_record_below_threshold_does_not_warn(self, caplog: pytest.LogCaptureFixture) -> None:
         tracker = _FailedAuthTracker()
 
-        with failed_auth_warn_capture(caplog):
+        with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD - 1):
                 tracker.record("203.0.113.1")
 
@@ -61,7 +61,7 @@ class TestFailedAuthTracker:
     def test_record_reaching_threshold_warns_exactly_once(self, caplog: pytest.LogCaptureFixture) -> None:
         tracker = _FailedAuthTracker()
 
-        with failed_auth_warn_capture(caplog):
+        with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD + 5):
                 tracker.record("203.0.113.1")
 
@@ -70,7 +70,7 @@ class TestFailedAuthTracker:
     def test_distinct_sources_tracked_independently(self, caplog: pytest.LogCaptureFixture) -> None:
         tracker = _FailedAuthTracker()
 
-        with failed_auth_warn_capture(caplog):
+        with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD):
                 tracker.record("203.0.113.1")
             for _ in range(FAILED_AUTH_THRESHOLD):
@@ -123,7 +123,7 @@ class TestFailedAuthTracker:
         fake_clock = _FakeClock()
         tracker = _FailedAuthTracker(clock=fake_clock)
 
-        with failed_auth_warn_capture(caplog):
+        with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD):
                 tracker.record("203.0.113.1")
 
@@ -140,7 +140,7 @@ class TestFailedAuthTracker:
         fake_clock = _FakeClock()
         tracker = _FailedAuthTracker(clock=fake_clock)
 
-        with failed_auth_warn_capture(caplog):
+        with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD - 1):
                 tracker.record("203.0.113.1")
 
@@ -165,7 +165,7 @@ class TestFailedAuthTracker:
         fake_clock = _FakeClock()
         tracker = _FailedAuthTracker(clock=fake_clock)
 
-        with failed_auth_warn_capture(caplog):
+        with capture_failed_auth_warn(caplog):
             tracker.record("203.0.113.1")  # the eventual "oldest" survivor
 
             # Advance just short of the window so the next 9 attempts land well inside it,

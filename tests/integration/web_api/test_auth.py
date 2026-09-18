@@ -30,7 +30,7 @@ from hassette.web.auth.trusted_proxies import refresh_trusted_proxies, resolve_t
 from hassette.web.middleware import FAILED_AUTH_THRESHOLD
 from tests.support.helpers import (
     assert_failed_auth_warn_count,
-    failed_auth_warn_capture,
+    capture_failed_auth_warn,
     make_addrinfo,
     patch_loop_getaddrinfo,
 )
@@ -322,7 +322,7 @@ class TestFailedAuthCounting:
     async def test_burst_against_gated_route_produces_one_coalesced_warn(
         self, auth_client: AsyncClient, caplog: pytest.LogCaptureFixture
     ) -> None:
-        with failed_auth_warn_capture(caplog):
+        with capture_failed_auth_warn(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD):
                 resp = await auth_client.get(CONFIG_PATH, headers={"Authorization": f"Bearer {_WRONG_TOKEN}"})
                 assert resp.status_code == 401
@@ -343,7 +343,7 @@ class TestFailedAuthCounting:
         app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)
 
         transport = ASGITransport(app=app)
-        with failed_auth_warn_capture(caplog):
+        with capture_failed_auth_warn(caplog):
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 for _ in range(FAILED_AUTH_THRESHOLD):
                     resp = await client.post(AUTH_SESSION_PATH, json={"token": _WRONG_TOKEN})
