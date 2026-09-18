@@ -728,6 +728,29 @@ async def test_run_failsafe_tier_vacuum_failure_recovers_on_retry(
     assert under_limit is True
 
 
+async def test_run_failsafe_tier_empty_tier_does_not_consume_iteration_budget(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """An empty tier (zero rows to delete) must not consume the shared iteration budget.
+
+    When the first-priority tier has no data, its iterations_used should be 0 so that
+    subsequent lower-priority tiers still get their full budget.
+    """
+    # Table is empty — nothing to delete.
+    with patch.object(service, "get_db_size_mb", return_value=100.0):
+        deleted_by_table, _under_limit, iterations_used = await service._run_failsafe_tier(
+            memory_db,
+            [WIDGETS_TARGET],
+            batch_limit=FAILSAFE_TIER_BATCH_LIMIT,
+            max_iterations=1,
+            max_size_mb=FAILSAFE_TIER_MAX_SIZE_MB,
+            vacuum_pages=FAILSAFE_TIER_VACUUM_PAGES,
+        )
+
+    assert deleted_by_table == {"widgets": 0}
+    assert iterations_used == 0
+
+
 async def test_vacuum_and_checkpoint_busy_checkpoint_treated_as_failure(
     service: DatabaseService, memory_db: aiosqlite.Connection
 ) -> None:

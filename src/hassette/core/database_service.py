@@ -902,7 +902,6 @@ class DatabaseService(Service):
         iterations_used = 0
 
         for iteration in range(max_iterations):
-            iterations_used += 1
             iteration_deleted: dict[str, int] = {t.table: 0 for t in group}
             group_deleted = 0
             for target in group:
@@ -921,6 +920,11 @@ class DatabaseService(Service):
             for table, count in iteration_deleted.items():
                 deleted_by_table[table] += count
 
+            if group_deleted == 0:
+                break
+
+            iterations_used += 1
+
             # Commit releases the write lock before vacuuming. PRAGMA wal_checkpoint(TRUNCATE)
             # below cannot run while the delete statements hold a write lock — without this
             # commit it fails with "database table is locked". A failure here doesn't undo
@@ -932,9 +936,6 @@ class DatabaseService(Service):
                     "Size failsafe: commit failed for %s, moving to next tier",
                     group_label,
                 )
-                break
-
-            if group_deleted == 0:
                 break
 
             # A single bounded retry: a transient vacuum/checkpoint failure (e.g. a
