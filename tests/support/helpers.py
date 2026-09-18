@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiosqlite
 import anyio
 import tomli_w
 
@@ -30,6 +31,7 @@ from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import create_state_change_event
 from hassette.testing._simulation import create_component_loaded_event as create_component_loaded_event
 from hassette.testing._simulation import create_service_registered_event as create_service_registered_event
+from hassette.testing.config import TEST_SOURCE_LOCATION
 from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceRole, ResourceStatus, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
 
@@ -509,6 +511,28 @@ def patch_loop_getaddrinfo(
     if side_effect is not None:
         return patch("asyncio.BaseEventLoop.getaddrinfo", new_callable=AsyncMock, side_effect=side_effect)
     return patch("asyncio.BaseEventLoop.getaddrinfo", new_callable=AsyncMock, return_value=return_value)
+
+
+async def seed_listener_for_fk(
+    db: aiosqlite.Connection,
+    *,
+    app_key: str = "test.App",
+    instance_index: int = 0,
+    name: str = "test_listener",
+    handler_method: str = "on_event",
+    topic: str = "state_changed",
+) -> None:
+    """Insert a minimal listener row and commit, for tests needing a valid FK target.
+
+    ``name`` is NOT NULL in the unified schema, so any test writing to a table with a
+    listener_id foreign key needs a real listener row to reference.
+    """
+    await db.execute(
+        "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        (app_key, instance_index, name, handler_method, topic, TEST_SOURCE_LOCATION),
+    )
+    await db.commit()
 
 
 def create_listener(

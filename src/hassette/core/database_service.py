@@ -56,6 +56,11 @@ _DRAIN_TIMEOUT_POOL_FRACTION = 0.5
 _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
 
+_VACUUM_CHECKPOINT_RETRY_ATTEMPTS = 2
+"""Attempts _run_failsafe_tier() makes for the incremental_vacuum/wal_checkpoint pair before
+giving up on the current tier. One retry absorbs a transient lock; a second consecutive
+failure moves on to the next priority tier instead of retrying indefinitely."""
+
 # dup-ignore-start: production source of truth for the log_records column set, asserted against
 # verbatim by tests/unit/core/test_log_records.py and mirrored independently in
 # tests/integration/database/test_database_service_migrations.py's EXPECTED_TABLES literal (a
@@ -872,9 +877,12 @@ class DatabaseService(Service):
         Returns a tuple of (per-table deleted counts for this tier, whether the database is
         now at or under ``max_size_mb``). The size check always runs after the loop exits,
         regardless of exit reason (iterations exhausted, zero rows deleted, or under limit).
-        Per-iteration counts are only merged into the returned totals after a successful
-        commit — a failed commit means that iteration's deletes were not durably persisted,
-        so they must not be reported as deleted.
+        Per-iteration counts are merged into the returned totals as soon as the deletes
+        execute — aiosqlite opens connections with isolation_level=None (autocommit), so
+        each DELETE is already durably persisted the instant it executes, independent of
+        the later commit() call below. A failed commit or vacuum/checkpoint ends this tier's
+        loop early (so the caller can move on to the next tier) but does not undo or change
+        the deletes already counted for this iteration.
         """
         deleted_by_table: dict[str, int] = {t.table: 0 for t in group}
         group_label = ", ".join(t.failsafe_label for t in group)
@@ -893,9 +901,15 @@ class DatabaseService(Service):
                         target.table,
                     )
 
-            # Commit the batch before vacuuming. PRAGMA wal_checkpoint(TRUNCATE) below
-            # cannot run while the delete statements hold a write lock — without this
-            # commit it fails with "database table is locked".
+            # Deletes above are already durable (isolation_level=None means each DELETE
+            # autocommits on execute), so count them regardless of what commit() below does.
+            for table, count in iteration_deleted.items():
+                deleted_by_table[table] += count
+
+            # Commit releases the write lock before vacuuming. PRAGMA wal_checkpoint(TRUNCATE)
+            # below cannot run while the delete statements hold a write lock — without this
+            # commit it fails with "database table is locked". A failure here doesn't undo
+            # the deletes counted above; it just means this tier's loop ends early.
             try:
                 await db.commit()
             except Exception:
@@ -905,21 +919,15 @@ class DatabaseService(Service):
                 )
                 break
 
-            for table, count in iteration_deleted.items():
-                deleted_by_table[table] += count
-
             if group_deleted == 0:
                 break
 
-            try:
-                vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({vacuum_pages})")
-                await vacuum_cursor.close()
-                await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            except Exception:
-                self.logger.exception(
-                    "Size failsafe: vacuum/checkpoint failed for %s, moving to next tier",
-                    group_label,
-                )
+            # A single bounded retry: a transient vacuum/checkpoint failure (e.g. a
+            # momentary lock) shouldn't push the failsafe into deleting from a more
+            # valuable tier based on a size reading that's stale only because the WAL
+            # wasn't truncated -- the deletes already happened.
+            vacuum_ok = await self._vacuum_and_checkpoint_with_retry(db, vacuum_pages, group_label)
+            if not vacuum_ok:
                 break
 
             current_size = self.get_db_size_mb()
@@ -937,6 +945,36 @@ class DatabaseService(Service):
 
         under_limit = self.get_db_size_mb() <= max_size_mb
         return deleted_by_table, under_limit
+
+    async def _vacuum_and_checkpoint_with_retry(
+        self, db: aiosqlite.Connection, vacuum_pages: int, group_label: str
+    ) -> bool:
+        """Run PRAGMA incremental_vacuum + wal_checkpoint(TRUNCATE), retrying on failure.
+
+        Returns True if the vacuum/checkpoint pair succeeded on any attempt (up to
+        ``_VACUUM_CHECKPOINT_RETRY_ATTEMPTS``), False if every attempt failed.
+        """
+        for attempt in range(_VACUUM_CHECKPOINT_RETRY_ATTEMPTS):
+            try:
+                vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({vacuum_pages})")
+                await vacuum_cursor.close()
+                await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                return True
+            except Exception:
+                attempts_left = _VACUUM_CHECKPOINT_RETRY_ATTEMPTS - attempt - 1
+                if attempts_left > 0:
+                    self.logger.warning(
+                        "Size failsafe: vacuum/checkpoint failed for %s, %d attempt(s) left",
+                        group_label,
+                        attempts_left,
+                    )
+                else:
+                    self.logger.exception(
+                        "Size failsafe: vacuum/checkpoint failed after %d attempts for %s, moving to next tier",
+                        _VACUUM_CHECKPOINT_RETRY_ATTEMPTS,
+                        group_label,
+                    )
+        return False
 
     async def _check_size_failsafe(self) -> None:
         """Delete oldest records if database exceeds the configured size limit.

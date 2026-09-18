@@ -13,11 +13,11 @@ from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, _execute_failsafe_delete
 from hassette.resources.lifecycle import compute_shutdown_budget
 from hassette.utils.aiosqlite_utils import connect_daemon
-from tests.support.factories import TEST_SOURCE_LOCATION
 from tests.support.helpers import (
     DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
     DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
     async_noop,
+    seed_listener_for_fk,
 )
 from tests.support.mock_hassette import make_mock_hassette
 
@@ -205,13 +205,7 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     session_id = initialized_service.hassette.session_id
     db = initialized_service.db
 
-    # Insert a listener for FK reference (name is NOT NULL in the unified schema)
-    await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        ("test.App", 0, "test_listener", "on_event", "state_changed", TEST_SOURCE_LOCATION),
-    )
-    await db.commit()
+    await seed_listener_for_fk(db)
 
     # Insert a scheduled_job for FK reference
     await db.execute(
@@ -300,6 +294,44 @@ async def test_retention_cleanup_rolls_back_on_partial_failure(initialized_servi
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] == 1, "rollback() should have reverted the first target's delete"
+
+
+async def test_retention_cleanup_logs_when_rollback_also_fails(initialized_service: DatabaseService) -> None:
+    """When both the primary delete and the subsequent rollback() raise, the method still
+    swallows both exceptions (does not propagate) and logs each failure separately.
+
+    Covers the inner `except Exception: self.logger.exception(...)` branch wrapping the
+    rollback() call in _do_run_retention_cleanup, which the partial-failure test above
+    doesn't exercise because its rollback() always succeeds.
+    """
+    db = initialized_service.db
+    real_execute = db.execute
+
+    async def failing_execute(sql: str, *args: object, **kwargs: object):
+        if sql.startswith("DELETE FROM executions"):
+            raise sqlite3.OperationalError("forced primary failure")
+        return await real_execute(sql, *args, **kwargs)
+
+    with (
+        patch.object(db, "execute", side_effect=failing_execute),
+        patch.object(db, "rollback", AsyncMock(side_effect=sqlite3.OperationalError("forced rollback failure"))),
+        patch.object(initialized_service, "logger") as mock_logger,
+    ):
+        # Must not propagate — both the primary failure and the rollback failure are caught and logged.
+        await initialized_service._do_run_retention_cleanup()
+
+    assert mock_logger.exception.call_count >= 2, (
+        f"Expected logger.exception for both the rollback failure and the cleanup failure, "
+        f"got {mock_logger.exception.call_args_list}"
+    )
+
+    # The mocked rollback() never touched the real connection, so it's still mid-transaction
+    # at this point -- that's expected, not a bug. What matters is that the connection isn't
+    # permanently wedged: a real rollback (patches removed above) must still succeed and
+    # return it to a clean state for subsequent writes.
+    assert db.in_transaction is True
+    await db.rollback()
+    assert db.in_transaction is False
 
 
 async def test_serve_exits_on_shutdown(initialized_service: DatabaseService) -> None:
@@ -635,13 +667,7 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
     session_id = initialized_service.hassette.session_id
     db = initialized_service.db
 
-    # Insert a listener for FK reference (name is NOT NULL in the unified schema)
-    await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        ("test.App", 0, "test_listener", "on_event", "state_changed", TEST_SOURCE_LOCATION),
-    )
-    await db.commit()
+    await seed_listener_for_fk(db)
 
     # Insert some executions so there is something for the size failsafe to delete
     now = time.time()
@@ -723,13 +749,7 @@ async def test_run_failsafe_tier_isolates_per_target_delete_failures(initialized
     session_id = initialized_service.hassette.session_id
     db = initialized_service.db
 
-    # Insert a listener for FK reference (name is NOT NULL in the unified schema)
-    await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, source_location)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        ("test.App", 0, "test_listener", "on_event", "state_changed", TEST_SOURCE_LOCATION),
-    )
-    await db.commit()
+    await seed_listener_for_fk(db)
 
     now = time.time()
     for i in range(5):

@@ -18,6 +18,7 @@ from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.log_models import LogRecord
 from hassette.testing.config import LATEST_MIGRATION_VERSION
 from hassette.utils.aiosqlite_utils import connect_daemon
+from tests.support.factories import make_log_record_dict
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
 
@@ -157,21 +158,16 @@ class TestRestartPersistence:
         run_migrations_to_head(db_path)
 
         records = [
-            {
-                "seq": i,
-                "timestamp": time.time(),
-                "level": "INFO",
-                "logger_name": "hassette.test",
-                "func_name": "test_fn",
-                "lineno": 10,
-                "message": f"persist_{i}",
-                "exc_info": None,
-                "app_key": "test_app",
-                "instance_name": None,
-                "instance_index": None,
-                "execution_id": "exec-restart-test",
-                "source_tier": "app",
-            }
+            make_log_record_dict(
+                seq=i,
+                timestamp=time.time(),
+                logger_name="hassette.test",
+                func_name="test_fn",
+                lineno=10,
+                message=f"persist_{i}",
+                app_key="test_app",
+                execution_id="exec-restart-test",
+            )
             for i in range(5)
         ]
 
@@ -198,41 +194,52 @@ class TestRestartPersistence:
                 assert f"persist_{i}" in messages
 
 
+def _make_rollback_test_record(now: float) -> dict:
+    """Single log-record dict shared by the executemany-failure rollback tests below."""
+    return make_log_record_dict(
+        seq=1,
+        timestamp=now,
+        logger_name="my.logger",
+        func_name="run",
+        lineno=10,
+        message="hello",
+        app_key="my_app",
+        instance_name="my_app_0",
+        instance_index=0,
+        execution_id="exec-001",
+    )
+
+
 class TestInsertLogRecords:
     async def test_insert_writes_records(self, db: aiosqlite.Connection, db_service: DatabaseService) -> None:
         """_insert_log_records() inserts records that are queryable."""
         now = time.time()
         records = [
-            {
-                "seq": 1,
-                "timestamp": now,
-                "level": "INFO",
-                "logger_name": "my.logger",
-                "func_name": "run",
-                "lineno": 10,
-                "message": "hello",
-                "exc_info": None,
-                "app_key": "my_app",
-                "instance_name": "my_app_0",
-                "instance_index": 0,
-                "execution_id": "exec-001",
-                "source_tier": "app",
-            },
-            {
-                "seq": 2,
-                "timestamp": now + 0.001,
-                "level": "WARNING",
-                "logger_name": "my.logger",
-                "func_name": "run",
-                "lineno": 20,
-                "message": "warn msg",
-                "exc_info": None,
-                "app_key": "my_app",
-                "instance_name": "my_app_0",
-                "instance_index": 0,
-                "execution_id": "exec-001",
-                "source_tier": "app",
-            },
+            make_log_record_dict(
+                seq=1,
+                timestamp=now,
+                logger_name="my.logger",
+                func_name="run",
+                lineno=10,
+                message="hello",
+                app_key="my_app",
+                instance_name="my_app_0",
+                instance_index=0,
+                execution_id="exec-001",
+            ),
+            make_log_record_dict(
+                seq=2,
+                timestamp=now + 0.001,
+                level="WARNING",
+                logger_name="my.logger",
+                func_name="run",
+                lineno=20,
+                message="warn msg",
+                app_key="my_app",
+                instance_name="my_app_0",
+                instance_index=0,
+                execution_id="exec-001",
+            ),
         ]
         await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
@@ -253,21 +260,20 @@ class TestInsertLogRecords:
         now = time.time()
         exc_text = "Traceback: something went wrong"
         records = [
-            {
-                "seq": 5,
-                "timestamp": now,
-                "level": "ERROR",
-                "logger_name": "app.module",
-                "func_name": "handler",
-                "lineno": 42,
-                "message": "something failed",
-                "exc_info": exc_text,
-                "app_key": "test_app",
-                "instance_name": "test_app_0",
-                "instance_index": 0,
-                "execution_id": "exec-xyz",
-                "source_tier": "app",
-            }
+            make_log_record_dict(
+                seq=5,
+                timestamp=now,
+                level="ERROR",
+                logger_name="app.module",
+                func_name="handler",
+                lineno=42,
+                message="something failed",
+                exc_info=exc_text,
+                app_key="test_app",
+                instance_name="test_app_0",
+                instance_index=0,
+                execution_id="exec-xyz",
+            )
         ]
         await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
@@ -293,21 +299,14 @@ class TestInsertLogRecords:
         """Framework records with no app_key (None) are inserted correctly."""
         now = time.time()
         records = [
-            {
-                "seq": 1,
-                "timestamp": now,
-                "level": "INFO",
-                "logger_name": "hassette.core",
-                "func_name": "startup",
-                "lineno": 5,
-                "message": "framework log",
-                "exc_info": None,
-                "app_key": None,
-                "instance_name": None,
-                "instance_index": None,
-                "execution_id": None,
-                "source_tier": "framework",
-            }
+            make_log_record_dict(
+                timestamp=now,
+                logger_name="hassette.core",
+                func_name="startup",
+                lineno=5,
+                message="framework log",
+                source_tier="framework",
+            )
         ]
         await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
@@ -322,23 +321,7 @@ class TestInsertLogRecords:
     ) -> None:
         """A failed executemany() rolls back the transaction and re-raises to the caller."""
         now = time.time()
-        records = [
-            {
-                "seq": 1,
-                "timestamp": now,
-                "level": "INFO",
-                "logger_name": "my.logger",
-                "func_name": "run",
-                "lineno": 10,
-                "message": "hello",
-                "exc_info": None,
-                "app_key": "my_app",
-                "instance_name": "my_app_0",
-                "instance_index": 0,
-                "execution_id": "exec-001",
-                "source_tier": "app",
-            }
-        ]
+        records = [_make_rollback_test_record(now)]
 
         with (
             patch.object(db, "executemany", AsyncMock(side_effect=sqlite3.OperationalError("database is locked"))),
@@ -353,71 +336,84 @@ class TestInsertLogRecords:
         row = await cursor.fetchone()
         assert row[0] == 0
 
+    async def test_insert_reraises_original_error_when_rollback_also_fails(
+        self, db: aiosqlite.Connection, db_service: DatabaseService
+    ) -> None:
+        """When rollback() itself fails after executemany() fails, the original executemany
+        error still propagates to the caller (not the rollback failure), and the rollback
+        failure is logged via self.logger.exception before the re-raise.
+        """
+        now = time.time()
+        records = [_make_rollback_test_record(now)]
+        mock_logger = MagicMock()
+        db_service.logger = mock_logger  # pyright: ignore[reportAttributeAccessIssue]
+
+        with (
+            patch.object(db, "executemany", AsyncMock(side_effect=sqlite3.OperationalError("database is locked"))),
+            patch.object(db, "rollback", AsyncMock(side_effect=sqlite3.OperationalError("rollback also failed"))),
+            pytest.raises(sqlite3.OperationalError, match="database is locked"),
+        ):
+            await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+
+        mock_logger.exception.assert_called_once()
+
+        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+        row = await cursor.fetchone()
+        assert row[0] == 0
+
 
 async def seed_log_records(db_service: DatabaseService) -> None:
     """Insert a set of log records for filter tests."""
     now = time.time()
     records = [
-        {
-            "seq": 1,
-            "timestamp": now - 100,
-            "level": "DEBUG",
-            "logger_name": "a",
-            "func_name": "f",
-            "lineno": 1,
-            "message": "debug msg",
-            "exc_info": None,
-            "app_key": "app_a",
-            "instance_name": "app_a_0",
-            "instance_index": 0,
-            "execution_id": "exec-1",
-            "source_tier": "app",
-        },
-        {
-            "seq": 2,
-            "timestamp": now - 50,
-            "level": "INFO",
-            "logger_name": "a",
-            "func_name": "f",
-            "lineno": 2,
-            "message": "info msg",
-            "exc_info": None,
-            "app_key": "app_a",
-            "instance_name": "app_a_0",
-            "instance_index": 0,
-            "execution_id": "exec-1",
-            "source_tier": "app",
-        },
-        {
-            "seq": 3,
-            "timestamp": now - 25,
-            "level": "ERROR",
-            "logger_name": "b",
-            "func_name": "g",
-            "lineno": 3,
-            "message": "error msg",
-            "exc_info": None,
-            "app_key": "app_b",
-            "instance_name": "app_b_0",
-            "instance_index": 0,
-            "execution_id": "exec-2",
-            "source_tier": "app",
-        },
-        {
-            "seq": 4,
-            "timestamp": now - 10,
-            "level": "WARNING",
-            "logger_name": "hassette.core",
-            "func_name": "h",
-            "lineno": 4,
-            "message": "framework warn",
-            "exc_info": None,
-            "app_key": None,
-            "instance_name": None,
-            "instance_index": None,
-            "execution_id": None,
-            "source_tier": "framework",
-        },
+        make_log_record_dict(
+            seq=1,
+            timestamp=now - 100,
+            level="DEBUG",
+            logger_name="a",
+            func_name="f",
+            lineno=1,
+            message="debug msg",
+            app_key="app_a",
+            instance_name="app_a_0",
+            instance_index=0,
+            execution_id="exec-1",
+        ),
+        make_log_record_dict(
+            seq=2,
+            timestamp=now - 50,
+            logger_name="a",
+            func_name="f",
+            lineno=2,
+            message="info msg",
+            app_key="app_a",
+            instance_name="app_a_0",
+            instance_index=0,
+            execution_id="exec-1",
+        ),
+        make_log_record_dict(
+            seq=3,
+            timestamp=now - 25,
+            level="ERROR",
+            logger_name="b",
+            func_name="g",
+            lineno=3,
+            message="error msg",
+            app_key="app_b",
+            instance_name="app_b_0",
+            instance_index=0,
+            execution_id="exec-2",
+        ),
+        make_log_record_dict(
+            seq=4,
+            timestamp=now - 10,
+            level="WARNING",
+            logger_name="hassette.core",
+            func_name="h",
+            lineno=4,
+            message="framework warn",
+            source_tier="framework",
+        ),
     ]
     await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
@@ -438,21 +434,17 @@ class TestGetLogRecords:
         now = time.time()
 
         def log(seq: int, timestamp: float, message: str) -> dict[str, object]:
-            return {
-                "seq": seq,
-                "timestamp": timestamp,
-                "level": "INFO",
-                "logger_name": "hassette.test",
-                "func_name": "f",
-                "lineno": seq,
-                "message": message,
-                "exc_info": None,
-                "app_key": "app_a",
-                "instance_name": "app_a_0",
-                "instance_index": 0,
-                "execution_id": "exec-1",
-                "source_tier": "app",
-            }
+            return make_log_record_dict(
+                seq=seq,
+                timestamp=timestamp,
+                func_name="f",
+                lineno=seq,
+                message=message,
+                app_key="app_a",
+                instance_name="app_a_0",
+                instance_index=0,
+                execution_id="exec-1",
+            )
 
         records = [
             log(1, now - 10, "oldest"),
@@ -523,40 +515,35 @@ class TestGetLogRecordsByExecution:
     async def seed_for_execution(self, db_service: DatabaseService) -> None:
         now = time.time()
         records = [
-            {
-                "seq": i,
-                "timestamp": now + i * 0.001,
-                "level": "INFO",
-                "logger_name": "x",
-                "func_name": "f",
-                "lineno": i,
-                "message": f"msg {i}",
-                "exc_info": None,
-                "app_key": "app_x",
-                "instance_name": "x_0",
-                "instance_index": 0,
-                "execution_id": "exec-exec",
-                "source_tier": "app",
-            }
+            make_log_record_dict(
+                seq=i,
+                timestamp=now + i * 0.001,
+                logger_name="x",
+                func_name="f",
+                lineno=i,
+                message=f"msg {i}",
+                app_key="app_x",
+                instance_name="x_0",
+                instance_index=0,
+                execution_id="exec-exec",
+            )
             for i in range(1, 6)  # 5 records
         ]
         # Also add a record for a different execution
         records.append(
-            {
-                "seq": 99,
-                "timestamp": now + 10,
-                "level": "ERROR",
-                "logger_name": "y",
-                "func_name": "g",
-                "lineno": 1,
-                "message": "other exec",
-                "exc_info": None,
-                "app_key": "app_y",
-                "instance_name": "y_0",
-                "instance_index": 0,
-                "execution_id": "exec-other",
-                "source_tier": "app",
-            }
+            make_log_record_dict(
+                seq=99,
+                timestamp=now + 10,
+                level="ERROR",
+                logger_name="y",
+                func_name="g",
+                lineno=1,
+                message="other exec",
+                app_key="app_y",
+                instance_name="y_0",
+                instance_index=0,
+                execution_id="exec-other",
+            )
         )
         await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 

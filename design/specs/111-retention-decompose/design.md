@@ -1,7 +1,7 @@
 # Design: Decompose retention/size-failsafe methods
 
 **Date:** 2026-09-17
-**Status:** draft
+**Status:** archived
 **Mode:** sketch
 
 ## Problem
