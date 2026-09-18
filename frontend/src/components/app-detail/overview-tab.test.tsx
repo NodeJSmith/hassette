@@ -15,6 +15,7 @@ import {
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
+import { ENTRY_TESTID_PREFIX, entryTestId } from "./error-spotlight.test-helpers";
 import { HEALTH_EMPTY_TESTID, HEALTH_GRID_TESTID } from "./handler-health.test-helpers";
 import { OverviewTab } from "./overview-tab";
 
@@ -145,7 +146,7 @@ describe("OverviewTab — Error Spotlight", () => {
       createListener({ listener_id: 3, failed: 1 }),
     ];
     const { getAllByTestId, queryByTestId } = renderOverviewTab({ listeners, jobs: [] });
-    expect(getAllByTestId(/^overview-error-spotlight-entry-/).length).toBe(3);
+    expect(getAllByTestId(new RegExp(`^${ENTRY_TESTID_PREFIX}`)).length).toBe(3);
     expect(queryByTestId("overview-error-spotlight-show-more")).toBeNull();
   });
 
@@ -158,7 +159,7 @@ describe("OverviewTab — Error Spotlight", () => {
       createListener({ listener_id: 5, failed: 1 }),
     ];
     const { getAllByTestId, getByTestId } = renderOverviewTab({ listeners, jobs: [] });
-    expect(getAllByTestId(/^overview-error-spotlight-entry-/).length).toBe(3);
+    expect(getAllByTestId(new RegExp(`^${ENTRY_TESTID_PREFIX}`)).length).toBe(3);
     const btn = getByTestId("overview-error-spotlight-show-more");
     expect(btn.textContent).toContain("2");
   });
@@ -172,9 +173,9 @@ describe("OverviewTab — Error Spotlight", () => {
       createListener({ listener_id: 4, failed: 1 }),
     ];
     const { getAllByTestId, getByTestId } = renderOverviewTab({ listeners, jobs: [] });
-    expect(getAllByTestId(/^overview-error-spotlight-entry-/).length).toBe(3);
+    expect(getAllByTestId(new RegExp(`^${ENTRY_TESTID_PREFIX}`)).length).toBe(3);
     await user.click(getByTestId("overview-error-spotlight-show-more"));
-    expect(getAllByTestId(/^overview-error-spotlight-entry-/).length).toBe(4);
+    expect(getAllByTestId(new RegExp(`^${ENTRY_TESTID_PREFIX}`)).length).toBe(4);
   });
 
   it("links failing listener entry to handlers tab with correct listener ID", () => {
@@ -184,7 +185,7 @@ describe("OverviewTab — Error Spotlight", () => {
       appKey: OTHER_APP_KEY,
       instanceQs: "",
     });
-    const entry = getByTestId("overview-error-spotlight-entry-listener-7");
+    const entry = getByTestId(entryTestId("listener", 7));
     const anchor = entry.querySelector("a");
     expect(anchor).not.toBeNull();
     expect(anchor!.getAttribute("href")).toBe(`/apps/${OTHER_APP_KEY}/handlers/listener/7`);
@@ -197,7 +198,7 @@ describe("OverviewTab — Error Spotlight", () => {
       appKey: OTHER_APP_KEY,
       instanceQs: "",
     });
-    const entry = getByTestId("overview-error-spotlight-entry-job-20");
+    const entry = getByTestId(entryTestId("job", 20));
     const anchor = entry.querySelector("a");
     expect(anchor).not.toBeNull();
     expect(anchor!.getAttribute("href")).toBe(`/apps/${OTHER_APP_KEY}/handlers/job/20`);
@@ -210,7 +211,7 @@ describe("OverviewTab — Error Spotlight", () => {
       appKey: TEST_APP_KEY,
       instanceQs: "?instance=1",
     });
-    const entry = getByTestId("overview-error-spotlight-entry-listener-3");
+    const entry = getByTestId(entryTestId("listener", 3));
     const anchor = entry.querySelector("a");
     expect(anchor!.getAttribute("href")).toBe(`/apps/${TEST_APP_KEY}/handlers/listener/3?instance=1`);
   });
