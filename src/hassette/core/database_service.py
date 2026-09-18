@@ -1244,11 +1244,22 @@ class DatabaseService(Service):
                     )
                     group_failed = True
 
+                if group_deleted > 0:
+                    # The DELETE(s) above already autocommitted — isolation_level=None and no
+                    # explicit BEGIN means each execute() durably persisted immediately. Any
+                    # rows removed this iteration are gone from the database for good
+                    # regardless of whether the commit() call above (or a DELETE on another
+                    # target in this group) subsequently failed, so this iteration must still
+                    # count against the shared budget — otherwise a commit failure would let a
+                    # lower-priority tier receive undiminished budget for real work that
+                    # already happened (e.g. two full batches deleted in the same run at
+                    # size_failsafe_max_iterations=1, one from this tier and one from the next).
+                    iterations_used += 1
+
                 if group_failed:
-                    # This priority tier had a DELETE raise — stop retrying it and move on to
-                    # the next tier instead of aborting the whole failsafe run. The next hourly
-                    # cycle retries this tier from scratch. Nothing was actually deleted, so this
-                    # attempt doesn't spend any of the shared budget.
+                    # This priority tier had a DELETE or commit failure — stop retrying it and
+                    # move on to the next tier instead of aborting the whole failsafe run. The
+                    # next hourly cycle retries this tier from scratch.
                     any_tier_incomplete = True
                     break
 
@@ -1261,8 +1272,6 @@ class DatabaseService(Service):
                     # size_failsafe_max_iterations=1, where that confirmation alone eats the
                     # entire run).
                     break
-
-                iterations_used += 1
 
                 # A single bounded retry: a transient vacuum/checkpoint failure (e.g. a
                 # momentary lock) shouldn't push the failsafe into deleting from a more

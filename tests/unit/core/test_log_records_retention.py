@@ -1277,6 +1277,66 @@ class TestSizeFailsafe:
         # A commit failure is not a genuine full-tier drain — must not count as exhaustion.
         assert retention_service._consecutive_exhaustion_triggers == 0  # pyright: ignore[reportPrivateUsage]
 
+    async def test_size_failsafe_commit_failure_still_charges_shared_budget(
+        self,
+        db: aiosqlite.Connection,
+        mock_hassette_for_db: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+        retention_service: DatabaseService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A ``commit()`` failure right after a successful DELETE must still charge the
+        shared iteration budget. The DELETE already autocommitted before ``commit()`` was
+        even called (``isolation_level=None``, no explicit ``BEGIN``), so those rows are
+        durably gone from the database regardless of whether the subsequent commit call
+        fails — not charging the budget for that real, persisted work would let a
+        lower-priority tier receive undiminished budget for it, e.g. two full batches
+        deleted in the same run at ``size_failsafe_max_iterations=1``.
+
+        Regression test: an earlier version of this fix set the failure flag on a commit
+        failure without charging ``iterations_used``, treating a commit failure the same as
+        a DELETE that deleted nothing.
+        """
+        retention_service.hassette.config.database.size_failsafe_max_iterations = 1
+        retention_service.hassette.config.database.size_failsafe_delete_batch = 2
+
+        now = time.time()
+        for i in range(2):
+            await insert_tiered_execution(db, now - i, SOURCE_TIER_FRAMEWORK)
+        await insert_blocking_event(db, now - 1)
+        await insert_blocking_event(db, now - 2)
+        await db.commit()
+
+        original_commit = db.commit
+        commit_calls = 0
+
+        async def failing_commit() -> None:
+            nonlocal commit_calls
+            commit_calls += 1
+            if commit_calls == 1:
+                raise sqlite3.OperationalError("simulated commit failure")
+            await original_commit()
+
+        monkeypatch.setattr(db, "commit", failing_commit)
+
+        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+
+        with caplog.at_level(logging.INFO):
+            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+
+        # Framework's DELETE already autocommitted before the failing commit() call -- both
+        # rows are durably gone regardless of the subsequent commit failure.
+        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
+        assert (await cursor.fetchone())[0] == 0
+
+        # Blocking events got zero remaining budget -- framework's productive-but-commit-
+        # failed iteration correctly consumed the entire 1-iteration run, so blocking events
+        # is left untouched and capped rather than silently draining on undiminished budget.
+        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
+        assert (await cursor.fetchone())[0] == 2
+        assert "blocking events capped at 1 iterations" in caplog.text
+
     async def test_size_failsafe_capped_cycle_resets_exhaustion_streak(
         self,
         db: aiosqlite.Connection,
