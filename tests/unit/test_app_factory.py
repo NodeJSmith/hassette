@@ -22,6 +22,7 @@ def mock_registry():
     registry.register_app = Mock()
     registry.record_failure = Mock()
     registry.get = Mock(return_value=None)
+    registry.get_running_apps = Mock(return_value={})
     return cast("AppRegistry", registry)
 
 
@@ -296,6 +297,7 @@ class TestAppFactoryCreateInstances:
         # Index 0 is already running; index 1 is not.
         existing_app = Mock()
         mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 0 else None)
+        mock_registry.get_running_apps = Mock(return_value={0: existing_app})
         mock_load_class.return_value = Mock()
 
         factory.create_instances("test_app", mock_manifest, force_reload=True)
@@ -312,13 +314,36 @@ class TestAppFactoryCreateInstances:
         only mutate the module/class cache for nothing.
         """
         mock_manifest.app_config = [{"instance_name": "instance_0"}]
-        mock_registry.get = Mock(return_value=Mock())
+        existing_app = Mock()
+        mock_registry.get = Mock(return_value=existing_app)
+        mock_registry.get_running_apps = Mock(return_value={0: existing_app})
         mock_load_class.return_value = Mock()
 
         created = factory.create_instances("test_app", mock_manifest, force_reload=True)
 
         mock_load_class.assert_called_once_with(mock_manifest, force_reload=False)
         assert created == set()
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_create_instances_force_reload_ignored_for_out_of_range_running_orphan(
+        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """force_reload=True must also be downgraded when the only running instance of this
+        app_key sits at an index the *current* config no longer covers (e.g. the config shrank
+        from 2 instances to 1, leaving index 1 running as an orphan -- prune_stale_failed_indices()
+        only prunes stale failed entries, never running ones). The in-range live_indices set alone
+        would miss this and let the reload proceed, splitting the orphan and any newly-created
+        in-range instance across two class versions (Codex P2 finding on #2245, round 2).
+        """
+        mock_manifest.app_config = [{"instance_name": "instance_0"}]  # config shrank to 1 instance
+        orphan = Mock()
+        mock_registry.get = Mock(return_value=None)  # index 0 (the only configured index) is not live
+        mock_registry.get_running_apps = Mock(return_value={1: orphan})  # index 1 is an out-of-range orphan
+        mock_load_class.return_value = Mock()
+
+        factory.create_instances("test_app", mock_manifest, force_reload=True)
+
+        mock_load_class.assert_called_once_with(mock_manifest, force_reload=False)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_skips_already_running_indices(
