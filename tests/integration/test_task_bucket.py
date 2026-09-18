@@ -306,8 +306,8 @@ async def test_cancel_all_returns_names_still_pending(bucket: TaskBucket):
 async def test_run_sync_timeout_zero_fails_immediately(bucket: TaskBucket) -> None:
     """timeout_seconds=0 fails immediately instead of falling back to the config default.
 
-    Guards the ``if timeout_seconds is None`` semantics: an explicit 0 is a real value, not
-    ``None``, so it must not be replaced by the (non-zero) configured default.
+    Guards the ``if timeout_seconds is NOT_PROVIDED`` semantics: an explicit 0 is a real value,
+    not the sentinel, so it must not be replaced by the (non-zero) configured default.
     """
 
     async def never_returns() -> None:
@@ -315,3 +315,47 @@ async def test_run_sync_timeout_zero_fails_immediately(bucket: TaskBucket) -> No
 
     with pytest.raises(concurrent.futures.TimeoutError):
         await asyncio.to_thread(bucket.run_sync, never_returns(), timeout_seconds=0)
+
+
+async def test_run_sync_timeout_none_blocks_past_config_default(bucket: TaskBucket) -> None:
+    """timeout_seconds=None blocks past the configured default instead of being capped by it.
+
+    Guards `run_sync`'s `NOT_PROVIDED`-sentinel default: an explicit `None` is `run_sync`'s own
+    genuine "block forever" (matching `concurrent.futures.Future.result(timeout=None)`), not the
+    "use the config default" meaning `None` had before the sentinel flip. If `None` were still
+    treated as "unspecified," this coroutine would be timed out well before it completes. The
+    config default is patched down to a fraction of the coroutine's real delay so the assertion
+    is meaningful without a slow test.
+    """
+    release = asyncio.Event()
+
+    async def waits_past_default() -> int:
+        await asyncio.wait_for(release.wait(), timeout=5)
+        return 1
+
+    async def set_release_soon() -> None:
+        await asyncio.sleep(0.2)
+        release.set()
+
+    asyncio.create_task(set_release_soon(), name="release-soon")  # noqa: RUF006
+
+    with patch.object(bucket.hassette.config.lifecycle, "run_sync_timeout_seconds", 0.05):
+        result = await asyncio.to_thread(bucket.run_sync, waits_past_default(), timeout_seconds=None)
+    assert result == 1
+
+
+async def test_run_sync_omitted_timeout_uses_config_default(bucket: TaskBucket) -> None:
+    """Omitting timeout_seconds (the NOT_PROVIDED default) times out at the configured value.
+
+    The mirror of `test_run_sync_timeout_none_blocks_past_config_default`: proves the sentinel
+    default still reaches the config-default branch, not `None`'s new "block forever" meaning.
+    """
+
+    async def never_returns() -> None:
+        await asyncio.sleep(100)
+
+    with (
+        patch.object(bucket.hassette.config.lifecycle, "run_sync_timeout_seconds", 0.05),
+        pytest.raises(concurrent.futures.TimeoutError),
+    ):
+        await asyncio.to_thread(bucket.run_sync, never_returns())

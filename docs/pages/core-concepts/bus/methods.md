@@ -229,7 +229,10 @@ Create the `wait_for` task *before* calling the service, then await the task aft
 --8<-- "pages/core-concepts/bus/snippets/methods/wait_for.py:arm_before_fire"
 ```
 
-The ordering matters. `asyncio.create_task` schedules `wait_for` and starts registering its listener immediately, but registration is not guaranteed to complete before `call_service`'s WebSocket round-trip triggers the event — the listener registration writes to the local SQLite telemetry database (~1ms), which in practice finishes well before the round-trip to Home Assistant (~10ms or more), but the two are not synchronized. Arming the wait first shrinks that race window as much as this pattern can; it does not close it. A future composition primitive that awaits registration before firing the action would close the window entirely. Until one ships, `create_task` is the tool for this — reach for a stricter primitive later only if the residual race actually matters for a given automation.
+The ordering matters. `asyncio.create_task` schedules `wait_for` and starts registering its listener immediately, but registration is not guaranteed to complete before `call_service`'s WebSocket round-trip triggers the event — the listener registration writes to the local SQLite telemetry database (~1ms), which in practice finishes well before the round-trip to Home Assistant (~10ms or more), but the two are not synchronized.
+
+!!! warning "This race is narrowed, not closed"
+    Arming the wait first shrinks the window between registration and the triggering call — it does not close it. Closing it fully needs a primitive that awaits registration before firing the action, tracked as #2286 and not yet available. Until it ships, this arm-before-fire pattern is the best tool available; reach for a stricter primitive later only if the residual race actually matters for a given automation.
 
 #### Confirm started, then wait for idle
 

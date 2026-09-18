@@ -10,6 +10,7 @@ future; `where=` predicate filtering; the return value being a bare `Event`, nev
 
 import asyncio
 import contextlib
+import inspect
 import itertools
 import logging
 import types
@@ -69,9 +70,9 @@ async def _await_registration(ready: asyncio.Event) -> None:
     ready.clear()
 
 
-def _fire(listener: "Listener", event) -> None:
+async def _fire(listener: "Listener", event) -> None:
     """Simulate a router delivering `event` to `listener` (bypassing dispatch/task machinery)."""
-    listener.invoker.orig_handler(event)
+    await listener.invoker.orig_handler(event)
 
 
 async def test_wait_for_resolves_on_matching_event(bus: "Bus") -> None:
@@ -81,7 +82,36 @@ async def test_wait_for_resolves_on_matching_event(bus: "Bus") -> None:
         await _await_registration(ready)
 
         event = make_hassette_event(topic="test.topic")
-        _fire(registered[0], event)
+        await _fire(registered[0], event)
+
+        result = await asyncio.wait_for(task, timeout=1)
+        assert result is event
+
+
+async def test_wait_for_dispatches_through_real_async_path(bus: "Bus") -> None:
+    """The internal listener handler must be async so Bus's normal dispatch pipeline
+    (`make_async_handler`/`TaskBucket.make_async_adapter`) keeps future resolution on the
+    event loop thread rather than routing it through the thread-pool executor — an
+    `asyncio.Future` is not safe to mutate from a worker thread.
+
+    Every other test in this file resolves the future via `_fire()`, which calls
+    `listener.invoker.orig_handler(event)` directly and bypasses this classification
+    entirely — none of them would catch a regression here. This test instead drives the
+    listener's real `async_handler` wrapper (the one `BusService`'s dispatch machinery
+    actually calls), the same object `make_async_handler` builds at registration time.
+    """
+    with wait_for_add_listener_mock(bus) as (registered, ready):
+        task = asyncio.create_task(bus.wait_for("test.topic", timeout=1, name="real_dispatch_check"))
+        await _await_registration(ready)
+
+        listener = registered[0]
+        assert inspect.iscoroutinefunction(listener.invoker.orig_handler), (
+            "wait_for's internal handler must be `async def`, or Bus's dispatch pipeline "
+            "routes it through the thread-pool executor instead of the event loop thread"
+        )
+
+        event = make_hassette_event(topic="test.topic")
+        await listener.invoker.async_handler(event)
 
         result = await asyncio.wait_for(task, timeout=1)
         assert result is event
@@ -103,7 +133,7 @@ async def test_wait_for_only_matches_events_after_registration(bus: "Bus") -> No
         assert not task.done()
 
         event = make_hassette_event(topic="test.topic")
-        _fire(registered[0], event)
+        await _fire(registered[0], event)
         result = await asyncio.wait_for(task, timeout=1)
         assert result is event
 
@@ -125,7 +155,7 @@ async def test_wait_for_accepts_none_timeout(bus: "Bus") -> None:
         assert not task.done()
 
         event = make_hassette_event(topic="test.topic")
-        _fire(registered[0], event)
+        await _fire(registered[0], event)
         result = await asyncio.wait_for(task, timeout=1)
         assert result is event
 
@@ -170,7 +200,7 @@ async def test_wait_for_listener_is_once_and_removed_after_firing(bus: "Bus") ->
         assert key in bus._registered_listeners
 
         event = make_hassette_event(topic="test.topic")
-        _fire(listener, event)
+        await _fire(listener, event)
         await asyncio.wait_for(task, timeout=1)
 
         # The dispatch-time removal (BusService.remove_listener → _on_listener_removed) is
@@ -198,6 +228,73 @@ async def test_shutdown_cancels_pending_wait_for_future(bus: "Bus") -> None:
             await asyncio.wait_for(task, timeout=1)
 
 
+async def test_on_shutdown_batches_cancellation_warning_into_one_summary_line(
+    bus: "Bus", caplog: pytest.LogCaptureFixture
+) -> None:
+    """Bus.on_shutdown() logs one summary WARNING for all pending wait_for futures it cancels,
+    not one WARNING per future — see Finding 3, design.md's shutdown-logging note.
+    """
+    with wait_for_add_listener_mock(bus) as (registered, ready):
+        tasks = []
+        for i in range(3):
+            tasks.append(asyncio.create_task(bus.wait_for("test.topic", timeout=5, name=f"shutdown_batch_{i}")))
+            await _await_registration(ready)
+
+        callback = get_bus_removal_callback(bus)
+        assert callback is not None
+
+        # wait_for_add_listener_mock only stubs registration, not bus_service's own listener
+        # storage, so the real remove_listeners_by_owner() would find nothing to remove. Route
+        # remove_all_listeners() through the same removal callback production wiring reaches
+        # (BusService -> _on_listener_removed), mirroring test_shutdown_cancels_pending_wait_for_future.
+        original_remove_all = bus.remove_all_listeners
+
+        def fake_remove_all_listeners() -> None:
+            for listener in list(registered):
+                callback(listener)
+
+        bus.remove_all_listeners = fake_remove_all_listeners
+        try:
+            with caplog.at_level(logging.WARNING, logger=bus.logger.name):
+                await bus.on_shutdown()
+        finally:
+            bus.remove_all_listeners = original_remove_all
+
+        for task in tasks:
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(task, timeout=1)
+
+        cancellation_records = [r for r in caplog.records if "wait_for future" in r.getMessage()]
+        assert len(cancellation_records) == 1, (
+            f"expected exactly one summary WARNING, got {len(cancellation_records)}: "
+            f"{[r.getMessage() for r in cancellation_records]}"
+        )
+        assert "3" in cancellation_records[0].getMessage()
+        assert "during shutdown" in cancellation_records[0].getMessage()
+
+
+async def test_non_shutdown_cancellation_still_logs_per_future(bus: "Bus", caplog: pytest.LogCaptureFixture) -> None:
+    """Outside of on_shutdown(), the removal callback still logs one WARNING per cancelled
+    future — batching is shutdown-specific, not a general suppression of this WARNING.
+    """
+    with wait_for_add_listener_mock(bus) as (registered, ready):
+        task = asyncio.create_task(bus.wait_for("test.topic", timeout=5, name="explicit_cancel"))
+        await _await_registration(ready)
+
+        listener = registered[0]
+        callback = get_bus_removal_callback(bus)
+        assert callback is not None
+
+        with caplog.at_level(logging.WARNING, logger=bus.logger.name):
+            callback(listener)
+
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(task, timeout=1)
+
+        cancellation_records = [r for r in caplog.records if "Cancelling pending wait_for future" in r.getMessage()]
+        assert len(cancellation_records) == 1
+
+
 async def test_removal_after_successful_match_does_not_raise(bus: "Bus") -> None:
     """A successful match resolves the future before removal fires; the `not fut.done()` guard
     means a subsequent removal-callback invocation must not disturb the already-returned result.
@@ -208,7 +305,7 @@ async def test_removal_after_successful_match_does_not_raise(bus: "Bus") -> None
 
         listener = registered[0]
         event = make_hassette_event(topic="test.topic")
-        _fire(listener, event)
+        await _fire(listener, event)
         result = await asyncio.wait_for(task, timeout=1)
         assert result is event
 
@@ -233,7 +330,7 @@ async def test_wait_for_where_clause_filters_events(bus: "Bus") -> None:
 
         matching = create_state_change_event(entity_id="light.kitchen", old_value="off", new_value="on")
         assert listener.matches(matching) is True
-        _fire(listener, matching)
+        await _fire(listener, matching)
 
         result = await asyncio.wait_for(task, timeout=1)
         assert result is matching
@@ -256,7 +353,7 @@ async def test_wait_for_not_wrapped_in_guard_await(bus: "Bus") -> None:
         await _await_registration(ready)
 
         event = make_hassette_event(topic="test.topic")
-        _fire(registered[0], event)
+        await _fire(registered[0], event)
         result = await asyncio.wait_for(task, timeout=1)
 
         assert isinstance(result, Event)
@@ -278,8 +375,8 @@ async def test_multiple_concurrent_waits_resolve_independently(bus: "Bus") -> No
 
         event1 = make_hassette_event(topic="test.topic", data="one")
         event2 = make_hassette_event(topic="test.topic", data="two")
-        _fire(listener1, event1)
-        _fire(listener2, event2)
+        await _fire(listener1, event1)
+        await _fire(listener2, event2)
 
         result1 = await asyncio.wait_for(task1, timeout=1)
         result2 = await asyncio.wait_for(task2, timeout=1)
@@ -347,7 +444,7 @@ async def test_dispatch_once_fire_removal_does_not_double_cancel(bus: "Bus") -> 
             # Handler resolves the future synchronously, then the real once-fire removal
             # (BusService.remove_listener: listener.cancel() + fire_removal_callback) runs
             # before wait_for's coroutine resumes.
-            _fire(listener, event)
+            await _fire(listener, event)
             listener.cancel()
             callback = get_bus_removal_callback(bus)
             assert callback is not None
@@ -378,7 +475,7 @@ async def test_wait_for_removes_future_from_registry_on_completion(bus: "Bus") -
         assert listener.db_id in bus._wait_for_futures
 
         event = make_hassette_event(topic="test.topic")
-        _fire(listener, event)
+        await _fire(listener, event)
         await asyncio.wait_for(task, timeout=1)
 
         assert listener.db_id not in bus._wait_for_futures

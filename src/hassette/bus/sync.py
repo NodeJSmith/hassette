@@ -387,11 +387,10 @@ class BusSyncFacade(BusSyncEventShortcuts):
     def wait_for(
         self, topic: str, *, where: WhereClause = None, timeout: float | None, name: str | None = None
     ) -> "Event[Any]":
-        """Suspend the calling coroutine until a matching event is dispatched.
+        """Wait for a single matching event, then return it.
 
-        Registers a one-shot (`once=True`) listener through the same pipeline as `on()`,
-        then awaits a future that the listener's handler resolves on first match. Only
-        events dispatched *after* this call is awaited can resolve the wait — pre-existing
+        Registers a one-shot listener before waiting begins, so only
+        events dispatched *after* registration can resolve the wait — pre-existing
         state is never consulted.
 
         Unlike the other registration methods, `wait_for` is not wrapped in `guard_await`:
@@ -413,8 +412,17 @@ class BusSyncFacade(BusSyncEventShortcuts):
             asyncio.TimeoutError: If no matching event arrives within `timeout` seconds.
             asyncio.CancelledError: If the underlying listener is removed before a match
                 (e.g. Bus shutdown, or explicit `Subscription.cancel()`/`remove_listener()`).
+
+        Warning:
+            Calling this from sync code with `timeout=None` blocks one of a small, fixed pool
+            of `SyncExecutor` worker threads indefinitely — a stuck sync thread has no
+            cancellation path the way `Task.cancel()` interrupts an async wait. Prefer a
+            bounded timeout when calling `wait_for` from sync code.
         """
-        return self.task_bucket.run_sync(self._bus.wait_for(topic, where=where, timeout=timeout, name=name))
+        return self.task_bucket.run_sync(
+            self._bus.wait_for(topic, where=where, timeout=timeout, name=name),
+            timeout_seconds=timeout,
+        )
 
     def on_error(self, handler: "BusErrorHandlerType") -> None:
         """Register an app-level error handler for this bus.

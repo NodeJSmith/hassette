@@ -159,6 +159,13 @@ class Bus(Resource):
         # Populated in wait_for(), consumed/cancelled in _on_listener_removed().
         self._wait_for_futures: dict[int, asyncio.Future[Event[Any]]] = {}
 
+        # Set for the duration of on_shutdown()'s remove_all_listeners() call so
+        # _on_listener_removed batches cancellation logging into one summary line instead of
+        # one WARNING per pending wait_for future (a clean teardown with several concurrent
+        # waits in flight is routine, not a problem worth N individual WARNING lines).
+        self._shutting_down = False
+        self._shutdown_cancelled_wait_for_count = 0
+
         # Register removal callback so once-fired listeners release their natural key and
         # record removed_at, mirroring Scheduler's register_removal_callback pattern.
         # owner_id derives from self.parent; the callback registry key must stay stable across
@@ -177,7 +184,17 @@ class Bus(Resource):
 
     async def on_shutdown(self) -> None:
         """Cleanup all listeners owned by this bus's owner on shutdown."""
-        self.remove_all_listeners()
+        self._shutting_down = True
+        self._shutdown_cancelled_wait_for_count = 0
+        try:
+            self.remove_all_listeners()
+        finally:
+            self._shutting_down = False
+            if self._shutdown_cancelled_wait_for_count:
+                self.logger.warning(
+                    "Cancelled %d pending wait_for future(s) during shutdown",
+                    self._shutdown_cancelled_wait_for_count,
+                )
         self.bus_service.deregister_removal_callback(self._removal_callback_owner_id)
 
     def _on_listener_removed(self, listener: "Listener") -> None:
@@ -202,13 +219,16 @@ class Bus(Resource):
         if listener.db_id is not None:
             fut = self._wait_for_futures.pop(listener.db_id, None)
             if fut is not None and not fut.done():
-                self.logger.warning(
-                    "Cancelling pending wait_for future for listener '%s' on topic '%s' "
-                    "(listener removed before a matching event arrived; %d wait_for future(s) still pending)",
-                    listener.identity.name,
-                    listener.topic,
-                    len(self._wait_for_futures),
-                )
+                if self._shutting_down:
+                    self._shutdown_cancelled_wait_for_count += 1
+                else:
+                    self.logger.warning(
+                        "Cancelling pending wait_for future for listener '%s' on topic '%s' "
+                        "(listener removed before a matching event arrived; %d wait_for future(s) still pending)",
+                        listener.identity.name,
+                        listener.topic,
+                        len(self._wait_for_futures),
+                    )
                 fut.cancel()
 
         if listener.identity.name is None:
@@ -1687,11 +1707,10 @@ class Bus(Resource):
         timeout: float | None,
         name: str | None = None,
     ) -> "Event[Any]":
-        """Suspend the calling coroutine until a matching event is dispatched.
+        """Wait for a single matching event, then return it.
 
-        Registers a one-shot (`once=True`) listener through the same pipeline as `on()`,
-        then awaits a future that the listener's handler resolves on first match. Only
-        events dispatched *after* this call is awaited can resolve the wait — pre-existing
+        Must be awaited. Registers a one-shot listener before waiting begins, so only
+        events dispatched *after* registration can resolve the wait — pre-existing
         state is never consulted.
 
         Unlike the other registration methods, `wait_for` is not wrapped in `guard_await`:
@@ -1716,7 +1735,10 @@ class Bus(Resource):
         """
         fut: asyncio.Future[Event[Any]] = self.hassette.loop.create_future()
 
-        def _handler(event: "Event[Any]") -> None:
+        # Must be `async def`, not a plain sync `def` — a sync handler is dispatched through the
+        # thread-pool executor, and `asyncio.Future.set_result()` is not safe to call off the
+        # event loop thread. `async def` keeps dispatch on the loop thread.
+        async def _handler(event: "Event[Any]") -> None:
             if not fut.done():
                 fut.set_result(event)
 

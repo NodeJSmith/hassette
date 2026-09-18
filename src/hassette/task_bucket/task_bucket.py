@@ -9,6 +9,7 @@ from concurrent.futures import TimeoutError as CfTimeoutError  # aliased to dist
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from hassette import context as ctx
+from hassette.const.misc import NOT_PROVIDED, FalseySentinel
 from hassette.exceptions import TaskBucketSealedError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import elapsed_since, mark_ready
@@ -335,18 +336,31 @@ class TaskBucket(Resource):
 
         return _sync_fn
 
-    def run_sync(self, fn: Coroutine[Any, Any, R], timeout_seconds: int | float | None = None) -> R:
+    def run_sync(
+        self, fn: Coroutine[Any, Any, R], timeout_seconds: int | float | None | FalseySentinel = NOT_PROVIDED
+    ) -> R:
         """Run an async function in a synchronous context.
 
         Args:
             fn: The async function to run.
-            timeout_seconds: The timeout for the function call. ``None`` uses the config value;
-                ``0`` fails immediately.
+            timeout_seconds: The timeout for the function call. Omit (or pass ``NOT_PROVIDED``)
+                to use the config value; ``None`` blocks forever (no timeout — the same spelling
+                ``concurrent.futures.Future.result()`` itself uses); ``0`` fails immediately; any
+                other number is the timeout in seconds.
+
+                Breaking change: prior to this, ``None`` meant "use the config value" and
+                ``float("inf")`` meant "block forever." Any caller that explicitly passed
+                ``timeout_seconds=None`` to get the config default must omit the argument instead.
 
         Returns:
             The result of the function call.
         """
-        if timeout_seconds is None:
+        if isinstance(timeout_seconds, FalseySentinel):
+            # `isinstance`, not `is NOT_PROVIDED`: an `is`-identity check doesn't narrow the
+            # `FalseySentinel` arm out of the union for Pyright, since `NOT_PROVIDED` is a plain
+            # instance rather than a `Literal`-narrowable singleton type. This also matches the
+            # sibling sentinels `MISSING_VALUE`/`ANY_VALUE` if one were ever passed here by
+            # mistake — the parameter's type hint only documents `NOT_PROVIDED` as valid.
             timeout_seconds = self.hassette.config.lifecycle.run_sync_timeout_seconds
 
         # Name the wrapped coroutine (e.g. "Api.call_service") for error and log context; the
