@@ -173,6 +173,10 @@ Use sparingly. An admonition should feel like a friend tapping you on the should
 
 Don't stack admonitions. If two warnings appear back-to-back, merge them or reconsider whether the prose needs restructuring. More than one admonition per screen height is too many.
 
+### Design-Level Caveats Get a Warning Admonition, Never Just a Non-Goals Line
+
+A design doc's `## Non-Goals` and `## Edge Cases` sections are planning artifacts — reviewers and future implementers read them, but app authors never do. When a design-level finding identifies a real, user-facing risk or limitation (a race that isn't fully closed, a footgun in a specific calling pattern, a constraint that will surprise someone who follows the documented recipe exactly), noting it only in `design.md` is not documentation — it is a private acknowledgment that the risk exists. The corresponding docs page must carry a `!!! warning` admonition stating the same risk in the same place a reader would hit it (immediately after the code or recipe it applies to), not a passing clause folded into surrounding prose. Non-Goals and Edge Cases entries may cross-reference the docs page's admonition (see `design/specs/112-wait-for-bus/design.md`'s Edge Cases section for the pattern), but the admonition is the actual documentation; the design doc entry is not a substitute for it.
+
 ## Jargon and Prerequisites
 
 Hassette uses concepts from async Python, dependency injection, and Home Assistant. Not every reader knows all three.

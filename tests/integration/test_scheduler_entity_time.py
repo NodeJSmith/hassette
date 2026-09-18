@@ -17,8 +17,7 @@ from hassette.resources.lifecycle import mark_ready
 from hassette.scheduler.classes import ScheduleStatus
 from hassette.scheduler.triggers import EntityTime
 from hassette.testing import HassetteHarness, create_state_change_event, make_state_dict
-from hassette.types import Topic
-from tests.support.helpers import noop
+from tests.support.helpers import entity_topic, noop
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -65,7 +64,7 @@ def iso_in(minutes: int) -> str:
 
 def watch_listener_names(hassette: "Hassette") -> list[str]:
     """Return the names of the scheduler's entity-watch listeners for the alarm entity."""
-    topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{ALARM_ENTITY}"
+    topic = entity_topic(ALARM_ENTITY)
     return [listener.identity.name for listener in hassette.bus_service.router.get_topic_listeners(topic)]
 
 

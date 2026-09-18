@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from hassette.events import RawStateChangeEvent
 from hassette.testing import HassetteHarness, create_state_change_event, wait_for
-from hassette.types import Topic
+from tests.support.helpers import entity_topic
 
 from .conftest import (
     ASYNC_SAFETY_TIMEOUT,
@@ -37,7 +37,7 @@ POSITIVE_FIRE_TIMEOUT = DURATION + 0.5  # standard wait margin for a duration ti
 
 def get_duration_timer(harness: HassetteHarness, entity_id: str) -> "DurationTimer | None":
     """Get the DurationTimer for the first duration-enabled listener on an entity."""
-    topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}"
+    topic = entity_topic(entity_id)
     for listener in harness.bus_service.router.get_topic_listeners(topic):
         if listener.duration_config and listener.duration_config.timer:
             return listener.duration_config.timer
@@ -386,7 +386,7 @@ async def test_duration_cancel_listener_uses_framework_tier(
 
     # Collect all registered listeners for the entity topic
 
-    topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.light.kitchen"
+    topic = entity_topic("light.kitchen")
     listeners = harness.bus_service.router.get_topic_listeners(topic)
 
     # There should be at least one framework-tier listener (cancellation)
@@ -413,7 +413,7 @@ async def test_duration_cancel_listener_same_owner_id(bus_harness: tuple[Hassett
 
     # Check that cancellation listener has same owner_id
 
-    topic = f"{Topic.HASS_EVENT_STATE_CHANGED!s}.light.kitchen"
+    topic = entity_topic("light.kitchen")
     listeners = harness.bus_service.router.get_topic_listeners(topic)
     framework_listeners = [lis for lis in listeners if lis.identity.source_tier == "framework"]
 

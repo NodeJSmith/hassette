@@ -99,6 +99,7 @@ if typing.TYPE_CHECKING:
 
     from hassette import Bus, Hassette
     from hassette.bus.listeners import Listener
+    from hassette.events.base import Event
     from hassette.types import ChangeType, HandlerType, Predicate
     from hassette.types.enums import BackpressurePolicy, ExecutionMode
     from hassette.types.types import BusErrorHandlerType
@@ -346,6 +347,19 @@ class HelperClientSyncFacade(Resource):
 
 '''
 
+_WAIT_FOR_METHOD_NAME = "wait_for"
+"""The one method name that needs special-cased codegen (sync-only doc warning, explicit
+`timeout_seconds` forwarding). Both `gen_wrapper` branches below key off this single constant
+so the two special cases can't silently drift apart via a typo in one of the two literals."""
+
+_WAIT_FOR_SYNC_TIMEOUT_WARNING = (
+    "Warning:\n"
+    "    Calling this from sync code with `timeout=None` blocks one of a small, fixed pool\n"
+    "    of `SyncExecutor` worker threads indefinitely — a stuck sync thread has no\n"
+    "    cancellation path the way `Task.cancel()` interrupts an async wait. Prefer a\n"
+    "    bounded timeout when calling `wait_for` from sync code."
+)
+
 
 def gen_wrapper(
     func: ast.FunctionDef | ast.AsyncFunctionDef,
@@ -366,6 +380,13 @@ def gen_wrapper(
     doc = ast.get_docstring(func)
     if doc:
         doc = desync_docstring(doc)
+        if name == _WAIT_FOR_METHOD_NAME:
+            # A blocked async wait costs nothing (a suspended coroutine); a blocked sync wait
+            # pins one of SyncExecutor's small, fixed pool of worker threads, with no
+            # Task.cancel()-equivalent way to interrupt it. Only the sync facade can reach this
+            # failure mode, so the warning belongs here, not on the async docstring it's copied
+            # from — see Finding 7, design/specs/112-wait-for-bus/design.md.
+            doc += "\n\n" + _WAIT_FOR_SYNC_TIMEOUT_WARNING
         doc_str = textwrap.indent('"""' + doc + '"""', " " * 8)
         doc_block = f"\n{doc_str}\n\n"
     else:
@@ -376,6 +397,19 @@ def gen_wrapper(
         if overloaded_names and name in overloaded_names
         else ""
     )
+    if name == _WAIT_FOR_METHOD_NAME:
+        # Every other generated wrapper omits `timeout_seconds` and gets `run_sync`'s
+        # config-default behavior. `wait_for` passes `timeout_seconds=None` ("block forever")
+        # so the bridge never races the inner `Bus.wait_for` timeout — `Bus.wait_for`'s own
+        # `asyncio.wait_for(fut, timeout=timeout)` is the sole deadline authority.
+        run_sync_call = (
+            f"self.task_bucket.run_sync(\n"
+            f"            self.{wrapped_attr}.{name}({call}),\n"
+            f"            timeout_seconds=None,\n"
+            f"        )"
+        )
+        body = f"    def {name}({sig}){returns}:{doc_block}        return {run_sync_call}{suppress}\n"
+        return body
     body = (
         f"    def {name}({sig}){returns}:{doc_block}"
         f"        return self.task_bucket.run_sync(self.{wrapped_attr}.{name}({call})){suppress}\n"

@@ -21,6 +21,15 @@ named ``name`` is checked for two invariants:
 Methods without a ``name`` parameter at all (``on_error``, ``remove_job``, ...) are not
 flagged — the scan is structural, not name-prefix-based.
 
+One narrow, explicit exemption exists: ``Bus.wait_for`` (design/specs/112-wait-for-bus).
+Unlike the stable, DB-persisted, restart-surviving listeners every other registration
+method creates, ``wait_for``'s listener is a one-shot future-bridge whose name is either
+auto-generated fresh per call (``_wait_for_<id(fut)>``) or, when user-provided, never
+relied on for cross-restart identity the way ``ListenerNameRequiredError`` enforces
+elsewhere. The exemption is by (class, method) pair, not a general escape hatch — every
+other current and future Bus/Scheduler method still requires a keyword-only, no-default
+``name``.
+
 Usage:
     python tools/check_registration_signatures.py
 
@@ -39,9 +48,19 @@ TARGET_FILES = [
     REPO_ROOT / "src" / "hassette" / "scheduler" / "scheduler.py",
 ]
 
+EXEMPT_METHODS = frozenset({("Bus", "wait_for")})
+"""(class_name, method_name) pairs explicitly exempted from the optional-name check.
+
+See the module docstring for why ``Bus.wait_for`` is here. Do not add entries to this set
+without an equivalent design-level justification — the default posture is zero exemptions.
+"""
+
 
 def _check_method(node: ast.FunctionDef | ast.AsyncFunctionDef, class_name: str) -> tuple[int, str] | None:
     """Return a (lineno, message) violation for ``node`` if its ``name`` param is misdeclared."""
+    if (class_name, node.name) in EXEMPT_METHODS:
+        return None
+
     args = node.args
     positional_names = {a.arg for a in (*args.posonlyargs, *args.args)}
 

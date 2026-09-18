@@ -194,6 +194,68 @@ Subscribes to any raw event topic string.
 
 `on()` does not support `immediate`, `duration`, `changed`, `changed_from`, or `changed_to`. All shared timing parameters (`debounce`, `throttle`, `once`, `timeout`, `timeout_disabled`) are accepted. Internal topics used by Hassette shorthands (WebSocket events, app state events) are also accessible via `on()` for raw topic access.
 
+## `wait_for(topic)`
+
+Suspends the calling coroutine until an event matching `topic` and `where` is dispatched, then returns that event. Every other registration method returns a `Subscription` and requires a handler function; `wait_for` returns the matched `Event` directly and needs no handler — it's the primitive for sequential automation logic, not for a standing subscription.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/methods/wait_for.py:basic"
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `topic` | `str` | — | The exact event topic string to match. Glob patterns work the same as `on()`. |
+| `where` | `Predicate \| Sequence[Predicate] \| None` | `None` | Additional predicates applied to each candidate event. |
+| `timeout` | `float \| None` | — | Mandatory. Seconds to wait before raising `asyncio.TimeoutError`. Pass `None` for no timeout — the wait persists until a match or listener removal. |
+| `name` | `str \| None` | `None` | Optional. When omitted, an auto-generated name (`_wait_for_<hex id>`) is used for the underlying listener registration. |
+
+Returns the matching `Event[Any]`.
+
+Raises `asyncio.TimeoutError` when no matching event arrives within `timeout` seconds. Raises `asyncio.CancelledError` when the underlying listener is removed before a match — Bus shutdown, or an explicit `Subscription.cancel()` reaching the same registration.
+
+`wait_for` only matches events dispatched *after* the call is awaited. An entity that already reports the target value when `wait_for` starts does not resolve the wait — only a subsequent event does. `self.states.get()` covers the "already true" case; call it first when "already true or wait" is the desired behavior.
+
+`wait_for` skips `guard_await`, the wrapper the other registration methods use to catch a forgotten `await`. It returns an `Event`, not a `Subscription`, so there's no listener handle to silently drop — Python's own `coroutine was never awaited` warning already covers this case.
+
+!!! warning "`wait_for` holds resources for the entire wait — prefer a finite `timeout`"
+    A pending `wait_for` ties up shared resources until it resolves, times out, or is cancelled. Three cases matter:
+
+    - **Dispatch slots.** A handler that calls `wait_for` holds its dispatch slot (`max_concurrent_dispatches`, default 50) for the full duration of the wait. Enough concurrent handlers parked in `wait_for` exhaust all slots and block all new event delivery — including the events the waiters need. The default `mode="single"` helps here — it caps each listener to one in-flight invocation, so a single listener can only park one `wait_for` at a time. Avoid `mode="parallel"` on handlers that call `wait_for`, since every concurrent re-fire spawns another parked wait. Use a finite `timeout` and keep the total number of concurrent `wait_for` calls well below the dispatch limit.
+    - **Sync worker threads.** `self.bus.sync.wait_for(topic, timeout=None)` pins one of the small, fixed `SyncExecutor` pool threads with no cancellation path. Always use a finite `timeout` from sync code.
+    - **Shutdown race.** If `remove_all_listeners()` runs while a `wait_for` registration is still completing its DB write (~1ms), the listener misses the sweep. With a finite `timeout` the wait times out normally; with `timeout=None` it hangs until process exit. The window is extremely narrow in practice.
+
+### Composition Recipes
+
+`wait_for` composes with `self.api.call_service()` to write automations that wait for a physical effect before moving on. Two patterns cover most cases.
+
+#### Arm before fire
+
+The `wait_for` task starts *before* the service call, then the caller awaits it after:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/methods/wait_for.py:arm_before_fire"
+```
+
+The ordering matters. `asyncio.create_task` schedules `wait_for` and starts registering its listener immediately, but registration is not guaranteed to complete before `call_service`'s WebSocket round-trip triggers the event — the listener registration writes to the local SQLite telemetry database (~1ms), which in practice finishes well before the round-trip to Home Assistant (~10ms or more), but the two are not synchronized.
+
+!!! warning "This race is narrowed, not closed"
+    Arming the wait first shrinks the window between registration and the triggering call — it does not close it. Closing it fully requires a primitive that awaits registration before firing the action, tracked as #2286 and not yet available. Until that ships, arm-before-fire is the best available pattern; a stricter primitive is only worth waiting for when the residual race actually matters for a given automation.
+
+#### Confirm started, then wait for idle
+
+Media players and similar entities sit in an idle-like state most of the time, so the target state a caller wants to wait for is frequently the *current* state too. A single `wait_for(where=P.StateTo("idle"))` armed right after calling `media_play` can resolve against a state_changed event that still reports `"idle"` — a refresh or attribute-only update that carries the pre-play value — well before playback has actually finished. That event is real, dispatched after registration, and matches the predicate; it just isn't the one the automation is waiting for. The after-registration guarantee described above protects against the literal pre-existing state, not against a *different* idle event that arrives before the action completes.
+
+The fix is two waits instead of one: confirm the entity left idle (proof the action actually started), then wait for it to return:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/methods/wait_for.py:two_stage"
+```
+
+The first `wait_for` uses `~P.StateTo("idle")` — anything other than idle — armed before the service call, same arm-before-fire ordering as above. Once that resolves, the entity is confirmed off idle, so the second `wait_for(where=P.StateTo("idle"))` is now waiting on a transition that can only mean the action actually finished, not a stray restatement of the pre-existing value.
+
+!!! note "This is the bedtime-automation bug"
+    Skipping the first stage was the original production failure this primitive was built to prevent: a media-player automation that called `media_play` and immediately waited for `"idle"` resolved instantly against the not-yet-changed state, and the rest of the automation ran before playback had even started.
+
 ## App and Connection Events
 
 ### `on_app_state_changed` and shorthands

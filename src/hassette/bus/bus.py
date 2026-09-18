@@ -88,6 +88,7 @@ Examples:
     ```
 """
 
+import asyncio
 import logging
 import typing
 from collections.abc import Coroutine, Mapping
@@ -125,6 +126,10 @@ if typing.TYPE_CHECKING:
     from hassette.types.types import BusErrorHandlerType
 
 
+WAIT_FOR_PENDING_WARNING_THRESHOLD = 20
+"""Pending `wait_for` future count that triggers a leak-observability WARNING (FR#11)."""
+
+
 def _require_name(name: str | None, handler: "HandlerType", topic: str) -> None:
     if not name:
         raise ListenerNameRequiredError(handler_method=callable_name(handler), topic=topic)
@@ -150,6 +155,17 @@ class Bus(Resource):
         self._error_handler: BusErrorHandlerType | None = None
         self.sync = self.add_child(BusSyncFacade, bus=self)
 
+        # Registry of pending `wait_for` futures, keyed by the underlying listener's db_id.
+        # Populated in wait_for(), consumed/cancelled in _on_listener_removed().
+        self._wait_for_futures: dict[int, asyncio.Future[Event[Any]]] = {}
+
+        # Set for the duration of on_shutdown()'s remove_all_listeners() call so
+        # _on_listener_removed batches cancellation logging into one summary line instead of
+        # one WARNING per pending wait_for future (a clean teardown with several concurrent
+        # waits in flight is routine, not a problem worth N individual WARNING lines).
+        self._shutting_down = False
+        self._shutdown_cancelled_wait_for_count = 0
+
         # Register removal callback so once-fired listeners release their natural key and
         # record removed_at, mirroring Scheduler's register_removal_callback pattern.
         # owner_id derives from self.parent; the callback registry key must stay stable across
@@ -168,7 +184,17 @@ class Bus(Resource):
 
     async def on_shutdown(self) -> None:
         """Cleanup all listeners owned by this bus's owner on shutdown."""
-        self.remove_all_listeners()
+        self._shutting_down = True
+        self._shutdown_cancelled_wait_for_count = 0
+        try:
+            self.remove_all_listeners()
+        finally:
+            self._shutting_down = False
+            if self._shutdown_cancelled_wait_for_count:
+                self.logger.warning(
+                    "Cancelled %d pending wait_for future(s) during shutdown",
+                    self._shutdown_cancelled_wait_for_count,
+                )
         self.bus_service.deregister_removal_callback(self._removal_callback_owner_id)
 
     def _on_listener_removed(self, listener: "Listener") -> None:
@@ -187,6 +213,28 @@ class Bus(Resource):
         with teardown finds was_present=False and skips its removed_at write. This loses only a
         telemetry write in a narrow teardown window — no routing impact — and is not worth guarding.
         """
+        # wait_for cleanup: fires on every removal path (shutdown, explicit cancel, once-fire).
+        # On a successful once-fire, the handler already resolved the future via set_result
+        # before removal runs, so `not fut.done()` skips cancellation there.
+        if listener.db_id is not None:
+            fut = self._wait_for_futures.pop(listener.db_id, None)
+            if fut is not None and not fut.done():
+                if self._shutting_down:
+                    self._shutdown_cancelled_wait_for_count += 1
+                else:
+                    self.logger.warning(
+                        "Cancelling pending wait_for future for listener '%s' on topic '%s' "
+                        "(app_key=%s, instance=%s, db_id=%s; listener removed before a matching event arrived; "
+                        "%d wait_for future(s) still pending)",
+                        listener.identity.name,
+                        listener.topic,
+                        listener.identity.app_key,
+                        listener.identity.instance_index,
+                        listener.db_id,
+                        len(self._wait_for_futures),
+                    )
+                fut.cancel()
+
         if listener.identity.name is None:
             # Cancel-listeners (create_cancel_listener) are never tracked in _registered_listeners,
             # so there is nothing to pop. Returning early also avoids building a natural key whose
@@ -1654,6 +1702,88 @@ class Bus(Resource):
         )
 
     # dup-ignore-end
+
+    async def wait_for(
+        self,
+        topic: str,
+        *,
+        where: WhereClause = None,
+        timeout: float | None,
+        name: str | None = None,
+    ) -> "Event[Any]":
+        """Wait for a single matching event, then return it.
+
+        Must be awaited. Registers a one-shot listener before waiting begins, so only
+        events dispatched *after* registration can resolve the wait — pre-existing
+        state is never consulted.
+
+        Unlike the other registration methods, `wait_for` is not wrapped in `guard_await`:
+        it returns an `Event`, not a `Subscription`, so there is no forgotten-`await`
+        footgun for that helper to guard against.
+
+        Args:
+            topic: The event topic to wait for.
+            where: Optional predicates to filter events, same semantics as `on()`.
+            timeout: Seconds to wait before raising `asyncio.TimeoutError`. `None` disables
+                the timeout — the wait persists until a match or listener removal.
+            name: Optional stable name for the underlying listener. When omitted, a name is
+                auto-generated from the future's identity (`_wait_for_<hex id>`).
+
+        Returns:
+            The `Event` that matched `topic` and `where`.
+
+        Raises:
+            asyncio.TimeoutError: If no matching event arrives within `timeout` seconds.
+            asyncio.CancelledError: If the underlying listener is removed before a match
+                (e.g. Bus shutdown, or explicit `Subscription.cancel()`/`remove_listener()`).
+        """
+        fut: asyncio.Future[Event[Any]] = self.hassette.loop.create_future()
+
+        # Must be `async def`, not a plain sync `def` — a sync handler is dispatched through the
+        # thread-pool executor, and `asyncio.Future.set_result()` is not safe to call off the
+        # event loop thread. `async def` keeps dispatch on the loop thread.
+        async def _handler(event: "Event[Any]") -> None:
+            if not fut.done():
+                fut.set_result(event)
+
+        resolved_name = name or f"_wait_for_{id(fut):x}"
+
+        subscription = await self._on_internal(
+            topic=topic,
+            handler=_handler,
+            where=where,
+            once=True,
+            name=resolved_name,
+        )
+
+        db_id = subscription.listener.db_id
+        if db_id is None:
+            subscription.cancel()
+            raise RuntimeError("listener db_id was None after registration — listener has been cancelled")
+        self._wait_for_futures[db_id] = fut
+
+        if len(self._wait_for_futures) == WAIT_FOR_PENDING_WARNING_THRESHOLD:
+            self.logger.warning(
+                "Bus has %d pending wait_for futures (app_key=%s, instance=%s) — this may indicate a leak "
+                "(e.g. a retry loop that never lets prior waits resolve or time out). "
+                "Note: this count is per-Bus instance, not process-wide",
+                len(self._wait_for_futures),
+                subscription.listener.identity.app_key,
+                subscription.listener.identity.instance_index,
+            )
+
+        try:
+            event = await asyncio.wait_for(fut, timeout=timeout)
+        except TimeoutError:
+            self.logger.debug("wait_for on topic '%s' timed out after %s seconds", topic, timeout)
+            raise
+        else:
+            self.logger.debug("wait_for on topic '%s' matched event %r", topic, event)
+            return event
+        finally:
+            self._wait_for_futures.pop(db_id, None)
+            if not subscription.listener.is_cancelled:
+                subscription.cancel()
 
 
 def _build_preds(
