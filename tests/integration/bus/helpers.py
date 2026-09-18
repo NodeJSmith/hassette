@@ -60,8 +60,9 @@ def make_collector(
 class GatedHandlerRecord:
     """Bookkeeping for a handler built by ``make_gated_handler()``.
 
-    ``gate`` blocks the handler until the test calls ``gate.set()``. ``cancelled``/``completed``
-    are only populated for handlers registered with ``mode="restart"``, which observe
+    ``gate`` blocks the handler until the test calls ``gate.set()``. ``completed`` increments
+    whenever the gate resolves without cancellation, regardless of mode. ``cancelled`` is only
+    populated for handlers registered with ``mode="restart"``, which observe
     ``asyncio.CancelledError`` while waiting on the gate — simpler callers (single/debounce/
     duration-hold tests) only ever read ``started``.
     """
