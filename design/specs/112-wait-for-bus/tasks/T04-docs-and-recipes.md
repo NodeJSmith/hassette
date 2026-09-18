@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Add wait_for documentation and composition recipes"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: []
 ---

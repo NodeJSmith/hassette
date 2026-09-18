@@ -194,6 +194,58 @@ Subscribes to any raw event topic string.
 
 `on()` does not support `immediate`, `duration`, `changed`, `changed_from`, or `changed_to`. All shared timing parameters (`debounce`, `throttle`, `once`, `timeout`, `timeout_disabled`) are accepted. Internal topics used by Hassette shorthands (WebSocket events, app state events) are also accessible via `on()` for raw topic access.
 
+## `wait_for(topic)`
+
+Suspends the calling coroutine until an event matching `topic` and `where` is dispatched, then returns that event. Every other registration method returns a `Subscription` and requires a handler function; `wait_for` returns the matched `Event` directly and needs no handler — it's the primitive for sequential automation logic, not for a standing subscription.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/methods/wait_for.py:basic"
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `topic` | `str` | — | The exact event topic string to match. Glob patterns work the same as `on()`. |
+| `where` | `Predicate \| Sequence[Predicate] \| None` | `None` | Additional predicates applied to each candidate event. |
+| `timeout` | `float \| None` | — | Mandatory. Seconds to wait before raising `asyncio.TimeoutError`. Pass `None` for no timeout — the wait persists until a match or listener removal. |
+| `name` | `str \| None` | `None` | Optional. When omitted, an auto-generated name (`_wait_for_<hex id>`) is used for the underlying listener registration. |
+
+Returns the matching `Event[Any]`.
+
+Raises `asyncio.TimeoutError` when no matching event arrives within `timeout` seconds. Raises `asyncio.CancelledError` when the underlying listener is removed before a match — Bus shutdown, or an explicit `Subscription.cancel()` reaching the same registration.
+
+`wait_for` only matches events dispatched *after* the call is awaited. An entity that already reports the target value when `wait_for` starts does not resolve the wait — only a subsequent event does. Check `self.states.get()` first if "already true or wait" is what the automation needs.
+
+`wait_for` skips `guard_await`, the wrapper the other registration methods use to catch a forgotten `await`. It returns an `Event`, not a `Subscription`, so there's no listener handle to silently drop — Python's own `coroutine was never awaited` warning already covers this case.
+
+### Composition Recipes
+
+`wait_for` composes with `self.api.call_service()` to write automations that wait for a physical effect before moving on. Two patterns cover most cases.
+
+#### Arm before fire
+
+Create the `wait_for` task *before* calling the service, then await the task after the call:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/methods/wait_for.py:arm_before_fire"
+```
+
+The ordering matters. `asyncio.create_task` schedules `wait_for` and starts registering its listener immediately, but registration is not guaranteed to complete before `call_service`'s WebSocket round-trip triggers the event — the listener registration writes to the local SQLite telemetry database (~1ms), which in practice finishes well before the round-trip to Home Assistant (~10ms or more), but the two are not synchronized. Arming the wait first shrinks that race window as much as this pattern can; it does not close it. A future composition primitive that awaits registration before firing the action would close the window entirely. Until one ships, `create_task` is the tool for this — reach for a stricter primitive later only if the residual race actually matters for a given automation.
+
+#### Confirm started, then wait for idle
+
+Media players and similar entities sit in an idle-like state most of the time, so the target state a caller wants to wait for is frequently the *current* state too. A single `wait_for(where=P.StateTo("idle"))` armed right after calling `media_play` can resolve against a state_changed event that still reports `"idle"` — a refresh or attribute-only update that carries the pre-play value — well before playback has actually finished. That event is real, dispatched after registration, and matches the predicate; it just isn't the one the automation is waiting for. The after-registration guarantee described above protects against the literal pre-existing state, not against a *different* idle event that arrives before the action completes.
+
+The fix is two waits instead of one: confirm the entity left idle (proof the action actually started), then wait for it to return:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/methods/wait_for.py:two_stage"
+```
+
+The first `wait_for` uses `~P.StateTo("idle")` — anything other than idle — armed before the service call, same arm-before-fire ordering as above. Once that resolves, the entity is confirmed off idle, so the second `wait_for(where=P.StateTo("idle"))` is now waiting on a transition that can only mean the action actually finished, not a stray restatement of the pre-existing value.
+
+!!! note "This is the bedtime-automation bug"
+    Skipping the first stage was the original production failure this primitive was built to prevent: a media-player automation that called `media_play` and immediately waited for `"idle"` resolved instantly against the not-yet-changed state, and the rest of the automation ran before playback had even started.
+
 ## App and Connection Events
 
 ### `on_app_state_changed` and shorthands
