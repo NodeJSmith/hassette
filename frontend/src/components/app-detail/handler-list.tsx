@@ -65,20 +65,15 @@ export function HandlerList({ listeners, jobs, selectedId, onSelect }: Props) {
   const items = buildItems(listeners, jobs);
 
   return (
-    <div>
-      <div
-        className="overflow-hidden rounded-md border border-border [box-shadow:var(--shadow-2)]"
-        data-testid="handler-list"
-      >
-        {items.map((item) => (
-          <UnifiedHandlerRow
-            key={`${item.kind}-${item.id}`}
-            item={item}
-            isSelected={selectedId !== null && selectedId.kind === item.kind && selectedId.id === item.id}
-            onSelect={() => onSelect({ kind: item.kind, id: item.id })}
-          />
-        ))}
-      </div>
+    <div data-testid="handler-list">
+      {items.map((item) => (
+        <UnifiedHandlerRow
+          key={`${item.kind}-${item.id}`}
+          item={item}
+          isSelected={selectedId !== null && selectedId.kind === item.kind && selectedId.id === item.id}
+          onSelect={() => onSelect({ kind: item.kind, id: item.id })}
+        />
+      ))}
     </div>
   );
 }
