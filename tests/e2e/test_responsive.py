@@ -119,7 +119,11 @@ def test_hamburger_hidden_at_desktop(page: Page, base_url: str) -> None:
 def test_apps_table_third_column_visibility(
     page: Page, base_url: str, viewport: dict[str, int], third_column_visible: bool
 ) -> None:
-    """Apps table columns 3+ (last error, runs, last fired) are hidden on mobile, visible on desktop."""
+    """Apps table columns 3+ (last error, runs, last fired) are hidden on mobile, visible on desktop.
+
+    768px is the boundary case: the mobile CSS's `max-width: 768px` rule still applies at
+    exactly 768px, so columns 3+ stay hidden there too.
+    """
     page.set_viewport_size(viewport)
     page.goto(base_url + "/apps")
     table = page.locator("[data-testid='apps-table']")
@@ -186,7 +190,7 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
     ids=["small-mobile-320", "mobile-375"],
 )
 def test_log_table_no_horizontal_scroll(page: Page, base_url: str, viewport: dict[str, int]) -> None:
-    """Log table must not allow horizontal scrolling on small mobile viewports."""
+    """Log table must not allow horizontal scrolling on mobile viewports."""
     page.set_viewport_size(viewport)
     page.goto(base_url + "/logs")
     page.locator("text=/\\d+ entr/").wait_for(timeout=DATA_LOAD_TIMEOUT_MS)
