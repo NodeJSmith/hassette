@@ -79,7 +79,10 @@ CREATE TABLE executions (
     duration_ms           REAL NOT NULL DEFAULT 0,
     status                TEXT NOT NULL DEFAULT 'success',
     thread_leaked         INTEGER NOT NULL DEFAULT 0,
-    execution_id          TEXT UNIQUE
+    source_tier           TEXT NOT NULL DEFAULT 'app'
+        CHECK (source_tier IN ('app', 'framework')),
+    execution_id          TEXT UNIQUE,
+    CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)
 );
 
 CREATE TABLE blocking_events (

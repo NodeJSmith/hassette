@@ -58,7 +58,18 @@ def insert_execution_row(
     plainly) and an async ``aiosqlite.Connection`` (the ``telemetry_db`` fixture —
     ``await`` the call). This just forwards to ``conn.execute()``, so which behavior
     you get follows whatever ``conn`` itself is.
+
+    ``001.sql``'s ``CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)`` requires
+    exactly one of the two to be set. When a caller passes neither, default the one matching
+    ``kind`` (``job_id`` for ``kind="job"``, ``listener_id`` otherwise) to an arbitrary
+    placeholder id — foreign key enforcement is off by default in these tests, so the
+    placeholder need not reference a real row.
     """
+    if listener_id is None and job_id is None:
+        if kind == "job":
+            job_id = 1
+        else:
+            listener_id = 1
     return conn.execute(
         "INSERT INTO executions (kind, listener_id, job_id, session_id, execution_start_ts, duration_ms, status) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",

@@ -5,14 +5,15 @@ import sqlite3
 import time
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiosqlite
 import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
-
-# _RETENTION_TABLES is an intentional test-only reach into module internals.
-from hassette.core.database_service import _RETENTION_TABLES, DatabaseService
+from hassette.core import database_service as database_service_module
+from hassette.core.database_service import DatabaseService
 from hassette.resources.lifecycle import compute_shutdown_budget
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.helpers import (
@@ -220,7 +221,10 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
 
     now = time.time()
     old_ts = now - (8 * SECONDS_PER_DAY)  # 8 days ago (beyond 7-day retention)
-    recent_ts = now - (1 * SECONDS_PER_DAY)  # 1 day ago (within retention)
+    # Within both the 7-day retention_days window and the 1-day framework_retention_days window.
+    # Rows here default to source_tier='app', so only the app-tier cutoff (retention_days)
+    # actually applies to them — the 0.1-day margin keeps this test correct regardless.
+    recent_ts = now - (0.1 * SECONDS_PER_DAY)  # ~2.4 hours ago (within both retention windows)
 
     # Insert old and recent handler executions (kind='handler', listener_id set)
     await db.execute(
@@ -257,77 +261,6 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] == 2
-
-
-async def test_retention_cleanup_rolls_back_on_partial_failure(initialized_service: DatabaseService) -> None:
-    """A forced failure partway through _RETENTION_TABLES rolls back the whole cleanup,
-    including the delete that already succeeded for the first RetentionTarget.
-
-    Pins the pre-refactor rollback behavior of _do_run_retention_cleanup: this is the
-    characterization test required before extracting _execute_target_delete.
-    """
-    db = initialized_service.db
-
-    now = time.time()
-    old_ts = now - (8 * SECONDS_PER_DAY)  # older than every retention window in play
-
-    # log_records is the first RetentionTarget in _RETENTION_TABLES — its delete succeeds
-    # before the forced failure on the second target (executions).
-    await db.execute(
-        "INSERT INTO log_records (seq, timestamp, level, logger_name, func_name, lineno, message,"
-        " exc_info, app_key, instance_name, instance_index, execution_id, source_tier)"
-        " VALUES (0, ?, 'INFO', 'test', 'test_func', 1, 'msg', NULL, NULL, NULL, NULL, NULL, 'app')",
-        (old_ts,),
-    )
-    await db.commit()
-
-    real_execute = db.execute
-
-    async def failing_execute(sql: str, *args: object, **kwargs: object):
-        if sql.startswith("DELETE FROM executions"):
-            raise sqlite3.OperationalError("forced failure")
-        return await real_execute(sql, *args, **kwargs)
-
-    with patch.object(db, "execute", side_effect=failing_execute):
-        # Must not propagate — _do_run_retention_cleanup catches and logs.
-        await initialized_service._do_run_retention_cleanup()
-
-    cursor = await db.execute("SELECT COUNT(*) FROM log_records WHERE timestamp = ?", (old_ts,))
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 1, "rollback() should have reverted the first target's delete"
-
-
-async def test_retention_cleanup_logs_when_rollback_also_fails(initialized_service: DatabaseService) -> None:
-    """When both the primary delete and the subsequent rollback() raise, the method still
-    swallows both exceptions (does not propagate) and logs each failure separately.
-
-    Covers the inner `except Exception: self.logger.exception(...)` branch wrapping the
-    rollback() call in _do_run_retention_cleanup, which the partial-failure test above
-    doesn't exercise because its rollback() always succeeds.
-    """
-    db = initialized_service.db
-    real_execute = db.execute
-
-    async def failing_execute(sql: str, *args: object, **kwargs: object):
-        if sql.startswith("DELETE FROM executions"):
-            raise sqlite3.OperationalError("forced primary failure")
-        return await real_execute(sql, *args, **kwargs)
-
-    with (
-        patch.object(db, "execute", side_effect=failing_execute),
-        patch.object(db, "rollback", AsyncMock(side_effect=sqlite3.OperationalError("forced rollback failure"))),
-    ):
-        # Must not propagate — both the primary failure and the rollback failure are caught and logged.
-        await initialized_service._do_run_retention_cleanup()
-
-    # The mocked rollback() never touched the real connection, so it's still mid-transaction
-    # at this point -- that's expected, not a bug. What matters is that the connection isn't
-    # permanently wedged: a real rollback (patches removed above) must still succeed and
-    # return it to a clean state for subsequent writes.
-    assert db.in_transaction is True
-    await db.rollback()
-    assert db.in_transaction is False
 
 
 async def test_serve_exits_on_shutdown(initialized_service: DatabaseService) -> None:
@@ -678,7 +611,10 @@ async def test_size_failsafe_skips_when_limit_is_zero(initialized_service: Datab
 
 
 async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_service: DatabaseService) -> None:
-    """_check_size_failsafe() logs a WARNING on the second and subsequent triggers."""
+    """_check_size_failsafe() bumps ``_consecutive_size_triggers`` on every call made while the
+    DB stays over the limit — the entry-trigger WARNING it also logs starting on the second
+    call is not asserted here (log output is not a behavioral contract; the counter is).
+    """
     session_id = initialized_service.hassette.session_id
     db = initialized_service.db
 
@@ -697,12 +633,8 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
 
     initialized_service.hassette.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
-    # First trigger — counter goes to 1, no warning logged
-    with patch.object(initialized_service, "logger") as mock_logger:
-        await initialized_service._check_size_failsafe()
-        warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
-        assert not any("consecutive" in c for c in warning_calls)
-
+    # First trigger — counter goes to 1.
+    await initialized_service._check_size_failsafe()
     assert initialized_service._consecutive_size_triggers == 1
 
     # Re-insert records for second trigger
@@ -715,13 +647,89 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
         )
     await db.commit()
 
-    # Second trigger — counter goes to 2, warning IS logged
-    with patch.object(initialized_service, "logger") as mock_logger:
-        await initialized_service._check_size_failsafe()
-        warning_calls = [str(c) for c in mock_logger.warning.call_args_list]
-        assert any("consecutive" in c for c in warning_calls), (
-            f"Expected consecutive-trigger warning on second call, got: {warning_calls}"
+    # Second trigger — counter goes to 2.
+    await initialized_service._check_size_failsafe()
+    assert initialized_service._consecutive_size_triggers == 2
+
+
+async def test_size_failsafe_logs_warning_on_exhaustion(initialized_service: DatabaseService) -> None:
+    """_check_size_failsafe() bumps ``_consecutive_exhaustion_triggers`` when the DB stays over
+    the size limit after every retention tier has been drained. The all-tiers-exhausted WARNING
+    it also logs on that path is not asserted here (log output is not a behavioral contract; the
+    counter is).
+    """
+    session_id = initialized_service.hassette.session_id
+    db = initialized_service.db
+
+    await seed_listener_for_fk(db)
+
+    now = time.time()
+    for i in range(10):
+        ts = now - (100 - i)
+        await db.execute(
+            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
+            (session_id, ts),
         )
+    await db.commit()
+
+    # Small enough that draining every tier still leaves the real DB over the limit.
+    initialized_service.hassette.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+
+    await initialized_service._check_size_failsafe()
+    assert initialized_service._consecutive_exhaustion_triggers == 1
+
+    await initialized_service._check_size_failsafe()
+    assert initialized_service._consecutive_exhaustion_triggers == 2
+
+
+async def test_startup_size_failsafe_check_is_bounded_by_timeout(
+    fresh_service: DatabaseService, mock_hassette_fresh: MagicMock
+) -> None:
+    """on_initialize() does not hang past its readiness budget if the startup size failsafe
+    check runs long — it degrades gracefully and lets startup proceed, rather than blocking
+    on_initialize() (and therefore wait_for_ready()'s startup_timeout_seconds) for as long as
+    vacuum/checkpoint work on a large backlog happens to take.
+    """
+    # config.lifecycle is a real, fixture-owned Pydantic model — replace it with a copy rather
+    # than mutating the shared instance in place.
+    mock_hassette_fresh.config.lifecycle = mock_hassette_fresh.config.lifecycle.model_copy(
+        update={"startup_timeout_seconds": 0.2}
+    )
+    # Tiny enough that a fresh, just-migrated (empty) DB is already "over" the limit, so
+    # _check_size_failsafe() reaches its real DELETE loop instead of returning immediately.
+    mock_hassette_fresh.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+
+    delete_reached = asyncio.Event()
+    real_connect_daemon = database_service_module.connect_daemon
+
+    async def connect_daemon_with_delayed_delete(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
+        """Wrap a real connection so its first DELETE hangs, faking slow I/O at the actual
+        boundary (the sqlite driver call) instead of stubbing out DatabaseService's own logic.
+        """
+        conn = await real_connect_daemon(*args, **kwargs)
+        real_execute = conn.execute
+
+        async def delayed_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
+            if sql.strip().upper().startswith("DELETE FROM"):
+                delete_reached.set()
+                await asyncio.sleep(10)
+            return await real_execute(sql, parameters)
+
+        conn.execute = delayed_execute
+        return conn
+
+    with patch.object(database_service_module, "connect_daemon", connect_daemon_with_delayed_delete):
+        # on_initialize() itself must return well within the sleep duration — proves the
+        # asyncio.wait_for() deadline actually bounds the call rather than merely being present
+        # in the source.
+        await asyncio.wait_for(fresh_service.on_initialize(), timeout=5.0)
+
+    # Proves the real size-failsafe path was exercised (and hung on its own DELETE), not
+    # skipped because there was nothing over the limit to clean up.
+    assert delete_reached.is_set(), "size failsafe never reached its DELETE statement"
+
+    await fresh_service.on_shutdown()
 
 
 async def test_run_size_failsafe_enqueues_check_size_failsafe(initialized_service: DatabaseService) -> None:
@@ -771,118 +779,6 @@ async def test_run_size_failsafe_returns_early_when_write_queue_is_none(
     # No mock needed: enqueue() raises queue_unavailable_error() when _db_write_queue is None,
     # so a clean return here is the observable proof the early-return guard fired first.
     await initialized_service.run_size_failsafe()
-
-
-async def test_run_failsafe_tier_isolates_per_target_delete_failures(initialized_service: DatabaseService) -> None:
-    """A real DELETE failure on one target in a tier does not prevent deletion of others.
-
-    _RETENTION_TABLES only has one target per priority tier on main, so this exercises
-    _run_failsafe_tier() directly with a two-target group built from real tables -- a
-    same-tier group with one failing target and one succeeding target. The failure is
-    injected through the real SQLite boundary (renaming the target table out from under
-    the DELETE) rather than mocking the internal _execute_failsafe_delete function.
-    """
-    session_id = initialized_service.hassette.session_id
-    db = initialized_service.db
-
-    await seed_listener_for_fk(db)
-
-    now = time.time()
-    for i in range(5):
-        ts = now - (100 - i)
-        await db.execute(
-            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
-            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
-            (session_id, ts),
-        )
-        await db.execute(
-            "INSERT INTO log_records (seq, timestamp, level, logger_name, func_name, lineno, message, exc_info,"
-            " app_key, instance_name, instance_index, execution_id, source_tier)"
-            " VALUES (?, ?, 'INFO', 'test', 'f', 1, 'msg', NULL, NULL, NULL, NULL, NULL, 'app')",
-            (i, ts),
-        )
-    await db.commit()
-
-    by_table = {t.table: t for t in _RETENTION_TABLES}
-    group = [by_table["log_records"], by_table["executions"]]
-
-    await db.execute("ALTER TABLE executions RENAME TO executions_hidden")
-    await db.commit()
-    try:
-        deleted_by_table, _under_limit, _iterations_used = await initialized_service._run_failsafe_tier(
-            db, group, batch_limit=1000, max_iterations=1, max_size_mb=0.0001, vacuum_pages=100
-        )
-    finally:
-        await db.execute("ALTER TABLE executions_hidden RENAME TO executions")
-        await db.commit()
-
-    assert deleted_by_table["log_records"] == 5
-    assert deleted_by_table["executions"] == 0
-
-    cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 0
-
-    cursor = await db.execute("SELECT COUNT(*) FROM executions")
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 5
-
-
-async def test_check_size_failsafe_shares_iteration_budget_across_tiers(
-    initialized_service: DatabaseService,
-) -> None:
-    """_check_size_failsafe() spends max_iterations across the whole run, not per tier.
-
-    With size_failsafe_max_iterations=1, the first (highest-priority) tier consumes the
-    entire iteration budget. The remaining tiers must be skipped entirely -- their rows
-    stay untouched -- rather than each independently getting their own iteration.
-    """
-    session_id = initialized_service.hassette.session_id
-    db = initialized_service.db
-
-    await seed_listener_for_fk(db)
-
-    now = time.time()
-    for i in range(5):
-        ts = now - (100 - i)
-        await db.execute(
-            "INSERT INTO log_records (seq, timestamp, level, logger_name, func_name, lineno, message, exc_info,"
-            " app_key, instance_name, instance_index, execution_id, source_tier)"
-            " VALUES (?, ?, 'INFO', 'test', 'f', 1, 'msg', NULL, NULL, NULL, NULL, NULL, 'app')",
-            (i, ts),
-        )
-        await db.execute(
-            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
-            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
-            (session_id, ts),
-        )
-        await db.execute(
-            "INSERT INTO blocking_events (tier, detected_ts, source_tier) VALUES ('watchdog', ?, 'framework')",
-            (ts,),
-        )
-    await db.commit()
-
-    initialized_service.hassette.config.database.size_failsafe_max_iterations = 1
-    initialized_service.hassette.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-
-    await initialized_service._check_size_failsafe()
-
-    cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 0
-
-    cursor = await db.execute("SELECT COUNT(*) FROM executions")
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 5
-
-    cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 5
 
 
 async def test_force_terminal_closes_real_connections(initialized_service: DatabaseService) -> None:

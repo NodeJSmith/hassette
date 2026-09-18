@@ -57,7 +57,11 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Path to the SQLite database file. Defaults to data_dir / "hassette.db" when None."""
 
     retention_days: int = Field(default=7, ge=1)
-    """Number of days to retain execution records in the ``executions`` table."""
+    """Number of days to retain app-tier execution records in the ``executions`` table.
+    Framework-tier records use ``framework_retention_days`` instead."""
+
+    framework_retention_days: int = Field(default=1, ge=1)
+    """Number of days to retain framework-tier execution records. Must be <= retention_days."""
 
     max_size_mb: float = Field(default=500, ge=0)
     """Maximum database file size in MB. When exceeded, oldest execution records are deleted.
@@ -92,6 +96,15 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     size_failsafe_vacuum_pages: int = Field(default=100, ge=1)
     """Number of pages to vacuum per size failsafe run."""
 
+    retention_delete_batch: int = Field(default=1000, ge=1)
+    """Number of rows deleted per batch during age-based retention cleanup. Each batch commits
+    independently so no single transaction holds a lock across an entire target's delete."""
+
+    retention_max_batches_per_target: int = Field(default=100, ge=1)
+    """Maximum batches per retention target per cleanup invocation. Bounds worst-case occupancy
+    of the write queue when a target has a large backlog; any remainder is picked up on the
+    next retention cycle."""
+
     max_consecutive_heartbeat_failures: int = Field(default=3, ge=1)
     """Maximum consecutive heartbeat failures before the database service is considered unhealthy."""
 
@@ -101,6 +114,16 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     max_flush_interval_seconds: float = Field(default=5.0, ge=0.1)
     """Maximum seconds a record may sit in the CommandExecutor write queue before a
     time-based flush is forced, even if the batch size threshold has not been reached."""
+
+    @model_validator(mode="after")
+    def validate_framework_retention_days(self) -> "DatabaseConfig":
+        """Ensure framework_retention_days stays within the standard retention window."""
+        if self.framework_retention_days > self.retention_days:
+            raise ValueError(
+                f"framework_retention_days ({self.framework_retention_days}) must be <= "
+                f"retention_days ({self.retention_days})"
+            )
+        return self
 
 
 class WebSocketConfig(ExcludeExtrasMixin, BaseModel):
