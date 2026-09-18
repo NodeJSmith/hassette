@@ -184,7 +184,7 @@ export function HandlersTab({
             {showMasterList && (
               <div
                 className={cn(
-                  "max-h-[var(--master-max-height)] overflow-y-auto rounded-md border border-border bg-card",
+                  "max-h-[var(--master-max-height)] overflow-y-auto rounded-md border border-border bg-card [box-shadow:var(--shadow-2)]",
                   isMobile && "mb-4 max-h-none",
                 )}
               >
