@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add system tests for Bus.wait_for() against real HA"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["AC#7", "AC#8", "AC#9"]
 ---

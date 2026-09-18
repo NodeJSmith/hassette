@@ -9,24 +9,19 @@ with the actual dispatch pipeline, not a mocked one.
 import asyncio
 
 from hassette.testing import create_state_change_event, wait_for
-from hassette.types import Topic
 from tests.support.factories import make_recording_api
+from tests.support.helpers import entity_topic
 
 from .conftest import ASYNC_SAFETY_TIMEOUT
 
 ENTITY_ID = "light.kitchen"
-STATE_CHANGED_TOPIC = str(Topic.HASS_EVENT_STATE_CHANGED)
-
-
-def _entity_topic(entity_id: str) -> str:
-    return f"{STATE_CHANGED_TOPIC}.{entity_id}"
 
 
 async def test_wait_for_resolves_on_real_bus_dispatch(bus_harness) -> None:
     """A real state_changed event dispatched through the Bus resolves a pending wait_for."""
     _, hassette, bus = bus_harness
 
-    wait_task = asyncio.create_task(bus.wait_for(_entity_topic(ENTITY_ID), timeout=ASYNC_SAFETY_TIMEOUT))
+    wait_task = asyncio.create_task(bus.wait_for(entity_topic(ENTITY_ID), timeout=ASYNC_SAFETY_TIMEOUT))
     await wait_for(lambda: len(bus._wait_for_futures) == 1, desc="wait_for listener registered")
 
     event = create_state_change_event(entity_id=ENTITY_ID, old_value="off", new_value="on")
@@ -54,7 +49,7 @@ async def test_wait_for_composes_with_call_service_arm_before_fire(bus_harness) 
 
     # Arm the wait before triggering the service call that is expected to cause it.
     wait_task = asyncio.create_task(
-        bus.wait_for(_entity_topic(ENTITY_ID), where=matches_turned_on, timeout=ASYNC_SAFETY_TIMEOUT)
+        bus.wait_for(entity_topic(ENTITY_ID), where=matches_turned_on, timeout=ASYNC_SAFETY_TIMEOUT)
     )
     await wait_for(lambda: len(bus._wait_for_futures) == 1, desc="wait_for listener registered")
 
@@ -82,7 +77,7 @@ async def test_wait_for_where_clause_filters_real_dispatch(bus_harness) -> None:
         return new_state is not None and new_state["state"] == "on"
 
     wait_task = asyncio.create_task(
-        bus.wait_for(_entity_topic(ENTITY_ID), where=matches_turned_on, timeout=ASYNC_SAFETY_TIMEOUT)
+        bus.wait_for(entity_topic(ENTITY_ID), where=matches_turned_on, timeout=ASYNC_SAFETY_TIMEOUT)
     )
     await wait_for(lambda: len(bus._wait_for_futures) == 1, desc="wait_for listener registered")
 
@@ -114,10 +109,10 @@ async def test_wait_for_concurrent_waits_resolve_independently(bus_harness) -> N
         return new_state is not None and new_state["state"] == "off"
 
     on_task = asyncio.create_task(
-        bus.wait_for(_entity_topic(ENTITY_ID), where=matches_on, timeout=ASYNC_SAFETY_TIMEOUT, name="wait_on")
+        bus.wait_for(entity_topic(ENTITY_ID), where=matches_on, timeout=ASYNC_SAFETY_TIMEOUT, name="wait_on")
     )
     off_task = asyncio.create_task(
-        bus.wait_for(_entity_topic(ENTITY_ID), where=matches_off, timeout=ASYNC_SAFETY_TIMEOUT, name="wait_off")
+        bus.wait_for(entity_topic(ENTITY_ID), where=matches_off, timeout=ASYNC_SAFETY_TIMEOUT, name="wait_off")
     )
     await wait_for(lambda: len(bus._wait_for_futures) == 2, desc="both wait_for listeners registered")
 

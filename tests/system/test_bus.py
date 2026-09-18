@@ -6,8 +6,9 @@ import pytest
 
 from hassette.events import RawStateChangeEvent
 from hassette.testing import wait_for
+from tests.support.helpers import entity_topic
 
-from .conftest import make_system_config, startup_context, toggle_and_capture
+from .conftest import SHUTDOWN_TIMEOUT, make_system_config, startup_context, toggle_and_capture
 
 pytestmark = [pytest.mark.system]
 
@@ -316,3 +317,72 @@ async def test_duration_handler_fires_after_hold(ha_container: str, tmp_path) ->
         )
 
         assert len(received) >= 1
+
+
+async def test_wait_for_resolves_on_real_state_change(ha_container: str, tmp_path) -> None:
+    """bus.wait_for() resolves with the real state_changed event triggered by a live HA service call.
+
+    Exercises the full pipeline: HA state change -> WebSocket -> Bus dispatch -> future
+    resolution, against a real Home Assistant instance rather than a synthetic dispatched event.
+    """
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
+        api = hassette.api
+
+        # Arm the wait before triggering the service call, per the documented arm-before-fire
+        # pattern — avoids a race where the event fires before the listener is registered.
+        wait_task = asyncio.create_task(bus.wait_for(entity_topic(ENTITY), timeout=15.0))
+        await wait_for(
+            lambda: len(bus._wait_for_futures) == 1,  # pyright: ignore[reportPrivateUsage]
+            timeout=5.0,
+            desc="wait_for listener registered",
+        )
+
+        await api.call_service(DOMAIN, "toggle", {"entity_id": ENTITY})
+
+        result = await asyncio.wait_for(wait_task, timeout=15.0)
+
+        assert isinstance(result, RawStateChangeEvent)
+        assert result.payload.data.entity_id == ENTITY
+        assert result.payload.data.new_state is not None
+
+
+async def test_wait_for_times_out_without_matching_event(ha_container: str, tmp_path) -> None:
+    """bus.wait_for() raises TimeoutError when no matching event arrives within the deadline.
+
+    No service call is made for the watched entity, so no state_changed event is ever dispatched
+    for it and the real-latency timeout path is exercised against a live HA connection.
+    """
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
+
+        with pytest.raises(TimeoutError):
+            await bus.wait_for(entity_topic(ENTITY), timeout=2.0)
+
+
+async def test_wait_for_cancelled_on_shutdown(ha_container: str, tmp_path) -> None:
+    """A pending bus.wait_for() is cancelled when Hassette shuts down mid-wait.
+
+    Bus.on_shutdown() removes all listeners it owns, which — via the removal callback wired in
+    Bus.__init__ — cancels any still-pending wait_for future. This proves that cancellation
+    propagates through the real shutdown sequence against a live HA-backed Hassette instance,
+    not just a unit-level removal-callback invocation.
+    """
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
+
+        # timeout=None: the only way this future resolves is a matching event or removal.
+        wait_task = asyncio.create_task(bus.wait_for(entity_topic(ENTITY), timeout=None))
+        await wait_for(
+            lambda: len(bus._wait_for_futures) == 1,  # pyright: ignore[reportPrivateUsage]
+            timeout=5.0,
+            desc="wait_for listener registered before shutdown",
+        )
+
+        hassette.shutdown_event.set()
+
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(wait_task, timeout=SHUTDOWN_TIMEOUT)

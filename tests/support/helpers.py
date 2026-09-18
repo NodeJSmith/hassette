@@ -97,6 +97,9 @@ _FAILED_AUTH_LOGGER = "hassette.web.middleware"
 """Logger name `_FailedAuthTracker`'s coalesced WARN is emitted on, shared by every failed-auth
 WARN-capture helper below."""
 
+STATE_CHANGED_TOPIC = str(Topic.HASS_EVENT_STATE_CHANGED)
+"""String form of the state_changed HASS event topic, shared by every ``entity_topic()`` call below."""
+
 
 class FakeStateReader:
     """Minimal dict-backed implementation of the StateReader protocol.
@@ -677,6 +680,11 @@ def capture_failed_auth_warn(caplog: pytest.LogCaptureFixture) -> Iterator[None]
     """
     with caplog.at_level(WARNING, logger=_FAILED_AUTH_LOGGER):
         yield
+
+
+def entity_topic(entity_id: str) -> str:
+    """Build the state_changed bus topic for a specific entity, e.g. for `Bus.wait_for()` calls."""
+    return f"{STATE_CHANGED_TOPIC}.{entity_id}"
 
 
 def assert_failed_auth_warn_count(caplog: pytest.LogCaptureFixture, expected: int) -> None:
