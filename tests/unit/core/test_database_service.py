@@ -11,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import aiosqlite
 import pytest
 
+# Underscore-prefixed names below are intentional test-only reaches into module internals.
 from hassette.core.database_service import (
     _RETENTION_TABLES,
     DatabaseService,
@@ -612,7 +613,7 @@ async def test_run_failsafe_tier_returns_under_limit_false_when_iterations_exhau
     service: DatabaseService, memory_db: aiosqlite.Connection
 ) -> None:
     """_run_failsafe_tier() reports under_limit=False when max_iterations is capped out."""
-    await memory_db.execute("INSERT INTO widgets (ts) VALUES " + ", ".join(f"({i}.0)" for i in range(20)))
+    await memory_db.executemany("INSERT INTO widgets (ts) VALUES (?)", [(float(i),) for i in range(20)])
     await memory_db.commit()
 
     with patch.object(service, "get_db_size_mb", return_value=100.0):

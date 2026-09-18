@@ -10,6 +10,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
+
+# _RETENTION_TABLES and _execute_failsafe_delete are intentional test-only reaches into
+# module internals.
 from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, _execute_failsafe_delete
 from hassette.resources.lifecycle import compute_shutdown_budget
 from hassette.utils.aiosqlite_utils import connect_daemon
@@ -773,7 +776,7 @@ async def test_run_failsafe_tier_isolates_per_target_delete_failures(initialized
     async def failing_delete(conn, target, batch_limit):
         if target.table == "executions":
             raise sqlite3.OperationalError("simulated failure")
-        return await _execute_failsafe_delete(conn, target, batch_limit)
+        return await _execute_failsafe_delete(conn, target, batch_limit=batch_limit)
 
     with patch("hassette.core.database_service._execute_failsafe_delete", side_effect=failing_delete):
         deleted_by_table, _under_limit = await initialized_service._run_failsafe_tier(

@@ -148,6 +148,7 @@ async def _execute_target_delete(
 async def _execute_failsafe_delete(
     db: aiosqlite.Connection,
     target: RetentionTarget,
+    *,
     batch_limit: int,
 ) -> int:
     """Delete the oldest ``batch_limit`` rows in ``target.table``, for the size failsafe.
@@ -160,6 +161,20 @@ async def _execute_failsafe_delete(
         (batch_limit,),
     )
     return cursor.rowcount or 0
+
+
+async def _safe_rollback(db: aiosqlite.Connection, owner: "DatabaseService", context: str) -> None:
+    """Roll back a transaction, logging (not raising) if the rollback itself fails.
+
+    Callers remain responsible for handling the original exception (re-raising, logging,
+    etc.) after this returns -- this only guards the rollback attempt itself. ``owner.logger``
+    is accessed only on the failure path, matching pre-extraction behavior where a caller whose
+    rollback always succeeds never had to have a real logger configured.
+    """
+    try:
+        await db.rollback()
+    except Exception:
+        owner.logger.exception("Rollback failed after error in %s", context)
 
 
 class DatabaseService(Service):
@@ -842,10 +857,7 @@ class DatabaseService(Service):
                     jobs_deleted,
                 )
         except Exception:
-            try:
-                await self.db.rollback()
-            except Exception:
-                self.logger.exception("Rollback failed after error in retention cleanup")
+            await _safe_rollback(self.db, self, "retention cleanup")
             self.logger.exception("Failed to run retention cleanup")
 
     def get_db_size_mb(self) -> float:
@@ -892,7 +904,7 @@ class DatabaseService(Service):
             group_deleted = 0
             for target in group:
                 try:
-                    n = await _execute_failsafe_delete(db, target, batch_limit)
+                    n = await _execute_failsafe_delete(db, target, batch_limit=batch_limit)
                     iteration_deleted[target.table] += n
                     group_deleted += n
                 except Exception:
@@ -1053,8 +1065,5 @@ class DatabaseService(Service):
             await db.executemany(_LOG_INSERT_SQL, records)
             await db.commit()
         except Exception:
-            try:
-                await db.rollback()
-            except Exception:
-                self.logger.exception("Rollback failed after error in log record insert")
+            await _safe_rollback(db, self, "log record insert")
             raise
