@@ -2,15 +2,16 @@ import asyncio
 import json
 import socket
 import textwrap
-from collections.abc import Mapping, Sequence
-from contextlib import AbstractContextManager, suppress
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import AbstractContextManager, contextmanager, suppress
 from io import StringIO
-from logging import Logger, getLogger
+from logging import WARNING, Logger, getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
+import pytest
 import tomli_w
 
 from hassette.bus.listeners import (
@@ -91,6 +92,10 @@ to run without racing the coordinator's own outer deadline."""
 SHORT_TASK_CANCEL_TIMEOUT_SECONDS = 0.1
 """Short ``task_cancellation_timeout_seconds`` for tests that need the TaskBucket cancel stage
 to resolve quickly."""
+
+_FAILED_AUTH_LOGGER = "hassette.web.middleware"
+"""Logger name `_FailedAuthTracker`'s coalesced WARN is emitted on, shared by every failed-auth
+WARN-capture helper below."""
 
 
 class FakeStateReader:
@@ -660,3 +665,27 @@ def first_json_record_containing(stream: StringIO, text: str) -> dict[str, Any]:
     lines = [line for line in stream.getvalue().strip().splitlines() if text in line]
     assert lines, f"no log record containing {text!r} was emitted to the stream"
     return json.loads(lines[0])
+
+
+@contextmanager
+def capture_failed_auth_warn(caplog: pytest.LogCaptureFixture) -> Iterator[None]:
+    """Capture WARN records from the failed-auth middleware logger for the wrapped block.
+
+    Shared by `tests/unit/web/test_middleware.py` (drives `_FailedAuthTracker` directly) and
+    `tests/integration/web_api/test_auth.py` (drives it indirectly through real requests) so
+    both keep exactly one copy of the logger name being captured.
+    """
+    with caplog.at_level(WARNING, logger=_FAILED_AUTH_LOGGER):
+        yield
+
+
+def assert_failed_auth_warn_count(caplog: pytest.LogCaptureFixture, expected: int) -> None:
+    """Assert the number of coalesced 'failed auth attempts' WARN records captured so far.
+
+    Centralizes the message substring so a reword of the WARN in
+    `src/hassette/web/middleware.py` can't silently make every call site match zero records.
+    """
+    warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
+    assert len(warn_records) == expected, (
+        f"expected {expected} 'failed auth attempts' WARN record(s), got {len(warn_records)}: {warn_records!r}"
+    )
