@@ -303,6 +303,29 @@ class TestRetentionCleanup:
         cursor = await db.execute("SELECT id FROM listeners WHERE id = ?", (listener2_id,))
         assert await cursor.fetchone() is not None  # survives: parent-guard was gated off
 
+    async def test_parent_guard_failure_appears_in_cleanup_summary(
+        self,
+        db: aiosqlite.Connection,
+        caplog: pytest.LogCaptureFixture,
+        retention_service: DatabaseService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A parent-guard delete failure (distinct from an upstream target failure) is rolled
+        back, logged individually, and also folded into the aggregate "Retention cleanup
+        summary" line — not left visible only in its own separate log line.
+
+        Regression test: every _RETENTION_TABLES target succeeds this cycle (no rows to touch),
+        so the parent-guard actually runs; only its own DELETE is made to fail.
+        """
+        monkeypatch.setattr(db, "execute", make_failing_execute(db, "DELETE FROM listeners"))
+
+        with caplog.at_level(logging.INFO):
+            await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
+
+        assert "Retention cleanup failed for parent-guard deletes" in caplog.text
+        assert "Retention cleanup summary" in caplog.text
+        assert "parent-guard deletes failed" in caplog.text
+
     async def test_retention_cleanup_batches_large_deletes(
         self,
         db: aiosqlite.Connection,
@@ -910,6 +933,69 @@ class TestSizeFailsafe:
         assert "capped at 2 iterations" in caplog.text
         assert "stopped early" in caplog.text
         assert "framework executions" in caplog.text
+
+    async def test_size_failsafe_reports_both_causes_when_earlier_tier_fails_and_later_tier_caps(
+        self,
+        db: aiosqlite.Connection,
+        mock_hassette_for_db: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+        retention_service: DatabaseService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When a higher-priority tier's DELETE fails (``any_tier_incomplete``) and a
+        lower-priority tier later hits its iteration cap (``capped_tier_label``) in the same
+        cycle, the end-of-cycle warning must name both causes — not just whichever one the
+        code happens to check first.
+
+        Regression test for the original if/capped-elif-incomplete structure, which could only
+        ever report one cause and silently dropped the other from the aggregate warning.
+        """
+        retention_service.hassette.config.database.size_failsafe_max_iterations = 2
+        retention_service.hassette.config.database.size_failsafe_delete_batch = 2
+
+        now = time.time()
+        # Framework tier (priority 1, highest): its DELETE always fails below.
+        await insert_tiered_execution(db, now - 1, SOURCE_TIER_FRAMEWORK)
+        # App executions tier (priority 3): far more rows than the 2-iteration * 2-row cap (4)
+        # can ever drain, so it hits the iteration cap.
+        for i in range(20):
+            await insert_tiered_execution(db, now - i, SOURCE_TIER_APP)
+        await db.commit()
+
+        original_execute = db.execute
+
+        async def failing_framework_execute(sql: str, *args: Any, **kwargs: Any) -> Any:
+            if (
+                sql.strip().startswith("DELETE FROM executions")
+                and args
+                and args[0]
+                and args[0][0] == SOURCE_TIER_FRAMEWORK
+            ):
+                raise sqlite3.OperationalError("simulated failure")
+            return await original_execute(sql, *args, **kwargs)
+
+        monkeypatch.setattr(db, "execute", failing_framework_execute)
+
+        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        # Never report under the limit — forces the app-executions tier to keep going until it
+        # hits the iteration cap instead of naturally draining and breaking out early.
+        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+
+        with caplog.at_level(logging.INFO):
+            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+
+        # Framework tier's DELETE always failed — untouched.
+        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
+        assert (await cursor.fetchone())[0] == 1
+
+        # App tier hit its cap (2 iterations * 2 rows = 4 deleted, 16 remain).
+        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'app'")
+        assert (await cursor.fetchone())[0] == 16
+
+        assert "Size failsafe stopped early" in caplog.text
+        assert "one or more tiers failed and were skipped this cycle" in caplog.text
+        assert "app executions hit the 2-iteration cap" in caplog.text
+        assert retention_service._consecutive_exhaustion_triggers == 0  # pyright: ignore[reportPrivateUsage]
 
     async def test_size_failsafe_exact_boundary_drain_proceeds_to_next_tier(
         self,

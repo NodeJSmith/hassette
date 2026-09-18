@@ -1007,7 +1007,9 @@ class DatabaseService(Service):
         succeeded AND fully cleared its cutoff window this cycle; a target that raised or hit
         the per-cycle batch cap (see ``_delete_target_batched``'s ``exhausted`` return) skips
         the guard for this cycle so it can never run against a state where an upstream delete
-        is known to be incomplete.
+        is known to be incomplete. A parent-guard failure is rolled back, logged individually,
+        and also folded into the "Retention cleanup summary" line below (as
+        "parent-guard deletes failed") so it isn't only visible in a separate log line.
         """
         config = self.hassette.config
         now = time.time()
@@ -1032,6 +1034,7 @@ class DatabaseService(Service):
 
         listeners_deleted = 0
         jobs_deleted = 0
+        parent_guard_failed = False
 
         if not failed_labels and not incomplete_labels:
             try:
@@ -1041,6 +1044,7 @@ class DatabaseService(Service):
             except Exception:
                 await _safe_rollback(self.db, self, "parent-guard deletes")
                 self.logger.exception("Retention cleanup failed for parent-guard deletes")
+                parent_guard_failed = True
         else:
             self.logger.warning(
                 "Retention cleanup: skipping parent-guard deletes — target(s) %s",
@@ -1048,9 +1052,11 @@ class DatabaseService(Service):
             )
 
         deleted_summary = {label: count for label, count in deleted_by_label.items() if count > 0}
-        if deleted_summary or failed_labels or incomplete_labels:
+        if deleted_summary or failed_labels or incomplete_labels or parent_guard_failed:
             parts = ", ".join(f"{count} {label}" for label, count in deleted_summary.items())
             tags = _target_failure_reasons(failed_labels, incomplete_labels)
+            if parent_guard_failed:
+                tags.append("parent-guard deletes failed")
             self.logger.info(
                 "Retention cleanup summary: deleted %s%s",
                 parts or "nothing",
@@ -1146,9 +1152,10 @@ class DatabaseService(Service):
         does not count as "exhausted," since the overage there is attributable to the
         stop/skip rather than to unmanaged data across every tier. Such a cycle also resets the
         counter to 0, so a later genuinely-exhausted cycle reports a fresh streak rather than
-        one that silently spans the interruption. A WARNING is logged in all three over-limit
-        cases: naming the capped tier, naming that one or more tiers failed and were skipped,
-        or naming that every tier drained without resolving the overage.
+        one that silently spans the interruption. A WARNING is logged for every over-limit
+        cycle, naming every cause that applied — a capped tier, one or more skipped/failed
+        tiers, or (when neither applied) that every tier drained without resolving the
+        overage — rather than only the first cause checked.
         """
         config = self.hassette.config.database
         max_size_mb = config.max_size_mb
@@ -1191,7 +1198,10 @@ class DatabaseService(Service):
                     try:
                         n = await _execute_failsafe_delete(db, target, batch_limit=batch_limit)
                     except Exception:
-                        await _safe_rollback(db, self, target.failsafe_label)
+                        # No rollback here — this connection is opened with isolation_level=None
+                        # (autocommit), and unlike the age-based retention path, this loop never
+                        # issues an explicit BEGIN, so there is no open transaction to roll back.
+                        # Any earlier deletes in this iteration already committed on execute.
                         self.logger.exception(
                             "Size failsafe failed for %s (%.1f MB > %.1f MB limit)",
                             target.failsafe_label,
@@ -1244,7 +1254,8 @@ class DatabaseService(Service):
                         )
                         stale_row = await stale_cursor.fetchone()
                     except Exception:
-                        await _safe_rollback(db, self, target.failsafe_label)
+                        # No rollback here either — the probe is a plain SELECT, and (as above)
+                        # this loop never opens a transaction to roll back in the first place.
                         self.logger.exception(
                             "Size failsafe stale-row probe failed for %s (%.1f MB > %.1f MB limit)",
                             target.failsafe_label,
@@ -1286,29 +1297,26 @@ class DatabaseService(Service):
             self.logger.info("Size failsafe: deleted %s (%.1f MB remaining)", parts, current_size)
 
         if current_size > max_size_mb:
-            if capped_tier_label is not None:
-                # A capped-but-not-exhausted cycle breaks any exhaustion streak in progress — the
-                # next genuinely-exhausted cycle must not report a count that spans across this
-                # interruption.
+            if capped_tier_label is not None or any_tier_incomplete:
+                # Either cause breaks any exhaustion streak in progress — the next
+                # genuinely-exhausted cycle must not report a count that spans across this
+                # interruption. Both causes can occur in the same cycle (an earlier tier's
+                # DELETE/vacuum failure, followed by a later tier hitting its iteration cap) —
+                # report every cause that applied instead of only the one checked first, so a
+                # capped tier discovered after an earlier failure doesn't hide that failure from
+                # the aggregate warning.
                 self._consecutive_exhaustion_triggers = 0
+                causes = []
+                if any_tier_incomplete:
+                    causes.append("one or more tiers failed and were skipped this cycle")
+                if capped_tier_label is not None:
+                    causes.append(
+                        f"{capped_tier_label} hit the {max_iterations}-iteration cap "
+                        "(lower-priority tiers were not touched this cycle)"
+                    )
                 self.logger.warning(
-                    "Size failsafe stopped early: %s hit the %d-iteration cap; database still %.1f MB "
-                    "(limit %.1f MB) — lower-priority tiers were not touched this cycle",
-                    capped_tier_label,
-                    max_iterations,
-                    current_size,
-                    max_size_mb,
-                )
-            elif any_tier_incomplete:
-                # A tier's DELETE or vacuum/checkpoint failed and was skipped this cycle (not a
-                # genuine drain of every tier) — counting this as an exhaustion cycle would
-                # misattribute the overage to unmanaged data rather than the failed cleanup that
-                # actually caused it. The next hourly cycle retries the failed tier from scratch.
-                # Like the capped case above, this also breaks any exhaustion streak in progress.
-                self._consecutive_exhaustion_triggers = 0
-                self.logger.warning(
-                    "Size failsafe: database still %.1f MB (limit %.1f MB) after one or more tiers "
-                    "failed and were skipped this cycle — retrying next cycle",
+                    "Size failsafe stopped early: %s; database still %.1f MB (limit %.1f MB) — retrying next cycle",
+                    "; ".join(causes),
                     current_size,
                     max_size_mb,
                 )
