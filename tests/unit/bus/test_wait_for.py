@@ -19,6 +19,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from hassette.bus.bus import WAIT_FOR_PENDING_WARNING_THRESHOLD
 from hassette.bus.listeners import Subscription
 from hassette.event_handling import predicates as P
 from hassette.events.base import Event
@@ -385,15 +386,15 @@ async def test_multiple_concurrent_waits_resolve_independently(bus: "Bus") -> No
 
 
 async def test_pending_futures_warning_at_threshold(bus: "Bus", caplog: pytest.LogCaptureFixture) -> None:
-    """A WARNING is logged once pending wait_for futures cross the 20 threshold."""
+    """A WARNING is logged once pending wait_for futures cross the threshold."""
     with wait_for_add_listener_mock(bus) as (registered, ready):
         tasks = []
         with caplog.at_level(logging.WARNING, logger=bus.logger.name):
-            for i in range(20):
+            for i in range(WAIT_FOR_PENDING_WARNING_THRESHOLD):
                 tasks.append(asyncio.create_task(bus.wait_for("test.topic", timeout=5, name=f"wait_{i}")))
                 await _await_registration(ready)
 
-        assert len(registered) == 20
+        assert len(registered) == WAIT_FOR_PENDING_WARNING_THRESHOLD
         assert any("pending wait_for futures" in record.getMessage() for record in caplog.records)
 
         for task in tasks:
