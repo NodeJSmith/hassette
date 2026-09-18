@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-ARG PYTHON_VERSION=3.14.6
+ARG PYTHON_VERSION=3.14.7
 ARG UV_VERSION=0.11.26
 
 # ---- Frontend stage (Node.js — builds the Preact SPA) ----
