@@ -21,7 +21,7 @@ from hassette.schemas.live_counts import LiveCounts
 from hassette.testing import wait_for
 from tests.support.helpers import create_listener
 
-from .helpers import ENTITY, fire, pump_event_loop, seed
+from .helpers import ENTITY, fire, make_gated_handler, pump_event_loop, seed
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -36,27 +36,21 @@ async def test_live_execution_counts_snapshot_keyed_by_db_id(
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
-    started = 0
-    gate = asyncio.Event()
-
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal started
-        started += 1
-        await gate.wait()
+    handler, record = make_gated_handler()
 
     sub = await bus.on_state_change(ENTITY, handler=handler, name="counts_single", mode="single")
     db_id = sub.listener.db_id
     assert db_id is not None  # the harness assigns a db_id at registration
 
     await fire(harness, "0", "1")  # starts and blocks
-    await wait_for(lambda: started == 1)
+    await wait_for(lambda: record.started == 1)
     await fire(harness, "1", "2")  # suppressed re-fire
     await wait_for(lambda: sub.listener.invoker.guard.suppressed == 1)
 
     counts = harness.bus_service.live_execution_counts()
     assert counts[db_id] == LiveCounts(suppressed=1, dropped=0, backpressure_dropped=0)
 
-    gate.set()
+    record.gate.set()
     await harness.bus_service.await_dispatch_idle()
 
 

@@ -22,7 +22,7 @@ from hassette.testing import wait_for
 from tests.support.factories import make_mock_parent
 
 from .conftest import DURATION
-from .helpers import ENTITY, fire, pump_event_loop, seed
+from .helpers import ENTITY, fire, make_gated_concurrency_handler, make_gated_handler, pump_event_loop, seed
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -37,27 +37,21 @@ async def test_single_runs_once_and_suppresses_refire(
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
-    started = 0
-    gate = asyncio.Event()
-
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal started
-        started += 1
-        await gate.wait()
+    handler, record = make_gated_handler()
 
     sub = await bus.on_state_change(ENTITY, handler=handler, name="single_mode", mode="single")
 
     await fire(harness, "0", "1")  # starts handler #1, which blocks on the gate
-    await wait_for(lambda: started == 1)  # ensure #1 is running before the re-fire
+    await wait_for(lambda: record.started == 1)  # ensure #1 is running before the re-fire
     await fire(harness, "1", "2")  # re-fire while #1 is running -> suppressed
     await wait_for(lambda: sub.listener.invoker.guard.suppressed == 1)
 
-    assert started == 1
+    assert record.started == 1
     assert sub.listener.invoker.guard.suppressed == 1
 
-    gate.set()
+    record.gate.set()
     await harness.bus_service.await_dispatch_idle()
-    assert started == 1  # the suppressed re-fire never started a second invocation
+    assert record.started == 1  # the suppressed re-fire never started a second invocation
 
 
 async def test_restart_cancels_first_and_runs_second(
@@ -67,34 +61,21 @@ async def test_restart_cancels_first_and_runs_second(
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
-    started = 0
-    cancelled = 0
-    completed = 0
-    gate = asyncio.Event()
-
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal started, cancelled, completed
-        started += 1
-        try:
-            await gate.wait()
-            completed += 1
-        except asyncio.CancelledError:
-            cancelled += 1
-            raise
+    handler, record = make_gated_handler()
 
     await bus.on_state_change(ENTITY, handler=handler, name="restart_mode", mode="restart")
 
     await fire(harness, "0", "1")  # starts #1, blocks
-    await wait_for(lambda: started == 1)
+    await wait_for(lambda: record.started == 1)
     await fire(harness, "1", "2")  # cancels #1, starts #2
-    await wait_for(lambda: started == 2 and cancelled == 1)
+    await wait_for(lambda: record.started == 2 and record.cancelled == 1)
 
-    assert started == 2
-    assert cancelled == 1  # the first invocation observed CancelledError
+    assert record.started == 2
+    assert record.cancelled == 1  # the first invocation observed CancelledError
 
-    gate.set()
+    record.gate.set()
     await harness.bus_service.await_dispatch_idle()
-    assert completed == 1  # only the second invocation completed
+    assert record.completed == 1  # only the second invocation completed
 
 
 async def test_queued_runs_all_in_order(
@@ -232,29 +213,18 @@ async def test_parallel_runs_concurrently(
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
-    concurrent = 0
-    peak = 0
-    gate = asyncio.Event()
-
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal concurrent, peak
-        concurrent += 1
-        peak = max(peak, concurrent)
-        try:
-            await gate.wait()
-        finally:
-            concurrent -= 1
+    handler, record = make_gated_concurrency_handler()
 
     await bus.on_state_change(ENTITY, handler=handler, name="parallel_mode", mode="parallel")
 
     await fire(harness, "0", "1")
     await fire(harness, "1", "2")
     await fire(harness, "2", "3")
-    await wait_for(lambda: peak == 3)
+    await wait_for(lambda: record.peak == 3)
 
-    assert peak == 3  # all three ran concurrently — no overlap guard
+    assert record.peak == 3  # all three ran concurrently — no overlap guard
 
-    gate.set()
+    record.gate.set()
     await harness.bus_service.await_dispatch_idle()
 
 
@@ -320,13 +290,7 @@ async def test_debounce_with_single_composes(
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "0")
 
-    started = 0
-    gate = asyncio.Event()
-
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal started
-        started += 1
-        await gate.wait()
+    handler, record = make_gated_handler()
 
     await bus.on_state_change(ENTITY, handler=handler, name="debounce_single", mode="single", debounce=DURATION)
 
@@ -335,11 +299,11 @@ async def test_debounce_with_single_composes(
     await fire(harness, "0", "1")
     await fire(harness, "1", "2")
     await fire(harness, "2", "3")
-    await wait_for(lambda: started == 1)
+    await wait_for(lambda: record.started == 1)
 
-    assert started == 1
+    assert record.started == 1
 
-    gate.set()
+    record.gate.set()
     await harness.bus_service.await_dispatch_idle()
 
 
@@ -373,13 +337,7 @@ async def test_duration_hold_with_single_guards_at_expiry(
     harness, _hassette, bus = bus_harness
     await seed(harness, ENTITY, "off")
 
-    started = 0
-    gate = asyncio.Event()
-
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal started
-        started += 1
-        await gate.wait()
+    handler, record = make_gated_handler()
 
     await bus.on_state_change(
         ENTITY,
@@ -392,12 +350,12 @@ async def test_duration_hold_with_single_guards_at_expiry(
 
     # The handler does NOT start at trigger arrival — it starts only after the 50ms hold elapses.
     await fire(harness, "off", "on")
-    assert started == 0  # guard is not applied at trigger arrival
-    await wait_for(lambda: started == 1)
+    assert record.started == 0  # guard is not applied at trigger arrival
+    await wait_for(lambda: record.started == 1)
 
-    assert started == 1  # the single guard applies at the delayed hold-expiry dispatch
+    assert record.started == 1  # the single guard applies at the delayed hold-expiry dispatch
 
-    gate.set()
+    record.gate.set()
     await harness.bus_service.await_dispatch_idle()
 
 
@@ -419,18 +377,7 @@ async def test_framework_tier_listener_processes_concurrent_events(
     original_parent = bus.parent
     bus.parent = make_mock_parent(source_tier="framework")
 
-    concurrent = 0
-    peak = 0
-    gate = asyncio.Event()
-
-    async def handler(_event: RawStateChangeEvent) -> None:
-        nonlocal concurrent, peak
-        concurrent += 1
-        peak = max(peak, concurrent)
-        try:
-            await gate.wait()
-        finally:
-            concurrent -= 1
+    handler, record = make_gated_concurrency_handler()
 
     try:
         sub = await bus.on_state_change(ENTITY, handler=handler, name="framework_concurrent")
@@ -439,11 +386,11 @@ async def test_framework_tier_listener_processes_concurrent_events(
 
         await fire(harness, "0", "1")
         await fire(harness, "1", "2")
-        await wait_for(lambda: peak == 2)
+        await wait_for(lambda: record.peak == 2)
 
-        assert peak == 2  # framework listeners are NOT serialized by the tier default
+        assert record.peak == 2  # framework listeners are NOT serialized by the tier default
 
-        gate.set()
+        record.gate.set()
         await harness.bus_service.await_dispatch_idle()
     finally:
         bus.parent = original_parent
