@@ -574,9 +574,16 @@
         },
         "retention_days": {
           "default": 7,
-          "description": "Number of days to retain execution records in the ``executions`` table.",
+          "description": "Number of days to retain app-tier execution records in the ``executions`` table.\nFramework-tier records use ``framework_retention_days`` instead.",
           "minimum": 1,
           "title": "Retention Days",
+          "type": "integer"
+        },
+        "framework_retention_days": {
+          "default": 1,
+          "description": "Number of days to retain framework-tier execution records. Must be <= retention_days.",
+          "minimum": 1,
+          "title": "Framework Retention Days",
           "type": "integer"
         },
         "max_size_mb": {
@@ -647,6 +654,20 @@
           "description": "Number of pages to vacuum per size failsafe run.",
           "minimum": 1,
           "title": "Size Failsafe Vacuum Pages",
+          "type": "integer"
+        },
+        "retention_delete_batch": {
+          "default": 1000,
+          "description": "Number of rows deleted per batch during age-based retention cleanup. Each batch commits\nindependently so no single transaction holds a lock across an entire target's delete.",
+          "minimum": 1,
+          "title": "Retention Delete Batch",
+          "type": "integer"
+        },
+        "retention_max_batches_per_target": {
+          "default": 100,
+          "description": "Maximum batches per retention target per cleanup invocation. Bounds worst-case occupancy\nof the write queue when a target has a large backlog; any remainder is picked up on the\nnext retention cycle.",
+          "minimum": 1,
+          "title": "Retention Max Batches Per Target",
           "type": "integer"
         },
         "max_consecutive_heartbeat_failures": {

@@ -16,7 +16,7 @@ from hassette.resources.lifecycle import create_lifecycle_task, hooks_pool_remai
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.types.types import LOG_LEVEL_TYPE, SourceTier
 from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
 
 if typing.TYPE_CHECKING:
@@ -57,9 +57,9 @@ _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
 
 _VACUUM_CHECKPOINT_RETRY_ATTEMPTS = 2
-"""Attempts _run_failsafe_tier() makes for the incremental_vacuum/wal_checkpoint pair before
-giving up on the current tier. One retry absorbs a transient lock; a second consecutive
-failure moves on to the next priority tier instead of retrying indefinitely."""
+"""Attempts _vacuum_and_checkpoint_with_retry() makes for the incremental_vacuum/wal_checkpoint
+pair before giving up on the current tier. One retry absorbs a transient lock; a second
+consecutive failure moves on to the next priority tier instead of retrying indefinitely."""
 
 # dup-ignore-start: production source of truth for the log_records column set, asserted against
 # verbatim by tests/unit/core/test_log_records.py and mirrored independently in
@@ -92,6 +92,30 @@ _LOG_INSERT_SQL = (
 )
 
 
+_SQL_BEGIN = "BEGIN"
+
+
+class _RetentionBatchError(Exception):
+    """Raised by ``_delete_target_batched()`` when a batch DELETE fails.
+
+    Carries ``partial_deleted`` — the count of rows already committed by earlier batches for
+    this target — so the caller can record real partial progress instead of a false zero. The
+    stack frame holding the local accumulator is gone once this propagates, so the count has
+    to ride out on the exception itself rather than a return value.
+
+    ``partial_deleted`` is a lower bound, not necessarily exact: if the failure occurs during
+    ``commit()`` itself (e.g. ``SQLITE_BUSY`` mid-fsync, or an ``OSError`` from a full disk), the
+    current batch's rows are counted as not deleted even though the commit's actual outcome may
+    be ambiguous. This is safe (age-based deletes are idempotent and a retry re-selects any rows
+    not actually committed) but means the reported count can undercount when correlating with
+    other operational symptoms.
+    """
+
+    def __init__(self, partial_deleted: int, cause: BaseException) -> None:
+        super().__init__(str(cause))
+        self.partial_deleted = partial_deleted
+
+
 @dataclass(frozen=True)
 class RetentionTarget:
     """Declarative specification for a table managed by retention cleanup and size failsafe."""
@@ -101,22 +125,19 @@ class RetentionTarget:
     priority: int
     retention_days_getter: Callable[["HassetteConfig"], int]
     failsafe_label: str
+    source_tier: SourceTier | None = None
+    """Restrict this target to rows of one source tier. ``None`` means no tier filter (the
+    target's table has no ``source_tier`` column, or every row in it should be managed together)."""
 
 
 _RETENTION_TABLES: list[RetentionTarget] = [
     RetentionTarget(
-        table="log_records",
-        timestamp_col="timestamp",
-        priority=0,
-        retention_days_getter=lambda cfg: cfg.logging.log_retention_days,
-        failsafe_label="log pre-pass",
-    ),
-    RetentionTarget(
         table="executions",
         timestamp_col="execution_start_ts",
         priority=1,
-        retention_days_getter=lambda cfg: cfg.database.retention_days,
-        failsafe_label="execution records",
+        retention_days_getter=lambda cfg: cfg.database.framework_retention_days,
+        failsafe_label="framework executions",
+        source_tier="framework",
     ),
     RetentionTarget(
         table="blocking_events",
@@ -125,7 +146,45 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         retention_days_getter=lambda cfg: cfg.database.retention_days,
         failsafe_label="blocking events",
     ),
+    RetentionTarget(
+        table="executions",
+        timestamp_col="execution_start_ts",
+        priority=3,
+        retention_days_getter=lambda cfg: cfg.database.retention_days,
+        failsafe_label="app executions",
+        source_tier="app",
+    ),
+    RetentionTarget(
+        table="log_records",
+        timestamp_col="timestamp",
+        priority=4,
+        retention_days_getter=lambda cfg: cfg.logging.log_retention_days,
+        failsafe_label="log records",
+    ),
 ]
+
+
+def _build_tier_where(target: RetentionTarget) -> tuple[str, list[Any]]:
+    """Build a ``WHERE source_tier = ?`` clause (with trailing space) for ``target``, or an
+    empty clause when it carries no tier filter. Shared by the size failsafe's delete and its
+    stale-row probe, which filter by tier alone (no age cutoff).
+    """
+    if target.source_tier:
+        return "WHERE source_tier = ? ", [target.source_tier]
+    return "", []
+
+
+def _build_age_where(target: RetentionTarget, cutoff: float) -> tuple[str, list[Any]]:
+    """Build the ``WHERE ... < cutoff`` clause (plus tier filter, when set) for ``target``.
+
+    Shared by the age-based retention delete and its stale-row probe.
+    """
+    where = f"{target.timestamp_col} < ?"
+    params: list[Any] = [cutoff]
+    if target.source_tier:
+        where = f"source_tier = ? AND {where}"
+        params.insert(0, target.source_tier)
+    return where, params
 
 
 async def _execute_target_delete(
@@ -133,14 +192,17 @@ async def _execute_target_delete(
     target: RetentionTarget,
     *,
     cutoff: float,
+    batch_limit: int,
 ) -> int:
-    """Delete rows in ``target.table`` older than ``cutoff``, for age-based retention cleanup.
+    """Delete up to ``batch_limit`` rows in ``target.table`` older than ``cutoff``, filtered by
+    ``target.source_tier`` when set, for age-based retention cleanup.
 
     Does not manage transactions -- the caller owns BEGIN/commit/rollback.
     """
+    where, params = _build_age_where(target, cutoff)
     cursor = await db.execute(
-        f"DELETE FROM {target.table} WHERE {target.timestamp_col} < ?",
-        (cutoff,),
+        f"DELETE FROM {target.table} WHERE id IN (SELECT id FROM {target.table} WHERE {where} LIMIT ?)",
+        [*params, batch_limit],
     )
     return cursor.rowcount or 0
 
@@ -151,14 +213,16 @@ async def _execute_failsafe_delete(
     *,
     batch_limit: int,
 ) -> int:
-    """Delete the oldest ``batch_limit`` rows in ``target.table``, for the size failsafe.
+    """Delete the oldest ``batch_limit`` rows in ``target.table``, filtered by
+    ``target.source_tier`` when set, for the size failsafe.
 
     Does not manage transactions -- the caller owns commit.
     """
+    where_clause, params = _build_tier_where(target)
     cursor = await db.execute(
         f"DELETE FROM {target.table} WHERE id IN "
-        f"(SELECT id FROM {target.table} ORDER BY {target.timestamp_col} ASC LIMIT ?)",
-        (batch_limit,),
+        f"(SELECT id FROM {target.table} {where_clause}ORDER BY {target.timestamp_col} ASC LIMIT ?)",
+        [*params, batch_limit],
     )
     return cursor.rowcount or 0
 
@@ -170,11 +234,30 @@ async def _safe_rollback(db: aiosqlite.Connection, owner: "DatabaseService", con
     etc.) after this returns -- this only guards the rollback attempt itself. ``owner.logger``
     is accessed only on the failure path, matching pre-extraction behavior where a caller whose
     rollback always succeeds never had to have a real logger configured.
+
+    A failed rollback here leaves the shared write connection's transaction state unknown --
+    the next queued write (heartbeat, another retention batch) executes against whatever was
+    left behind, not a guaranteed-clean slate. The log message names that consequence rather
+    than just the event.
     """
     try:
         await db.rollback()
     except Exception:
-        owner.logger.exception("Rollback failed after error in %s", context)
+        owner.logger.exception("Rollback also failed for %s — write connection state is now unknown", context)
+
+
+def _target_failure_reasons(failed_labels: set[str], incomplete_labels: set[str]) -> list[str]:
+    """Format a retention-cleanup cycle's failed/incomplete targets for a log message.
+
+    Shared by the parent-guard skip warning and the cycle summary log in
+    ``_do_run_retention_cleanup()`` — both need the same "failed: X; incomplete: Y" phrasing.
+    """
+    reasons: list[str] = []
+    if failed_labels:
+        reasons.append(f"failed: {', '.join(sorted(failed_labels))}")
+    if incomplete_labels:
+        reasons.append(f"incomplete: {', '.join(sorted(incomplete_labels))}")
+    return reasons
 
 
 class DatabaseService(Service):
@@ -223,6 +306,10 @@ class DatabaseService(Service):
     _consecutive_size_triggers: int
     """Counter for consecutive hourly size failsafe triggers; logged as a warning."""
 
+    _consecutive_exhaustion_triggers: int
+    """Counter for consecutive size failsafe runs that drained every retention tier and left
+    the database still over the configured size limit; logged as a warning."""
+
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._db = None
@@ -230,6 +317,7 @@ class DatabaseService(Service):
         self._db_path = Path()
         self._consecutive_heartbeat_failures = 0
         self._consecutive_size_triggers = 0
+        self._consecutive_exhaustion_triggers = 0
         self._db_write_queue = None
         self._db_worker_task = None
         self._write_queue_detached = False
@@ -279,6 +367,7 @@ class DatabaseService(Service):
         """Set up the database: check schema version, run migrations and open connection."""
         self._consecutive_heartbeat_failures = 0
         self._consecutive_size_triggers = 0
+        self._consecutive_exhaustion_triggers = 0
         # Cleared up front, not at queue-creation time below: a restart whose initialization
         # fails before it gets that far must still report the pre-init cause rather than a
         # stale post-teardown one left over from the previous lifecycle.
@@ -303,8 +392,16 @@ class DatabaseService(Service):
         await self._read_db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
 
         await self.set_pragmas()
+        # Bound the startup failsafe check at half the configured startup readiness budget. A
+        # large first-run backlog (slow PRAGMA incremental_vacuum/wal_checkpoint on a big,
+        # over-limit DB) could otherwise itself exhaust the readiness timeout that
+        # wait_for_ready() enforces around this whole on_initialize() call — the exact scenario
+        # this design exists to fix. A timeout here degrades to "startup skipped cleanup," not a
+        # failed startup: per-batch commits mean whatever was already deleted stays deleted,
+        # and the hourly run_size_failsafe() continues grinding the backlog down afterward.
+        startup_failsafe_timeout = self.hassette.config.lifecycle.startup_timeout_seconds / 2
         try:
-            await self._check_size_failsafe()
+            await asyncio.wait_for(self._check_size_failsafe(), timeout=startup_failsafe_timeout)
         except Exception:
             self.logger.warning("Startup size failsafe check failed; continuing without cleanup", exc_info=True)
 
@@ -790,75 +887,187 @@ class DatabaseService(Service):
             return
         self.enqueue(self._do_run_retention_cleanup())
 
+    async def _delete_target_batched(
+        self, target: RetentionTarget, now: float, config: "HassetteConfig"
+    ) -> tuple[int, bool]:
+        """Batched age-based delete for one retention target.
+
+        ``exhausted`` is True when the per-cycle batch cap ran out with rows matching the
+        cutoff still present. This is a normal return, not an exception, but the caller must
+        treat it the same as a raised failure for parent-guard gating purposes: an exhausted
+        target's cutoff window still has known-stale rows, the exact condition the
+        parent-guard's own NOT EXISTS check assumes can't happen for any target it isn't told
+        about. The remainder is picked up on the next hourly cycle either way.
+
+        Returns:
+            tuple[int, bool]: ``(total_deleted, exhausted)``.
+
+        Raises:
+            _RetentionBatchError: On failure, carrying the count of rows already committed by
+                earlier batches — the caller is responsible for recording failed_labels and
+                preserving that partial progress from the exception.
+        """
+        target_start = time.monotonic()
+        cutoff = now - (target.retention_days_getter(config) * SECONDS_PER_DAY)
+        batch_size = config.database.retention_delete_batch
+        max_batches = config.database.retention_max_batches_per_target
+
+        total_deleted = 0
+        exhausted = False
+        for _ in range(max_batches):
+            try:
+                await self.db.execute(_SQL_BEGIN)
+                batch_count = await _execute_target_delete(self.db, target, cutoff=cutoff, batch_limit=batch_size)
+                await self.db.commit()
+            except Exception as exc:
+                raise _RetentionBatchError(total_deleted, exc) from exc
+            total_deleted += batch_count
+            if batch_count < batch_size:
+                break
+        else:
+            # Every batch ran full-sized, but that doesn't prove rows past the cutoff remain —
+            # the final full batch may have removed the last one. Check before declaring the
+            # target incomplete; an unnecessary "incomplete" here skips otherwise-safe
+            # parent-guard cleanup and emits a false backlog warning for the next hour.
+            where, params = _build_age_where(target, cutoff)
+            try:
+                stale_cursor = await self.db.execute(f"SELECT 1 FROM {target.table} WHERE {where} LIMIT 1", params)
+                stale_row = await stale_cursor.fetchone()
+            except Exception as exc:
+                raise _RetentionBatchError(total_deleted, exc) from exc
+            if stale_row is not None:
+                exhausted = True
+                self.logger.warning(
+                    "Retention cleanup: %s hit the %d-batch cap for this cycle with records still past "
+                    "cutoff — treating as incomplete and skipping parent-guard deletes this cycle; "
+                    "remainder continues next cycle",
+                    target.failsafe_label,
+                    max_batches,
+                )
+
+        elapsed = time.monotonic() - target_start
+        if total_deleted > 0:
+            self.logger.info(
+                "Retention cleanup: deleted %d %s in %.1fs",
+                total_deleted,
+                target.failsafe_label,
+                elapsed,
+            )
+        return total_deleted, exhausted
+
+    async def _run_parent_guard_deletes(self, cutoff: float) -> tuple[int, int]:
+        """NOT EXISTS-guarded deletes for retired listeners/scheduled_jobs.
+
+        Only delete retired listeners/scheduled_jobs when ALL their child executions have
+        also aged out. This prevents orphaning recent executions whose parent row would be
+        deleted because retired_at (set at restart time) diverges from last execution time.
+
+        Returns:
+            tuple[int, int]: ``(listeners_deleted, jobs_deleted)``.
+
+        Raises:
+            Exception: Propagates any DB error from the delete statements.
+        """
+        await self.db.execute(_SQL_BEGIN)
+        cursor_rl = await self.db.execute(
+            """
+            DELETE FROM listeners
+            WHERE retired_at IS NOT NULL AND retired_at < ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM executions
+                  WHERE listener_id = listeners.id
+                    AND execution_start_ts >= ?
+              )
+            """,
+            (cutoff, cutoff),
+        )
+        # Same guard for scheduled_jobs.
+        cursor_rj = await self.db.execute(
+            """
+            DELETE FROM scheduled_jobs
+            WHERE retired_at IS NOT NULL AND retired_at < ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM executions
+                  WHERE job_id = scheduled_jobs.id
+                    AND execution_start_ts >= ?
+              )
+            """,
+            (cutoff, cutoff),
+        )
+        await self.db.commit()
+        return cursor_rl.rowcount or 0, cursor_rj.rowcount or 0
+
     async def _do_run_retention_cleanup(self) -> None:
         """Execute the retention DELETE queries; called by the write-queue worker.
 
-        Iterates _RETENTION_TABLES for simple age-based deletes, then applies
-        NOT EXISTS guard deletes for parent tables (listeners, scheduled_jobs).
+        Iterates _RETENTION_TABLES for tier-aware, batched age-based deletes — each target
+        gets its own per-batch transaction, bounding per-batch lock duration, and a failure
+        on one target does not roll back deletes already committed for another.
+        Parent-guard deletes for listeners/scheduled_jobs only run once every target has both
+        succeeded AND fully cleared its cutoff window this cycle; a target that raised or hit
+        the per-cycle batch cap (see ``_delete_target_batched``'s ``exhausted`` return) skips
+        the guard for this cycle so it can never run against a state where an upstream delete
+        is known to be incomplete. A parent-guard failure is rolled back, logged individually,
+        and also folded into the "Retention cleanup summary" line below (as
+        "parent-guard deletes failed") so it isn't only visible in a separate log line.
         """
-        try:
-            config = self.hassette.config
-            now = time.time()
-            deleted_by_table: dict[str, int] = {}
+        config = self.hassette.config
+        now = time.time()
+        deleted_by_label: dict[str, int] = {}
+        failed_labels: set[str] = set()
+        incomplete_labels: set[str] = set()
 
-            # Explicit BEGIN — aiosqlite opens connections with isolation_level=None (autocommit),
-            # so without this BEGIN each DELETE commits individually and the rollback() in the
-            # except clause is a no-op. The BEGIN makes the whole cleanup one atomic transaction.
-            await self.db.execute("BEGIN")
+        for target in _RETENTION_TABLES:
+            try:
+                deleted, exhausted = await self._delete_target_batched(target, now, config)
+            except _RetentionBatchError as exc:
+                await _safe_rollback(self.db, self, target.failsafe_label)
+                self.logger.exception("Retention cleanup failed for %s", target.failsafe_label)
+                # Batches already committed before the failure are real, durable progress —
+                # record them alongside the failure rather than reporting a false zero.
+                deleted_by_label[target.failsafe_label] = exc.partial_deleted
+                failed_labels.add(target.failsafe_label)
+                continue
+            deleted_by_label[target.failsafe_label] = deleted
+            if exhausted:
+                incomplete_labels.add(target.failsafe_label)
 
-            for target in _RETENTION_TABLES:
-                cutoff = now - (target.retention_days_getter(config) * SECONDS_PER_DAY)
-                deleted_by_table[target.table] = await _execute_target_delete(self.db, target, cutoff=cutoff)
+        listeners_deleted = 0
+        jobs_deleted = 0
+        parent_guard_failed = False
 
-            # Use the standard retention window for parent-guard deletes.
-            cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
-
-            # Only delete retired listeners when ALL their child executions have also aged out.
-            # This prevents orphaning recent executions whose parent row would be
-            # deleted because retired_at (set at restart time) diverges from last execution time.
-            cursor_rl = await self.db.execute(
-                """
-                DELETE FROM listeners
-                WHERE retired_at IS NOT NULL AND retired_at < ?
-                  AND NOT EXISTS (
-                      SELECT 1 FROM executions
-                      WHERE listener_id = listeners.id
-                        AND execution_start_ts >= ?
-                  )
-                """,
-                (cutoff, cutoff),
+        if not failed_labels and not incomplete_labels:
+            try:
+                # Use the standard retention window for parent-guard deletes.
+                cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
+                listeners_deleted, jobs_deleted = await self._run_parent_guard_deletes(cutoff)
+            except Exception:
+                await _safe_rollback(self.db, self, "parent-guard deletes")
+                self.logger.exception("Retention cleanup failed for parent-guard deletes")
+                parent_guard_failed = True
+        else:
+            self.logger.warning(
+                "Retention cleanup: skipping parent-guard deletes — target(s) %s",
+                "; ".join(_target_failure_reasons(failed_labels, incomplete_labels)),
             )
-            # Same guard for scheduled_jobs.
-            cursor_rj = await self.db.execute(
-                """
-                DELETE FROM scheduled_jobs
-                WHERE retired_at IS NOT NULL AND retired_at < ?
-                  AND NOT EXISTS (
-                      SELECT 1 FROM executions
-                      WHERE job_id = scheduled_jobs.id
-                        AND execution_start_ts >= ?
-                  )
-                """,
-                (cutoff, cutoff),
+
+        deleted_summary = {label: count for label, count in deleted_by_label.items() if count > 0}
+        if deleted_summary or failed_labels or incomplete_labels or parent_guard_failed:
+            parts = ", ".join(f"{count} {label}" for label, count in deleted_summary.items())
+            tags = _target_failure_reasons(failed_labels, incomplete_labels)
+            if parent_guard_failed:
+                tags.append("parent-guard deletes failed")
+            self.logger.info(
+                "Retention cleanup summary: deleted %s%s",
+                parts or "nothing",
+                f" ({'; '.join(tags)})" if tags else "",
             )
-            await self.db.commit()
-
-            listeners_deleted = cursor_rl.rowcount or 0
-            jobs_deleted = cursor_rj.rowcount or 0
-
-            deleted_summary = {table: count for table, count in deleted_by_table.items() if count > 0}
-            if deleted_summary:
-                parts = ", ".join(f"{count} {table}" for table, count in deleted_summary.items())
-                self.logger.info("Retention cleanup: deleted %s", parts)
-            if listeners_deleted or jobs_deleted:
-                self.logger.info(
-                    "Retention cleanup: deleted %d retired listeners, %d retired scheduled_jobs",
-                    listeners_deleted,
-                    jobs_deleted,
-                )
-        except Exception:
-            await _safe_rollback(self.db, self, "retention cleanup")
-            self.logger.exception("Failed to run retention cleanup")
+        if listeners_deleted or jobs_deleted:
+            self.logger.info(
+                "Retention cleanup: deleted %d retired listeners, %d retired scheduled_jobs",
+                listeners_deleted,
+                jobs_deleted,
+            )
 
     def get_db_size_mb(self) -> float:
         """Return total database size (main + WAL + SHM) in megabytes."""
@@ -868,99 +1077,6 @@ class DatabaseService(Service):
             if path.exists():
                 total += path.stat().st_size
         return total / (1024 * 1024)
-
-    async def _run_failsafe_tier(
-        self,
-        db: aiosqlite.Connection,
-        group: list[RetentionTarget],
-        batch_limit: int,
-        max_iterations: int,
-        max_size_mb: float,
-        vacuum_pages: int,
-    ) -> tuple[dict[str, int], bool, int]:
-        """Run the delete-vacuum-check cycle for one priority tier of the size failsafe.
-
-        Iterates up to ``max_iterations`` batches, deleting from every target in ``group``
-        each iteration, committing, vacuuming, and checking the database size. A failure on
-        any single target's delete is logged and skipped so the remaining targets in the
-        group still get their batch deleted; a failure in commit or vacuum/checkpoint is
-        logged and ends this tier's loop early so the caller can move on to the next tier.
-
-        Returns a tuple of (per-table deleted counts for this tier, whether the database is
-        now at or under ``max_size_mb``, the number of iterations actually run). The size
-        check always runs after the loop exits, regardless of exit reason (iterations
-        exhausted, zero rows deleted, or under limit). Per-iteration counts are merged into
-        the returned totals as soon as the deletes execute — aiosqlite opens connections with
-        isolation_level=None (autocommit), so each DELETE is already durably persisted the
-        instant it executes, independent of the later commit() call below. A failed commit or
-        vacuum/checkpoint ends this tier's loop early (so the caller can move on to the next
-        tier) but does not undo or change the deletes already counted for this iteration. The
-        iteration count lets the caller track a shared iteration budget across tiers.
-        """
-        deleted_by_table: dict[str, int] = {t.table: 0 for t in group}
-        group_label = ", ".join(t.failsafe_label for t in group)
-        iterations_used = 0
-
-        for iteration in range(max_iterations):
-            iteration_deleted: dict[str, int] = {t.table: 0 for t in group}
-            group_deleted = 0
-            for target in group:
-                try:
-                    n = await _execute_failsafe_delete(db, target, batch_limit=batch_limit)
-                    iteration_deleted[target.table] += n
-                    group_deleted += n
-                except Exception:
-                    self.logger.exception(
-                        "Size failsafe: failed to delete from %s, continuing with remaining targets",
-                        target.table,
-                    )
-
-            # Deletes above are already durable (isolation_level=None means each DELETE
-            # autocommits on execute), so count them regardless of what commit() below does.
-            for table, count in iteration_deleted.items():
-                deleted_by_table[table] += count
-
-            if group_deleted == 0:
-                break
-
-            iterations_used += 1
-
-            # Commit releases the write lock before vacuuming. PRAGMA wal_checkpoint(TRUNCATE)
-            # below cannot run while the delete statements hold a write lock — without this
-            # commit it fails with "database table is locked". A failure here doesn't undo
-            # the deletes counted above; it just means this tier's loop ends early.
-            try:
-                await db.commit()
-            except Exception:
-                self.logger.exception(
-                    "Size failsafe: commit failed for %s, moving to next tier",
-                    group_label,
-                )
-                break
-
-            # A single bounded retry: a transient vacuum/checkpoint failure (e.g. a
-            # momentary lock) shouldn't push the failsafe into deleting from a more
-            # valuable tier based on a size reading that's stale only because the WAL
-            # wasn't truncated -- the deletes already happened.
-            vacuum_ok = await self._vacuum_and_checkpoint_with_retry(db, vacuum_pages, group_label)
-            if not vacuum_ok:
-                break
-
-            current_size = self.get_db_size_mb()
-            if current_size <= max_size_mb:
-                break
-
-            if iteration == max_iterations - 1:
-                self.logger.warning(
-                    "Size failsafe %s capped at %d iterations; database still %.1f MB (limit %.1f MB)",
-                    group_label,
-                    max_iterations,
-                    current_size,
-                    max_size_mb,
-                )
-
-        under_limit = self.get_db_size_mb() <= max_size_mb
-        return deleted_by_table, under_limit, iterations_used
 
     async def _vacuum_and_checkpoint_with_retry(
         self, db: aiosqlite.Connection, vacuum_pages: int, group_label: str
@@ -1005,16 +1121,60 @@ class DatabaseService(Service):
 
         Iterates _RETENTION_TABLES grouped by priority (lower priority number = deleted
         first). Within each priority tier, all tables in the group are deleted together
-        per iteration. After each iteration a vacuum+checkpoint reclaims disk space.
-        The process stops as soon as the database falls within the size limit.
+        per iteration; a target's ``source_tier`` filter (when set) is applied inside the
+        inner SELECT so each tier's own oldest-N rows are deleted, not the globally-oldest
+        N rows filtered down afterward. After each iteration a vacuum+checkpoint (with a
+        single bounded retry — see ``_vacuum_and_checkpoint_with_retry()``) reclaims disk
+        space. The process stops as soon as the database falls within the size limit.
+
+        ``max_iterations`` is a single budget shared across the whole run, not a per-tier
+        allowance — each tier only gets whatever iterations remain after higher-priority
+        tiers have spent theirs, so a run never deletes more than ``max_iterations`` batches
+        total regardless of how many priority tiers it touches. The budget is spent only by
+        a batch that actually deletes rows — a tier that's already fully drained still needs
+        one attempt to confirm it has nothing left, but that attempt is free, so an
+        always-empty higher-priority tier can't permanently starve lower-priority tiers of
+        budget on every future cycle just by existing.
+
+        If a tier's iteration loop runs out of its share of the budget without naturally draining
+        (every iteration deletes a full batch), the tier is only treated as capped after
+        probing whether it still has matching rows — the same stale-row check
+        ``_delete_target_batched()`` uses. An exact-boundary final batch can drain the tier's
+        own rows while the database stays oversized purely because of other, lower-priority
+        tiers; probing avoids stopping there and skipping those tiers unnecessarily. When the
+        probe confirms rows remain, the run stops instead of advancing to the next,
+        lower-priority tier — a capped tier still has a large backlog of higher-value data of
+        its own, and deleting app/log data while that backlog remains would defeat the priority
+        ordering. The next hourly cycle retries the capped tier first.
+
+        A DELETE failure on one priority tier is logged with the target's ``failsafe_label``,
+        current size, and limit, then skipped — subsequent, lower-priority tiers still run
+        rather than the whole failsafe run silently aborting. The failed tier retries on the
+        next hourly cycle. The stale-row probe above is isolated the same way: a probe failure
+        is logged and skips the rest of that tier rather than propagating out of this method.
+        A vacuum/checkpoint failure that exhausts its retry is treated the same way — the tier
+        is marked incomplete and the run moves on to the next tier.
+
+        ``_consecutive_exhaustion_triggers`` is only incremented when every tier genuinely
+        drained (no capped tier, no DELETE/vacuum failure) and the database is still over the
+        limit — a cycle that stopped early on a capped tier or skipped a tier after a failure
+        does not count as "exhausted," since the overage there is attributable to the
+        stop/skip rather than to unmanaged data across every tier. Such a cycle also resets the
+        counter to 0, so a later genuinely-exhausted cycle reports a fresh streak rather than
+        one that silently spans the interruption. A WARNING is logged for every over-limit
+        cycle, naming every cause that applied — a capped tier, one or more skipped/failed
+        tiers, or (when neither applied) that every tier drained without resolving the
+        overage — rather than only the first cause checked.
         """
-        max_size_mb = self.hassette.config.database.max_size_mb
+        config = self.hassette.config.database
+        max_size_mb = config.max_size_mb
         if max_size_mb == 0:
             return
 
         current_size = self.get_db_size_mb()
         if current_size <= max_size_mb:
             self._consecutive_size_triggers = 0
+            self._consecutive_exhaustion_triggers = 0
             return
 
         self._consecutive_size_triggers += 1
@@ -1027,38 +1187,196 @@ class DatabaseService(Service):
             )
 
         db = self.db
-        total_deleted_by_table: dict[str, int] = {t.table: 0 for t in _RETENTION_TABLES}
-        batch_limit = self.hassette.config.database.size_failsafe_delete_batch
-        max_iterations = self.hassette.config.database.size_failsafe_max_iterations
-        vacuum_pages = self.hassette.config.database.size_failsafe_vacuum_pages
+        total_deleted_by_label: dict[str, int] = {t.failsafe_label: 0 for t in _RETENTION_TABLES}
+        batch_limit = config.size_failsafe_delete_batch
+        max_iterations = config.size_failsafe_max_iterations
+        vacuum_pages = config.size_failsafe_vacuum_pages
 
         priorities = sorted({t.priority for t in _RETENTION_TABLES})
-        remaining_iterations = max_iterations
+        capped_tier_label: str | None = None
+        any_tier_incomplete = False
+        iterations_used = 0
         for priority in priorities:
-            if remaining_iterations <= 0:
-                break
             group = [t for t in _RETENTION_TABLES if t.priority == priority]
-            tier_deleted, under_limit, iterations_used = await self._run_failsafe_tier(
-                db,
-                group,
-                batch_limit,
-                remaining_iterations,
-                max_size_mb,
-                vacuum_pages,
-            )
-            remaining_iterations -= iterations_used
-            for table, count in tier_deleted.items():
-                total_deleted_by_table[table] += count
-            if under_limit:
+            group_label = ", ".join(t.failsafe_label for t in group)
+            capped_early = False
+
+            # max_iterations is a shared per-run budget, not a per-tier one -- each tier
+            # only gets whatever's left after higher-priority tiers already spent theirs.
+            remaining_iterations = max_iterations - iterations_used
+            for _iteration in range(remaining_iterations):
+                group_deleted = 0
+                group_failed = False
+                for target in group:
+                    try:
+                        n = await _execute_failsafe_delete(db, target, batch_limit=batch_limit)
+                    except Exception:
+                        # No rollback here — this connection is opened with isolation_level=None
+                        # (autocommit), and unlike the age-based retention path, this loop never
+                        # issues an explicit BEGIN, so there is no open transaction to roll back.
+                        # Any earlier deletes in this iteration already committed on execute.
+                        self.logger.exception(
+                            "Size failsafe failed for %s (%.1f MB > %.1f MB limit)",
+                            target.failsafe_label,
+                            current_size,
+                            max_size_mb,
+                        )
+                        group_failed = True
+                        continue
+                    total_deleted_by_label[target.failsafe_label] += n
+                    group_deleted += n
+
+                # Commit whatever succeeded this iteration before vacuuming. PRAGMA
+                # wal_checkpoint(TRUNCATE) below cannot run while the delete statements hold a
+                # write lock — without this commit it fails with "database table is locked".
+                try:
+                    await db.commit()
+                except Exception:
+                    # Isolated the same way as a DELETE failure above — an uncaught commit
+                    # failure would otherwise escape this method entirely, skipping every
+                    # lower-priority tier and the aggregate any_tier_incomplete/exhaustion
+                    # accounting below rather than just this one tier.
+                    self.logger.exception(
+                        "Size failsafe commit failed for %s (%.1f MB > %.1f MB limit)",
+                        group_label,
+                        current_size,
+                        max_size_mb,
+                    )
+                    group_failed = True
+
+                if group_deleted > 0:
+                    # The DELETE(s) above already autocommitted — isolation_level=None and no
+                    # explicit BEGIN means each execute() durably persisted immediately. Any
+                    # rows removed this iteration are gone from the database for good
+                    # regardless of whether the commit() call above (or a DELETE on another
+                    # target in this group) subsequently failed, so this iteration must still
+                    # count against the shared budget — otherwise a commit failure would let a
+                    # lower-priority tier receive undiminished budget for real work that
+                    # already happened (e.g. two full batches deleted in the same run at
+                    # size_failsafe_max_iterations=1, one from this tier and one from the next).
+                    iterations_used += 1
+
+                if group_failed:
+                    # This priority tier had a DELETE or commit failure — stop retrying it and
+                    # move on to the next tier instead of aborting the whole failsafe run. The
+                    # next hourly cycle retries this tier from scratch.
+                    any_tier_incomplete = True
+                    break
+
+                if group_deleted == 0:
+                    # An empty tier (already fully drained by an earlier cycle) costs nothing —
+                    # only a batch that actually deletes rows spends the shared budget. Without
+                    # this, an always-empty higher-priority tier would spend one iteration every
+                    # single cycle just confirming it's still empty, permanently starving
+                    # lower-priority tiers of budget they'd otherwise get (catastrophically so at
+                    # size_failsafe_max_iterations=1, where that confirmation alone eats the
+                    # entire run).
+                    break
+
+                # A single bounded retry: a transient vacuum/checkpoint failure (e.g. a
+                # momentary lock) shouldn't push the failsafe into deleting from a more
+                # valuable tier based on a size reading that's stale only because the WAL
+                # wasn't truncated -- the deletes already happened.
+                vacuum_ok = await self._vacuum_and_checkpoint_with_retry(db, vacuum_pages, group_label)
+                if not vacuum_ok:
+                    any_tier_incomplete = True
+                    break
+
+                current_size = self.get_db_size_mb()
+                if current_size <= max_size_mb:
+                    break
+            else:
+                # Every iteration this tier got ran full-sized (or the shared budget was
+                # already spent by a higher-priority tier, leaving remaining_iterations at 0),
+                # but that doesn't prove this tier's own rows remain — the final full batch may
+                # have drained this tier's last row while the database stays oversized only
+                # because of other, lower-priority tiers. Probe before declaring this tier
+                # capped; an unnecessary cap here would skip those other tiers unnecessarily.
+                for target in group:
+                    where_clause, stale_params = _build_tier_where(target)
+                    try:
+                        stale_cursor = await db.execute(
+                            f"SELECT 1 FROM {target.table} {where_clause}LIMIT 1", stale_params
+                        )
+                        stale_row = await stale_cursor.fetchone()
+                    except Exception:
+                        # No rollback here either — the probe is a plain SELECT, and (as above)
+                        # this loop never opens a transaction to roll back in the first place.
+                        self.logger.exception(
+                            "Size failsafe stale-row probe failed for %s (%.1f MB > %.1f MB limit)",
+                            target.failsafe_label,
+                            current_size,
+                            max_size_mb,
+                        )
+                        any_tier_incomplete = True
+                        continue
+                    if stale_row is not None:
+                        capped_early = True
+                        self.logger.warning(
+                            "Size failsafe %s capped at %d iterations; database still %.1f MB (limit %.1f MB) — "
+                            "stopping this cycle without touching lower-priority tiers",
+                            group_label,
+                            max_iterations,
+                            current_size,
+                            max_size_mb,
+                        )
+                        break
+
+            current_size = self.get_db_size_mb()
+            if current_size <= max_size_mb:
                 break
 
-        # get_db_size_mb() is recomputed here for the summary log line since
-        # _run_failsafe_tier returns under_limit as a bool, not the raw size.
-        current_size = self.get_db_size_mb()
-        deleted_summary = {table: count for table, count in total_deleted_by_table.items() if count > 0}
+            if capped_early:
+                # This tier is still over its per-cycle iteration cap with the database still
+                # over the limit — stop here rather than advancing to a lower-priority (more
+                # valuable) tier. Advancing would let app/log data get deleted while this
+                # higher-priority tier still has a large backlog of its own, defeating the
+                # priority ordering for exactly the high-volume scenario it exists to handle.
+                # The next hourly cycle starts again from the lowest priority number, so this
+                # tier is retried first.
+                capped_tier_label = group_label
+                break
+
+        deleted_summary = {label: count for label, count in total_deleted_by_label.items() if count > 0}
         if deleted_summary:
-            parts = ", ".join(f"{count} {table}" for table, count in deleted_summary.items())
+            parts = ", ".join(f"{count} {label}" for label, count in deleted_summary.items())
             self.logger.info("Size failsafe: deleted %s (%.1f MB remaining)", parts, current_size)
+
+        if current_size > max_size_mb:
+            if capped_tier_label is not None or any_tier_incomplete:
+                # Either cause breaks any exhaustion streak in progress — the next
+                # genuinely-exhausted cycle must not report a count that spans across this
+                # interruption. Both causes can occur in the same cycle (an earlier tier's
+                # DELETE/vacuum failure, followed by a later tier hitting its iteration cap) —
+                # report every cause that applied instead of only the one checked first, so a
+                # capped tier discovered after an earlier failure doesn't hide that failure from
+                # the aggregate warning.
+                self._consecutive_exhaustion_triggers = 0
+                causes = []
+                if any_tier_incomplete:
+                    causes.append("one or more tiers failed and were skipped this cycle")
+                if capped_tier_label is not None:
+                    causes.append(
+                        f"{capped_tier_label} hit the {max_iterations}-iteration cap "
+                        "(lower-priority tiers were not touched this cycle)"
+                    )
+                self.logger.warning(
+                    "Size failsafe stopped early: %s; database still %.1f MB (limit %.1f MB) — retrying next cycle",
+                    "; ".join(causes),
+                    current_size,
+                    max_size_mb,
+                )
+            else:
+                self._consecutive_exhaustion_triggers += 1
+                self.logger.warning(
+                    "Size failsafe exhausted all retention tiers %d consecutive time(s); "
+                    "database still %.1f MB (limit %.1f MB)",
+                    self._consecutive_exhaustion_triggers,
+                    current_size,
+                    max_size_mb,
+                )
+        else:
+            self._consecutive_exhaustion_triggers = 0
 
     async def run_size_failsafe(self) -> None:
         """Enqueue a size failsafe check; fire-and-forget via enqueue()."""
@@ -1077,7 +1395,7 @@ class DatabaseService(Service):
             return
         db = self.db
         try:
-            await db.execute("BEGIN")
+            await db.execute(_SQL_BEGIN)
             await db.executemany(_LOG_INSERT_SQL, records)
             await db.commit()
         except Exception:

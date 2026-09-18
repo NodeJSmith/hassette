@@ -67,6 +67,7 @@ class TestDatabaseConfig:
         cfg = DatabaseConfig()
         assert cfg.path is None
         assert cfg.retention_days == 7
+        assert cfg.framework_retention_days == 1
         assert cfg.max_size_mb == 500
         assert cfg.migration_timeout_seconds == 120
         assert cfg.write_queue_max == 2000
@@ -77,12 +78,49 @@ class TestDatabaseConfig:
         assert cfg.size_failsafe_max_iterations == 10
         assert cfg.size_failsafe_delete_batch == 1000
         assert cfg.size_failsafe_vacuum_pages == 100
+        assert cfg.retention_delete_batch == 1000
+        assert cfg.retention_max_batches_per_target == 100
         assert cfg.max_consecutive_heartbeat_failures == 3
 
     def test_retention_days_ge_1(self):
         """retention_days rejects 0."""
         with pytest.raises(ValidationError):
             DatabaseConfig(retention_days=0)
+
+    def test_framework_retention_days_ge_1(self):
+        """framework_retention_days rejects 0."""
+        with pytest.raises(ValidationError):
+            DatabaseConfig(framework_retention_days=0)
+
+    def test_framework_retention_days_exceeds_retention_days_raises(self):
+        """framework_retention_days > retention_days raises ValidationError naming both fields."""
+        with pytest.raises(ValidationError) as exc_info:
+            DatabaseConfig(framework_retention_days=5, retention_days=3)
+        error_text = str(exc_info.value)
+        assert "framework_retention_days (5)" in error_text
+        assert "retention_days (3)" in error_text
+
+    def test_framework_retention_days_equal_to_retention_days_is_valid(self):
+        """framework_retention_days == retention_days is valid."""
+        cfg = DatabaseConfig(framework_retention_days=3, retention_days=3)
+        assert cfg.framework_retention_days == 3
+        assert cfg.retention_days == 3
+
+    def test_framework_retention_days_less_than_retention_days_is_valid(self):
+        """framework_retention_days < retention_days is valid."""
+        cfg = DatabaseConfig(framework_retention_days=1, retention_days=7)
+        assert cfg.framework_retention_days == 1
+        assert cfg.retention_days == 7
+
+    def test_retention_delete_batch_ge_1(self):
+        """retention_delete_batch rejects 0."""
+        with pytest.raises(ValidationError):
+            DatabaseConfig(retention_delete_batch=0)
+
+    def test_retention_max_batches_per_target_ge_1(self):
+        """retention_max_batches_per_target rejects 0."""
+        with pytest.raises(ValidationError):
+            DatabaseConfig(retention_max_batches_per_target=0)
 
     def test_max_size_mb_ge_0(self):
         """max_size_mb rejects negative values."""

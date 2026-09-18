@@ -2,4 +2,5 @@
 [hassette.database]
 path = "/path/to/hassette.db"   # default: {data_dir}/hassette.db
 retention_days = 7              # default: 7 (minimum: 1)
+framework_retention_days = 1    # default: 1 (must be <= retention_days)
 max_size_mb = 500               # default: 500 (0 = no size limit)

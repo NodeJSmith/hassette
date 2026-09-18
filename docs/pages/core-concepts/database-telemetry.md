@@ -32,8 +32,9 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `path` | path or null | `null` | Location of the SQLite database file. When null, Hassette stores the database at `{data_dir}/hassette.db` (`~/.local/share/hassette/v0/hassette.db` on Linux). |
-| `retention_days` | integer | `7` | Days of execution records to retain. Records older than this value are deleted automatically. Minimum: 1. |
-| `max_size_mb` | float | `500` | Maximum database size in megabytes. When exceeded, the oldest execution records are deleted in batches. A value of `0` disables the size limit. |
+| `retention_days` | integer | `7` | Days of app-tier execution records to retain. Records older than this value are deleted automatically. Minimum: 1. |
+| `framework_retention_days` | integer | `1` | Days of framework-tier execution records to retain. Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) run far more often than app handlers, so they get a shorter window. Must be `<= retention_days`. |
+| `max_size_mb` | float | `500` | Maximum database size in megabytes. When exceeded, the oldest records are deleted in batches, highest-volume tier first: framework executions, then blocking events, then app executions, then log records. A value of `0` disables the size limit. |
 
 ??? note "Advanced: queue, interval, and failsafe tuning"
     The remaining `[hassette.database]` fields tune internals. They rarely need changing; the symptoms below name the cases that do.
@@ -50,9 +51,13 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 
 Two maintenance routines run every hour in the background.
 
-Time-based retention runs two deletes: execution records older than `retention_days` (default: 7) from the `executions` table, and log records older than `logging.log_retention_days` (default: 3) from the `log_records` table. Internal bookkeeping records (session tracking) are not affected.
+Time-based retention deletes from four targets independently: framework-tier execution records older than `framework_retention_days` (default: 1), app-tier execution records older than `retention_days` (default: 7), [blocking-event](blocking-io-detection.md) records older than `retention_days`, and log records older than `logging.log_retention_days` (default: 3). Each target commits in its own batches, so a failure or a large backlog on one target does not block the others. Internal bookkeeping records (session tracking) are not affected.
 
-Size-based retention runs after time-based retention. When the total database size (including WAL files) exceeds `max_size_mb`, the oldest execution records are deleted in batches. Deletion continues until the database is back under the limit.
+Retired listener and job registrations are cleaned up separately, after every one of the four targets above has fully cleared its own cutoff window for the current cycle. If any target fails or leaves a backlog past the per-cycle batch cap, the registration cleanup is skipped for that cycle and retried on the next one — this prevents deleting a registration whose child execution records have not actually been fully removed yet.
+
+Size-based retention runs after time-based retention. When the total database size (including WAL files) exceeds `max_size_mb`, the oldest records are deleted in priority order: framework executions first, then blocking events, then app executions, then log records.
+
+A tier fully drains before the next tier starts — as long as its deletes succeed. If a tier hits its per-cycle iteration cap with records still remaining, the run stops there for this cycle instead of touching lower-priority tiers; the next hourly run retries the capped tier first. A DELETE, commit, or vacuum failure marks that one tier incomplete instead and moves on to the next tier, so a transient error on one tier doesn't block the whole cycle — the failed tier retries next hour. This means a higher-priority backlog can be left behind while lower-priority data is deleted, but only when that tier's own processing failed; a tier that hits the iteration cap never yields to a lower-priority one. Deletion continues until the database is back under the limit or every tier has drained, capped, or been skipped.
 
 Both routines are non-blocking and do not interrupt automations or telemetry collection.
 
