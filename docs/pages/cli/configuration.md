@@ -194,13 +194,47 @@ Usage error: Instance 'office' not found for app 'my-app'. Available instances: 
 
 The instance name must match an `instances[].instance_name` value from `hassette app --json` exactly — the default `hassette app` table shows a per-app instance count, not the names themselves. The integer index also works and needs no lookup: `--instance 0` selects the first instance.
 
-**Unauthenticated remote request (401):**
+**Authentication failure (401):**
+
+Every 401 names the credential the CLI actually sent — or says that none was attached — and the remedies that apply. Which of the three variants appears depends on what resolved.
+
+A credential resolved and was rejected:
 
 ```text
-Error 401: Unauthorized (no credential was attached to this remote request. Attach one
-locally via --token-file, cli.token_file, or the HASSETTE__CLI__AUTH_TOKEN environment
-variable — or, if this target sits behind a forward-auth proxy, configure trusted_proxies
-on the remote instance, which requires access to that host and a restart)
+Error 401: Not authenticated (the credential sent came from <data_dir>/.web_api_token
+(/data/.web_api_token — this machine's instance), and it was rejected. Point the CLI at
+the target's own credential with --token-file, cli.token_file, or
+HASSETTE__CLI__AUTH_TOKEN. See
+https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
+```
+
+The named source is the diagnosis. `<data_dir>/.web_api_token` and `web_api.auth_token` belong to *this machine's* instance, and they are attached to any loopback target — including a second Hassette instance on the same host, listening on a different port, with a different token. When the source named is one of those and the target is not the local instance, the fix is to point the CLI at the target's own credential rather than to regenerate anything. Against a remote target this variant adds one caveat: a forward-auth proxy in front of the target can answer 401 itself, so the rejection is not necessarily Hassette's.
+
+Nothing resolved against a local target:
+
+```text
+Error 401: Not authenticated (no credential was attached — nothing in the credential chain
+resolved to a usable value (--token-file, cli.token_file, cli.auth_token,
+web_api.auth_token, <data_dir>/.web_api_token). If one of those is configured, check that
+the file exists, is readable, and is not empty; otherwise, has hassette been started?
+Attach one with --token-file, cli.token_file, or HASSETTE__CLI__AUTH_TOKEN. See
+https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
+```
+
+Usually the server has not started yet — it writes `<data_dir>/.web_api_token` on first start. A running server paired with this message means the CLI resolved a different `data_dir` than the server uses, which an explicit credential settles.
+
+The message names the whole chain rather than asserting which entries are unset, because it cannot tell the difference: a `cli.token_file` or `<data_dir>/.web_api_token` that is missing, unreadable, or empty falls through to the next source silently, exactly like one that was never configured. Check the file before concluding the setting is absent.
+
+Nothing resolved against a remote target:
+
+```text
+Error 401: Not authenticated (no credential was attached to this remote request —
+server-scoped sources (web_api.auth_token, <data_dir>/.web_api_token) describe this
+machine's instance and are never sent to a remote target. Attach one locally with
+--token-file, cli.token_file, or HASSETTE__CLI__AUTH_TOKEN — or, if this target sits
+behind a forward-auth proxy, configure trusted_proxies on the remote instance, which
+requires access to that host and a restart. See
+https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
 ```
 
 The resolved target is non-loopback and no `cli.*` credential was found, so `web_api.auth_token` and `<data_dir>/.web_api_token` were withheld — see [Web API Token](#web-api-token). Fix it locally with `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN`. Fixing it remotely means adding the proxy's address or CIDR — the peer address Hassette actually observes, not the CLI's own host — to `trusted_proxies` on the target instance (see [Letting CLI Traffic Through a Reverse Proxy](#letting-cli-traffic-through-a-reverse-proxy)). Keep that entry narrow: a broad range can let unintended peers on the same network skip the bearer-token check too.
