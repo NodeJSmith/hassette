@@ -328,7 +328,7 @@ A dedicated read connection (`_read_db`) runs with `PRAGMA query_only = ON` and 
 
 ### Retention
 
-A background loop in `DatabaseService.serve()` runs retention cleanup every `_RETENTION_INTERVAL_SECONDS` seconds. `_RETENTION_TABLES` declares each managed table with its retention column. Each entry carries a `retention_days_getter` lambda that reads the configured value from `HassetteConfig`. A separate size-failsafe loop runs on startup and periodically. When the database exceeds a configured size threshold, it deletes old rows in batches and runs incremental vacuum.
+A background loop in `DatabaseService.serve()` runs retention cleanup every `DatabaseConfig.retention_interval_seconds` seconds (default 3600s). `_RETENTION_TABLES` declares each managed table with its retention column. Each entry carries a `retention_days_getter` lambda that reads the configured value from `HassetteConfig`. A separate size-failsafe loop runs on startup and periodically. When the database exceeds a configured size threshold, it deletes old rows in batches and runs incremental vacuum.
 
 ## Web/UI Layer
 

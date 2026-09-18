@@ -27,34 +27,14 @@ if typing.TYPE_CHECKING:
 _WriteQueueItem = tuple[Coroutine[Any, Any, Any], asyncio.Future[Any] | None]
 """Type alias for items placed on the DB write queue."""
 
-# Heartbeat interval: 5 minutes
-_HEARTBEAT_INTERVAL_SECONDS = 300
-
-# Retention cleanup interval: 1 hour
-_RETENTION_INTERVAL_SECONDS = 3600
-
-# Size failsafe interval: 1 hour (same as retention)
-_SIZE_FAILSAFE_INTERVAL_SECONDS = 3600
-
-# Maximum iterations per size failsafe invocation
-_SIZE_FAILSAFE_MAX_ITERATIONS = 10
-
-# Records to delete per iteration in the size failsafe
-_SIZE_FAILSAFE_DELETE_BATCH = 1000
-
-# Pages to free per incremental_vacuum call
-_SIZE_FAILSAFE_VACUUM_PAGES = 100
-
-# Raise from serve() after this many consecutive heartbeat failures
-_MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
-
 # Maximum seconds update_heartbeat() waits for its write to be queued and executed.
 # A wedged write worker stops draining the queue without ever raising, so an unbounded
 # await would park serve() forever and never reach its failure-count escalation.
 # Sized between the two clocks it sits between: comfortably above _BUSY_TIMEOUT_MS (5s), so a
 # healthy write merely blocked on the SQLite lock is never mistaken for a wedge, and well under
-# _HEARTBEAT_INTERVAL_SECONDS (300s), so a timed-out attempt cannot overlap the next tick.
-# Three strikes therefore escalate roughly _MAX_CONSECUTIVE_HEARTBEAT_FAILURES intervals in.
+# the default heartbeat interval (300s, see DatabaseConfig.heartbeat_interval_seconds), so a
+# timed-out attempt cannot overlap the next tick. Three strikes therefore escalate roughly
+# DatabaseConfig.max_consecutive_heartbeat_failures intervals in.
 _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
 
 # Ceiling on the seconds on_shutdown() waits for the write queue to drain. A worker that is
@@ -75,6 +55,11 @@ _DRAIN_TIMEOUT_POOL_FRACTION = 0.5
 
 _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
+
+_VACUUM_CHECKPOINT_RETRY_ATTEMPTS = 2
+"""Attempts _run_failsafe_tier() makes for the incremental_vacuum/wal_checkpoint pair before
+giving up on the current tier. One retry absorbs a transient lock; a second consecutive
+failure moves on to the next priority tier instead of retrying indefinitely."""
 
 # dup-ignore-start: production source of truth for the log_records column set, asserted against
 # verbatim by tests/unit/core/test_log_records.py and mirrored independently in
@@ -141,6 +126,55 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         failsafe_label="blocking events",
     ),
 ]
+
+
+async def _execute_target_delete(
+    db: aiosqlite.Connection,
+    target: RetentionTarget,
+    *,
+    cutoff: float,
+) -> int:
+    """Delete rows in ``target.table`` older than ``cutoff``, for age-based retention cleanup.
+
+    Does not manage transactions -- the caller owns BEGIN/commit/rollback.
+    """
+    cursor = await db.execute(
+        f"DELETE FROM {target.table} WHERE {target.timestamp_col} < ?",
+        (cutoff,),
+    )
+    return cursor.rowcount or 0
+
+
+async def _execute_failsafe_delete(
+    db: aiosqlite.Connection,
+    target: RetentionTarget,
+    *,
+    batch_limit: int,
+) -> int:
+    """Delete the oldest ``batch_limit`` rows in ``target.table``, for the size failsafe.
+
+    Does not manage transactions -- the caller owns commit.
+    """
+    cursor = await db.execute(
+        f"DELETE FROM {target.table} WHERE id IN "
+        f"(SELECT id FROM {target.table} ORDER BY {target.timestamp_col} ASC LIMIT ?)",
+        (batch_limit,),
+    )
+    return cursor.rowcount or 0
+
+
+async def _safe_rollback(db: aiosqlite.Connection, owner: "DatabaseService", context: str) -> None:
+    """Roll back a transaction, logging (not raising) if the rollback itself fails.
+
+    Callers remain responsible for handling the original exception (re-raising, logging,
+    etc.) after this returns -- this only guards the rollback attempt itself. ``owner.logger``
+    is accessed only on the failure path, matching pre-extraction behavior where a caller whose
+    rollback always succeeds never had to have a real logger configured.
+    """
+    try:
+        await db.rollback()
+    except Exception:
+        owner.logger.exception("Rollback failed after error in %s", context)
 
 
 class DatabaseService(Service):
@@ -346,8 +380,9 @@ class DatabaseService(Service):
         last_size_failsafe_run = time.monotonic()
 
         while True:
+            config = self.hassette.config.database
             try:
-                await asyncio.wait_for(self.shutdown_event.wait(), timeout=_HEARTBEAT_INTERVAL_SECONDS)
+                await asyncio.wait_for(self.shutdown_event.wait(), timeout=config.heartbeat_interval_seconds)
                 # shutdown_event was set — exit
                 mark_not_ready(self, reason="Shutting down")
                 return
@@ -356,16 +391,16 @@ class DatabaseService(Service):
 
             await self.update_heartbeat()
 
-            if self._consecutive_heartbeat_failures >= _MAX_CONSECUTIVE_HEARTBEAT_FAILURES:
+            if self._consecutive_heartbeat_failures >= config.max_consecutive_heartbeat_failures:
                 raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
 
             time_since_retention = time.monotonic() - last_retention_run
-            if time_since_retention >= _RETENTION_INTERVAL_SECONDS:
+            if time_since_retention >= config.retention_interval_seconds:
                 await self.run_retention_cleanup()
                 last_retention_run = time.monotonic()
 
             time_since_size_failsafe = time.monotonic() - last_size_failsafe_run
-            if time_since_size_failsafe >= _SIZE_FAILSAFE_INTERVAL_SECONDS:
+            if time_since_size_failsafe >= config.size_failsafe_interval_seconds:
                 await self.run_size_failsafe()
                 last_size_failsafe_run = time.monotonic()
 
@@ -708,6 +743,7 @@ class DatabaseService(Service):
             _ = self.hassette.session_id
         except RuntimeError:
             return
+        max_consecutive_heartbeat_failures = self.hassette.config.database.max_consecutive_heartbeat_failures
         try:
             async with asyncio.timeout(_HEARTBEAT_WRITE_TIMEOUT_SECONDS):
                 await self.submit(self._do_update_heartbeat())
@@ -717,14 +753,14 @@ class DatabaseService(Service):
                 "Heartbeat write timed out after %ds — write worker may be wedged (failure %d/%d)",
                 _HEARTBEAT_WRITE_TIMEOUT_SECONDS,
                 self._consecutive_heartbeat_failures,
-                _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
+                max_consecutive_heartbeat_failures,
             )
         except (sqlite3.Error, OSError, ValueError):
             self._consecutive_heartbeat_failures += 1
             self.logger.exception(
                 "Failed to update heartbeat (failure %d/%d)",
                 self._consecutive_heartbeat_failures,
-                _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
+                max_consecutive_heartbeat_failures,
             )
         else:
             if self._consecutive_heartbeat_failures > 0:
@@ -772,11 +808,7 @@ class DatabaseService(Service):
 
             for target in _RETENTION_TABLES:
                 cutoff = now - (target.retention_days_getter(config) * SECONDS_PER_DAY)
-                cursor = await self.db.execute(
-                    f"DELETE FROM {target.table} WHERE {target.timestamp_col} < ?",
-                    (cutoff,),
-                )
-                deleted_by_table[target.table] = cursor.rowcount or 0
+                deleted_by_table[target.table] = await _execute_target_delete(self.db, target, cutoff=cutoff)
 
             # Use the standard retention window for parent-guard deletes.
             cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
@@ -825,7 +857,7 @@ class DatabaseService(Service):
                     jobs_deleted,
                 )
         except Exception:
-            await self.db.rollback()
+            await _safe_rollback(self.db, self, "retention cleanup")
             self.logger.exception("Failed to run retention cleanup")
 
     def get_db_size_mb(self) -> float:
@@ -836,6 +868,137 @@ class DatabaseService(Service):
             if path.exists():
                 total += path.stat().st_size
         return total / (1024 * 1024)
+
+    async def _run_failsafe_tier(
+        self,
+        db: aiosqlite.Connection,
+        group: list[RetentionTarget],
+        batch_limit: int,
+        max_iterations: int,
+        max_size_mb: float,
+        vacuum_pages: int,
+    ) -> tuple[dict[str, int], bool, int]:
+        """Run the delete-vacuum-check cycle for one priority tier of the size failsafe.
+
+        Iterates up to ``max_iterations`` batches, deleting from every target in ``group``
+        each iteration, committing, vacuuming, and checking the database size. A failure on
+        any single target's delete is logged and skipped so the remaining targets in the
+        group still get their batch deleted; a failure in commit or vacuum/checkpoint is
+        logged and ends this tier's loop early so the caller can move on to the next tier.
+
+        Returns a tuple of (per-table deleted counts for this tier, whether the database is
+        now at or under ``max_size_mb``, the number of iterations actually run). The size
+        check always runs after the loop exits, regardless of exit reason (iterations
+        exhausted, zero rows deleted, or under limit). Per-iteration counts are merged into
+        the returned totals as soon as the deletes execute — aiosqlite opens connections with
+        isolation_level=None (autocommit), so each DELETE is already durably persisted the
+        instant it executes, independent of the later commit() call below. A failed commit or
+        vacuum/checkpoint ends this tier's loop early (so the caller can move on to the next
+        tier) but does not undo or change the deletes already counted for this iteration. The
+        iteration count lets the caller track a shared iteration budget across tiers.
+        """
+        deleted_by_table: dict[str, int] = {t.table: 0 for t in group}
+        group_label = ", ".join(t.failsafe_label for t in group)
+        iterations_used = 0
+
+        for iteration in range(max_iterations):
+            iteration_deleted: dict[str, int] = {t.table: 0 for t in group}
+            group_deleted = 0
+            for target in group:
+                try:
+                    n = await _execute_failsafe_delete(db, target, batch_limit=batch_limit)
+                    iteration_deleted[target.table] += n
+                    group_deleted += n
+                except Exception:
+                    self.logger.exception(
+                        "Size failsafe: failed to delete from %s, continuing with remaining targets",
+                        target.table,
+                    )
+
+            # Deletes above are already durable (isolation_level=None means each DELETE
+            # autocommits on execute), so count them regardless of what commit() below does.
+            for table, count in iteration_deleted.items():
+                deleted_by_table[table] += count
+
+            if group_deleted == 0:
+                break
+
+            iterations_used += 1
+
+            # Commit releases the write lock before vacuuming. PRAGMA wal_checkpoint(TRUNCATE)
+            # below cannot run while the delete statements hold a write lock — without this
+            # commit it fails with "database table is locked". A failure here doesn't undo
+            # the deletes counted above; it just means this tier's loop ends early.
+            try:
+                await db.commit()
+            except Exception:
+                self.logger.exception(
+                    "Size failsafe: commit failed for %s, moving to next tier",
+                    group_label,
+                )
+                break
+
+            # A single bounded retry: a transient vacuum/checkpoint failure (e.g. a
+            # momentary lock) shouldn't push the failsafe into deleting from a more
+            # valuable tier based on a size reading that's stale only because the WAL
+            # wasn't truncated -- the deletes already happened.
+            vacuum_ok = await self._vacuum_and_checkpoint_with_retry(db, vacuum_pages, group_label)
+            if not vacuum_ok:
+                break
+
+            current_size = self.get_db_size_mb()
+            if current_size <= max_size_mb:
+                break
+
+            if iteration == max_iterations - 1:
+                self.logger.warning(
+                    "Size failsafe %s capped at %d iterations; database still %.1f MB (limit %.1f MB)",
+                    group_label,
+                    max_iterations,
+                    current_size,
+                    max_size_mb,
+                )
+
+        under_limit = self.get_db_size_mb() <= max_size_mb
+        return deleted_by_table, under_limit, iterations_used
+
+    async def _vacuum_and_checkpoint_with_retry(
+        self, db: aiosqlite.Connection, vacuum_pages: int, group_label: str
+    ) -> bool:
+        """Run PRAGMA incremental_vacuum + wal_checkpoint(TRUNCATE), retrying on failure.
+
+        Returns True if the vacuum/checkpoint pair succeeded on any attempt (up to
+        ``_VACUUM_CHECKPOINT_RETRY_ATTEMPTS``), False if every attempt failed.
+        """
+        for attempt in range(_VACUUM_CHECKPOINT_RETRY_ATTEMPTS):
+            try:
+                vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({vacuum_pages})")
+                await vacuum_cursor.close()
+                checkpoint_cursor = await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                checkpoint_row = await checkpoint_cursor.fetchone()
+                await checkpoint_cursor.close()
+                # wal_checkpoint(TRUNCATE) doesn't raise when it's blocked (SQLITE_BUSY) -- it
+                # returns a row whose first column is nonzero instead. Treat a missing row or a
+                # nonzero busy value as a failed attempt so it's caught below and retried like
+                # any other vacuum/checkpoint failure.
+                if checkpoint_row is None or checkpoint_row[0] != 0:
+                    raise sqlite3.OperationalError(f"wal_checkpoint(TRUNCATE) busy or failed: {checkpoint_row}")
+                return True
+            except Exception:
+                attempts_left = _VACUUM_CHECKPOINT_RETRY_ATTEMPTS - attempt - 1
+                if attempts_left > 0:
+                    self.logger.warning(
+                        "Size failsafe: vacuum/checkpoint failed for %s, %d attempt(s) left",
+                        group_label,
+                        attempts_left,
+                    )
+                else:
+                    self.logger.exception(
+                        "Size failsafe: vacuum/checkpoint failed after %d attempts for %s, moving to next tier",
+                        _VACUUM_CHECKPOINT_RETRY_ATTEMPTS,
+                        group_label,
+                    )
+        return False
 
     async def _check_size_failsafe(self) -> None:
         """Delete oldest records if database exceeds the configured size limit.
@@ -865,52 +1028,33 @@ class DatabaseService(Service):
 
         db = self.db
         total_deleted_by_table: dict[str, int] = {t.table: 0 for t in _RETENTION_TABLES}
+        batch_limit = self.hassette.config.database.size_failsafe_delete_batch
+        max_iterations = self.hassette.config.database.size_failsafe_max_iterations
+        vacuum_pages = self.hassette.config.database.size_failsafe_vacuum_pages
 
         priorities = sorted({t.priority for t in _RETENTION_TABLES})
+        remaining_iterations = max_iterations
         for priority in priorities:
+            if remaining_iterations <= 0:
+                break
             group = [t for t in _RETENTION_TABLES if t.priority == priority]
-            group_label = ", ".join(t.failsafe_label for t in group)
-
-            for iteration in range(_SIZE_FAILSAFE_MAX_ITERATIONS):
-                group_deleted = 0
-                for target in group:
-                    cursor = await db.execute(
-                        f"DELETE FROM {target.table} WHERE id IN "
-                        f"(SELECT id FROM {target.table} ORDER BY {target.timestamp_col} ASC LIMIT ?)",
-                        (_SIZE_FAILSAFE_DELETE_BATCH,),
-                    )
-                    n = cursor.rowcount or 0
-                    total_deleted_by_table[target.table] += n
-                    group_deleted += n
-                # Commit the batch before vacuuming. PRAGMA wal_checkpoint(TRUNCATE) below
-                # cannot run while the delete statements hold a write lock — without this
-                # commit it fails with "database table is locked".
-                await db.commit()
-
-                if group_deleted == 0:
-                    break
-
-                vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({_SIZE_FAILSAFE_VACUUM_PAGES})")
-                await vacuum_cursor.close()
-                await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-
-                current_size = self.get_db_size_mb()
-                if current_size <= max_size_mb:
-                    break
-
-                if iteration == _SIZE_FAILSAFE_MAX_ITERATIONS - 1:
-                    self.logger.warning(
-                        "Size failsafe %s capped at %d iterations; database still %.1f MB (limit %.1f MB)",
-                        group_label,
-                        _SIZE_FAILSAFE_MAX_ITERATIONS,
-                        current_size,
-                        max_size_mb,
-                    )
-
-            current_size = self.get_db_size_mb()
-            if current_size <= max_size_mb:
+            tier_deleted, under_limit, iterations_used = await self._run_failsafe_tier(
+                db,
+                group,
+                batch_limit,
+                remaining_iterations,
+                max_size_mb,
+                vacuum_pages,
+            )
+            remaining_iterations -= iterations_used
+            for table, count in tier_deleted.items():
+                total_deleted_by_table[table] += count
+            if under_limit:
                 break
 
+        # get_db_size_mb() is recomputed here for the summary log line since
+        # _run_failsafe_tier returns under_limit as a bool, not the raw size.
+        current_size = self.get_db_size_mb()
         deleted_summary = {table: count for table, count in total_deleted_by_table.items() if count > 0}
         if deleted_summary:
             parts = ", ".join(f"{count} {table}" for table, count in deleted_summary.items())
@@ -937,5 +1081,5 @@ class DatabaseService(Service):
             await db.executemany(_LOG_INSERT_SQL, records)
             await db.commit()
         except Exception:
-            await db.rollback()
+            await _safe_rollback(db, self, "log record insert")
             raise

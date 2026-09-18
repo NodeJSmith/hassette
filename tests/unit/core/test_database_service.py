@@ -8,9 +8,18 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiosqlite
 import pytest
 
-from hassette.core.database_service import _RETENTION_TABLES, DatabaseService, RetentionTarget, _WriteQueueItem
+# Underscore-prefixed names below are intentional test-only reaches into module internals.
+from hassette.core.database_service import (
+    _RETENTION_TABLES,
+    DatabaseService,
+    RetentionTarget,
+    _execute_failsafe_delete,
+    _execute_target_delete,
+    _WriteQueueItem,
+)
 from hassette.types.enums import ResourceStatus
 from tests.support.helpers import (
     DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
@@ -18,6 +27,21 @@ from tests.support.helpers import (
     async_noop,
 )
 from tests.support.mock_hassette import make_mock_hassette
+
+WIDGETS_TARGET = RetentionTarget(
+    table="widgets",
+    timestamp_col="ts",
+    priority=0,
+    retention_days_getter=lambda _cfg: 0,
+    failsafe_label="widgets",
+)
+
+# Shared _run_failsafe_tier() call arguments for the tests below that all exercise a
+# single-target group deep enough under its limit to converge in one iteration.
+FAILSAFE_TIER_BATCH_LIMIT = 10
+FAILSAFE_TIER_MAX_ITERATIONS = 5
+FAILSAFE_TIER_MAX_SIZE_MB = 5.0
+FAILSAFE_TIER_VACUUM_PAGES = 100
 
 
 @pytest.fixture
@@ -502,6 +526,259 @@ def test_retention_target_is_frozen() -> None:
     target = _RETENTION_TABLES[0]
     with pytest.raises(dataclasses.FrozenInstanceError):
         target.table = "mutated"  # pyright: ignore[reportGeneralTypeIssues]
+
+
+@pytest.fixture
+async def memory_db() -> AsyncIterator[aiosqlite.Connection]:
+    """In-memory SQLite connection with a table shaped like a RetentionTarget's target table.
+
+    Uses isolation_level=None (autocommit) to match the real connections DatabaseService opens
+    in _initialize() — see database_service.py's connect_daemon() calls. Without this, a
+    commit()/rollback() failure in a test behaves differently here than it does in production.
+    """
+    async with aiosqlite.connect(":memory:", isolation_level=None) as db:
+        await db.execute("CREATE TABLE widgets (id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL)")
+        await db.commit()
+        yield db
+
+
+async def test_execute_target_delete_removes_rows_older_than_cutoff(memory_db: aiosqlite.Connection) -> None:
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (5.0), (10.0)")
+    await memory_db.commit()
+
+    deleted = await _execute_target_delete(memory_db, WIDGETS_TARGET, cutoff=6.0)
+
+    assert deleted == 2
+
+    cursor = await memory_db.execute("SELECT ts FROM widgets")
+    rows = await cursor.fetchall()
+    assert [row[0] for row in rows] == [10.0]
+
+
+async def test_execute_target_delete_returns_zero_when_nothing_matches(memory_db: aiosqlite.Connection) -> None:
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (10.0)")
+    await memory_db.commit()
+
+    deleted = await _execute_target_delete(memory_db, WIDGETS_TARGET, cutoff=1.0)
+
+    assert deleted == 0
+
+
+async def test_execute_failsafe_delete_removes_oldest_n_rows(memory_db: aiosqlite.Connection) -> None:
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0), (3.0), (4.0)")
+    await memory_db.commit()
+
+    deleted = await _execute_failsafe_delete(memory_db, WIDGETS_TARGET, batch_limit=2)
+
+    assert deleted == 2
+
+    cursor = await memory_db.execute("SELECT ts FROM widgets ORDER BY ts")
+    rows = await cursor.fetchall()
+    assert [row[0] for row in rows] == [3.0, 4.0]
+
+
+async def test_execute_failsafe_delete_caps_at_available_rows(memory_db: aiosqlite.Connection) -> None:
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0)")
+    await memory_db.commit()
+
+    deleted = await _execute_failsafe_delete(memory_db, WIDGETS_TARGET, batch_limit=100)
+
+    assert deleted == 1
+
+
+async def test_run_failsafe_tier_returns_counts_and_under_limit_true(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """_run_failsafe_tier() reports the deleted count and under_limit=True once size drops."""
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0), (3.0)")
+    await memory_db.commit()
+
+    # First call happens mid-iteration (still over limit); second happens after the loop
+    # exits because the next iteration deleted zero rows (nothing left to delete).
+    with patch.object(service, "get_db_size_mb", side_effect=[10.0, 1.0]):
+        deleted_by_table, under_limit, _iterations_used = await service._run_failsafe_tier(
+            memory_db,
+            [WIDGETS_TARGET],
+            batch_limit=FAILSAFE_TIER_BATCH_LIMIT,
+            max_iterations=FAILSAFE_TIER_MAX_ITERATIONS,
+            max_size_mb=FAILSAFE_TIER_MAX_SIZE_MB,
+            vacuum_pages=FAILSAFE_TIER_VACUUM_PAGES,
+        )
+
+    assert deleted_by_table == {"widgets": 3}
+    assert under_limit is True
+
+
+async def test_run_failsafe_tier_returns_under_limit_false_when_iterations_exhausted(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """_run_failsafe_tier() reports under_limit=False when max_iterations is capped out."""
+    await memory_db.executemany("INSERT INTO widgets (ts) VALUES (?)", [(float(i),) for i in range(20)])
+    await memory_db.commit()
+
+    with patch.object(service, "get_db_size_mb", return_value=100.0):
+        deleted_by_table, under_limit, _iterations_used = await service._run_failsafe_tier(
+            memory_db, [WIDGETS_TARGET], batch_limit=5, max_iterations=2, max_size_mb=1.0, vacuum_pages=100
+        )
+
+    assert deleted_by_table == {"widgets": 10}
+    assert under_limit is False
+
+
+async def test_run_failsafe_tier_commit_failure_breaks_but_still_counts_deletes(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """A failed commit logs and breaks the loop, but the deletes are still counted.
+
+    aiosqlite opens connections with isolation_level=None, so the deletes are already
+    durable regardless of whether the later commit() succeeds.
+    """
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0)")
+    await memory_db.commit()
+
+    with (
+        patch.object(memory_db, "commit", AsyncMock(side_effect=sqlite3.OperationalError("database is locked"))),
+        patch.object(service, "get_db_size_mb", return_value=100.0),
+    ):
+        deleted_by_table, under_limit, _iterations_used = await service._run_failsafe_tier(
+            memory_db,
+            [WIDGETS_TARGET],
+            batch_limit=FAILSAFE_TIER_BATCH_LIMIT,
+            max_iterations=FAILSAFE_TIER_MAX_ITERATIONS,
+            max_size_mb=FAILSAFE_TIER_MAX_SIZE_MB,
+            vacuum_pages=FAILSAFE_TIER_VACUUM_PAGES,
+        )
+
+    assert deleted_by_table == {"widgets": 2}
+    assert under_limit is False
+    assert memory_db.in_transaction is False
+
+
+async def test_run_failsafe_tier_vacuum_failure_breaks_after_retry_also_fails(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """A vacuum/checkpoint failure retries once; if the retry also fails, it logs and breaks.
+
+    The deletes for that iteration are already durable and are still counted (see the
+    sibling commit-failure test above, which also counts its deletes for the same reason).
+    """
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0)")
+    await memory_db.commit()
+
+    real_execute = memory_db.execute
+
+    async def fake_execute(sql: str, *args: object, **kwargs: object):
+        if sql.startswith("PRAGMA incremental_vacuum"):
+            raise sqlite3.OperationalError("disk I/O error")
+        return await real_execute(sql, *args, **kwargs)
+
+    with (
+        patch.object(memory_db, "execute", side_effect=fake_execute),
+        patch.object(service, "get_db_size_mb", return_value=100.0),
+    ):
+        deleted_by_table, under_limit, _iterations_used = await service._run_failsafe_tier(
+            memory_db,
+            [WIDGETS_TARGET],
+            batch_limit=FAILSAFE_TIER_BATCH_LIMIT,
+            max_iterations=FAILSAFE_TIER_MAX_ITERATIONS,
+            max_size_mb=FAILSAFE_TIER_MAX_SIZE_MB,
+            vacuum_pages=FAILSAFE_TIER_VACUUM_PAGES,
+        )
+
+    assert deleted_by_table == {"widgets": 2}
+    assert under_limit is False
+
+
+async def test_run_failsafe_tier_vacuum_failure_recovers_on_retry(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """A vacuum/checkpoint failure that succeeds on the single retry continues normally.
+
+    No exception is logged, and the tier proceeds to the post-vacuum size check instead of
+    breaking early.
+    """
+    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0)")
+    await memory_db.commit()
+
+    real_execute = memory_db.execute
+    call_count = 0
+
+    async def fake_execute(sql: str, *args: object, **kwargs: object):
+        nonlocal call_count
+        if sql.startswith("PRAGMA incremental_vacuum"):
+            call_count += 1
+            if call_count == 1:
+                raise sqlite3.OperationalError("disk I/O error")
+        return await real_execute(sql, *args, **kwargs)
+
+    with (
+        patch.object(memory_db, "execute", side_effect=fake_execute),
+        patch.object(service, "get_db_size_mb", side_effect=[10.0, 1.0]),
+    ):
+        deleted_by_table, under_limit, _iterations_used = await service._run_failsafe_tier(
+            memory_db,
+            [WIDGETS_TARGET],
+            batch_limit=FAILSAFE_TIER_BATCH_LIMIT,
+            max_iterations=FAILSAFE_TIER_MAX_ITERATIONS,
+            max_size_mb=FAILSAFE_TIER_MAX_SIZE_MB,
+            vacuum_pages=FAILSAFE_TIER_VACUUM_PAGES,
+        )
+
+    assert deleted_by_table == {"widgets": 2}
+    assert under_limit is True
+
+
+async def test_run_failsafe_tier_empty_tier_does_not_consume_iteration_budget(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """An empty tier (zero rows to delete) must not consume the shared iteration budget.
+
+    When the first-priority tier has no data, its iterations_used should be 0 so that
+    subsequent lower-priority tiers still get their full budget.
+    """
+    # Table is empty — nothing to delete.
+    with patch.object(service, "get_db_size_mb", return_value=100.0):
+        deleted_by_table, _under_limit, iterations_used = await service._run_failsafe_tier(
+            memory_db,
+            [WIDGETS_TARGET],
+            batch_limit=FAILSAFE_TIER_BATCH_LIMIT,
+            max_iterations=1,
+            max_size_mb=FAILSAFE_TIER_MAX_SIZE_MB,
+            vacuum_pages=FAILSAFE_TIER_VACUUM_PAGES,
+        )
+
+    assert deleted_by_table == {"widgets": 0}
+    assert iterations_used == 0
+
+
+async def test_vacuum_and_checkpoint_busy_checkpoint_treated_as_failure(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """A busy wal_checkpoint(TRUNCATE) (nonzero first column, no exception) is a failed attempt.
+
+    SQLite doesn't raise for SQLITE_BUSY on this pragma -- it returns a result row whose first
+    column is nonzero. If that row is ignored, the caller sees a false success even though the
+    WAL was never truncated. Every attempt reports busy here, so the method must exhaust all
+    retries and return False rather than returning True on the first attempt.
+    """
+    real_execute = memory_db.execute
+
+    class _BusyCheckpointCursor:
+        async def fetchone(self) -> tuple[int, int, int]:
+            return (1, 5, 0)
+
+        async def close(self) -> None:
+            pass
+
+    async def fake_execute(sql: str, *args: object, **kwargs: object):
+        if sql.startswith("PRAGMA wal_checkpoint"):
+            return _BusyCheckpointCursor()
+        return await real_execute(sql, *args, **kwargs)
+
+    with patch.object(memory_db, "execute", side_effect=fake_execute):
+        result = await service._vacuum_and_checkpoint_with_retry(memory_db, vacuum_pages=100, group_label="test")
+
+    assert result is False
 
 
 class TestQueueUnavailableErrorMessage:

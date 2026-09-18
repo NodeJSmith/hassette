@@ -428,6 +428,44 @@ def make_log_entry(
     )
 
 
+def make_log_record_dict(
+    *,
+    seq: int = 1,
+    timestamp: float = 0.0,
+    level: str = "INFO",
+    logger_name: str = "hassette.test",
+    func_name: str = "fn",
+    lineno: int = 1,
+    message: str = "msg",
+    exc_info: str | None = None,
+    app_key: str | None = None,
+    instance_name: str | None = None,
+    instance_index: int | None = None,
+    execution_id: str | None = None,
+    source_tier: str = "app",
+) -> dict[str, Any]:
+    """Build the 13-key record dict shape ``_insert_log_records()`` expects.
+
+    Every field is an explicit keyword with a neutral default so callers spell out only
+    what they assert on.
+    """
+    return {
+        "seq": seq,
+        "timestamp": timestamp,
+        "level": level,
+        "logger_name": logger_name,
+        "func_name": func_name,
+        "lineno": lineno,
+        "message": message,
+        "exc_info": exc_info,
+        "app_key": app_key,
+        "instance_name": instance_name,
+        "instance_index": instance_index,
+        "execution_id": execution_id,
+        "source_tier": source_tier,
+    }
+
+
 def make_mock_executor() -> MagicMock:
     """Build a MagicMock stand-in for a CommandExecutor with an awaitable execute()."""
     executor = MagicMock()
