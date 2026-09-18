@@ -88,6 +88,24 @@ CASES: list[tuple[str, str, list[tuple[int, str]]]] = [
         """,
         [(2, "Scheduler.run_in: 'name' parameter must be keyword-only (add '*' before it)")],
     ),
+    (
+        "wait_for_exempted_despite_default",
+        """\
+        class Bus:
+            async def wait_for(self, topic: str, *, timeout: float | None, name: str | None = None):
+                pass
+        """,
+        [],
+    ),
+    (
+        "exemption_is_per_class_not_method_name",
+        """\
+        class Scheduler:
+            def wait_for(self, *, name: str = "x") -> None:
+                pass
+        """,
+        [(2, "Scheduler.wait_for: 'name' parameter must not have a default value")],
+    ),
 ]
 
 

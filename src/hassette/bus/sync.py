@@ -23,6 +23,7 @@ if typing.TYPE_CHECKING:
 
     from hassette import Bus, Hassette
     from hassette.bus.listeners import Listener
+    from hassette.events.base import Event
     from hassette.types import ChangeType, HandlerType, Predicate
     from hassette.types.enums import BackpressurePolicy, ExecutionMode
     from hassette.types.types import BusErrorHandlerType
@@ -382,6 +383,38 @@ class BusSyncFacade(BusSyncEventShortcuts):
                 domain, service, handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts
             )
         )
+
+    def wait_for(
+        self, topic: str, *, where: WhereClause = None, timeout: float | None, name: str | None = None
+    ) -> "Event[Any]":
+        """Suspend the calling coroutine until a matching event is dispatched.
+
+        Registers a one-shot (`once=True`) listener through the same pipeline as `on()`,
+        then awaits a future that the listener's handler resolves on first match. Only
+        events dispatched *after* this call is awaited can resolve the wait — pre-existing
+        state is never consulted.
+
+        Unlike the other registration methods, `wait_for` is not wrapped in `guard_await`:
+        it returns an `Event`, not a `Subscription`, so there is no forgotten-`await`
+        footgun for that helper to guard against.
+
+        Args:
+            topic: The event topic to wait for.
+            where: Optional predicates to filter events, same semantics as `on()`.
+            timeout: Seconds to wait before raising `asyncio.TimeoutError`. `None` disables
+                the timeout — the wait persists until a match or listener removal.
+            name: Optional stable name for the underlying listener. When omitted, a name is
+                auto-generated from the future's identity (`_wait_for_<hex id>`).
+
+        Returns:
+            The `Event` that matched `topic` and `where`.
+
+        Raises:
+            asyncio.TimeoutError: If no matching event arrives within `timeout` seconds.
+            asyncio.CancelledError: If the underlying listener is removed before a match
+                (e.g. Bus shutdown, or explicit `Subscription.cancel()`/`remove_listener()`).
+        """
+        return self.task_bucket.run_sync(self._bus.wait_for(topic, where=where, timeout=timeout, name=name))
 
     def on_error(self, handler: "BusErrorHandlerType") -> None:
         """Register an app-level error handler for this bus.
