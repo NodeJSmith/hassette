@@ -1229,7 +1229,20 @@ class DatabaseService(Service):
                 # Commit whatever succeeded this iteration before vacuuming. PRAGMA
                 # wal_checkpoint(TRUNCATE) below cannot run while the delete statements hold a
                 # write lock — without this commit it fails with "database table is locked".
-                await db.commit()
+                try:
+                    await db.commit()
+                except Exception:
+                    # Isolated the same way as a DELETE failure above — an uncaught commit
+                    # failure would otherwise escape this method entirely, skipping every
+                    # lower-priority tier and the aggregate any_tier_incomplete/exhaustion
+                    # accounting below rather than just this one tier.
+                    self.logger.exception(
+                        "Size failsafe commit failed for %s (%.1f MB > %.1f MB limit)",
+                        group_label,
+                        current_size,
+                        max_size_mb,
+                    )
+                    group_failed = True
 
                 if group_failed:
                     # This priority tier had a DELETE raise — stop retrying it and move on to

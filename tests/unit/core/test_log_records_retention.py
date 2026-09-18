@@ -1221,6 +1221,62 @@ class TestSizeFailsafe:
         # A probe failure is not a genuine full-tier drain — must not count as exhaustion.
         assert retention_service._consecutive_exhaustion_triggers == 0  # pyright: ignore[reportPrivateUsage]
 
+    async def test_size_failsafe_commit_failure_isolated_to_tier(
+        self,
+        db: aiosqlite.Connection,
+        db_service_writer: DatabaseService,
+        mock_hassette_for_db: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+        retention_service: DatabaseService,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A ``commit()`` failure right after a successful DELETE must be isolated to that
+        tier — not an uncaught exception that escapes ``_check_size_failsafe()`` entirely,
+        skipping every lower-priority tier and the aggregate
+        ``any_tier_incomplete``/exhaustion accounting below.
+
+        Regression test: ``db.commit()`` was not wrapped in the same try/except every DELETE
+        in this loop already has, so a transient commit failure (SQLite lock contention, disk
+        I/O error) would propagate straight out of the method uncaught.
+        """
+        retention_service.hassette.config.database.size_failsafe_max_iterations = 2
+        retention_service.hassette.config.database.size_failsafe_delete_batch = 2
+
+        now = time.time()
+        await insert_tiered_execution(db, now - 1, SOURCE_TIER_FRAMEWORK)
+        await db.commit()
+        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
+            [make_log_record_row(1, now - 1, "log")]
+        )
+
+        original_commit = db.commit
+        commit_calls = 0
+
+        async def failing_commit() -> None:
+            nonlocal commit_calls
+            commit_calls += 1
+            if commit_calls == 1:
+                raise sqlite3.OperationalError("simulated commit failure")
+            await original_commit()
+
+        monkeypatch.setattr(db, "commit", failing_commit)
+
+        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+
+        with caplog.at_level(logging.INFO):
+            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+
+        # The lower-priority log_records tier still ran despite framework's commit failure.
+        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+        assert (await cursor.fetchone())[0] == 0
+
+        assert "Size failsafe commit failed for framework executions" in caplog.text
+        assert "Size failsafe stopped early" in caplog.text
+        assert "one or more tiers failed and were skipped this cycle" in caplog.text
+        # A commit failure is not a genuine full-tier drain — must not count as exhaustion.
+        assert retention_service._consecutive_exhaustion_triggers == 0  # pyright: ignore[reportPrivateUsage]
+
     async def test_size_failsafe_capped_cycle_resets_exhaustion_streak(
         self,
         db: aiosqlite.Connection,
