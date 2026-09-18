@@ -560,6 +560,20 @@ def compute_shutdown_budget(
     )
 
 
+def _current_shutdown_budget(resource: _LifecycleHostP) -> ShutdownBudget | None:
+    """The resource's ``ShutdownBudget`` for the current shutdown attempt, or ``None`` if the
+    coordinator has not set one yet (should not happen in normal operation).
+    """
+    return typing.cast("LifecycleMixin", resource)._shutdown_budget
+
+
+def _shutdown_timeout_fallback(resource: _LifecycleHostP) -> float:
+    """Configured ``resource_shutdown_timeout_seconds``, used when no ``ShutdownBudget`` has been
+    set yet.
+    """
+    return typing.cast("LifecycleMixin", resource).hassette.config.lifecycle.resource_shutdown_timeout_seconds
+
+
 def hooks_pool_remaining(resource: _LifecycleHostP) -> float:
     """Seconds left in the hooks pool for the current shutdown attempt.
 
@@ -572,10 +586,9 @@ def hooks_pool_remaining(resource: _LifecycleHostP) -> float:
     coordinator always sets one before any consumer runs; this is a defensive fallback,
     not the normal path), and 0 only once the pool itself is exhausted.
     """
-    resource = typing.cast("LifecycleMixin", resource)
-    budget = resource._shutdown_budget
+    budget = _current_shutdown_budget(resource)
     if budget is None:
-        return resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+        return _shutdown_timeout_fallback(resource)
     return max(0.0, budget.hooks_pool_deadline - asyncio.get_running_loop().time())
 
 
@@ -595,10 +608,9 @@ def children_budget_remaining(resource: _LifecycleHostP, *, waves_left: int = 1)
     back to the larger ``children_floor_seconds`` floor, giving the most-foundational
     resources a bigger grace window. See #1809.
     """
-    resource = typing.cast("LifecycleMixin", resource)
-    budget = resource._shutdown_budget
+    budget = _current_shutdown_budget(resource)
     if budget is None:
-        return resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+        return _shutdown_timeout_fallback(resource)
     remaining = budget.body_deadline - asyncio.get_running_loop().time()
     if waves_left <= 1:
         return max(budget.children_floor_seconds, remaining)
@@ -619,10 +631,9 @@ def total_deadline_remaining(resource: _LifecycleHostP) -> float:
     time plus a full timeout again. Returns ``resource_shutdown_timeout_seconds`` when no
     budget has been set yet, and 0 once the deadline has already passed.
     """
-    resource = typing.cast("LifecycleMixin", resource)
-    budget = resource._shutdown_budget
+    budget = _current_shutdown_budget(resource)
     if budget is None:
-        return resource.hassette.config.lifecycle.resource_shutdown_timeout_seconds
+        return _shutdown_timeout_fallback(resource)
     return max(0.0, budget.total_deadline - asyncio.get_running_loop().time())
 
 
