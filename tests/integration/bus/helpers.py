@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from hassette.events import RawStateChangeEvent
@@ -53,6 +54,86 @@ def make_collector(
         hassette.task_bucket.post_to_loop(fired.set)
 
     return handler, received, fired
+
+
+@dataclass
+class GatedHandlerRecord:
+    """Bookkeeping for a handler built by ``make_gated_handler()``.
+
+    ``gate`` blocks the handler until the test calls ``gate.set()``. ``cancelled``/``completed``
+    are only populated for handlers registered with ``mode="restart"``, which observe
+    ``asyncio.CancelledError`` while waiting on the gate — simpler callers (single/debounce/
+    duration-hold tests) only ever read ``started``.
+    """
+
+    gate: asyncio.Event = field(default_factory=asyncio.Event)
+    started: int = 0
+    cancelled: int = 0
+    completed: int = 0
+
+
+def make_gated_handler() -> tuple[Callable[[RawStateChangeEvent], Awaitable[None]], GatedHandlerRecord]:
+    """Build a handler that counts starts and blocks on an internal gate until released.
+
+    Returns ``(handler, record)``. Each invocation increments ``record.started`` and then awaits
+    ``record.gate`` (call ``record.gate.set()`` to release it). If the invocation is cancelled
+    while waiting — the ``mode="restart"`` case — ``record.cancelled`` is incremented and the
+    exception re-raised; otherwise ``record.completed`` is incremented once the gate opens.
+
+    Covers the ``single``/``debounce``/``counts_single``/``duration_single``/``restart`` gated
+    started-counter shape. Does not fit the concurrency-peak shape (``parallel``/framework-tier
+    concurrent dispatch), which tracks a live count with a ``finally``-block decrement instead —
+    use ``make_gated_concurrency_handler()`` there.
+    """
+    record = GatedHandlerRecord()
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        record.started += 1
+        try:
+            await record.gate.wait()
+            record.completed += 1
+        except asyncio.CancelledError:
+            record.cancelled += 1
+            raise
+
+    return handler, record
+
+
+@dataclass
+class ConcurrencyRecord:
+    """Bookkeeping for a handler built by ``make_gated_concurrency_handler()``.
+
+    ``gate`` blocks every concurrent invocation until the test calls ``gate.set()``. ``concurrent``
+    is the live in-flight count; ``peak`` is the highest value ``concurrent`` reached.
+    """
+
+    gate: asyncio.Event = field(default_factory=asyncio.Event)
+    concurrent: int = 0
+    peak: int = 0
+
+
+def make_gated_concurrency_handler() -> tuple[Callable[[RawStateChangeEvent], Awaitable[None]], ConcurrencyRecord]:
+    """Build a handler that tracks concurrent in-flight invocations against a shared gate.
+
+    Returns ``(handler, record)``. Each invocation increments ``record.concurrent``, updates
+    ``record.peak`` to the new high-water mark, then awaits ``record.gate`` and decrements
+    ``record.concurrent`` in a ``finally`` block regardless of how the wait ends.
+
+    Covers the ``parallel`` and framework-tier concurrent-dispatch shape. Does not fit the gated
+    started-counter shape (single/debounce/duration/restart tests) — use ``make_gated_handler()``
+    there.
+    """
+    record = ConcurrencyRecord()
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        record.concurrent += 1
+        record.peak = max(record.peak, record.concurrent)
+        try:
+            await record.gate.wait()
+        finally:
+            record.concurrent -= 1
+
+    return handler, record
 
 
 async def send_state_change(
