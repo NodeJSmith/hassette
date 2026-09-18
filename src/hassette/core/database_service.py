@@ -1127,7 +1127,12 @@ class DatabaseService(Service):
         single bounded retry — see ``_vacuum_and_checkpoint_with_retry()``) reclaims disk
         space. The process stops as soon as the database falls within the size limit.
 
-        If a tier's iteration loop runs to ``max_iterations`` without naturally draining
+        ``max_iterations`` is a single budget shared across the whole run, not a per-tier
+        allowance — each tier only gets whatever iterations remain after higher-priority
+        tiers have spent theirs, so a run never deletes more than ``max_iterations`` batches
+        total regardless of how many priority tiers it touches.
+
+        If a tier's iteration loop runs out of its share of the budget without naturally draining
         (every iteration deletes a full batch), the tier is only treated as capped after
         probing whether it still has matching rows — the same stale-row check
         ``_delete_target_batched()`` uses. An exact-boundary final batch can drain the tier's
@@ -1186,12 +1191,17 @@ class DatabaseService(Service):
         priorities = sorted({t.priority for t in _RETENTION_TABLES})
         capped_tier_label: str | None = None
         any_tier_incomplete = False
+        iterations_used = 0
         for priority in priorities:
             group = [t for t in _RETENTION_TABLES if t.priority == priority]
             group_label = ", ".join(t.failsafe_label for t in group)
             capped_early = False
 
-            for _iteration in range(max_iterations):
+            # max_iterations is a shared per-run budget, not a per-tier one -- each tier
+            # only gets whatever's left after higher-priority tiers already spent theirs.
+            remaining_iterations = max_iterations - iterations_used
+            for _iteration in range(remaining_iterations):
+                iterations_used += 1
                 group_deleted = 0
                 group_failed = False
                 for target in group:
@@ -1241,11 +1251,12 @@ class DatabaseService(Service):
                 if current_size <= max_size_mb:
                     break
             else:
-                # Every iteration ran full-sized, but that doesn't prove this tier's own rows
-                # remain — the final full batch may have drained this tier's last row while the
-                # database stays oversized only because of other, lower-priority tiers. Probe
-                # before declaring this tier capped; an unnecessary cap here would skip those
-                # other tiers unnecessarily.
+                # Every iteration this tier got ran full-sized (or the shared budget was
+                # already spent by a higher-priority tier, leaving remaining_iterations at 0),
+                # but that doesn't prove this tier's own rows remain — the final full batch may
+                # have drained this tier's last row while the database stays oversized only
+                # because of other, lower-priority tiers. Probe before declaring this tier
+                # capped; an unnecessary cap here would skip those other tiers unnecessarily.
                 for target in group:
                     where_clause, stale_params = _build_tier_where(target)
                     try:
