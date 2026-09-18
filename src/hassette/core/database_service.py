@@ -1130,7 +1130,11 @@ class DatabaseService(Service):
         ``max_iterations`` is a single budget shared across the whole run, not a per-tier
         allowance — each tier only gets whatever iterations remain after higher-priority
         tiers have spent theirs, so a run never deletes more than ``max_iterations`` batches
-        total regardless of how many priority tiers it touches.
+        total regardless of how many priority tiers it touches. The budget is spent only by
+        a batch that actually deletes rows — a tier that's already fully drained still needs
+        one attempt to confirm it has nothing left, but that attempt is free, so an
+        always-empty higher-priority tier can't permanently starve lower-priority tiers of
+        budget on every future cycle just by existing.
 
         If a tier's iteration loop runs out of its share of the budget without naturally draining
         (every iteration deletes a full batch), the tier is only treated as capped after
@@ -1201,7 +1205,6 @@ class DatabaseService(Service):
             # only gets whatever's left after higher-priority tiers already spent theirs.
             remaining_iterations = max_iterations - iterations_used
             for _iteration in range(remaining_iterations):
-                iterations_used += 1
                 group_deleted = 0
                 group_failed = False
                 for target in group:
@@ -1231,12 +1234,22 @@ class DatabaseService(Service):
                 if group_failed:
                     # This priority tier had a DELETE raise — stop retrying it and move on to
                     # the next tier instead of aborting the whole failsafe run. The next hourly
-                    # cycle retries this tier from scratch.
+                    # cycle retries this tier from scratch. Nothing was actually deleted, so this
+                    # attempt doesn't spend any of the shared budget.
                     any_tier_incomplete = True
                     break
 
                 if group_deleted == 0:
+                    # An empty tier (already fully drained by an earlier cycle) costs nothing —
+                    # only a batch that actually deletes rows spends the shared budget. Without
+                    # this, an always-empty higher-priority tier would spend one iteration every
+                    # single cycle just confirming it's still empty, permanently starving
+                    # lower-priority tiers of budget they'd otherwise get (catastrophically so at
+                    # size_failsafe_max_iterations=1, where that confirmation alone eats the
+                    # entire run).
                     break
+
+                iterations_used += 1
 
                 # A single bounded retry: a transient vacuum/checkpoint failure (e.g. a
                 # momentary lock) shouldn't push the failsafe into deleting from a more
