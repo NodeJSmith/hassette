@@ -19,8 +19,6 @@ would add nothing but a race against CI's scheduler (see CLAUDE.md on config-dri
 timeouts for how that failure mode plays out here).
 """
 
-import logging
-
 import pytest
 
 from hassette.web.middleware import (
@@ -29,6 +27,7 @@ from hassette.web.middleware import (
     MAX_TRACKED_SOURCES,
     _FailedAuthTracker,
 )
+from tests.support.helpers import assert_failed_auth_warn_count, failed_auth_warn_capture
 
 
 class _FakeClock:
@@ -53,34 +52,31 @@ class TestFailedAuthTracker:
     def test_record_below_threshold_does_not_warn(self, caplog: pytest.LogCaptureFixture) -> None:
         tracker = _FailedAuthTracker()
 
-        with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
+        with failed_auth_warn_capture(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD - 1):
                 tracker.record("203.0.113.1")
 
-        warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
-        assert len(warn_records) == 0
+        assert_failed_auth_warn_count(caplog, 0)
 
     def test_record_reaching_threshold_warns_exactly_once(self, caplog: pytest.LogCaptureFixture) -> None:
         tracker = _FailedAuthTracker()
 
-        with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
+        with failed_auth_warn_capture(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD + 5):
                 tracker.record("203.0.113.1")
 
-        warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
-        assert len(warn_records) == 1
+        assert_failed_auth_warn_count(caplog, 1)
 
     def test_distinct_sources_tracked_independently(self, caplog: pytest.LogCaptureFixture) -> None:
         tracker = _FailedAuthTracker()
 
-        with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
+        with failed_auth_warn_capture(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD):
                 tracker.record("203.0.113.1")
             for _ in range(FAILED_AUTH_THRESHOLD):
                 tracker.record("203.0.113.2")
 
-        warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
-        assert len(warn_records) == 2
+        assert_failed_auth_warn_count(caplog, 2)
 
     def test_tracker_does_not_grow_past_max_tracked_sources(self) -> None:
         """The core security property: an attacker varying the source address per request cannot
@@ -127,7 +123,7 @@ class TestFailedAuthTracker:
         fake_clock = _FakeClock()
         tracker = _FailedAuthTracker(clock=fake_clock)
 
-        with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
+        with failed_auth_warn_capture(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD):
                 tracker.record("203.0.113.1")
 
@@ -137,15 +133,14 @@ class TestFailedAuthTracker:
             for _ in range(FAILED_AUTH_THRESHOLD):
                 tracker.record("203.0.113.1")
 
-        warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
-        assert len(warn_records) == 2
+        assert_failed_auth_warn_count(caplog, 2)
 
     def test_attempts_aged_out_of_window_do_not_count_toward_threshold(self, caplog: pytest.LogCaptureFixture) -> None:
         """Stale attempts are evicted rather than counted, so the window stays a real sliding window."""
         fake_clock = _FakeClock()
         tracker = _FailedAuthTracker(clock=fake_clock)
 
-        with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
+        with failed_auth_warn_capture(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD - 1):
                 tracker.record("203.0.113.1")
 
@@ -155,8 +150,7 @@ class TestFailedAuthTracker:
             # One more attempt: 10 total recorded, but only this one is inside the window.
             tracker.record("203.0.113.1")
 
-        warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
-        assert len(warn_records) == 0
+        assert_failed_auth_warn_count(caplog, 0)
         assert len(tracker._attempts["203.0.113.1"].timestamps) == 1
 
     def test_warning_rearms_after_partial_staleness_not_only_full_quiet(self, caplog: pytest.LogCaptureFixture) -> None:
@@ -171,7 +165,7 @@ class TestFailedAuthTracker:
         fake_clock = _FakeClock()
         tracker = _FailedAuthTracker(clock=fake_clock)
 
-        with caplog.at_level(logging.WARNING, logger="hassette.web.middleware"):
+        with failed_auth_warn_capture(caplog):
             tracker.record("203.0.113.1")  # the eventual "oldest" survivor
 
             # Advance just short of the window so the next 9 attempts land well inside it,
@@ -186,5 +180,4 @@ class TestFailedAuthTracker:
             fake_clock.advance(2)
             tracker.record("203.0.113.1")
 
-        warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
-        assert len(warn_records) == 2
+        assert_failed_auth_warn_count(caplog, 2)

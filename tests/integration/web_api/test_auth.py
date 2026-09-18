@@ -28,7 +28,12 @@ from hassette.web.app import create_fastapi_app
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie, verify_session_cookie
 from hassette.web.auth.trusted_proxies import refresh_trusted_proxies, resolve_trusted_proxies
 from hassette.web.middleware import FAILED_AUTH_THRESHOLD
-from tests.support.helpers import make_addrinfo, patch_loop_getaddrinfo
+from tests.support.helpers import (
+    assert_failed_auth_warn_count,
+    failed_auth_warn_capture,
+    make_addrinfo,
+    patch_loop_getaddrinfo,
+)
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 from .conftest import CONFIG_PATH, make_log_record
@@ -53,9 +58,6 @@ meaning worth preserving.
 
 _WRONG_TOKEN = "wrong-token"
 """Credential that never matches `WEB_API_TEST_TOKEN`, for every fail-closed assertion."""
-
-_MIDDLEWARE_LOGGER = "hassette.web.middleware"
-"""Logger the coalesced failed-auth WARN is emitted on."""
 
 AUTH_SESSION_PATH = "/api/auth/session"
 
@@ -320,13 +322,12 @@ class TestFailedAuthCounting:
     async def test_burst_against_gated_route_produces_one_coalesced_warn(
         self, auth_client: AsyncClient, caplog: pytest.LogCaptureFixture
     ) -> None:
-        with caplog.at_level(logging.WARNING, logger=_MIDDLEWARE_LOGGER):
+        with failed_auth_warn_capture(caplog):
             for _ in range(FAILED_AUTH_THRESHOLD):
                 resp = await auth_client.get(CONFIG_PATH, headers={"Authorization": f"Bearer {_WRONG_TOKEN}"})
                 assert resp.status_code == 401
 
-        warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
-        assert len(warn_records) == 1
+        assert_failed_auth_warn_count(caplog, 1)
 
     async def test_burst_against_login_route_produces_one_coalesced_warn(
         self, auth_hassette, caplog: pytest.LogCaptureFixture
@@ -342,14 +343,13 @@ class TestFailedAuthCounting:
         app = create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)
 
         transport = ASGITransport(app=app)
-        with caplog.at_level(logging.WARNING, logger=_MIDDLEWARE_LOGGER):
+        with failed_auth_warn_capture(caplog):
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 for _ in range(FAILED_AUTH_THRESHOLD):
                     resp = await client.post(AUTH_SESSION_PATH, json={"token": _WRONG_TOKEN})
                     assert resp.status_code == 401
 
-        warn_records = [r for r in caplog.records if "failed auth attempts" in r.getMessage()]
-        assert len(warn_records) == 1
+        assert_failed_auth_warn_count(caplog, 1)
 
 
 class TestMutationSuccessLogging:
