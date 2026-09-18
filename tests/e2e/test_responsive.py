@@ -107,27 +107,32 @@ def test_hamburger_hidden_at_desktop(page: Page, base_url: str) -> None:
     expect(hamburger).not_to_be_visible()
 
 
-def test_apps_card_layout_at_375px(page: Page, base_url: str) -> None:
-    """Mobile viewport shows the apps table with columns 3+ hidden."""
-    page.set_viewport_size(MOBILE_VIEWPORT)
+@pytest.mark.parametrize(
+    ("viewport", "third_column_visible"),
+    [
+        (MOBILE_VIEWPORT, False),
+        (DESKTOP_VIEWPORT, True),
+        (MOBILE_BOUNDARY_VIEWPORT, False),
+    ],
+    ids=["mobile-375", "desktop-1024", "mobile-boundary-768"],
+)
+def test_apps_table_third_column_visibility(
+    page: Page, base_url: str, viewport: dict[str, int], third_column_visible: bool
+) -> None:
+    """Apps table columns 3+ (last error, runs, last fired) are hidden on mobile, visible on desktop.
+
+    768px is the boundary case: the mobile CSS's `max-width: 768px` rule still applies at
+    exactly 768px, so columns 3+ stay hidden there too.
+    """
+    page.set_viewport_size(viewport)
     page.goto(base_url + "/apps")
-    # The apps page always uses a table, but hides columns 3+ on mobile
     table = page.locator("[data-testid='apps-table']")
     expect(table).to_be_visible()
-    # Columns 3+ (last error, runs, last fired) are hidden on mobile via CSS
     third_header = table.locator("th:nth-child(3)")
-    expect(third_header).not_to_be_visible()
-
-
-def test_apps_table_layout_at_1024px(page: Page, base_url: str) -> None:
-    """Desktop viewport shows the apps table with all columns visible."""
-    page.set_viewport_size(DESKTOP_VIEWPORT)
-    page.goto(base_url + "/apps")
-    table = page.locator("[data-testid='apps-table']")
-    expect(table).to_be_visible()
-    # All columns should be visible on desktop (including column 3+)
-    third_header = table.locator("th:nth-child(3)")
-    expect(third_header).to_be_visible()
+    if third_column_visible:
+        expect(third_header).to_be_visible()
+    else:
+        expect(third_header).not_to_be_visible()
 
 
 def test_kpi_error_rate_first_at_375px(page: Page, base_url: str) -> None:
@@ -160,17 +165,6 @@ def test_touch_targets_44px(page: Page, base_url: str) -> None:
     assert box["height"] >= MIN_TOUCH_TARGET_PX, f"Hamburger height {box['height']}px < {MIN_TOUCH_TARGET_PX}px"
 
 
-def test_breakpoint_boundary_768px(page: Page, base_url: str) -> None:
-    """At exactly 768px, columns 3+ are hidden (max-width: 768px triggers)."""
-    page.set_viewport_size(MOBILE_BOUNDARY_VIEWPORT)
-    page.goto(base_url + "/apps")
-    # At 768px, the mobile CSS hides columns 3+ in the apps table
-    table = page.locator("[data-testid='apps-table']")
-    expect(table).to_be_visible()
-    third_header = table.locator("th:nth-child(3)")
-    expect(third_header).not_to_be_visible()
-
-
 def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
     """Log table on mobile hides the App column header entirely."""
     page.set_viewport_size(MOBILE_VIEWPORT)
@@ -190,9 +184,14 @@ def test_log_table_app_tag_at_375px(page: Page, base_url: str) -> None:
     assert rows.count() > 0, "Expected at least one log row on mobile"
 
 
-def test_log_table_no_horizontal_scroll_at_320px(page: Page, base_url: str) -> None:
-    """Log table must not allow horizontal scrolling on small mobile viewports."""
-    page.set_viewport_size(SMALL_MOBILE_VIEWPORT)
+@pytest.mark.parametrize(
+    "viewport",
+    [SMALL_MOBILE_VIEWPORT, MOBILE_VIEWPORT],
+    ids=["small-mobile-320", "mobile-375"],
+)
+def test_log_table_no_horizontal_scroll(page: Page, base_url: str, viewport: dict[str, int]) -> None:
+    """Log table must not allow horizontal scrolling on mobile viewports."""
+    page.set_viewport_size(viewport)
     page.goto(base_url + "/logs")
     page.locator("text=/\\d+ entr/").wait_for(timeout=DATA_LOAD_TIMEOUT_MS)
 
@@ -206,21 +205,6 @@ def test_log_table_no_horizontal_scroll_at_320px(page: Page, base_url: str) -> N
 
     page_scrollable = page.evaluate("document.documentElement.scrollWidth > document.documentElement.clientWidth")
     assert not page_scrollable, "Page is horizontally scrollable — table content is breaking out of viewport"
-
-
-def test_log_table_no_horizontal_scroll_at_375px(page: Page, base_url: str) -> None:
-    """Log table must not allow horizontal scrolling at standard mobile width."""
-    page.set_viewport_size(MOBILE_VIEWPORT)
-    page.goto(base_url + "/logs")
-    page.locator("text=/\\d+ entr/").wait_for(timeout=DATA_LOAD_TIMEOUT_MS)
-
-    table = page.locator("[data-testid='log-table']")
-    expect(table).to_be_visible()
-
-    overflow_x = table.evaluate("el => getComputedStyle(el).overflowX")
-    assert overflow_x not in ("auto", "scroll"), (
-        f"Log table has overflow-x: {overflow_x} — must be hidden or visible to prevent horizontal scroll"
-    )
 
 
 def test_apps_table_columns_fill_width_at_mobile(page: Page, base_url: str) -> None:
