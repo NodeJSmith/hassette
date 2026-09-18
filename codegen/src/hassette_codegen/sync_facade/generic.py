@@ -398,16 +398,14 @@ def gen_wrapper(
         else ""
     )
     if name == _WAIT_FOR_METHOD_NAME:
-        # `Bus.wait_for`'s own `timeout=None` ("no timeout", its documented contract) now means
-        # the same thing as `run_sync`'s `timeout_seconds=None` ("block forever" — see
-        # `TaskBucket.run_sync`'s `NOT_PROVIDED`-sentinel default), so `timeout` forwards
-        # unchanged. Every other generated wrapper omits `timeout_seconds` entirely and gets
-        # `run_sync`'s config-default behavior; `wait_for` still needs to forward its own
-        # `timeout` explicitly so the sync bridge doesn't time out before the async wait would.
+        # Every other generated wrapper omits `timeout_seconds` and gets `run_sync`'s
+        # config-default behavior. `wait_for` passes `timeout_seconds=None` ("block forever")
+        # so the bridge never races the inner `Bus.wait_for` timeout — `Bus.wait_for`'s own
+        # `asyncio.wait_for(fut, timeout=timeout)` is the sole deadline authority.
         run_sync_call = (
             f"self.task_bucket.run_sync(\n"
             f"            self.{wrapped_attr}.{name}({call}),\n"
-            f"            timeout_seconds=timeout,\n"
+            f"            timeout_seconds=None,\n"
             f"        )"
         )
         body = f"    def {name}({sig}){returns}:{doc_block}        return {run_sync_call}{suppress}\n"

@@ -213,7 +213,7 @@ Returns the matching `Event[Any]`.
 
 Raises `asyncio.TimeoutError` when no matching event arrives within `timeout` seconds. Raises `asyncio.CancelledError` when the underlying listener is removed before a match — Bus shutdown, or an explicit `Subscription.cancel()` reaching the same registration.
 
-`wait_for` only matches events dispatched *after* the call is awaited. An entity that already reports the target value when `wait_for` starts does not resolve the wait — only a subsequent event does. Check `self.states.get()` first if "already true or wait" is what the automation needs.
+`wait_for` only matches events dispatched *after* the call is awaited. An entity that already reports the target value when `wait_for` starts does not resolve the wait — only a subsequent event does. `self.states.get()` covers the "already true" case; call it first when "already true or wait" is the desired behavior.
 
 `wait_for` skips `guard_await`, the wrapper the other registration methods use to catch a forgotten `await`. It returns an `Event`, not a `Subscription`, so there's no listener handle to silently drop — Python's own `coroutine was never awaited` warning already covers this case.
 
@@ -223,7 +223,7 @@ Raises `asyncio.TimeoutError` when no matching event arrives within `timeout` se
 
 #### Arm before fire
 
-Create the `wait_for` task *before* calling the service, then await the task after the call:
+The `wait_for` task starts *before* the service call, then the caller awaits it after:
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/wait_for.py:arm_before_fire"
@@ -232,7 +232,7 @@ Create the `wait_for` task *before* calling the service, then await the task aft
 The ordering matters. `asyncio.create_task` schedules `wait_for` and starts registering its listener immediately, but registration is not guaranteed to complete before `call_service`'s WebSocket round-trip triggers the event — the listener registration writes to the local SQLite telemetry database (~1ms), which in practice finishes well before the round-trip to Home Assistant (~10ms or more), but the two are not synchronized.
 
 !!! warning "This race is narrowed, not closed"
-    Arming the wait first shrinks the window between registration and the triggering call — it does not close it. Closing it fully needs a primitive that awaits registration before firing the action, tracked as #2286 and not yet available. Until it ships, this arm-before-fire pattern is the best tool available; reach for a stricter primitive later only if the residual race actually matters for a given automation.
+    Arming the wait first shrinks the window between registration and the triggering call — it does not close it. Closing it fully requires a primitive that awaits registration before firing the action, tracked as #2286 and not yet available. Until that ships, arm-before-fire is the best available pattern; a stricter primitive is only worth waiting for when the residual race actually matters for a given automation.
 
 #### Confirm started, then wait for idle
 

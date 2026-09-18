@@ -131,28 +131,24 @@ async def test_api_sync_facade_fires_service_from_sync_init() -> None:
         )
 
 
-async def test_bus_sync_facade_wait_for_forwards_timeout_to_run_sync() -> None:
-    """BusSyncFacade.wait_for forwards its own `timeout` straight into run_sync's `timeout_seconds`.
+async def test_bus_sync_facade_wait_for_uses_none_timeout_on_bridge() -> None:
+    """BusSyncFacade.wait_for passes timeout_seconds=None to run_sync regardless of the caller's timeout.
 
-    `run_sync`'s `timeout_seconds=None` now means the same "block forever" `Bus.wait_for`'s own
-    `timeout=None` means (its documented "no timeout" spelling) -- see `TaskBucket.run_sync`'s
-    `NOT_PROVIDED`-sentinel default -- so no translation is needed. A concrete numeric `timeout`
-    forwards unchanged; `timeout=None` forwards as `timeout_seconds=None` verbatim.
+    Bus.wait_for's own asyncio.wait_for(fut, timeout=timeout) is the sole deadline authority.
+    The sync bridge uses timeout_seconds=None ("block forever") so registration overhead never
+    races the inner timeout.
     """
     async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
         fake_event = MagicMock()
 
         def fake_run_sync(coro, **_kwargs):
-            # run_sync is mocked out, so the real `Bus.wait_for(...)` coroutine it would have
-            # driven is never awaited -- close it explicitly to avoid a "coroutine was never
-            # awaited" warning, which pytest's unraisable-exception hook turns into a failure.
             coro.close()
             return fake_event
 
         with patch.object(harness.bus.sync.task_bucket, "run_sync", side_effect=fake_run_sync) as mock_run_sync:
             result = harness.bus.sync.wait_for("some.topic", timeout=30)
             assert result is fake_event
-            assert mock_run_sync.call_args.kwargs["timeout_seconds"] == 30
+            assert mock_run_sync.call_args.kwargs["timeout_seconds"] is None
 
         with patch.object(harness.bus.sync.task_bucket, "run_sync", side_effect=fake_run_sync) as mock_run_sync:
             harness.bus.sync.wait_for("some.topic", timeout=None)

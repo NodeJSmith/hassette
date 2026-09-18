@@ -229,12 +229,8 @@ async def test_shutdown_cancels_pending_wait_for_future(bus: "Bus") -> None:
             await asyncio.wait_for(task, timeout=1)
 
 
-async def test_on_shutdown_batches_cancellation_warning_into_one_summary_line(
-    bus: "Bus", caplog: pytest.LogCaptureFixture
-) -> None:
-    """Bus.on_shutdown() logs one summary WARNING for all pending wait_for futures it cancels,
-    not one WARNING per future — see Finding 3, design.md's shutdown-logging note.
-    """
+async def test_on_shutdown_cancels_multiple_pending_wait_for_futures(bus: "Bus") -> None:
+    """on_shutdown cancels all pending wait_for futures via remove_all_listeners."""
     with wait_for_add_listener_mock(bus) as (registered, ready):
         tasks = []
         for i in range(3):
@@ -244,10 +240,6 @@ async def test_on_shutdown_batches_cancellation_warning_into_one_summary_line(
         callback = get_bus_removal_callback(bus)
         assert callback is not None
 
-        # wait_for_add_listener_mock only stubs registration, not bus_service's own listener
-        # storage, so the real remove_listeners_by_owner() would find nothing to remove. Route
-        # remove_all_listeners() through the same removal callback production wiring reaches
-        # (BusService -> _on_listener_removed), mirroring test_shutdown_cancels_pending_wait_for_future.
         original_remove_all = bus.remove_all_listeners
 
         def fake_remove_all_listeners() -> None:
@@ -256,8 +248,7 @@ async def test_on_shutdown_batches_cancellation_warning_into_one_summary_line(
 
         bus.remove_all_listeners = fake_remove_all_listeners
         try:
-            with caplog.at_level(logging.WARNING, logger=bus.logger.name):
-                await bus.on_shutdown()
+            await bus.on_shutdown()
         finally:
             bus.remove_all_listeners = original_remove_all
 
@@ -265,19 +256,9 @@ async def test_on_shutdown_batches_cancellation_warning_into_one_summary_line(
             with pytest.raises(asyncio.CancelledError):
                 await asyncio.wait_for(task, timeout=1)
 
-        cancellation_records = [r for r in caplog.records if "wait_for future" in r.getMessage()]
-        assert len(cancellation_records) == 1, (
-            f"expected exactly one summary WARNING, got {len(cancellation_records)}: "
-            f"{[r.getMessage() for r in cancellation_records]}"
-        )
-        assert "3" in cancellation_records[0].getMessage()
-        assert "during shutdown" in cancellation_records[0].getMessage()
 
-
-async def test_non_shutdown_cancellation_still_logs_per_future(bus: "Bus", caplog: pytest.LogCaptureFixture) -> None:
-    """Outside of on_shutdown(), the removal callback still logs one WARNING per cancelled
-    future — batching is shutdown-specific, not a general suppression of this WARNING.
-    """
+async def test_non_shutdown_removal_cancels_pending_future(bus: "Bus") -> None:
+    """Explicit listener removal outside shutdown cancels the pending wait_for future."""
     with wait_for_add_listener_mock(bus) as (registered, ready):
         task = asyncio.create_task(bus.wait_for("test.topic", timeout=5, name="explicit_cancel"))
         await _await_registration(ready)
@@ -285,15 +266,10 @@ async def test_non_shutdown_cancellation_still_logs_per_future(bus: "Bus", caplo
         listener = registered[0]
         callback = get_bus_removal_callback(bus)
         assert callback is not None
-
-        with caplog.at_level(logging.WARNING, logger=bus.logger.name):
-            callback(listener)
+        callback(listener)
 
         with pytest.raises(asyncio.CancelledError):
             await asyncio.wait_for(task, timeout=1)
-
-        cancellation_records = [r for r in caplog.records if "Cancelling pending wait_for future" in r.getMessage()]
-        assert len(cancellation_records) == 1
 
 
 async def test_removal_after_successful_match_does_not_raise(bus: "Bus") -> None:

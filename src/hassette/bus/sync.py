@@ -421,7 +421,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
         """
         return self.task_bucket.run_sync(
             self._bus.wait_for(topic, where=where, timeout=timeout, name=name),
-            timeout_seconds=timeout,
+            timeout_seconds=None,
         )
 
     def on_error(self, handler: "BusErrorHandlerType") -> None:
