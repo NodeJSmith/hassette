@@ -280,6 +280,47 @@ class TestAppFactoryCreateInstances:
         mock_load_class.assert_called_once_with(mock_manifest, force_reload=True)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_create_instances_force_reload_ignored_when_instance_already_running(
+        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """force_reload=True must not reload the shared class while any instance of this
+        app_key is already running -- doing so would leave the preserved instance bound to
+        the pre-reload class while a newly-created sibling gets the post-reload one, two class
+        versions serving one app_key at once (Codex P2 finding on #2245). Use reload_app() to
+        stop-then-recreate with a fresh class instead.
+        """
+        mock_manifest.app_config = [
+            {"instance_name": "instance_0"},
+            {"instance_name": "instance_1"},
+        ]
+        # Index 0 is already running; index 1 is not.
+        existing_app = Mock()
+        mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 0 else None)
+        mock_load_class.return_value = Mock()
+
+        factory.create_instances("test_app", mock_manifest, force_reload=True)
+
+        # load_class() must be called with force_reload downgraded to False.
+        mock_load_class.assert_called_once_with(mock_manifest, force_reload=False)
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_create_instances_force_reload_ignored_when_all_indices_occupied(
+        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """When every configured index is already live, force_reload=True must not reload the
+        class at all -- there is no instance left to apply a fresh class to, so reloading would
+        only mutate the module/class cache for nothing.
+        """
+        mock_manifest.app_config = [{"instance_name": "instance_0"}]
+        mock_registry.get = Mock(return_value=Mock())
+        mock_load_class.return_value = Mock()
+
+        created = factory.create_instances("test_app", mock_manifest, force_reload=True)
+
+        mock_load_class.assert_called_once_with(mock_manifest, force_reload=False)
+        assert created == set()
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_skips_already_running_indices(
         self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
     ):
