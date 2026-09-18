@@ -318,7 +318,7 @@ async def test_serve_exits_on_shutdown(initialized_service: DatabaseService) -> 
 
 
 async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseService) -> None:
-    """serve() updates heartbeat and runs retention cleanup during the loop."""
+    """serve() updates heartbeat, runs retention cleanup, and runs the size failsafe during the loop."""
     session_id = initialized_service.hassette.session_id
     # Get initial heartbeat
     cursor = await initialized_service.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
@@ -334,10 +334,13 @@ async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseS
     shutdown_task = asyncio.create_task(shutdown_after_loop())
 
     # Patch intervals to very small values so the loop iterates quickly
-    with (
-        patch("hassette.core.database_service._HEARTBEAT_INTERVAL_SECONDS", 0.1),
-        patch("hassette.core.database_service._RETENTION_INTERVAL_SECONDS", 0.1),
-    ):
+    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.1
+    initialized_service.hassette.config.database.retention_interval_seconds = 0.1
+    initialized_service.hassette.config.database.size_failsafe_interval_seconds = 0.1
+
+    with patch.object(
+        initialized_service, "run_size_failsafe", wraps=initialized_service.run_size_failsafe
+    ) as mock_run_size_failsafe:
         await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
 
     await shutdown_task
@@ -349,6 +352,9 @@ async def test_serve_runs_heartbeat_and_retention(initialized_service: DatabaseS
     row = await cursor.fetchone()
     assert row is not None
     assert row[0] > initial_heartbeat
+
+    # The size-failsafe branch should have been reached at least once
+    mock_run_size_failsafe.assert_called()
 
 
 async def test_heartbeat_failure_counter_tracks_failures(initialized_service: DatabaseService) -> None:
@@ -418,10 +424,8 @@ async def test_serve_raises_after_max_heartbeat_failures(initialized_service: Da
     assert initialized_service._db is not None
     await initialized_service._db.close()
 
-    with (
-        patch("hassette.core.database_service._HEARTBEAT_INTERVAL_SECONDS", 0.01),
-        pytest.raises(RuntimeError, match="Heartbeat failed 3 consecutive times"),
-    ):
+    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.01
+    with pytest.raises(RuntimeError, match="Heartbeat failed 3 consecutive times"):
         await asyncio.wait_for(initialized_service.serve(), timeout=5.0)
 
 
@@ -443,9 +447,9 @@ async def test_serve_raises_when_write_worker_is_wedged(initialized_service: Dat
     assert initialized_service.enqueue(wedge()) is True
     await asyncio.wait_for(wedged.wait(), timeout=1)
 
+    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.01
     try:
         with (
-            patch("hassette.core.database_service._HEARTBEAT_INTERVAL_SECONDS", 0.01),
             patch("hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", 0.05),
             pytest.raises(RuntimeError, match="Heartbeat failed 3 consecutive times"),
         ):
@@ -679,6 +683,36 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
         )
 
 
+async def test_run_size_failsafe_enqueues_check_size_failsafe(initialized_service: DatabaseService) -> None:
+    """run_size_failsafe() enqueues _check_size_failsafe() onto the write queue."""
+    with patch.object(
+        initialized_service, "_check_size_failsafe", wraps=initialized_service._check_size_failsafe
+    ) as mock_check:
+        await initialized_service.run_size_failsafe()
+        await initialized_service._db_write_queue.join()
+
+    mock_check.assert_called_once()
+
+
+async def test_run_size_failsafe_returns_early_when_db_is_none(service: DatabaseService) -> None:
+    """run_size_failsafe() is a no-op when _db is None (never initialized)."""
+    assert service._db is None
+    with patch.object(service, "enqueue") as mock_enqueue:
+        await service.run_size_failsafe()
+    mock_enqueue.assert_not_called()
+
+
+async def test_run_size_failsafe_returns_early_when_write_queue_is_none(
+    initialized_service: DatabaseService,
+) -> None:
+    """run_size_failsafe() is a no-op when _db_write_queue is None (post-teardown)."""
+    initialized_service.detach_write_queue()
+    assert initialized_service._db_write_queue is None
+    with patch.object(initialized_service, "enqueue") as mock_enqueue:
+        await initialized_service.run_size_failsafe()
+    mock_enqueue.assert_not_called()
+
+
 async def test_run_failsafe_tier_isolates_per_target_delete_failures(initialized_service: DatabaseService) -> None:
     """A simulated DELETE failure on one target in a tier does not prevent deletion of others.
 
@@ -723,7 +757,7 @@ async def test_run_failsafe_tier_isolates_per_target_delete_failures(initialized
 
     with patch("hassette.core.database_service._execute_failsafe_delete", side_effect=failing_delete):
         deleted_by_table, _under_limit = await initialized_service._run_failsafe_tier(
-            db, group, batch_limit=1000, max_iterations=1, max_size_mb=0.0001
+            db, group, batch_limit=1000, max_iterations=1, max_size_mb=0.0001, vacuum_pages=100
         )
 
     assert deleted_by_table["log_records"] == 5

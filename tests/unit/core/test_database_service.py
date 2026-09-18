@@ -584,7 +584,7 @@ async def test_run_failsafe_tier_returns_counts_and_under_limit_true(
     # exits because the next iteration deleted zero rows (nothing left to delete).
     with patch.object(service, "get_db_size_mb", side_effect=[10.0, 1.0]):
         deleted_by_table, under_limit = await service._run_failsafe_tier(
-            memory_db, [WIDGETS_TARGET], batch_limit=10, max_iterations=5, max_size_mb=5.0
+            memory_db, [WIDGETS_TARGET], batch_limit=10, max_iterations=5, max_size_mb=5.0, vacuum_pages=100
         )
 
     assert deleted_by_table == {"widgets": 3}
@@ -600,7 +600,7 @@ async def test_run_failsafe_tier_returns_under_limit_false_when_iterations_exhau
 
     with patch.object(service, "get_db_size_mb", return_value=100.0):
         deleted_by_table, under_limit = await service._run_failsafe_tier(
-            memory_db, [WIDGETS_TARGET], batch_limit=5, max_iterations=2, max_size_mb=1.0
+            memory_db, [WIDGETS_TARGET], batch_limit=5, max_iterations=2, max_size_mb=1.0, vacuum_pages=100
         )
 
     assert deleted_by_table == {"widgets": 10}
@@ -620,7 +620,7 @@ async def test_run_failsafe_tier_commit_failure_breaks_without_counting_deletes(
         patch.object(service.logger, "exception") as mock_exception,
     ):
         deleted_by_table, under_limit = await service._run_failsafe_tier(
-            memory_db, [WIDGETS_TARGET], batch_limit=10, max_iterations=5, max_size_mb=5.0
+            memory_db, [WIDGETS_TARGET], batch_limit=10, max_iterations=5, max_size_mb=5.0, vacuum_pages=100
         )
 
     assert deleted_by_table == {"widgets": 0}
@@ -652,7 +652,7 @@ async def test_run_failsafe_tier_vacuum_failure_breaks_after_commit_counts_delet
         patch.object(service.logger, "exception") as mock_exception,
     ):
         deleted_by_table, under_limit = await service._run_failsafe_tier(
-            memory_db, [WIDGETS_TARGET], batch_limit=10, max_iterations=5, max_size_mb=5.0
+            memory_db, [WIDGETS_TARGET], batch_limit=10, max_iterations=5, max_size_mb=5.0, vacuum_pages=100
         )
 
     assert deleted_by_table == {"widgets": 2}

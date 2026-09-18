@@ -4,7 +4,7 @@ import sqlite3
 import time
 from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiosqlite
 import pydantic
@@ -316,6 +316,42 @@ class TestInsertLogRecords:
         assert row["app_key"] is None
         assert row["execution_id"] is None
         assert row["source_tier"] == "framework"
+
+    async def test_insert_rolls_back_and_reraises_on_executemany_failure(
+        self, db: aiosqlite.Connection, db_service: DatabaseService
+    ) -> None:
+        """A failed executemany() rolls back the transaction and re-raises to the caller."""
+        now = time.time()
+        records = [
+            {
+                "seq": 1,
+                "timestamp": now,
+                "level": "INFO",
+                "logger_name": "my.logger",
+                "func_name": "run",
+                "lineno": 10,
+                "message": "hello",
+                "exc_info": None,
+                "app_key": "my_app",
+                "instance_name": "my_app_0",
+                "instance_index": 0,
+                "execution_id": "exec-001",
+                "source_tier": "app",
+            }
+        ]
+
+        with (
+            patch.object(db, "executemany", AsyncMock(side_effect=sqlite3.OperationalError("database is locked"))),
+            patch.object(db, "rollback", wraps=db.rollback) as mock_rollback,
+            pytest.raises(sqlite3.OperationalError),
+        ):
+            await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
+
+        mock_rollback.assert_called_once()
+
+        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+        row = await cursor.fetchone()
+        assert row[0] == 0
 
 
 async def seed_log_records(db_service: DatabaseService) -> None:

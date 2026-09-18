@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Wire orphaned config fields, harden rollback error handling, fill test coverage gaps"
-status: "planned"
+status: "done"
 depends_on: ["T01", "T02"]
 implements: ["FR#6", "FR#7", "FR#8", "FR#9", "AC#4", "AC#6", "AC#7", "AC#8", "AC#9"]
 ---

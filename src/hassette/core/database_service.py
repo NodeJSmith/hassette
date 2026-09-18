@@ -27,34 +27,14 @@ if typing.TYPE_CHECKING:
 _WriteQueueItem = tuple[Coroutine[Any, Any, Any], asyncio.Future[Any] | None]
 """Type alias for items placed on the DB write queue."""
 
-# Heartbeat interval: 5 minutes
-_HEARTBEAT_INTERVAL_SECONDS = 300
-
-# Retention cleanup interval: 1 hour
-_RETENTION_INTERVAL_SECONDS = 3600
-
-# Size failsafe interval: 1 hour (same as retention)
-_SIZE_FAILSAFE_INTERVAL_SECONDS = 3600
-
-# Maximum iterations per size failsafe invocation
-_SIZE_FAILSAFE_MAX_ITERATIONS = 10
-
-# Records to delete per iteration in the size failsafe
-_SIZE_FAILSAFE_DELETE_BATCH = 1000
-
-# Pages to free per incremental_vacuum call
-_SIZE_FAILSAFE_VACUUM_PAGES = 100
-
-# Raise from serve() after this many consecutive heartbeat failures
-_MAX_CONSECUTIVE_HEARTBEAT_FAILURES = 3
-
 # Maximum seconds update_heartbeat() waits for its write to be queued and executed.
 # A wedged write worker stops draining the queue without ever raising, so an unbounded
 # await would park serve() forever and never reach its failure-count escalation.
 # Sized between the two clocks it sits between: comfortably above _BUSY_TIMEOUT_MS (5s), so a
 # healthy write merely blocked on the SQLite lock is never mistaken for a wedge, and well under
-# _HEARTBEAT_INTERVAL_SECONDS (300s), so a timed-out attempt cannot overlap the next tick.
-# Three strikes therefore escalate roughly _MAX_CONSECUTIVE_HEARTBEAT_FAILURES intervals in.
+# the default heartbeat interval (300s, see DatabaseConfig.heartbeat_interval_seconds), so a
+# timed-out attempt cannot overlap the next tick. Three strikes therefore escalate roughly
+# DatabaseConfig.max_consecutive_heartbeat_failures intervals in.
 _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
 
 # Ceiling on the seconds on_shutdown() waits for the write queue to drain. A worker that is
@@ -380,8 +360,9 @@ class DatabaseService(Service):
         last_size_failsafe_run = time.monotonic()
 
         while True:
+            config = self.hassette.config.database
             try:
-                await asyncio.wait_for(self.shutdown_event.wait(), timeout=_HEARTBEAT_INTERVAL_SECONDS)
+                await asyncio.wait_for(self.shutdown_event.wait(), timeout=config.heartbeat_interval_seconds)
                 # shutdown_event was set — exit
                 mark_not_ready(self, reason="Shutting down")
                 return
@@ -390,16 +371,16 @@ class DatabaseService(Service):
 
             await self.update_heartbeat()
 
-            if self._consecutive_heartbeat_failures >= _MAX_CONSECUTIVE_HEARTBEAT_FAILURES:
+            if self._consecutive_heartbeat_failures >= config.max_consecutive_heartbeat_failures:
                 raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
 
             time_since_retention = time.monotonic() - last_retention_run
-            if time_since_retention >= _RETENTION_INTERVAL_SECONDS:
+            if time_since_retention >= config.retention_interval_seconds:
                 await self.run_retention_cleanup()
                 last_retention_run = time.monotonic()
 
             time_since_size_failsafe = time.monotonic() - last_size_failsafe_run
-            if time_since_size_failsafe >= _SIZE_FAILSAFE_INTERVAL_SECONDS:
+            if time_since_size_failsafe >= config.size_failsafe_interval_seconds:
                 await self.run_size_failsafe()
                 last_size_failsafe_run = time.monotonic()
 
@@ -742,6 +723,7 @@ class DatabaseService(Service):
             _ = self.hassette.session_id
         except RuntimeError:
             return
+        max_consecutive_heartbeat_failures = self.hassette.config.database.max_consecutive_heartbeat_failures
         try:
             async with asyncio.timeout(_HEARTBEAT_WRITE_TIMEOUT_SECONDS):
                 await self.submit(self._do_update_heartbeat())
@@ -751,14 +733,14 @@ class DatabaseService(Service):
                 "Heartbeat write timed out after %ds — write worker may be wedged (failure %d/%d)",
                 _HEARTBEAT_WRITE_TIMEOUT_SECONDS,
                 self._consecutive_heartbeat_failures,
-                _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
+                max_consecutive_heartbeat_failures,
             )
         except (sqlite3.Error, OSError, ValueError):
             self._consecutive_heartbeat_failures += 1
             self.logger.exception(
                 "Failed to update heartbeat (failure %d/%d)",
                 self._consecutive_heartbeat_failures,
-                _MAX_CONSECUTIVE_HEARTBEAT_FAILURES,
+                max_consecutive_heartbeat_failures,
             )
         else:
             if self._consecutive_heartbeat_failures > 0:
@@ -855,7 +837,10 @@ class DatabaseService(Service):
                     jobs_deleted,
                 )
         except Exception:
-            await self.db.rollback()
+            try:
+                await self.db.rollback()
+            except Exception:
+                self.logger.exception("Rollback failed after error in retention cleanup")
             self.logger.exception("Failed to run retention cleanup")
 
     def get_db_size_mb(self) -> float:
@@ -874,6 +859,7 @@ class DatabaseService(Service):
         batch_limit: int,
         max_iterations: int,
         max_size_mb: float,
+        vacuum_pages: int,
     ) -> tuple[dict[str, int], bool]:
         """Run the delete-vacuum-check cycle for one priority tier of the size failsafe.
 
@@ -926,7 +912,7 @@ class DatabaseService(Service):
                 break
 
             try:
-                vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({_SIZE_FAILSAFE_VACUUM_PAGES})")
+                vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({vacuum_pages})")
                 await vacuum_cursor.close()
                 await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             except Exception:
@@ -980,6 +966,9 @@ class DatabaseService(Service):
 
         db = self.db
         total_deleted_by_table: dict[str, int] = {t.table: 0 for t in _RETENTION_TABLES}
+        batch_limit = self.hassette.config.database.size_failsafe_delete_batch
+        max_iterations = self.hassette.config.database.size_failsafe_max_iterations
+        vacuum_pages = self.hassette.config.database.size_failsafe_vacuum_pages
 
         priorities = sorted({t.priority for t in _RETENTION_TABLES})
         for priority in priorities:
@@ -987,9 +976,10 @@ class DatabaseService(Service):
             tier_deleted, under_limit = await self._run_failsafe_tier(
                 db,
                 group,
-                _SIZE_FAILSAFE_DELETE_BATCH,
-                _SIZE_FAILSAFE_MAX_ITERATIONS,
+                batch_limit,
+                max_iterations,
                 max_size_mb,
+                vacuum_pages,
             )
             for table, count in tier_deleted.items():
                 total_deleted_by_table[table] += count
@@ -1025,5 +1015,8 @@ class DatabaseService(Service):
             await db.executemany(_LOG_INSERT_SQL, records)
             await db.commit()
         except Exception:
-            await db.rollback()
+            try:
+                await db.rollback()
+            except Exception:
+                self.logger.exception("Rollback failed after error in log record insert")
             raise
