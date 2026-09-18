@@ -21,6 +21,8 @@ def mock_registry():
     registry = Mock()
     registry.register_app = Mock()
     registry.record_failure = Mock()
+    registry.get = Mock(return_value=None)
+    registry.get_running_apps = Mock(return_value={})
     return cast("AppRegistry", registry)
 
 
@@ -110,6 +112,50 @@ class TestAppFactoryCreateInstances:
         factory.create_instances("test_app", mock_manifest)
 
         mock_registry.record_failure.assert_called_once_with("test_app", 0, cached_error)
+        mock_registry.register_app.assert_not_called()
+
+    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
+    @patch("hassette.core.app_factory.get_class_load_error")
+    def test_create_instances_class_load_failure_reports_unoccupied_sibling(
+        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """When index 0 is already running (preserved) and class loading fails for a
+        multi-instance app, the failure must be recorded against the first unstarted sibling
+        index instead of being swallowed entirely — otherwise a genuinely-failed index 1 would
+        report no FAILED status at all and look like an ordinary stopped index (Codex P2 finding
+        on #2245).
+        """
+        cached_error = ValueError("Failed to load")
+        mock_get_error.return_value = cached_error
+        mock_manifest.app_config = [
+            {"instance_name": "instance_0"},
+            {"instance_name": "instance_1"},
+        ]
+        existing_app = Mock()
+        mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 0 else None)
+
+        factory.create_instances("test_app", mock_manifest)
+
+        mock_registry.record_failure.assert_called_once_with("test_app", 1, cached_error)
+        mock_registry.register_app.assert_not_called()
+
+    @patch("hassette.core.app_factory.class_failed_to_load", return_value=True)
+    @patch("hassette.core.app_factory.get_class_load_error")
+    def test_create_instances_class_load_failure_all_indices_occupied(
+        self, mock_get_error, mock_failed, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """When every configured index already has a live entry, there is no unstarted index
+        to report the failure against -- skip recording entirely rather than overwriting a
+        running instance's registry entry.
+        """
+        cached_error = ValueError("Failed to load")
+        mock_get_error.return_value = cached_error
+        mock_manifest.app_config = [{"instance_name": "instance_0"}]
+        mock_registry.get = Mock(return_value=Mock())
+
+        factory.create_instances("test_app", mock_manifest)
+
+        mock_registry.record_failure.assert_not_called()
         mock_registry.register_app.assert_not_called()
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
@@ -233,6 +279,98 @@ class TestAppFactoryCreateInstances:
 
         # When force_reload=True, should call load_app_class_from_manifest even if already loaded
         mock_load_class.assert_called_once_with(mock_manifest, force_reload=True)
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_create_instances_force_reload_ignored_when_instance_already_running(
+        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """force_reload=True must not reload the shared class while any instance of this
+        app_key is already running -- doing so would leave the preserved instance bound to
+        the pre-reload class while a newly-created sibling gets the post-reload one, two class
+        versions serving one app_key at once (Codex P2 finding on #2245). Use reload_app() to
+        stop-then-recreate with a fresh class instead.
+        """
+        mock_manifest.app_config = [
+            {"instance_name": "instance_0"},
+            {"instance_name": "instance_1"},
+        ]
+        # Index 0 is already running; index 1 is not.
+        existing_app = Mock()
+        mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 0 else None)
+        mock_registry.get_running_apps = Mock(return_value={0: existing_app})
+        mock_load_class.return_value = Mock()
+
+        factory.create_instances("test_app", mock_manifest, force_reload=True)
+
+        # load_class() must be called with force_reload downgraded to False.
+        mock_load_class.assert_called_once_with(mock_manifest, force_reload=False)
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_create_instances_force_reload_ignored_when_all_indices_occupied(
+        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """When every configured index is already live, force_reload=True must not reload the
+        class at all -- there is no instance left to apply a fresh class to, so reloading would
+        only mutate the module/class cache for nothing.
+        """
+        mock_manifest.app_config = [{"instance_name": "instance_0"}]
+        existing_app = Mock()
+        mock_registry.get = Mock(return_value=existing_app)
+        mock_registry.get_running_apps = Mock(return_value={0: existing_app})
+        mock_load_class.return_value = Mock()
+
+        created = factory.create_instances("test_app", mock_manifest, force_reload=True)
+
+        mock_load_class.assert_called_once_with(mock_manifest, force_reload=False)
+        assert created == set()
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_create_instances_force_reload_ignored_for_out_of_range_running_orphan(
+        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """force_reload=True must also be downgraded when the only running instance of this
+        app_key sits at an index the *current* config no longer covers (e.g. the config shrank
+        from 2 instances to 1, leaving index 1 running as an orphan -- prune_stale_failed_indices()
+        only prunes stale failed entries, never running ones). The in-range live_indices set alone
+        would miss this and let the reload proceed, splitting the orphan and any newly-created
+        in-range instance across two class versions (Codex P2 finding on #2245, round 2).
+        """
+        mock_manifest.app_config = [{"instance_name": "instance_0"}]  # config shrank to 1 instance
+        orphan = Mock()
+        mock_registry.get = Mock(return_value=None)  # index 0 (the only configured index) is not live
+        mock_registry.get_running_apps = Mock(return_value={1: orphan})  # index 1 is an out-of-range orphan
+        mock_load_class.return_value = Mock()
+
+        factory.create_instances("test_app", mock_manifest, force_reload=True)
+
+        mock_load_class.assert_called_once_with(mock_manifest, force_reload=False)
+
+    @patch("hassette.core.app_factory.load_app_class_from_manifest")
+    def test_create_instances_skips_already_running_indices(
+        self, mock_load_class, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """create_instances skips indices that already have a live registry entry, rather
+        than overwriting them via register_app() and orphaning the originals' listeners,
+        scheduler jobs, and tasks (#1688). Only indices without a live entry are created.
+        """
+        mock_load_class.return_value = mock_app_class = Mock()
+        mock_manifest.app_config = [
+            {"instance_name": "instance_0"},
+            {"instance_name": "instance_1"},
+            {"instance_name": "instance_2"},
+        ]
+        # Index 1 is already running; indices 0 and 2 are not.
+        existing_app = Mock()
+        mock_registry.get = Mock(side_effect=lambda _key, idx: existing_app if idx == 1 else None)
+
+        created = factory.create_instances("test_app", mock_manifest)
+
+        # Only indices 0 and 2 should be created (2 calls, not 3).
+        assert created == {0, 2}
+        assert mock_app_class.call_count == 2
+        assert mock_registry.register_app.call_count == 2
+        mock_registry.register_app.assert_any_call("test_app", 0, mock_app_class.return_value)
+        mock_registry.register_app.assert_any_call("test_app", 2, mock_app_class.return_value)
 
 
 class TestAppFactoryCreateSingleInstance:

@@ -37,27 +37,84 @@ class AppFactory:
         app_key: str,
         manifest: "AppManifest",
         force_reload: bool = False,
-    ) -> None:
+    ) -> set[int]:
         """Create all app instances for a manifest and register them.
+
+        Returns the set of indices that were actually created. Indices that already have a
+        live registry entry are skipped — callers use this to initialize only the new instances.
 
         Args:
             app_key: The app key from configuration
             manifest: The app manifest with config
-            force_reload: Whether to force reload the class
+            force_reload: Whether to force reload the class. Ignored (treated as False) if any
+                instance of this app_key is already running (configured index or not) -- see
+                reload_app() to force a reload onto instances that are already running.
         """
+        app_configs = self.normalize_configs(manifest.app_config)
+
+        # Which configured indices already have a live registry entry -- computed once and
+        # reused below by the class-load-failure target lookup and the per-index creation loop,
+        # so both agree on what "already running" means for this call instead of re-deriving it
+        # independently. Deliberately scoped to the *current* config's index range: creation and
+        # failure-target selection only ever act on configured indices.
+        live_indices = {idx for idx in range(len(app_configs)) if self.registry.get(app_key, idx) is not None}
+
+        # A forced reload is unsafe to combine with any already-running instance of this
+        # app_key: load_class() would reload the shared module/class before the per-index guard
+        # below preserves the live instance, leaving it bound to the pre-reload class while any
+        # newly created sibling gets the post-reload one -- two class versions serving one
+        # app_key at once. And when every instance is already live, the reload has no instance
+        # left to apply to, so it would just mutate the module/class cache for nothing.
+        # Unlike live_indices above, this check is NOT scoped to the current config's index
+        # range: prune_stale_failed_indices() (called by _start_app_unlocked() before this)
+        # only prunes stale *failed* entries, never running ones, so a running orphan at an
+        # index the config no longer covers (e.g. after a config shrink) can still be live here.
+        # Missing it would let force_reload slip through and reproduce the exact class-version
+        # split this guard exists to prevent, just via an out-of-range instance instead of an
+        # in-range one. Only reload when nothing for this app_key is currently running at all;
+        # reload_app() is the supported way to get a fresh class onto instances that are already
+        # up (it stops them first, so create_instances() runs against an empty slate — see its
+        # "no-op on the reload_app() path" note below).
+        if force_reload and self.registry.get_running_apps(app_key):
+            self.logger.debug(
+                "Ignoring force_reload for '%s' -- instance(s) already running; use reload_app() "
+                "to recreate them with a freshly-reloaded class",
+                app_key,
+            )
+            force_reload = False
+
         # Try to load the class
         app_class = self.load_class(app_key, manifest, force_reload)
         if app_class is None:
-            # Class loading failed - record failure at index 0
+            # Class loading failed — this affects every configured index (one shared class
+            # serves all instances of this app_key), but we only ever record one representative
+            # failure. Record it against the first configured index that isn't already running,
+            # not always index 0: if index 0 is preserved from a prior successful start, blindly
+            # recording there would both overwrite its live entry and leave a genuinely-failed,
+            # unstarted sibling index unreported (looking like an ordinary stopped index instead
+            # of FAILED). If every configured index already has a live entry, there's no
+            # unstarted index left to report against, so skip recording entirely.
             load_error = self.get_load_error(manifest)
-            self.registry.record_failure(app_key, 0, load_error)
-            return
+            target_index = next((idx for idx in range(len(app_configs)) if idx not in live_indices), None)
+            if target_index is not None:
+                self.registry.record_failure(app_key, target_index, load_error)
+            return set()
 
-        app_configs = self.normalize_configs(manifest.app_config)
-
-        # Create instances
+        # Create instances, skipping indices that already have a live registry entry.
+        # Without this guard, a second start_app() call silently overwrites running instances
+        # via register_app() (which replaces any prior entry at that index), orphaning the
+        # originals' listeners, scheduler jobs, and tasks. Callers that want a fresh instance
+        # should use reload_app(), which stops before recreating. A no-op on the reload_app()
+        # path: _stop_app_unlocked() already removed all entries before create_instances() runs.
+        # Mirrors the per-index guard in start_instance() (#1688).
+        created: set[int] = set()
         for idx, config in enumerate(app_configs):
+            if idx in live_indices:
+                self.logger.debug("Index %d of app %s is already running — skipping", idx, app_key)
+                continue
             self.create_single_instance(app_key, manifest, idx, config, app_class)
+            created.add(idx)
+        return created
 
     def create_single_instance(
         self,
