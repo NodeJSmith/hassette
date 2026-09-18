@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Add integration tests for Bus.wait_for()"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["AC#6"]
 ---
