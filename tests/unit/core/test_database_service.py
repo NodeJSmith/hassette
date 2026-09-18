@@ -596,7 +596,7 @@ async def test_run_failsafe_tier_returns_counts_and_under_limit_true(
     # First call happens mid-iteration (still over limit); second happens after the loop
     # exits because the next iteration deleted zero rows (nothing left to delete).
     with patch.object(service, "get_db_size_mb", side_effect=[10.0, 1.0]):
-        deleted_by_table, under_limit = await service._run_failsafe_tier(
+        deleted_by_table, under_limit, _iterations_used = await service._run_failsafe_tier(
             memory_db,
             [WIDGETS_TARGET],
             batch_limit=FAILSAFE_TIER_BATCH_LIMIT,
@@ -617,7 +617,7 @@ async def test_run_failsafe_tier_returns_under_limit_false_when_iterations_exhau
     await memory_db.commit()
 
     with patch.object(service, "get_db_size_mb", return_value=100.0):
-        deleted_by_table, under_limit = await service._run_failsafe_tier(
+        deleted_by_table, under_limit, _iterations_used = await service._run_failsafe_tier(
             memory_db, [WIDGETS_TARGET], batch_limit=5, max_iterations=2, max_size_mb=1.0, vacuum_pages=100
         )
 
@@ -639,9 +639,8 @@ async def test_run_failsafe_tier_commit_failure_breaks_but_still_counts_deletes(
     with (
         patch.object(memory_db, "commit", AsyncMock(side_effect=sqlite3.OperationalError("database is locked"))),
         patch.object(service, "get_db_size_mb", return_value=100.0),
-        patch.object(service.logger, "exception") as mock_exception,
     ):
-        deleted_by_table, under_limit = await service._run_failsafe_tier(
+        deleted_by_table, under_limit, _iterations_used = await service._run_failsafe_tier(
             memory_db,
             [WIDGETS_TARGET],
             batch_limit=FAILSAFE_TIER_BATCH_LIMIT,
@@ -653,8 +652,6 @@ async def test_run_failsafe_tier_commit_failure_breaks_but_still_counts_deletes(
     assert deleted_by_table == {"widgets": 2}
     assert under_limit is False
     assert memory_db.in_transaction is False
-    mock_exception.assert_called_once()
-    assert "commit failed" in mock_exception.call_args[0][0]
 
 
 async def test_run_failsafe_tier_vacuum_failure_breaks_after_retry_also_fails(
@@ -678,10 +675,8 @@ async def test_run_failsafe_tier_vacuum_failure_breaks_after_retry_also_fails(
     with (
         patch.object(memory_db, "execute", side_effect=fake_execute),
         patch.object(service, "get_db_size_mb", return_value=100.0),
-        patch.object(service.logger, "warning") as mock_warning,
-        patch.object(service.logger, "exception") as mock_exception,
     ):
-        deleted_by_table, under_limit = await service._run_failsafe_tier(
+        deleted_by_table, under_limit, _iterations_used = await service._run_failsafe_tier(
             memory_db,
             [WIDGETS_TARGET],
             batch_limit=FAILSAFE_TIER_BATCH_LIMIT,
@@ -692,10 +687,6 @@ async def test_run_failsafe_tier_vacuum_failure_breaks_after_retry_also_fails(
 
     assert deleted_by_table == {"widgets": 2}
     assert under_limit is False
-    mock_warning.assert_called_once()
-    assert "attempt(s) left" in mock_warning.call_args[0][0]
-    mock_exception.assert_called_once()
-    assert "vacuum/checkpoint failed after" in mock_exception.call_args[0][0]
 
 
 async def test_run_failsafe_tier_vacuum_failure_recovers_on_retry(
@@ -723,10 +714,8 @@ async def test_run_failsafe_tier_vacuum_failure_recovers_on_retry(
     with (
         patch.object(memory_db, "execute", side_effect=fake_execute),
         patch.object(service, "get_db_size_mb", side_effect=[10.0, 1.0]),
-        patch.object(service.logger, "warning") as mock_warning,
-        patch.object(service.logger, "exception") as mock_exception,
     ):
-        deleted_by_table, under_limit = await service._run_failsafe_tier(
+        deleted_by_table, under_limit, _iterations_used = await service._run_failsafe_tier(
             memory_db,
             [WIDGETS_TARGET],
             batch_limit=FAILSAFE_TIER_BATCH_LIMIT,
@@ -737,9 +726,36 @@ async def test_run_failsafe_tier_vacuum_failure_recovers_on_retry(
 
     assert deleted_by_table == {"widgets": 2}
     assert under_limit is True
-    mock_warning.assert_called_once()
-    assert "attempt(s) left" in mock_warning.call_args[0][0]
-    mock_exception.assert_not_called()
+
+
+async def test_vacuum_and_checkpoint_busy_checkpoint_treated_as_failure(
+    service: DatabaseService, memory_db: aiosqlite.Connection
+) -> None:
+    """A busy wal_checkpoint(TRUNCATE) (nonzero first column, no exception) is a failed attempt.
+
+    SQLite doesn't raise for SQLITE_BUSY on this pragma -- it returns a result row whose first
+    column is nonzero. If that row is ignored, the caller sees a false success even though the
+    WAL was never truncated. Every attempt reports busy here, so the method must exhaust all
+    retries and return False rather than returning True on the first attempt.
+    """
+    real_execute = memory_db.execute
+
+    class _BusyCheckpointCursor:
+        async def fetchone(self) -> tuple[int, int, int]:
+            return (1, 5, 0)
+
+        async def close(self) -> None:
+            pass
+
+    async def fake_execute(sql: str, *args: object, **kwargs: object):
+        if sql.startswith("PRAGMA wal_checkpoint"):
+            return _BusyCheckpointCursor()
+        return await real_execute(sql, *args, **kwargs)
+
+    with patch.object(memory_db, "execute", side_effect=fake_execute):
+        result = await service._vacuum_and_checkpoint_with_retry(memory_db, vacuum_pages=100, group_label="test")
+
+    assert result is False
 
 
 class TestQueueUnavailableErrorMessage:

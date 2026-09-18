@@ -877,7 +877,7 @@ class DatabaseService(Service):
         max_iterations: int,
         max_size_mb: float,
         vacuum_pages: int,
-    ) -> tuple[dict[str, int], bool]:
+    ) -> tuple[dict[str, int], bool, int]:
         """Run the delete-vacuum-check cycle for one priority tier of the size failsafe.
 
         Iterates up to ``max_iterations`` batches, deleting from every target in ``group``
@@ -887,19 +887,22 @@ class DatabaseService(Service):
         logged and ends this tier's loop early so the caller can move on to the next tier.
 
         Returns a tuple of (per-table deleted counts for this tier, whether the database is
-        now at or under ``max_size_mb``). The size check always runs after the loop exits,
-        regardless of exit reason (iterations exhausted, zero rows deleted, or under limit).
-        Per-iteration counts are merged into the returned totals as soon as the deletes
-        execute — aiosqlite opens connections with isolation_level=None (autocommit), so
-        each DELETE is already durably persisted the instant it executes, independent of
-        the later commit() call below. A failed commit or vacuum/checkpoint ends this tier's
-        loop early (so the caller can move on to the next tier) but does not undo or change
-        the deletes already counted for this iteration.
+        now at or under ``max_size_mb``, the number of iterations actually run). The size
+        check always runs after the loop exits, regardless of exit reason (iterations
+        exhausted, zero rows deleted, or under limit). Per-iteration counts are merged into
+        the returned totals as soon as the deletes execute — aiosqlite opens connections with
+        isolation_level=None (autocommit), so each DELETE is already durably persisted the
+        instant it executes, independent of the later commit() call below. A failed commit or
+        vacuum/checkpoint ends this tier's loop early (so the caller can move on to the next
+        tier) but does not undo or change the deletes already counted for this iteration. The
+        iteration count lets the caller track a shared iteration budget across tiers.
         """
         deleted_by_table: dict[str, int] = {t.table: 0 for t in group}
         group_label = ", ".join(t.failsafe_label for t in group)
+        iterations_used = 0
 
         for iteration in range(max_iterations):
+            iterations_used += 1
             iteration_deleted: dict[str, int] = {t.table: 0 for t in group}
             group_deleted = 0
             for target in group:
@@ -956,7 +959,7 @@ class DatabaseService(Service):
                 )
 
         under_limit = self.get_db_size_mb() <= max_size_mb
-        return deleted_by_table, under_limit
+        return deleted_by_table, under_limit, iterations_used
 
     async def _vacuum_and_checkpoint_with_retry(
         self, db: aiosqlite.Connection, vacuum_pages: int, group_label: str
@@ -970,7 +973,15 @@ class DatabaseService(Service):
             try:
                 vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({vacuum_pages})")
                 await vacuum_cursor.close()
-                await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                checkpoint_cursor = await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                checkpoint_row = await checkpoint_cursor.fetchone()
+                await checkpoint_cursor.close()
+                # wal_checkpoint(TRUNCATE) doesn't raise when it's blocked (SQLITE_BUSY) -- it
+                # returns a row whose first column is nonzero instead. Treat a missing row or a
+                # nonzero busy value as a failed attempt so it's caught below and retried like
+                # any other vacuum/checkpoint failure.
+                if checkpoint_row is None or checkpoint_row[0] != 0:
+                    raise sqlite3.OperationalError(f"wal_checkpoint(TRUNCATE) busy or failed: {checkpoint_row}")
                 return True
             except Exception:
                 attempts_left = _VACUUM_CHECKPOINT_RETRY_ATTEMPTS - attempt - 1
@@ -1021,16 +1032,20 @@ class DatabaseService(Service):
         vacuum_pages = self.hassette.config.database.size_failsafe_vacuum_pages
 
         priorities = sorted({t.priority for t in _RETENTION_TABLES})
+        remaining_iterations = max_iterations
         for priority in priorities:
+            if remaining_iterations <= 0:
+                break
             group = [t for t in _RETENTION_TABLES if t.priority == priority]
-            tier_deleted, under_limit = await self._run_failsafe_tier(
+            tier_deleted, under_limit, iterations_used = await self._run_failsafe_tier(
                 db,
                 group,
                 batch_limit,
-                max_iterations,
+                remaining_iterations,
                 max_size_mb,
                 vacuum_pages,
             )
+            remaining_iterations -= iterations_used
             for table, count in tier_deleted.items():
                 total_deleted_by_table[table] += count
             if under_limit:
