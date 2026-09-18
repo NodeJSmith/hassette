@@ -2,9 +2,11 @@
 
 Pin the pure logic — union-find clustering, the docstring/import boilerplate exemption, the
 codegen-directory/marker exclusion, the `dup-ignore-start`/`dup-ignore-end` escape hatch (including
-its error paths), and PMD XML parsing — without invoking the real PMD binary or network.
+its error paths), PMD XML parsing, and the `--gate-new-code` overlap-fraction filtering — without
+invoking the real PMD binary or network.
 """
 
+import subprocess
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
@@ -14,6 +16,7 @@ import pytest
 from check_duplicate_code import (
     CODEGEN_DIRS,
     CPD_NS,
+    NEW_CODE_OVERLAP_THRESHOLD,
     Fragment,
     IgnoreMarkerError,
     build_edges,
@@ -21,6 +24,7 @@ from check_duplicate_code import (
     duplication_blocks,
     find_violations,
     fragment_from_file_element,
+    fragment_overlap_fraction,
     ignore_ranges,
     is_codegen_dir,
     is_dup_ignore_file,
@@ -29,9 +33,15 @@ from check_duplicate_code import (
     is_generated_marker_file,
     is_ignored_glob,
     is_too_short,
+    new_code_violations,
+    report_new_code_gate,
     scanned_files,
     validate_markers,
 )
+
+from .conftest import GitRepo
+
+REPO_ROOT_STUB = Path("/repo")
 
 
 @pytest.fixture
@@ -385,3 +395,104 @@ def test_duplication_blocks_parses_multiple_occurrences() -> None:
 def test_duplication_blocks_empty_report_returns_no_blocks() -> None:
     xml = f'<pmd-cpd xmlns="{CPD_NS["cpd"]}"></pmd-cpd>'
     assert duplication_blocks(ET.fromstring(xml)) == []  # noqa: S314 -- trusted literal test fixture
+
+
+def test_new_code_overlap_threshold_is_a_majority() -> None:
+    # Pinned so a change to this constant is a deliberate, reviewed decision, not a silent drift.
+    assert NEW_CODE_OVERLAP_THRESHOLD == 0.5
+
+
+def test_fragment_overlap_fraction_fully_new() -> None:
+    fragment = Fragment(REPO_ROOT_STUB / "a.py", 1, 5)
+    changed_lines = {Path("a.py"): {1, 2, 3, 4, 5}}
+    assert fragment_overlap_fraction(fragment, changed_lines, REPO_ROOT_STUB) == 1.0
+
+
+def test_fragment_overlap_fraction_untouched_file_is_zero() -> None:
+    fragment = Fragment(REPO_ROOT_STUB / "a.py", 1, 5)
+    changed_lines = {Path("b.py"): {1, 2, 3}}
+    assert fragment_overlap_fraction(fragment, changed_lines, REPO_ROOT_STUB) == 0.0
+
+
+def test_fragment_overlap_fraction_partial_overlap() -> None:
+    fragment = Fragment(REPO_ROOT_STUB / "a.py", 1, 10)
+    changed_lines = {Path("a.py"): {5}}  # 1 of 10 lines touched
+    assert fragment_overlap_fraction(fragment, changed_lines, REPO_ROOT_STUB) == pytest.approx(0.1)
+
+
+def test_new_code_violations_flags_cluster_with_a_majority_new_fragment() -> None:
+    a = Fragment(REPO_ROOT_STUB / "a.py", 1, 5)  # entirely new
+    b = Fragment(REPO_ROOT_STUB / "b.py", 1, 5)  # pre-existing, untouched
+    c = Fragment(REPO_ROOT_STUB / "c.py", 1, 5)  # pre-existing, untouched
+    violations = [[a, b, c]]
+    changed_lines = {Path("a.py"): {1, 2, 3, 4, 5}}
+    assert new_code_violations(violations, changed_lines, REPO_ROOT_STUB) == violations
+
+
+def test_new_code_violations_ignores_cluster_with_only_a_minor_touch() -> None:
+    # A single line touched inside an otherwise-untouched 10-line fragment (e.g. a rename) must
+    # not be enough to blame this PR for a pre-existing, unrelated 3-way duplicate.
+    a = Fragment(REPO_ROOT_STUB / "a.py", 1, 10)
+    b = Fragment(REPO_ROOT_STUB / "b.py", 1, 10)
+    c = Fragment(REPO_ROOT_STUB / "c.py", 1, 10)
+    violations = [[a, b, c]]
+    changed_lines = {Path("a.py"): {5}}
+    assert new_code_violations(violations, changed_lines, REPO_ROOT_STUB) == []
+
+
+def test_new_code_violations_empty_when_diff_touches_nothing_in_scope() -> None:
+    a = Fragment(REPO_ROOT_STUB / "a.py", 1, 5)
+    b = Fragment(REPO_ROOT_STUB / "b.py", 1, 5)
+    c = Fragment(REPO_ROOT_STUB / "c.py", 1, 5)
+    violations = [[a, b, c]]
+    assert new_code_violations(violations, {}, REPO_ROOT_STUB) == []
+
+
+def test_new_code_violations_leaves_untouched_clusters_out_of_a_mixed_result() -> None:
+    new_a = Fragment(REPO_ROOT_STUB / "new_a.py", 1, 5)
+    new_b = Fragment(REPO_ROOT_STUB / "new_b.py", 1, 5)
+    new_c = Fragment(REPO_ROOT_STUB / "new_c.py", 1, 5)
+    old_a = Fragment(REPO_ROOT_STUB / "old_a.py", 1, 5)
+    old_b = Fragment(REPO_ROOT_STUB / "old_b.py", 1, 5)
+    old_c = Fragment(REPO_ROOT_STUB / "old_c.py", 1, 5)
+    new_cluster = [new_a, new_b, new_c]
+    old_cluster = [old_a, old_b, old_c]
+    changed_lines = {Path("new_a.py"): {1, 2, 3, 4, 5}}
+    assert new_code_violations([new_cluster, old_cluster], changed_lines, REPO_ROOT_STUB) == [new_cluster]
+
+
+def test_report_new_code_gate_uses_merge_base_not_a_diverged_base_ref_tip(
+    git_repo: GitRepo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # base_ref is the PR's raw base ref, which may have moved past the PR's actual branch point
+    # by the time CI runs. report_new_code_gate() must diff against the merge-base, not
+    # base_ref's live tip -- otherwise an unrelated commit on the base branch could hide this
+    # PR's own newly-introduced duplicate (or wrongly blame it for someone else's).
+    monkeypatch.setattr(check_duplicate_code, "REPO_ROOT", git_repo.root)
+
+    git_repo.write("a.py", "shared\n" * 5)
+    git_repo.write("b.py", "shared\n" * 5)
+    git_repo.write("c.py", "shared\n" * 5)
+    branch_point = git_repo.commit("branch point")
+
+    git_repo.write("new_dup.py", "shared\n" * 5)
+    head = git_repo.commit("PR introduces a new duplicate")
+
+    # Base branch moves on, unrelated to the PR, after the branch point.
+    subprocess.run(["git", "checkout", "-q", branch_point], cwd=git_repo.root, check=True)
+    git_repo.write("unrelated.py", "noise\n")
+    diverged_base_tip = git_repo.commit("unrelated base branch commit")
+    subprocess.run(["git", "checkout", "-q", "main"], cwd=git_repo.root, check=True)
+
+    violations = [
+        [
+            Fragment(git_repo.root / "a.py", 1, 5),
+            Fragment(git_repo.root / "b.py", 1, 5),
+            Fragment(git_repo.root / "c.py", 1, 5),
+            Fragment(git_repo.root / "new_dup.py", 1, 5),
+        ]
+    ]
+
+    exit_code = report_new_code_gate(violations, diverged_base_tip, head)
+    assert exit_code == 1
+    assert "new_dup.py" in capsys.readouterr().out

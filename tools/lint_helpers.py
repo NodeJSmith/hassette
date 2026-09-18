@@ -9,6 +9,8 @@ both contexts.
 
 import ast
 import io
+import re
+import subprocess
 import tokenize
 from collections.abc import Callable
 from pathlib import Path
@@ -30,6 +32,16 @@ DEFAULT_SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "
 #: scan dir pulls in third-party site-packages and reports them as house-style violations — which
 #: fails the linters' own characterization tests on any machine that has a local ``codegen/.venv``.
 EXCLUDED_PARTS = frozenset({".venv", "site-packages", "__pycache__", ".nox", ".git", "node_modules"})
+
+#: A unified-diff hunk header, e.g. "@@ -a,b +c,d @@" — b/d default to 1 when omitted (git's
+#: convention for a single-line hunk). Used by git_changed_line_ranges() below.
+_HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(?P<start>\d+)(?:,(?P<count>\d+))? @@")
+
+#: git's own wording for "the path isn't in that tree" (as opposed to "the ref itself doesn't
+#: resolve", e.g. an unfetched commit) — verified directly against git's actual stderr output,
+#: not guessed. Both phrasings appear depending on whether the path exists in the working tree.
+#: Used by git_file_line_count_at() below.
+_GIT_SHOW_MISSING_PATH_MARKERS = ("does not exist in", "exists on disk, but not in")
 
 
 def run_check(
@@ -172,3 +184,97 @@ def iter_python_files(argv: list[str], scan_dirs: list[str] | None = None) -> li
     ``argv`` is normally ``sys.argv[1:]`` for a ``main()`` call, or ``[]`` for a full scan.
     """
     return resolve_paths(argv, REPO_ROOT, scan_dirs if scan_dirs is not None else DEFAULT_SCAN_DIRS)
+
+
+# Git-diff helpers for "new code" CI gates — checkers that must flag only a violation this PR's
+# own commits introduced, not pre-existing debt the PR happens to sit near. Shared here (rather
+# than duplicated per checker) because both the file-size and duplicate-code gates need the same
+# three primitives: where the PR actually branched off, which lines it added, and what a file
+# looked like before it did.
+
+
+def git_merge_base(repo_root: Path, base_ref: str, head_ref: str) -> str:
+    """Return the commit SHA where ``head_ref`` diverged from ``base_ref``.
+
+    This, not ``base_ref``'s current tip, is the correct comparison point for a "did this PR
+    make things worse" gate: using the live tip would blame a PR for unrelated commits that
+    landed on the base branch after the PR branched, or hide the PR's own regressions behind an
+    unrelated improvement on the base branch.
+    """
+    result = subprocess.run(
+        ["git", "merge-base", base_ref, head_ref], cwd=repo_root, capture_output=True, text=True, check=True
+    )
+    return result.stdout.strip()
+
+
+def git_changed_line_ranges(repo_root: Path, base_ref: str, head_ref: str) -> dict[Path, set[int]]:
+    """Return ``{repo-relative path: {new-side line numbers added or modified}}`` in the diff.
+
+    ``--find-renames`` matters here: without it, a renamed file with a handful of real edits
+    shows as a full delete-and-add pair, and every one of its lines — not just the edited ones —
+    would count as "changed", making an untouched block that merely moved files look brand new.
+    A pure rename with zero content change produces no hunks at all and so contributes no
+    entries, which is the desired outcome (nothing about that file's content is new).
+
+    Deleted files are skipped (there is no new-side content for a gate about newly-introduced
+    lines to point at). Uses ``--unified=0`` so hunk ranges cover only actually-changed lines,
+    not surrounding context.
+    """
+    result = subprocess.run(
+        ["git", "diff", "--unified=0", "--find-renames", base_ref, head_ref],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    changed: dict[Path, set[int]] = {}
+    current_file: Path | None = None
+    for line in result.stdout.splitlines():
+        if line.startswith("+++ "):
+            target = line[4:]
+            current_file = None if target == "/dev/null" else Path(target.removeprefix("b/"))
+            continue
+        match = _HUNK_HEADER_RE.match(line)
+        if match and current_file is not None:
+            start = int(match.group("start"))
+            count = int(match.group("count") or "1")
+            if count:
+                changed.setdefault(current_file, set()).update(range(start, start + count))
+    return changed
+
+
+def git_renamed_from(repo_root: Path, base_ref: str, head_ref: str) -> dict[Path, Path]:
+    """Return ``{new repo-relative path: old repo-relative path}`` for files git detects as renamed."""
+    result = subprocess.run(
+        ["git", "diff", "--find-renames", "--name-status", base_ref, head_ref],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    renames: dict[Path, Path] = {}
+    for line in result.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3 and parts[0].startswith("R"):
+            renames[Path(parts[2])] = Path(parts[1])
+    return renames
+
+
+def git_file_line_count_at(repo_root: Path, ref: str, path: Path) -> int:
+    """Return the line count of ``path`` at ``ref``, or 0 if it doesn't exist there.
+
+    0 for a missing file is deliberate, not a fallback default: a file with no prior line count
+    to compare against should read as "born at its current size", which is exactly the case a
+    new-code size gate needs to catch. That deliberate 0 must not also catch a *different*
+    failure, though — an unresolvable `ref` (e.g. a commit `fetch-depth: 0` should have pulled in
+    but didn't) would otherwise silently read as "file didn't exist", reporting a pre-existing
+    file's entire current size as 100% new growth. So only git's own "path missing from this
+    tree" wording maps to 0; anything else re-raises as the same `CalledProcessError` a sibling
+    `check=True` call here would have produced.
+    """
+    result = subprocess.run(["git", "show", f"{ref}:{path.as_posix()}"], cwd=repo_root, capture_output=True, text=True)
+    if result.returncode != 0:
+        if any(marker in result.stderr for marker in _GIT_SHOW_MISSING_PATH_MARKERS):
+            return 0
+        raise subprocess.CalledProcessError(result.returncode, result.args, result.stdout, result.stderr)
+    return len(result.stdout.splitlines())

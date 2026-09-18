@@ -394,9 +394,12 @@ YAML form templates in `.github/ISSUE_TEMPLATE/` enforce structure:
 
 ### Known-failing lint checks (pre-existing baseline, not PR-introduced)
 
-The `file-sizes` and `duplicate-code` jobs in `.github/workflows/lint.yml` fail on `main` today, not just on feature branches — they're tracking a real, already-triaged backlog (see the `Decompose *` issues and #1573 on the issue tracker) rather than flagging something a given PR broke. Both jobs run with `continue-on-error: true`, so their FAILURE status is informational and does not block merge.
+The `file-sizes` and `duplicate-code` jobs in `.github/workflows/lint.yml` each run two steps with different semantics — don't conflate them when triaging CI status:
 
-When triaging PR CI status (e.g. via `/mine-address-pr-issues`), skip these two checks by default — treat a FAILURE on `file-sizes` or `duplicate-code` as expected baseline noise, not something to investigate, unless the PR's own diff is the thing adding the offending size/duplication (in which case fix it in-PR per `design-completeness.md`/`clean-code-findings.md` norms).
+- **The backlog step** (`Check file sizes (full backlog)` / `Check duplicate code (full backlog)`) fails on `main` today, not just on feature branches — it's tracking a real, already-triaged backlog (see the `Decompose *` issues and #1573 on the issue tracker) rather than flagging something a given PR broke. This step runs with `continue-on-error: true`, so its FAILURE status is informational and does not block merge.
+- **The new-code gate step** (`Check for new file-size regressions` / `Check duplicate code (new-code gate)`, PR events only) has no `continue-on-error` and genuinely blocks — it fails only when the PR's own diff made an already-oversized file bigger, created a new oversized file, or introduced a new 3+-way duplicate block (majority-overlap with the PR's added lines; see `tools/check_duplicate_code.py`'s `new_code_violations()`). A FAILURE here is a real, in-scope finding — fix it in-PR per `design-completeness.md`/`clean-code-findings.md` norms, the same as any other required check.
+
+When triaging PR CI status (e.g. via `/mine-address-pr-issues`), skip the backlog step by default — treat its FAILURE as expected baseline noise. Never skip the new-code gate step's FAILURE; it exists specifically to catch what the backlog step can't (see `tools/check_file_size_regressions.py` and `tools/check_duplicate_code.py --gate-new-code`'s module docstrings for the full design).
 
 ## Design Artifacts
 

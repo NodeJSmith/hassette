@@ -76,16 +76,21 @@ and finally exercises it.
 
 Usage:
     python tools/check_duplicate_code.py
+    python tools/check_duplicate_code.py --gate-new-code <base-ref> <head-ref>
 
 Always does a full-repo scan (PMD CPD compares files against each other, so there is no
-meaningful per-changed-file mode). Needs Java 21+ on PATH — PMD CPD is a JVM tool. The first run
-downloads a pinned PMD distribution (~50MB) to a shared cache (`~/.cache/hassette-dev-tools/pmd/`,
-or `$XDG_CACHE_HOME/hassette-dev-tools/pmd/`) and verifies it against a pinned sha256; later runs
-and other worktrees reuse the same cached copy.
+meaningful per-changed-file mode) — `--gate-new-code` still scans everything, but then reports
+only the violations this PR's own diff is responsible for (see `new_code_violations()`), leaving
+untouched pre-existing debt unreported. Needs Java 21+ on PATH — PMD CPD is a JVM tool. The first
+run downloads a pinned PMD distribution (~50MB) to a shared cache
+(`~/.cache/hassette-dev-tools/pmd/`, or `$XDG_CACHE_HOME/hassette-dev-tools/pmd/`) and verifies it
+against a pinned sha256; later runs and other worktrees reuse the same cached copy.
 
-Wired into CI (`.github/workflows/lint.yml`) as a non-blocking step (`continue-on-error: true`)
-so it shows orange but doesn't fail the pipeline. Wire into `prek.toml` as a blocking pre-push
-hook once the backlog (#1559-#1570) has been triaged down to zero.
+Wired into CI (`.github/workflows/lint.yml`) twice: a non-blocking step (`continue-on-error:
+true`) that reports the full backlog, and a blocking `--gate-new-code` step (no
+`continue-on-error`) that fails only when the current PR's own diff introduces a new violation.
+The full-backlog step means the ~226-item backlog (#1559-#1570) never needs to hit zero for the
+gate to matter — it only needs each PR to not add to it.
 """
 
 import ast
@@ -106,7 +111,14 @@ import zipfile
 from pathlib import Path
 from typing import NamedTuple
 
-from lint_helpers import REPO_ROOT, docstring_spans, iter_py_files, iter_ts_files
+from lint_helpers import (
+    REPO_ROOT,
+    docstring_spans,
+    git_changed_line_ranges,
+    git_merge_base,
+    iter_py_files,
+    iter_ts_files,
+)
 
 PMD_VERSION = "7.26.0"
 PMD_DIST_URL = f"https://github.com/pmd/pmd/releases/download/pmd_releases/{PMD_VERSION}/pmd-dist-{PMD_VERSION}-bin.zip"
@@ -120,6 +132,11 @@ MIN_LINES = 5
 MIN_TOKENS = 20
 MIN_OCCURRENCES = 3
 MARKER_HEADER_LINES = 6
+
+# A cluster counts as "this PR's fault" only once a fragment is at least this new — see
+# new_code_violations()'s docstring for why a low/any-overlap threshold would false-positive on
+# an incidental one-line edit inside an old, unrelated duplicate block.
+NEW_CODE_OVERLAP_THRESHOLD = 0.5
 
 DOWNLOAD_TIMEOUT_SECONDS = 30
 PMD_TIMEOUT_SECONDS = 300
@@ -473,17 +490,49 @@ def find_violations(blocks: list[list[Fragment]]) -> list[list[Fragment]]:
     return [component for component in candidates if any(not is_dup_ignored(fragment) for fragment in component)]
 
 
-def main() -> int:
-    try:
-        validate_markers(scanned_files())
-        pmd_binary = ensure_pmd_binary()
-        blocks = duplication_blocks(run_pmd_cpd(pmd_binary, "python", PYTHON_SCAN_PATHS))
-        blocks += duplication_blocks(run_pmd_cpd(pmd_binary, "typescript", TYPESCRIPT_SCAN_PATHS))
-        violations = find_violations(blocks)
-    except IgnoreMarkerError as exc:
-        print(f"ERROR: malformed dup-ignore marker: {exc}")
-        return 1
+def fragment_overlap_fraction(fragment: Fragment, changed_lines: dict[Path, set[int]], repo_root: Path) -> float:
+    """Return the fraction of `fragment`'s lines that fall inside this PR's changed lines."""
+    rel = fragment.file.relative_to(repo_root)
+    file_changed = changed_lines.get(rel)
+    if not file_changed:
+        return 0.0
+    length = fragment.end - fragment.start + 1
+    touched = sum(1 for lineno in range(fragment.start, fragment.end + 1) if lineno in file_changed)
+    return touched / length
 
+
+def new_code_violations(
+    violations: list[list[Fragment]], changed_lines: dict[Path, set[int]], repo_root: Path
+) -> list[list[Fragment]]:
+    """Return the subset of `violations` this PR's own diff is responsible for.
+
+    A cluster counts as PR-introduced only when at least one of its fragments has
+    NEW_CODE_OVERLAP_THRESHOLD or more of its own lines inside `changed_lines` — not merely
+    "any overlap at all". A single-line rename inside an old, unrelated 3-way duplicate block
+    would register as *some* overlap under a naive any-overlap rule, blocking a PR for debt it
+    didn't create; requiring a majority of the fragment's lines to be genuinely new distinguishes
+    "this PR copy-pasted a new block" from "this PR happened to touch one line near old debt".
+    """
+    return [
+        component
+        for component in violations
+        if any(
+            fragment_overlap_fraction(fragment, changed_lines, repo_root) >= NEW_CODE_OVERLAP_THRESHOLD
+            for fragment in component
+        )
+    ]
+
+
+def run_scan() -> list[list[Fragment]]:
+    """Run the full PMD CPD scan and return every current violation, full-repo, no diff scoping."""
+    validate_markers(scanned_files())
+    pmd_binary = ensure_pmd_binary()
+    blocks = duplication_blocks(run_pmd_cpd(pmd_binary, "python", PYTHON_SCAN_PATHS))
+    blocks += duplication_blocks(run_pmd_cpd(pmd_binary, "typescript", TYPESCRIPT_SCAN_PATHS))
+    return find_violations(blocks)
+
+
+def report_full_backlog(violations: list[list[Fragment]]) -> int:
     if violations:
         print(f"ERROR: {len(violations)} code block(s) copy-pasted {MIN_OCCURRENCES}+ times:")
         print()
@@ -499,6 +548,73 @@ def main() -> int:
 
     print(f"OK: no code block copy-pasted {MIN_OCCURRENCES}+ times.")
     return 0
+
+
+def report_new_code_gate(violations: list[list[Fragment]], base_ref: str, head_ref: str) -> int:
+    """`base_ref`/`head_ref` are the PR's raw base and head refs — the merge-base between them,
+    not `base_ref` itself, is what actually gets diffed against (see `git_merge_base`'s
+    docstring in lint_helpers.py for why the live base tip is the wrong reference).
+    """
+    merge_base = git_merge_base(REPO_ROOT, base_ref, head_ref)
+    changed_lines = git_changed_line_ranges(REPO_ROOT, merge_base, head_ref)
+    introduced = new_code_violations(violations, changed_lines, REPO_ROOT)
+
+    if introduced:
+        print(f"ERROR: this PR introduces {len(introduced)} code block(s) copy-pasted {MIN_OCCURRENCES}+ times:")
+        print()
+        for component in introduced:
+            print(format_violation(component))
+            print()
+        print(
+            "At least half of one occurrence's lines are new in this PR. Extract the shared block\n"
+            "into a fixture, helper, or shared module, or wrap every occurrence with\n"
+            "'# dup-ignore-start: <reason>' / '# dup-ignore-end' if this duplication is\n"
+            "intentional. Pre-existing duplication this PR didn't touch isn't blocked here — see\n"
+            "the informational 'duplicate-code' job for the full backlog."
+        )
+        return 1
+
+    print(f"OK: this PR introduces no new {MIN_OCCURRENCES}+-way duplicate code blocks.")
+    return 0
+
+
+def parse_gate_refs(argv: list[str]) -> tuple[str, str] | None:
+    """Parse `[--gate-new-code <base-ref> <head-ref>]` from CLI args, or None for plain mode.
+
+    Raises ValueError with a usage message on anything else — `main()` turns that into the
+    process's stderr + exit code 2.
+    """
+    if not argv:
+        return None
+    if len(argv) == 3 and argv[0] == "--gate-new-code":
+        return (argv[1], argv[2])
+    raise ValueError("Usage: check_duplicate_code.py [--gate-new-code <base-ref> <head-ref>]")
+
+
+def main() -> int:
+    try:
+        gate_refs = parse_gate_refs(sys.argv[1:])
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
+    try:
+        violations = run_scan()
+    except IgnoreMarkerError as exc:
+        print(f"ERROR: malformed dup-ignore marker: {exc}")
+        return 1
+
+    if gate_refs is None:
+        return report_full_backlog(violations)
+
+    # One scan, two reports: the backlog is printed for context (PMD CPD is the expensive part
+    # of this check, so a --gate-new-code run must not trigger a second scan just to also show
+    # it) but never determines this call's exit code — only the new-code gate does.
+    print("--- Existing backlog (informational; does not affect this check's pass/fail) ---")
+    _ = report_full_backlog(violations)  # return value intentionally unused, see comment above
+    print()
+    print("--- This PR's new duplicate code (this determines pass/fail) ---")
+    return report_new_code_gate(violations, *gate_refs)
 
 
 if __name__ == "__main__":

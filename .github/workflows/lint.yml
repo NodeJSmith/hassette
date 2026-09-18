@@ -302,12 +302,15 @@ jobs:
         needs: changes
         if: needs.changes.outputs.python == 'true' || needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
-        continue-on-error: true
         steps:
             - name: Checkout code
               uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                 persist-credentials: false
+                # Full history, not the default shallow clone: the "new regressions" step below
+                # needs to reach this PR's merge-base, which a shallow fetch of just the checked-
+                # out ref won't include once the base branch has moved past the PR's branch point.
+                fetch-depth: 0
 
             - name: Install uv
               uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
@@ -316,26 +319,47 @@ jobs:
 
             - run: uv sync
 
-            - name: Check file sizes
+            - name: Check file sizes (full backlog)
+              # Runs on every trigger, including PRs (unlike duplicate-code's equivalent step,
+              # which skips PRs to avoid a second expensive PMD scan) — house-lint is cheap
+              # enough that running it twice per PR (once here, once inside the regressions
+              # script below) costs nothing worth optimizing away.
+              #
               # Deliberately NOT `--select HSL102`: narrowing selection disables every other
               # rule, and house-lint's always-on HSL900 then flags every `# house-lint:
               # ignore[HSL002]`-style pragma elsewhere in the repo as an "unused suppression
               # for disabled rule" — noise unrelated to file size. Running the full configured
               # rule set keeps those pragmas valid; today that set has zero real findings
               # outside HSL102, so this job's output is still file-size-only in practice.
+              #
+              # Informational only (continue-on-error) — tracks the ~20-file backlog without
+              # blocking. The "new file-size regressions" step below is what actually gates PRs.
+              continue-on-error: true
               run: uv run house-lint check
+
+            - name: Check for new file-size regressions
+              # Only meaningful on a PR — there's no "other side" to diff against on a direct
+              # push to main (which only happens via a PR merge, already gated once as a PR).
+              # The script resolves the actual merge-base itself from these raw refs.
+              if: github.event_name == 'pull_request'
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+              run: uv run python tools/check_file_size_regressions.py "$BASE_SHA" "$HEAD_SHA"
 
     # PMD CPD scans both Python and TypeScript — trigger on either.
     duplicate-code:
         needs: changes
         if: needs.changes.outputs.python == 'true' || needs.changes.outputs.frontend == 'true' || github.event_name == 'workflow_dispatch'
         runs-on: ubuntu-latest
-        continue-on-error: true
         steps:
             - name: Checkout code
               uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                 persist-credentials: false
+                # See the matching comment in the file-sizes job above — the gate step below
+                # needs this PR's merge-base, not just the default shallow history.
+                fetch-depth: 0
 
             - name: Install uv
               uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
@@ -350,8 +374,22 @@ jobs:
                   distribution: temurin
                   java-version: "21"
 
-            - name: Check duplicate code
+            - name: Check duplicate code (full backlog)
+              # Informational only (continue-on-error) — tracks the full backlog without
+              # blocking. Runs only when there's no PR to gate against; on a PR, the step below
+              # does a single PMD scan that reports both the backlog (for context) and the gate
+              # verdict, since PMD CPD is expensive enough that this job shouldn't run it twice.
+              if: github.event_name != 'pull_request'
+              continue-on-error: true
               run: uv run python tools/check_duplicate_code.py
+
+            - name: Check duplicate code (new-code gate)
+              # The script resolves the actual merge-base itself from these raw refs.
+              if: github.event_name == 'pull_request'
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+              run: uv run python tools/check_duplicate_code.py --gate-new-code "$BASE_SHA" "$HEAD_SHA"
 
     lint-complete:
         needs: [python, frontend, codegen-freshness, ha-version-staleness, security, lockfile-fresh, slotscheck, link-check, file-sizes, duplicate-code]
