@@ -122,11 +122,7 @@ class HassetteCLIClient:
         # this invocation, so it came from cli.verify_ssl in config — a silent, durable
         # opt-out rather than a conscious per-invocation choice.
         self._insecure_from_config = not target.verify_ssl and verify_ssl_flag is None
-        # ResolvedCredential.source, not CredentialSource.name: the qualifier-decorated
-        # "<setting> (<qualifier>)" form naming one concrete source, not the bare setting
-        # identifier credential_source_names() joins when reporting the whole chain. Both are
-        # plain str, so swapping one for the other type-checks and reads plausibly.
-        self._credential_source = credential.source if credential is not None else None
+        self._credential_source_label = credential.source if credential is not None else None
         headers = {"Authorization": f"Bearer {credential.token}"} if credential is not None else {}
         self._client = httpx.Client(
             base_url=self.base_url, transport=transport, headers=headers, verify=target.verify_ssl
@@ -507,7 +503,7 @@ class HassetteCLIClient:
         Returns:
             The parenthetical appended to the server's own 401 detail.
         """
-        if self._credential_source is not None:
+        if self._credential_source_label is not None:
             # Deliberately not split by loopback/remote the way the no-credential cases are: the
             # remedy is the same either way. The proxy clause is remote-only on noise grounds,
             # not because loopback rules a proxy out — a local forward-auth gateway on a
@@ -518,7 +514,7 @@ class HassetteCLIClient:
             # source: with += the correct output depends on every fragment carrying a trailing
             # space, which nothing in the code signals and a formatter could silently strip.
             sentences = [
-                f"the credential sent came from {self._credential_source}, and it was rejected.",
+                f"the credential sent came from {self._credential_source_label}, and it was rejected.",
                 f"Point the CLI at the target's own credential with {CLI_AUTH_REMEDIES}.",
             ]
             if not self.is_loopback:
