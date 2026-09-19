@@ -112,4 +112,35 @@ describe("groupAndSortApps", () => {
     expect(groups.get("err")).toEqual([manifest]);
     expect(groups.get("ok")).toEqual([]);
   });
+
+  it("reports allHealthy=true when only ok and disabled groups are populated", () => {
+    const running = createManifest({ app_key: "running_app", status: "running" });
+    const disabled = createManifest({ app_key: "disabled_app", status: "disabled" });
+    const { allHealthy } = groupAndSortApps([running, disabled], NO_LIVE_STATUSES);
+    expect(allHealthy).toBe(true);
+  });
+
+  it("reports allHealthy=false when the err group is populated", () => {
+    const failed = createManifest({ app_key: "failed_app", status: "failed" });
+    const { allHealthy } = groupAndSortApps([failed], NO_LIVE_STATUSES);
+    expect(allHealthy).toBe(false);
+  });
+
+  it("reports allHealthy=false when the blocked group is populated", () => {
+    const blocked = createManifest({ app_key: "blocked_app", status: "blocked" });
+    const { allHealthy } = groupAndSortApps([blocked], NO_LIVE_STATUSES);
+    expect(allHealthy).toBe(false);
+  });
+
+  it("reports allHealthy=false when the warn group is populated", () => {
+    const degraded = createManifest({ app_key: "degraded_app", status: "degraded" });
+    const { allHealthy } = groupAndSortApps([degraded], NO_LIVE_STATUSES);
+    expect(allHealthy).toBe(false);
+  });
+
+  it("reports allHealthy=false when the stopped group is populated", () => {
+    const stopped = createManifest({ app_key: "stopped_app", status: "stopped" });
+    const { allHealthy } = groupAndSortApps([stopped], NO_LIVE_STATUSES);
+    expect(allHealthy).toBe(false);
+  });
 });
