@@ -337,6 +337,7 @@ class TestStartApp:
         # Only the newly created instance should be initialized.
         new_app.initialize.assert_awaited_once()
         existing_app.initialize.assert_not_awaited()
+        # dup-ignore-end
 
 
 class TestStartAppStaleManifestRace:
