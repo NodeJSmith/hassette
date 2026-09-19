@@ -52,9 +52,9 @@ def _persistence_handler(
 ) -> Generator[tuple[LogPersistenceHandler, asyncio.AbstractEventLoop], None, None]:
     """Set up a LogPersistenceHandler with a throwaway event loop.
 
-    Yields ``(handler, loop)``.  One test (``test_flush_on_closed_loop_counts_dropped``)
+    Yields ``(handler, loop)``. One test (``test_flush_on_closed_loop_counts_dropped``)
     intentionally closes the loop before the contextmanager exits — the ``is_closed()``
-    guard in ``finally`` tolerates that.  Another test (``test_dequeue_timeout_triggers_flush_if_pending``)
+    guard in ``finally`` tolerates that. Another test (``test_dequeue_timeout_triggers_flush_if_pending``)
     manages the loop entirely on its own because it also needs a ``HassetteQueueListener``.
     """
     loop = asyncio.new_event_loop()
@@ -69,7 +69,7 @@ def _persistence_handler(
 
 
 def _emit_records(handler: LogPersistenceHandler, count: int) -> None:
-    """Emit *count* synthetic log records into *handler*."""
+    """Emit ``count`` synthetic log records into ``handler``."""
     for i in range(count):
         handler.emit(make_log_record(msg=f"msg{i}"))
 
