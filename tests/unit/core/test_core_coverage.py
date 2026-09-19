@@ -8,7 +8,6 @@ wrapper, _on_children_stopped(), and several one-line accessors/helpers.
 """
 
 import asyncio
-import logging
 import queue
 from contextlib import contextmanager, suppress
 from unittest.mock import AsyncMock, Mock, patch
@@ -28,6 +27,7 @@ from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
 from hassette.utils.url_utils import build_rest_url, build_ws_url
+from tests.support.factories import make_log_record
 from tests.support.harness import preserve_config
 
 # wire_services() creates anyio memory streams that are closed explicitly in the
@@ -106,7 +106,7 @@ class TestGetLogDropCounters:
         db_service._insert_log_records = Mock(return_value=object())
         db_service.enqueue = Mock(return_value=False)
         handler = LogPersistenceHandler(db_service, asyncio.get_running_loop())
-        record = logging.LogRecord("hassette", logging.INFO, "", 0, "message", (), None)
+        record = make_log_record(name="hassette", msg="message")
 
         handler.emit(record)
         handler.flush_if_pending()
@@ -118,8 +118,8 @@ class TestGetLogDropCounters:
     def test_log_queue_drops_from_queue_handler(self, wired_hassette: Hassette) -> None:
         """get_log_queue_drops() forwards real log-queue drops, not DB write drops."""
         handler = HassetteQueueHandler(queue.Queue(maxsize=1))
-        handler.enqueue(logging.LogRecord("hassette", logging.INFO, "", 0, "first", (), None))
-        handler.enqueue(logging.LogRecord("hassette", logging.INFO, "", 0, "dropped", (), None))
+        handler.enqueue(make_log_record(name="hassette", msg="first"))
+        handler.enqueue(make_log_record(name="hassette", msg="dropped"))
 
         wired_hassette._logging_service._queue_handler = handler
         assert wired_hassette.get_log_queue_drops() == 1

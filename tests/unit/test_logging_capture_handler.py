@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 
 from hassette.logging_ import HassetteQueueHandler, LogCaptureHandler
 from hassette.web.models import LogWsMessage
+from tests.support.factories import make_log_record
 from tests.unit.conftest import LoggingPipelineFixture
 
 
@@ -33,15 +34,7 @@ class TestLogCaptureHandlerStillCaptures:
     def test_capture_handler_reads_source_tier_from_record(self) -> None:
         """LogCaptureHandler reads source_tier from record attribute (not prefix-matching)."""
         handler = LogCaptureHandler(buffer_size=100)
-        record = logging.LogRecord(
-            name="hassette.apps.my_app",
-            level=logging.INFO,
-            pathname="test.py",
-            lineno=1,
-            msg="test msg",
-            args=(),
-            exc_info=None,
-        )
+        record = make_log_record(name="hassette.apps.my_app", pathname="test.py", lineno=1, msg="test msg")
         record.source_tier = "app"
         handler.emit(record)
 
@@ -52,15 +45,7 @@ class TestLogCaptureHandlerStillCaptures:
     def test_capture_handler_source_tier_none_when_missing(self) -> None:
         """source_tier is None when record has no source_tier attribute."""
         handler = LogCaptureHandler(buffer_size=100)
-        record = logging.LogRecord(
-            name="hassette.core",
-            level=logging.INFO,
-            pathname="test.py",
-            lineno=1,
-            msg="framework msg",
-            args=(),
-            exc_info=None,
-        )
+        record = make_log_record(name="hassette.core", pathname="test.py", lineno=1, msg="framework msg")
         # No source_tier attribute set
         handler.emit(record)
 
@@ -83,7 +68,7 @@ class TestLogCaptureHandlerPopulatesCorrelationFields:
 
     def test_emit_reads_execution_id_from_record(self) -> None:
         handler = LogCaptureHandler(buffer_size=100)
-        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        record = make_log_record(name="hassette.test")
         record.execution_id = "exec-999"  # pyright: ignore[reportAttributeAccessIssue]
         handler.emit(record)
         entry = list(handler.buffer)[0]
@@ -91,7 +76,7 @@ class TestLogCaptureHandlerPopulatesCorrelationFields:
 
     def test_emit_reads_instance_name_from_record(self) -> None:
         handler = LogCaptureHandler(buffer_size=100)
-        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        record = make_log_record(name="hassette.test")
         record.instance_name = "MyApp.0"  # pyright: ignore[reportAttributeAccessIssue]
         record.instance_index = 0  # pyright: ignore[reportAttributeAccessIssue]
         handler.emit(record)
@@ -101,7 +86,7 @@ class TestLogCaptureHandlerPopulatesCorrelationFields:
 
     def test_emit_execution_id_none_when_missing(self) -> None:
         handler = LogCaptureHandler(buffer_size=100)
-        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        record = make_log_record(name="hassette.test")
         handler.emit(record)
         entry = list(handler.buffer)[0]
         assert entry.execution_id is None
@@ -158,7 +143,7 @@ class TestHassetteQueueHandlerDrops:
         q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=2)
         handler = HassetteQueueHandler(q)
 
-        handler.emit(logging.LogRecord("test", logging.INFO, "", 0, "msg", (), None))
+        handler.emit(make_log_record())
 
         assert handler.log_queue_drops == 0
         assert q.qsize() == 1
@@ -169,7 +154,7 @@ class TestHassetteQueueHandlerDrops:
         handler = HassetteQueueHandler(q)
 
         for i in range(5):
-            handler.emit(logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None))
+            handler.emit(make_log_record(msg=f"msg{i}"))
 
         assert q.qsize() == 2
         assert handler.log_queue_drops == 3
@@ -182,7 +167,7 @@ class TestHassetteQueueHandlerDrops:
         handler.handleError = errors.append  # pyright: ignore[reportAttributeAccessIssue]
 
         for i in range(3):
-            handler.emit(logging.LogRecord("test", logging.INFO, "", 0, f"msg{i}", (), None))
+            handler.emit(make_log_record(msg=f"msg{i}"))
 
         assert errors == []
         assert handler.log_queue_drops == 2
@@ -200,7 +185,7 @@ class TestLogCaptureHandlerShutdownGuard:
         handler.set_broadcast(broadcast_fn, loop)
 
         handler.shutting_down = True
-        record = logging.LogRecord("test", logging.INFO, "", 0, "shutdown msg", (), None)
+        record = make_log_record(msg="shutdown msg")
         handler.emit(record)
 
         entries = list(handler.buffer)
@@ -216,7 +201,7 @@ class TestLogCaptureHandlerShutdownGuard:
         broadcast_fn = MagicMock()
         handler.set_broadcast(broadcast_fn, loop)
 
-        record = logging.LogRecord("test", logging.INFO, "", 0, "live msg", (), None)
+        record = make_log_record(msg="live msg")
         handler.emit(record)
 
         loop.call_soon_threadsafe.assert_called_once()
@@ -227,7 +212,7 @@ def emit_and_capture_broadcast(handler: LogCaptureHandler, loop: MagicMock, broa
 
     emit() schedules a closure via call_soon_threadsafe; this runs it so broadcast_fn(payload) fires.
     """
-    record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "live msg", (), None)
+    record = make_log_record(name="hassette.test", msg="live msg")
     handler.emit(record)
 
     scheduled = loop.call_soon_threadsafe.call_args.args[0]

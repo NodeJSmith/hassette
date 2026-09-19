@@ -13,7 +13,7 @@ import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_ import CorrelationFilter, LogCaptureHandler, LogEntry, add_execution_id
-from tests.support.factories import make_log_entry
+from tests.support.factories import make_log_entry, make_log_record
 from tests.support.helpers import first_json_record_containing
 from tests.unit.conftest import LoggingPipelineFixture
 
@@ -113,7 +113,7 @@ class TestCorrelationFilter:
     def test_filter_stamps_execution_id_from_context_var(self) -> None:
         """Filter reads CURRENT_EXECUTION_ID from context var and stamps it on the record."""
         corr_filter = CorrelationFilter()
-        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        record = make_log_record(name="hassette.test")
         token = CURRENT_EXECUTION_ID.set("abc-123")
         try:
             corr_filter.filter(record)
@@ -124,7 +124,7 @@ class TestCorrelationFilter:
     def test_filter_stamps_none_execution_id_outside_context(self) -> None:
         """Filter stamps execution_id=None when CURRENT_EXECUTION_ID is not set."""
         corr_filter = CorrelationFilter()
-        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        record = make_log_record(name="hassette.test")
         token = CURRENT_EXECUTION_ID.set(None)
         try:
             corr_filter.filter(record)
@@ -135,7 +135,7 @@ class TestCorrelationFilter:
     def test_filter_stamps_seq_monotonically(self) -> None:
         """Filter seq counter increments monotonically across multiple filter calls."""
         corr_filter = CorrelationFilter()
-        records = [logging.LogRecord("hassette.test", logging.INFO, "", 0, f"msg{i}", (), None) for i in range(5)]
+        records = [make_log_record(name="hassette.test", msg=f"msg{i}") for i in range(5)]
         for r in records:
             corr_filter.filter(r)
         seqs = [r.seq for r in records]  # pyright: ignore[reportAttributeAccessIssue]
@@ -144,7 +144,7 @@ class TestCorrelationFilter:
     def test_filter_stamps_app_key_from_contextvars(self) -> None:
         """Filter reads app_key from structlog contextvars and stamps it on the record."""
         corr_filter = CorrelationFilter()
-        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        record = make_log_record(name="hassette.test")
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(app_key="my_app", instance_name="MyApp.0", instance_index=0)
         try:
@@ -158,7 +158,7 @@ class TestCorrelationFilter:
     def test_filter_stamps_none_app_key_outside_context(self) -> None:
         """Filter stamps None for app_key/instance_name/instance_index when not bound."""
         corr_filter = CorrelationFilter()
-        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        record = make_log_record(name="hassette.test")
         structlog.contextvars.clear_contextvars()
         corr_filter.filter(record)
         assert record.app_key is None  # pyright: ignore[reportAttributeAccessIssue]
@@ -220,7 +220,7 @@ class TestSeqMovedToFilter:
         corr_filter = CorrelationFilter()
         handler = LogCaptureHandler(buffer_size=100)
         # Manually run filter then emit
-        record = logging.LogRecord("hassette.test", logging.INFO, "", 0, "msg", (), None)
+        record = make_log_record(name="hassette.test")
         corr_filter.filter(record)
         handler.emit(record)
         entry = list(handler.buffer)[0]

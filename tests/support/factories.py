@@ -5,6 +5,7 @@ a sensible default; callers pass only the fields they care about.
 """
 
 import asyncio
+import logging
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -464,6 +465,24 @@ def make_log_record_dict(
         "execution_id": execution_id,
         "source_tier": source_tier,
     }
+
+
+def make_log_record(
+    *,
+    name: str = "test",
+    level: int = logging.INFO,
+    pathname: str = "",
+    lineno: int = 0,
+    msg: str = "msg",
+    args: tuple[Any, ...] = (),
+    exc_info: Any = None,
+) -> logging.LogRecord:
+    """Build a ``logging.LogRecord`` with sensible defaults.
+
+    Replaces the 7-positional-arg ``logging.LogRecord(...)`` calls scattered across logging
+    test files. Every field is an explicit keyword so callers spell out only what matters.
+    """
+    return logging.LogRecord(name, level, pathname, lineno, msg, args, exc_info)
 
 
 def make_mock_executor() -> MagicMock:
