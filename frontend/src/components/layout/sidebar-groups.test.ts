@@ -113,34 +113,21 @@ describe("groupAndSortApps", () => {
     expect(groups.get("ok")).toEqual([]);
   });
 
-  it("reports allHealthy=true when only ok and disabled groups are populated", () => {
+  it("considers the app set healthy when only running and disabled apps are present", () => {
     const running = createManifest({ app_key: "running_app", status: "running" });
     const disabled = createManifest({ app_key: "disabled_app", status: "disabled" });
     const { allHealthy } = groupAndSortApps([running, disabled], NO_LIVE_STATUSES);
     expect(allHealthy).toBe(true);
   });
 
-  it("reports allHealthy=false when the err group is populated", () => {
-    const failed = createManifest({ app_key: "failed_app", status: "failed" });
-    const { allHealthy } = groupAndSortApps([failed], NO_LIVE_STATUSES);
-    expect(allHealthy).toBe(false);
-  });
-
-  it("reports allHealthy=false when the blocked group is populated", () => {
-    const blocked = createManifest({ app_key: "blocked_app", status: "blocked" });
-    const { allHealthy } = groupAndSortApps([blocked], NO_LIVE_STATUSES);
-    expect(allHealthy).toBe(false);
-  });
-
-  it("reports allHealthy=false when the warn group is populated", () => {
-    const degraded = createManifest({ app_key: "degraded_app", status: "degraded" });
-    const { allHealthy } = groupAndSortApps([degraded], NO_LIVE_STATUSES);
-    expect(allHealthy).toBe(false);
-  });
-
-  it("reports allHealthy=false when the stopped group is populated", () => {
-    const stopped = createManifest({ app_key: "stopped_app", status: "stopped" });
-    const { allHealthy } = groupAndSortApps([stopped], NO_LIVE_STATUSES);
+  it.each([
+    { status: "failed", group: "err" },
+    { status: "blocked", group: "blocked" },
+    { status: "degraded", group: "warn" },
+    { status: "stopped", group: "stopped" },
+  ] as const)("considers the app set unhealthy when the $group group is populated ($status)", ({ status }) => {
+    const manifest = createManifest({ app_key: `${status}_app`, status });
+    const { allHealthy } = groupAndSortApps([manifest], NO_LIVE_STATUSES);
     expect(allHealthy).toBe(false);
   });
 });

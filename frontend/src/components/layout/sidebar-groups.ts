@@ -15,6 +15,8 @@ export interface GroupDef {
   label: string;
   tone: "err" | "warn" | "ok" | "mute";
   defaultOpen: boolean;
+  /** Whether apps in this group are excluded from the `allHealthy` tally.
+   *  `true` for "ok" (genuinely healthy) and "disabled" (inert — neither healthy nor unhealthy). */
   healthy: boolean;
 }
 
@@ -27,6 +29,8 @@ export const GROUP_DEFS: GroupDef[] = [
   { key: "disabled", label: "DISABLED", tone: "mute", defaultOpen: false, healthy: true },
 ];
 
+/** Legacy frontend-only status value not present in either backend enum — see
+ *  `ShuttingDownStatus` in `utils/status.ts` for the full rationale. */
 type StatusGroupKey = ManifestStatus | ResourceStatus | "shutting_down";
 
 const STATUS_TO_GROUP = {
@@ -45,6 +49,7 @@ const STATUS_TO_GROUP = {
   disabled: "disabled",
 } satisfies Record<StatusGroupKey, GroupKey>;
 
+/** Derived from GROUP_DEFS so allHealthy stays in sync if a group is added or reclassified. */
 const UNHEALTHY_KEYS: ReadonlySet<GroupKey> = new Set(GROUP_DEFS.filter((def) => !def.healthy).map((def) => def.key));
 
 export interface GroupedApps {
@@ -79,5 +84,7 @@ export function findDuplicateDisplayNames(manifests: AppManifest[]): Set<string>
 /** Groups from the live WS-overlaid status, not manifest.status — see appLiveStatus. */
 export function getGroupKey(manifest: AppManifest, appStatuses: Record<string, AppStatusEntry>): GroupKey {
   const status = appLiveStatus(appStatuses, manifest);
+  // Fallback: any status not in the map (e.g. a new backend enum value before types are
+  // regenerated) defaults to the healthy group, matching the old if-chain's implicit default.
   return STATUS_TO_GROUP[status] ?? HEALTHY_GROUP_KEY;
 }
