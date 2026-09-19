@@ -58,6 +58,13 @@ def current_oversized_files(repo_root: Path) -> dict[Path, int]:
     except json.JSONDecodeError as exc:
         raise HouseLintError(f"house-lint did not produce valid JSON: {result.stdout[:500]!r}") from exc
 
+    # house-lint exits 0 (clean) or 1 (findings, no errors) for an ordinary scan; exit 3 (config/
+    # scan errors) or 4 (internal error) means some file wasn't actually scanned, so `findings`
+    # below is a partial result -- silently trusting it as complete would let genuinely oversized
+    # files that failed to scan slip past this gate unflagged.
+    if result.returncode not in (0, 1) or payload.get("errors"):
+        raise HouseLintError(f"house-lint reported scan errors (exit {result.returncode}): {payload.get('errors')}")
+
     oversized: dict[Path, int] = {}
     for finding in payload.get("findings", []):
         if finding.get("rule_id") != "HSL102":

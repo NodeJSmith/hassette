@@ -311,6 +311,12 @@ jobs:
                 # needs to reach this PR's merge-base, which a shallow fetch of just the checked-
                 # out ref won't include once the base branch has moved past the PR's branch point.
                 fetch-depth: 0
+                # actions/checkout's default ref on a pull_request event is GitHub's ephemeral
+                # merge commit (base + head merged), not the raw head commit. house-lint scans
+                # whatever's checked out, while the regressions step below is handed HEAD_SHA
+                # (the raw head) to diff against — pin the checkout to that same commit so both
+                # halves of this gate agree on which tree they're looking at.
+                ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
             - name: Install uv
               uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
@@ -360,6 +366,10 @@ jobs:
                 # See the matching comment in the file-sizes job above — the gate step below
                 # needs this PR's merge-base, not just the default shallow history.
                 fetch-depth: 0
+                # See the matching comment in the file-sizes job above — pin the checkout to the
+                # raw head commit, not GitHub's ephemeral pull_request merge commit, so the PMD
+                # scan below and the HEAD_SHA it's diffed against describe the same tree.
+                ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
             - name: Install uv
               uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
@@ -377,8 +387,9 @@ jobs:
             - name: Check duplicate code (full backlog)
               # Informational only (continue-on-error) — tracks the full backlog without
               # blocking. Runs only when there's no PR to gate against; on a PR, the step below
-              # does a single PMD scan that reports both the backlog (for context) and the gate
-              # verdict, since PMD CPD is expensive enough that this job shouldn't run it twice.
+              # does its own head-tree scan and reports both the backlog (for context) and the
+              # gate verdict, then a second merge-base-tree scan only when the head scan actually
+              # found something to disambiguate (see check_duplicate_code.py's scan_tree_at_ref).
               if: github.event_name != 'pull_request'
               continue-on-error: true
               run: uv run python tools/check_duplicate_code.py

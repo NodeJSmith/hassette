@@ -61,6 +61,22 @@ def test_current_oversized_files_raises_when_house_lint_missing() -> None:
         current_oversized_files(Path("/repo"))
 
 
+def test_current_oversized_files_raises_when_house_lint_reports_scan_errors() -> None:
+    # house-lint exits 3 (config/scan errors) or 4 (internal error) when part of the tree
+    # couldn't be scanned -- its `findings` list is then partial, not empty, so silently trusting
+    # it would let a genuinely oversized file that failed to scan slip past this gate unflagged.
+    payload = {
+        "findings": [{"rule_id": "HSL102", "path": "src/big.py", "message": "900 lines (threshold: 800)"}],
+        "errors": [{"kind": "config", "message": "could not parse src/broken.py"}],
+    }
+    result = MagicMock(stdout=json.dumps(payload), returncode=3)
+    with (
+        patch("check_file_size_regressions.subprocess.run", return_value=result),
+        pytest.raises(HouseLintError, match="scan errors"),
+    ):
+        current_oversized_files(Path("/repo"))
+
+
 def test_regressions_flags_a_file_that_grew_past_the_threshold(git_repo: GitRepo) -> None:
     git_repo.write("src/big.py", "line\n" * 900)
     base = git_repo.commit("base")
