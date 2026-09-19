@@ -112,4 +112,22 @@ describe("groupAndSortApps", () => {
     expect(groups.get("err")).toEqual([manifest]);
     expect(groups.get("ok")).toEqual([]);
   });
+
+  it("considers the app set healthy when only running and disabled apps are present", () => {
+    const running = createManifest({ app_key: "running_app", status: "running" });
+    const disabled = createManifest({ app_key: "disabled_app", status: "disabled" });
+    const { allHealthy } = groupAndSortApps([running, disabled], NO_LIVE_STATUSES);
+    expect(allHealthy).toBe(true);
+  });
+
+  it.each([
+    { status: "failed", group: "err" },
+    { status: "blocked", group: "blocked" },
+    { status: "degraded", group: "warn" },
+    { status: "stopped", group: "stopped" },
+  ] as const)("considers the app set unhealthy when the $group group is populated ($status)", ({ status }) => {
+    const manifest = createManifest({ app_key: `${status}_app`, status });
+    const { allHealthy } = groupAndSortApps([manifest], NO_LIVE_STATUSES);
+    expect(allHealthy).toBe(false);
+  });
 });
