@@ -25,10 +25,7 @@ export function BootIssuesPanel({ bootIssues }: BootIssuesPanelProps) {
           >
             <StatusShape kind={issue.severity} size={STATUS_SHAPE_SIZE} />
             <div className="flex flex-1 flex-col gap-1">
-              <span
-                className="text-[length:var(--text-body)] font-medium text-foreground"
-                data-testid={`diag-boot-label-${i}`}
-              >
+              <span className="font-medium text-foreground" data-testid={`diag-boot-label-${i}`}>
                 {issue.label}
               </span>
               <span className="text-sm text-foreground-secondary" data-testid={`diag-boot-detail-${i}`}>
