@@ -16,6 +16,7 @@ from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.logging_ import LogPersistenceHandler
 from hassette.utils.aiosqlite_utils import connect_daemon
+from tests.support.factories import make_log_record
 from tests.support.helpers import DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS, DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX
 from tests.support.mock_hassette import make_mock_hassette
 
@@ -1485,15 +1486,7 @@ class TestRuntimeQueryServiceWiring:
         loop = asyncio.get_running_loop()
         handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=logging.INFO)
 
-        record = logging.LogRecord(
-            name="test",
-            level=logging.INFO,
-            pathname="",
-            lineno=1,
-            msg="test message",
-            args=(),
-            exc_info=None,
-        )
+        record = make_log_record(lineno=1, msg="test message")
         # Stamp required attributes
         record.seq = 1  # pyright: ignore[reportAttributeAccessIssue]
         record.app_key = None  # pyright: ignore[reportAttributeAccessIssue]
@@ -1514,15 +1507,7 @@ class TestRuntimeQueryServiceWiring:
         mock_db_service = MagicMock()
         loop = asyncio.get_running_loop()
         handler = LogPersistenceHandler(mock_db_service, loop, persistence_level=logging.INFO)
-        debug_record = logging.LogRecord(
-            name="test",
-            level=logging.DEBUG,
-            pathname="",
-            lineno=1,
-            msg="debug msg",
-            args=(),
-            exc_info=None,
-        )
+        debug_record = make_log_record(level=logging.DEBUG, lineno=1, msg="debug msg")
         handler.emit(debug_record)
         handler.flush_if_pending()
 

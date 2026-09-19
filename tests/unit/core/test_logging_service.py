@@ -14,6 +14,7 @@ from hassette.logging_ import (
     LogCaptureHandler,
     LogPersistenceHandler,
 )
+from tests.support.factories import make_log_record
 from tests.support.mock_hassette import make_mock_hassette
 
 
@@ -121,7 +122,7 @@ class TestLogPersistenceHandlerConstructor:
         handler = LogPersistenceHandler(db_service, loop)
 
         # Emit a record so there's something to flush
-        record = logging.LogRecord("hassette", logging.INFO, "", 0, "test msg", (), None)
+        record = make_log_record(name="hassette", msg="test msg")
         handler.emit(record)
         handler.flush_if_pending()
 
@@ -535,7 +536,7 @@ class TestDropCounters:
             svc._queue_listener.stop()
             assert svc._queue_handler is not None
             for i in range(4):
-                svc._queue_handler.emit(logging.LogRecord("hassette", logging.INFO, "", 0, f"m{i}", (), None))
+                svc._queue_handler.emit(make_log_record(name="hassette", msg=f"m{i}"))
 
             assert svc.log_queue_drops > 0
             assert svc.db_write_queue_drops == 0
