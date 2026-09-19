@@ -1,3 +1,5 @@
+import { Badge } from "@/components/ui/badge";
+
 import { EmptyState } from "../shared/empty-state";
 import type { MergedService } from "./merge-services";
 import { Panel } from "./panel";
@@ -10,12 +12,14 @@ interface ServicesPanelProps {
 
 export function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
   const staleChip = wsConnected ? null : (
-    <span
-      className="rounded-full border border-[var(--status-warning)] px-2 py-px font-mono text-xs uppercase tracking-[var(--text-label-tracking)] text-[var(--status-warning)]"
+    <Badge
+      variant="kind-warn"
+      size="sm"
+      className="font-mono uppercase tracking-[var(--text-label-tracking)]"
       data-testid="diag-services-stale"
     >
       stale
-    </span>
+    </Badge>
   );
 
   return (
@@ -27,8 +31,8 @@ export function ServicesPanel({ services, wsConnected }: ServicesPanelProps) {
           className="grid list-none grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-x-5 gap-y-1 p-0"
           aria-label="Service list"
         >
-          {services.map((svc) => (
-            <ServiceRow key={svc.resource_name} service={svc} />
+          {services.map((service) => (
+            <ServiceRow key={service.resource_name} service={service} />
           ))}
         </ul>
       )}
