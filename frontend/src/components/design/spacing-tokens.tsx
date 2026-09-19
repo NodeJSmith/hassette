@@ -6,7 +6,6 @@ import {
 } from "./design-showcase";
 
 interface SpacingToken {
-  name: string;
   cssVar: string;
   px: number;
 }
@@ -18,7 +17,6 @@ interface RadiusToken {
 }
 
 interface ShadowToken {
-  name: string;
   cssVar: string;
   label: string;
 }
@@ -33,20 +31,20 @@ const SPACING_PX_COLUMN_WIDTH = "40px";
 const SPACING_ROW_TEMPLATE = `${SPACING_VAR_COLUMN_WIDTH} ${SPACING_PX_COLUMN_WIDTH} minmax(0, 1fr)`;
 
 const SPACING: SpacingToken[] = [
-  { name: "px", cssVar: "--sp-px", px: 1 },
-  { name: "0", cssVar: "--sp-0", px: 2 },
-  { name: "1", cssVar: "--sp-1", px: 4 },
-  { name: "1h", cssVar: "--sp-1h", px: 6 },
-  { name: "2", cssVar: "--sp-2", px: 8 },
-  { name: "3", cssVar: "--sp-3", px: 12 },
-  { name: "3h", cssVar: "--sp-3h", px: 14 },
-  { name: "4", cssVar: "--sp-4", px: 16 },
-  { name: "5", cssVar: "--sp-5", px: 20 },
-  { name: "6", cssVar: "--sp-6", px: 24 },
-  { name: "7", cssVar: "--sp-7", px: 32 },
-  { name: "8", cssVar: "--sp-8", px: 40 },
-  { name: "9", cssVar: "--sp-9", px: 56 },
-  { name: "10", cssVar: "--sp-10", px: 72 },
+  { cssVar: "--sp-px", px: 1 },
+  { cssVar: "--sp-0", px: 2 },
+  { cssVar: "--sp-1", px: 4 },
+  { cssVar: "--sp-1h", px: 6 },
+  { cssVar: "--sp-2", px: 8 },
+  { cssVar: "--sp-3", px: 12 },
+  { cssVar: "--sp-3h", px: 14 },
+  { cssVar: "--sp-4", px: 16 },
+  { cssVar: "--sp-5", px: 20 },
+  { cssVar: "--sp-6", px: 24 },
+  { cssVar: "--sp-7", px: 32 },
+  { cssVar: "--sp-8", px: 40 },
+  { cssVar: "--sp-9", px: 56 },
+  { cssVar: "--sp-10", px: 72 },
 ];
 
 const MAX_SPACING_PX = SPACING[SPACING.length - 1].px;
@@ -60,9 +58,9 @@ const RADII: RadiusToken[] = [
 ];
 
 const SHADOWS: ShadowToken[] = [
-  { name: "shadow-1", cssVar: "--shadow-1", label: "Subtle" },
-  { name: "shadow-2", cssVar: "--shadow-2", label: "Medium" },
-  { name: "shadow-3", cssVar: "--shadow-3", label: "Elevated" },
+  { cssVar: "--shadow-1", label: "Subtle" },
+  { cssVar: "--shadow-2", label: "Medium" },
+  { cssVar: "--shadow-3", label: "Elevated" },
 ];
 
 export function SpacingTokens() {
@@ -109,7 +107,7 @@ export function SpacingTokens() {
       </ShowcaseGroup>
 
       <ShowcaseGroup label="Elevation">
-        <div className="grid grid-cols-3 gap-7 rounded-lg bg-muted px-4 py-6">
+        <div className="grid grid-cols-3 gap-8 rounded-lg bg-muted px-4 py-6">
           {SHADOWS.map((shadow) => (
             <div key={shadow.cssVar} className="flex flex-col items-center gap-3">
               <div className="aspect-[3/2] w-full rounded-md bg-card" style={{ boxShadow: `var(${shadow.cssVar})` }} />
