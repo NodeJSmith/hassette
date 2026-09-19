@@ -50,7 +50,7 @@ const STATUS_TO_GROUP = {
 } satisfies Record<StatusGroupKey, GroupKey>;
 
 /** Derived from GROUP_DEFS so allHealthy stays in sync if a group is added or reclassified. */
-const UNHEALTHY_KEYS: ReadonlySet<GroupKey> = new Set(GROUP_DEFS.filter((def) => !def.healthy).map((def) => def.key));
+const UNHEALTHY_KEYS: readonly GroupKey[] = GROUP_DEFS.filter((def) => !def.healthy).map((def) => def.key);
 
 export interface GroupedApps {
   groups: Map<GroupKey, AppManifest[]>;
@@ -66,7 +66,7 @@ export function groupAndSortApps(manifests: AppManifest[], appStatuses: Record<s
   for (const [, apps] of groups) {
     apps.sort((a, b) => a.display_name.localeCompare(b.display_name));
   }
-  const allHealthy = [...UNHEALTHY_KEYS].every((key) => (groups.get(key)?.length ?? 0) === 0);
+  const allHealthy = UNHEALTHY_KEYS.every((key) => (groups.get(key)?.length ?? 0) === 0);
   return { groups, allHealthy };
 }
 
@@ -85,6 +85,6 @@ export function findDuplicateDisplayNames(manifests: AppManifest[]): Set<string>
 export function getGroupKey(manifest: AppManifest, appStatuses: Record<string, AppStatusEntry>): GroupKey {
   const status = appLiveStatus(appStatuses, manifest);
   // Fallback: any status not in the map (e.g. a new backend enum value before types are
-  // regenerated) defaults to the healthy group, matching the old if-chain's implicit default.
+  // regenerated) defaults to the healthy group rather than surfacing a false error state.
   return STATUS_TO_GROUP[status] ?? HEALTHY_GROUP_KEY;
 }
