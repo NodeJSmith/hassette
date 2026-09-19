@@ -31,6 +31,19 @@ class GitRepo:
             ["git", "rev-parse", "HEAD"], cwd=self.root, check=True, capture_output=True, text=True
         ).stdout.strip()
 
+    def diverge(self, rel_path: str, content: str, message: str, from_ref: str, back_to: str = "main") -> str:
+        """Check out `from_ref`, commit an unrelated change, then return to `back_to`.
+
+        Simulates the base branch moving on, unrelated to the PR, after the PR's branch point --
+        the shared setup behind every test proving the "new code" gates diff against merge-base,
+        not `base_ref`'s live tip.
+        """
+        subprocess.run(["git", "checkout", "-q", from_ref], cwd=self.root, check=True)
+        self.write(rel_path, content)
+        diverged_tip = self.commit(message)
+        subprocess.run(["git", "checkout", "-q", back_to], cwd=self.root, check=True)
+        return diverged_tip
+
 
 @pytest.fixture
 def git_repo(tmp_path: Path) -> GitRepo:

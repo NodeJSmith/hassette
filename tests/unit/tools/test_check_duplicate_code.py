@@ -6,7 +6,6 @@ its error paths), PMD XML parsing, and the `--gate-new-code` overlap-fraction fi
 invoking the real PMD binary or network.
 """
 
-import subprocess
 import xml.etree.ElementTree as ET
 from collections.abc import Callable
 from pathlib import Path
@@ -479,10 +478,7 @@ def test_report_new_code_gate_uses_merge_base_not_a_diverged_base_ref_tip(
     head = git_repo.commit("PR introduces a new duplicate")
 
     # Base branch moves on, unrelated to the PR, after the branch point.
-    subprocess.run(["git", "checkout", "-q", branch_point], cwd=git_repo.root, check=True)
-    git_repo.write("unrelated.py", "noise\n")
-    diverged_base_tip = git_repo.commit("unrelated base branch commit")
-    subprocess.run(["git", "checkout", "-q", "main"], cwd=git_repo.root, check=True)
+    diverged_base_tip = git_repo.diverge("unrelated.py", "noise\n", "unrelated base branch commit", branch_point)
 
     violations = [
         [

@@ -85,9 +85,9 @@ def test_regressions_uses_merge_base_not_a_diverged_base_ref_tip(git_repo: GitRe
     head = git_repo.commit("PR grows the file")
 
     # Base branch moves on, unrelated to the PR, shrinking the same file after the branch point.
-    subprocess.run(["git", "checkout", "-q", branch_point], cwd=git_repo.root, check=True)
-    git_repo.write("src/big.py", "line\n" * 100)
-    diverged_base_tip = git_repo.commit("unrelated: base branch shrinks the file")
+    diverged_base_tip = git_repo.diverge(
+        "src/big.py", "line\n" * 100, "unrelated: base branch shrinks the file", branch_point
+    )
 
     oversized = {Path("src/big.py"): 950}
     # If base_ref's live tip (100 lines) were used directly, this PR's 900->950 growth would

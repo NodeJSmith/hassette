@@ -27,10 +27,7 @@ def test_merge_base_is_the_common_ancestor_not_base_tip(git_repo: GitRepo) -> No
     head = git_repo.commit("pr commit")
 
     # Simulate main moving on, unrelated to the PR, after the branch point.
-    subprocess.run(["git", "checkout", "-q", branch_point], cwd=git_repo.root, check=True)
-    git_repo.write("b.py", "unrelated\n")
-    later_main = git_repo.commit("unrelated main commit")
-    subprocess.run(["git", "checkout", "-q", "main"], cwd=git_repo.root, check=True)
+    later_main = git_repo.diverge("b.py", "unrelated\n", "unrelated main commit", branch_point)
 
     assert git_merge_base(git_repo.root, later_main, head) == branch_point
     assert git_merge_base(git_repo.root, later_main, head) != root
