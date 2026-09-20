@@ -429,14 +429,38 @@ def make_db_mock() -> MagicMock:
     return db_mock
 
 
-async def test_app_role_crashed_event_does_not_mark_session_failed(
-    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+@pytest.mark.parametrize(
+    ("role", "resource_name", "expect_error", "description"),
+    [
+        pytest.param(
+            ResourceRole.APP,
+            "MyBrokenApp",
+            False,
+            "APP-role crash must not mark the session as failed",
+            id="app_role_filtered",
+        ),
+        pytest.param(
+            ResourceRole.SERVICE,
+            "WebSocketService",
+            True,
+            "SERVICE-role crash must mark the session as failed",
+            id="service_role_passes",
+        ),
+    ],
+)
+async def test_crash_role_filter(
+    test_config_class: type[HassetteConfig],
+    unused_tcp_port_factory: "Callable[[], int]",
+    role: ResourceRole,
+    resource_name: str,
+    expect_error: bool,
+    description: str,
 ) -> None:
-    """An APP-role CRASHED event must not set _session_error on the SessionManager.
+    """Regression test for #2153: only non-APP-role CRASHED events mark the session as failed.
 
-    Regression test for #2153: before the role filter was added, every CRASHED event —
-    including those from user app instances — reached on_service_crashed and wrote
-    SESSION_STATUS_FAILURE for the whole run.
+    Exercises the IS_NOT_APP_ROLE predicate through a real Bus dispatch (not a direct handler
+    call) — the existing fixture-based tests in this file call on_service_crashed directly and
+    would not catch a bug in the ``where=`` filter itself.
     """
     config = test_config_class(web_api={"port": unused_tcp_port_factory()})
     harness = HassetteHarness(config, unused_tcp_port=unused_tcp_port_factory(), skip_global_set=True)
@@ -447,30 +471,7 @@ async def test_app_role_crashed_event_does_not_mark_session_failed(
         sm._session_id = 1  # pretend a session was created
         await sm.on_initialize()
 
-        await hassette.send_event(make_crashed_event(resource_name="MyBrokenApp", role=ResourceRole.APP))
+        await hassette.send_event(make_crashed_event(resource_name=resource_name, role=role))
         await hassette.bus_service.await_dispatch_idle()
 
-        assert not sm._session_error, "APP-role crash must not mark the session as failed"
-
-
-async def test_framework_role_crashed_event_still_marks_session_failed(
-    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
-) -> None:
-    """A SERVICE-role CRASHED event must still set _session_error on the SessionManager.
-
-    Companion to the APP-role test: ensures the role filter does not accidentally suppress
-    framework crashes that do belong in the session row.
-    """
-    config = test_config_class(web_api={"port": unused_tcp_port_factory()})
-    harness = HassetteHarness(config, unused_tcp_port=unused_tcp_port_factory(), skip_global_set=True)
-    async with build_harness(harness.with_bus()) as harness:
-        hassette = harness.hassette
-
-        sm = SessionManager(hassette, database_service=make_db_mock(), parent=hassette)
-        sm._session_id = 1  # pretend a session was created
-        await sm.on_initialize()
-
-        await hassette.send_event(make_crashed_event(resource_name="WebSocketService", role=ResourceRole.SERVICE))
-        await hassette.bus_service.await_dispatch_idle()
-
-        assert sm._session_error, "SERVICE-role crash must mark the session as failed"
+        assert sm._session_error is expect_error, description
