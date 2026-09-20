@@ -17,8 +17,8 @@ from hassette.execution_mode import (
     run_through_guard,
     run_with_stall_watch,
 )
-from hassette.testing import wait_for
 from hassette.types.enums import ExecutionMode
+from tests.support.helpers import prime_guard
 
 #: Hang guard for this module's event handshakes, which complete in milliseconds. It only converts
 #: a genuine hang into a failure, so it needs generous headroom over xdist scheduling jitter on a
@@ -171,18 +171,7 @@ class TestRunThroughGuard:
         spawn, _tasks = make_spawn()
         pending_done: set[asyncio.Future[None]] = set()
 
-        # Hold a first invocation running so the guard is busy.
-        gate = asyncio.Event()
-        first_started = asyncio.Event()
-
-        async def first_invoke() -> None:
-            first_started.set()
-            await gate.wait()
-
-        first_task = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, first_invoke, MagicMock(), "t", 60.0)
-        )
-        await asyncio.wait_for(first_started.wait(), timeout=HANG_GUARD_TIMEOUT)
+        primed = await prime_guard(guard, spawn, pending_done, hang_guard_timeout=HANG_GUARD_TIMEOUT)
 
         # Second call — guard will SUPPRESS it; must return without hanging.
         warn = MagicMock()
@@ -202,8 +191,8 @@ class TestRunThroughGuard:
         # set is back to exactly what it held before (the running first future).
         assert len(pending_done) == pending_before_second
 
-        gate.set()
-        await asyncio.wait_for(first_task, timeout=HANG_GUARD_TIMEOUT)
+        primed.gate.set()
+        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
 
     async def test_dropped_resolves_future_inline(self) -> None:
         """DROPPED outcome: future is resolved inline; function returns."""
@@ -211,31 +200,15 @@ class TestRunThroughGuard:
         spawn, _tasks = make_spawn()
         pending_done: set[asyncio.Future[None]] = set()
 
-        gate = asyncio.Event()
-        started = asyncio.Event()
-
-        async def invoke_running() -> None:
-            started.set()
-            await gate.wait()
-
         async def invoke_queued() -> None:
             pass
 
         async def invoke_dropped() -> None:
             pass
 
-        # Start one running + fill the queue (cap=1).
-        first = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, invoke_running, MagicMock(), "r", 60.0)
+        primed = await prime_guard(
+            guard, spawn, pending_done, invoke_queued=invoke_queued, hang_guard_timeout=HANG_GUARD_TIMEOUT
         )
-        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
-
-        second = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", 60.0)
-        )
-        # Deterministically wait until the queued factory is parked before the
-        # third call, so the third is guaranteed to hit the cap and be DROPPED.
-        await wait_for(lambda: len(guard.pending) >= 1, timeout=HANG_GUARD_TIMEOUT)
 
         # Third — queue is full; this should be DROPPED and return quickly.
         third = asyncio.create_task(
@@ -243,9 +216,9 @@ class TestRunThroughGuard:
         )
         await asyncio.wait_for(third, timeout=HANG_GUARD_TIMEOUT)
 
-        gate.set()
-        await asyncio.wait_for(first, timeout=HANG_GUARD_TIMEOUT)
-        await asyncio.wait_for(second, timeout=HANG_GUARD_TIMEOUT)
+        primed.gate.set()
+        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT)
 
     async def test_ran_awaits_done_future(self) -> None:
         """RAN outcome: await completes after the spawned task finishes."""
@@ -271,22 +244,12 @@ class TestRunThroughGuard:
         spawn, _tasks = make_spawn()
         pending_done: set[asyncio.Future[None]] = set()
 
-        started = asyncio.Event()
-        gate = asyncio.Event()
-
-        async def invoke() -> None:
-            started.set()
-            await gate.wait()
-
-        dispatch_task = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "n", 60.0)
-        )
-        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
+        primed = await prime_guard(guard, spawn, pending_done, hang_guard_timeout=HANG_GUARD_TIMEOUT)
         # While the spawned task is running, pending_done should have the future.
         assert len(pending_done) == 1
 
-        gate.set()
-        await asyncio.wait_for(dispatch_task, timeout=HANG_GUARD_TIMEOUT)
+        primed.gate.set()
+        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
         # After completion it should be gone.
         assert len(pending_done) == 0
 
@@ -326,33 +289,20 @@ class TestRunThroughGuard:
                 raise RuntimeError("task bucket is sealed")
             return asyncio.create_task(coro, name=name)
 
-        gate = asyncio.Event()
-        started = asyncio.Event()
-
-        async def invoke_running() -> None:
-            started.set()
-            await gate.wait()
-
         async def invoke_queued() -> None:
             raise AssertionError("the queued factory must never run once its spawn is rejected")
 
-        first = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, invoke_running, MagicMock(), "r", 60.0)
+        primed = await prime_guard(
+            guard, spawn, pending_done, invoke_queued=invoke_queued, hang_guard_timeout=HANG_GUARD_TIMEOUT
         )
-        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
-
-        second = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", 60.0)
-        )
-        await wait_for(lambda: len(guard.pending) >= 1, timeout=HANG_GUARD_TIMEOUT)
 
         # Seal, then let the running invocation finish so drain_next pops the queued factory
         # and its spawn is rejected.
         sealed = True
-        gate.set()
+        primed.gate.set()
 
-        await asyncio.wait_for(first, timeout=HANG_GUARD_TIMEOUT)
-        await asyncio.wait_for(second, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT)
         assert len(pending_done) == 0
         assert len(guard.pending) == 0
 
@@ -383,33 +333,18 @@ class TestRunThroughGuard:
         spawn, _tasks = make_spawn()
         pending_done: set[asyncio.Future[None]] = set()
 
-        gate = asyncio.Event()
-        started = asyncio.Event()
-
-        async def invoke_running() -> None:
-            started.set()
-            await gate.wait()
-
         async def invoke_queued() -> None:
             pass
 
-        first = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, invoke_running, MagicMock(), "r", 60.0)
+        primed = await prime_guard(
+            guard, spawn, pending_done, invoke_queued=invoke_queued, hang_guard_timeout=HANG_GUARD_TIMEOUT
         )
-        await asyncio.wait_for(started.wait(), timeout=HANG_GUARD_TIMEOUT)
-
-        # Queue one invocation; its future is in pending_done but the factory won't run until drain.
-        second = asyncio.create_task(
-            run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", 60.0)
-        )
-        # Deterministically wait until the queued factory is parked before releasing.
-        await wait_for(lambda: len(guard.pending) >= 1, timeout=HANG_GUARD_TIMEOUT)
 
         # Release + drain.
         await guard.release()
         drain_pending_done(pending_done)
 
         # Both futures should now be resolved; second_task should complete.
-        await asyncio.wait_for(second, timeout=HANG_GUARD_TIMEOUT)
-        await asyncio.wait_for(first, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
         assert len(pending_done) == 0

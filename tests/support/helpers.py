@@ -2,12 +2,12 @@ import asyncio
 import json
 import socket
 import textwrap
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Coroutine, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager, suppress
 from io import StringIO
 from logging import WARNING, Logger, getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiosqlite
@@ -28,8 +28,9 @@ from hassette.events import RawStateChangeEvent
 from hassette.events.base import HassettePayload
 from hassette.events.hassette import HassetteFileWatcherEvent, HassetteServiceEvent, ServiceStatusPayload
 from hassette.exceptions import RestartRefusedError, TaskBucketSealedError
+from hassette.execution_mode import run_through_guard
 from hassette.resources.teardown import TeardownCause, TeardownReport
-from hassette.testing import create_state_change_event
+from hassette.testing import create_state_change_event, wait_for
 from hassette.testing._simulation import create_component_loaded_event as create_component_loaded_event
 from hassette.testing._simulation import create_service_registered_event as create_service_registered_event
 from hassette.testing.config import TEST_SOURCE_LOCATION
@@ -37,10 +38,11 @@ from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceRole
 from hassette.utils.func_utils import callable_name, callable_short_name
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+    from collections.abc import Generator
 
     from hassette.bus.bus import Bus
     from hassette.events import HassStateDict
+    from hassette.execution_mode import ExecutionModeGuard
     from hassette.resources.service import Service
     from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
 
@@ -721,3 +723,71 @@ def assert_failed_auth_warn_count(caplog: pytest.LogCaptureFixture, expected: in
     assert len(warn_records) == expected, (
         f"expected {expected} 'failed auth attempts' WARN record(s), got {len(warn_records)}: {warn_records!r}"
     )
+
+
+class PrimedGuard(NamedTuple):
+    """Result of :func:`prime_guard` — the artifacts a test needs after the guard is primed."""
+
+    gate: asyncio.Event
+    """Release this to let the running invocation complete."""
+
+    running_task: "asyncio.Task[None]"
+    """The task that is blocked on ``gate``."""
+
+    queued_task: "asyncio.Task[None] | None"
+    """The task parked in ``guard.pending``, or ``None`` when no queued call was requested."""
+
+
+async def prime_guard(
+    guard: "ExecutionModeGuard",
+    spawn: Callable[..., "asyncio.Task[None]"],
+    pending_done: "set[asyncio.Future[None]]",
+    *,
+    invoke_queued: Callable[[], Coroutine[Any, Any, None]] | None = None,
+    hang_guard_timeout: float = 10.0,
+) -> PrimedGuard:
+    """Start one running invocation through the guard, optionally park a queued one behind it.
+
+    The running invocation blocks on an internal ``gate`` event so the guard stays busy.
+    When ``invoke_queued`` is provided, a second ``run_through_guard`` call is started and
+    this helper waits deterministically for it to appear in ``guard.pending`` before
+    returning — callers can assert on the queued state immediately.
+
+    This helper does **not** fit tests that need a custom ``invoke_running`` body (e.g.
+    stall-watch threshold tests) or tests that need to observe the moment *before* the
+    running invocation starts. It is strictly for the "prime the guard so I can test what
+    happens next" arrange step.
+
+    Args:
+        guard: The execution-mode guard to prime.
+        spawn: Task-spawning callable (``make_spawn()`` or a caller-supplied variant).
+        pending_done: The shared pending-done future set passed to ``run_through_guard``.
+        invoke_queued: If given, the body for a second, queued invocation that parks behind
+            the running one. If ``None``, only the running invocation is started.
+        hang_guard_timeout: Maximum seconds to wait for deterministic handshake events.
+            Generous default covers CI scheduling jitter.
+
+    Returns:
+        A :class:`PrimedGuard` with the gate, the running task, and (when requested) the
+        queued task.
+    """
+    gate = asyncio.Event()
+    started = asyncio.Event()
+
+    async def invoke_running() -> None:
+        started.set()
+        await gate.wait()
+
+    running_task = asyncio.create_task(
+        run_through_guard(guard, spawn, pending_done, invoke_running, MagicMock(), "r", 60.0)
+    )
+    await asyncio.wait_for(started.wait(), timeout=hang_guard_timeout)
+
+    queued_task: asyncio.Task[None] | None = None
+    if invoke_queued is not None:
+        queued_task = asyncio.create_task(
+            run_through_guard(guard, spawn, pending_done, invoke_queued, MagicMock(), "q", 60.0)
+        )
+        await wait_for(lambda: len(guard.pending) >= 1, timeout=hang_guard_timeout)
+
+    return PrimedGuard(gate=gate, running_task=running_task, queued_task=queued_task)

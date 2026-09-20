@@ -54,6 +54,7 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `async_noop()` — async no-op, call it to get a coroutine object (e.g. `bucket.spawn(async_noop())`)
 - `last_json_record(stream)` — parse the last JSON log record written to a test log stream
 - `first_json_record_containing(stream, text)` — parse the first JSON log record whose raw line contains `text`
+- `prime_guard(guard, spawn, pending_done, *, invoke_queued=None, hang_guard_timeout=10.0)` — start one running invocation through an `ExecutionModeGuard`, optionally park a queued one behind it; returns `PrimedGuard(gate, running_task, queued_task)` with the deterministic waits already completed
 
 `tests/support/web_manifest_helpers.py` — app manifest and snapshot models:
 
