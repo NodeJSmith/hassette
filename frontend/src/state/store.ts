@@ -64,9 +64,9 @@ export interface TelemetryHealth {
   telemetryDegraded: boolean;
 }
 
-/** Default values for `TelemetryHealth` fields, shared by `initialState()` so a new field's
- * default lives in exactly one place alongside the interface it defaults. */
-export const TELEMETRY_DEFAULTS: TelemetryHealth = {
+/** Default values for `TelemetryHealth` fields, used by `initialState()` so each default
+ * lives in exactly one place alongside the interface it mirrors. */
+const TELEMETRY_DEFAULTS: TelemetryHealth = {
   droppedOverflow: 0,
   droppedExhausted: 0,
   droppedShutdown: 0,
@@ -81,7 +81,7 @@ export interface AppStore extends TelemetryHealth {
   systemVersion: string | null;
   setConnection: (status: ConnectionStatus) => void;
 
-  // --- telemetry ---
+  // --- telemetry (health fields inherited from TelemetryHealth) ---
   appStatus: Record<string, AppStatusEntry>;
   serviceStatus: Record<string, ServiceStatusEntry>;
   executionCompleted: WsExecutionCompletedPayload[] | null;
