@@ -5,6 +5,7 @@ import time
 import typing
 
 from hassette.bus import Bus
+from hassette.core.service_status_predicates import IS_NOT_APP_ROLE, SERVICE_STATUS_PATH
 from hassette.event_handling.accessors import get_path
 from hassette.event_handling.predicates import ValueIs
 from hassette.events import HassetteServiceEvent
@@ -54,7 +55,7 @@ class SessionManager(Resource):
             topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
             handler=self.on_service_crashed,
             name="hassette.session_manager.on_service_crashed",
-            where=ValueIs(source=get_path("payload.data.status"), condition=ResourceStatus.CRASHED),
+            where=IS_NOT_APP_ROLE & ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.CRASHED),
         )
         mark_ready(self, reason="SessionManager initialized")
 
@@ -92,9 +93,10 @@ class SessionManager(Resource):
             await self._database_service.submit(self._do_cleanup_once_listeners())
 
     async def on_service_crashed(self, event: HassetteServiceEvent) -> None:
-        """Record service crash details in the session row.
+        """Record a framework-owned (non-APP-role) service crash in the session row.
 
-        Called via Bus subscription when any service reaches CRASHED status.
+        Called via Bus subscription when a non-APP-role resource reaches CRASHED status --
+        an app crashing does not mark the whole session as failed; see IS_NOT_APP_ROLE and #2153.
         Sets ``_session_error`` so ``finalize_session()`` preserves the failure status.
         Acquires ``_session_lock`` to coordinate with ``finalize_session()``.
         """

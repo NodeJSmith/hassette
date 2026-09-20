@@ -1,15 +1,25 @@
 """Integration tests for SessionManager."""
 
+import asyncio
 import sqlite3
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hassette import Hassette, HassetteConfig
 from hassette.core.database_service import DatabaseService
+from hassette.core.service_status_predicates import SERVICE_STATUS_PATH
 from hassette.core.session_manager import SessionManager
+from hassette.event_handling import predicates as P
+from hassette.event_handling.accessors import get_path
+from hassette.events import HassetteServiceEvent
+from hassette.testing import HassetteHarness, build_harness
+from hassette.types import ResourceRole, Topic
 from tests.support.helpers import make_crashed_event
+
+AWAIT_TIMEOUT = 5.0
 
 
 @pytest.fixture
@@ -403,3 +413,97 @@ async def test_crashed_session_once_listeners_eligible_after_orphan_mark(
     cursor = await db.execute("SELECT id FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is None, "once=True listener from crashed-then-orphaned session must be cleaned up"
+
+
+async def _dispatch_and_wait(hassette: Hassette, sm: SessionManager, event: HassetteServiceEvent) -> None:
+    """Send ``event`` through the real bus and return once dispatch has completed.
+
+    Registers a throwaway sentinel listener on the SessionManager's own bus with the same
+    status filter but no role filter, narrowed to ``event``'s resource_name. The sentinel
+    firing proves the event was delivered; ``await_dispatch_idle`` ensures every handler
+    (including the one under test) has finished before the caller asserts.
+    """
+    fired = asyncio.Event()
+    status_payload = event.payload.data
+
+    async def sentinel(_: HassetteServiceEvent) -> None:
+        hassette.task_bucket.post_to_loop(fired.set)
+
+    await sm.bus.on(
+        topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
+        handler=sentinel,
+        name=f"test.session_manager.sentinel.{status_payload.resource_name}.{status_payload.status}",
+        where=P.ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=status_payload.status)
+        & P.ValueIs(source=get_path("payload.data.resource_name"), condition=status_payload.resource_name),
+    )
+
+    await hassette.send_event(event)
+    await asyncio.wait_for(fired.wait(), timeout=AWAIT_TIMEOUT)
+    await hassette.bus_service.await_dispatch_idle(timeout=AWAIT_TIMEOUT)
+
+
+def _make_db_mock() -> MagicMock:
+    """Build a mock DatabaseService that properly awaits coroutines passed to submit().
+
+    on_service_crashed passes a coroutine to submit(); a plain AsyncMock accepts and
+    discards it, leaving the coroutine un-awaited and triggering a
+    PytestUnraisableExceptionWarning at GC time. This mock awaits whatever it receives.
+    """
+    db_mock = MagicMock()
+    db_mock.is_db_ready = True
+    db_mock.is_accepting_writes = True
+    db_mock.db = AsyncMock()
+
+    async def _submit(coro: object) -> None:
+        if asyncio.iscoroutine(coro):
+            await coro
+
+    db_mock.submit = AsyncMock(side_effect=_submit)
+    return db_mock
+
+
+async def test_app_role_crashed_event_does_not_mark_session_failed(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+) -> None:
+    """An APP-role CRASHED event must not set _session_error on the SessionManager.
+
+    Regression test for #2153: before the role filter was added, every CRASHED event —
+    including those from user app instances — reached on_service_crashed and wrote
+    SESSION_STATUS_FAILURE for the whole run.
+    """
+    config = test_config_class(web_api={"port": unused_tcp_port_factory()})
+    harness = HassetteHarness(config, unused_tcp_port=unused_tcp_port_factory(), skip_global_set=True)
+    async with build_harness(harness.with_bus()) as harness:
+        hassette = harness.hassette
+
+        sm = SessionManager(hassette, database_service=_make_db_mock(), parent=hassette)
+        sm._session_id = 1  # pretend a session was created
+        await sm.on_initialize()
+
+        await _dispatch_and_wait(hassette, sm, make_crashed_event(resource_name="MyBrokenApp", role=ResourceRole.APP))
+
+        assert not sm._session_error, "APP-role crash must not mark the session as failed"
+
+
+async def test_framework_role_crashed_event_still_marks_session_failed(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+) -> None:
+    """A SERVICE-role CRASHED event must still set _session_error on the SessionManager.
+
+    Companion to the APP-role test: ensures the role filter does not accidentally suppress
+    framework crashes that do belong in the session row.
+    """
+    config = test_config_class(web_api={"port": unused_tcp_port_factory()})
+    harness = HassetteHarness(config, unused_tcp_port=unused_tcp_port_factory(), skip_global_set=True)
+    async with build_harness(harness.with_bus()) as harness:
+        hassette = harness.hassette
+
+        sm = SessionManager(hassette, database_service=_make_db_mock(), parent=hassette)
+        sm._session_id = 1
+        await sm.on_initialize()
+
+        await _dispatch_and_wait(
+            hassette, sm, make_crashed_event(resource_name="WebSocketService", role=ResourceRole.SERVICE)
+        )
+
+        assert sm._session_error, "SERVICE-role crash must mark the session as failed"
