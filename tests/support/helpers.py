@@ -575,7 +575,7 @@ def create_listener(
     source_location: str = "",
     registration_source: str = "",
     logger: Logger | None = None,
-    clock: "Callable[[], float] | None" = None,
+    clock: Callable[[], float] | None = None,
 ) -> Listener:
     """Test factory: build a Listener from simple kwargs.
 
@@ -731,10 +731,10 @@ class PrimedGuard(NamedTuple):
     gate: asyncio.Event
     """Release this to let the running invocation complete."""
 
-    running_task: "asyncio.Task[None]"
+    running_task: asyncio.Task[None]
     """The task that is blocked on ``gate``."""
 
-    queued_task: "asyncio.Task[None] | None"
+    queued_task: asyncio.Task[None] | None
     """The task parked in ``guard.pending``, or ``None`` when no queued call was requested."""
 
 
