@@ -462,6 +462,8 @@ async def test_crash_role_filter(
     call) — the existing fixture-based tests in this file call on_service_crashed directly and
     would not catch a bug in the ``where=`` filter itself.
     """
+    # Isolated harness: same skip_global_set / build_harness pattern as
+    # isolated_watcher() in test_service_watcher.py (see its docstring for why).
     config = test_config_class(web_api={"port": unused_tcp_port_factory()})
     harness = HassetteHarness(config, unused_tcp_port=unused_tcp_port_factory(), skip_global_set=True)
     async with build_harness(harness.with_bus()) as harness:
@@ -474,4 +476,7 @@ async def test_crash_role_filter(
         await hassette.send_event(make_crashed_event(resource_name=resource_name, role=role))
         await hassette.bus_service.await_dispatch_idle()
 
+        # Asserts on the in-memory flag rather than a DB row (the file's usual pattern)
+        # because this test uses a mock DB — the point is verifying the bus-level where=
+        # filter routes/blocks the event, not the persistence path.
         assert sm._session_error is expect_error, description
