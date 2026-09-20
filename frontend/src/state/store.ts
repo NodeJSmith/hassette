@@ -64,22 +64,27 @@ export interface TelemetryHealth {
   telemetryDegraded: boolean;
 }
 
-export interface AppStore {
+/** Default values for `TelemetryHealth` fields, used by `initialState()` so each default
+ * lives in exactly one place alongside the interface it mirrors. */
+const TELEMETRY_DEFAULTS: TelemetryHealth = {
+  droppedOverflow: 0,
+  droppedExhausted: 0,
+  droppedShutdown: 0,
+  errorHandlerFailures: 0,
+  telemetryDegraded: false,
+};
+
+export interface AppStore extends TelemetryHealth {
   // --- connection ---
   connection: ConnectionStatus;
   uptimeSeconds: number | null;
   systemVersion: string | null;
   setConnection: (status: ConnectionStatus) => void;
 
-  // --- telemetry ---
+  // --- telemetry (health fields inherited from TelemetryHealth) ---
   appStatus: Record<string, AppStatusEntry>;
   serviceStatus: Record<string, ServiceStatusEntry>;
   executionCompleted: WsExecutionCompletedPayload[] | null;
-  telemetryDegraded: boolean;
-  droppedOverflow: number;
-  droppedExhausted: number;
-  droppedShutdown: number;
-  errorHandlerFailures: number;
   updateAppStatus: (key: string, entry: AppStatusEntry) => void;
   updateServiceStatus: (name: string, entry: ServiceStatusEntry) => void;
   clearAppStatus: () => void;
@@ -149,11 +154,7 @@ export function initialState(): Omit<
     appStatus: {},
     serviceStatus: {},
     executionCompleted: null,
-    telemetryDegraded: false,
-    droppedOverflow: 0,
-    droppedExhausted: 0,
-    droppedShutdown: 0,
-    errorHandlerFailures: 0,
+    ...TELEMETRY_DEFAULTS,
 
     // --- preferences ---
     theme: getStoredValue<"dark" | "light">("theme", "light", isTheme),
