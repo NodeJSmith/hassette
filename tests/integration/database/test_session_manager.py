@@ -467,7 +467,7 @@ async def test_framework_role_crashed_event_still_marks_session_failed(
         hassette = harness.hassette
 
         sm = SessionManager(hassette, database_service=make_db_mock(), parent=hassette)
-        sm._session_id = 1
+        sm._session_id = 1  # pretend a session was created
         await sm.on_initialize()
 
         await hassette.send_event(make_crashed_event(resource_name="WebSocketService", role=ResourceRole.SERVICE))
