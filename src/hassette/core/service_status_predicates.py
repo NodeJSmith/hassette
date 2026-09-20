@@ -1,11 +1,7 @@
 """Shared predicates for filtering HASSETTE_EVENT_SERVICE_STATUS subscriptions by role.
 
-Every Resource -- apps included -- emits on this topic through the shared lifecycle
-machinery, so a subscriber that only cares about framework-owned services must filter role
-explicitly or an app's status transitions land on it too. Extracted here (rather than left
-in service_watcher.py, its original home) because more than one subscriber needs it:
-SessionManager's crash recording (#2153) and RuntimeQueryService's diagnostics panel (#1666),
-alongside ServiceWatcher's own acting handlers.
+Extracted from service_watcher.py because multiple subscribers need the same role filter:
+ServiceWatcher, SessionManager (#2153), and RuntimeQueryService (#1666).
 """
 
 from hassette.event_handling import predicates as P
