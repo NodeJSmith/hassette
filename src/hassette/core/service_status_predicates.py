@@ -17,13 +17,13 @@ IS_NOT_APP_ROLE = ~P.ValueIs(source=get_path(SERVICE_ROLE_PATH), condition=Resou
 
 Every ``Resource`` emits ``HASSETTE_EVENT_SERVICE_STATUS`` through the shared lifecycle
 machinery, so an app's status transitions land on the same topic the framework's own do. This
-guards the acting handlers -- the ones that do something to the resource they observe (restart
+guards the acting handlers — the ones that do something to the resource they observe (restart
 it, take the process down, or record a session-level failure), as opposed to logging-only
 handlers. One app's failure is not a framework failure.
 
 Excludes APP rather than admitting SERVICE only, and the difference matters: several framework
 resources are plain ``Resource`` subclasses (RESOURCE role), not ``Service``. A SERVICE-only
-filter would swallow their events -- for instance, ``AppLifecycleService`` reaches
+filter would swallow their events — for instance, ``AppLifecycleService`` reaches
 ``handle_crash`` when ``bootstrap_apps()`` fails, and that crash must still count. Negating APP
 also fails open on a missing or malformed role, matching the unfiltered behavior this narrows.
 """

@@ -319,8 +319,8 @@ def make_crashed_event(
 ) -> HassetteServiceEvent:
     """Build a CRASHED HassetteServiceEvent for testing.
 
-    ``role`` defaults to SERVICE; pass APP to build the kind of event the ServiceWatcher's
-    role filter must reject.
+    ``role`` defaults to SERVICE; pass APP to build the kind of event the
+    IS_NOT_APP_ROLE predicate rejects (used by ServiceWatcher and SessionManager).
     """
     return HassetteServiceEvent(
         topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,

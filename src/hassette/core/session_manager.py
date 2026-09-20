@@ -95,7 +95,7 @@ class SessionManager(Resource):
     async def on_service_crashed(self, event: HassetteServiceEvent) -> None:
         """Record a framework-owned (non-APP-role) service crash in the session row.
 
-        Called via Bus subscription when a non-APP-role resource reaches CRASHED status --
+        Called via Bus subscription when a non-APP-role resource reaches CRASHED status —
         an app crashing does not mark the whole session as failed; see IS_NOT_APP_ROLE and #2153.
         Sets ``_session_error`` so ``finalize_session()`` preserves the failure status.
         Acquires ``_session_lock`` to coordinate with ``finalize_session()``.
