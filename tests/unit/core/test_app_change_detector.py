@@ -99,24 +99,12 @@ class TestChangeSet:
         assert not changes.has_changes
         assert changes.has_any_change
 
-    def test_has_changes_with_orphans(self) -> None:
-        """Test has_changes is True when there are orphans."""
-        changes = make_change_set(orphans={"app1"})
-        assert changes.has_changes
-
-    def test_has_changes_with_new_apps(self) -> None:
-        """Test has_changes is True when there are new apps."""
-        changes = make_change_set(new_apps={"app1"})
-        assert changes.has_changes
-
-    def test_has_changes_with_reimport_apps(self) -> None:
-        """Test has_changes is True when there are reimport apps."""
-        changes = make_change_set(reimport_apps={"app1"})
-        assert changes.has_changes
-
-    def test_has_changes_with_reload_apps(self) -> None:
-        """Test has_changes is True when there are reload apps."""
-        changes = make_change_set(reload_apps={"app1"})
+    @pytest.mark.parametrize(
+        "bucket",
+        ["orphans", "new_apps", "reimport_apps", "reload_apps"],
+    )
+    def test_has_changes_with_bucket(self, bucket: str) -> None:
+        changes = make_change_set(**{bucket: {"app1"}})
         assert changes.has_changes
 
     def test_repr(self) -> None:

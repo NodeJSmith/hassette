@@ -53,3 +53,11 @@ Fixtures below are defined in family-scoped `_fixtures_*.py` modules in this dir
   adjacent test declares the identical set — `tools/check_duplicate_code.py` would otherwise flag
   that repetition. The marker's inline reason stays a one-line pointer back to this note rather
   than repeating the full explanation at every site.
+- Two additional `dup-ignore` reason categories appear in `test_app_lifecycle_service_coverage.py`:
+  - `pyright null-narrowing guard` — the `pending = ...; assert pending is not None` two-line
+    idiom that lets pyright narrow `| None` before subsequent attribute access. Only two copies
+    exist (no third to extract into a helper).
+  - `single-use manifest arrange block` — a short arrange sequence that builds mock manifests
+    for one test. Only two copies exist, each in a different test class with different surrounding
+    setup, so extraction would add indirection without reducing duplication below the checker's
+    threshold.

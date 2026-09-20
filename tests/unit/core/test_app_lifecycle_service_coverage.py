@@ -268,6 +268,8 @@ class TestHandleChangeEventBranches:
         assert_load_completed_count(event_capture, 1)
         # dup-ignore-end
 
+    # dup-ignore-start: pytest test function signature — Python has no way to share a function
+    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
     def test_fold_unblocked_apps_preserves_metadata_apps(
         self,
         lifecycle_service: AppLifecycleService,
@@ -284,6 +286,7 @@ class TestHandleChangeEventBranches:
 
         assert folded.new_apps == frozenset({"unblocked_app"})
         assert folded.metadata_apps == frozenset({"other_app"})
+        # dup-ignore-end
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
     # signature between separate test functions (see tests/unit/core/CLAUDE.md).
@@ -326,10 +329,13 @@ class TestHandleChangeEventBranches:
 
         await lifecycle_service.handle_change_event(changed_file_paths=None)
 
+        # dup-ignore-start: pyright null-narrowing guard — two-line pattern with no third
+        # copy to extract (see tests/unit/core/CLAUDE.md).
         pending = lifecycle_service._pending_reconciliation
         assert pending is not None
         assert pending.original_apps_config is first_original_snapshot
         assert pending.changed_paths is None
+        # dup-ignore-end
 
     async def test_stale_pre_release_diff_is_merged_into_post_release_change(
         self,
@@ -500,11 +506,14 @@ class TestRefreshConfigFailure:
         self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
     ) -> None:
         """config.reload() raising is caught; refresh_config still returns a valid (original, current) pair."""
+        # dup-ignore-start: single-use manifest arrange block — no third copy to extract
+        # (see tests/unit/core/CLAUDE.md).
         manifest1 = MagicMock()
         manifest1.enabled = True
         mock_registry.manifests = {"app_a": manifest1}
         mock_hassette.config.apps.manifests = {"app_a": manifest1}
         object.__setattr__(mock_hassette.config, "reload", Mock(side_effect=RuntimeError("disk error")))
+        # dup-ignore-end
 
         original, current = await lifecycle_service.refresh_config()
 
