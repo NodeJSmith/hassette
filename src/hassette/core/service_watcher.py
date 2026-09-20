@@ -5,6 +5,7 @@ from typing import ClassVar
 
 from hassette.bus import Bus
 from hassette.core.bus_service import BusService
+from hassette.core.service_status_predicates import IS_NOT_APP_ROLE, SERVICE_STATUS_PATH
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
 from hassette.events import HassetteServiceEvent
@@ -22,27 +23,6 @@ from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-
-SERVICE_STATUS_PATH = "payload.data.status"
-SERVICE_ROLE_PATH = "payload.data.role"
-
-IS_NOT_APP_ROLE = ~P.ValueIs(source=get_path(SERVICE_ROLE_PATH), condition=ResourceRole.APP)
-"""Excludes APP-role resources from a service-status subscription.
-
-Every ``Resource`` emits ``HASSETTE_EVENT_SERVICE_STATUS`` through the shared lifecycle
-machinery, so an app's status transitions land on the same topic the framework's own do. This
-guards the watcher's *acting* handlers — the ones that do something to the resource they
-observe (restart it, or take the process down), as opposed to ``log_service_event``, which only
-describes it. One app's failure is not a framework failure.
-
-Excludes APP rather than admitting SERVICE only, and the difference matters: the watcher is not
-services-only. ``shutdown_if_crashed`` is the process-level fatal handler for every framework
-resource, and several of those are plain ``Resource`` subclasses (RESOURCE role), not
-``Service`` — ``AppLifecycleService`` reaches ``handle_crash`` when ``bootstrap_apps()`` fails,
-and that crash must still stop the process. A SERVICE-only filter would swallow it, leaving
-Hassette running with no apps bootstrapped. Negating APP also fails open on a missing or
-malformed role, matching the unfiltered behavior this narrows.
-"""
 
 _STATUS_EVENT_DISPATCH_TIMEOUT_SECONDS = 5.0
 """Upper bound on how long dispatch_status_event_best_effort() waits for send_event() to accept

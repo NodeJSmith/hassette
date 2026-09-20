@@ -1,14 +1,18 @@
 """Integration tests for SessionManager."""
 
+import asyncio
 import sqlite3
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hassette import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.session_manager import SessionManager
+from hassette.testing import HassetteHarness, build_harness
+from hassette.types import ResourceRole
 from tests.support.helpers import make_crashed_event
 
 
@@ -403,3 +407,76 @@ async def test_crashed_session_once_listeners_eligible_after_orphan_mark(
     cursor = await db.execute("SELECT id FROM listeners WHERE id = ?", (listener_id,))
     row = await cursor.fetchone()
     assert row is None, "once=True listener from crashed-then-orphaned session must be cleaned up"
+
+
+def make_db_mock() -> MagicMock:
+    """Build a mock DatabaseService that properly awaits coroutines passed to submit().
+
+    on_service_crashed passes a coroutine to submit(); a plain AsyncMock accepts and
+    discards it, leaving the coroutine un-awaited and triggering a
+    PytestUnraisableExceptionWarning at GC time. This mock awaits whatever it receives.
+    """
+    db_mock = MagicMock()
+    db_mock.is_db_ready = True
+    db_mock.is_accepting_writes = True
+    db_mock.db = AsyncMock()
+
+    async def _submit(coro: object) -> None:
+        if asyncio.iscoroutine(coro):
+            await coro
+
+    db_mock.submit = AsyncMock(side_effect=_submit)
+    return db_mock
+
+
+@pytest.mark.parametrize(
+    ("role", "resource_name", "expect_error", "description"),
+    [
+        pytest.param(
+            ResourceRole.APP,
+            "MyBrokenApp",
+            False,
+            "APP-role crash must not mark the session as failed",
+            id="app_role_filtered",
+        ),
+        pytest.param(
+            ResourceRole.SERVICE,
+            "WebSocketService",
+            True,
+            "SERVICE-role crash must mark the session as failed",
+            id="service_role_passes",
+        ),
+    ],
+)
+async def test_crash_role_filter(
+    test_config_class: type[HassetteConfig],
+    unused_tcp_port_factory: "Callable[[], int]",
+    role: ResourceRole,
+    resource_name: str,
+    expect_error: bool,
+    description: str,
+) -> None:
+    """Regression test for #2153: only non-APP-role CRASHED events mark the session as failed.
+
+    Exercises the IS_NOT_APP_ROLE predicate through a real Bus dispatch (not a direct handler
+    call) — the existing fixture-based tests in this file call on_service_crashed directly and
+    would not catch a bug in the ``where=`` filter itself.
+    """
+    # Isolated harness: same skip_global_set / build_harness pattern as
+    # isolated_watcher() in test_service_watcher.py (see its docstring for why).
+    config = test_config_class(web_api={"port": unused_tcp_port_factory()})
+    harness = HassetteHarness(config, unused_tcp_port=unused_tcp_port_factory(), skip_global_set=True)
+    async with build_harness(harness.with_bus()) as harness:
+        hassette = harness.hassette
+
+        sm = SessionManager(hassette, database_service=make_db_mock(), parent=hassette)
+        sm._session_id = 1  # pretend a session was created
+        await sm.on_initialize()
+
+        await hassette.send_event(make_crashed_event(resource_name=resource_name, role=role))
+        await hassette.bus_service.await_dispatch_idle()
+
+        # Asserts on the in-memory flag rather than a DB row (the file's usual pattern)
+        # because this test uses a mock DB — the point is verifying the bus-level where=
+        # filter routes/blocks the event, not the persistence path.
+        assert sm._session_error is expect_error, description

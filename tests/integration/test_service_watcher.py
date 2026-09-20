@@ -13,7 +13,8 @@ from unittest.mock import patch
 import pytest
 
 from hassette import HassetteConfig, context
-from hassette.core.service_watcher import SERVICE_STATUS_PATH, ServiceWatcher
+from hassette.core.service_status_predicates import SERVICE_STATUS_PATH
+from hassette.core.service_watcher import ServiceWatcher
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
 from hassette.events import Event, HassetteServiceEvent
