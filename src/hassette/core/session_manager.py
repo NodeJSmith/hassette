@@ -55,7 +55,7 @@ class SessionManager(Resource):
             topic=str(Topic.HASSETTE_EVENT_SERVICE_STATUS),
             handler=self.on_service_crashed,
             name="hassette.session_manager.on_service_crashed",
-            where=IS_NOT_APP_ROLE & ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.CRASHED),
+            where=ValueIs(source=get_path(SERVICE_STATUS_PATH), condition=ResourceStatus.CRASHED) & IS_NOT_APP_ROLE,
         )
         mark_ready(self, reason="SessionManager initialized")
 
