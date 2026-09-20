@@ -1,7 +1,8 @@
 """Shared predicates for filtering HASSETTE_EVENT_SERVICE_STATUS subscriptions by role.
 
-Extracted from service_watcher.py because multiple subscribers need the same role filter:
-ServiceWatcher, SessionManager (#2153), and RuntimeQueryService (#1666).
+Extracted from service_watcher.py so multiple subscribers can share the same role filter.
+Current consumers: ServiceWatcher and SessionManager (#2153).
+Planned: RuntimeQueryService (#1666).
 """
 
 from hassette.event_handling import predicates as P
