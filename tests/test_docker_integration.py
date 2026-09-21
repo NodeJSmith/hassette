@@ -27,9 +27,19 @@ def run_hassette_container(
     volumes: list[str] | None = None,
     env: dict[str, str] | None = None,
     timeout: int = 60,
+    name: str | None = None,
+    remove: bool = True,
 ) -> tuple[subprocess.CompletedProcess[str], str]:
-    """Run the hassette Docker image with ``--version``, returning (result, combined output)."""
-    cmd = ["docker", "run", "--rm"]
+    """Run the hassette Docker image with ``--version``, returning (result, combined output).
+
+    Pass ``name`` and ``remove=False`` to keep the stopped container around for inspection
+    (e.g. via ``docker diff``) instead of letting ``--rm`` discard it on exit.
+    """
+    cmd = ["docker", "run"]
+    if remove:
+        cmd.append("--rm")
+    if name:
+        cmd.extend(["--name", name])
     for vol in volumes or []:
         cmd.extend(["-v", vol])
     merged_env = {
@@ -248,6 +258,39 @@ def test_docker_project_install_with_lockfile(docker_project_dir: Path):
 
     assert result.returncode == 0, f"Project install failed. Output:\n{output}"
     assert "project install: complete" in output
+
+
+def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path):
+    """Test that /tmp/project-build.* doesn't leak after project install (regression for #2329).
+
+    The project-install path's EXIT trap never fires on the happy path because docker_start.sh
+    ends in `exec hassette run`, which replaces the shell process instead of exiting it — so
+    cleanup must happen explicitly before the exec. Uses `docker diff` (rather than --rm) so the
+    container's final filesystem state can be inspected after it exits.
+    """
+    create_project_package(
+        docker_project_dir,
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
+        'requires-python = ">=3.11"\ndependencies = []\n'
+        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n',
+    )
+
+    container_name = f"hassette-tmp-leak-test-{os.getpid()}"
+    try:
+        result, output = run_hassette_container(
+            volumes=[f"{docker_project_dir}:/apps"],
+            env={"HASSETTE__PROJECT_DIR": "/apps"},
+            timeout=120,
+            name=container_name,
+            remove=False,
+        )
+        assert result.returncode == 0, f"Project install failed. Output:\n{output}"
+
+        diff = subprocess.run(["docker", "diff", container_name], capture_output=True, text=True, timeout=30)
+        leaked = [line for line in diff.stdout.splitlines() if "/tmp/project-build." in line]
+        assert not leaked, f"Leftover project-build tmp dir(s) found:\n{diff.stdout}"
+    finally:
+        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=30)
 
 
 def test_docker_project_install_without_build_system(docker_project_dir: Path):
