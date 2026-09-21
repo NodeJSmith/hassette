@@ -9,6 +9,7 @@ from hassette.core.bus_service import BusService, compute_elapsed, make_syntheti
 from hassette.core.event_filter import EventFilter
 from hassette.core.scheduler_service import SchedulerService
 from hassette.testing.config import TEST_CONFIG_TIMEOUT_SECONDS
+from tests.support.factories import make_closing_task_bucket
 
 
 def make_bus_service(
@@ -78,15 +79,7 @@ def make_scheduler_service(
     svc._executor.execute = AsyncMock()
     svc._executor.mark_job_status = AsyncMock()
 
-    svc.task_bucket = MagicMock()
+    svc.task_bucket = make_closing_task_bucket()
     svc.task_bucket.make_async_adapter = MagicMock(side_effect=lambda fn: fn)
-
-    # Close coroutines immediately to avoid "coroutine was never awaited" warnings
-    def _spawn(coro, **_kwargs):
-        if hasattr(coro, "close"):
-            coro.close()
-        return MagicMock()
-
-    svc.task_bucket.spawn = _spawn
 
     return svc
