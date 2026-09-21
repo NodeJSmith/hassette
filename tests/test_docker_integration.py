@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 DOCKER_IMAGE = os.getenv("HASSETTE_TEST_IMAGE", "hassette:test")
+DOCKER_CLEANUP_TIMEOUT = 30
 
 pytestmark = [
     pytest.mark.integration,
@@ -286,11 +287,13 @@ def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path
         )
         assert result.returncode == 0, f"Project install failed. Output:\n{output}"
 
-        diff = subprocess.run(["docker", "diff", container_name], capture_output=True, text=True, timeout=30)
+        diff = subprocess.run(
+            ["docker", "diff", container_name], capture_output=True, text=True, timeout=DOCKER_CLEANUP_TIMEOUT
+        )
         leaked = [line for line in diff.stdout.splitlines() if "/tmp/project-build." in line]
         assert not leaked, f"Leftover project-build tmp dir(s) found:\n{diff.stdout}"
     finally:
-        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=30)
+        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
 
 
 def test_docker_project_install_without_build_system(docker_project_dir: Path):
