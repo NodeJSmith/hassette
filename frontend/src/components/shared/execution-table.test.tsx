@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createExecution } from "../../test/factories";
 import { createWouterMock } from "../../test/mock-wouter";
 import { formatTimestamp } from "../../utils/format";
+import { STATUS_TONE_CLASSES } from "../../utils/status";
 import { ExecutionTable } from "./execution-table";
 
 const INCIDENTAL_TABLE_ID = "t";
@@ -206,6 +207,32 @@ describe("ExecutionTable", () => {
       />,
     );
     expect(container.textContent).toContain("skipped");
+  });
+
+  it("tints the skipped label with the shared mute tone class", () => {
+    const { container } = render(
+      <ExecutionTable
+        records={[createExecution("job", { status: "skipped" })]}
+        kind="job"
+        tableId={INCIDENTAL_TABLE_ID}
+      />,
+    );
+    const label = Array.from(container.querySelectorAll("span")).find((el) => el.textContent === "skipped");
+    expect(label?.className).toContain(STATUS_TONE_CLASSES.mute);
+    expect(label?.className).not.toContain("truncate");
+  });
+
+  it("tints the failed label with the shared err tone class and truncates it", () => {
+    const { container } = render(
+      <ExecutionTable
+        records={[createExecution("job", { status: "error" })]}
+        kind="job"
+        tableId={INCIDENTAL_TABLE_ID}
+      />,
+    );
+    const label = Array.from(container.querySelectorAll("span")).find((el) => el.textContent === "failed");
+    expect(label?.className).toContain(STATUS_TONE_CLASSES.err);
+    expect(label?.className).toContain("truncate");
   });
 
   it("shows Show More button when records exceed 5", () => {

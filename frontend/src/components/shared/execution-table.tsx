@@ -20,7 +20,7 @@ import { executionPath, type HandlerKind } from "../../utils/app-routes";
 import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { formatDuration, formatRelativeTime, formatTimestamp } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
-import { executionStatusKind, type StatusKind, TIMED_OUT_LABEL } from "../../utils/status";
+import { executionStatusKind, STATUS_TONE_CLASSES, type StatusKind, TIMED_OUT_LABEL } from "../../utils/status";
 import { EmptyState } from "./empty-state";
 import { IconArrowRight } from "./icons";
 import { ShowMoreButton } from "./show-more-button";
@@ -77,22 +77,6 @@ export interface ExecutionRecord {
   thread_leaked: boolean;
 }
 
-// Only the per-kind part of the status label's classes; callers compose it with MONO_TEXT_CLASS.
-function statusKindClass(kind: StatusKind): string | undefined {
-  switch (kind) {
-    case "ok":
-      return "text-[var(--status-success)]";
-    case "err":
-      return "truncate text-destructive";
-    case "warn":
-      return "text-[var(--status-warning)]";
-    case "cancel":
-      return "text-[var(--status-cancel)]";
-    case "mute":
-      return undefined;
-  }
-}
-
 // Static — no sorting/filtering/visibility, so no closures over component
 // state are needed (unlike log-table-view.tsx's columns, which are rebuilt
 // per render to close over sort/filter/mobile state).
@@ -107,7 +91,18 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
       return (
         <div className="flex items-center gap-2">
           <StatusShape kind={statusKind} size={STATUS_SHAPE_SIZE} />
-          <span className={cn(MONO_TEXT_CLASS, statusKindClass(statusKind))}>{STATUS_LABEL[statusKind]}</span>
+          <span
+            className={cn(
+              MONO_TEXT_CLASS,
+              STATUS_TONE_CLASSES[statusKind],
+              // Only the error label runs long enough to need clipping. Truncation is a width
+              // concern rather than a tone concern, so it composes alongside the shared palette
+              // instead of being folded into it.
+              statusKind === "err" && "truncate",
+            )}
+          >
+            {STATUS_LABEL[statusKind]}
+          </span>
           {record.thread_leaked && (
             <Badge variant="warning" size="sm" aria-label="thread leaked past timeout">
               thread leaked
