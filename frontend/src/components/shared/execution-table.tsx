@@ -55,12 +55,6 @@ const COL_W_TIME = "w-[18%] max-mobile:w-auto";
 // non-wrapping text at the same size.
 const MONO_TEXT_CLASS = "font-mono text-xs whitespace-nowrap";
 
-// Layout-only companion to STATUS_TONE_CLASSES: an error label can be long enough to need
-// clipping, which is a width concern rather than a tone concern, so it is composed separately.
-const STATUS_TRUNCATE: Partial<Record<StatusKind, string>> = {
-  err: "truncate",
-};
-
 const STATUS_LABEL: Record<StatusKind, string> = {
   ok: "ok",
   err: "failed",
@@ -97,7 +91,16 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
       return (
         <div className="flex items-center gap-2">
           <StatusShape kind={statusKind} size={STATUS_SHAPE_SIZE} />
-          <span className={cn(MONO_TEXT_CLASS, STATUS_TONE_CLASSES[statusKind], STATUS_TRUNCATE[statusKind])}>
+          <span
+            className={cn(
+              MONO_TEXT_CLASS,
+              STATUS_TONE_CLASSES[statusKind],
+              // Only the error label runs long enough to need clipping. Truncation is a width
+              // concern rather than a tone concern, so it composes alongside the shared palette
+              // instead of being folded into it.
+              statusKind === "err" && "truncate",
+            )}
+          >
             {STATUS_LABEL[statusKind]}
           </span>
           {record.thread_leaked && (
