@@ -2,6 +2,8 @@ import type { JSX } from "react";
 
 import { cn } from "@/lib/utils";
 
+import { FIELD_LABEL_CLASS } from "./field-label";
+
 /** `  File "/app/x.py", line 42, in handler` — the only structured line in a traceback. */
 const FRAME_RE = /^(\s*)File "(.*)", line (\d+), in (.*)$/;
 
@@ -72,9 +74,7 @@ export function TracebackViewer({ traceback, testIdPrefix }: Props) {
 
   return (
     <div className="mt-3 border-t border-border pt-3">
-      <span className="mb-2 block font-mono text-xs uppercase tracking-[var(--text-label-tracking)] text-foreground-faint">
-        traceback
-      </span>
+      <span className={cn("mb-2 block", FIELD_LABEL_CLASS)}>traceback</span>
       {split ? (
         <>
           <div className="mb-3 rounded-sm bg-[var(--destructive-bg)] px-3 py-2">

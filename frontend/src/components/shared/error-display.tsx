@@ -1,7 +1,8 @@
+import type { components } from "@/api/generated-types";
 import { cn } from "@/lib/utils";
+import { formatDuration } from "@/utils/format";
 
-import type { components } from "../../api/generated-types";
-import { formatDuration } from "../../utils/format";
+import { FIELD_LABEL_CLASS } from "./field-label";
 
 type ExecutionStatus = components["schemas"]["ExecutionStatus"];
 
@@ -57,9 +58,7 @@ export function ErrorDisplay({ status, durationMs, errorType, errorMessage }: Pr
 
   return (
     <div className="mb-2 flex items-baseline gap-2">
-      <span className="mr-2 font-mono text-xs uppercase tracking-[var(--text-label-tracking)] text-foreground-faint">
-        {label}
-      </span>
+      <span className={FIELD_LABEL_CLASS}>{label}</span>
       <span className={cn("font-mono text-xs", toneClass)}>{message}</span>
     </div>
   );

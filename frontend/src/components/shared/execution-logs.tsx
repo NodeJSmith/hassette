@@ -1,5 +1,8 @@
 import { Link } from "wouter";
 
+import { cn } from "@/lib/utils";
+
+import { FIELD_LABEL_CLASS } from "./field-label";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "./log-table";
 import { TableCard } from "./table-card";
 import { TableFooter } from "./table-footer";
@@ -22,9 +25,7 @@ export function ExecutionLogs({ executionId }: Props) {
 
   return (
     <div data-testid="execution-logs-section">
-      <span className="mb-1 block font-mono text-xs uppercase tracking-[var(--text-label-tracking)] text-foreground-faint">
-        logs
-      </span>
+      <span className={cn("mb-1 block", FIELD_LABEL_CLASS)}>logs</span>
       <TableCard footer={footer}>
         <LogTableWithDrawer drawerProps={log.drawerProps}>
           {log.isEmpty ? (
