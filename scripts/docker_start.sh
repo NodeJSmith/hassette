@@ -131,7 +131,8 @@ if [ -f "$PROJECT_DIR/uv.lock" ]; then
     # Temp files — cleaned up on exit (including early termination)
     user_deps_file=$(mktemp /tmp/user-deps.XXXXXX)
     tmp_project=$(mktemp -d /tmp/project-build.XXXXXX)
-    trap 'rm -f "${user_deps_file}"; rm -rf "${tmp_project}"' EXIT
+    cleanup_project_tmp() { rm -f "${user_deps_file}"; rm -rf "${tmp_project}"; }
+    trap cleanup_project_tmp EXIT
 
     log_phase "project install: exporting locked deps"
     run_uv_install 300 "export" export \
@@ -150,6 +151,11 @@ if [ -f "$PROJECT_DIR/uv.lock" ]; then
     cp -a "$PROJECT_DIR"/. "$tmp_project"/
     run_uv_install 120 "project" pip install \
         --no-deps "$tmp_project"
+
+    # Explicit cleanup — the EXIT trap above never fires on the happy path because
+    # the script ends in `exec`, which replaces the shell process instead of exiting it.
+    # The trap remains as a safety net for early-exit failures inside run_uv_install.
+    cleanup_project_tmp
 
     log_phase "project install: complete"
 
