@@ -1,6 +1,6 @@
 """Unit tests for Scheduler resource: new schedule() entry point, job groups, convenience wrappers."""
 
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from whenever import ZonedDateTime
@@ -211,8 +211,6 @@ class TestRemoveGroup:
         We override add_job to NOT set the db_id to test the guard still works.
         """
         scheduler = make_scheduler()
-        scheduler.scheduler_service.task_bucket = MagicMock()
-        scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
 
         # Override add_job to skip mark_registered so db_id stays None
         scheduler.scheduler_service.add_job = AsyncMock()
@@ -509,8 +507,6 @@ class TestRemoveJob:
     async def test_remove_job_idempotent(self) -> None:
         """Second remove_job call on the same job is a silent no-op."""
         scheduler = make_scheduler()
-        scheduler.scheduler_service.task_bucket = MagicMock()
-        scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
 
         job = await scheduler.schedule(noop, Every(hours=1), name="job1")
         # db_id already set by mock add_job — no need to call mark_registered
@@ -564,8 +560,6 @@ class TestRemoveJob:
     async def test_remove_job_dequeued_set_by_dequeue_job(self) -> None:
         """job._dequeued is False when dequeue_job runs (set True afterward by SchedulerService)."""
         scheduler = make_scheduler()
-        scheduler.scheduler_service.task_bucket = MagicMock()
-        scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
 
         dequeued_state_during_dequeue: list[bool] = []
 
@@ -589,8 +583,6 @@ class TestJobRemoveDelegation:
     async def test_job_remove_delegates_to_scheduler(self) -> None:
         """job.remove() calls scheduler.remove_job(self)."""
         scheduler = make_scheduler()
-        scheduler.scheduler_service.task_bucket = MagicMock()
-        scheduler.scheduler_service.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_: coro.close() or None)
 
         job = await scheduler.schedule(noop, Every(hours=1), name="job1")
 

@@ -331,13 +331,9 @@ def make_scheduler(
 
     mock_service.remove_job = AsyncMock(side_effect=_remove_job)
 
-    # The default task_bucket closes whatever coroutine it's given instead of just recording
-    # the call — mark_job_removed() (an AsyncMock) produces a real coroutine object when
-    # called from remove_job()'s fire-and-forget spawn, and an unconfigured
-    # Mock().task_bucket.spawn(coro, ...) never runs or closes it, leaking a "coroutine was
-    # never awaited" warning at some later, unrelated test's garbage collection. Callers that
-    # need to inspect what was spawned still can — this only changes what happens to the
-    # coroutine argument, not the mock's call-tracking.
+    # remove_job()'s fire-and-forget spawn hands this bucket a real coroutine object from
+    # mark_job_removed() (an AsyncMock) — see make_closing_task_bucket() for why it closes
+    # rather than runs it.
     mock_service.task_bucket = make_closing_task_bucket()
     scheduler.scheduler_service = mock_service
     scheduler._jobs_by_name = {}
