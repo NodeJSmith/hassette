@@ -22,6 +22,15 @@ from hassette.web.models import (
     WsServerMessage,
 )
 
+TEST_TIMESTAMP = 1234567890.0
+
+MESSAGE_ADAPTER = TypeAdapter(WsServerMessage)
+
+
+def validate_envelope(msg_type: str, data: object) -> WsServerMessage:
+    """Validate a raw WS envelope and return the message the discriminated union narrowed it to."""
+    return MESSAGE_ADAPTER.validate_python({"type": msg_type, "data": data, "timestamp": TEST_TIMESTAMP})
+
 
 class TestAppStatusChangedPayloadMatchesDataclass:
     """Verify AppStatusChangedPayload mirrors events.hassette.AppStateChangePayload."""
@@ -90,77 +99,56 @@ class TestConnectedPayloadIncludesUptimeSeconds:
 class TestWsServerMessageDiscriminates:
     """Verify WsServerMessage discriminated union narrows by type."""
 
-    adapter = TypeAdapter(WsServerMessage)
-
     def test_app_status_changed(self) -> None:
-        raw = {
-            "type": "app_status_changed",
-            "data": {"app_key": "my_app", "index": 0, "status": "running"},
-            "timestamp": 1234567890.0,
-        }
-        msg = self.adapter.validate_python(raw)
+        msg = validate_envelope("app_status_changed", {"app_key": "my_app", "index": 0, "status": "running"})
         assert isinstance(msg, AppStatusChangedWsMessage)
         assert msg.data.app_key == "my_app"
 
     def test_log_message(self) -> None:
-        raw = {
-            "type": "log",
-            "data": {
+        msg = validate_envelope(
+            "log",
+            {
                 "seq": 1,
-                "timestamp": 1234567890.0,
+                "timestamp": TEST_TIMESTAMP,
                 "level": "INFO",
                 "logger_name": "test",
                 "func_name": "test_fn",
                 "lineno": 1,
                 "message": "hello",
             },
-            "timestamp": 1234567890.0,
-        }
-        msg = self.adapter.validate_python(raw)
+        )
         assert isinstance(msg, LogWsMessage)
         assert msg.data.message == "hello"
 
     def test_connected(self) -> None:
-        raw = {
-            "type": "connected",
-            "data": {"uptime_seconds": 300.0, "entity_count": 5, "app_count": 2},
-            "timestamp": 1234567890.0,
-        }
-        msg = self.adapter.validate_python(raw)
+        msg = validate_envelope("connected", {"uptime_seconds": 300.0, "entity_count": 5, "app_count": 2})
         assert isinstance(msg, ConnectedWsMessage)
         assert msg.data.uptime_seconds == 300.0
-        assert msg.timestamp == 1234567890.0
+        assert msg.timestamp == TEST_TIMESTAMP
 
     def test_connectivity(self) -> None:
-        raw = {"type": "connectivity", "data": {"connected": True}, "timestamp": 1234567890.0}
-        msg = self.adapter.validate_python(raw)
+        msg = validate_envelope("connectivity", {"connected": True})
         assert isinstance(msg, ConnectivityWsMessage)
         assert msg.data.connected is True
 
     def test_service_status(self) -> None:
-        raw = {
-            "type": "service_status",
-            "data": {"resource_name": "telemetry", "role": "service", "status": "running"},
-            "timestamp": 1234567890.0,
-        }
-        msg = self.adapter.validate_python(raw)
+        msg = validate_envelope(
+            "service_status", {"resource_name": "telemetry", "role": "service", "status": "running"}
+        )
         assert isinstance(msg, ServiceStatusWsMessage)
 
     def test_invalid_type_raises(self) -> None:
-        raw = {"type": "unknown_type", "data": {}, "timestamp": 1234567890.0}
         with pytest.raises(ValueError, match="does not match any of the expected tags"):
-            self.adapter.validate_python(raw)
+            validate_envelope("unknown_type", {})
 
 
 class TestCompletionWsMessages:
     """execution_completed carries a unified list payload (per-drain batching, kind discriminates handler/job)."""
 
-    adapter = TypeAdapter(WsServerMessage)
-
     def test_handler_execution_discriminates(self) -> None:
-        raw = {
-            "type": "execution_completed",
-            "data": [
+        msg = validate_envelope(
+            "execution_completed",
+            [
                 {
                     "kind": "handler",
                     "listener_id": 1,
@@ -171,9 +159,7 @@ class TestCompletionWsMessages:
                     "error_type": None,
                 }
             ],
-            "timestamp": 1234567890.0,
-        }
-        msg = self.adapter.validate_python(raw)
+        )
         assert isinstance(msg, ExecutionCompletedWsMessage)
         assert len(msg.data) == 1
         assert msg.data[0].kind == "handler"
@@ -183,9 +169,9 @@ class TestCompletionWsMessages:
         assert msg.data[0].error_type is None
 
     def test_job_execution_discriminates(self) -> None:
-        raw = {
-            "type": "execution_completed",
-            "data": [
+        msg = validate_envelope(
+            "execution_completed",
+            [
                 {
                     "kind": "job",
                     "job_id": 7,
@@ -196,9 +182,7 @@ class TestCompletionWsMessages:
                     "error_type": "TimeoutError",
                 }
             ],
-            "timestamp": 1234567890.0,
-        }
-        msg = self.adapter.validate_python(raw)
+        )
         assert isinstance(msg, ExecutionCompletedWsMessage)
         assert len(msg.data) == 1
         assert msg.data[0].kind == "job"
@@ -207,16 +191,15 @@ class TestCompletionWsMessages:
 
     def test_execution_completed_empty_batch_valid(self) -> None:
         """An empty batch list is valid (schema must accept it even if flush skips empty batches)."""
-        raw = {"type": "execution_completed", "data": [], "timestamp": 1234567890.0}
-        msg = self.adapter.validate_python(raw)
+        msg = validate_envelope("execution_completed", [])
         assert isinstance(msg, ExecutionCompletedWsMessage)
         assert msg.data == []
 
     def test_execution_completed_mixed_batch(self) -> None:
         """A batch may contain both handler and job entries in one message."""
-        raw = {
-            "type": "execution_completed",
-            "data": [
+        msg = validate_envelope(
+            "execution_completed",
+            [
                 {
                     "kind": "handler",
                     "listener_id": 1,
@@ -235,9 +218,7 @@ class TestCompletionWsMessages:
                     "error_type": "ValueError",
                 },
             ],
-            "timestamp": 1234567890.0,
-        }
-        msg = self.adapter.validate_python(raw)
+        )
         assert isinstance(msg, ExecutionCompletedWsMessage)
         assert len(msg.data) == 2
         assert msg.data[0].kind == "handler"
