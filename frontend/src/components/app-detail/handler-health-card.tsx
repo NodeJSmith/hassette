@@ -125,7 +125,7 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
             </StatTooltip>
             {avgDuration !== null && avgDuration > 0 && (
               <StatTooltip label="avg duration" className="ml-auto" tabIndex={tabIndex}>
-                <span>{formatDuration(avgDuration)}</span>
+                <span data-testid="handler-health-avg-duration">{formatDuration(avgDuration)}</span>
               </StatTooltip>
             )}
           </div>
@@ -133,12 +133,12 @@ export function HandlerHealthCard({ item, appKey, instanceQs, tabIndex }: Handle
             <div className={STAT_ROW_CLASS}>
               {failedCount > 0 && (
                 <StatTooltip label="error rate" tabIndex={tabIndex}>
-                  <span>{formatRate(failedCount, runCount)}</span>
+                  <span data-testid="handler-health-error-rate">{formatRate(failedCount, runCount)}</span>
                 </StatTooltip>
               )}
               {lastActiveAt !== null && (
                 <StatTooltip label="last active" className="ml-auto" tabIndex={tabIndex}>
-                  <span>{lastActiveDisplay}</span>
+                  <span data-testid="handler-health-last-active">{lastActiveDisplay}</span>
                 </StatTooltip>
               )}
             </div>

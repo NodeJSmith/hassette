@@ -144,9 +144,9 @@ describe("HandlerHealthCard — error display", () => {
       failed: 0,
       timed_out: 0,
     });
-    const { container } = renderCard(item);
+    const { queryByTestId } = renderCard(item);
 
-    expect(container.textContent).not.toContain("%");
+    expect(queryByTestId("handler-health-error-rate")).toBeNull();
   });
 });
 
@@ -156,9 +156,9 @@ describe("HandlerHealthCard — avg duration", () => {
       listener_id: 1,
       avg_duration_ms: 0,
     });
-    const { container } = renderCard(item);
+    const { container, queryByTestId } = renderCard(item);
 
-    expect(container.textContent).not.toContain("ms");
+    expect(queryByTestId("handler-health-avg-duration")).toBeNull();
     expect(container.textContent).not.toContain("—");
   });
 
@@ -181,9 +181,9 @@ describe("HandlerHealthCard — last active", () => {
       failed: 0,
       timed_out: 0,
     });
-    const { container } = renderCard(item);
+    const { container, queryByTestId } = renderCard(item);
 
-    expect(container.textContent).not.toContain("ago");
+    expect(queryByTestId("handler-health-last-active")).toBeNull();
     expect(container.textContent).not.toContain("—");
   });
 });
