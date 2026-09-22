@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { LogEntry } from "@/api/endpoints";
 import { createLogEntry } from "@/test/factories";
 
-import { getLogLevelStyle, resolveSortKey } from "./constants";
+import { ALL_LEVELS, getLogLevelStyle, LEVEL_INDEX, LEVEL_OPTIONS, LEVELS, resolveSortKey } from "./constants";
 import { rowKey } from "./types";
 import { sortEntries } from "./use-log-filters";
 
@@ -61,6 +61,27 @@ describe("sortEntries", () => {
     const entries = [entry({ app_key: null, message: "null" }), entry({ app_key: "alpha", message: "alpha" })];
     const result = sortEntries(entries, { key: "app", dir: "asc" });
     expect(result.map((e) => e.message)).toEqual(["alpha", "null"]);
+  });
+});
+
+describe("level lookups derived from LEVELS", () => {
+  it("assigns LEVEL_INDEX the same ordering use-log-filters reads via LEVELS.indexOf", () => {
+    for (const level of LEVELS) {
+      expect(LEVEL_INDEX[level]).toBe(LEVELS.indexOf(level));
+    }
+    expect(Object.keys(LEVEL_INDEX)).toEqual([...LEVELS]);
+  });
+
+  it("lists LEVEL_OPTIONS as the all-levels entry followed by every level in LEVELS order", () => {
+    expect(LEVEL_OPTIONS.map((opt) => opt.value)).toEqual([ALL_LEVELS, ...LEVELS]);
+    expect(LEVEL_OPTIONS.map((opt) => opt.label)).toEqual([
+      "All levels",
+      "DEBUG+",
+      "INFO+",
+      "WARNING+",
+      "ERROR+",
+      "CRITICAL only",
+    ]);
   });
 });
 

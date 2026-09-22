@@ -64,7 +64,8 @@ export function getLogLevelStyle(level: string): LogLevelStyle | undefined {
 }
 
 // Derived from LEVELS so sort ordering can never disagree with the min-level filtering
-// in use-log-filters.ts, which reads the same ordering via LEVELS.indexOf().
+// in use-log-filters.ts, which reads the same ordering via LEVELS.indexOf(). The assertion
+// is sound because the keys come from LEVELS, which is also what Level is defined from.
 export const LEVEL_INDEX: Record<Level, number> = Object.fromEntries(
   LEVELS.map((level, index) => [level, index]),
 ) as Record<Level, number>;
@@ -163,7 +164,9 @@ export const COLUMN_MAP: Record<ColumnId, LogColumnMeta> = Object.fromEntries(CO
   LogColumnMeta
 >;
 
-const VALID_SORT_COLUMNS: ReadonlySet<LogSortKey | "source"> = new Set<LogSortKey | "source">([
+// Constructed as Set<LogSortKey | "source"> so a typo in the entries is a compile error,
+// but annotated ReadonlySet<string> so has() accepts unvalidated input without a cast.
+const VALID_SORT_COLUMNS: ReadonlySet<string> = new Set<LogSortKey | "source">([
   "timestamp",
   "level",
   "app",
@@ -174,10 +177,7 @@ const VALID_SORT_COLUMNS: ReadonlySet<LogSortKey | "source"> = new Set<LogSortKe
 
 export function resolveSortKey(raw: string): LogSortKey {
   if (raw === "source") return "function";
-  // The cast only satisfies has() against the narrowed set type; the membership check
-  // below is what actually proves raw is a real sort key.
-  const candidate = raw as LogSortKey;
-  return VALID_SORT_COLUMNS.has(candidate) ? candidate : "timestamp";
+  return VALID_SORT_COLUMNS.has(raw) ? (raw as LogSortKey) : "timestamp";
 }
 
 export const DEFAULT_COLUMNS_GLOBAL: ColumnId[] = [
