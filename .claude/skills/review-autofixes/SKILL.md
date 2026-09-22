@@ -89,7 +89,19 @@ If fixes were applied (from 2b or 2e):
 2. Stage, commit: `refactor: address review findings in {short description}`
 3. Push: `git push origin {branch}`
 
-### 2g. Enable Auto-Merge
+### 2g. Ensure the PR Closes Its Issue
+
+A PR that started as a draft carries "Partial progress on #{N} — needs human review" in its body, not a GitHub closing keyword. Merging it as-is leaves the issue open with a stale `autofix:pr-open` label — nothing else in the pipeline clears either.
+
+If the branch name matches `autofix/issue-{N}` (optionally followed by `-slug` — see `_AUTOFIX_BRANCH_RE` in `dfl`'s `hassette.py` for the exact pattern):
+
+1. Check the current body (`gh pr view {PR} --json body --jq .body`) for a closing keyword referencing that issue (`close(s/d)`, `fix(es/ed)`, or `resolve(s/d)` followed by `#{N}`, case-insensitive). If one is already there, skip to 2h.
+2. If the body reads "Partial progress on #{N}...", don't assume the review battery closed the gap — it checks code quality, not whether the issue's original ask is met. Read the issue (`gh issue view {N} --repo {REPO}`) and confirm what the draft named as unfinished is actually done now. If scope is genuinely still missing, leave the body untouched and go to 2h without a closing keyword — the issue should stay open and `pr-open`-labeled.
+3. If it's actually complete, keep the rest of the description: read the full current body, replace the "Partial progress on #{N}..." line with `Closes #{N}`, then push the whole modified body back with `gh pr edit {PR} --body "<full body, line replaced>"` — never `--body "Closes #{N}"` alone, which would wipe the description.
+
+If the branch name doesn't match the pattern, skip this step and go to 2h.
+
+### 2h. Enable Auto-Merge
 
 After the PR is reviewed and any fixes are pushed:
 
