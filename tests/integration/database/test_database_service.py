@@ -14,6 +14,7 @@ from hassette.core import database_service as database_service_module
 from hassette.core.database_service import DatabaseService
 from hassette.resources.lifecycle import compute_shutdown_budget
 from hassette.utils.aiosqlite_utils import connect_daemon
+from tests.integration.database.conftest import seed_app_executions
 from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, async_noop, seed_listener_for_fk
 
 
@@ -551,15 +552,7 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
     await seed_listener_for_fk(db)
 
     # Insert some executions so there is something for the size failsafe to delete
-    now = time.time()
-    for i in range(10):
-        ts = now - (100 - i)
-        await db.execute(
-            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
-            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
-            (session_id, ts),
-        )
-    await db.commit()
+    await seed_app_executions(db, session_id)
 
     initialized_service.hassette.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
@@ -568,14 +561,7 @@ async def test_size_failsafe_logs_warning_on_consecutive_triggers(initialized_se
     assert initialized_service._consecutive_size_triggers == 1
 
     # Re-insert records for second trigger
-    for i in range(10):
-        ts = now - (50 - i)
-        await db.execute(
-            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
-            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
-            (session_id, ts),
-        )
-    await db.commit()
+    await seed_app_executions(db, session_id, age_offset=50)
 
     # Second trigger — counter goes to 2.
     await initialized_service._check_size_failsafe()
@@ -593,15 +579,7 @@ async def test_size_failsafe_logs_warning_on_exhaustion(initialized_service: Dat
 
     await seed_listener_for_fk(db)
 
-    now = time.time()
-    for i in range(10):
-        ts = now - (100 - i)
-        await db.execute(
-            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
-            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
-            (session_id, ts),
-        )
-    await db.commit()
+    await seed_app_executions(db, session_id)
 
     # Small enough that draining every tier still leaves the real DB over the limit.
     initialized_service.hassette.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB

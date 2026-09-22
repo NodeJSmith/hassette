@@ -5,6 +5,7 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import aiosqlite
 import pytest
 
 from hassette.core.database_service import DatabaseService
@@ -72,3 +73,17 @@ async def initialized_service(service: DatabaseService) -> AsyncIterator[Databas
         yield service
     finally:
         await service.on_shutdown()
+
+
+async def seed_app_executions(db: aiosqlite.Connection, session_id: int, *, age_offset: float = 100) -> None:
+    """Insert 10 committed app-tier handler executions, oldest first, ending ``age_offset``
+    seconds before now — enough rows for the size failsafe to have something to delete.
+    """
+    now = time.time()
+    for i in range(10):
+        await db.execute(
+            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
+            (session_id, now - (age_offset - i)),
+        )
+    await db.commit()
