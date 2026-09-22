@@ -128,6 +128,11 @@ class RetentionTarget:
     source_tier: SourceTier | None = None
     """Restrict this target to rows of one source tier. ``None`` means no tier filter (the
     target's table has no ``source_tier`` column, or every row in it should be managed together)."""
+    failsafe_exempt: bool = False
+    """Exclude this target from the size failsafe's emergency deletion, leaving it managed by
+    age-based retention alone. Set for tables that are structurally small relative to the size
+    limit — deleting them reclaims almost nothing while destroying the data most needed to
+    diagnose whatever caused the overage."""
 
 
 _RETENTION_TABLES: list[RetentionTarget] = [
@@ -160,8 +165,12 @@ _RETENTION_TABLES: list[RetentionTarget] = [
         priority=4,
         retention_days_getter=lambda cfg: cfg.logging.log_retention_days,
         failsafe_label="log records",
+        failsafe_exempt=True,
     ),
 ]
+
+_FAILSAFE_TABLES: list[RetentionTarget] = [t for t in _RETENTION_TABLES if not t.failsafe_exempt]
+"""Subset of :data:`_RETENTION_TABLES` the size failsafe may delete from, in the same order."""
 
 
 def _build_tier_where(target: RetentionTarget) -> tuple[str, list[Any]]:
@@ -1119,13 +1128,14 @@ class DatabaseService(Service):
     async def _check_size_failsafe(self) -> None:
         """Delete oldest records if database exceeds the configured size limit.
 
-        Iterates _RETENTION_TABLES grouped by priority (lower priority number = deleted
-        first). Within each priority tier, all tables in the group are deleted together
-        per iteration; a target's ``source_tier`` filter (when set) is applied inside the
-        inner SELECT so each tier's own oldest-N rows are deleted, not the globally-oldest
-        N rows filtered down afterward. After each iteration a vacuum+checkpoint (with a
-        single bounded retry — see ``_vacuum_and_checkpoint_with_retry()``) reclaims disk
-        space. The process stops as soon as the database falls within the size limit.
+        Iterates _FAILSAFE_TABLES grouped by priority (lower priority number = deleted
+        first) — targets marked ``failsafe_exempt`` are never touched here, no matter how far
+        over the limit the database is. Within each priority tier, all tables in the group are
+        deleted together per iteration; a target's ``source_tier`` filter (when set) is applied
+        inside the inner SELECT so each tier's own oldest-N rows are deleted, not the
+        globally-oldest N rows filtered down afterward. After each iteration a vacuum+checkpoint
+        (with a single bounded retry — see ``_vacuum_and_checkpoint_with_retry()``) reclaims
+        disk space. The process stops as soon as the database falls within the size limit.
 
         ``max_iterations`` is a single budget shared across the whole run, not a per-tier
         allowance — each tier only gets whatever iterations remain after higher-priority
@@ -1144,7 +1154,7 @@ class DatabaseService(Service):
         tiers; probing avoids stopping there and skipping those tiers unnecessarily. When the
         probe confirms rows remain, the run stops instead of advancing to the next,
         lower-priority tier — a capped tier still has a large backlog of higher-value data of
-        its own, and deleting app/log data while that backlog remains would defeat the priority
+        its own, and deleting app-tier data while that backlog remains would defeat the priority
         ordering. The next hourly cycle retries the capped tier first.
 
         A DELETE failure on one priority tier is logged with the target's ``failsafe_label``,
@@ -1187,17 +1197,17 @@ class DatabaseService(Service):
             )
 
         db = self.db
-        total_deleted_by_label: dict[str, int] = {t.failsafe_label: 0 for t in _RETENTION_TABLES}
+        total_deleted_by_label: dict[str, int] = {t.failsafe_label: 0 for t in _FAILSAFE_TABLES}
         batch_limit = config.size_failsafe_delete_batch
         max_iterations = config.size_failsafe_max_iterations
         vacuum_pages = config.size_failsafe_vacuum_pages
 
-        priorities = sorted({t.priority for t in _RETENTION_TABLES})
+        priorities = sorted({t.priority for t in _FAILSAFE_TABLES})
         capped_tier_label: str | None = None
         any_tier_incomplete = False
         iterations_used = 0
         for priority in priorities:
-            group = [t for t in _RETENTION_TABLES if t.priority == priority]
+            group = [t for t in _FAILSAFE_TABLES if t.priority == priority]
             group_label = ", ".join(t.failsafe_label for t in group)
             capped_early = False
 
@@ -1329,7 +1339,7 @@ class DatabaseService(Service):
             if capped_early:
                 # This tier is still over its per-cycle iteration cap with the database still
                 # over the limit — stop here rather than advancing to a lower-priority (more
-                # valuable) tier. Advancing would let app/log data get deleted while this
+                # valuable) tier. Advancing would let app-tier data get deleted while this
                 # higher-priority tier still has a large backlog of its own, defeating the
                 # priority ordering for exactly the high-volume scenario it exists to handle.
                 # The next hourly cycle starts again from the lowest priority number, so this

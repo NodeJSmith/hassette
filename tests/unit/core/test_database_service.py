@@ -13,6 +13,7 @@ import pytest
 
 # Underscore-prefixed names below are intentional test-only reaches into module internals.
 from hassette.core.database_service import (
+    _FAILSAFE_TABLES,
     _RETENTION_TABLES,
     DatabaseService,
     RetentionTarget,
@@ -499,6 +500,27 @@ def test_retention_tables_priority_ordering() -> None:
         < by_label["app executions"].priority
         < by_label["log records"].priority
     )
+
+
+def test_failsafe_tables_excludes_exempt_targets() -> None:
+    """The size failsafe operates on _FAILSAFE_TABLES, which drops failsafe_exempt targets.
+
+    log_records is structurally tiny next to executions, so deleting it reclaims almost nothing
+    while destroying the data most needed to diagnose whatever filled the database.
+    """
+    assert "log_records" not in {t.table for t in _FAILSAFE_TABLES}
+    assert [t.failsafe_label for t in _FAILSAFE_TABLES] == [
+        "framework executions",
+        "blocking events",
+        "app executions",
+    ]
+
+
+def test_retention_tables_still_manages_exempt_targets() -> None:
+    """Exemption is failsafe-only — age-based retention still covers log_records."""
+    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
+    assert by_label["log records"].failsafe_exempt is True
+    assert all(not t.failsafe_exempt for label, t in by_label.items() if label != "log records")
 
 
 def test_retention_target_timestamp_columns() -> None:

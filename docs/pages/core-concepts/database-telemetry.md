@@ -34,7 +34,7 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 | `path` | path or null | `null` | Location of the SQLite database file. When null, Hassette stores the database at `{data_dir}/hassette.db` (`~/.local/share/hassette/v0/hassette.db` on Linux). |
 | `retention_days` | integer | `7` | Days of app-tier execution records to retain. Records older than this value are deleted automatically. Minimum: 1. |
 | `framework_retention_days` | integer | `1` | Days of framework-tier execution records to retain. Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) run far more often than app handlers, so they get a shorter window. Must be `<= retention_days`. |
-| `max_size_mb` | float | `500` | Maximum database size in megabytes. When exceeded, the oldest records are deleted in batches, highest-volume tier first: framework executions, then blocking events, then app executions, then log records. A value of `0` disables the size limit. |
+| `max_size_mb` | float | `500` | Maximum database size in megabytes. When exceeded, the oldest records are deleted in batches, highest-volume tier first: framework executions, then blocking events, then app executions. Log records are never deleted by this failsafe — only by `logging.log_retention_days`. A value of `0` disables the size limit. |
 
 ??? note "Advanced: queue, interval, and failsafe tuning"
     The remaining `[hassette.database]` fields tune internals. They rarely need changing; the symptoms below name the cases that do.
@@ -55,7 +55,9 @@ Time-based retention deletes from four targets independently: framework-tier exe
 
 Retired listener and job registrations are cleaned up separately, after every one of the four targets above has fully cleared its own cutoff window for the current cycle. If any target fails or leaves a backlog past the per-cycle batch cap, the registration cleanup is skipped for that cycle and retried on the next one — this prevents deleting a registration whose child execution records have not actually been fully removed yet.
 
-Size-based retention runs after time-based retention. When the total database size (including WAL files) exceeds `max_size_mb`, the oldest records are deleted in priority order: framework executions first, then blocking events, then app executions, then log records.
+Size-based retention runs after time-based retention. When the total database size (including WAL files) exceeds `max_size_mb`, the oldest records are deleted in priority order: framework executions first, then blocking events, then app executions.
+
+Log records are exempt from this failsafe entirely — they are only ever deleted by the time-based pass, on `logging.log_retention_days`. The table is a rounding error next to executions, so deleting it reclaims almost no space while destroying the records most needed to work out what filled the database in the first place.
 
 A tier fully drains before the next tier starts — as long as its deletes succeed. If a tier hits its per-cycle iteration cap with records still remaining, the run stops there for this cycle instead of touching lower-priority tiers; the next hourly run retries the capped tier first. A DELETE, commit, or vacuum failure marks that one tier incomplete instead and moves on to the next tier, so a transient error on one tier doesn't block the whole cycle — the failed tier retries next hour. This means a higher-priority backlog can be left behind while lower-priority data is deleted, but only when that tier's own processing failed; a tier that hits the iteration cap never yields to a lower-priority one. Deletion continues until the database is back under the limit or every tier has drained, capped, or been skipped.
 

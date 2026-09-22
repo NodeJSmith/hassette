@@ -605,9 +605,9 @@ class TestRetentionCleanup:
 
 
 class TestSizeFailsafe:
-    """Priority ordering per ``_RETENTION_TABLES``'s restructure: framework executions (1) <
-    blocking events (2) < app executions (3) < log records (4). Execution records are now the
-    highest-priority (deleted-first) group, not log records — see design/specs/110-retention-overhaul.
+    """Priority ordering per ``_FAILSAFE_TABLES``: framework executions (1) < blocking events (2)
+    < app executions (3). ``log_records`` is ``failsafe_exempt`` and never appears in this chain
+    at all — it expires only through age-based retention — see design/specs/110-retention-overhaul.
     The DELETE queries filter by ``source_tier`` inside the inner SELECT (when a target declares
     one), so each tier's own oldest-N rows are targeted rather than the globally-oldest N rows
     filtered down afterward.
@@ -668,39 +668,31 @@ class TestSizeFailsafe:
         exec_count = (await cursor.fetchone())[0]
         assert exec_count < 5  # some deleted
 
-    async def test_size_failsafe_proceeds_to_log_records_if_execution_deletion_insufficient(
+    async def test_size_failsafe_keeps_log_records_when_execution_deletion_insufficient(
         self,
         db: aiosqlite.Connection,
         db_service_writer: DatabaseService,
-        mock_hassette_for_db: MagicMock,
         retention_service: DatabaseService,
+        mock_hassette_for_db: MagicMock,
     ) -> None:
-        """If deleting executions can't bring size under limit, log_records are also deleted.
+        """Draining every failsafe tier without getting under the limit still leaves
+        ``log_records`` fully intact — the exemption is absolute, not a last resort.
 
-        Mock sizing: draining executions (priorities 1 and 3) exhausts the table but the DB
-        remains over limit, so the failsafe proceeds to delete log_records (priority 4).
+        The table is a rounding error next to ``executions``, so deleting it reclaims almost
+        nothing while destroying the records most needed to diagnose what filled the database.
         """
-        # Seed a small number of executions (all get deleted but still over limit)
         await self.seed_both_tables(db, db_service_writer, log_count=5, exec_count=2)
 
         mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        # Never under the limit — every failsafe tier drains and the run still can't recover.
+        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
-        calls = 0
-
-        def mock_size() -> float:
-            nonlocal calls
-            calls += 1
-            if calls <= 5:
-                return 10.0
-            return 0.0
-
-        retention_service.get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
-        # log_records should have been deleted (execution deletion was insufficient)
+        cursor = await db.execute("SELECT COUNT(*) FROM executions")
+        assert (await cursor.fetchone())[0] == 0
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        log_remaining = (await cursor.fetchone())[0]
-        assert log_remaining < 5  # some deleted
+        assert (await cursor.fetchone())[0] == 5
 
     async def test_size_failsafe_scopes_delete_to_own_tier_not_globally_oldest(
         self,
@@ -772,7 +764,9 @@ class TestSizeFailsafe:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """When the DB stays over limit through every tier, deletion proceeds framework
-        executions -> blocking events -> app executions -> log records, in that order.
+        executions -> blocking events -> app executions, in that order, and stops there —
+        ``log_records`` is exempt, so the chain never reaches it however far over the limit
+        the database stays.
         """
         now = time.time()
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_FRAMEWORK)
@@ -809,7 +803,10 @@ class TestSizeFailsafe:
         # Each group's inner loop runs one extra (no-op) iteration after draining its rows, so
         # dedupe consecutive repeats while preserving first-seen order.
         unique_order = list(dict.fromkeys(delete_order))
-        assert unique_order == ["framework executions", "blocking events", "app executions", "log records"]
+        assert unique_order == ["framework executions", "blocking events", "app executions"]
+
+        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+        assert (await cursor.fetchone())[0] == 1
 
     async def test_size_failsafe_blocking_events_deleted_at_priority_two(
         self,
@@ -1195,6 +1192,8 @@ class TestSizeFailsafe:
         # probe instead of breaking early via group_deleted == 0.
         for i in range(20):
             await insert_tiered_execution(db, now - i, SOURCE_TIER_FRAMEWORK)
+        # A lower-priority tier the run can still reach after the framework tier's probe fails.
+        await insert_blocking_event(db, now - 1)
         await db.commit()
         await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
             [make_log_record_row(1, now - 1, "log")]
@@ -1211,12 +1210,15 @@ class TestSizeFailsafe:
             await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
         # The framework tier's probe failed and was skipped rather than the whole run aborting —
-        # the lower-priority log_records tier was still evaluated this cycle. It's left
+        # the lower-priority blocking-events tier was still evaluated this cycle. It's left
         # untouched (framework's own drain-then-confirm spent the entire shared budget) and
         # correctly reported as capped rather than silently skipped.
+        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
+        assert (await cursor.fetchone())[0] == 1
+        assert "Size failsafe blocking events capped at 2 iterations" in caplog.text
+        # The exempt table is never in the chain at all, capped or not.
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         assert (await cursor.fetchone())[0] == 1
-        assert "Size failsafe log records capped at 2 iterations" in caplog.text
 
         assert "Size failsafe stale-row probe failed for framework executions" in caplog.text
         # A probe failure is not a genuine full-tier drain — must not count as exhaustion.
@@ -1245,6 +1247,8 @@ class TestSizeFailsafe:
 
         now = time.time()
         await insert_tiered_execution(db, now - 1, SOURCE_TIER_FRAMEWORK)
+        # A lower-priority tier the run must still reach after framework's commit fails.
+        await insert_blocking_event(db, now - 1)
         await db.commit()
         await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
             [make_log_record_row(1, now - 1, "log")]
@@ -1268,9 +1272,12 @@ class TestSizeFailsafe:
         with caplog.at_level(logging.INFO):
             await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
-        # The lower-priority log_records tier still ran despite framework's commit failure.
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+        # The lower-priority blocking-events tier still ran despite framework's commit failure.
+        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
         assert (await cursor.fetchone())[0] == 0
+        # The exempt table is untouched regardless.
+        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+        assert (await cursor.fetchone())[0] == 1
 
         assert "Size failsafe commit failed for framework executions" in caplog.text
         assert "Size failsafe stopped early" in caplog.text

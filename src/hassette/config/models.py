@@ -64,7 +64,8 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Number of days to retain framework-tier execution records. Must be <= retention_days."""
 
     max_size_mb: float = Field(default=500, ge=0)
-    """Maximum database file size in MB. When exceeded, oldest execution records are deleted.
+    """Maximum database file size in MB. When exceeded, oldest execution and blocking-event
+    records are deleted; log records are exempt and expire only on ``logging.log_retention_days``.
     0 disables the size failsafe."""
 
     migration_timeout_seconds: int = Field(default=120, ge=10)
