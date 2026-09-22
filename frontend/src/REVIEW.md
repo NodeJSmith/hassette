@@ -1,19 +1,22 @@
 # REVIEW.md — frontend/src/
 
 ## Schema Propagation Chain
-After adding a field to a `BaseModel` in `src/hassette/web/models.py`, does the
-full chain complete: `scripts/export_schemas.py` updates `frontend/openapi.json`
-and `frontend/ws-schema.json`, then `npm run types` regenerates
-`frontend/src/api/generated-types.ts` and `npm run ws-types` regenerates
-`frontend/src/api/ws-types.ts`? A field absent from the generated TS type is
-invisible to the frontend.
+The REST and WebSocket schemas are independent: `build_openapi_schema()` derives
+`frontend/openapi.json` from FastAPI routes, while `build_ws_schema()` derives
+`frontend/ws-schema.json` from `WsServerMessage`. When a new field is added to a
+response model in `src/hassette/web/models.py`, does the matching transport's
+chain complete? REST: `scripts/export_schemas.py` → `npm run types` →
+`frontend/src/api/generated-types.ts`. WS: `scripts/export_schemas.py` →
+`npm run ws-types` → `frontend/src/api/ws-types.ts` and separately
+`npm run validators` → `frontend/src/api/ws-validator.generated.ts`.
 
 ## WS Message Handler Completeness
-`frontend/src/hooks/use-websocket.ts` dispatches on `message.type` to update the
-Zustand store in `frontend/src/state/store.ts`. When a new `WsServerMessage`
-variant is added to `src/hassette/web/models.py`, does `use-websocket.ts` have a
-handler branch for it, and does `store.ts` have matching state and actions? An
-unhandled type is silently dropped.
+`frontend/src/hooks/use-websocket.ts` dispatches on `message.type` with an
+exhaustive `never` check at the end. When a new concrete `WsServerMessage`
+variant (with a literal `type` field) is added to `src/hassette/web/models.py`,
+does `use-websocket.ts` have a handler branch for it? Not every variant needs
+Zustand state — some trigger React Query invalidation instead — but every
+variant needs a dispatch branch or the `never` check will fail at compile time.
 
 ## Query Key and Endpoint Consistency
 `frontend/src/lib/query-keys.ts` defines React Query cache keys, and
@@ -24,14 +27,9 @@ won't be invalidated by `frontend/src/hooks/use-query-invalidator.ts`'s
 WS-driven cache invalidation, causing stale data.
 
 ## Live-Status Overlay Sourcing
-Components that display app or handler status should read from the Zustand
-live-status overlay in `frontend/src/state/store.ts`, not from the cached
-manifest snapshot returned by the initial REST fetch. Does a new or modified
-status display read from the overlay, or does it show stale data that only
-updates on a full page refresh?
-
-## WS Validator Coverage
-`frontend/src/api/ws-validator.generated.ts` is compiled from `ws-schema.json`.
-When the WS schema adds a new message type, does `frontend/src/api/ws-validator.ts`
-(the hand-written wrapper) correctly reject unknown types, or does validation
-silently pass them through to `use-websocket.ts`?
+The Zustand overlay in `frontend/src/state/store.ts` holds live app and service
+status (`appStatus`, `serviceStatus`, `executionCompleted`), not handler or job
+status. Components that display app or service status should read from the
+overlay, not the cached manifest snapshot. Handler and job data refreshes via
+React Query invalidation instead. Does a new or modified app/service status
+display read from the overlay?

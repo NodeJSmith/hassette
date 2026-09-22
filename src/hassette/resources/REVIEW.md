@@ -7,19 +7,19 @@ Does this catch a lifecycle hook that spawns a new task (via `task_bucket.spawn(
 which then calls back into `initialize()` or `shutdown()` on the same resource?
 That spawn runs in a different task, so the direct task check would miss it.
 
-## Shutdown Coordinator and Report Integrity
-When `_force_terminal()` in `src/hassette/resources/base.py` cancels
-`_shutdown_task`, the cancellation is absorbed only if `_teardown_report` was
-already stored. Does every path through `_run_shutdown_coordinator()` in
-`src/hassette/resources/lifecycle.py` store its report *before* any suspension
-point where `_force_terminal()`'s cancellation could land?
+## Force-Terminal Report Storage
+`_force_terminal()` in `src/hassette/resources/base.py` stores a teardown report
+(lines 379-385) before cancelling `_shutdown_task`. The coordinator cannot store
+a report before the shutdown work that produces it. Does `_force_terminal()`
+always store its report before issuing the cancellation, and does the
+coordinator merge against that report rather than assuming it owns all storage?
 
-## Teardown Report Merge Ordering
-`merge_teardown_reports()` in `src/hassette/resources/teardown.py` is called from
-both `_run_post_hook_shutdown_stage()` and `_run_shutdown_coordinator()`. When
-`_force_terminal()` stores a report concurrently, is the merge commutative and
-idempotent — can `TeardownCause.FORCED_TERMINAL` appear twice if both paths
-record it independently?
+## Teardown Report Merge Idempotency
+`merge_teardown_reports()` in `src/hassette/resources/teardown.py` deduplicates
+causes while preserving first-seen order — it is idempotent but intentionally
+non-commutative. Does a double-merge from `_run_post_hook_shutdown_stage()` and
+`_run_shutdown_coordinator()` produce duplicate `TeardownCause` entries, or does
+deduplication keep each cause to one occurrence?
 
 ## Terminal-State Guard Completeness
 `handle_failed()` in `src/hassette/resources/lifecycle.py` silently returns when
