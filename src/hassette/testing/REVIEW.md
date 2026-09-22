@@ -17,7 +17,8 @@ recording calls, returning seed data) but relies on the generic fallback will
 raise at runtime instead of providing useful test behavior.
 
 ## Factory Visibility
-If a new factory is added to `src/hassette/testing/_factories.py`, is it listed
-in `__all__` in `src/hassette/testing/__init__.py`? An unlisted factory is
-importable from the private module but invisible from the public
-`hassette.testing` namespace, causing inconsistent discovery.
+If a new *public* factory is added to `src/hassette/testing/_factories.py`, is
+it listed in `__all__` in `src/hassette/testing/__init__.py`? Private helpers
+(e.g. `create_hass_event()`) are intentionally absent. A public factory that's
+missing from `__all__` is importable from the private module but invisible from
+the `hassette.testing` namespace, causing inconsistent discovery.
