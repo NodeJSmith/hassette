@@ -17,7 +17,7 @@ export const TIER_OPTIONS: readonly { value: TierFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "app", label: "Apps" },
   { value: "framework", label: "Framework" },
-] as const;
+];
 
 type Level = (typeof LEVELS)[number];
 
@@ -63,13 +63,11 @@ export function getLogLevelStyle(level: string): LogLevelStyle | undefined {
   return LOG_LEVEL_STYLES[level as Level];
 }
 
-export const LEVEL_INDEX: Record<Level, number> = {
-  DEBUG: 0,
-  INFO: 1,
-  WARNING: 2,
-  ERROR: 3,
-  CRITICAL: 4,
-};
+// Derived from LEVELS so sort ordering can never disagree with the min-level filtering
+// in use-log-filters.ts, which reads the same ordering via LEVELS.indexOf().
+export const LEVEL_INDEX: Record<Level, number> = Object.fromEntries(
+  LEVELS.map((level, index) => [level, index]),
+) as Record<Level, number>;
 
 export const LEVEL_ABBREV: Record<Level, string> = {
   DEBUG: "D",
@@ -79,13 +77,19 @@ export const LEVEL_ABBREV: Record<Level, string> = {
   CRITICAL: "C",
 };
 
-export const LEVEL_OPTIONS: { value: LevelFilter; label: string }[] = [
-  { value: "", label: "All levels" },
-  { value: "DEBUG", label: "DEBUG+" },
-  { value: "INFO", label: "INFO+" },
-  { value: "WARNING", label: "WARNING+" },
-  { value: "ERROR", label: "ERROR+" },
-  { value: "CRITICAL", label: "CRITICAL only" },
+// Labels are non-uniform ("CRITICAL only" vs "<LEVEL>+"), so they stay literal here while
+// LEVELS supplies the ordering and Record<Level, string> supplies exhaustiveness.
+const LEVEL_OPTION_LABELS: Record<Level, string> = {
+  DEBUG: "DEBUG+",
+  INFO: "INFO+",
+  WARNING: "WARNING+",
+  ERROR: "ERROR+",
+  CRITICAL: "CRITICAL only",
+};
+
+export const LEVEL_OPTIONS: readonly { value: LevelFilter; label: string }[] = [
+  { value: ALL_LEVELS, label: "All levels" },
+  ...LEVELS.map((level) => ({ value: level, label: LEVEL_OPTION_LABELS[level] })),
 ];
 
 export const COLUMNS: LogColumnMeta[] = [
@@ -159,7 +163,7 @@ export const COLUMN_MAP: Record<ColumnId, LogColumnMeta> = Object.fromEntries(CO
   LogColumnMeta
 >;
 
-export const VALID_SORT_COLUMNS: ReadonlySet<string> = new Set<string>([
+const VALID_SORT_COLUMNS: ReadonlySet<LogSortKey | "source"> = new Set<LogSortKey | "source">([
   "timestamp",
   "level",
   "app",
@@ -170,7 +174,10 @@ export const VALID_SORT_COLUMNS: ReadonlySet<string> = new Set<string>([
 
 export function resolveSortKey(raw: string): LogSortKey {
   if (raw === "source") return "function";
-  return VALID_SORT_COLUMNS.has(raw) ? (raw as LogSortKey) : "timestamp";
+  // The cast only satisfies has() against the narrowed set type; the membership check
+  // below is what actually proves raw is a real sort key.
+  const candidate = raw as LogSortKey;
+  return VALID_SORT_COLUMNS.has(candidate) ? candidate : "timestamp";
 }
 
 export const DEFAULT_COLUMNS_GLOBAL: ColumnId[] = [
