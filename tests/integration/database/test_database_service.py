@@ -658,8 +658,9 @@ async def test_run_size_failsafe_enqueues_check_size_failsafe(initialized_servic
     assert initialized_service._consecutive_size_triggers == 0
 
 
-async def test_run_size_failsafe_returns_early_when_db_is_none(initialized_service: DatabaseService) -> None:
-    """run_size_failsafe() is a no-op when _db is None (never initialized)."""
+@pytest.mark.parametrize("method_name", ["run_size_failsafe", "run_retention_cleanup"])
+async def test_cleanup_returns_false_when_db_is_none(initialized_service: DatabaseService, method_name: str) -> None:
+    """Both cleanups are a no-op returning False when _db is None (never initialized)."""
     # Swap _db out (rather than closing it) so the real connection stays intact and gets
     # restored below -- the fixture's on_shutdown() teardown needs the real reference back
     # to close it; losing it here would orphan the aiosqlite connection until GC.
@@ -669,7 +670,8 @@ async def test_run_size_failsafe_returns_early_when_db_is_none(initialized_servi
         assert initialized_service._db_write_queue is not None
         qsize_before = initialized_service._db_write_queue.qsize()
 
-        await initialized_service.run_size_failsafe()
+        # False is the signal serve() reads to leave this cleanup's timer alone and retry.
+        assert await getattr(initialized_service, method_name)() is False
 
         # Nothing was enqueued -- the _db is None guard fired, proven by real observable queue state.
         assert initialized_service._db_write_queue.qsize() == qsize_before
@@ -677,16 +679,17 @@ async def test_run_size_failsafe_returns_early_when_db_is_none(initialized_servi
         initialized_service._db = real_db
 
 
-async def test_run_size_failsafe_returns_early_when_write_queue_is_none(
-    initialized_service: DatabaseService,
+@pytest.mark.parametrize("method_name", ["run_size_failsafe", "run_retention_cleanup"])
+async def test_cleanup_returns_false_when_write_queue_is_none(
+    initialized_service: DatabaseService, method_name: str
 ) -> None:
-    """run_size_failsafe() is a no-op when _db_write_queue is None (post-teardown)."""
+    """Both cleanups are a no-op returning False when _db_write_queue is None (post-teardown)."""
     initialized_service.detach_write_queue()
     assert initialized_service._db_write_queue is None
 
     # No mock needed: enqueue() raises queue_unavailable_error() when _db_write_queue is None,
-    # so a clean return here is the observable proof the early-return guard fired first.
-    await initialized_service.run_size_failsafe()
+    # so returning False here is the observable proof the early-return guard fired first.
+    assert await getattr(initialized_service, method_name)() is False
 
 
 @pytest.mark.parametrize(
