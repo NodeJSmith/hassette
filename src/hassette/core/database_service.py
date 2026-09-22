@@ -426,15 +426,18 @@ class DatabaseService(Service):
             if self._consecutive_heartbeat_failures >= config.max_consecutive_heartbeat_failures:
                 raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
 
+            # Each timer advances only on a successful enqueue: advancing it on a dropped
+            # cleanup would skip that cleanup for a whole interval, including under the
+            # sustained write-queue backlog it exists to relieve. A drop retries next tick.
             time_since_retention = time.monotonic() - last_retention_run
             if time_since_retention >= config.retention_interval_seconds:
-                await self.run_retention_cleanup()
-                last_retention_run = time.monotonic()
+                if await self.run_retention_cleanup():
+                    last_retention_run = time.monotonic()
 
             time_since_size_failsafe = time.monotonic() - last_size_failsafe_run
             if time_since_size_failsafe >= config.size_failsafe_interval_seconds:
-                await self.run_size_failsafe()
-                last_size_failsafe_run = time.monotonic()
+                if await self.run_size_failsafe():
+                    last_size_failsafe_run = time.monotonic()
 
     async def on_shutdown(self) -> None:
         """Drain the write queue, cancel the worker, then close the database connection."""
@@ -814,13 +817,11 @@ class DatabaseService(Service):
         await self.db.commit()
         self.logger.debug("Heartbeat updated for session %d", session_id)
 
-    async def run_retention_cleanup(self) -> None:
-        """Enqueue a retention cleanup; fire-and-forget via enqueue()."""
-        if self._db is None:
-            return
-        if self._db_write_queue is None:
-            return
-        self.enqueue(self._do_run_retention_cleanup())
+    async def run_retention_cleanup(self) -> bool:
+        """Enqueue a retention cleanup; False if dropped (no database, or write queue full)."""
+        if self._db is None or self._db_write_queue is None:
+            return False
+        return self.enqueue(self._do_run_retention_cleanup())
 
     async def _delete_target_batched(
         self, target: RetentionTarget, now: float, config: "HassetteConfig"
@@ -1314,13 +1315,11 @@ class DatabaseService(Service):
         else:
             self._consecutive_exhaustion_triggers = 0
 
-    async def run_size_failsafe(self) -> None:
-        """Enqueue a size failsafe check; fire-and-forget via enqueue()."""
-        if self._db is None:
-            return
-        if self._db_write_queue is None:
-            return
-        self.enqueue(self._check_size_failsafe())
+    async def run_size_failsafe(self) -> bool:
+        """Enqueue a size failsafe check; False if dropped (no database, or write queue full)."""
+        if self._db is None or self._db_write_queue is None:
+            return False
+        return self.enqueue(self._check_size_failsafe())
 
     async def _insert_log_records(self, records: list[dict]) -> None:
         """Batch-insert log records into the log_records table.
