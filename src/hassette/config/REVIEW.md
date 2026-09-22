@@ -15,11 +15,12 @@ field when it has different dev/prod semantics? `model_post_init` in
 only when the field is not in `model_fields_set` — a field with no dev default
 silently uses the production value in development.
 
-## SecretStr Leakage
-When a new nested group field is added to `src/hassette/config/models.py`, does
-`ExcludeExtrasMixin` in `src/hassette/config/classes.py` correctly exclude it from
-serialization (e.g. `model_dump` for the `GET /api/config` endpoint)? A
-`SecretStr` value in a nested group that isn't excluded leaks to the API.
+## Secret Masking
+When a new `SecretStr` field is added to `src/hassette/config/models.py`, is it
+covered by `build_config_view()` in `src/hassette/web/config_view.py`'s
+schema-driven masking (`format: password` / `writeOnly`)? `ExcludeExtrasMixin`
+only strips undeclared extras — declared secrets are masked by the config view
+builder, not by the mixin.
 
 ## json_schema_extra on Nested Groups
 If a new field in `src/hassette/config/models.py` carries a

@@ -17,8 +17,9 @@ unhandled type is silently dropped.
 
 ## Query Key and Endpoint Consistency
 `frontend/src/lib/query-keys.ts` defines React Query cache keys, and
-`frontend/src/api/endpoints.ts` defines the fetch functions. When a new endpoint
-is added, does it get a corresponding query key? A fetch without a query key
+`frontend/src/api/endpoints.ts` defines the fetch functions. When a new
+*cached query* endpoint is added (not a mutation or non-cached direct load),
+does it get a corresponding query key? A cached fetch without a query key
 won't be invalidated by `frontend/src/hooks/use-query-invalidator.ts`'s
 WS-driven cache invalidation, causing stale data.
 

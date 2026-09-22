@@ -1,12 +1,12 @@
 # REVIEW.md — scheduler/
 
-## Collision Parity with Bus
-Bus uses `_resolve_collision()` in `src/hassette/bus/bus.py` with `if_exists`
-supporting `error`/`skip`/`replace`. Scheduler uses `_add_job()` in
-`src/hassette/scheduler/scheduler.py` with the same three policies. Does
-`Job.matches()` in `src/hassette/scheduler/classes.py` compare the same set of
-configuration fields as `Listener.config_matches()` in
-`src/hassette/bus/listeners.py`, or has one grown new fields the other missed?
+## Collision Field Coverage
+Bus and scheduler both use `if_exists` collision policies (`error`/`skip`/
+`replace`). Does `Job.matches()` in `src/hassette/scheduler/classes.py` cover
+every logical constructor/options field for jobs (trigger, group, jitter, args,
+predicate), and does it stay aligned with `Job.diff_fields()`? Likewise, does
+`Listener.config_matches()` in `src/hassette/bus/listeners.py` cover its own
+set and stay aligned with its `diff_fields()`?
 
 ## EntityTime Registration-to-Listener Gap
 `_add_job_and_watch_entity()` in `src/hassette/scheduler/scheduler.py` registers

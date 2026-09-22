@@ -1,10 +1,11 @@
 # REVIEW.md — core/
 
-## Dependency Ordering
-Does the `wire_services()` construction order in `src/hassette/core/core.py` stay
-consistent with the `depends_on` declarations across all children? A new child
-appended before its dependency is constructed will fail the topological sort at
-startup.
+## Constructor-Injection Ordering
+`wire_services()` in `src/hassette/core/core.py` constructs all children before
+`topological_sort()` determines init order, so `depends_on` ordering is handled
+automatically. But some children receive constructor-injected instances (e.g.
+`executor=self._command_executor`). When a new child is added that takes an
+injected instance, is that instance constructed before the child that receives it?
 
 ## Bootstrap Latch Semantics
 `AppBootstrapCoordinator` in `src/hassette/core/app_bootstrap_coordinator.py` opens
@@ -17,8 +18,8 @@ cache `STALE`?
 Does every fatal-outcome path in `src/hassette/core/service_watcher.py`
 (`handle_restart_refused`, `handle_exhaustion`, `shutdown_if_crashed`, the
 fatal-error check in `restart_service`) record `fatal_shutdown_reason` *before*
-calling `request_shutdown()`? A path that requests shutdown first loses the
-reason.
+triggering shutdown (via `request_shutdown()` or `hassette.shutdown()`)? A path
+that triggers shutdown first loses the reason.
 
 ## Shutdown Wave Budget
 `_shutdown_children()` in `src/hassette/core/core.py` divides the remaining deadline
