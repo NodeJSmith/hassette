@@ -689,6 +689,80 @@ async def test_run_size_failsafe_returns_early_when_write_queue_is_none(
     await initialized_service.run_size_failsafe()
 
 
+@pytest.mark.parametrize(
+    ("method_name", "interval_field"),
+    [
+        ("run_size_failsafe", "size_failsafe_interval_seconds"),
+        ("run_retention_cleanup", "retention_interval_seconds"),
+    ],
+)
+async def test_serve_retries_cleanup_after_dropped_enqueue(
+    initialized_service: DatabaseService, method_name: str, interval_field: str
+) -> None:
+    """A dropped cleanup enqueue must not advance that cleanup's clock.
+
+    Regression: serve() reset last_retention_run/last_size_failsafe_run unconditionally, so an
+    enqueue dropped by a full write queue -- the sustained-backlog condition these cleanups
+    exist to relieve -- silently skipped the cleanup for a whole interval. The retry must land
+    on the next heartbeat tick instead. Both timers are parametrized here because each one
+    gates its own independent branch in serve().
+
+    The queue is made full by swapping the attribute rather than by flooding the real one:
+    db_write_worker() binds the queue object it drains when it starts, so the worker keeps
+    draining the original while this stand-in stays full for the whole test, making every
+    enqueue() hit QueueFull deterministically. update_heartbeat() is stubbed out for the same
+    reason -- it reaches the queue through submit(), which *blocks* on a full queue rather
+    than dropping, and would otherwise stall each loop iteration for the heartbeat write
+    timeout. The method under test is captured before it is patched so the spy still drives
+    the real enqueue path and observes its real return value.
+    """
+    svc = initialized_service
+    interval = 0.5
+
+    svc.hassette.config.database.heartbeat_interval_seconds = 0.01
+    # Park both timers out of reach, then bring only the one under test into range, so the
+    # other branch can't interleave calls into the queue or the recorded attempts.
+    svc.hassette.config.database.retention_interval_seconds = 3600
+    svc.hassette.config.database.size_failsafe_interval_seconds = 3600
+    setattr(svc.hassette.config.database, interval_field, interval)
+
+    real_queue = svc._db_write_queue
+    # A placeholder item so the maxsize=1 stand-in starts full. It is a coroutine because
+    # that is what the queue holds; closing it in the finally avoids a "coroutine was never
+    # awaited" warning, since nothing ever drains this queue.
+    parked = async_noop()
+    full_queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=1)
+    full_queue.put_nowait((parked, None))
+    svc._db_write_queue = full_queue
+
+    # (timestamp, enqueue result) per attempt -- one list keeps the pair structural.
+    calls: list[tuple[float, bool]] = []
+    real_method = getattr(svc, method_name)
+
+    async def spy() -> bool:
+        result = await real_method()
+        calls.append((time.monotonic(), result))
+        if len(calls) >= 2:
+            svc.shutdown_event.set()
+        return result
+
+    try:
+        with (
+            patch.object(svc, method_name, spy),
+            patch.object(svc, "update_heartbeat", AsyncMock()),
+        ):
+            await asyncio.wait_for(svc.serve(), timeout=10.0)
+    finally:
+        svc._db_write_queue = real_queue
+        parked.close()
+
+    # Both attempts were genuinely dropped by the full queue.
+    assert [result for _, result in calls] == [False, False]
+    # The second attempt came from the next heartbeat tick, not a full interval later. A
+    # timer that advanced on the dropped enqueue would put this gap at ~interval instead.
+    assert calls[1][0] - calls[0][0] < interval / 2
+
+
 async def test_force_terminal_closes_real_connections(initialized_service: DatabaseService) -> None:
     """_force_terminal() must stop the real aiosqlite connections synchronously.
 
