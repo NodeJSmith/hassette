@@ -17,7 +17,11 @@ from hassette.core.database_service import DatabaseService
 from hassette.logging_ import LogPersistenceHandler
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.factories import make_log_record
-from tests.support.helpers import DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS, DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX
+from tests.support.helpers import (
+    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
+    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+    SIZE_FAILSAFE_TRIGGER_MB,
+)
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
@@ -605,9 +609,9 @@ class TestRetentionCleanup:
 
 
 class TestSizeFailsafe:
-    """Priority ordering per ``_RETENTION_TABLES``'s restructure: framework executions (1) <
-    blocking events (2) < app executions (3) < log records (4). Execution records are now the
-    highest-priority (deleted-first) group, not log records — see design/specs/110-retention-overhaul.
+    """Priority ordering per ``_FAILSAFE_TABLES``: framework executions (1) < blocking events (2)
+    < app executions (3). ``log_records`` is ``failsafe_exempt`` and never appears in this chain
+    at all — it expires only through age-based retention.
     The DELETE queries filter by ``source_tier`` inside the inner SELECT (when a target declares
     one), so each tier's own oldest-N rows are targeted rather than the globally-oldest N rows
     filtered down afterward.
@@ -628,14 +632,14 @@ class TestSizeFailsafe:
             )
         await db.commit()
 
-    async def test_size_failsafe_deletes_execution_records_before_log_records(
+    async def test_size_failsafe_stops_deleting_executions_once_under_limit(
         self,
         db: aiosqlite.Connection,
         db_service_writer: DatabaseService,
         mock_hassette_for_db: MagicMock,
         retention_service: DatabaseService,
     ) -> None:
-        """Size failsafe deletes from executions (priority 1/3) before log_records (priority 4).
+        """The failsafe stops mid-drain as soon as the database is back under the limit.
 
         ``seed_both_tables`` inserts executions without an explicit ``source_tier``, so they
         fall in the default 'app' tier (priority 3) — the framework tier (priority 1) and
@@ -645,7 +649,7 @@ class TestSizeFailsafe:
         """
         await self.seed_both_tables(db, db_service_writer, log_count=10, exec_count=5)
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001  # tiny limit
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
         calls = 0
 
@@ -659,48 +663,33 @@ class TestSizeFailsafe:
         retention_service.get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
-        # log_records should NOT be touched (executions were sufficient)
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        log_count = (await cursor.fetchone())[0]
-        assert log_count == 10  # untouched
-
         cursor = await db.execute("SELECT COUNT(*) FROM executions")
-        exec_count = (await cursor.fetchone())[0]
-        assert exec_count < 5  # some deleted
+        assert (await cursor.fetchone())[0] < 5  # partially drained, then stopped
+        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+        assert (await cursor.fetchone())[0] == 10  # exempt, so intact here and in every scenario
 
-    async def test_size_failsafe_proceeds_to_log_records_if_execution_deletion_insufficient(
+    async def test_size_failsafe_keeps_log_records_when_execution_deletion_insufficient(
         self,
         db: aiosqlite.Connection,
         db_service_writer: DatabaseService,
         mock_hassette_for_db: MagicMock,
         retention_service: DatabaseService,
     ) -> None:
-        """If deleting executions can't bring size under limit, log_records are also deleted.
-
-        Mock sizing: draining executions (priorities 1 and 3) exhausts the table but the DB
-        remains over limit, so the failsafe proceeds to delete log_records (priority 4).
+        """Draining every failsafe tier without getting under the limit still leaves
+        ``log_records`` fully intact — the exemption is absolute, not a last resort.
         """
-        # Seed a small number of executions (all get deleted but still over limit)
         await self.seed_both_tables(db, db_service_writer, log_count=5, exec_count=2)
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+        # Never under the limit — every failsafe tier drains and the run still can't recover.
+        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
-        calls = 0
-
-        def mock_size() -> float:
-            nonlocal calls
-            calls += 1
-            if calls <= 5:
-                return 10.0
-            return 0.0
-
-        retention_service.get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
-        # log_records should have been deleted (execution deletion was insufficient)
+        cursor = await db.execute("SELECT COUNT(*) FROM executions")
+        assert (await cursor.fetchone())[0] == 0
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        log_remaining = (await cursor.fetchone())[0]
-        assert log_remaining < 5  # some deleted
+        assert (await cursor.fetchone())[0] == 5
 
     async def test_size_failsafe_scopes_delete_to_own_tier_not_globally_oldest(
         self,
@@ -732,7 +721,7 @@ class TestSizeFailsafe:
         await insert_blocking_event(db, now - 1)
         await db.commit()
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
         calls = 0
 
@@ -772,7 +761,8 @@ class TestSizeFailsafe:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """When the DB stays over limit through every tier, deletion proceeds framework
-        executions -> blocking events -> app executions -> log records, in that order.
+        executions -> blocking events -> app executions, in that order, and stops there —
+        the exempt ``log_records`` is never reached however far over the limit the DB stays.
         """
         now = time.time()
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_FRAMEWORK)
@@ -783,7 +773,7 @@ class TestSizeFailsafe:
             [make_log_record_row(1, now - 10, "log")]
         )
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
         original_execute = db.execute
         delete_order: list[str] = []
@@ -797,6 +787,8 @@ class TestSizeFailsafe:
             elif stripped.startswith("DELETE FROM blocking_events"):
                 delete_order.append("blocking events")
             elif stripped.startswith("DELETE FROM log_records"):
+                # Tripwire, not a live branch: log_records is failsafe_exempt, so reaching this
+                # means the exemption regressed and the unique_order assertion below will fail.
                 delete_order.append("log records")
             return await original_execute(sql, *args, **kwargs)
 
@@ -809,7 +801,10 @@ class TestSizeFailsafe:
         # Each group's inner loop runs one extra (no-op) iteration after draining its rows, so
         # dedupe consecutive repeats while preserving first-seen order.
         unique_order = list(dict.fromkeys(delete_order))
-        assert unique_order == ["framework executions", "blocking events", "app executions", "log records"]
+        assert unique_order == ["framework executions", "blocking events", "app executions"]
+
+        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+        assert (await cursor.fetchone())[0] == 1
 
     async def test_size_failsafe_blocking_events_deleted_at_priority_two(
         self,
@@ -826,7 +821,7 @@ class TestSizeFailsafe:
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_APP)
         await db.commit()
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
         calls = 0
 
@@ -866,8 +861,7 @@ class TestSizeFailsafe:
             [make_log_record_row(1, now - 10, "log")]
         )
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
-        # Always report over limit — every tier drains and the DB is still "too big".
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.WARNING):
@@ -914,8 +908,7 @@ class TestSizeFailsafe:
             [make_log_record_row(1, now - 1, "log")]
         )
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
-        # Never report under the limit — forces the framework tier to keep going until it hits
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         # the iteration cap instead of naturally draining and breaking out early.
         retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -979,8 +972,7 @@ class TestSizeFailsafe:
 
         monkeypatch.setattr(db, "execute", failing_framework_execute)
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
-        # Never report under the limit — forces the app-executions tier to keep going until it
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         # hits the iteration cap instead of naturally draining and breaking out early.
         retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -1030,9 +1022,9 @@ class TestSizeFailsafe:
             await insert_tiered_execution(db, now - i, SOURCE_TIER_FRAMEWORK)
         for i in range(2):
             await insert_blocking_event(db, now - i)
-        # App executions (priority 3) and log records (priority 4): seeded so an untouched
-        # count is provable, but must never be reached once the budget is spent on the two
-        # higher-priority tiers above.
+        # App executions (priority 3): seeded so an untouched count is provable, but must never
+        # be reached once the budget is spent on the two higher-priority tiers above. The log
+        # records below are seeded for the same reason, but survive by exemption, not by budget.
         for i in range(5):
             await insert_tiered_execution(db, now - i, SOURCE_TIER_APP)
         await db.commit()
@@ -1040,8 +1032,7 @@ class TestSizeFailsafe:
             [make_log_record_row(i, now - i, "log") for i in range(5)]
         )
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
-        # Never report under the limit — keeps every tier "over limit" for the whole run.
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.INFO):
@@ -1056,8 +1047,9 @@ class TestSizeFailsafe:
         cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
         assert (await cursor.fetchone())[0] == 0
 
-        # App executions and log records were never reached — the shared budget ran out
-        # before the run could advance past blocking events.
+        # App executions were never reached — the shared budget ran out before the run could
+        # advance past blocking events. Log records survive for the unrelated reason that they
+        # are exempt, so they would be intact here even with an unlimited budget.
         cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'app'")
         assert (await cursor.fetchone())[0] == 5
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
@@ -1099,7 +1091,7 @@ class TestSizeFailsafe:
         await insert_blocking_event(db, now - 2)
         await db.commit()
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.INFO):
@@ -1147,7 +1139,7 @@ class TestSizeFailsafe:
         await insert_blocking_event(db, now - 1)
         await db.commit()
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.INFO):
@@ -1195,13 +1187,14 @@ class TestSizeFailsafe:
         # probe instead of breaking early via group_deleted == 0.
         for i in range(20):
             await insert_tiered_execution(db, now - i, SOURCE_TIER_FRAMEWORK)
+        # A lower-priority tier the run can still reach after the framework tier's probe fails.
+        await insert_blocking_event(db, now - 1)
         await db.commit()
         await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
             [make_log_record_row(1, now - 1, "log")]
         )
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
-        # Never report under the limit — forces the framework tier's loop to run to completion.
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
         # Fail only the stale-row probe's SELECT, not the batched DELETE's inner subselect.
@@ -1211,12 +1204,15 @@ class TestSizeFailsafe:
             await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
         # The framework tier's probe failed and was skipped rather than the whole run aborting —
-        # the lower-priority log_records tier was still evaluated this cycle. It's left
+        # the lower-priority blocking-events tier was still evaluated this cycle. It's left
         # untouched (framework's own drain-then-confirm spent the entire shared budget) and
         # correctly reported as capped rather than silently skipped.
+        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
+        assert (await cursor.fetchone())[0] == 1
+        assert "Size failsafe blocking events capped at 2 iterations" in caplog.text
+        # The exempt table is never in the chain at all, capped or not.
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         assert (await cursor.fetchone())[0] == 1
-        assert "Size failsafe log records capped at 2 iterations" in caplog.text
 
         assert "Size failsafe stale-row probe failed for framework executions" in caplog.text
         # A probe failure is not a genuine full-tier drain — must not count as exhaustion.
@@ -1245,6 +1241,8 @@ class TestSizeFailsafe:
 
         now = time.time()
         await insert_tiered_execution(db, now - 1, SOURCE_TIER_FRAMEWORK)
+        # A lower-priority tier the run must still reach after framework's commit fails.
+        await insert_blocking_event(db, now - 1)
         await db.commit()
         await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
             [make_log_record_row(1, now - 1, "log")]
@@ -1262,15 +1260,18 @@ class TestSizeFailsafe:
 
         monkeypatch.setattr(db, "commit", failing_commit)
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.INFO):
             await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
-        # The lower-priority log_records tier still ran despite framework's commit failure.
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+        # The lower-priority blocking-events tier still ran despite framework's commit failure.
+        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
         assert (await cursor.fetchone())[0] == 0
+        # The exempt table is untouched regardless.
+        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
+        assert (await cursor.fetchone())[0] == 1
 
         assert "Size failsafe commit failed for framework executions" in caplog.text
         assert "Size failsafe stopped early" in caplog.text
@@ -1320,7 +1321,7 @@ class TestSizeFailsafe:
 
         monkeypatch.setattr(db, "commit", failing_commit)
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.INFO):
@@ -1358,7 +1359,7 @@ class TestSizeFailsafe:
         retention_service.hassette.config.database.size_failsafe_max_iterations = 2
         retention_service.hassette.config.database.size_failsafe_delete_batch = 2
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
         now = time.time()
         # Always report over limit — every run below stays "oversized" per the mocked size, so
@@ -1420,8 +1421,7 @@ class TestSizeFailsafe:
         await insert_tiered_execution(db, now - 10, SOURCE_TIER_APP)
         await db.commit()
 
-        mock_hassette_for_db.config.database.max_size_mb = 0.0001
-        # Always report over limit so the failsafe drives through every priority tier.
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
 
         original_execute = db.execute

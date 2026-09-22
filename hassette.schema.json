@@ -588,7 +588,7 @@
         },
         "max_size_mb": {
           "default": 500,
-          "description": "Maximum database file size in MB. When exceeded, oldest execution records are deleted.\n0 disables the size failsafe.",
+          "description": "Maximum database file size in MB. When exceeded, oldest execution and blocking-event\nrecords are deleted; log records are exempt and expire only on ``logging.log_retention_days``.\n0 disables the size failsafe.",
           "minimum": 0,
           "title": "Max Size Mb",
           "type": "number"

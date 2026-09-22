@@ -86,6 +86,9 @@ DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX = 500
 DB_HASSETTE_DATABASE_MAX_SIZE_MB = 0
 """``make_mock_hassette`` database size-limit override — 0 disables the size failsafe."""
 
+SIZE_FAILSAFE_TRIGGER_MB = 0.0001
+"""Tiny max_size_mb guaranteed to trigger the size failsafe on any non-empty DB."""
+
 DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS = 5
 """``make_mock_hassette`` lifecycle override — shorter than the production default (10s) for test speed."""
 
