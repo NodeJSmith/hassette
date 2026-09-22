@@ -17,7 +17,7 @@ export const TIER_OPTIONS: readonly { value: TierFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "app", label: "Apps" },
   { value: "framework", label: "Framework" },
-] as const;
+];
 
 type Level = (typeof LEVELS)[number];
 
@@ -63,13 +63,12 @@ export function getLogLevelStyle(level: string): LogLevelStyle | undefined {
   return LOG_LEVEL_STYLES[level as Level];
 }
 
-export const LEVEL_INDEX: Record<Level, number> = {
-  DEBUG: 0,
-  INFO: 1,
-  WARNING: 2,
-  ERROR: 3,
-  CRITICAL: 4,
-};
+// Derived from LEVELS so sort ordering can never disagree with the min-level filtering
+// in use-log-filters.ts, which reads the same ordering via LEVELS.indexOf(). The assertion
+// is sound because the keys come from LEVELS, which is also what Level is defined from.
+export const LEVEL_INDEX: Record<Level, number> = Object.fromEntries(
+  LEVELS.map((level, index) => [level, index]),
+) as Record<Level, number>;
 
 export const LEVEL_ABBREV: Record<Level, string> = {
   DEBUG: "D",
@@ -79,13 +78,19 @@ export const LEVEL_ABBREV: Record<Level, string> = {
   CRITICAL: "C",
 };
 
-export const LEVEL_OPTIONS: { value: LevelFilter; label: string }[] = [
-  { value: "", label: "All levels" },
-  { value: "DEBUG", label: "DEBUG+" },
-  { value: "INFO", label: "INFO+" },
-  { value: "WARNING", label: "WARNING+" },
-  { value: "ERROR", label: "ERROR+" },
-  { value: "CRITICAL", label: "CRITICAL only" },
+// Labels are non-uniform ("CRITICAL only" vs "<LEVEL>+"), so they stay literal here while
+// LEVELS supplies the ordering and Record<Level, string> supplies exhaustiveness.
+const LEVEL_OPTION_LABELS: Record<Level, string> = {
+  DEBUG: "DEBUG+",
+  INFO: "INFO+",
+  WARNING: "WARNING+",
+  ERROR: "ERROR+",
+  CRITICAL: "CRITICAL only",
+};
+
+export const LEVEL_OPTIONS: readonly { value: LevelFilter; label: string }[] = [
+  { value: ALL_LEVELS, label: "All levels" },
+  ...LEVELS.map((level) => ({ value: level, label: LEVEL_OPTION_LABELS[level] })),
 ];
 
 export const COLUMNS: LogColumnMeta[] = [
@@ -159,7 +164,9 @@ export const COLUMN_MAP: Record<ColumnId, LogColumnMeta> = Object.fromEntries(CO
   LogColumnMeta
 >;
 
-export const VALID_SORT_COLUMNS: ReadonlySet<string> = new Set<string>([
+// Constructed as Set<LogSortKey | "source"> so a typo in the entries is a compile error,
+// but annotated ReadonlySet<string> so has() accepts unvalidated input without a cast.
+const VALID_SORT_COLUMNS: ReadonlySet<string> = new Set<LogSortKey | "source">([
   "timestamp",
   "level",
   "app",
