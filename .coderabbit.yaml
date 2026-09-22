@@ -31,6 +31,11 @@ reviews:
         (new objects over mutation). External calls need explicit timeouts.
         Line length 120, Google-style docstrings.
 
+        Each subdirectory may contain a REVIEW.md with cross-cutting review
+        questions. When reviewing changes in a directory that has one, read
+        the REVIEW.md and answer each question against the code in this diff.
+        Report any question whose answer reveals a bug or contract violation.
+
     - path: "frontend/**"
       instructions: |
         React + TypeScript, Tailwind CSS v4. Use `className=` (not `class=`).
@@ -43,6 +48,10 @@ reviews:
         primitives from `@/components/ui` for standard controls instead of
         rebuilding them with raw markup. Generated type files
         (generated-types.ts, ws-types.ts) are not hand-edited.
+
+        frontend/src/REVIEW.md contains cross-cutting review questions. Read
+        it and answer each question against the code in this diff. Report any
+        question whose answer reveals a bug or contract violation.
 
     - path: "docs/**"
       instructions: |
