@@ -13,14 +13,12 @@ import pytest
 
 # Underscore-prefixed names below are intentional test-only reaches into module internals.
 from hassette.core.database_service import (
-    _FAILSAFE_TABLES,
-    _RETENTION_TABLES,
     DatabaseService,
-    RetentionTarget,
     _execute_failsafe_delete,
     _execute_target_delete,
     _WriteQueueItem,
 )
+from hassette.core.retention_targets import _FAILSAFE_TABLES, _RETENTION_TABLES, RetentionTarget
 from hassette.types.enums import ResourceStatus
 from tests.support.helpers import (
     DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,

@@ -3,8 +3,6 @@
 import asyncio
 import sqlite3
 import time
-from collections.abc import AsyncIterator
-from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -16,83 +14,7 @@ from hassette.core import database_service as database_service_module
 from hassette.core.database_service import DatabaseService
 from hassette.resources.lifecycle import compute_shutdown_budget
 from hassette.utils.aiosqlite_utils import connect_daemon
-from tests.support.helpers import (
-    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
-    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
-    async_noop,
-    seed_listener_for_fk,
-)
-from tests.support.mock_hassette import make_mock_hassette
-
-SIZE_FAILSAFE_TRIGGER_MB = 0.0001
-"""Tiny max_size_mb guaranteed to trigger the size failsafe on any non-empty DB."""
-
-
-async def count_rows(db: aiosqlite.Connection, table: str) -> int:
-    """Row count for ``table``. Only ever called with literal table names from this module."""
-    cursor = await db.execute(f"SELECT COUNT(*) FROM {table}")
-    row = await cursor.fetchone()
-    assert row is not None
-    return row[0]
-
-
-@pytest.fixture
-def mock_hassette_fresh(tmp_path: Path) -> AsyncMock:
-    """Create a mock Hassette with a fresh (empty) data_dir for migration-from-scratch tests."""
-    return make_mock_hassette(
-        sealed=False,
-        data_dir=tmp_path,
-        set_ready=False,
-        database={"telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX},
-        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
-    )
-
-
-@pytest.fixture
-def service(db_hassette: MagicMock) -> DatabaseService:
-    """Create a DatabaseService instance (not yet initialized)."""
-    return DatabaseService(db_hassette, parent=None)
-
-
-@pytest.fixture
-def fresh_service(mock_hassette_fresh: MagicMock) -> DatabaseService:
-    """Create a DatabaseService against a fresh (empty) data_dir — no pre-migrated DB."""
-    return DatabaseService(mock_hassette_fresh, parent=None)
-
-
-@pytest.fixture
-async def initialized_fresh_service(fresh_service: DatabaseService) -> AsyncIterator[DatabaseService]:
-    """Initialize a DatabaseService from scratch (runs real migrations) with a seeded session."""
-    await fresh_service.on_initialize()
-    try:
-        now = time.time()
-        cursor = await fresh_service.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (now, now),
-        )
-        fresh_service.hassette.session_id = cursor.lastrowid
-        await fresh_service.db.commit()
-        yield fresh_service
-    finally:
-        await fresh_service.on_shutdown()
-
-
-@pytest.fixture
-async def initialized_service(service: DatabaseService) -> AsyncIterator[DatabaseService]:
-    """Initialize a DatabaseService and create a session row for heartbeat tests."""
-    await service.on_initialize()
-    try:
-        # Manually create a session row so heartbeat/retention tests have a valid session_id
-        now = time.time()
-        cursor = await service.db.execute(
-            "INSERT INTO sessions (started_at, last_heartbeat_at, status) VALUES (?, ?, 'running')",
-            (now, now),
-        )
-        service.hassette.session_id = cursor.lastrowid
-        await service.db.commit()
-        yield service
-    finally:
-        await service.on_shutdown()
+from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, async_noop, seed_listener_for_fk
 
 
 async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseService) -> None:
@@ -689,48 +611,6 @@ async def test_size_failsafe_logs_warning_on_exhaustion(initialized_service: Dat
 
     await initialized_service._check_size_failsafe()
     assert initialized_service._consecutive_exhaustion_triggers == 2
-
-
-async def test_size_failsafe_leaves_log_records_untouched(initialized_service: DatabaseService) -> None:
-    """log_records is exempt from the size failsafe: it drains executions and blocking_events
-    down to nothing while the DB is over the limit, but never deletes a log record.
-    """
-    session_id = initialized_service.hassette.session_id
-    db = initialized_service.db
-
-    await seed_listener_for_fk(db)
-
-    now = time.time()
-    for i in range(10):
-        ts = now - (100 - i)
-        await db.execute(
-            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status,"
-            " source_tier) VALUES ('handler', 1, ?, ?, 10.0, 'success', ?)",
-            (session_id, ts, "framework" if i % 2 else "app"),
-        )
-        await db.execute(
-            "INSERT INTO blocking_events (session_id, tier, detected_ts, source_tier)"
-            " VALUES (?, 'monkeypatch', ?, 'app')",
-            (session_id, ts),
-        )
-        # Deliberately the oldest rows in the database — an unexempt failsafe would delete
-        # these first within their own tier, so surviving is not an artifact of recency.
-        await db.execute(
-            "INSERT INTO log_records (seq, timestamp, level, logger_name, message)"
-            " VALUES (?, ?, 'INFO', 'test', 'hello')",
-            (i, ts - 1000),
-        )
-    await db.commit()
-
-    initialized_service.hassette.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-
-    await initialized_service._check_size_failsafe()
-
-    # Every failsafe-managed tier drained (the DB stays over this tiny limit regardless).
-    assert await count_rows(db, "executions") == 0
-    assert await count_rows(db, "blocking_events") == 0
-    # ...but the exempt table is fully intact.
-    assert await count_rows(db, "log_records") == 10
 
 
 async def test_startup_size_failsafe_check_is_bounded_by_timeout(

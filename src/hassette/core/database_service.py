@@ -2,8 +2,7 @@ import asyncio
 import sqlite3
 import time
 import typing
-from collections.abc import Callable, Coroutine
-from dataclasses import dataclass
+from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -11,12 +10,19 @@ import aiosqlite
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.migration_runner import _collect_migrations, _read_user_version, run_migrations
+from hassette.core.retention_targets import (
+    _FAILSAFE_TABLES,
+    _RETENTION_TABLES,
+    RetentionTarget,
+    build_age_where,
+    build_tier_where,
+)
 from hassette.exceptions import SchemaVersionError
 from hassette.resources.lifecycle import create_lifecycle_task, hooks_pool_remaining, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
-from hassette.types.types import LOG_LEVEL_TYPE, SourceTier
+from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
 
 if typing.TYPE_CHECKING:
@@ -116,86 +122,6 @@ class _RetentionBatchError(Exception):
         self.partial_deleted = partial_deleted
 
 
-@dataclass(frozen=True)
-class RetentionTarget:
-    """Declarative specification for a table managed by retention cleanup and size failsafe."""
-
-    table: str
-    timestamp_col: str
-    priority: int
-    retention_days_getter: Callable[["HassetteConfig"], int]
-    failsafe_label: str
-    source_tier: SourceTier | None = None
-    """Restrict this target to rows of one source tier. ``None`` means no tier filter (the
-    target's table has no ``source_tier`` column, or every row in it should be managed together)."""
-    failsafe_exempt: bool = False
-    """Exclude this target from the size failsafe's emergency deletion, leaving it managed by
-    age-based retention alone. Set for tables that are structurally small relative to the size
-    limit — deleting them reclaims almost nothing while destroying the data most needed to
-    diagnose whatever caused the overage."""
-
-
-_RETENTION_TABLES: list[RetentionTarget] = [
-    RetentionTarget(
-        table="executions",
-        timestamp_col="execution_start_ts",
-        priority=1,
-        retention_days_getter=lambda cfg: cfg.database.framework_retention_days,
-        failsafe_label="framework executions",
-        source_tier="framework",
-    ),
-    RetentionTarget(
-        table="blocking_events",
-        timestamp_col="detected_ts",
-        priority=2,
-        retention_days_getter=lambda cfg: cfg.database.retention_days,
-        failsafe_label="blocking events",
-    ),
-    RetentionTarget(
-        table="executions",
-        timestamp_col="execution_start_ts",
-        priority=3,
-        retention_days_getter=lambda cfg: cfg.database.retention_days,
-        failsafe_label="app executions",
-        source_tier="app",
-    ),
-    RetentionTarget(
-        table="log_records",
-        timestamp_col="timestamp",
-        priority=4,
-        retention_days_getter=lambda cfg: cfg.logging.log_retention_days,
-        failsafe_label="log records",
-        failsafe_exempt=True,
-    ),
-]
-
-_FAILSAFE_TABLES: list[RetentionTarget] = [t for t in _RETENTION_TABLES if not t.failsafe_exempt]
-"""Subset of :data:`_RETENTION_TABLES` the size failsafe may delete from, in the same order."""
-
-
-def _build_tier_where(target: RetentionTarget) -> tuple[str, list[Any]]:
-    """Build a ``WHERE source_tier = ?`` clause (with trailing space) for ``target``, or an
-    empty clause when it carries no tier filter. Shared by the size failsafe's delete and its
-    stale-row probe, which filter by tier alone (no age cutoff).
-    """
-    if target.source_tier:
-        return "WHERE source_tier = ? ", [target.source_tier]
-    return "", []
-
-
-def _build_age_where(target: RetentionTarget, cutoff: float) -> tuple[str, list[Any]]:
-    """Build the ``WHERE ... < cutoff`` clause (plus tier filter, when set) for ``target``.
-
-    Shared by the age-based retention delete and its stale-row probe.
-    """
-    where = f"{target.timestamp_col} < ?"
-    params: list[Any] = [cutoff]
-    if target.source_tier:
-        where = f"source_tier = ? AND {where}"
-        params.insert(0, target.source_tier)
-    return where, params
-
-
 async def _execute_target_delete(
     db: aiosqlite.Connection,
     target: RetentionTarget,
@@ -208,7 +134,7 @@ async def _execute_target_delete(
 
     Does not manage transactions -- the caller owns BEGIN/commit/rollback.
     """
-    where, params = _build_age_where(target, cutoff)
+    where, params = build_age_where(target, cutoff)
     cursor = await db.execute(
         f"DELETE FROM {target.table} WHERE id IN (SELECT id FROM {target.table} WHERE {where} LIMIT ?)",
         [*params, batch_limit],
@@ -227,7 +153,7 @@ async def _execute_failsafe_delete(
 
     Does not manage transactions -- the caller owns commit.
     """
-    where_clause, params = _build_tier_where(target)
+    where_clause, params = build_tier_where(target)
     cursor = await db.execute(
         f"DELETE FROM {target.table} WHERE id IN "
         f"(SELECT id FROM {target.table} {where_clause}ORDER BY {target.timestamp_col} ASC LIMIT ?)",
@@ -938,7 +864,7 @@ class DatabaseService(Service):
             # the final full batch may have removed the last one. Check before declaring the
             # target incomplete; an unnecessary "incomplete" here skips otherwise-safe
             # parent-guard cleanup and emits a false backlog warning for the next hour.
-            where, params = _build_age_where(target, cutoff)
+            where, params = build_age_where(target, cutoff)
             try:
                 stale_cursor = await self.db.execute(f"SELECT 1 FROM {target.table} WHERE {where} LIMIT 1", params)
                 stale_row = await stale_cursor.fetchone()
@@ -1303,7 +1229,7 @@ class DatabaseService(Service):
                 # because of other, lower-priority tiers. Probe before declaring this tier
                 # capped; an unnecessary cap here would skip those other tiers unnecessarily.
                 for target in group:
-                    where_clause, stale_params = _build_tier_where(target)
+                    where_clause, stale_params = build_tier_where(target)
                     try:
                         stale_cursor = await db.execute(
                             f"SELECT 1 FROM {target.table} {where_clause}LIMIT 1", stale_params
