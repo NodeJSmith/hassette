@@ -7,12 +7,14 @@ the re-export breaks end-user test code silently — the import fails at test
 collection time, not at a type-check boundary.
 
 ## RecordingApi Coverage
-`RecordingApi` in `src/hassette/testing/recording_api.py` is intentionally
-partial — unsupported live-HA methods raise `NotImplementedError` by design.
-When a new `Api` method is added in `src/hassette/api/api.py`, is it either
-deliberately implemented in `RecordingApi` or explicitly stubbed with
-`NotImplementedError`? A method that falls through to the base class without
-either treatment produces confusing failures in harness tests.
+`RecordingApi` in `src/hassette/testing/recording_api.py` inherits `Resource`
+(not `Api`) and has a `__getattr__` fallback that raises `NotImplementedError`
+for any unknown public attribute. When a new `Api` method is added in
+`src/hassette/api/api.py`, is it either deliberately implemented in
+`RecordingApi`, explicitly stubbed, or correctly handled by the generic
+`__getattr__` fallback? A method that needs harness-specific behavior (e.g.
+recording calls, returning seed data) but relies on the generic fallback will
+raise at runtime instead of providing useful test behavior.
 
 ## Factory Visibility
 If a new factory is added to `src/hassette/testing/_factories.py`, is it listed

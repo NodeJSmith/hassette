@@ -18,13 +18,13 @@ does `use-websocket.ts` have a handler branch for it? Not every variant needs
 Zustand state — some trigger React Query invalidation instead — but every
 variant needs a dispatch branch or the `never` check will fail at compile time.
 
-## Query Key and Endpoint Consistency
-`frontend/src/lib/query-keys.ts` defines React Query cache keys, and
-`frontend/src/api/endpoints.ts` defines the fetch functions. When a new
-*cached query* endpoint is added (not a mutation or non-cached direct load),
-does it get a corresponding query key? A cached fetch without a query key
-won't be invalidated by `frontend/src/hooks/use-query-invalidator.ts`'s
-WS-driven cache invalidation, causing stale data.
+## WS-Invalidated Cache Key Consistency
+`frontend/src/lib/query-keys.ts` defines shared React Query cache keys, and
+`frontend/src/hooks/use-query-invalidator.ts` wires WS signals to invalidate
+them. When a new endpoint is added whose cached data should refresh after a
+WebSocket event, does it get a shared key in `query-keys.ts` and a
+corresponding invalidation entry? Immutable or component-local caches (e.g.
+`execution-detail`) that don't need WS-driven refresh are fine without one.
 
 ## Live-Status Overlay Sourcing
 The Zustand overlay in `frontend/src/state/store.ts` holds live app and service

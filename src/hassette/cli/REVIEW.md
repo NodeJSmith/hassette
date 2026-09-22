@@ -2,9 +2,10 @@
 
 ## Response Model Deserialization
 Does `HassetteCLIClient` in `src/hassette/cli/client.py` correctly deserialize
-every response model it uses from `src/hassette/web/models.py`? A renamed or
-restructured response model breaks the CLI silently — Pydantic swallows extra
-fields and drops missing ones without raising.
+every response model it uses from `src/hassette/web/models.py`? Missing required
+fields raise `ValidationError` (caught by `_handle_malformed_response`), so
+those aren't silent. The silent risk is *extra* fields the server adds that the
+CLI model ignores, or *optional* fields whose defaults mask a semantic change.
 
 ## JSON/Human Output Duality
 When a new CLI command is added in `src/hassette/cli/__init__.py`, does it

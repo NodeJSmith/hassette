@@ -16,9 +16,10 @@ or can the timing window allow both paths to write?
 
 ## Guard Release on Sealed Bucket
 `Listener.cancel()` spawns `release_guard()` via `task_bucket.spawn()` in
-`src/hassette/bus/listeners.py`. If the task bucket is sealed
-(`TaskBucketSealedError`), the guard release is skipped. Does any pending
-`_dispatch_pending` future still settle in that case, or can it hang forever?
+`src/hassette/bus/listeners.py`. The sealed-bucket path during force-terminal
+teardown intentionally leaves the guard unreleased (documented as an accepted
+gap). Does any change make the sealed path reachable *outside* force-terminal
+teardown, or regress the normal unsealed drain of `_dispatch_pending` futures?
 
 ## Backpressure vs Execution Mode Telemetry
 `backpressure` gates at the dispatch semaphore in
