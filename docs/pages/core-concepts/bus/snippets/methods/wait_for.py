@@ -1,14 +1,15 @@
 import asyncio
 import contextlib
 
-from hassette import App, AppConfig, P
+from hassette import App, AppConfig, P, Topic
 
 
 class WaitForApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         # --8<-- [start:basic]
+        entity_id = "light.kitchen"
         event = await self.bus.wait_for(
-            "hass.event.state_changed.light.kitchen",
+            f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
             where=P.StateTo("on"),
             timeout=5,
         )
@@ -17,16 +18,17 @@ class WaitForApp(App[AppConfig]):
 
     async def turn_on_and_confirm(self) -> None:
         # --8<-- [start:arm_before_fire]
+        entity_id = "light.kitchen"
         wait_task = asyncio.create_task(
             self.bus.wait_for(
-                "hass.event.state_changed.light.kitchen",
+                f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
                 where=P.StateTo("on"),
                 timeout=5,
             )
         )
         try:
             await self.api.call_service(
-                "light", "turn_on", entity_id="light.kitchen"
+                "light", "turn_on", entity_id=entity_id
             )
         except Exception:
             wait_task.cancel()
@@ -43,7 +45,7 @@ class WaitForApp(App[AppConfig]):
         # --8<-- [start:two_stage]
         started = asyncio.create_task(
             self.bus.wait_for(
-                f"hass.event.state_changed.{entity_id}",
+                f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
                 where=~P.StateTo("idle"),
                 timeout=5,
             )
@@ -60,7 +62,7 @@ class WaitForApp(App[AppConfig]):
         await started
 
         await self.bus.wait_for(
-            f"hass.event.state_changed.{entity_id}",
+            f"{Topic.HASS_EVENT_STATE_CHANGED!s}.{entity_id}",
             where=P.StateTo("idle"),
             timeout=30,
         )

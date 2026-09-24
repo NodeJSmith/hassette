@@ -1,11 +1,11 @@
-from hassette import App, P
+from hassette import App, P, Topic
 
 
 class SceneApp(App):
     async def on_initialize(self):
         # Match any scene.turn_on call, regardless of service data
         await self.bus.on(
-            topic="hass.event.call_service",
+            topic=Topic.HASS_EVENT_CALL_SERVICE,
             handler=self.on_any_scene,
             where=[P.DomainMatches("scene"), P.ServiceMatches("turn_on")],
             name="any_scene",
@@ -13,7 +13,7 @@ class SceneApp(App):
 
         # Combine with ServiceDataWhere for full filtering
         await self.bus.on(
-            topic="hass.event.call_service",
+            topic=Topic.HASS_EVENT_CALL_SERVICE,
             handler=self.on_evening_scene,
             where=[
                 P.DomainMatches("scene"),

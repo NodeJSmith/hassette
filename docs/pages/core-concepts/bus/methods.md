@@ -183,6 +183,8 @@ All three accept `handler`, `where`, `kwargs`, `name`, and the [shared parameter
 
 Subscribes to any raw event topic string.
 
+`Topic` (`from hassette import Topic`) is an enum of Hassette's internal and Home Assistant event topic strings — pass a member instead of hand-typing the string it holds.
+
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/non_state_raw_topic.py"
 ```
@@ -201,6 +203,8 @@ Suspends the calling coroutine until an event matching `topic` and `where` is di
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/wait_for.py:basic"
 ```
+
+Entity-scoped state topics append the entity ID to `Topic.HASS_EVENT_STATE_CHANGED`. Since `Topic` is a `StrEnum`, `f"{Topic.HASS_EVENT_STATE_CHANGED!s}.light.kitchen"` interpolates as `"hass.event.state_changed.light.kitchen"` — building the exact topic string `wait_for` matches against.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
