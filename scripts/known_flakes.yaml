@@ -19,3 +19,20 @@ flakes:
     issue: 2178
     note: >
       Same clock-racing family as #1773, different test file.
+
+  - pattern: "TestSizeFailsafe::"
+    issue: 2363
+    note: >
+      caplog.text comes back empty ('') when it fails, across all 8 tests in the
+      class. Not reproducible locally in isolation or in a full-suite run with
+      CI's exact seed -- likely a caplog/xdist worker-scheduling race that only
+      manifests under GitHub Actions' more constrained runners. Confirmed
+      pre-existing on main via scripts/ci_flake_scan.py, not introduced by any
+      specific PR.
+
+  - pattern: "test_always_failing_service_stops_after_max_attempts"
+    issue: 2364
+    note: >
+      Restart-budget timing race in ServiceWatcher -- shutdown_event isn't set
+      by the time the test asserts it. Recurs on main and multiple autofix/*
+      branches, not tied to any specific PR.
