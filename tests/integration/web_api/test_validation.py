@@ -129,6 +129,22 @@ class TestTelemetryStatusDropCounterFallback:
         assert data["dropped_exhausted"] == 0
         assert data["dropped_shutdown"] == 0
 
+    @pytest.mark.parametrize(
+        "error",
+        [AttributeError("no such attribute"), RuntimeError("not yet initialised")],
+        ids=["attribute-error", "runtime-error"],
+    )
+    async def test_get_filtered_count_failure_returns_zero(
+        self, client: "AsyncClient", mock_hassette: MagicMock, error: Exception
+    ) -> None:
+        """A command_executor.get_filtered_count() failure falls back to zero without degrading the route."""
+        mock_hassette.command_executor.get_filtered_count.side_effect = error
+
+        data = await get_json(client, TELEMETRY_STATUS_PATH)
+
+        assert data["degraded"] is False
+        assert data["dropped_filtered"] == 0
+
 
 class TestAppHealthDbErrorFallback:
     """TelemetryUnavailableError degradation guard on the app_health endpoint.

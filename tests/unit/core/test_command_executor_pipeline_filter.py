@@ -133,6 +133,7 @@ class TestEnqueueRecordFiltering:
         enqueue_record(executor, record)
         assert executor._dropped_filtered == 1
         assert executor._dropped_overflow == 0
+        assert executor.get_filtered_count() == 1
 
     def test_overflow_counter_not_incremented_for_filtered_records(self):
         executor = _init_executor_with_filter_config(record_slow_ms=None, sample_rate=0.0)
