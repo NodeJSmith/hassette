@@ -97,7 +97,7 @@ If the branch name matches `autofix/issue-{N}` (optionally followed by `-slug` �
 
 1. Check the current body (`gh pr view {PR} --json body --jq .body`) for a closing keyword referencing that issue (`close(s/d)`, `fix(es/ed)`, or `resolve(s/d)` followed by `#{N}`, case-insensitive). If one is already there, skip to 2h.
 2. If the body reads "Partial progress on #{N}...", don't assume the review battery closed the gap — it checks code quality, not whether the issue's original ask is met. Read the issue (`gh issue view {N} --repo {REPO}`) and confirm what the draft named as unfinished is actually done now. If scope is genuinely still missing, leave the body untouched and go to 2h without a closing keyword — the issue should stay open and `pr-open`-labeled.
-3. If it's actually complete, keep the rest of the description: read the full current body, replace the "Partial progress on #{N}..." line with `Closes #{N}`, then push the whole modified body back with `gh pr edit {PR} --body "<full body, line replaced>"` — never `--body "Closes #{N}"` alone, which would wipe the description.
+3. If it's actually complete, keep the rest of the description: read the full current body, replace the "Partial progress on #{N}..." line with `Closes #{N}`, run `get-tmp-filename` and write the modified body to that path, then push it back with `gh pr edit {PR} --body-file {tmpfile}` — never `--body "<full body>"` (arbitrary body content interpolated into a shell argument can break or execute unexpectedly) and never `--body "Closes #{N}"` alone, which would wipe the description.
 
 If the branch name doesn't match the pattern, skip this step and go to 2h.
 
