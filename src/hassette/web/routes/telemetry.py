@@ -78,7 +78,7 @@ async def telemetry_status(
         except (AttributeError, RuntimeError):
             overflow, exhausted, shutdown = 0, 0, 0
         try:
-            filtered = hassette.get_filtered_count()
+            filtered = hassette.command_executor.get_filtered_count()
         except (AttributeError, RuntimeError):
             filtered = 0
         try:

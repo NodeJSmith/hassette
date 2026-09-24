@@ -100,6 +100,7 @@ async def test_group_removal(ha_container: str, tmp_path) -> None:
 async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
     """A completed job execution is persisted to the unified executions table (kind='job')."""
     config = make_system_config(ha_container, tmp_path)
+    config.database.framework_sample_rate = 1.0
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
         session_id = hassette.session_id
@@ -124,6 +125,34 @@ async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
         await wait_for(
             _row_exists, timeout=10.0, interval=0.1, desc=f"executions(kind=job) row for session_id={session_id}"
         )
+
+
+async def test_framework_job_filtered_by_default(ha_container: str, tmp_path) -> None:
+    """With default config (framework_sample_rate=0.0), a successful framework-tier job
+    execution fires but is not persisted to the DB.
+    """
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
+        session_id = hassette.session_id
+        fired: list[int] = []
+
+        async def _callback() -> None:
+            fired.append(1)
+
+        await scheduler.run_in(_callback, 1, name="framework_filtered_run_in")
+        await wait_for(lambda: len(fired) >= 1, timeout=5.0, desc="run_in callback to fire")
+
+        # Give the write pipeline time to flush (max_flush_interval_seconds default=5).
+        await asyncio.sleep(6)
+
+        async with hassette.database_service.read_db.execute(
+            "SELECT COUNT(*) FROM executions WHERE session_id = ? AND kind = 'job'",
+            (session_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            assert row is not None
+            assert row[0] == 0, f"Expected 0 framework job rows with default filtering, got {row[0]}"
 
 
 async def test_run_cron_fires(ha_container: str, tmp_path) -> None:
