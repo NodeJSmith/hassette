@@ -130,6 +130,9 @@ async def test_config_endpoint_masks_auth_token(ha_container: str, tmp_path: Pat
 async def test_telemetry_after_activity(ha_container: str, tmp_path) -> None:
     """After a bus handler fires, telemetry shows non-zero invocation count."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
+    # toggle_and_capture registers directly on hassette._bus, so its listener is
+    # framework-tier and filtered out by the default sample rate (0.0) unless raised.
+    config.database.framework_record_sample_rate = 1.0
     async with startup_context(config) as hassette:
         await wait_for_web_server(base_url)
 
