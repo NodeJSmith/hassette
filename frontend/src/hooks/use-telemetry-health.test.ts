@@ -34,6 +34,7 @@ const HEALTHY_TELEMETRY_STATUS = {
   dropped_overflow: 0,
   dropped_exhausted: 0,
   dropped_shutdown: 0,
+  dropped_filtered: 0,
   error_handler_failures: 0,
 };
 
@@ -173,6 +174,7 @@ describe("useTelemetryHealth", () => {
       dropped_overflow: 5,
       dropped_exhausted: 3,
       dropped_shutdown: 1,
+      dropped_filtered: 42,
       error_handler_failures: 7,
     });
 

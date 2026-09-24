@@ -116,6 +116,20 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Maximum seconds a record may sit in the CommandExecutor write queue before a
     time-based flush is forced, even if the batch size threshold has not been reached."""
 
+    framework_record_errors: bool = Field(default=True)
+    """Always persist framework-tier executions with any non-success status. When False,
+    framework errors are subject to the same sampling as routine successes — almost never
+    desirable."""
+
+    framework_record_slow_ms: float | None = Field(default=100.0, ge=0)
+    """Persist framework-tier executions whose duration exceeds this threshold (ms),
+    regardless of status. None disables duration-based persistence."""
+
+    framework_record_sample_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Fraction of routine (successful, fast) framework-tier executions to persist.
+    0.0 drops all routine framework executions; 1.0 persists all (no filtering).
+    Values between 0 and 1 sample randomly at the given rate."""
+
     @model_validator(mode="after")
     def validate_framework_retention_days(self) -> "DatabaseConfig":
         """Ensure framework_retention_days stays within the standard retention window."""

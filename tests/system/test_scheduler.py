@@ -8,7 +8,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.scheduler import EntityTime, ScheduleStatus
 from hassette.testing import wait_for
 
-from .conftest import make_system_config, startup_context
+from .conftest import make_fired_recorder, make_system_config, startup_context
 
 pytestmark = [pytest.mark.system]
 
@@ -18,10 +18,7 @@ async def test_run_in_fires_after_delay(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
-        fired: list[int] = []
-
-        async def _callback() -> None:
-            fired.append(1)
+        fired, _callback = make_fired_recorder()
 
         await scheduler.run_in(_callback, 1, name="run_in_fires_after_delay_run_in")
         await wait_for(lambda: len(fired) >= 1, timeout=5.0, desc="run_in callback to fire")
@@ -32,10 +29,7 @@ async def test_run_every_fires_multiple_times(ha_container: str, tmp_path) -> No
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
-        fired: list[int] = []
-
-        async def _callback() -> None:
-            fired.append(1)
+        fired, _callback = make_fired_recorder()
 
         await scheduler.run_every(_callback, seconds=1, name="run_every_fires_multiple_times_run_every")
         await wait_for(lambda: len(fired) >= 2, timeout=5.0, desc="run_every callback to fire at least twice")
@@ -46,10 +40,7 @@ async def test_run_once_at_time(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
-        fired: list[int] = []
-
-        async def _callback() -> None:
-            fired.append(1)
+        fired, _callback = make_fired_recorder()
 
         # Schedule ~2 seconds in the future using an absolute ZonedDateTime so
         # there is no ambiguity from HH:MM rounding to the nearest minute.
@@ -63,10 +54,7 @@ async def test_job_removal(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
-        fired: list[int] = []
-
-        async def _callback() -> None:
-            fired.append(1)
+        fired, _callback = make_fired_recorder()
 
         job = await scheduler.run_in(_callback, 2, name="job_removal_run_in")
         job.remove()
@@ -81,10 +69,7 @@ async def test_group_removal(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
-        fired: list[int] = []
-
-        async def _callback() -> None:
-            fired.append(1)
+        fired, _callback = make_fired_recorder()
 
         await scheduler.run_in(_callback, 2, group="test_group", name="group_removal_run_in")
         await scheduler.run_in(_callback, 3, group="test_group", name="group_removal_run_in_2")
@@ -100,13 +85,11 @@ async def test_group_removal(ha_container: str, tmp_path) -> None:
 async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
     """A completed job execution is persisted to the unified executions table (kind='job')."""
     config = make_system_config(ha_container, tmp_path)
+    config.database.framework_record_sample_rate = 1.0
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
         session_id = hassette.session_id
-        fired: list[int] = []
-
-        async def _callback() -> None:
-            fired.append(1)
+        fired, _callback = make_fired_recorder()
 
         await scheduler.run_in(_callback, 1, name="job_execution_persisted_run_in")
 
@@ -126,15 +109,37 @@ async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
         )
 
 
+async def test_framework_job_filtered_by_default(ha_container: str, tmp_path) -> None:
+    """With default config (framework_record_sample_rate=0.0), a successful framework-tier job
+    execution fires but is not persisted to the DB.
+    """
+    config = make_system_config(ha_container, tmp_path)
+    async with startup_context(config) as hassette:
+        scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
+        session_id = hassette.session_id
+        fired, _callback = make_fired_recorder()
+
+        await scheduler.run_in(_callback, 1, name="framework_filtered_run_in")
+        await wait_for(lambda: len(fired) >= 1, timeout=5.0, desc="run_in callback to fire")
+
+        # Give the write pipeline time to flush (max_flush_interval_seconds default=5).
+        await asyncio.sleep(6)
+
+        async with hassette.database_service.read_db.execute(
+            "SELECT COUNT(*) FROM executions WHERE session_id = ? AND kind = 'job'",
+            (session_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            assert row is not None
+            assert row[0] == 0, f"Expected 0 framework job rows with default filtering, got {row[0]}"
+
+
 async def test_run_cron_fires(ha_container: str, tmp_path) -> None:
     """A cron job with a per-second expression fires within a few seconds."""
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
-        fired: list[int] = []
-
-        async def _callback() -> None:
-            fired.append(1)
+        fired, _callback = make_fired_recorder()
 
         # 6-field cron: every 2 seconds (minute hour dom month dow second)
         await scheduler.run_cron(_callback, "* * * * * */2", name="run_cron_fires_run_cron")
@@ -204,10 +209,7 @@ async def test_jitter_applied(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
-        fired: list[int] = []
-
-        async def _callback() -> None:
-            fired.append(1)
+        fired, _callback = make_fired_recorder()
 
         await scheduler.run_in(_callback, 1, jitter=0.5, name="jitter_applied_run_in")
         await wait_for(lambda: len(fired) >= 1, timeout=5.0, desc="jittered run_in callback to fire")

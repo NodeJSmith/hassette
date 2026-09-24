@@ -12,6 +12,7 @@ here observes.
 """
 
 import asyncio
+import random
 import sqlite3
 import time
 import typing
@@ -20,6 +21,7 @@ from dataclasses import replace as dataclass_replace
 
 from hassette.core.execution_record import ExecutionRecord
 from hassette.events.hassette import HassetteExecutionCompletedEvent
+from hassette.types.types import ExecutionStatus
 
 if typing.TYPE_CHECKING:
     from hassette.core.command_executor import CommandExecutor
@@ -48,13 +50,42 @@ class RetryableBatch:
     not_before: float = 0.0
 
 
+def should_persist_framework_record(executor: "CommandExecutor", record: ExecutionRecord) -> bool:
+    """Decide whether a framework-tier execution record should be persisted.
+
+    App-tier records bypass this check entirely. Framework-tier records are
+    persisted when they are anomalous (error/slow) and sampled otherwise.
+    """
+    db_config = executor.hassette.config.database
+
+    if db_config.framework_record_errors and record.status != ExecutionStatus.SUCCESS:
+        return True
+
+    if db_config.framework_record_slow_ms is not None and record.duration_ms > db_config.framework_record_slow_ms:
+        return True
+
+    if db_config.framework_record_sample_rate >= 1.0:
+        return True
+    if db_config.framework_record_sample_rate > 0.0:
+        return random.random() < db_config.framework_record_sample_rate  # noqa: S311
+
+    return False
+
+
 def enqueue_record(executor: "CommandExecutor", record: ExecutionRecord) -> None:
     """Enqueue a record, dropping and logging if the queue is full.
+
+    Framework-tier records are filtered before reaching the queue: only anomalous
+    records (errors, slow executions) are persisted unconditionally; routine
+    successes are sampled at the configured rate.
 
     Also logs a WARNING when the queue exceeds the configured capacity threshold
     (rate-limited), per lifecycle.command_executor_capacity_warn_threshold /
     lifecycle.command_executor_capacity_warn_rate_limit_seconds.
     """
+    if record.source_tier == "framework" and not should_persist_framework_record(executor, record):
+        executor._dropped_filtered += 1
+        return
     max_size = executor._write_queue.maxsize
     current_size = executor._write_queue.qsize()
     lifecycle = executor.hassette.config.lifecycle
