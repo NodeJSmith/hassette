@@ -35,6 +35,9 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 | `retention_days` | integer | `7` | Days of app-tier execution records to retain. Records older than this value are deleted automatically. Minimum: 1. |
 | `framework_retention_days` | integer | `1` | Days of framework-tier execution records to retain. Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) run far more often than app handlers, so they get a shorter window. Must be `<= retention_days`. |
 | `max_size_mb` | float | `500` | Maximum database size in megabytes. When exceeded, the oldest records are deleted in batches, highest-volume tier first: framework executions, then blocking events, then app executions. Log records are never deleted by this failsafe — only by `logging.log_retention_days`. A value of `0` disables the size limit. |
+| `framework_record_errors` | bool | `true` | Always persist framework-tier executions with any non-success status (errors, timeouts, cancellations, skips). When `false`, framework errors are sampled at the same rate as routine successes. |
+| `framework_record_slow_ms` | float or null | `100.0` | Persist framework-tier executions whose duration exceeds this threshold (in milliseconds), regardless of status. `null` disables duration-based persistence. |
+| `framework_sample_rate` | float | `0.0` | Fraction of routine (successful, fast) framework-tier executions to persist. `0.0` drops all routine framework executions; `1.0` persists everything. Values between 0 and 1 sample randomly. |
 
 ??? note "Advanced: queue, interval, and failsafe tuning"
     The remaining `[hassette.database]` fields tune internals. They rarely need changing; the symptoms below name the cases that do.

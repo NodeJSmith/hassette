@@ -690,6 +690,34 @@
           "minimum": 0.1,
           "title": "Max Flush Interval Seconds",
           "type": "number"
+        },
+        "framework_record_errors": {
+          "default": true,
+          "description": "Always persist framework-tier executions with any non-success status. When False,\nframework errors are subject to the same sampling as routine successes \u2014 almost never\ndesirable.",
+          "title": "Framework Record Errors",
+          "type": "boolean"
+        },
+        "framework_record_slow_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 100.0,
+          "description": "Persist framework-tier executions whose duration exceeds this threshold (ms),\nregardless of status. None disables duration-based persistence.",
+          "title": "Framework Record Slow Ms"
+        },
+        "framework_sample_rate": {
+          "default": 0.0,
+          "description": "Fraction of routine (successful, fast) framework-tier executions to persist.\n0.0 drops all routine framework executions; 1.0 persists all (no filtering).\nValues between 0 and 1 sample randomly at the given rate.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Framework Sample Rate",
+          "type": "number"
         }
       },
       "title": "DatabaseConfig",

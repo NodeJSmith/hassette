@@ -161,6 +161,7 @@ class CommandExecutor(Service):
         self._dropped_overflow = 0
         self._dropped_exhausted = 0
         self._dropped_shutdown = 0
+        self._dropped_filtered = 0
         self._error_handler_failures = 0
         self._last_capacity_warn_ts = None
         self._last_unowned_warn_ts = None
