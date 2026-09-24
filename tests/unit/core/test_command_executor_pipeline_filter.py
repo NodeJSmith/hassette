@@ -40,9 +40,11 @@ def _init_executor_with_filter_config(
     sample_rate: float = 0.0,
 ):
     executor = init_executor()
-    executor.hassette.config.database.framework_record_errors = record_errors
-    executor.hassette.config.database.framework_record_slow_ms = record_slow_ms
-    executor.hassette.config.database.framework_sample_rate = sample_rate
+    executor.hassette.config.database = DatabaseConfig(
+        framework_record_errors=record_errors,
+        framework_record_slow_ms=record_slow_ms,
+        framework_sample_rate=sample_rate,
+    )
     return executor
 
 
