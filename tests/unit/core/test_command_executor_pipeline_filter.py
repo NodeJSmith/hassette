@@ -43,7 +43,7 @@ def _init_executor_with_filter_config(
     executor.hassette.config.database = DatabaseConfig(
         framework_record_errors=record_errors,
         framework_record_slow_ms=record_slow_ms,
-        framework_sample_rate=sample_rate,
+        framework_record_sample_rate=sample_rate,
     )
     return executor
 
@@ -146,4 +146,4 @@ class TestFrameworkFilterConfig:
         config = DatabaseConfig()
         assert config.framework_record_errors is True
         assert config.framework_record_slow_ms == 100.0
-        assert config.framework_sample_rate == 0.0
+        assert config.framework_record_sample_rate == 0.0

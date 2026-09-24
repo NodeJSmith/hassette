@@ -64,10 +64,10 @@ def should_persist_framework_record(executor: "CommandExecutor", record: Executi
     if db_config.framework_record_slow_ms is not None and record.duration_ms > db_config.framework_record_slow_ms:
         return True
 
-    if db_config.framework_sample_rate >= 1.0:
+    if db_config.framework_record_sample_rate >= 1.0:
         return True
-    if db_config.framework_sample_rate > 0.0:
-        return random.random() < db_config.framework_sample_rate  # noqa: S311
+    if db_config.framework_record_sample_rate > 0.0:
+        return random.random() < db_config.framework_record_sample_rate  # noqa: S311
 
     return False
 

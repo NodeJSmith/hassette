@@ -125,7 +125,7 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Persist framework-tier executions whose duration exceeds this threshold (ms),
     regardless of status. None disables duration-based persistence."""
 
-    framework_sample_rate: float = Field(default=0.0, ge=0.0, le=1.0)
+    framework_record_sample_rate: float = Field(default=0.0, ge=0.0, le=1.0)
     """Fraction of routine (successful, fast) framework-tier executions to persist.
     0.0 drops all routine framework executions; 1.0 persists all (no filtering).
     Values between 0 and 1 sample randomly at the given rate."""

@@ -120,7 +120,7 @@ async def test_framework_listener_registration(
 
 async def test_framework_listener_produces_telemetry(executor: CommandExecutor) -> None:
     """Framework listeners produce execution records with source_tier='framework'."""
-    executor.hassette.config.database.framework_sample_rate = 1.0
+    executor.hassette.config.database.framework_record_sample_rate = 1.0
     listener = make_mock_listener(db_id=99)
     cmd = InvokeHandler(
         listener=listener,

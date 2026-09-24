@@ -711,12 +711,12 @@
           "description": "Persist framework-tier executions whose duration exceeds this threshold (ms),\nregardless of status. None disables duration-based persistence.",
           "title": "Framework Record Slow Ms"
         },
-        "framework_sample_rate": {
+        "framework_record_sample_rate": {
           "default": 0.0,
           "description": "Fraction of routine (successful, fast) framework-tier executions to persist.\n0.0 drops all routine framework executions; 1.0 persists all (no filtering).\nValues between 0 and 1 sample randomly at the given rate.",
           "maximum": 1.0,
           "minimum": 0.0,
-          "title": "Framework Sample Rate",
+          "title": "Framework Record Sample Rate",
           "type": "number"
         }
       },

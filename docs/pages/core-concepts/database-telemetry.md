@@ -6,7 +6,7 @@ Hassette stores operational telemetry in a local SQLite database: every [bus](bu
 
 Hassette records four types of data automatically, with no configuration required.
 
-**Handler invocations.** Every app-tier bus listener firing produces a row in the `executions` table. Each row captures the start time, wall-clock duration, and outcome (`success`, `error`, `cancelled`, or `timed_out`). Failed executions include full exception details. Framework-tier handler invocations are filtered by default — errors and slow executions are always recorded, while routine successes are sampled at a configurable rate (see `framework_record_errors`, `framework_record_slow_ms`, and `framework_sample_rate` below).
+**Handler invocations.** Every app-tier bus listener firing produces a row in the `executions` table. Each row captures the start time, wall-clock duration, and outcome (`success`, `error`, `cancelled`, or `timed_out`). Failed executions include full exception details. Framework-tier handler invocations are filtered by default — errors and slow executions are always recorded, while routine successes are sampled at a configurable rate (see `framework_record_errors`, `framework_record_slow_ms`, and `framework_record_sample_rate` below).
 
 **Job executions.** Every app-tier scheduled job run produces a row in the same `executions` table. A `kind` column distinguishes handler rows from job rows. Jobs support one additional outcome: `skipped`, recorded when a [`where=` predicate](scheduler/index.md#conditional-execution) returns `False` at dispatch time. Skipped executions have zero duration. Framework-tier jobs follow the same filtering rules as handler invocations.
 
@@ -37,7 +37,7 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 | `max_size_mb` | float | `500` | Maximum database size in megabytes. When exceeded, the oldest records are deleted in batches, highest-volume tier first: framework executions, then blocking events, then app executions. Log records are never deleted by this failsafe — only by `logging.log_retention_days`. A value of `0` disables the size limit. |
 | `framework_record_errors` | bool | `true` | Always persist framework-tier executions with any non-success status (errors, timeouts, cancellations, skips). When `false`, framework errors are sampled at the same rate as routine successes. |
 | `framework_record_slow_ms` | float or null | `100.0` | Persist framework-tier executions whose duration exceeds this threshold (in milliseconds), regardless of status. `null` disables duration-based persistence. |
-| `framework_sample_rate` | float | `0.0` | Fraction of routine (successful, fast) framework-tier executions to persist. `0.0` drops all routine framework executions; `1.0` persists everything. Values between 0 and 1 sample randomly. |
+| `framework_record_sample_rate` | float | `0.0` | Fraction of routine (successful, fast) framework-tier executions to persist. `0.0` drops all routine framework executions; `1.0` persists everything. Values between 0 and 1 sample randomly. |
 
 ??? note "Advanced: queue, interval, and failsafe tuning"
     The remaining `[hassette.database]` fields tune internals. They rarely need changing; the symptoms below name the cases that do.

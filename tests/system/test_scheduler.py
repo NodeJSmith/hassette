@@ -100,7 +100,7 @@ async def test_group_removal(ha_container: str, tmp_path) -> None:
 async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
     """A completed job execution is persisted to the unified executions table (kind='job')."""
     config = make_system_config(ha_container, tmp_path)
-    config.database.framework_sample_rate = 1.0
+    config.database.framework_record_sample_rate = 1.0
     async with startup_context(config) as hassette:
         scheduler = hassette._scheduler  # pyright: ignore[reportPrivateUsage]
         session_id = hassette.session_id
@@ -128,7 +128,7 @@ async def test_job_execution_persisted(ha_container: str, tmp_path) -> None:
 
 
 async def test_framework_job_filtered_by_default(ha_container: str, tmp_path) -> None:
-    """With default config (framework_sample_rate=0.0), a successful framework-tier job
+    """With default config (framework_record_sample_rate=0.0), a successful framework-tier job
     execution fires but is not persisted to the DB.
     """
     config = make_system_config(ha_container, tmp_path)
