@@ -20,7 +20,7 @@ from .models import entities, states
 from .models.services import ServiceResponse
 from .scheduler import Scheduler
 from .task_bucket import TaskBucket
-from .types.enums import BackpressurePolicy, BlockingIOBehavior, ExecutionMode, ForgottenAwaitBehavior
+from .types.enums import BackpressurePolicy, BlockingIOBehavior, ExecutionMode, ForgottenAwaitBehavior, Topic
 
 A = accessors
 C = conditions
@@ -56,6 +56,7 @@ __all__ = [
     "Scheduler",
     "ServiceResponse",
     "TaskBucket",
+    "Topic",
     "TypeConverterEntry",
     "accessors",
     "conditions",

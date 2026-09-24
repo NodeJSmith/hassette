@@ -1,13 +1,13 @@
 from typing import Any
 
-from hassette import App, AppConfig
+from hassette import App, AppConfig, Topic
 from hassette.events import Event
 
 
 class ScriptApp(App[AppConfig]):
     async def on_initialize(self) -> None:
         await self.bus.on(
-            topic="hass.event.automation_triggered",
+            topic=Topic.HASS_EVENT_AUTOMATION_TRIGGERED,
             handler=self.on_automation,
             name="automation_triggered",
         )
