@@ -9,7 +9,7 @@ import shutil
 import socket
 import subprocess
 import time
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -270,6 +270,19 @@ def make_system_config(ha_url: str, tmp_path: Path) -> HassetteConfig:
         web_api={"run": False},
         lifecycle={"startup_timeout_seconds": 30},
     )
+
+
+def make_fired_recorder() -> tuple[list[int], Callable[[], Awaitable[None]]]:
+    """Return a list and an async callback that appends ``1`` to it each time it runs.
+
+    Shared by scheduler system tests that only need to observe "did this job fire."
+    """
+    fired: list[int] = []
+
+    async def _callback() -> None:
+        fired.append(1)
+
+    return fired, _callback
 
 
 def free_port() -> int:
