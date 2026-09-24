@@ -111,6 +111,9 @@ class CommandExecutor(Service):
     _dropped_shutdown: int
     """Count of records dropped during shutdown flush (DB unavailable)."""
 
+    _dropped_filtered: int
+    """Count of framework-tier records filtered before reaching the write queue."""
+
     _error_handler_failures: int
     """Count of user-registered error handler invocations that raised an exception or timed out."""
 
@@ -242,6 +245,10 @@ class CommandExecutor(Service):
             - shutdown_count: records dropped during shutdown flush.
         """
         return (self._dropped_overflow, self._dropped_exhausted, self._dropped_shutdown)
+
+    def get_filtered_count(self) -> int:
+        """Return the count of framework-tier records filtered before reaching the write queue."""
+        return self._dropped_filtered
 
     def get_error_handler_failures(self) -> int:
         """Return the count of user error handler invocations that raised or timed out.

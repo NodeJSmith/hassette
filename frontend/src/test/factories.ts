@@ -276,6 +276,7 @@ export function createTelemetryStatus(overrides: Partial<TelemetryStatusResponse
     dropped_overflow: 0,
     dropped_exhausted: 0,
     dropped_shutdown: 0,
+    dropped_filtered: 0,
     error_handler_failures: 0,
     ...overrides,
   } satisfies TelemetryStatusResponse;

@@ -363,6 +363,9 @@ class Hassette(Resource):
     def get_drop_counters(self) -> tuple[int, int, int]:
         return self.command_executor.get_drop_counters()
 
+    def get_filtered_count(self) -> int:
+        return self.command_executor.get_filtered_count()
+
     def get_error_handler_failures(self) -> int:
         return self.command_executor.get_error_handler_failures()
 

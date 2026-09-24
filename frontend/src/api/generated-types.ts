@@ -1662,6 +1662,11 @@ export interface components {
              */
             dropped_shutdown: number;
             /**
+             * Dropped Filtered
+             * @default 0
+             */
+            dropped_filtered: number;
+            /**
              * Error Handler Failures
              * @default 0
              */

@@ -3959,6 +3959,11 @@
             "title": "Dropped Shutdown",
             "default": 0
           },
+          "dropped_filtered": {
+            "type": "integer",
+            "title": "Dropped Filtered",
+            "default": 0
+          },
           "error_handler_failures": {
             "type": "integer",
             "title": "Error Handler Failures",

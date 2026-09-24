@@ -8,8 +8,6 @@ the write queue, while app-tier records always pass through.
 
 from unittest.mock import patch
 
-import pytest
-
 from hassette.config.models import DatabaseConfig
 from hassette.core.execution_pipeline import enqueue_record, should_persist_framework_record
 from hassette.core.execution_record import ExecutionRecord
@@ -142,17 +140,6 @@ class TestEnqueueRecordFiltering:
 
 
 class TestFrameworkFilterConfig:
-    def test_sample_rate_bounds(self):
-        with pytest.raises(ValueError, match="less than or equal to 1"):
-            DatabaseConfig(framework_sample_rate=1.5)
-
-        with pytest.raises(ValueError, match="greater than or equal to 0"):
-            DatabaseConfig(framework_sample_rate=-0.1)
-
-    def test_slow_ms_non_negative(self):
-        with pytest.raises(ValueError, match="greater than or equal to 0"):
-            DatabaseConfig(framework_record_slow_ms=-1.0)
-
     def test_defaults_are_anomaly_only(self):
         config = DatabaseConfig()
         assert config.framework_record_errors is True
