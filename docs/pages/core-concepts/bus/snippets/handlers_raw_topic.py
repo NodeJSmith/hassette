@@ -12,7 +12,5 @@ class TopicApp(App[AppConfig]):
             name="automation_triggered",
         )
 
-    async def on_automation(
-        self, event: Event[Any]
-    ) -> None:
+    async def on_automation(self, event: Event[Any]) -> None:
         self.logger.info("Topic: %s", event.topic)
