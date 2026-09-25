@@ -28,7 +28,7 @@ from hassette.web.models import (
 )
 
 if TYPE_CHECKING:
-    from hassette.schemas.app_snapshots import AppManifestInfo
+    from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo
 
 LOGGER = getLogger(__name__)
 
@@ -61,6 +61,14 @@ _FRAMEWORK_FIELDS: list[str] = sorted(set(AppConfig.model_fields.keys()) | set(_
 
 
 router = APIRouter(tags=["apps"])
+
+
+def _generic_action_failure_detail(action: AppAction, app_key: str) -> str:
+    """Shared fallback 500 detail for an action failure with no more specific message —
+    used both when ``operation()`` itself raises and when a swallowed failure's
+    ``error_message`` is empty (see ``_failed_target_instances``).
+    """
+    return f"Failed to {action} app {app_key!r}"
 
 
 def _validate_app_key(app_key: str) -> None:
@@ -130,6 +138,38 @@ def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDe
         raise HTTPException(status_code=404, detail=f"Instance {index} not found for app {app_key!r}")
 
 
+def _failed_target_instances(
+    hassette: HassetteDep, app_key: str, instance_index: int | None
+) -> dict[int, "AppInstanceInfo"]:
+    """FAILED instance snapshots among the instance(s) an action targeted.
+
+    ``start``/``reload`` (whole-app or single-instance) can fail during class loading, config
+    validation, or ``on_initialize()`` without raising — ``AppFactory``/``AppLifecycleService``
+    catch those failures and record them straight to the registry via ``record_failure()``
+    instead (see ``CLAUDE.md``'s Resource Hierarchy section). Reading the registry back after
+    ``operation()`` completes, via the same ``get_failed_instance_infos()`` the registry already
+    uses to re-broadcast stale failures, is how ``_run_app_action`` notices a swallowed failure.
+
+    Scoped to ``instance_index`` when given (a single-instance action must not surface an
+    unrelated sibling's failure); otherwise every instance for ``app_key``, matching a whole-app
+    action's blast radius. ``stop`` never matches here: a successful stop removes its target
+    entries from the registry entirely (``AppRegistry.unregister_app``), so there is nothing
+    left to find FAILED.
+
+    Not atomic with ``operation()``: the per-app-key lock in ``AppLifecycleService`` is released
+    before this read, so a concurrent action against the same ``app_key`` can record or clear a
+    failure between the two. A caller's response can then reflect a different, concurrent
+    request's outcome rather than its own — an accepted risk for this framework's single-operator
+    scope, not a guarantee this function makes.
+    """
+    failed = hassette.app_handler.registry.get_failed_instance_infos(app_key)
+    if instance_index is None:
+        return failed
+    if instance_index not in failed:
+        return {}
+    return {instance_index: failed[instance_index]}
+
+
 async def _run_app_action(
     action: AppAction,
     app_key: str,
@@ -154,6 +194,16 @@ async def _run_app_action(
     ``instance_index`` is echoed back on the response as-is (already validated by
     ``_require_valid_instance_index`` before this function is called) so a caller can confirm
     the server acted on the instance it intended, not just that *some* 202 came back.
+
+    A start/reload that raises no exception can still have failed — ``AppFactory``/
+    ``AppLifecycleService`` swallow class-load, config-validation, and ``on_initialize()``
+    failures internally and record them to the registry instead of propagating (see
+    ``_failed_target_instances``). After ``operation()`` returns cleanly, the registry is
+    checked for a FAILED entry among the instance(s) targeted; if found, this maps to the same
+    500 path as the ``ValueError``/``RuntimeError`` case above rather than the unconditional 202
+    this function would otherwise return. A single HTTP response can only carry one failure, so
+    a whole-app action with multiple failed instances surfaces the lowest-indexed one in the
+    response body; every failed instance is still logged.
     """
     _validate_app_key(app_key)
     _require_known_app(app_key, hassette, action)
@@ -167,7 +217,27 @@ async def _run_app_action(
         raise HTTPException(status_code=409, detail=f"App {app_key!r} is blocked by the --app filter") from exc
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to %s app %s", action, app_key, exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to {action} app") from exc
+        raise HTTPException(status_code=500, detail=_generic_action_failure_detail(action, app_key)) from exc
+
+    failed = _failed_target_instances(hassette, app_key, instance_index)
+    if failed:
+        first_index = min(failed)
+        detail = failed[first_index].error_message or _generic_action_failure_detail(action, app_key)
+        if len(failed) > 1:
+            # The response can only carry one failure — log the rest so a multi-instance
+            # failure isn't silently reduced to whichever index happened to sort lowest.
+            LOGGER.warning(
+                "Failed to %s app %s: %d instances failed (%s); surfacing instance %s in the response",
+                action,
+                app_key,
+                len(failed),
+                ", ".join(f"{index}: {info.error_message}" for index, info in sorted(failed.items())),
+                first_index,
+            )
+        else:
+            LOGGER.warning("Failed to %s app %s (instance %s): %s", action, app_key, first_index, detail)
+        raise HTTPException(status_code=500, detail=detail)
+
     LOGGER.info("%s app %s (source=%s)", _ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))
     return ActionResponse(status="accepted", app_key=app_key, action=action, instance_index=instance_index)
 
