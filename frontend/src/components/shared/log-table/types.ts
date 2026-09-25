@@ -24,7 +24,7 @@ export interface FilterState {
 export type ViewContext = "global" | "app" | "execution";
 
 // Static per-column metadata, distinct from TanStack's `ColumnDef`. log-table-view.tsx builds the
-// TanStack definitions from this; column-picker.tsx and use-column-visibility.ts consume it as-is.
+// TanStack definitions from this — column-picker.tsx and use-column-visibility.ts consume it as-is.
 export interface LogColumnMeta {
   id: ColumnId;
   label: string;
@@ -44,7 +44,9 @@ export type RowKeyInput = Pick<LogEntry, "timestamp" | "logger_name" | "lineno">
 };
 
 export function rowKey(entry: RowKeyInput): RowKey {
-  // `seq` is optional here even though the API type marks it required — guard the absent case.
+  // `RowKeyInput` widens `seq` to optional even though `LogEntry` marks it required. Check for
+  // null/undefined explicitly, not truthiness, so a real `seq: 0` isn't mistaken for absent and
+  // pushed onto the weaker fallback key below.
   if (entry.seq === null || entry.seq === undefined) {
     return `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
   }
