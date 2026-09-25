@@ -639,14 +639,18 @@ class DatabaseService(Service):
             raise
         timeout = self.hassette.config.database.write_submit_timeout_seconds
         try:
-            done, _pending = await asyncio.wait((future,), timeout=timeout)
+            # asyncio.wait, unlike wait_for, never cancels the future on timeout, so a write that
+            # has already started is left running for the await below.
+            await asyncio.wait((future,), timeout=timeout)
         except asyncio.CancelledError:
             future.cancel()
             raise
+        timed_out = not future.done()
         # Race-free only because db_write_worker() sets _executing_future with no await between
         # dequeuing an item and starting it: a future that is not _executing_future here has
         # definitely not started, and cancelling it makes the worker skip it.
-        if not done and future is not self._executing_future:
+        not_started = future is not self._executing_future
+        if timed_out and not_started:
             future.cancel()
             raise TimeoutError(f"DB write still queued after {timeout}s — withdrawn without running")
         return await future

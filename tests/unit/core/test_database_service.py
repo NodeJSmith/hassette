@@ -26,6 +26,10 @@ from tests.unit.core._fixtures_database_service import initialized_service_with_
 
 __all__ = ["initialized_service_with_worker", "mock_hassette", "service"]  # re-exposed as fixtures
 
+TEST_WRITE_TIMEOUT_SECONDS = 0.05
+"""Queue timeout for the submit() timeout tests: short enough to expire quickly, and every wait
+that must outlast it is derived from it so the two can't drift."""
+
 WIDGETS_TARGET = RetentionTarget(
     table="widgets",
     timestamp_col="ts",
@@ -323,7 +327,7 @@ async def test_submit_withdraws_a_write_still_queued_at_timeout(
 ) -> None:
     """A write stuck behind a long-running one times out and never runs, so callers may retry it."""
     service = initialized_service_with_worker
-    service.hassette.config.database.write_submit_timeout_seconds = 0.05
+    service.hassette.config.database.write_submit_timeout_seconds = TEST_WRITE_TIMEOUT_SECONDS
     blocker = _BlockedWorker(service)
     await asyncio.wait_for(blocker.started.wait(), timeout=1)
     ran: list[int] = []
@@ -345,12 +349,12 @@ async def test_submit_awaits_a_started_write_past_the_timeout(
 ) -> None:
     """A write the worker has already started may commit, so submit() waits for its real outcome."""
     service = initialized_service_with_worker
-    service.hassette.config.database.write_submit_timeout_seconds = 0.05
+    service.hassette.config.database.write_submit_timeout_seconds = TEST_WRITE_TIMEOUT_SECONDS
     blocker = _BlockedWorker(service)
     await asyncio.wait_for(blocker.started.wait(), timeout=1)
 
     # Hold the write well past the queue timeout; a longer hold only makes the timeout more certain.
-    await asyncio.sleep(0.2)
+    await asyncio.sleep(TEST_WRITE_TIMEOUT_SECONDS * 4)
     assert not blocker.task.done()
 
     blocker.release.set()
