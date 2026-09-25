@@ -55,6 +55,19 @@ async def direct_submit(coro: Coroutine[Any, Any, Any]) -> Any:
     return await coro
 
 
+def assert_requeued_as_retryable_batch(
+    executor: CommandExecutor, expected_record: ExecutionRecord, expected_retry_count: int = 1
+) -> RetryableBatch:
+    """Assert the executor's write queue holds exactly one RetryableBatch matching the given
+    record and retry count, and return it for any further (e.g. backoff-timing) assertions.
+    """
+    queued = executor._write_queue.get_nowait()
+    assert isinstance(queued, RetryableBatch)
+    assert queued.retry_count == expected_retry_count
+    assert expected_record in queued.records
+    return queued
+
+
 def raising_persist(exc: BaseException) -> Callable[[list[ExecutionRecord]], Coroutine[Any, Any, None]]:
     """Build an async persist_execution_batch stand-in that always raises ``exc``.
 
@@ -203,10 +216,7 @@ async def test_operational_error_triggers_retry():
 
     # Should have re-enqueued as RetryableBatch
     assert not executor._write_queue.empty()
-    queued = executor._write_queue.get_nowait()
-    assert isinstance(queued, RetryableBatch)
-    assert queued.retry_count == 1
-    assert inv in queued.records
+    assert_requeued_as_retryable_batch(executor, inv)
 
 
 async def test_write_queue_timeout_triggers_retry():
@@ -222,10 +232,7 @@ async def test_write_queue_timeout_triggers_retry():
 
     await execution_pipeline.persist_batch(executor, [inv])
 
-    queued = executor._write_queue.get_nowait()
-    assert isinstance(queued, RetryableBatch)
-    assert queued.retry_count == 1
-    assert inv in queued.records
+    assert_requeued_as_retryable_batch(executor, inv)
     assert executor.get_drop_counters() == (0, 0, 0)
 
 
@@ -365,9 +372,7 @@ async def test_retryable_batch_not_before_set_to_backoff_delay():
     after = time.monotonic()
 
     assert not executor._write_queue.empty()
-    queued = executor._write_queue.get_nowait()
-    assert isinstance(queued, RetryableBatch)
-    assert queued.retry_count == 1
+    queued = assert_requeued_as_retryable_batch(executor, inv)
     # not_before should be approximately before + 1s (retry_count + 1 = 0 + 1)
     assert queued.not_before >= before + 1.0
     assert queued.not_before <= after + 2.0
