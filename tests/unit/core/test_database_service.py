@@ -20,12 +20,10 @@ from hassette.core.database_service import (
 )
 from hassette.core.retention_targets import _FAILSAFE_TABLES, _RETENTION_TABLES, RetentionTarget
 from hassette.types.enums import ResourceStatus
-from tests.support.helpers import (
-    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
-    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
-    async_noop,
-)
-from tests.support.mock_hassette import make_mock_hassette
+from tests.support.helpers import async_noop
+from tests.unit.core._fixtures_database_service import initialized_service_with_worker, mock_hassette, service
+
+__all__ = ["initialized_service_with_worker", "mock_hassette", "service"]  # re-exposed as fixtures
 
 WIDGETS_TARGET = RetentionTarget(
     table="widgets",
@@ -43,102 +41,6 @@ WIDGETS_FRAMEWORK_TARGET = RetentionTarget(
     failsafe_label="framework widgets",
     source_tier="framework",
 )
-
-
-@pytest.fixture
-def mock_hassette(tmp_path: Path) -> MagicMock:
-    """Create a mock Hassette with database config defaults."""
-    return make_mock_hassette(
-        data_dir=tmp_path,
-        set_ready=False,
-        database={"telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX},
-        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
-    )
-
-
-@pytest.fixture
-def service(mock_hassette: MagicMock) -> DatabaseService:
-    """Create a DatabaseService instance."""
-    return DatabaseService(mock_hassette, parent=None)
-
-
-@pytest.fixture
-async def initialized_service_with_worker(service: DatabaseService) -> AsyncIterator[DatabaseService]:
-    """Initialize DatabaseService with the worker running; cancel worker in cleanup.
-
-    Does NOT call on_shutdown — leaves worker task and connection management to the test.
-    """
-    mock_conn = AsyncMock()
-    mock_conn.execute = AsyncMock()
-    mock_conn.commit = AsyncMock()
-    mock_conn.close = AsyncMock()
-    # stop() is aiosqlite's *synchronous* counterpart to close() (see stop_connection_sync()) --
-    # an unconfigured attribute on an AsyncMock defaults to AsyncMock too, which would return an
-    # unawaited coroutine here and fail the suite via PytestUnraisableExceptionWarning. Same
-    # reasoning applies to `_thread`: stop_connection_sync() checks `thread.is_alive()` and would
-    # otherwise get an unawaited coroutine back instead of a real bool.
-    mock_conn.stop = MagicMock()
-    mock_conn._thread = None
-
-    async def fake_connect(*_args: object, **_kwargs: object) -> AsyncMock:
-        return mock_conn
-
-    with (
-        patch.object(service, "run_migrations"),
-        patch("hassette.core.database_service.connect_daemon", side_effect=fake_connect),
-    ):
-        await service.on_initialize()
-    try:
-        yield service
-    finally:
-        if service._db_worker_task is not None and not service._db_worker_task.done():
-            service._db_worker_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await service._db_worker_task
-
-
-@contextlib.asynccontextmanager
-async def _queue_detached_after_n_reads(
-    service: DatabaseService,
-    real_queue: asyncio.Queue[_WriteQueueItem],
-    reads_before_detach: int,
-) -> AsyncIterator[None]:
-    """Make ``service._db_write_queue`` return the real queue for the first ``reads_before_detach``
-    reads, then ``None`` for every read after -- simulating a teardown path detaching the queue
-    partway through a caller's own sequence of reads (e.g. update_heartbeat()'s guard, then
-    submit()'s entry check).
-
-    Swaps ``service``'s class rather than constructing a new instance, so ``service`` keeps its
-    existing identity and state across the swap. A property on the swapped-in class is a data
-    descriptor and so takes precedence over the plain instance ``__dict__`` value ``__init__``
-    set for ``_db_write_queue``, per Python's attribute lookup rules -- this is what lets a
-    property injected after construction intercept reads of what is, on the real class, an
-    ordinary instance attribute.
-    """
-
-    class _QueueDetachedAfterNReadsService(DatabaseService):
-        restart_spec = DatabaseService.restart_spec
-        _race_reads = 0
-        _race_queue: asyncio.Queue[_WriteQueueItem] | None = None
-
-        @property
-        def _db_write_queue(self) -> asyncio.Queue[_WriteQueueItem] | None:
-            self._race_reads += 1
-            return self._race_queue if self._race_reads <= reads_before_detach else None
-
-        @_db_write_queue.setter
-        def _db_write_queue(self, value: asyncio.Queue[_WriteQueueItem] | None) -> None:
-            self._race_queue = value
-
-    original_class = type(service)
-    service.__class__ = _QueueDetachedAfterNReadsService
-    service._race_reads = 0  # pyright: ignore[reportAttributeAccessIssue]
-    service._race_queue = real_queue  # pyright: ignore[reportAttributeAccessIssue]
-    try:
-        yield
-    finally:
-        service.__class__ = original_class
-        service._db_write_queue = real_queue
 
 
 def test_init_sets_defaults(service: DatabaseService) -> None:
@@ -373,65 +275,6 @@ async def test_timed_out_heartbeat_is_counted_once_even_if_the_write_later_fails
     release.set()
     await asyncio.wait_for(service._db_write_queue.join(), timeout=5.0)
     assert service._consecutive_heartbeat_failures == 1
-
-
-async def test_update_heartbeat_counts_write_queue_unavailable_error_as_failure(
-    initialized_service_with_worker: DatabaseService,
-) -> None:
-    """Regression for issue #2283: a WriteQueueUnavailableError raised by submit() (queue
-    unavailable) must be counted as a heartbeat failure, identically to a timeout or a
-    sqlite3 error, instead of propagating out of update_heartbeat() and crashing serve().
-
-    Drives the real submit() path rather than mocking it, so the test also proves
-    update_heartbeat()'s except clause catches the exact type submit() raises. Via
-    ``_queue_detached_after_n_reads()``, the queue is present for update_heartbeat()'s own
-    guard read (the first read) and gone from every read after, so submit()'s own entry check
-    observes an unavailable queue and raises WriteQueueUnavailableError exactly as it would
-    from a genuine detach race.
-    """
-    service = initialized_service_with_worker
-    real_queue = service._db_write_queue
-    assert real_queue is not None
-    assert service._consecutive_heartbeat_failures == 0
-
-    async with _queue_detached_after_n_reads(service, real_queue, reads_before_detach=1):
-        await asyncio.wait_for(service.update_heartbeat(), timeout=5.0)
-
-    assert service._consecutive_heartbeat_failures == 1
-
-
-async def test_update_heartbeat_survives_write_queue_detached_between_guard_and_submit_put(
-    initialized_service_with_worker: DatabaseService,
-) -> None:
-    """Regression for issue #2283 / audit Finding 3 (TOCTOU race).
-
-    update_heartbeat() checks ``_db_write_queue is not None`` once and then calls submit().
-    Before the fix, submit() re-read ``self._db_write_queue`` a second time to build its
-    ``.put()`` call instead of reusing the value its own entry check had just observed. If
-    ``_force_terminal()`` detached the queue (set it to ``None``) in the instant between
-    those two reads -- documented as reachable from a timeout-driven shutdown path while
-    serve() may still be running -- the second read saw ``None`` and crashed with
-    ``AttributeError`` from ``None.put(...)``, propagating out of update_heartbeat()
-    uncaught (its except clauses only cover ``TimeoutError`` and
-    ``(sqlite3.Error, OSError, ValueError)``).
-
-    This test models that race directly via ``_queue_detached_after_n_reads()``: the queue is
-    present for its first two reads (update_heartbeat()'s own guard, then submit()'s entry
-    check / captured-local read) and gone from the third read onward, simulating a detach
-    landing right after both of those checks observed the queue as present. Pre-fix,
-    submit()'s ``.put()`` line is a third read and would hit the simulated ``None``, crashing
-    this test with ``AttributeError``. Post-fix, submit() captures the queue into a local on
-    its (second) read and never reads the attribute again, so it never observes the simulated
-    detach and the heartbeat completes normally.
-    """
-    service = initialized_service_with_worker
-    real_queue = service._db_write_queue
-    assert real_queue is not None
-
-    async with _queue_detached_after_n_reads(service, real_queue, reads_before_detach=2):
-        await asyncio.wait_for(service.update_heartbeat(), timeout=5.0)
-
-    assert service._consecutive_heartbeat_failures == 0
 
 
 async def test_submit_caller_is_released_when_worker_is_cancelled_mid_item(

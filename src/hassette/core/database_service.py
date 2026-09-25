@@ -584,10 +584,6 @@ class DatabaseService(Service):
         answer this: an ``on_initialize()`` failure before the queue is created leaves the
         service in ``FAILED``/``CRASHED`` with no teardown having run, which would otherwise be
         reported as a post-shutdown call.
-
-        Returns ``WriteQueueUnavailableError`` (a ``RuntimeError`` subclass) rather than a
-        plain ``RuntimeError`` so ``update_heartbeat()`` can catch exactly this rejection —
-        see that class's docstring for why the distinction matters.
         """
         if self._write_queue_detached:
             return WriteQueueUnavailableError(f"DatabaseService.{method}() called after shutdown")
@@ -606,12 +602,9 @@ class DatabaseService(Service):
             The return value of the coroutine.
 
         Raises:
-            WriteQueueUnavailableError: If the write queue is unavailable (never created, or
-                detached by a teardown path).
             Exception: Whatever exception the coroutine raises.
         """
-        queue = self._db_write_queue
-        if queue is None:
+        if (queue := self._db_write_queue) is None:  # captured once -- enqueue() has no await, needs no capture
             coro.close()
             raise self.queue_unavailable_error("submit")
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
@@ -635,25 +628,20 @@ class DatabaseService(Service):
 
         Returns:
             True if enqueued successfully, False if dropped due to a full queue.
-
-        Raises:
-            WriteQueueUnavailableError: If the write queue is unavailable (never created, or
-                detached by a teardown path).
         """
-        queue = self._db_write_queue
-        if queue is None:
+        if self._db_write_queue is None:
             coro.close()
             raise self.queue_unavailable_error("enqueue")
         try:
-            queue.put_nowait((coro, None))
+            self._db_write_queue.put_nowait((coro, None))
         except asyncio.QueueFull:
             coro.close()
             self.logger.error(
                 "DB write queue full (%d items) — dropping fire-and-forget task",
-                queue.qsize(),
+                self._db_write_queue.qsize(),
             )
             return False
-        qsize = queue.qsize()
+        qsize = self._db_write_queue.qsize()
         if qsize > 0 and qsize % 100 == 0:
             self.logger.warning("DB write queue depth at %d items — potential backlog", qsize)
         return True
@@ -774,17 +762,8 @@ class DatabaseService(Service):
         The submit() call is bounded by _HEARTBEAT_WRITE_TIMEOUT_SECONDS. A wedged write
         worker never raises — it just stops draining the queue — so without this bound
         serve() would park on submit() forever and never reach its failure-count
-        escalation. A timeout counts as a heartbeat failure identically to a raised
-        sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
-        submit() itself can also raise WriteQueueUnavailableError if the write queue was
-        detached by a concurrent teardown path (e.g. _force_terminal()) between this method's
-        own guard check and the call to submit() — that is counted as a heartbeat failure too,
-        rather than propagating out of serve(). The except clause below catches that specific
-        type rather than bare RuntimeError so an unrelated RuntimeError surfacing from inside
-        _do_update_heartbeat() itself (e.g. Hassette.session_id racing a session teardown
-        between this method's own guard check and the queued write actually running) still
-        propagates instead of being silently folded into the same "heartbeat failure, retry
-        next interval" bucket as an expected queue-detach rejection.
+        escalation. A timeout or a WriteQueueUnavailableError from submit() counts as a heartbeat failure identically
+        to a raised sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
 
         This method is the only place _consecutive_heartbeat_failures moves, so one attempt
         costs exactly one strike. Counting the timeout here and the raise inside the queued
