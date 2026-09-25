@@ -9,7 +9,7 @@ import { queryKeys } from "../lib/query-keys";
 const PAGE_CLASS = "flex flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
 const PAGE_HEADER_CLASS = "flex items-baseline gap-4 border-b border-border pb-3";
 const PAGE_TITLE_CLASS =
-  "m-0 font-heading text-[length:var(--text-display)] font-normal tracking-[var(--text-display-tracking)] text-foreground";
+  "m-0 font-[family-name:var(--font-heading)] text-[length:var(--text-display)] font-normal tracking-[var(--text-display-tracking)] text-foreground";
 const ALERT_CLASS =
   "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
 

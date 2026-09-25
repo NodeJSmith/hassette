@@ -144,7 +144,7 @@ const StatusGroupHeader = forwardRef<HTMLButtonElement, StatusGroupHeaderProps>(
       ref={ref}
       type="button"
       className={cn(
-        "mx-2 flex w-[calc(100%-1rem)] cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 py-1 text-left font-inherit text-inherit select-none transition-colors hover:bg-[var(--bg-active)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]",
+        "mx-2 flex w-[calc(100%-1rem)] cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent px-3 py-1 text-left [font-family:inherit] text-inherit select-none transition-colors hover:bg-[var(--bg-active)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]",
         className,
       )}
       data-testid="group-header"

@@ -1,0 +1,31 @@
+{
+  "jsPlugins": ["oxlint-tailwindcss"],
+  "categories": { "correctness": "off" },
+  "rules": {
+    "tailwindcss/no-unknown-classes": "error"
+  },
+  "settings": {
+    "tailwindcss": {
+      "entryPoint": "src/global.css",
+      // Lets the linter see class strings assigned to `const FOO_CLASS`/`const FOO_CLASSES`
+      // module-level constants (this codebase's dominant styling convention), not just literal
+      // className="..." JSX attributes. Two known, accepted residual gaps this name-based
+      // matching cannot close: (1) object-literal values (e.g. STATUS_TONE_CLASSES:
+      // Record<string, string>), and (2) function-local variables holding a literal class
+      // string that isn't named with the _CLASS/_CLASSES suffix (e.g. system-health.tsx's
+      // `labelClass`) — the module-level naming convention was never extended to locals, and
+      // there's no established local-variable casing to extend it with. See
+      // https://github.com/NodeJSmith/hassette/issues/2378 for a possible content-based
+      // (not name-based) replacement.
+      "variablePatterns": ["_CLASS(ES)?$"]
+    }
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "tailwindcss/no-unknown-classes": "off"
+      }
+    }
+  ]
+}

@@ -466,6 +466,8 @@ import { cn } from "@/lib/utils";
 
 Use arbitrary values for project tokens that do not have a named Tailwind utility, for example `text-[var(--handler-job)]`, `max-w-[var(--size-content-narrow)]`, or `z-[var(--z-status-bar-layer)]`. Do not use `@apply`; if a pattern is too awkward for inline utilities and is genuinely shared, put a small named rule in `@layer components` in `global.css`.
 
+A module-level constant holding a Tailwind class string is named `FOO_CLASS` / `FOO_CLASSES` (`SCREAMING_SNAKE_CASE`, suffixed `_CLASS`/`_CLASSES`), never `fooClassName`/`fooClassNames`. This isn't just style: `frontend/.oxlintrc.json`'s `no-unknown-classes` rule (which validates every class against `global.css`'s `@theme` registration — see CI guards below) locates these constants via `settings.tailwindcss.variablePatterns`, matched by name. A second naming convention is invisible to it, and `no-restricted-syntax` in `eslint.config.js` enforces this one so that gap can't reopen silently.
+
 ### shadcn Components
 
 `components.json` configures the New York style with `@/components/ui` as the component directory, which holds the shadcn primitives: `button.tsx`, `badge.tsx`, `card.tsx`, `tooltip.tsx`, `dialog.tsx`, `alert-dialog.tsx`, `popover.tsx`, `command.tsx`, `drawer.tsx`, `table.tsx`.
@@ -478,5 +480,7 @@ Two frontend CSS hygiene scripts remain in `tools/frontend/` and are wired into 
 
 - **`tools/frontend/check_breakpoint_drift.py`** — validates that JS breakpoint constants in `use-media-query.ts` match the Tailwind screen registrations in `global.css`.
 - **`tools/frontend/check_dead_tokens.py`** — scans `global.css` for unused CSS custom properties.
+
+A third guard runs via `oxlint` rather than a Python script: `frontend/.oxlintrc.json` enables `oxlint-tailwindcss`'s `no-unknown-classes` rule (`check-unknown-tailwind-classes` in `prek.toml`), which compiles `global.css`'s real `@theme` design system and flags any class string — literal or a `FOO_CLASS`/`FOO_CLASSES` constant (see Component Styling above) — that doesn't resolve to real CSS. This is the guard that would have caught a token like `--foreground-secondary` being used as `text-foreground-secondary` without ever being registered under `@theme`.
 
 There are no CSS Modules, no `ht-*` global utility classes, and no separate `tokens.css` file.

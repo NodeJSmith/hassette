@@ -47,9 +47,9 @@ const HEAD_CLASS =
 const CELL_CLASS = "px-2 py-1 max-mobile:px-1 max-mobile:text-xs";
 
 // The table is `table-fixed`, so each column's header and cell must share the same width.
-const COL_W_STATUS = "w-[18%] max-mobile:w-auto";
-const COL_W_DURATION = "w-[14%] max-mobile:w-auto";
-const COL_W_TIME = "w-[18%] max-mobile:w-auto";
+const COL_STATUS_WIDTH_CLASS = "w-[18%] max-mobile:w-auto";
+const COL_DURATION_WIDTH_CLASS = "w-[14%] max-mobile:w-auto";
+const COL_TIME_WIDTH_CLASS = "w-[18%] max-mobile:w-auto";
 
 // Shared by the Status label and the Time cell, which render the same monospaced,
 // non-wrapping text at the same size.
@@ -84,7 +84,7 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
   {
     id: "status",
     header: "Status",
-    meta: { headerClassName: COL_W_STATUS, cellClassName: COL_W_STATUS },
+    meta: { headerClassName: COL_STATUS_WIDTH_CLASS, cellClassName: COL_STATUS_WIDTH_CLASS },
     cell: ({ row }) => {
       const record = row.original;
       const statusKind = executionStatusKind(record.status);
@@ -130,8 +130,8 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     id: "duration",
     header: "Duration",
     meta: {
-      headerClassName: COL_W_DURATION,
-      cellClassName: cn(COL_W_DURATION, "whitespace-nowrap"),
+      headerClassName: COL_DURATION_WIDTH_CLASS,
+      cellClassName: cn(COL_DURATION_WIDTH_CLASS, "whitespace-nowrap"),
     },
     cell: ({ row }) => formatDuration(row.original.duration_ms),
   },
@@ -139,8 +139,8 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
     id: "time",
     header: "Time",
     meta: {
-      headerClassName: COL_W_TIME,
-      cellClassName: cn(COL_W_TIME, MONO_TEXT_CLASS),
+      headerClassName: COL_TIME_WIDTH_CLASS,
+      cellClassName: cn(COL_TIME_WIDTH_CLASS, MONO_TEXT_CLASS),
       cellProps: (record: ExecutionRecord) => ({ title: formatTimestamp(record.execution_start_ts) }),
     },
     cell: ({ row }) => formatRelativeTime(row.original.execution_start_ts),

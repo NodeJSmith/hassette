@@ -1,9 +1,4 @@
-import {
-  designHeadingClassName,
-  designSectionClassName,
-  designTokenCodeClassName,
-  ShowcaseGroup,
-} from "./design-showcase";
+import { DESIGN_HEADING_CLASS, DESIGN_SECTION_CLASS, DESIGN_TOKEN_CODE_CLASS, ShowcaseGroup } from "./design-showcase";
 
 interface SpacingToken {
   cssVar: string;
@@ -65,8 +60,8 @@ const SHADOWS: ShadowToken[] = [
 
 export function SpacingTokens() {
   return (
-    <section className={designSectionClassName}>
-      <h2 className={designHeadingClassName}>Spacing, Radii & Shadows</h2>
+    <section className={DESIGN_SECTION_CLASS}>
+      <h2 className={DESIGN_HEADING_CLASS}>Spacing, Radii & Shadows</h2>
 
       <ShowcaseGroup label="Spacing Scale">
         <div className="flex flex-col gap-2">
@@ -76,7 +71,7 @@ export function SpacingTokens() {
               className="grid items-center gap-3"
               style={{ gridTemplateColumns: SPACING_ROW_TEMPLATE }}
             >
-              <code className={designTokenCodeClassName}>{token.cssVar}</code>
+              <code className={DESIGN_TOKEN_CODE_CLASS}>{token.cssVar}</code>
               <span className="text-right font-mono text-xs text-foreground-secondary">{token.px}px</span>
               <div className="h-2 overflow-hidden rounded-sm bg-muted">
                 <div
@@ -98,7 +93,7 @@ export function SpacingTokens() {
                 style={{ borderRadius: `var(${radius.cssVar})` }}
               />
               <span className="font-sans text-sm font-medium text-foreground">{radius.name}</span>
-              <code className={designTokenCodeClassName}>
+              <code className={DESIGN_TOKEN_CODE_CLASS}>
                 {radius.cssVar} ({radius.px}px)
               </code>
             </div>
@@ -112,7 +107,7 @@ export function SpacingTokens() {
             <div key={shadow.cssVar} className="flex flex-col items-center gap-3">
               <div className="aspect-[3/2] w-full rounded-md bg-card" style={{ boxShadow: `var(${shadow.cssVar})` }} />
               <span className="font-sans text-sm font-medium text-foreground">{shadow.label}</span>
-              <code className={designTokenCodeClassName}>{shadow.cssVar}</code>
+              <code className={DESIGN_TOKEN_CODE_CLASS}>{shadow.cssVar}</code>
             </div>
           ))}
         </div>

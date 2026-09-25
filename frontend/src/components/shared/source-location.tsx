@@ -4,15 +4,16 @@ import { parseSourceLocation } from "../../utils/format";
 
 interface Props {
   sourceLocation: string;
+  className?: string;
   "data-testid"?: string;
 }
 
-export function SourceLocation({ sourceLocation, "data-testid": testId }: Props) {
+export function SourceLocation({ sourceLocation, className, "data-testid": testId }: Props) {
   const { filename, line } = parseSourceLocation(sourceLocation);
 
   return (
     <div className="inline-flex items-center" data-testid={testId}>
-      <span className={cn("font-mono text-sm text-muted-foreground")}>
+      <span className={cn("font-mono text-sm text-muted-foreground", className)}>
         {filename}
         {line ? `:${line}` : ""}
       </span>

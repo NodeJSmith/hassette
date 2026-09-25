@@ -159,7 +159,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
           <div className="flex gap-1">
             <button
               type="button"
-              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-body text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               onClick={navigatePrev}
               disabled={currentIndex <= 0}
               aria-label="Previous entry"
@@ -168,7 +168,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
             </button>
             <button
               type="button"
-              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-body text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
               onClick={navigateNext}
               disabled={currentIndex >= entries.length - 1}
               aria-label="Next entry"
@@ -178,7 +178,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
           </div>
           <button
             type="button"
-            className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-body text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
             onClick={onClose}
             aria-label="Close detail panel"
           >

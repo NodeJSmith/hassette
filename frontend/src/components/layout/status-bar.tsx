@@ -33,7 +33,7 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
         <button
           ref={hamburgerRef}
           type="button"
-          className="hidden size-[var(--sz-touch)] shrink-0 items-center justify-center rounded-md border border-border bg-transparent text-foreground-secondary transition-colors hover:bg-accent max-sidebar:flex [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-2 [&_svg]:stroke-linecap-round [&_svg]:stroke-linejoin-round"
+          className="hidden size-[var(--sz-touch)] shrink-0 items-center justify-center rounded-md border border-border bg-transparent text-foreground-secondary transition-colors hover:bg-accent max-sidebar:flex [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-2 [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
           aria-label="Open navigation"
           aria-expanded={drawerOpen}
           data-testid="hamburger"

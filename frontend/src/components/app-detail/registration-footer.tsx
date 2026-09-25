@@ -39,14 +39,23 @@ export function RegistrationFooter({
       aria-labelledby={registrationHeadingId}
     >
       <div className="flex items-center justify-between gap-3 max-mobile:flex-col max-mobile:items-start">
-        <div className="min-w-0 flex flex-col gap-1 [&_.text-muted-foreground]:text-foreground-secondary">
+        {/* Both children set their color directly via className rather than a wrapper-level
+            descendant selector, so the color applies whether or not text-foreground-secondary
+            is a real utility, and doesn't silently depend on a specific child's own class name. */}
+        <div className="min-w-0 flex flex-col gap-1">
           <h3
             id={registrationHeadingId}
-            className="m-0 font-mono text-xs font-medium uppercase tracking-[var(--text-label-tracking-wide)] text-muted-foreground"
+            className="m-0 font-mono text-xs font-medium uppercase tracking-[var(--text-label-tracking-wide)] text-foreground-secondary"
           >
             Registration
           </h3>
-          {sourceLocation && <SourceLocation sourceLocation={sourceLocation} data-testid={`${kind}-source-location`} />}
+          {sourceLocation && (
+            <SourceLocation
+              sourceLocation={sourceLocation}
+              className="text-foreground-secondary"
+              data-testid={`${kind}-source-location`}
+            />
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-1 max-mobile:-ml-1 max-mobile:justify-start">

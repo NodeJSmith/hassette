@@ -1,9 +1,4 @@
-import {
-  designHeadingClassName,
-  designSectionClassName,
-  designTokenCodeClassName,
-  ShowcaseGroup,
-} from "./design-showcase";
+import { DESIGN_HEADING_CLASS, DESIGN_SECTION_CLASS, DESIGN_TOKEN_CODE_CLASS, ShowcaseGroup } from "./design-showcase";
 
 interface ColorToken {
   name: string;
@@ -72,8 +67,8 @@ const GROUPS: SwatchGroup[] = [
 
 export function ColorTokens() {
   return (
-    <section className={designSectionClassName}>
-      <h2 className={designHeadingClassName}>Color Palette</h2>
+    <section className={DESIGN_SECTION_CLASS}>
+      <h2 className={DESIGN_HEADING_CLASS}>Color Palette</h2>
       {GROUPS.map((group) => (
         <ShowcaseGroup key={group.label} label={group.label}>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
@@ -84,7 +79,7 @@ export function ColorTokens() {
                   style={{ backgroundColor: `var(${token.cssVar})` }}
                 />
                 <span className="font-sans text-sm font-medium text-foreground">{token.name}</span>
-                <code className={designTokenCodeClassName}>{token.cssVar}</code>
+                <code className={DESIGN_TOKEN_CODE_CLASS}>{token.cssVar}</code>
               </div>
             ))}
           </div>

@@ -1,9 +1,4 @@
-import {
-  designHeadingClassName,
-  designSectionClassName,
-  designTokenCodeClassName,
-  ShowcaseGroup,
-} from "./design-showcase";
+import { DESIGN_HEADING_CLASS, DESIGN_SECTION_CLASS, DESIGN_TOKEN_CODE_CLASS, ShowcaseGroup } from "./design-showcase";
 
 interface TypeSpec {
   label: string;
@@ -50,14 +45,14 @@ const WEIGHTS = [
 
 export function TypographyTokens() {
   return (
-    <section className={designSectionClassName}>
-      <h2 className={designHeadingClassName}>Typography</h2>
+    <section className={DESIGN_SECTION_CLASS}>
+      <h2 className={DESIGN_HEADING_CLASS}>Typography</h2>
 
       <ShowcaseGroup label="Font Stacks">
         <div className="flex flex-col gap-4">
           {FONT_STACKS.map((stack) => (
             <div key={stack.cssVar} className="flex flex-col gap-1">
-              <code className={designTokenCodeClassName}>{stack.cssVar}</code>
+              <code className={DESIGN_TOKEN_CODE_CLASS}>{stack.cssVar}</code>
               <span
                 className="text-[length:var(--text-h2)] text-foreground"
                 style={{ fontFamily: `var(${stack.cssVar})` }}
@@ -78,7 +73,7 @@ export function TypographyTokens() {
             >
               <div className="flex items-baseline gap-3">
                 <span className="font-sans text-sm font-semibold text-foreground-secondary">{spec.label}</span>
-                <code className={designTokenCodeClassName}>{spec.sizeVar}</code>
+                <code className={DESIGN_TOKEN_CODE_CLASS}>{spec.sizeVar}</code>
               </div>
               <span
                 className="font-sans text-foreground"
@@ -99,7 +94,7 @@ export function TypographyTokens() {
         <div className="flex flex-col gap-3">
           {WEIGHTS.map((weight) => (
             <div key={weight.cssVar} className="flex items-baseline gap-4">
-              <code className={designTokenCodeClassName}>{weight.cssVar}</code>
+              <code className={DESIGN_TOKEN_CODE_CLASS}>{weight.cssVar}</code>
               <span
                 className="font-sans text-[length:var(--text-h3)] text-foreground"
                 style={{ fontWeight: `var(${weight.cssVar})` }}
