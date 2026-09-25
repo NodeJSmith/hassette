@@ -190,7 +190,7 @@ A dict passed to `where=` matches keys and values in the service data.
 
 `A.get_service_data_key` extracts a specific key from service data. `A.get_path` follows a dot-separated path through the event.
 
-`where=` passes the full event to predicates, so `A.get_path` has data to walk. `changed_to` and `changed_from` narrow the event to a single extracted state value first. That leaves `A.get_path` nothing to traverse. Any accessor that needs the full event requires `where=`. Most filtering needs are met by `changed_to`, `changed_from`, and the typed predicates. `A` handles the cases they do not reach. The complete accessor guide is at [Custom Extractors](custom-extractors.md).
+`A.get_path` needs the full event to walk, so it only works with `where=`. `changed_to` and `changed_from` narrow the event to a single value first, leaving nothing to traverse. The example also passes `changed=False`. `geolocation.locality` is an attribute, not the main state value `changed` gates by default. Most filtering needs are met by `changed_to`, `changed_from`, and the typed predicates. `A` handles the cases they do not reach. The full accessor guide is at [Custom Extractors](custom-extractors.md).
 
 ## Full Reference
 

@@ -13,9 +13,11 @@ class MyApp(App[AppConfig]):
             source=A.get_path("payload.data.new_state.attributes.geolocation.locality"),
             condition="San Francisco",
         )
+        # Fire even when only attributes change, not the main state value
         await self.bus.on_state_change(
             "sensor.my_device_location",
             handler=self.on_location_change,
+            changed=False,
             where=city_match,
             name="device_location",
         )
