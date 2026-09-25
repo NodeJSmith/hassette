@@ -19,6 +19,7 @@ from hassette.core.database_service import (
     _WriteQueueItem,
 )
 from hassette.core.retention_targets import _FAILSAFE_TABLES, _RETENTION_TABLES, RetentionTarget
+from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
 from tests.support.helpers import async_noop
 from tests.unit.core._fixtures_database_service import initialized_service_with_worker, mock_hassette, service
@@ -157,8 +158,8 @@ async def test_log_worker_exit_logs_unhandled_worker_crash(service: DatabaseServ
     ``TaskBucket.add()``'s own done callback -- the only other place a worker crash gets logged
     and forwarded to the installed exception recorders -- never runs for it. Without
     ``_log_worker_exit()`` wired as its own done callback, a crash would be completely silent:
-    every later ``submit()`` would hang forever awaiting a future no worker will ever resolve,
-    with no signal anywhere pointing at why.
+    every later ``submit()`` would sit out its full queue timeout awaiting a future no worker
+    will ever resolve, with no signal anywhere pointing at why.
     """
 
     async def _boom() -> None:
@@ -301,6 +302,84 @@ async def test_submit_caller_is_released_when_worker_is_cancelled_mid_item(
     done, _pending = await asyncio.wait([caller], timeout=5)
     assert caller in done, "submit() caller stayed suspended after the worker was cancelled"
     assert caller.cancelled()
+
+
+class _BlockedWorker:
+    """Occupies the write worker with a submitted write until ``release`` is set."""
+
+    def __init__(self, service: DatabaseService) -> None:
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+        self.task = asyncio.create_task(service.submit(self.hold()))
+
+    async def hold(self) -> str:
+        self.started.set()
+        await self.release.wait()
+        return "held-write-result"
+
+
+async def test_submit_withdraws_a_write_still_queued_at_timeout(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A write stuck behind a long-running one times out and never runs, so callers may retry it."""
+    service = initialized_service_with_worker
+    service.hassette.config.database.write_submit_timeout_seconds = 0.05
+    blocker = _BlockedWorker(service)
+    await asyncio.wait_for(blocker.started.wait(), timeout=1)
+    ran: list[int] = []
+
+    async def queued_write() -> None:
+        ran.append(1)
+
+    with pytest.raises(TimeoutError, match="withdrawn without running"):
+        await asyncio.wait_for(service.submit(queued_write()), timeout=5)
+
+    blocker.release.set()
+    assert service._db_write_queue is not None
+    await asyncio.wait_for(service._db_write_queue.join(), timeout=5)
+    assert ran == [], "a write reported as timed out must not execute later"
+
+
+async def test_submit_awaits_a_started_write_past_the_timeout(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A write the worker has already started may commit, so submit() waits for its real outcome."""
+    service = initialized_service_with_worker
+    service.hassette.config.database.write_submit_timeout_seconds = 0.05
+    blocker = _BlockedWorker(service)
+    await asyncio.wait_for(blocker.started.wait(), timeout=1)
+
+    # Hold the write well past the queue timeout; a longer hold only makes the timeout more certain.
+    await asyncio.sleep(0.2)
+    assert not blocker.task.done()
+
+    blocker.release.set()
+    assert await asyncio.wait_for(blocker.task, timeout=5) == "held-write-result"
+
+
+async def test_submit_cancelled_while_queued_skips_the_write(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A caller cancelled before its write starts withdraws the write, same as a timeout."""
+    service = initialized_service_with_worker
+    blocker = _BlockedWorker(service)
+    await asyncio.wait_for(blocker.started.wait(), timeout=1)
+    ran: list[int] = []
+
+    async def queued_write() -> None:
+        ran.append(1)
+
+    queue = service._db_write_queue
+    assert queue is not None
+    caller = asyncio.create_task(service.submit(queued_write()))
+    await wait_for(lambda: queue.qsize() == 1, desc="write queued behind the blocker")
+    caller.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await caller
+
+    blocker.release.set()
+    await asyncio.wait_for(queue.join(), timeout=5)
+    assert ran == []
 
 
 async def test_enqueue_is_fire_and_forget(

@@ -19,7 +19,7 @@ Hassette records four types of data automatically, with no configuration require
 Framework-internal handlers (telemetry workers, WebSocket service, scheduler services) are counted in the stats strip alongside app registrations. Framework errors appear in the unified Error Spotlight with a **Framework** badge and the component name, for example Service Watcher or App Handler. The Handler health grid shows only app-registered handlers. Framework components are excluded.
 
 ??? note "Internal detail"
-    Framework handlers are stored with `source_tier='framework'` and an `app_key` of the form `__hassette__.<component>`, for example `__hassette__.service_watcher` or `__hassette__.core`. The web UI reads this value to display the component name in the Framework badge. The Handler health grid filters out all framework keys; the stats strip and Error Spotlight include all tiers.
+    Framework handlers are stored with `source_tier='framework'` and an `app_key` of the form `__hassette__.<ClassName>`, built from the component's Python class name, for example `__hassette__.ServiceWatcher` or `__hassette__.Hassette`. The web UI reads this value to display the component name in the Framework badge. The Handler health grid filters out all framework keys; the stats strip and Error Spotlight include all tiers.
 
 ## Configuration
 
@@ -44,11 +44,13 @@ All database settings are optional and live in `hassette.toml` (see [Configurati
 
     **Write queues.** `write_queue_max` (default 2000) bounds the pending write queue; when full, some telemetry writes are silently dropped — automations are not affected. `telemetry_write_queue_max` (default 1000) bounds the telemetry record queue the same way. `max_flush_interval_seconds` (default 5.0) forces a batch flush even when the batch-size threshold has not been reached. Raise the queue bounds when sustained event bursts log dropped-record warnings and memory headroom exists.
 
+    `write_submit_timeout_seconds` (default 60.0) caps how long an awaited write waits in the queue before it starts. A long retention or size-failsafe pass holds the queue, and writes queued behind it would otherwise wait for the whole pass. On expiry, Hassette withdraws the write without running it. Telemetry batches retry later; listener and job registrations raise `TimeoutError`. A write that has already started always runs to completion. Raise the timeout when registrations time out on slow storage during maintenance passes.
+
     As the telemetry write queue fills, Hassette logs a rate-limited capacity WARNING before it hits `write_queue_full`/drops. Two `[hassette.lifecycle]` fields tune it: `command_executor_capacity_warn_threshold` (default `0.75`) is the fraction of `telemetry_write_queue_max` that must be filled before the WARNING fires, and `command_executor_capacity_warn_rate_limit_seconds` (default `30.0`) is the minimum seconds between repeated WARNINGs. These are independent from the sync-handler pool's saturation WARNING (see [Sync-handler pool](../operating/index.md#sync-handler-pool)) — the two govern different subsystems and can be tuned separately.
 
     **Health and reads.** `heartbeat_interval_seconds` (default 300) is the gap between database health checks; `max_consecutive_heartbeat_failures` (default 3) failures put the service in [degraded mode](#degraded-mode). `read_timeout_seconds` (default 10.0) caps telemetry read queries before `TimeoutError`. `migration_timeout_seconds` (default 120) caps schema migrations at startup — raise it on slow storage with a large database.
 
-    **Retention cadence.** `retention_interval_seconds` (default 3600) and `size_failsafe_interval_seconds` (default 3600) set how often the two maintenance routines run. The size failsafe deletes `size_failsafe_delete_batch` rows per batch (default 1000), up to `size_failsafe_max_iterations` batches per run (default 10), then vacuums `size_failsafe_vacuum_pages` pages (default 100). Lower the intervals when the database overshoots `max_size_mb` between runs.
+    **Retention cadence.** `retention_interval_seconds` (default 3600) and `size_failsafe_interval_seconds` (default 3600) set how often the two maintenance routines run. Retention deletes `retention_delete_batch` rows per batch (default 1000), up to `retention_max_batches_per_target` batches per table per run (default 100); the next run picks up any remainder. The size failsafe deletes `size_failsafe_delete_batch` rows per batch (default 1000), up to `size_failsafe_max_iterations` batches per run (default 10), then vacuums `size_failsafe_vacuum_pages` pages (default 100). Lower the intervals when the database overshoots `max_size_mb` between runs.
 
 ### How Retention Works
 
@@ -68,7 +70,7 @@ Both routines are non-blocking and do not interrupt automations or telemetry col
 
 ## Registration Persistence
 
-Listener and job registrations survive restarts. On startup, Hassette matches existing registrations against the database by natural key. The natural key combines the app key, instance index, `name=` value, and topic. Predicate configuration is stored as display metadata and does not affect matching. Matched registrations are updated in place via upsert semantics. Registrations absent from the new session receive a `retired_at` timestamp rather than deletion.
+Listener and job registrations survive restarts. On startup, Hassette matches existing registrations against the database by natural key. A listener's natural key combines the app key, instance index, `name=` value, and topic. A job's natural key combines the app key, instance index, and `name=` value, since jobs have no topic. Predicate configuration is stored as display metadata and does not affect matching. Matched registrations are updated in place via upsert semantics. Registrations absent from the new session receive a `retired_at` timestamp rather than deletion.
 
 The Apps page stats strip shows accurate counts even after a restart because of this persistence. Historical registrations from prior sessions remain visible in the web UI until they age out of the retention window. During development, renaming a handler or changing its topic leaves the old registration visible until it ages out (default 7 days).
 

@@ -209,6 +209,26 @@ async def test_operational_error_triggers_retry():
     assert inv in queued.records
 
 
+async def test_write_queue_timeout_triggers_retry():
+    """A submit() queue timeout delays the batch via RetryableBatch instead of dropping it.
+
+    submit() only raises TimeoutError for a write that never started, so the retry cannot
+    double-insert.
+    """
+    executor = init_executor()
+    inv = make_invocation(listener_id=5, session_id=1)
+
+    wire_raising_persist(executor, TimeoutError("DB write still queued"))
+
+    await execution_pipeline.persist_batch(executor, [inv])
+
+    queued = executor._write_queue.get_nowait()
+    assert isinstance(queued, RetryableBatch)
+    assert queued.retry_count == 1
+    assert inv in queued.records
+    assert executor.get_drop_counters() == (0, 0, 0)
+
+
 async def test_max_retries_drops_batch():
     """RetryableBatch at _MAX_RETRY_COUNT is dropped and _dropped_exhausted is incremented."""
     executor = init_executor()
@@ -468,3 +488,22 @@ async def test_handle_fk_violation_submit_failure_drops_all_records():
     await execution_pipeline.handle_fk_violation(executor, [inv])
 
     assert executor._dropped_exhausted == 1
+
+
+async def test_handle_fk_violation_queue_timeout_retries_instead_of_dropping():
+    """A queue-wait timeout on the FK-fallback write never ran it, so the batch is retried."""
+    executor = init_executor()
+    inv = make_invocation(listener_id=1, session_id=1)
+
+    async def timed_out_submit(coro):
+        coro.close()
+        raise TimeoutError("DB write still queued")
+
+    executor.hassette.database_service.submit = timed_out_submit  # pyright: ignore[reportAttributeAccessIssue]
+
+    await execution_pipeline.handle_fk_violation(executor, [inv], retry_count=1)
+
+    queued = executor._write_queue.get_nowait()
+    assert isinstance(queued, RetryableBatch)
+    assert queued.retry_count == 2
+    assert executor._dropped_exhausted == 0

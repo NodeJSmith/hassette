@@ -106,6 +106,12 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     of the write queue when a target has a large backlog; any remainder is picked up on the
     next retention cycle."""
 
+    write_submit_timeout_seconds: float = Field(default=60.0, ge=0.1)
+    """Maximum seconds an awaited database write may wait in the write queue before it starts
+    executing. On expiry the write is withdrawn and the caller gets a TimeoutError, so a
+    long-running retention or size-failsafe pass delays other writers instead of suspending
+    them indefinitely. A write that has already started is not interrupted."""
+
     max_consecutive_heartbeat_failures: int = Field(default=3, ge=1)
     """Maximum consecutive heartbeat failures before the database service is considered unhealthy."""
 

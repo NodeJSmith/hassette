@@ -670,6 +670,13 @@
           "title": "Retention Max Batches Per Target",
           "type": "integer"
         },
+        "write_submit_timeout_seconds": {
+          "default": 60.0,
+          "description": "Maximum seconds an awaited database write may wait in the write queue before it starts\nexecuting. On expiry the write is withdrawn and the caller gets a TimeoutError, so a\nlong-running retention or size-failsafe pass delays other writers instead of suspending\nthem indefinitely. A write that has already started is not interrupted.",
+          "minimum": 0.1,
+          "title": "Write Submit Timeout Seconds",
+          "type": "number"
+        },
         "max_consecutive_heartbeat_failures": {
           "default": 3,
           "description": "Maximum consecutive heartbeat failures before the database service is considered unhealthy.",

@@ -238,6 +238,11 @@ class DatabaseService(Service):
     _write_queue_detached: bool
     """Whether a teardown path has taken ``_db_write_queue`` away — see ``detach_write_queue()``."""
 
+    _executing_future: asyncio.Future[Any] | None
+    """Future of the ``submit()`` item the write worker is currently running, if any. Lets
+    ``submit()`` tell a write still waiting in the queue (safe to withdraw on timeout) from one
+    already executing (whose outcome must be awaited, since it may commit)."""
+
     _consecutive_size_triggers: int
     """Counter for consecutive hourly size failsafe triggers; logged as a warning."""
 
@@ -256,6 +261,7 @@ class DatabaseService(Service):
         self._db_write_queue = None
         self._db_worker_task = None
         self._write_queue_detached = False
+        self._executing_future = None
 
     @property
     def config_log_level(self) -> LOG_LEVEL_TYPE:
@@ -360,8 +366,8 @@ class DatabaseService(Service):
         logged and forwarded to the installed exception recorders -- never runs for it. Without
         this callback, a worker crash (e.g. the ``RuntimeError`` guard in ``db_write_worker()``
         when ``_db_write_queue`` is ``None``, or a ``ValueError`` from ``queue.task_done()``)
-        would go completely unlogged, and every later ``submit()`` would hang awaiting a future
-        no worker will ever resolve, since ``submit()`` has no timeout of its own.
+        would go completely unlogged, and every later ``submit()`` would sit out its full queue
+        timeout awaiting a future no worker will ever resolve.
         """
         if task.cancelled():
             return
@@ -385,8 +391,8 @@ class DatabaseService(Service):
         two things go wrong: any coroutine still queued when the worker is cancelled is never
         closed (GC eventually raises "coroutine was never awaited"), and ``submit()``/``enqueue()``
         only reject once ``_db_write_queue`` is ``None`` -- leaving it set would let a caller
-        enqueue into a queue with a cancelled worker, hanging ``submit()``'s awaited future
-        forever.
+        enqueue into a queue with a cancelled worker, stalling every ``submit()`` caller for
+        its full queue timeout and silently dropping every ``enqueue()``.
 
         Closing ``_db``/``_read_db`` here (via the same synchronous ``stop_connection_sync()``
         used by ``App._force_terminal()`` for its cache) matters for the same reason: this path
@@ -541,6 +547,14 @@ class DatabaseService(Service):
         queue = self._db_write_queue
         while True:
             coro, future = await queue.get()
+            if future is not None and future.cancelled():
+                # The submit() caller timed out or was cancelled while this write was still
+                # queued; it has already reported the write as not done, so it must not run.
+                self.logger.debug("Skipping withdrawn DB write %s", coro.__qualname__)
+                coro.close()
+                queue.task_done()
+                continue
+            self._executing_future = future
             try:
                 result = await coro
                 if future is not None and not future.done():
@@ -559,6 +573,7 @@ class DatabaseService(Service):
                 else:
                     self.logger.exception("Unhandled error in enqueued DB write")
             finally:
+                self._executing_future = None
                 queue.task_done()
 
     def detach_write_queue(self) -> asyncio.Queue[_WriteQueueItem] | None:
@@ -595,6 +610,13 @@ class DatabaseService(Service):
         The coroutine is placed on the write queue and executed by the single-writer
         worker. The caller is suspended until the coroutine completes.
 
+        The wait for the worker to *start* the write is bounded by
+        ``DatabaseConfig.write_submit_timeout_seconds``. If it expires first, the write is
+        withdrawn from the queue unexecuted and ``TimeoutError`` is raised, so the caller may
+        safely retry it. Once the worker has started the write it is awaited to completion,
+        because it may commit; a caller that must also bound a wedged in-progress write (see
+        ``update_heartbeat()``) wraps this call in its own timeout.
+
         Args:
             coro: The coroutine to execute.
 
@@ -602,6 +624,7 @@ class DatabaseService(Service):
             The return value of the coroutine.
 
         Raises:
+            TimeoutError: The write was still queued when the timeout expired; it never ran.
             Exception: Whatever exception the coroutine raises.
         """
         if (queue := self._db_write_queue) is None:  # captured once -- enqueue() has no await, needs no capture
@@ -614,6 +637,18 @@ class DatabaseService(Service):
             coro.close()
             future.cancel()
             raise
+        timeout = self.hassette.config.database.write_submit_timeout_seconds
+        try:
+            done, _pending = await asyncio.wait((future,), timeout=timeout)
+        except asyncio.CancelledError:
+            future.cancel()
+            raise
+        # Race-free only because db_write_worker() sets _executing_future with no await between
+        # dequeuing an item and starting it: a future that is not _executing_future here has
+        # definitely not started, and cancelling it makes the worker skip it.
+        if not done and future is not self._executing_future:
+            future.cancel()
+            raise TimeoutError(f"DB write still queued after {timeout}s — withdrawn without running")
         return await future
 
     def enqueue(self, coro: Coroutine[Any, Any, Any]) -> bool:
@@ -759,9 +794,11 @@ class DatabaseService(Service):
         Early-return guards run inline; the DB write is awaited via submit()
         so that _consecutive_heartbeat_failures is updated before returning.
 
-        The submit() call is bounded by _HEARTBEAT_WRITE_TIMEOUT_SECONDS. A wedged write
-        worker never raises — it just stops draining the queue — so without this bound
-        serve() would park on submit() forever and never reach its failure-count escalation.
+        The submit() call is bounded by _HEARTBEAT_WRITE_TIMEOUT_SECONDS. submit()'s own queue
+        timeout only covers the wait before the write starts; a worker wedged *inside* a write
+        never raises, so without this outer bound serve() would park on submit() forever and
+        never reach its failure-count escalation. Either timeout surfaces as the same
+        TimeoutError: the queue was backed up past its limit, or the worker is wedged.
         A timeout, or a WriteQueueUnavailableError from submit(), counts as a heartbeat failure
         identically to a raised sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
 
@@ -785,8 +822,7 @@ class DatabaseService(Service):
         except TimeoutError:
             self._consecutive_heartbeat_failures += 1
             self.logger.exception(
-                "Heartbeat write timed out after %ds — write worker may be wedged (failure %d/%d)",
-                _HEARTBEAT_WRITE_TIMEOUT_SECONDS,
+                "Heartbeat write timed out — write queue backed up or worker wedged (failure %d/%d)",
                 self._consecutive_heartbeat_failures,
                 max_consecutive_heartbeat_failures,
             )

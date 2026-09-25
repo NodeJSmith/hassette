@@ -364,3 +364,25 @@ The contrast with the current state (app history ~24h, logs ~minutes) is the obs
 ## Open Questions
 
 None — all questions resolved during discovery, audit, and challenge review.
+
+## Addendum
+
+**2026-09-25 — FR#8 queue monopolization resolved by cap + timeout (#2265, #2282).** FR#8's
+description of batching still holds: a retention pass remains a single write-queue item and does
+not interleave with other writes. The resumable per-batch continuation was not built. What changed
+is that the pass is now bounded and the writers stuck behind it no longer wait without limit:
+
+- `DatabaseConfig.retention_max_batches_per_target` (default 100) caps how many batches one pass
+  runs per target. Any remainder is left for the next cycle, so a pass occupies the queue for at
+  most `targets × cap × retention_delete_batch` rows of deletes, however large the backlog.
+- `DatabaseService.submit()` bounds how long a write may wait in the queue before it starts
+  (`DatabaseConfig.write_submit_timeout_seconds`, default 60s). On expiry the write is withdrawn
+  unexecuted and the caller gets `TimeoutError`. `persist_batch()` handles that as a retryable
+  error (the same `RetryableBatch` path as `OperationalError`), so a long pass delays live
+  telemetry and logs it rather than suspending the drain loop. Registration and session writes
+  let the `TimeoutError` propagate like any other DB error.
+- No separate in-flight guard was added. `serve()` still advances `last_retention_run` when a
+  pass is enqueued, but with the batch cap a pass finishes far inside the 3600s interval, so a
+  second pass cannot stack behind a still-running one in practice. Measured on desktop hardware
+  against a 150k-row framework backlog: one capped pass deleted 100k rows in 0.46s, leaving 50k
+  for the next cycle.
