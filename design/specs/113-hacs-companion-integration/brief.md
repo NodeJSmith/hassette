@@ -112,7 +112,7 @@ dependency edges (decided 2026-09-24 during `/mine-define`):
 
 | # | Unit | Repo | Form | Depends on |
 |---|---|---|---|---|
-| A | Start/reload failures return `500` with the app's `error_message` instead of `202` | hassette | #2368 | — |
+| A | Start/reload failures return `500` with the app's `error_message` instead of `202` | hassette | #2368 (done: PR #2370, merged 2026-09-25) | — |
 | B | `hassette-wire` contract package and `hassette-client` library, with the CLI moved onto it | hassette | spec 114 (issues, then a slim spec) | — (parallel with A) |
 | C | The integration: config flow, coordinator, platforms, errors, tests, hassfest/HACS CI, HACS release | hass-hassette | own spec, in that repo | B published (path dep during dev) |
 | D | Pinned hass-hassette install in system-test and demo HA containers, one end-to-end system test, hassette docs page | hassette | own spec | A + C released |

@@ -168,7 +168,8 @@ changes are acceptable when they buy a better design.
 - **The CLI moves into `hassette-client`, behind a `[cli]` extra.** `pip install
   hassette-client[cli]` adds cyclopts and rich plus the `hassette` command with every query and
   action command. The motivating case is real: controlling a hassette server on a VPS or desktop
-  from a laptop without installing the whole framework. Hassette depends on
+  from a laptop without installing the whole framework (no FastAPI, uvicorn, starlette, aiosqlite
+  or croniter; aiohttp stays, since the transport needs it). Hassette depends on
   `hassette-client[cli]`, so a full install still gets the same command.
 - **Server-only CLI parts plug in through an entry point.** `hassette run` and local target
   discovery (which reads `HassetteConfig` and the token file) cannot move to the client. There is
@@ -193,19 +194,19 @@ changes are acceptable when they buy a better design.
 
 ## Proposed Work Split
 
-These land as issues under the HACS epic, most independently, then a slimmer spec covers
-whatever the HA integration still needs.
+Filed 2026-09-25 as sub-issues of umbrella #1540, which sits under epic #45. #2383 (issue 2)
+is standalone housekeeping, not linked to the epic.
 
 | # | Issue | Depends on | Notes |
 |---|---|---|---|
-| 0 | Teach `check_module_boundaries.py` to scope rules by nested module path | — | Rules can target `core/telemetry/` separately from the rest of `core/`, not just top-level layers. Should land before 3b. |
-| 1 | Return RFC 9457 problem details from the app action routes | — | Stable `code` values (`invalid_app_key`, `app_not_found`, `instance_not_found`, `bootstrap_not_released`, `app_blocked`, `action_failed`). These are wire codes; C maps them to its own translation keys (`bootstrap_not_released` → `not_bootstrapped`, `app_blocked` → `blocked_by_filter`, `app_not_found` → `not_found`, `action_failed` → `action_failed`). First slice of #2369. Independent of #2368 (epic unit A): either can land first, and A's 500 goes out as `action_failed` once both have. |
-| 2 | Re-anchor the stale zizmor `artipacked` ignore | — | `.github/zizmor.yml:13` points at `release-please.yml:49`, which is now `timeout-minutes`. |
-| 3a | Convert the repo to a uv workspace with empty `hassette-wire` and `hassette-client` packages, released in lockstep | — | Packaging only: workspace members, Dockerfile metadata lines (like `codegen`'s, for `uv lock --check`), CI path filters, nox sessions, release-please `extra-files`, and the wire → client → hassette publish order. Done when the Docker build is green and a release-please dry-run shows one PR bumping all three versions. |
-| 3b | Move the wire models and wire enums into `hassette-wire` | 3a (and 0, or its stopgap) | Behavior-preserving, pinned by the OpenAPI schema and the existing route tests. Domain objects (`app_snapshots`) and `hassette.types.enums` stay in hassette. `SystemStatus.version` becomes server-set. Adds both boundary rules to `check_module_boundaries.py`. |
-| 4 | Add the async transport, error mapping, and typed methods for every endpoint to `hassette-client` | 1, 3b | The HA requirements live here: injected session, lenient validation context, loud non-additive failures, the newer-server warning. Also adds the cross-version CI job. |
-| 5 | Move the CLI into `hassette-client[cli]`, with the entry-point plugin for `run` and local discovery | 4 | Ports every command onto the async client and deletes `HassetteCLIClient`. |
-| 6 | Add named remote targets to the CLI | 5 | The client config file, `default`, and `--target`. |
+| 0 (#2381) | Teach `check_module_boundaries.py` to scope rules by nested module path | — | Rules can target `core/telemetry/` separately from the rest of `core/`, not just top-level layers. Should land before 3b. |
+| 1 (#2382) | Return RFC 9457 problem details from the app action routes | — | Stable `code` values (`invalid_app_key`, `app_not_found`, `instance_not_found`, `bootstrap_not_released`, `app_blocked`, `action_failed`). These are wire codes; C maps them to its own translation keys (`bootstrap_not_released` → `not_bootstrapped`, `app_blocked` → `blocked_by_filter`, `app_not_found` → `not_found`, `action_failed` → `action_failed`). First slice of #2369. Independent of #2368 (epic unit A): either can land first, and A's 500 goes out as `action_failed` once both have. |
+| 2 (#2383) | Re-anchor the stale zizmor `artipacked` ignore | — | `.github/zizmor.yml:13` points at `release-please.yml:49`, which is now `timeout-minutes`. |
+| 3a (#2384) | Convert the repo to a uv workspace with empty `hassette-wire` and `hassette-client` packages, released in lockstep | — | Packaging only: workspace members, Dockerfile metadata lines (like `codegen`'s, for `uv lock --check`), CI path filters, nox sessions, release-please `extra-files`, and the wire → client → hassette publish order. Done when the Docker build is green and a release-please dry-run shows one PR bumping all three versions. |
+| 3b (#2385) | Move the wire models and wire enums into `hassette-wire` | 3a (and 0, or its stopgap) | Behavior-preserving, pinned by the OpenAPI schema and the existing route tests. Domain objects (`app_snapshots`) and `hassette.types.enums` stay in hassette. `SystemStatus.version` becomes server-set. Adds both boundary rules to `check_module_boundaries.py`. |
+| 4 (#2386) | Add the async transport, error mapping, and typed methods for every endpoint to `hassette-client` | 1, 3b | The HA requirements live here: injected session, lenient validation context, loud non-additive failures, the newer-server warning. Also adds the cross-version CI job. |
+| 5 (#2387) | Move the CLI into `hassette-client[cli]`, with the entry-point plugin for `run` and local discovery | 4 | Ports every command onto the async client and deletes `HassetteCLIClient`. |
+| 6 (#2388) | Add named remote targets to the CLI | 5 | The client config file, `default`, and `--target`. |
 
 ## Open Questions
 
@@ -218,6 +219,11 @@ whatever the HA integration still needs.
   (`ErrorRateClass`, `HealthStatus`, `ListenerKind`, `SystemHealthStatus` in `web/models.py`).
   Lenient parsing has to cover them too: convert them to wire enums, or give them their own
   open-union handling.
+- **`CliFormat` render hints on wire models.** Some wire fields carry CLI presentation metadata,
+  such as `Annotated[float, CliFormat("duration_ms")]` on `JobSummary`. `CliFormat` lives in
+  `hassette.types.types` today. It has to move with the models (into `hassette_wire` as inert
+  annotation metadata), or the CLI needs its own field-to-format mapping. Moving it keeps one
+  definition, and the hint is harmless to the server and to the HA integration.
 - **Sync CLI over an async client.** The CLI would wrap each command in `asyncio.run`. Is that
   fine for every command, including paginated or streaming ones?
 - **`httpx2` in hassette.** Starlette uses it, so it stays a dependency. Only the CLI's direct
