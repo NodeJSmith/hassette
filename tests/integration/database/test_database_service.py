@@ -12,6 +12,7 @@ import pytest
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core import database_service as database_service_module
 from hassette.core.database_service import DatabaseService
+from hassette.core.database_write_queue import detach_write_queue
 from hassette.resources.lifecycle import compute_shutdown_budget
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.integration.database.conftest import seed_app_executions
@@ -684,11 +685,11 @@ async def test_cleanup_returns_false_when_write_queue_is_none(
     initialized_service: DatabaseService, method_name: str
 ) -> None:
     """Both cleanups are a no-op returning False when _db_write_queue is None (post-teardown)."""
-    initialized_service.detach_write_queue()
+    detach_write_queue(initialized_service)
     assert initialized_service._db_write_queue is None
 
-    # No mock needed: enqueue() raises queue_unavailable_error() when _db_write_queue is None,
-    # so returning False here is the observable proof the early-return guard fired first.
+    # No mock needed: enqueue() raises build_queue_unavailable_error() when _db_write_queue is
+    # None, so returning False here is the observable proof the early-return guard fired first.
     assert await getattr(initialized_service, method_name)() is False
 
 
@@ -711,7 +712,7 @@ async def test_serve_retries_cleanup_after_dropped_enqueue(
     gates its own independent branch in serve().
 
     The queue is made full by swapping the attribute rather than by flooding the real one:
-    db_write_worker() binds the queue object it drains when it starts, so the worker keeps
+    run_write_queue_worker() binds the queue object it drains when it starts, so the worker keeps
     draining the original while this stand-in stays full for the whole test, making every
     enqueue() hit QueueFull deterministically. update_heartbeat() is stubbed out for the same
     reason -- it reaches the queue through submit(), which *blocks* on a full queue rather

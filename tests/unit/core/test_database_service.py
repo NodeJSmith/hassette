@@ -2,45 +2,25 @@
 
 import asyncio
 import contextlib
-import dataclasses
 import sqlite3
-from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import aiosqlite
 import pytest
 
 # Underscore-prefixed names below are intentional test-only reaches into module internals.
-from hassette.core.database_service import (
-    DatabaseService,
-    _execute_failsafe_delete,
-    _execute_target_delete,
-    _WriteQueueItem,
-)
-from hassette.core.retention_targets import _FAILSAFE_TABLES, _RETENTION_TABLES, RetentionTarget
+from hassette.core.database_service import DatabaseService, _WriteQueueItem
+from hassette.core.database_write_queue import log_worker_exit
+from hassette.testing import wait_for
 from hassette.types.enums import ResourceStatus
 from tests.support.helpers import async_noop
-from tests.unit.core._fixtures_database_service import initialized_service_with_worker, mock_hassette, service
+from tests.unit.core._fixtures_database_service import initialized_service_with_worker, service
 
-__all__ = ["initialized_service_with_worker", "mock_hassette", "service"]  # re-exposed as fixtures
+__all__ = ["initialized_service_with_worker", "service"]  # re-exposed as fixtures
 
-WIDGETS_TARGET = RetentionTarget(
-    table="widgets",
-    timestamp_col="ts",
-    priority=0,
-    retention_days_getter=lambda _cfg: 0,
-    failsafe_label="widgets",
-)
-
-WIDGETS_FRAMEWORK_TARGET = RetentionTarget(
-    table="widgets",
-    timestamp_col="ts",
-    priority=0,
-    retention_days_getter=lambda _cfg: 0,
-    failsafe_label="framework widgets",
-    source_tier="framework",
-)
+TEST_WRITE_TIMEOUT_SECONDS = 0.05
+"""Queue timeout for the submit() timeout tests: short enough to expire quickly, and every wait
+that must outlast it is derived from it so the two can't drift."""
 
 
 def test_init_sets_defaults(service: DatabaseService) -> None:
@@ -156,9 +136,9 @@ async def test_log_worker_exit_logs_unhandled_worker_crash(service: DatabaseServ
     ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
     ``TaskBucket.add()``'s own done callback -- the only other place a worker crash gets logged
     and forwarded to the installed exception recorders -- never runs for it. Without
-    ``_log_worker_exit()`` wired as its own done callback, a crash would be completely silent:
-    every later ``submit()`` would hang forever awaiting a future no worker will ever resolve,
-    with no signal anywhere pointing at why.
+    ``log_worker_exit()`` wired as its own done callback, a crash would be completely silent:
+    every later ``submit()`` would sit out its full queue timeout awaiting a future no worker
+    will ever resolve, with no signal anywhere pointing at why.
     """
 
     async def _boom() -> None:
@@ -169,7 +149,7 @@ async def test_log_worker_exit_logs_unhandled_worker_crash(service: DatabaseServ
         await asyncio.wait([task])
 
     with patch.object(service, "logger") as mock_logger:
-        service._log_worker_exit(task)
+        log_worker_exit(service, task)
 
     mock_logger.error.assert_called_once()
     _args, kwargs = mock_logger.error.call_args
@@ -192,7 +172,7 @@ async def test_log_worker_exit_ignores_cancelled_worker(service: DatabaseService
         await task
 
     with patch.object(service, "logger") as mock_logger:
-        service._log_worker_exit(task)
+        log_worker_exit(service, task)
 
     mock_logger.error.assert_not_called()
 
@@ -301,6 +281,126 @@ async def test_submit_caller_is_released_when_worker_is_cancelled_mid_item(
     done, _pending = await asyncio.wait([caller], timeout=5)
     assert caller in done, "submit() caller stayed suspended after the worker was cancelled"
     assert caller.cancelled()
+
+
+class _BlockedWorker:
+    """Occupies the write worker with a submitted write until ``release`` is set."""
+
+    def __init__(self, service: DatabaseService) -> None:
+        self.started = asyncio.Event()
+        self.release = asyncio.Event()
+        self.task = asyncio.create_task(service.submit(self.hold()))
+
+    async def hold(self) -> str:
+        self.started.set()
+        await self.release.wait()
+        return "held-write-result"
+
+
+async def test_submit_withdraws_a_write_still_queued_at_timeout(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A write stuck behind a long-running one times out and never runs, so callers may retry it."""
+    service = initialized_service_with_worker
+    service.hassette.config.database.write_submit_timeout_seconds = TEST_WRITE_TIMEOUT_SECONDS
+    blocker = _BlockedWorker(service)
+    await asyncio.wait_for(blocker.started.wait(), timeout=1)
+    ran: list[int] = []
+
+    async def queued_write() -> None:
+        ran.append(1)
+
+    with pytest.raises(TimeoutError, match="withdrawn without running"):
+        await asyncio.wait_for(service.submit(queued_write()), timeout=5)
+
+    blocker.release.set()
+    assert service._db_write_queue is not None
+    await asyncio.wait_for(service._db_write_queue.join(), timeout=5)
+    assert ran == [], "a write reported as timed out must not execute later"
+
+
+async def test_submit_awaits_a_started_write_past_the_timeout(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A write the worker has already started may commit, so submit() waits for its real outcome."""
+    service = initialized_service_with_worker
+    service.hassette.config.database.write_submit_timeout_seconds = TEST_WRITE_TIMEOUT_SECONDS
+    blocker = _BlockedWorker(service)
+    await asyncio.wait_for(blocker.started.wait(), timeout=1)
+
+    # Hold the write well past the queue timeout; a longer hold only makes the timeout more certain.
+    await asyncio.sleep(TEST_WRITE_TIMEOUT_SECONDS * 4)
+    assert not blocker.task.done()
+
+    blocker.release.set()
+    assert await asyncio.wait_for(blocker.task, timeout=5) == "held-write-result"
+
+
+async def test_submit_cancelled_while_queued_skips_the_write(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A caller cancelled before its write starts withdraws the write, same as a timeout."""
+    service = initialized_service_with_worker
+    blocker = _BlockedWorker(service)
+    await asyncio.wait_for(blocker.started.wait(), timeout=1)
+    ran: list[int] = []
+
+    async def queued_write() -> None:
+        ran.append(1)
+
+    queue = service._db_write_queue
+    assert queue is not None
+    caller = asyncio.create_task(service.submit(queued_write()))
+    await wait_for(lambda: queue.qsize() == 1, desc="write queued behind the blocker")
+    caller.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await caller
+
+    blocker.release.set()
+    await asyncio.wait_for(queue.join(), timeout=5)
+    assert ran == []
+
+
+async def test_submit_queue_full_wait_is_bounded_by_timeout(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """A full write queue with a stalled worker must not let submit() hang forever in queue.put().
+
+    Regression: submit() used to start its write_submit_timeout_seconds clock only after
+    queue.put() returned, so a full bounded queue (the exact situation write_queue_max and this
+    timeout both exist to survive) left submit() waiting on queue capacity with no bound at all.
+    """
+    service = initialized_service_with_worker
+    service.hassette.config.database.write_submit_timeout_seconds = TEST_WRITE_TIMEOUT_SECONDS
+
+    # Stop the worker from draining, then swap in a tiny queue nothing will ever read from --
+    # submit() re-captures self._db_write_queue on every call, so this is all a fresh submit()
+    # needs to see a full, permanently-stalled queue. (The cancelled worker's own local `queue`
+    # reference still points at the original queue; that's fine, it's not reading anymore.)
+    assert service._db_worker_task is not None
+    service._db_worker_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await service._db_worker_task
+
+    async def sentinel_coro() -> None:
+        pass
+
+    filler = sentinel_coro()
+    small_queue: asyncio.Queue = asyncio.Queue(maxsize=1)
+    small_queue.put_nowait((filler, None))
+    service._db_write_queue = small_queue
+
+    async def never_enqueued() -> None:
+        pytest.fail("write must never run — it should be rejected before it reaches the queue")
+
+    try:
+        with pytest.raises(TimeoutError, match="queue full"):
+            await asyncio.wait_for(service.submit(never_enqueued()), timeout=5)
+
+        # The rejected write was closed rather than added -- the queue is still exactly full.
+        assert small_queue.qsize() == small_queue.maxsize
+    finally:
+        filler.close()
 
 
 async def test_enqueue_is_fire_and_forget(
@@ -417,228 +517,6 @@ async def test_on_shutdown_closes_remaining_items_when_join_interrupted(
 
     assert service._db_worker_task is None
     assert future.cancelled()
-
-
-def test_retention_tables_is_list_of_retention_targets() -> None:
-    assert isinstance(_RETENTION_TABLES, list)
-    assert len(_RETENTION_TABLES) > 0
-    for entry in _RETENTION_TABLES:
-        assert isinstance(entry, RetentionTarget)
-
-
-def test_retention_tables_contains_expected_tables() -> None:
-    table_names = {t.table for t in _RETENTION_TABLES}
-    assert table_names == {"log_records", "executions", "blocking_events"}
-
-
-def test_retention_tables_has_four_entries() -> None:
-    """Executions appears twice — once per source tier — plus blocking_events and log_records."""
-    assert len(_RETENTION_TABLES) == 4
-
-
-def test_retention_tables_priority_ordering() -> None:
-    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
-    assert (
-        by_label["framework executions"].priority
-        < by_label["blocking events"].priority
-        < by_label["app executions"].priority
-        < by_label["log records"].priority
-    )
-
-
-def test_failsafe_tables_excludes_exempt_targets() -> None:
-    """The size failsafe operates on _FAILSAFE_TABLES, which drops failsafe_exempt targets.
-
-    log_records is structurally tiny next to executions, so deleting it reclaims almost nothing
-    while destroying the data most needed to diagnose whatever filled the database.
-    """
-    assert "log_records" not in {t.table for t in _FAILSAFE_TABLES}
-    assert [t.failsafe_label for t in _FAILSAFE_TABLES] == [
-        "framework executions",
-        "blocking events",
-        "app executions",
-    ]
-
-
-def test_retention_tables_still_manages_exempt_targets() -> None:
-    """Exemption is failsafe-only — age-based retention still covers log_records."""
-    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
-    assert by_label["log records"].failsafe_exempt is True
-    assert all(not t.failsafe_exempt for label, t in by_label.items() if label != "log records")
-
-
-def test_retention_target_timestamp_columns() -> None:
-    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
-    assert by_label["log records"].timestamp_col == "timestamp"
-    assert by_label["framework executions"].timestamp_col == "execution_start_ts"
-    assert by_label["app executions"].timestamp_col == "execution_start_ts"
-    assert by_label["blocking events"].timestamp_col == "detected_ts"
-
-
-def test_retention_target_source_tier() -> None:
-    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
-    assert by_label["framework executions"].source_tier == "framework"
-    assert by_label["app executions"].source_tier == "app"
-    assert by_label["blocking events"].source_tier is None
-    assert by_label["log records"].source_tier is None
-
-
-def test_retention_days_getter_for_log_records(mock_hassette: MagicMock) -> None:
-    mock_hassette.config.logging.log_retention_days = 3
-    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
-    assert by_label["log records"].retention_days_getter(mock_hassette.config) == 3
-
-
-def test_retention_days_getter_for_app_executions(mock_hassette: MagicMock) -> None:
-    mock_hassette.config.database.retention_days = 14
-    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
-    assert by_label["app executions"].retention_days_getter(mock_hassette.config) == 14
-
-
-def test_retention_days_getter_for_framework_executions(mock_hassette: MagicMock) -> None:
-    mock_hassette.config.database.framework_retention_days = 2
-    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
-    assert by_label["framework executions"].retention_days_getter(mock_hassette.config) == 2
-
-
-def test_retention_days_getter_for_blocking_events(mock_hassette: MagicMock) -> None:
-    mock_hassette.config.database.retention_days = 21
-    by_label = {t.failsafe_label: t for t in _RETENTION_TABLES}
-    assert by_label["blocking events"].retention_days_getter(mock_hassette.config) == 21
-
-
-def test_retention_target_is_frozen() -> None:
-    target = _RETENTION_TABLES[0]
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        target.table = "mutated"  # pyright: ignore[reportGeneralTypeIssues]
-
-
-@pytest.fixture
-async def memory_db() -> AsyncIterator[aiosqlite.Connection]:
-    """In-memory SQLite connection with a table shaped like a RetentionTarget's target table.
-
-    Uses isolation_level=None (autocommit) to match the real connections DatabaseService opens
-    in _initialize() — see database_service.py's connect_daemon() calls. Without this, a
-    commit()/rollback() failure in a test behaves differently here than it does in production.
-    """
-    async with aiosqlite.connect(":memory:", isolation_level=None) as db:
-        await db.execute(
-            "CREATE TABLE widgets (id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, "
-            "source_tier TEXT NOT NULL DEFAULT 'app')"
-        )
-        await db.commit()
-        yield db
-
-
-async def test_execute_target_delete_removes_rows_older_than_cutoff(memory_db: aiosqlite.Connection) -> None:
-    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (5.0), (10.0)")
-    await memory_db.commit()
-
-    deleted = await _execute_target_delete(memory_db, WIDGETS_TARGET, cutoff=6.0, batch_limit=100)
-
-    assert deleted == 2
-
-    cursor = await memory_db.execute("SELECT ts FROM widgets")
-    rows = await cursor.fetchall()
-    assert [row[0] for row in rows] == [10.0]
-
-
-async def test_execute_target_delete_returns_zero_when_nothing_matches(memory_db: aiosqlite.Connection) -> None:
-    await memory_db.execute("INSERT INTO widgets (ts) VALUES (10.0)")
-    await memory_db.commit()
-
-    deleted = await _execute_target_delete(memory_db, WIDGETS_TARGET, cutoff=1.0, batch_limit=100)
-
-    assert deleted == 0
-
-
-async def test_execute_target_delete_caps_at_batch_limit(memory_db: aiosqlite.Connection) -> None:
-    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0), (3.0)")
-    await memory_db.commit()
-
-    deleted = await _execute_target_delete(memory_db, WIDGETS_TARGET, cutoff=100.0, batch_limit=2)
-
-    assert deleted == 2
-    cursor = await memory_db.execute("SELECT COUNT(*) FROM widgets")
-    row = await cursor.fetchone()
-    assert row is not None
-    assert row[0] == 1
-
-
-async def test_execute_target_delete_filters_by_source_tier(memory_db: aiosqlite.Connection) -> None:
-    await memory_db.execute("INSERT INTO widgets (ts, source_tier) VALUES (1.0, 'app'), (1.0, 'framework')")
-    await memory_db.commit()
-
-    deleted = await _execute_target_delete(memory_db, WIDGETS_FRAMEWORK_TARGET, cutoff=100.0, batch_limit=100)
-
-    assert deleted == 1
-    cursor = await memory_db.execute("SELECT source_tier FROM widgets")
-    rows = await cursor.fetchall()
-    assert [row[0] for row in rows] == ["app"]
-
-
-async def test_execute_failsafe_delete_removes_oldest_n_rows(memory_db: aiosqlite.Connection) -> None:
-    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0), (2.0), (3.0), (4.0)")
-    await memory_db.commit()
-
-    deleted = await _execute_failsafe_delete(memory_db, WIDGETS_TARGET, batch_limit=2)
-
-    assert deleted == 2
-
-    cursor = await memory_db.execute("SELECT ts FROM widgets ORDER BY ts")
-    rows = await cursor.fetchall()
-    assert [row[0] for row in rows] == [3.0, 4.0]
-
-
-async def test_execute_failsafe_delete_caps_at_available_rows(memory_db: aiosqlite.Connection) -> None:
-    await memory_db.execute("INSERT INTO widgets (ts) VALUES (1.0)")
-    await memory_db.commit()
-
-    deleted = await _execute_failsafe_delete(memory_db, WIDGETS_TARGET, batch_limit=100)
-
-    assert deleted == 1
-
-
-async def test_execute_failsafe_delete_filters_by_source_tier(memory_db: aiosqlite.Connection) -> None:
-    await memory_db.execute("INSERT INTO widgets (ts, source_tier) VALUES (1.0, 'app'), (2.0, 'framework')")
-    await memory_db.commit()
-
-    deleted = await _execute_failsafe_delete(memory_db, WIDGETS_FRAMEWORK_TARGET, batch_limit=100)
-
-    assert deleted == 1
-    cursor = await memory_db.execute("SELECT source_tier FROM widgets")
-    rows = await cursor.fetchall()
-    assert [row[0] for row in rows] == ["app"]
-
-
-async def test_vacuum_and_checkpoint_busy_checkpoint_treated_as_failure(
-    service: DatabaseService, memory_db: aiosqlite.Connection
-) -> None:
-    """A busy wal_checkpoint(TRUNCATE) (nonzero first column, no exception) is a failed attempt.
-
-    SQLite doesn't raise for SQLITE_BUSY on this pragma -- it returns a result row whose first
-    column is nonzero. If that row is ignored, the caller sees a false success even though the
-    WAL was never truncated. Every attempt reports busy here, so the method must exhaust all
-    retries and return False rather than returning True on the first attempt.
-    """
-    real_execute = memory_db.execute
-
-    class _BusyCheckpointCursor:
-        async def fetchone(self) -> tuple[int, int, int]:
-            return (1, 5, 0)
-
-        async def close(self) -> None:
-            pass
-
-    async def fake_execute(sql: str, *args: object, **kwargs: object):
-        if sql.startswith("PRAGMA wal_checkpoint"):
-            return _BusyCheckpointCursor()
-        return await real_execute(sql, *args, **kwargs)
-
-    with patch.object(memory_db, "execute", side_effect=fake_execute):
-        result = await service._vacuum_and_checkpoint_with_retry(memory_db, vacuum_pages=100, group_label="test")
-
-    assert result is False
 
 
 class TestQueueUnavailableErrorMessage:

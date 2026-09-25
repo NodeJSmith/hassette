@@ -190,7 +190,11 @@ async def flush_queue(executor: "CommandExecutor") -> None:
     Called during shutdown to ensure no records are lost.
     Unlike drain_and_persist, there is no size limit.
 
-    Wraps persist_batch in try/except — DB may already be closed at shutdown.
+    Wraps persist_batch in try/except — DB may already be closed at shutdown. Passes
+    ``shutdown=True`` through to ``persist_batch()`` so a retryable failure (OperationalError,
+    or a submit() queue timeout) drops straight into ``_dropped_shutdown`` instead of being
+    re-enqueued: this drain runs exactly once and nothing reads ``_write_queue`` again
+    afterward, so a re-enqueued batch would otherwise be silently lost and never counted.
     """
     records: list[ExecutionRecord] = []
 
@@ -213,7 +217,7 @@ async def flush_queue(executor: "CommandExecutor") -> None:
         return
 
     try:
-        await persist_batch(executor, records)
+        await persist_batch(executor, records, shutdown=True)
     except Exception:
         drop_count = len(records)
         executor._dropped_shutdown += drop_count
@@ -229,6 +233,7 @@ async def persist_batch(
     records: list[ExecutionRecord],
     *,
     retry_count: int = 0,
+    shutdown: bool = False,
 ) -> None:
     """Write a batch of unified execution records to the DB in a single transaction.
 
@@ -237,7 +242,8 @@ async def persist_batch(
     - Records with no session available are dropped with a warning.
 
     Error classification:
-    - sqlite3.OperationalError → retry via RetryableBatch (max 3 retries).
+    - sqlite3.OperationalError / TimeoutError (write queue backed up) → retry via RetryableBatch
+      (max 3 retries), unless ``shutdown`` — see ``retry_or_drop()``.
     - sqlite3.IntegrityError → FK violation path (row-by-row fallback).
     - sqlite3.DataError / sqlite3.ProgrammingError → non-retryable, drop + REGRESSION log.
     - Other Exception → non-retryable, drop + ERROR log.
@@ -246,6 +252,8 @@ async def persist_batch(
         executor: The owning CommandExecutor instance.
         records: Unified execution records to insert into executions.
         retry_count: The number of times this batch has already been retried.
+        shutdown: Whether this call is part of ``flush_queue()``'s one-shot shutdown drain —
+            see ``retry_or_drop()`` for why that changes a retryable failure's outcome.
     """
     # Drain-time session_id injection
     # Records enqueued before session creation have session_id=None.
@@ -270,46 +278,15 @@ async def persist_batch(
     try:
         await executor.hassette.database_service.submit(executor.repository.persist_execution_batch(records))
         await emit_completion_events(executor, records)
-    except sqlite3.OperationalError as exc:
-        # Retryable — transient DB error (disk I/O, locked, etc.)
-        if retry_count >= _MAX_RETRY_COUNT:
-            drop_count = len(records)
-            executor._dropped_exhausted += drop_count
-            executor.logger.error(
-                "Max retries (%d) exceeded for %d record(s) — dropping (total exhausted: %d): %s",
-                _MAX_RETRY_COUNT,
-                drop_count,
-                executor._dropped_exhausted,
-                exc,
-            )
-        else:
-            executor.logger.warning(
-                "OperationalError persisting batch — re-enqueueing as RetryableBatch (attempt %d/%d): %s",
-                retry_count + 1,
-                _MAX_RETRY_COUNT,
-                exc,
-            )
-            try:
-                await asyncio.sleep(0)  # yield event loop before retry to avoid starving fresh records
-                executor._write_queue.put_nowait(
-                    RetryableBatch(
-                        records=list(records),
-                        retry_count=retry_count + 1,
-                        not_before=time.monotonic() + _RETRY_BACKOFF_BASE_SECONDS * (retry_count + 1),
-                    )
-                )
-            except asyncio.QueueFull:
-                drop_count = len(records)
-                executor._dropped_exhausted += drop_count
-                executor.logger.error(
-                    "Write queue full while re-enqueueing retry batch — dropping %d records (total exhausted: %d)",
-                    drop_count,
-                    executor._dropped_exhausted,
-                )
+    except (sqlite3.OperationalError, TimeoutError) as exc:
+        # Retryable. OperationalError is a transient DB error (disk I/O, locked, etc.) that
+        # rolled the batch back. TimeoutError means the batch sat in a backed-up DB write queue
+        # past its limit and was withdrawn; submit() guarantees it never ran, so no double insert.
+        await retry_or_drop(executor, records, retry_count, exc, shutdown=shutdown)
 
     except sqlite3.IntegrityError:
         # FK violation — fall back to row-by-row INSERT
-        await handle_fk_violation(executor, records)
+        await handle_fk_violation(executor, records, retry_count=retry_count, shutdown=shutdown)
 
     except (sqlite3.DataError, sqlite3.ProgrammingError) as exc:
         # Non-retryable schema/data mismatch — this is a regression
@@ -331,9 +308,83 @@ async def persist_batch(
         )
 
 
+async def retry_or_drop(
+    executor: "CommandExecutor",
+    records: list[ExecutionRecord],
+    retry_count: int,
+    exc: Exception,
+    *,
+    shutdown: bool = False,
+) -> None:
+    """Re-enqueue a batch whose write did not commit as a ``RetryableBatch``, or drop it.
+
+    Drops (and counts in ``_dropped_exhausted``) when the batch has used up ``_MAX_RETRY_COUNT``
+    retries or the executor's own write queue has no room for it.
+
+    ``shutdown=True`` skips the retry entirely and drops into ``_dropped_shutdown`` instead:
+    this call is on ``flush_queue()``'s one-shot shutdown drain, which runs exactly once and
+    never reads ``_write_queue`` again afterward, so a re-enqueued batch would sit there
+    forever — silently lost, and never counted.
+
+    Args:
+        executor: The owning CommandExecutor instance.
+        records: Unified execution records to retry.
+        retry_count: The number of times this batch has already been retried.
+        exc: The retryable error that failed this attempt, for the log line.
+        shutdown: Whether this call is part of the one-shot shutdown flush.
+    """
+    drop_count = len(records)
+    if shutdown:
+        executor._dropped_shutdown += drop_count
+        executor.logger.error(
+            "%s persisting batch during shutdown flush — dropping %d record(s) (total shutdown: %d): %s",
+            type(exc).__name__,
+            drop_count,
+            executor._dropped_shutdown,
+            exc,
+        )
+        return
+    if retry_count >= _MAX_RETRY_COUNT:
+        executor._dropped_exhausted += drop_count
+        executor.logger.error(
+            "Max retries (%d) exceeded for %d record(s) — dropping (total exhausted: %d): %s",
+            _MAX_RETRY_COUNT,
+            drop_count,
+            executor._dropped_exhausted,
+            exc,
+        )
+        return
+    executor.logger.warning(
+        "%s persisting batch — re-enqueueing as RetryableBatch (attempt %d/%d): %s",
+        type(exc).__name__,
+        retry_count + 1,
+        _MAX_RETRY_COUNT,
+        exc,
+    )
+    try:
+        await asyncio.sleep(0)  # yield event loop before retry to avoid starving fresh records
+        executor._write_queue.put_nowait(
+            RetryableBatch(
+                records=list(records),
+                retry_count=retry_count + 1,
+                not_before=time.monotonic() + _RETRY_BACKOFF_BASE_SECONDS * (retry_count + 1),
+            )
+        )
+    except asyncio.QueueFull:
+        executor._dropped_exhausted += drop_count
+        executor.logger.error(
+            "Write queue full while re-enqueueing retry batch — dropping %d records (total exhausted: %d)",
+            drop_count,
+            executor._dropped_exhausted,
+        )
+
+
 async def handle_fk_violation(
     executor: "CommandExecutor",
     records: list[ExecutionRecord],
+    *,
+    retry_count: int = 0,
+    shutdown: bool = False,
 ) -> None:
     """Handle an IntegrityError by re-inserting records with FK fallback.
 
@@ -341,9 +392,16 @@ async def handle_fk_violation(
     transaction) to process all records row-by-row. For each record that
     fails with an IntegrityError, the FK field is nulled and retried.
 
+    A queue-wait ``TimeoutError`` from ``submit()`` means the fallback write never ran, so the
+    batch is retried through ``retry_or_drop()`` like any other retryable failure; its retry
+    replays the normal insert and re-enters this fallback if the FK violation still holds.
+
     Args:
         executor: The owning CommandExecutor instance.
         records: Unified execution records to insert individually.
+        retry_count: The number of times this batch has already been retried.
+        shutdown: Whether this call is part of ``flush_queue()``'s one-shot shutdown drain —
+            forwarded to ``retry_or_drop()`` unchanged.
     """
     try:
         dropped = await executor.hassette.database_service.submit(
@@ -358,6 +416,8 @@ async def handle_fk_violation(
             )
         else:
             await emit_completion_events(executor, records)
+    except TimeoutError as exc:
+        await retry_or_drop(executor, records, retry_count, exc, shutdown=shutdown)
     except Exception as exc:
         drop_count = len(records)
         executor._dropped_exhausted += drop_count
