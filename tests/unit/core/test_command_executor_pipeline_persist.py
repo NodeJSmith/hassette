@@ -196,6 +196,32 @@ async def test_flush_queue_records_dropped_shutdown_when_persist_raises_outside_
     assert executor._dropped_shutdown == 1
 
 
+async def test_flush_queue_counts_submit_timeout_as_dropped_not_requeued():
+    """Regression: a submit() queue-timeout during the shutdown flush must be counted as
+    dropped, not re-enqueued as a RetryableBatch.
+
+    flush_queue() drains _write_queue exactly once and nothing reads it again afterward. Before
+    persist_batch()/retry_or_drop() took a ``shutdown`` flag, a TimeoutError from submit() during
+    this drain re-enqueued the batch the same way the steady-state drain does -- silently losing
+    it (nothing left to consume the queue) without incrementing _dropped_shutdown either.
+    """
+    executor = init_executor()
+
+    inv = make_invocation(listener_id=5, session_id=1)
+    executor._write_queue.put_nowait(inv)
+
+    async def timeout_submit(coro):
+        coro.close()  # never actually ran -- matches what submit() itself guarantees on timeout
+        raise TimeoutError("DB write still queued")
+
+    executor.hassette.database_service.submit = timeout_submit  # pyright: ignore[reportAttributeAccessIssue]
+
+    await execution_pipeline.flush_queue(executor)
+
+    assert executor._dropped_shutdown == 1
+    assert executor._write_queue.empty(), "a shutdown-flush timeout must not be re-enqueued"
+
+
 async def test_persist_execution_batch_includes_source_tier():
     """TelemetryRepository.persist_execution_batch INSERT includes source_tier column."""
     schema = """
