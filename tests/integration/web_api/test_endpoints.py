@@ -231,6 +231,49 @@ class TestAppEndpoints:
         assert (await client.post(APP_STOP_PATH)).status_code == 202
         assert (await client.post(APP_RELOAD_PATH)).status_code == 202
 
+    async def test_start_app_returns_500_when_operation_swallows_a_failure(
+        self, client: "AsyncClient", mock_hassette: MagicMock, tmp_path: Path
+    ) -> None:
+        """#2368: AppFactory/AppLifecycleService catch class-load, config-validation, and
+        on_initialize() failures internally and record them to the registry via
+        record_failure() instead of raising — start_app() returns normally even though the
+        instance ended up FAILED. The endpoint must surface that as a 500 with the failure's
+        error_message, not the unconditional 202 ``_run_app_action`` would otherwise return.
+        """
+        registry = AppRegistry()
+        manifest = create_app_manifest("failing", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+        mock_hassette._app_handler.registry = registry
+
+        async def fake_start_app(app_key: str) -> None:
+            registry.record_failure(app_key, 0, RuntimeError("on_initialize blew up"))
+
+        mock_hassette.app_handler.start_app = AsyncMock(side_effect=fake_start_app)
+
+        response = await client.post(f"/api/apps/{manifest.app_key}/start")
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "on_initialize blew up"
+
+    async def test_reload_app_returns_500_when_operation_swallows_a_failure(
+        self, client: "AsyncClient", mock_hassette: MagicMock, tmp_path: Path
+    ) -> None:
+        """Same swallowed-failure path as start (#2368), via reload_app()."""
+        registry = AppRegistry()
+        manifest = create_app_manifest("failing", tmp_path)
+        registry.set_manifests({manifest.app_key: manifest})
+        mock_hassette._app_handler.registry = registry
+
+        async def fake_reload_app(app_key: str, **_kwargs: object) -> None:
+            registry.record_failure(app_key, 0, RuntimeError("reload blew up"))
+
+        mock_hassette.app_handler.reload_app = AsyncMock(side_effect=fake_reload_app)
+
+        response = await client.post(f"/api/apps/{manifest.app_key}/reload")
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "reload blew up"
+
 
 class TestAppInstanceEndpoints:
     """Per-instance HTTP endpoints: POST /apps/{app_key}/instances/{index}/start|stop|reload (#796)."""
@@ -276,6 +319,68 @@ class TestAppInstanceEndpoints:
         assert data["action"] == "reload"
         assert data["instance_index"] == 0
         mock_hassette.app_handler.reload_instance.assert_awaited_once_with("my_app", 0, force_reload=True)
+
+    async def test_start_instance_returns_500_when_target_instance_fails(
+        self, client: "AsyncClient", mock_hassette: MagicMock, tmp_path: Path
+    ) -> None:
+        """#2368, per-instance case: start_instance() swallows the failure and records it to
+        the registry instead of raising — the endpoint must surface it as a 500.
+        """
+        registry = AppRegistry()
+        manifest = create_app_manifest("failing", tmp_path, app_config=[{}, {}])
+        registry.set_manifests({manifest.app_key: manifest})
+        mock_hassette._app_handler.registry = registry
+
+        async def fake_start_instance(app_key: str, index: int) -> None:
+            registry.record_failure(app_key, index, RuntimeError("instance blew up"))
+
+        mock_hassette.app_handler.start_instance = AsyncMock(side_effect=fake_start_instance)
+
+        response = await client.post(instance_action_path(manifest.app_key, 0, "start"))
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "instance blew up"
+
+    async def test_start_instance_ignores_unrelated_sibling_failure(
+        self, client: "AsyncClient", mock_hassette: MagicMock, tmp_path: Path
+    ) -> None:
+        """A per-instance action must not surface a FAILED sibling's status — only the targeted
+        instance counts. Instance 1 is already FAILED from an earlier call; starting instance 0
+        successfully must still return 202.
+        """
+        registry = AppRegistry()
+        manifest = create_app_manifest("failing", tmp_path, app_config=[{}, {}])
+        registry.set_manifests({manifest.app_key: manifest})
+        registry.record_failure(manifest.app_key, 1, RuntimeError("sibling already broken"))
+        mock_hassette._app_handler.registry = registry
+
+        async def fake_start_instance(app_key: str, index: int) -> None:
+            registry.register_app(app_key, index, MagicMock())
+
+        mock_hassette.app_handler.start_instance = AsyncMock(side_effect=fake_start_instance)
+
+        response = await client.post(instance_action_path(manifest.app_key, 0, "start"))
+
+        assert response.status_code == 202
+
+    async def test_reload_instance_returns_500_when_target_instance_fails(
+        self, client: "AsyncClient", mock_hassette: MagicMock, tmp_path: Path
+    ) -> None:
+        """Same swallowed-failure path as start (#2368), via reload_instance()."""
+        registry = AppRegistry()
+        manifest = create_app_manifest("failing", tmp_path, app_config=[{}, {}])
+        registry.set_manifests({manifest.app_key: manifest})
+        mock_hassette._app_handler.registry = registry
+
+        async def fake_reload_instance(app_key: str, index: int, **_kwargs: object) -> None:
+            registry.record_failure(app_key, index, RuntimeError("instance reload blew up"))
+
+        mock_hassette.app_handler.reload_instance = AsyncMock(side_effect=fake_reload_instance)
+
+        response = await client.post(instance_action_path(manifest.app_key, 0, "reload"))
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "instance reload blew up"
 
     async def test_start_instance_out_of_range_returns_404(
         self, client: "AsyncClient", mock_hassette: MagicMock
