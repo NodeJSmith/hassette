@@ -375,7 +375,7 @@ async def test_timed_out_heartbeat_is_counted_once_even_if_the_write_later_fails
     assert service._consecutive_heartbeat_failures == 1
 
 
-async def test_update_heartbeat_counts_runtime_error_from_submit_as_failure(
+async def test_update_heartbeat_counts_write_queue_unavailable_error_as_failure(
     initialized_service_with_worker: DatabaseService,
 ) -> None:
     """Regression for issue #2283: a WriteQueueUnavailableError raised by submit() (queue

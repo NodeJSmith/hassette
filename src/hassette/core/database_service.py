@@ -635,20 +635,25 @@ class DatabaseService(Service):
 
         Returns:
             True if enqueued successfully, False if dropped due to a full queue.
+
+        Raises:
+            WriteQueueUnavailableError: If the write queue is unavailable (never created, or
+                detached by a teardown path).
         """
-        if self._db_write_queue is None:
+        queue = self._db_write_queue
+        if queue is None:
             coro.close()
             raise self.queue_unavailable_error("enqueue")
         try:
-            self._db_write_queue.put_nowait((coro, None))
+            queue.put_nowait((coro, None))
         except asyncio.QueueFull:
             coro.close()
             self.logger.error(
                 "DB write queue full (%d items) — dropping fire-and-forget task",
-                self._db_write_queue.qsize(),
+                queue.qsize(),
             )
             return False
-        qsize = self._db_write_queue.qsize()
+        qsize = queue.qsize()
         if qsize > 0 and qsize % 100 == 0:
             self.logger.warning("DB write queue depth at %d items — potential backlog", qsize)
         return True
