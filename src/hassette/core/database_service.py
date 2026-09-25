@@ -629,7 +629,7 @@ class DatabaseService(Service):
         Returns:
             True if enqueued successfully, False if dropped due to a full queue.
         """
-        if self._db_write_queue is None:
+        if self._db_write_queue is None:  # sync method, no await point -- see submit()'s capture-once comment
             coro.close()
             raise self.queue_unavailable_error("enqueue")
         try:
@@ -761,9 +761,9 @@ class DatabaseService(Service):
 
         The submit() call is bounded by _HEARTBEAT_WRITE_TIMEOUT_SECONDS. A wedged write
         worker never raises — it just stops draining the queue — so without this bound
-        serve() would park on submit() forever and never reach its failure-count
-        escalation. A timeout or a WriteQueueUnavailableError from submit() counts as a heartbeat failure identically
-        to a raised sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
+        serve() would park on submit() forever and never reach its failure-count escalation.
+        A timeout, or a WriteQueueUnavailableError from submit(), counts as a heartbeat failure
+        identically to a raised sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
 
         This method is the only place _consecutive_heartbeat_failures moves, so one attempt
         costs exactly one strike. Counting the timeout here and the raise inside the queued

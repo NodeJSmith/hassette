@@ -8,6 +8,7 @@ import asyncio
 
 import pytest
 
+# Underscore-prefixed names below are intentional test-only reaches into module internals.
 from hassette.core.database_service import DatabaseService, _WriteQueueItem
 from tests.unit.core._fixtures_database_service import initialized_service_with_worker, mock_hassette, service
 
@@ -26,14 +27,14 @@ def _queue_detached_after_n_reads(
     """
     reads = 0
 
-    def _read(_service: DatabaseService) -> asyncio.Queue[_WriteQueueItem] | None:
+    def _read_write_queue(_service: DatabaseService) -> asyncio.Queue[_WriteQueueItem] | None:
         nonlocal reads
         reads += 1
         return real_queue if reads <= reads_before_detach else None
 
     # raising=False: _db_write_queue is a bare class-level annotation (no default), so it's
     # never actually present in DatabaseService.__dict__ until an instance sets it in __init__.
-    monkeypatch.setattr(DatabaseService, "_db_write_queue", property(_read), raising=False)
+    monkeypatch.setattr(DatabaseService, "_db_write_queue", property(_read_write_queue), raising=False)
 
 
 async def test_update_heartbeat_counts_write_queue_unavailable_error_as_failure(
@@ -61,7 +62,7 @@ async def test_update_heartbeat_survives_write_queue_detached_between_guard_and_
     initialized_service_with_worker: DatabaseService,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Regression for the TOCTOU race (audit Finding 3): update_heartbeat() checks
+    """Regression for the TOCTOU race described in issue #2283: update_heartbeat() checks
     ``_db_write_queue is not None`` once and then calls submit(). Before the fix, submit()
     re-read ``self._db_write_queue`` a second time instead of reusing the value its own entry
     check had just observed, so a detach landing in that window crashed with
