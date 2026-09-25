@@ -23,12 +23,8 @@ export interface FilterState {
 
 export type ViewContext = "global" | "app" | "execution";
 
-// Static per-column metadata (id, label, width, etc.). Renamed from the
-// previous `ColumnDef` to avoid colliding with TanStack's own `ColumnDef`
-// type, which log-table-view.tsx now imports directly to build the real
-// TanStack column definitions. This metadata feeds that construction and is
-// also consumed as-is by column-picker.tsx and use-column-visibility.ts,
-// neither of which need TanStack types.
+// Static per-column metadata, distinct from TanStack's `ColumnDef`. log-table-view.tsx builds the
+// TanStack definitions from this — column-picker.tsx and use-column-visibility.ts consume it as-is.
 export interface LogColumnMeta {
   id: ColumnId;
   label: string;
@@ -48,17 +44,15 @@ export type RowKeyInput = Pick<LogEntry, "timestamp" | "logger_name" | "lineno">
 };
 
 export function rowKey(entry: RowKeyInput): RowKey {
-  // `seq` is always present (backend falls back to `seq: 0` for records that bypass
-  // CorrelationFilter — early-startup and third-party logger records). Check for
-  // presence with `!= null`, not truthiness, so a real `seq: 0` isn't mistaken for
-  // an absent value and pushed onto the weaker fallback key.
+  // `RowKeyInput` widens `seq` to optional even though `LogEntry` marks it required. Check for
+  // null/undefined explicitly, not truthiness, so a real `seq: 0` isn't mistaken for absent and
+  // pushed onto the weaker fallback key below.
   if (entry.seq === null || entry.seq === undefined) {
     return `${entry.timestamp}-${entry.logger_name}-${entry.lineno}`;
   }
 
-  // The stamped counter starts at 1, so `seq: 0` is the fallback marker and can repeat
-  // across concurrent records — add the logger/lineno discriminator to avoid collisions
-  // that a bare `${timestamp}-0` key would produce.
+  // The stamped counter starts at 1, so `seq: 0` marks a record that bypassed CorrelationFilter and
+  // can repeat across concurrent records — discriminate on logger/lineno.
   if (entry.seq === 0) {
     return `${entry.timestamp}-0-${entry.logger_name}-${entry.lineno}`;
   }
