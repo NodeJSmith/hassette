@@ -2,6 +2,12 @@
 
 **Date:** 2026-07-07
 **Status:** Decided — decisions recorded below were made with Jessica on 2026-07-07. Transport decision recorded in ADR-0004.
+> **Superseded in part (2026-09-24).** Staging, the transport (ADR-0006 proposed to replace
+> ADR-0004), repo/package layout, and v0.1 scope are re-decided in
+> `design/specs/113-hacs-companion-integration/brief.md`. Treat this document's protocol tables and
+> prereq files as historical; the identity model, lifecycle-matrix thinking, and v0.2 entity
+> semantics remain useful input.
+
 **Anchor issues:** #45 (custom integration), #46 (`@template` decorator), #594 comment on #45 (webhook dependency)
 
 ## Problem

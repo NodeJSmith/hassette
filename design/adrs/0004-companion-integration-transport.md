@@ -1,6 +1,10 @@
 # ADR-0004: Companion integration transport — custom WS commands over hassette's existing HA connection
 
 **Status:** Accepted (2026-07-07) · reaffirmed after review (2026-08-07)
+
+> **Proposed to be superseded (2026-09-24)** by ADR-0006 (`0006-companion-integration-conventional-client.md`):
+> the integration becomes a conventional API client of hassette, matching HA core convention.
+> This ADR stays in effect until ADR-0006 is accepted.
 **Relates to:** #45, #46, #594 · `design/research/2026-07-07-companion-integration-architecture/research.md`
 · `design/research/2026-08-07-integration-transport-revisit/research.md`
 
