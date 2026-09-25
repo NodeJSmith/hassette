@@ -106,38 +106,92 @@ reason. That constraint is what reversed the transport decision (below).
 | v0.3 | Webhooks: the integration registers HA webhooks and forwards payloads to a hassette endpoint; unblocks #594. |
 | v0.4+ | `@template` (#46); HACS default store; Supervisor add-on discovery (#71). |
 
-### Spec decomposition (v0.1, provisional)
+### Spec decomposition (v0.1)
 
-**One spec** covers v0.1. The hassette-side work is now just the client library (wrapping the
-existing REST endpoints) and its release-please/PyPI plumbing, which is too small to be its own
-spec. The spec covers: the client library; `hass-hassette`'s config flow, coordinator, app devices and entities, errors, and
-tests with `pytest-homeassistant-custom-component` (whose version tracks HA core); the HACS
-release; and the pinned install in hassette's system-test/demo HA containers for the end-to-end
-test. The library stays 0.x until that end-to-end test passes. Later stages get their own specs.
+v0.1 spans two repos, and `mine-orchestrate` runs inside one, so it splits along its
+dependency edges (decided 2026-09-24 during `/mine-define`):
+
+| # | Unit | Repo | Form | Depends on |
+|---|---|---|---|---|
+| A | Start/reload failures return `500` with the app's `error_message` instead of `202` | hassette | #2368 | — |
+| B | `hassette-client` library, contract test, release-please package + PyPI publish | hassette | spec 113 | — (parallel with A) |
+| C | The integration: config flow, coordinator, platforms, errors, tests, hassfest/HACS CI, HACS release | hass-hassette | own spec, in that repo | B published (path dep during dev) |
+| D | Pinned hass-hassette install in system-test and demo HA containers, one end-to-end system test, hassette docs page | hassette | own spec | A + C released |
+
+The library stays 0.x until D's end-to-end test passes.
+
+### Decided in the v0.1 define interview (2026-09-24)
+
+Scope mode **Hold**. Done means dogfooded: installed from a HACS custom repo on the maintainer's
+own HA, every app a device, start/stop/reload used from dashboards and automations, and D's
+end-to-end test green in CI.
+
+- **Owned by A:** a start or reload where an instance this action tried to start ends up
+  `FAILED` returns `500` with that instance's `error_message`, via `_run_app_action`'s existing
+  500 path (`web/routes/apps.py`). Today `_start_app_unlocked` and `reload_app` swallow init
+  errors, so both answer `202`. The CLI and frontend already surface non-2xx generically.
+  RED-then-GREEN tests; the 202/409 paths stay green.
+- **Owned by B:** name `hassette-client`, import `hassette_client`, in `client/` as a uv workspace
+  member with its own `pyproject.toml`. It is async aiohttp with an injected session
+  (`inject-websession`), and **cannot depend on `hassette`** (that would drag hassette's whole
+  dependency tree into HA). Models are pydantic, `pydantic>=2,<3`, using nothing newer than what
+  HA ships. Every path is under the `/api` prefix. Its exceptions map status codes: connection
+  error, 401, 404, 409 (bootstrap not released vs `--app` blocked, told apart by detail), 500
+  (action failed), 503, and timeout. A hassette-side contract test runs real route responses
+  through the client's models so drift fails hassette CI. It has its own nox session and
+  coverage floor.
+- **Owned by C:**
+  - Quality target **Silver**, plus the Gold rules the design already meets (dynamic-devices,
+    stale-devices, exception-translations, entity-translations).
+  - Config flow with a user step and reauth; fields URL, token (**optional**), `verify_ssl`.
+    Without a token the client sends no `Authorization` header, so a hassette that lists HA's
+    address in `web_api.trusted_proxies` admits it by peer trust. A 401 without a token asks
+    for one. Docs recommend the token and explain the trade-off: trusting HA's IP trusts every
+    process sharing it, such as add-ons on a host-networked HA. It validates with one
+    `GET /api/health` (authenticated; returns `version`): `cannot_connect`, `invalid_auth`,
+    and `unsupported_version` below a `MIN_HASSETTE_VERSION` constant set to the release that
+    ships A. The version is re-checked at setup, not every poll. (hassette's trusted-peer
+    bypass never admits a wrong token: a presented `Authorization` header is authoritative and
+    fails closed, `web/auth/__init__.py:94-102`.)
+  - Coordinator polls `GET /api/apps/manifests` every **30 s** (fixed, not an option; temporary
+    until v0.2 push, after which a full fetch on (re)connect remains). **A `503` (DB unavailable,
+    empty list) raises `UpdateFailed` and never counts as "apps removed".** 401 raises
+    `ConfigEntryAuthFailed`.
+  - Stale removal keys on `in_current_config: false` or a row disappearing, not on presence in the
+    list: the endpoint also returns removed apps that still have DB rows.
+  - Per app: `switch` (`{app_key}_running`), `button` (`{app_key}_reload`), and an enum `sensor`
+    (`{app_key}_status`) with the six `ManifestStatus` values (disabled, blocked, degraded,
+    running, failed, stopped). The unique_id format is a one-way door.
+  - Switch on = `running` or `degraded`; off = `stopped` or `failed`. For `disabled` and
+    `blocked` apps, switch and button are unavailable and the sensor stays available.
+    `autostart = false` needs no special handling. A stop from HA lasts until hassette restarts,
+    documented, not fixed.
+  - Every action requests an immediate refresh (no optimistic state). Errors: 404 raises
+    `ServiceValidationError(not_found)`; 409 blocked raises
+    `ServiceValidationError(blocked_by_filter)`; 409 bootstrap raises
+    `HomeAssistantError(not_bootstrapped)`; 500 raises `HomeAssistantError(action_failed)`;
+    timeout raises `HomeAssistantError`, meaning the outcome is unknown.
+  - Security: the single web API token is accepted for v0.1 and stored in the config entry, never
+    logged. Min HA version is derived from the APIs used.
+  - Tests use `pytest-homeassistant-custom-component` at **>95% coverage**, enforced in CI.
+- **Owned by D:** `tests/system/docker-compose.yml` mounts the pinned release into
+  `custom_components/` and adds `extra_hosts: host.docker.internal:host-gateway` so HA can reach
+  hassette on the host. One system test sets up the entry, asserts devices and entities exist,
+  toggles a switch, and sees the app stop. Docs cover setup, the token, reverse-proxy bypass,
+  and stop-not-persisting. Known gap: nothing tests hass-hassette against unreleased hassette
+  HEAD.
+- **Out of v0.1:** diagnostics, a reconfigure flow, repair issues, zeroconf/Supervisor discovery,
+  per-instance entities, the HACS default store, a CLI port to the library, and per-client tokens.
 
 ## Open Questions
 
-- **Client library name and home** (`hassette-client` in `client/`?), and whether it shares
-  models with hassette's web layer or keeps its own.
-- **Switch semantics edge cases:** what the switch shows for a failed app (off plus the status
-  sensor saying failed?), for `autostart = false` apps, and for apps blocked by the `--app`
-  filter (unavailable?). Also: a stop issued from HA doesn't survive a hassette restart if the app
-  has `autostart = true`, so the switch flips back on. Document that, or decide it's wrong.
-- **Poll interval** for the coordinator until v0.2's push channel exists.
-- **`test-before-setup` check:** which endpoint the config flow calls to validate URL + token
-  (likely `/health` plus an authenticated call).
-- **Token type** for the integration: reuse hassette's existing web API token, or a dedicated
-  per-client token.
-- **Reachability docs:** the forward-auth bypass for token-authenticated API paths; LAN vs remote
-  setups.
-- **ADR-0005 interaction:** the add-on restricts clients to the ingress gateway when no host port
-  is mapped (`web_api.allowed_client_ips`). The integration in HA core must be allowed, ideally
-  via Supervisor discovery handing it the internal URL.
-- **Minimum HA version** for `hacs.json`: derive it from the APIs actually used, and keep a
+- **Reachability docs** (D): the forward-auth bypass for token-authenticated API paths; LAN vs
+  remote setups.
+- **ADR-0005 interaction** (C/D docs): the add-on restricts clients to the ingress gateway when no
+  host port is mapped (`web_api.allowed_client_ips`). v0.1 documents allowing HA's address;
+  Supervisor discovery handing over the internal URL is v0.4+.
+- **Minimum HA version** (C) for `hacs.json`: derive it from the APIs actually used, and keep a
   release-checklist step so it doesn't drift (HACS enforcement has gaps).
-- **Reload failure reporting:** fix `reload_app` so a failed reload surfaces as an error (non-2xx)
-  instead of a `202`, or accept that the status sensor is the only failure signal. Fixing it is
-  hassette-side work that belongs in v0.1 if chosen.
 - **v0.2 WS subscription design** on hassette's server: topics, request ids, backpressure (today
   `RuntimeQueryService.broadcast()` drops on `QueueFull`, `core/runtime_query_service.py:413-425`).
 - **ADR-0006 acceptance:** it stays Proposed until reviewed.
