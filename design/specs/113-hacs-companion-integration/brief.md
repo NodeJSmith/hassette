@@ -67,11 +67,14 @@ reason. That constraint is what reversed the transport decision (below).
   "outcome unknown". Start and stop converge on a target state and are safe to retry (start
   no-ops for already-running instances, `app_lifecycle_service.py:509-512`; stop of an app with
   no running instances returns quietly, `:663-665`). Reload is stop-then-start under the app-key lock
-  (`:671-705`), so repeating it restarts the app again but still ends at "running". **Reload hides
-  failures:** `reload_app` catches every exception except `AppBlockedError`, logs it, and returns,
-  so the route still answers `202` (`:704-705`). The button therefore cannot report a failed
-  reload itself; HA learns of it only when the next coordinator refresh shows the status sensor
-  as `failed`. See Open Questions.
+  (`:671-705`), so repeating it restarts the app again but still ends at "running". Reload no
+  longer hides a swallowed failure from the caller (unit A, #2368, merged as #2370): `reload_app`
+  still catches class-load, config-validation, and `on_initialize()` failures internally and
+  records them to the registry instead of raising, but `_run_app_action`
+  (`web/routes/apps.py:141-239`) re-checks the registry for a FAILED instance among the ones
+  targeted after `operation()` returns cleanly, and raises `500` with the failure's
+  `error_message` when it finds one. The button can report a failed reload itself, mapped to
+  `HomeAssistantError(action_failed)`, the same as any other action failure.
 - **Integration idioms (quality scale):** state in `entry.runtime_data` (`runtime-data`);
   `has_entity_name` with the app device as the name owner; `ConfigEntryNotReady` at setup when
   hassette is unreachable; log-once-when-unavailable; any services added later are registered in

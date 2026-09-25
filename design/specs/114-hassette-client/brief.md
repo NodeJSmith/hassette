@@ -171,9 +171,18 @@ changes are acceptable when they buy a better design.
   from a laptop without installing the whole framework (no FastAPI, uvicorn, starlette, aiosqlite
   or croniter; aiohttp stays, since the transport needs it). Hassette depends on
   `hassette-client[cli]`, so a full install still gets the same command.
+  - **The `[project.scripts]` entry itself can't be extra-gated.** Extras only make
+    dependencies conditional; the console-script table is package-wide, so `pip install
+    hassette-client` (no `[cli]`) still creates the `hassette` executable — it just can't import
+    cyclopts/rich. The entry point's `main()` catches that `ImportError` at the top and exits
+    with "install `hassette-client[cli]` to use this command" instead of a raw traceback. This
+    keeps the single-script design without a fourth distribution or folding cyclopts/rich into
+    the base package; the HA integration, installing plain `hassette-client`, gets an inert
+    script it never invokes.
 - **Server-only CLI parts plug in through an entry point.** `hassette run` and local target
   discovery (which reads `HassetteConfig` and the token file) cannot move to the client. There is
-  exactly one `hassette` console script, declared only by `hassette-client[cli]`.
+  exactly one `hassette` console script, provided by `hassette-client` and functional once the
+  `[cli]` extra's dependencies are installed.
   - Contract: hassette registers one entry point in the `hassette.cli` group, whose target is a
     callable `register(app)`. It adds `run` and local target discovery to the cyclopts app. On
     a client-only install the group is empty: no `run`, and targets come from flags, environment
