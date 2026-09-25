@@ -318,7 +318,7 @@ On a fresh database (`user_version = 0`), the runner sets `auto_vacuum = INCREME
 
 ### Write Pipeline
 
-`DatabaseService` serializes all writes through an `asyncio.Queue` drained by a single background `db_write_worker()` task. Callers submit a coroutine to `DatabaseService.submit()` and await its result, or submit a fire-and-forget coroutine via `enqueue()`. The worker processes queue items one at a time. Internally, each item is a `(coroutine, future)` pair; when a future is present, the result or exception is delivered through it.
+`DatabaseService` serializes all writes through an `asyncio.Queue` drained by a single background `run_write_queue_worker()` task. Callers submit a coroutine to `DatabaseService.submit()` and await its result, or submit a fire-and-forget coroutine via `enqueue()`. The worker processes queue items one at a time. Internally, each item is a `(coroutine, future)` pair; when a future is present, the result or exception is delivered through it.
 
 A dedicated read connection (`_read_db`) runs with `PRAGMA query_only = ON` and a 5-second busy timeout. Read queries never contend with the write worker.
 

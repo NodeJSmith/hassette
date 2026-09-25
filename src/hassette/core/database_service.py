@@ -9,6 +9,13 @@ from typing import Any, ClassVar
 import aiosqlite
 
 from hassette.const.misc import SECONDS_PER_DAY
+from hassette.core.database_write_queue import (
+    _WriteQueueItem,
+    build_queue_unavailable_error,
+    detach_write_queue,
+    log_worker_exit,
+    run_write_queue_worker,
+)
 from hassette.core.migration_runner import _collect_migrations, _read_user_version, run_migrations
 from hassette.core.retention_targets import (
     _FAILSAFE_TABLES,
@@ -29,9 +36,6 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.config.config import HassetteConfig
     from hassette.resources.base import Resource
-
-_WriteQueueItem = tuple[Coroutine[Any, Any, Any], asyncio.Future[Any] | None]
-"""Type alias for items placed on the DB write queue."""
 
 # Maximum seconds update_heartbeat() waits for its write to be queued and executed.
 # A wedged write worker stops draining the queue without ever raising, so an unbounded
@@ -355,25 +359,10 @@ class DatabaseService(Service):
         # (one in each downstream wave that tries to submit() a write to the dead
         # worker). The worker's lifecycle is managed by on_shutdown() (drain-and-close) and
         # _force_terminal() (hard cancel on the total-shutdown-timeout path).
-        self._db_worker_task = create_lifecycle_task(self.db_write_worker(), name=f"db_write_worker:{self.unique_name}")
-        self._db_worker_task.add_done_callback(self._log_worker_exit)
-
-    def _log_worker_exit(self, task: asyncio.Task) -> None:
-        """Log an unhandled exception from ``_db_worker_task``.
-
-        ``_db_worker_task`` bypasses TaskBucket entirely (see ``on_initialize()``), so
-        ``TaskBucket.add()``'s own done callback -- the only other place a worker crash gets
-        logged and forwarded to the installed exception recorders -- never runs for it. Without
-        this callback, a worker crash (e.g. the ``RuntimeError`` guard in ``db_write_worker()``
-        when ``_db_write_queue`` is ``None``, or a ``ValueError`` from ``queue.task_done()``)
-        would go completely unlogged, and every later ``submit()`` would sit out its full queue
-        timeout awaiting a future no worker will ever resolve.
-        """
-        if task.cancelled():
-            return
-        exc = task.exception()
-        if exc is not None:
-            self.logger.error("DB write worker for %s exited unexpectedly", self.unique_name, exc_info=exc)
+        self._db_worker_task = create_lifecycle_task(
+            run_write_queue_worker(self), name=f"db_write_worker:{self.unique_name}"
+        )
+        self._db_worker_task.add_done_callback(lambda task: log_worker_exit(self, task))
 
     def _force_terminal(self) -> None:
         """Override to also cancel the untracked database write worker, drain its queue, and
@@ -404,7 +393,7 @@ class DatabaseService(Service):
         """
         if self._db_worker_task is not None and not self._db_worker_task.done():
             self._db_worker_task.cancel()
-        self.close_remaining_queue_items(self.detach_write_queue())
+        self.close_remaining_queue_items(detach_write_queue(self))
         for attr in self.CONN_ATTRS:
             stop_connection_sync(getattr(self, attr))
             setattr(self, attr, None)
@@ -450,7 +439,7 @@ class DatabaseService(Service):
         queue: asyncio.Queue[_WriteQueueItem] | None = None
         try:
             if self._db_worker_task is not None:
-                queue = self.detach_write_queue()
+                queue = detach_write_queue(self)
                 if queue is not None:
                     await self.drain_write_queue(queue)
                 self._db_worker_task.cancel()
@@ -533,89 +522,20 @@ class DatabaseService(Service):
         await self.close_connections()
         await super().cleanup(timeout)
 
-    async def db_write_worker(self) -> None:
-        """Drain _db_write_queue sequentially.
-
-        Each item is a (coroutine, future) pair. If future is not None, the
-        coroutine's result (or exception) is delivered through it. If future is
-        None, any exception is logged and the worker continues.
-
-        The loop runs until cancelled by on_shutdown().
-        """
-        if self._db_write_queue is None:
-            raise RuntimeError("db_write_worker() started before on_initialize() set _db_write_queue")
-        queue = self._db_write_queue
-        while True:
-            coro, future = await queue.get()
-            if future is not None and future.cancelled():
-                # The submit() caller timed out or was cancelled while this write was still
-                # queued; it has already reported the write as not done, so it must not run.
-                self.logger.debug("Skipping withdrawn DB write %s", coro.__qualname__)
-                coro.close()
-                queue.task_done()
-                continue
-            self._executing_future = future
-            try:
-                result = await coro
-                if future is not None and not future.done():
-                    future.set_result(result)
-            except asyncio.CancelledError:
-                # on_shutdown() bounds its drain, so the worker can be cancelled with an item
-                # still executing. close_remaining_queue_items() only reaches items still on
-                # the queue, so without this the submit() caller awaiting this future would
-                # stay suspended forever.
-                if future is not None and not future.done():
-                    future.cancel()
-                raise
-            except Exception as exc:
-                if future is not None and not future.done():
-                    future.set_exception(exc)
-                else:
-                    self.logger.exception("Unhandled error in enqueued DB write")
-            finally:
-                self._executing_future = None
-                queue.task_done()
-
-    def detach_write_queue(self) -> asyncio.Queue[_WriteQueueItem] | None:
-        """Take the write queue away so ``submit()``/``enqueue()`` start rejecting, and return it.
-
-        Both teardown paths (``on_shutdown()``, ``_force_terminal()``) go through here so the
-        detach and the ``_write_queue_detached`` flag that records it can never drift apart — see
-        ``queue_unavailable_error()`` for what that flag buys. The flag is only raised when there
-        was a queue to take, so tearing down a service whose ``on_initialize()`` never got far
-        enough to create one still reports the pre-init cause.
-        """
-        queue, self._db_write_queue = self._db_write_queue, None
-        if queue is not None:
-            self._write_queue_detached = True
-        return queue
-
-    def queue_unavailable_error(self, method: str) -> WriteQueueUnavailableError:
-        """Build the rejection raised when ``_db_write_queue`` is gone.
-
-        The queue is ``None`` both before ``on_initialize()`` creates it and after a teardown
-        path detaches it, so the message comes from ``_write_queue_detached`` -- the flag
-        ``detach_write_queue()`` sets -- rather than from the resource's status. Status cannot
-        answer this: an ``on_initialize()`` failure before the queue is created leaves the
-        service in ``FAILED``/``CRASHED`` with no teardown having run, which would otherwise be
-        reported as a post-shutdown call.
-        """
-        if self._write_queue_detached:
-            return WriteQueueUnavailableError(f"DatabaseService.{method}() called after shutdown")
-        return WriteQueueUnavailableError(f"DatabaseService.{method}() called before on_initialize()")
-
     async def submit(self, coro: Coroutine[Any, Any, Any]) -> Any:
         """Submit a coroutine for serialized execution and await its result.
 
         The coroutine is placed on the write queue and executed by the single-writer
         worker. The caller is suspended until the coroutine completes.
 
-        The wait for the worker to *start* the write is bounded by
-        ``DatabaseConfig.write_submit_timeout_seconds``. If it expires first, the write is
-        withdrawn from the queue unexecuted and ``TimeoutError`` is raised, so the caller may
-        safely retry it. Once the worker has started the write it is awaited to completion,
-        because it may commit; a caller that must also bound a wedged in-progress write (see
-        ``update_heartbeat()``) wraps this call in its own timeout.
+        One ``DatabaseConfig.write_submit_timeout_seconds`` deadline bounds the entire wait to
+        start: waiting for queue capacity (the queue is bounded -- see ``write_queue_max``) and
+        waiting for the worker to dequeue and start the write both draw from it. If it expires
+        first, the write is withdrawn (or, if it never fit on the queue, simply closed) and
+        ``TimeoutError`` is raised, so the caller may safely retry it. Once the worker has
+        started the write it is awaited to completion, because it may commit; a caller that must
+        also bound a wedged in-progress write (see ``update_heartbeat()``) wraps this call in its
+        own timeout.
 
         Args:
             coro: The coroutine to execute.
@@ -624,31 +544,39 @@ class DatabaseService(Service):
             The return value of the coroutine.
 
         Raises:
-            TimeoutError: The write was still queued when the timeout expired; it never ran.
+            TimeoutError: The write never started before the timeout expired.
             Exception: Whatever exception the coroutine raises.
         """
         if (queue := self._db_write_queue) is None:  # captured once -- enqueue() has no await, needs no capture
             coro.close()
-            raise self.queue_unavailable_error("submit")
+            raise build_queue_unavailable_error(self, "submit")
+        timeout = self.hassette.config.database.write_submit_timeout_seconds
+        # Shared deadline: the queue.put() below and the worker-start wait further down both
+        # draw from it, so together they never exceed one write_submit_timeout_seconds wait.
+        deadline = asyncio.get_running_loop().time() + timeout
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         try:
-            await queue.put((coro, future))
+            await asyncio.wait_for(queue.put((coro, future)), timeout=timeout)
+        except TimeoutError:
+            coro.close()
+            future.cancel()
+            raise TimeoutError(f"DB write queue full after {timeout}s — never enqueued") from None
         except BaseException:
             coro.close()
             future.cancel()
             raise
-        timeout = self.hassette.config.database.write_submit_timeout_seconds
+        remaining = max(0.0, deadline - asyncio.get_running_loop().time())
         try:
             # asyncio.wait, unlike wait_for, never cancels the future on timeout, so a write that
             # has already started is left running for the await below.
-            await asyncio.wait((future,), timeout=timeout)
+            await asyncio.wait((future,), timeout=remaining)
         except asyncio.CancelledError:
             future.cancel()
             raise
         timed_out = not future.done()
-        # Race-free only because db_write_worker() sets _executing_future with no await between
-        # dequeuing an item and starting it: a future that is not _executing_future here has
-        # definitely not started, and cancelling it makes the worker skip it.
+        # Race-free only because run_write_queue_worker() sets _executing_future with no await
+        # between dequeuing an item and starting it: a future that is not _executing_future here
+        # has definitely not started, and cancelling it makes the worker skip it.
         not_started = future is not self._executing_future
         if timed_out and not_started:
             future.cancel()
@@ -670,7 +598,7 @@ class DatabaseService(Service):
         """
         if self._db_write_queue is None:  # sync method, no await point -- see submit()'s capture-once comment
             coro.close()
-            raise self.queue_unavailable_error("enqueue")
+            raise build_queue_unavailable_error(self, "enqueue")
         try:
             self._db_write_queue.put_nowait((coro, None))
         except asyncio.QueueFull:
