@@ -257,6 +257,12 @@ def create_hassette_stub(
     hassette._app_handler.registry.manifests = {}
     hassette._app_handler.registry.only_apps = frozenset()
 
+    # _failed_target_instances() (web/routes/apps.py) reads this after every start/reload to
+    # detect a swallowed failure -- a bare MagicMock return value is truthy and non-empty when
+    # iterated, which would make every start/reload/instance-action test hit the 500 path.
+    # Tests exercising that path replace `registry` with a real AppRegistry.
+    hassette._app_handler.registry.get_failed_instance_infos = MagicMock(return_value={})
+
     # App status snapshot (AppStatusSnapshot domain object)
     if old_snapshot is None:
         old_snapshot = AppStatusSnapshot(instances=[])

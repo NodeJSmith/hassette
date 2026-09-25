@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hassette.config.classes import AppManifest
 from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.types.enums import ResourceStatus
@@ -55,6 +56,24 @@ def instance_action_path(app_key: str, index: int, action: str) -> str:
     to change here.
     """
     return f"/api/apps/{app_key}/instances/{index}/{action}"
+
+
+def seed_real_registry(
+    mock_hassette: MagicMock, suffix: str, tmp_path: Path, app_config: dict | list[dict] | None = None
+) -> AppManifest:
+    """Wire ``mock_hassette._app_handler.registry`` to a real ``AppRegistry`` seeded with one
+    manifest, and return that manifest.
+
+    The swallowed-failure tests below (#2368) need a real ``AppRegistry`` — not the default
+    MagicMock stub — because they exercise ``record_failure()``/``get_failed_instance_infos()``
+    directly rather than mocking the endpoint's response. Collapses the arrange step shared by
+    every one of those tests, in both ``TestAppEndpoints`` and ``TestAppInstanceEndpoints``.
+    """
+    registry = AppRegistry()
+    manifest = create_app_manifest(suffix, tmp_path, app_config=app_config or {})
+    registry.set_manifests({manifest.app_key: manifest})
+    mock_hassette._app_handler.registry = registry
+    return manifest
 
 
 class TestHealthEndpoints:
@@ -240,10 +259,8 @@ class TestAppEndpoints:
         instance ended up FAILED. The endpoint must surface that as a 500 with the failure's
         error_message, not the unconditional 202 ``_run_app_action`` would otherwise return.
         """
-        registry = AppRegistry()
-        manifest = create_app_manifest("failing", tmp_path)
-        registry.set_manifests({manifest.app_key: manifest})
-        mock_hassette._app_handler.registry = registry
+        manifest = seed_real_registry(mock_hassette, "failing", tmp_path)
+        registry = mock_hassette._app_handler.registry
 
         async def fake_start_app(app_key: str) -> None:
             registry.record_failure(app_key, 0, RuntimeError("on_initialize blew up"))
@@ -255,14 +272,32 @@ class TestAppEndpoints:
         assert response.status_code == 500
         assert response.json()["detail"] == "on_initialize blew up"
 
+    async def test_start_app_returns_500_with_generic_detail_when_error_message_is_empty(
+        self, client: "AsyncClient", mock_hassette: MagicMock, tmp_path: Path
+    ) -> None:
+        """``record_failure()`` stores ``str(error)``, which is an empty string for an exception
+        raised with no message (e.g. ``raise RuntimeError()``). ``_run_app_action`` must fall
+        back to a generic detail in that case rather than surfacing an empty ``detail`` field.
+        """
+        manifest = seed_real_registry(mock_hassette, "failing", tmp_path)
+        registry = mock_hassette._app_handler.registry
+
+        async def fake_start_app(app_key: str) -> None:
+            registry.record_failure(app_key, 0, RuntimeError())
+
+        mock_hassette.app_handler.start_app = AsyncMock(side_effect=fake_start_app)
+
+        response = await client.post(f"/api/apps/{manifest.app_key}/start")
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == f"Failed to start app {manifest.app_key!r}"
+
     async def test_reload_app_returns_500_when_operation_swallows_a_failure(
         self, client: "AsyncClient", mock_hassette: MagicMock, tmp_path: Path
     ) -> None:
         """Same swallowed-failure path as start (#2368), via reload_app()."""
-        registry = AppRegistry()
-        manifest = create_app_manifest("failing", tmp_path)
-        registry.set_manifests({manifest.app_key: manifest})
-        mock_hassette._app_handler.registry = registry
+        manifest = seed_real_registry(mock_hassette, "failing", tmp_path)
+        registry = mock_hassette._app_handler.registry
 
         async def fake_reload_app(app_key: str, **_kwargs: object) -> None:
             registry.record_failure(app_key, 0, RuntimeError("reload blew up"))
@@ -326,10 +361,8 @@ class TestAppInstanceEndpoints:
         """#2368, per-instance case: start_instance() swallows the failure and records it to
         the registry instead of raising — the endpoint must surface it as a 500.
         """
-        registry = AppRegistry()
-        manifest = create_app_manifest("failing", tmp_path, app_config=[{}, {}])
-        registry.set_manifests({manifest.app_key: manifest})
-        mock_hassette._app_handler.registry = registry
+        manifest = seed_real_registry(mock_hassette, "failing", tmp_path, app_config=[{}, {}])
+        registry = mock_hassette._app_handler.registry
 
         async def fake_start_instance(app_key: str, index: int) -> None:
             registry.record_failure(app_key, index, RuntimeError("instance blew up"))
@@ -348,11 +381,9 @@ class TestAppInstanceEndpoints:
         instance counts. Instance 1 is already FAILED from an earlier call; starting instance 0
         successfully must still return 202.
         """
-        registry = AppRegistry()
-        manifest = create_app_manifest("failing", tmp_path, app_config=[{}, {}])
-        registry.set_manifests({manifest.app_key: manifest})
+        manifest = seed_real_registry(mock_hassette, "multi", tmp_path, app_config=[{}, {}])
+        registry = mock_hassette._app_handler.registry
         registry.record_failure(manifest.app_key, 1, RuntimeError("sibling already broken"))
-        mock_hassette._app_handler.registry = registry
 
         async def fake_start_instance(app_key: str, index: int) -> None:
             registry.register_app(app_key, index, MagicMock())
@@ -367,10 +398,8 @@ class TestAppInstanceEndpoints:
         self, client: "AsyncClient", mock_hassette: MagicMock, tmp_path: Path
     ) -> None:
         """Same swallowed-failure path as start (#2368), via reload_instance()."""
-        registry = AppRegistry()
-        manifest = create_app_manifest("failing", tmp_path, app_config=[{}, {}])
-        registry.set_manifests({manifest.app_key: manifest})
-        mock_hassette._app_handler.registry = registry
+        manifest = seed_real_registry(mock_hassette, "failing", tmp_path, app_config=[{}, {}])
+        registry = mock_hassette._app_handler.registry
 
         async def fake_reload_instance(app_key: str, index: int, **_kwargs: object) -> None:
             registry.record_failure(app_key, index, RuntimeError("instance reload blew up"))
