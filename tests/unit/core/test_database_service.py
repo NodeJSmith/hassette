@@ -331,6 +331,83 @@ async def test_timed_out_heartbeat_is_counted_once_even_if_the_write_later_fails
     assert service._consecutive_heartbeat_failures == 1
 
 
+async def test_update_heartbeat_counts_runtime_error_from_submit_as_failure(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """Regression for issue #2283: a RuntimeError raised by submit() (queue unavailable)
+    must be counted as a heartbeat failure, identically to a timeout or a sqlite3 error,
+    instead of propagating out of update_heartbeat() and crashing serve().
+    """
+    service = initialized_service_with_worker
+    assert service._consecutive_heartbeat_failures == 0
+
+    async def raise_after_closing_coro(coro) -> None:
+        # Mirrors what the real submit() does on its unavailable-queue path (coro.close())
+        # so this mock doesn't leak an unawaited `_do_update_heartbeat()` coroutine.
+        coro.close()
+        raise RuntimeError("queue unavailable")
+
+    with patch.object(service, "submit", AsyncMock(side_effect=raise_after_closing_coro)):
+        await asyncio.wait_for(service.update_heartbeat(), timeout=5.0)
+
+    assert service._consecutive_heartbeat_failures == 1
+
+
+async def test_update_heartbeat_survives_write_queue_detached_between_guard_and_submit_put(
+    initialized_service_with_worker: DatabaseService,
+) -> None:
+    """Regression for issue #2283 / audit Finding 3 (TOCTOU race).
+
+    update_heartbeat() checks ``_db_write_queue is not None`` once and then calls submit().
+    Before the fix, submit() re-read ``self._db_write_queue`` a second time to build its
+    ``.put()`` call instead of reusing the value its own entry check had just observed. If
+    ``_force_terminal()`` detached the queue (set it to ``None``) in the instant between
+    those two reads -- documented as reachable from a timeout-driven shutdown path while
+    serve() may still be running -- the second read saw ``None`` and crashed with
+    ``AttributeError`` from ``None.put(...)``, propagating out of update_heartbeat()
+    uncaught (its except clauses only cover ``TimeoutError`` and
+    ``(sqlite3.Error, OSError, ValueError)``).
+
+    This test models that race directly: a ``_db_write_queue`` property that returns the
+    real queue for its first two reads (update_heartbeat()'s own guard, then submit()'s
+    entry check / captured-local read) and ``None`` from the third read onward, simulating
+    a detach landing right after both of those checks observed the queue as present.
+    Pre-fix, submit()'s ``.put()`` line is a third read and would hit the simulated
+    ``None``, crashing this test with ``AttributeError``. Post-fix, submit() captures the
+    queue into a local on its (second) read and never reads the attribute again, so it
+    never observes the simulated detach and the heartbeat completes normally.
+    """
+    service = initialized_service_with_worker
+    real_queue = service._db_write_queue
+    assert real_queue is not None
+
+    class _QueueDetachedAfterTwoReadsService(DatabaseService):
+        restart_spec = DatabaseService.restart_spec
+        _race_reads = 0
+        _race_queue: asyncio.Queue[_WriteQueueItem] | None = None
+
+        @property
+        def _db_write_queue(self) -> asyncio.Queue[_WriteQueueItem] | None:
+            self._race_reads += 1
+            return self._race_queue if self._race_reads <= 2 else None
+
+        @_db_write_queue.setter
+        def _db_write_queue(self, value: asyncio.Queue[_WriteQueueItem] | None) -> None:
+            self._race_queue = value
+
+    original_class = type(service)
+    service.__class__ = _QueueDetachedAfterTwoReadsService
+    service._race_reads = 0  # pyright: ignore[reportAttributeAccessIssue]
+    service._race_queue = real_queue  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        await asyncio.wait_for(service.update_heartbeat(), timeout=5.0)
+    finally:
+        service.__class__ = original_class
+        service._db_write_queue = real_queue
+
+    assert service._consecutive_heartbeat_failures == 0
+
+
 async def test_submit_caller_is_released_when_worker_is_cancelled_mid_item(
     initialized_service_with_worker: DatabaseService,
 ) -> None:

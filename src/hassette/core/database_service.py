@@ -602,14 +602,17 @@ class DatabaseService(Service):
             The return value of the coroutine.
 
         Raises:
+            RuntimeError: If the write queue is unavailable (never created, or detached by a
+                teardown path).
             Exception: Whatever exception the coroutine raises.
         """
-        if self._db_write_queue is None:
+        queue = self._db_write_queue
+        if queue is None:
             coro.close()
             raise self.queue_unavailable_error("submit")
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         try:
-            await self._db_write_queue.put((coro, future))
+            await queue.put((coro, future))
         except BaseException:
             coro.close()
             future.cancel()
@@ -764,6 +767,10 @@ class DatabaseService(Service):
         serve() would park on submit() forever and never reach its failure-count
         escalation. A timeout counts as a heartbeat failure identically to a raised
         sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
+        submit() itself can also raise RuntimeError if the write queue was detached by a
+        concurrent teardown path (e.g. _force_terminal()) between this method's own guard
+        check and the call to submit() — that is counted as a heartbeat failure too, rather
+        than propagating out of serve().
 
         This method is the only place _consecutive_heartbeat_failures moves, so one attempt
         costs exactly one strike. Counting the timeout here and the raise inside the queued
@@ -790,7 +797,7 @@ class DatabaseService(Service):
                 self._consecutive_heartbeat_failures,
                 max_consecutive_heartbeat_failures,
             )
-        except (sqlite3.Error, OSError, ValueError):
+        except (sqlite3.Error, OSError, ValueError, RuntimeError):
             self._consecutive_heartbeat_failures += 1
             self.logger.exception(
                 "Failed to update heartbeat (failure %d/%d)",
