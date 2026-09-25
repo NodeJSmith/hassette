@@ -20,12 +20,10 @@ from hassette.core.database_service import (
 )
 from hassette.core.retention_targets import _FAILSAFE_TABLES, _RETENTION_TABLES, RetentionTarget
 from hassette.types.enums import ResourceStatus
-from tests.support.helpers import (
-    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
-    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
-    async_noop,
-)
-from tests.support.mock_hassette import make_mock_hassette
+from tests.support.helpers import async_noop
+from tests.unit.core._fixtures_database_service import initialized_service_with_worker, mock_hassette, service
+
+__all__ = ["initialized_service_with_worker", "mock_hassette", "service"]  # re-exposed as fixtures
 
 WIDGETS_TARGET = RetentionTarget(
     table="widgets",
@@ -43,58 +41,6 @@ WIDGETS_FRAMEWORK_TARGET = RetentionTarget(
     failsafe_label="framework widgets",
     source_tier="framework",
 )
-
-
-@pytest.fixture
-def mock_hassette(tmp_path: Path) -> MagicMock:
-    """Create a mock Hassette with database config defaults."""
-    return make_mock_hassette(
-        data_dir=tmp_path,
-        set_ready=False,
-        database={"telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX},
-        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
-    )
-
-
-@pytest.fixture
-def service(mock_hassette: MagicMock) -> DatabaseService:
-    """Create a DatabaseService instance."""
-    return DatabaseService(mock_hassette, parent=None)
-
-
-@pytest.fixture
-async def initialized_service_with_worker(service: DatabaseService) -> AsyncIterator[DatabaseService]:
-    """Initialize DatabaseService with the worker running; cancel worker in cleanup.
-
-    Does NOT call on_shutdown — leaves worker task and connection management to the test.
-    """
-    mock_conn = AsyncMock()
-    mock_conn.execute = AsyncMock()
-    mock_conn.commit = AsyncMock()
-    mock_conn.close = AsyncMock()
-    # stop() is aiosqlite's *synchronous* counterpart to close() (see stop_connection_sync()) --
-    # an unconfigured attribute on an AsyncMock defaults to AsyncMock too, which would return an
-    # unawaited coroutine here and fail the suite via PytestUnraisableExceptionWarning. Same
-    # reasoning applies to `_thread`: stop_connection_sync() checks `thread.is_alive()` and would
-    # otherwise get an unawaited coroutine back instead of a real bool.
-    mock_conn.stop = MagicMock()
-    mock_conn._thread = None
-
-    async def fake_connect(*_args: object, **_kwargs: object) -> AsyncMock:
-        return mock_conn
-
-    with (
-        patch.object(service, "run_migrations"),
-        patch("hassette.core.database_service.connect_daemon", side_effect=fake_connect),
-    ):
-        await service.on_initialize()
-    try:
-        yield service
-    finally:
-        if service._db_worker_task is not None and not service._db_worker_task.done():
-            service._db_worker_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await service._db_worker_task
 
 
 def test_init_sets_defaults(service: DatabaseService) -> None:

@@ -17,7 +17,7 @@ from hassette.core.retention_targets import (
     build_age_where,
     build_tier_where,
 )
-from hassette.exceptions import SchemaVersionError
+from hassette.exceptions import SchemaVersionError, WriteQueueUnavailableError
 from hassette.resources.lifecycle import create_lifecycle_task, hooks_pool_remaining, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -575,7 +575,7 @@ class DatabaseService(Service):
             self._write_queue_detached = True
         return queue
 
-    def queue_unavailable_error(self, method: str) -> RuntimeError:
+    def queue_unavailable_error(self, method: str) -> WriteQueueUnavailableError:
         """Build the rejection raised when ``_db_write_queue`` is gone.
 
         The queue is ``None`` both before ``on_initialize()`` creates it and after a teardown
@@ -586,8 +586,8 @@ class DatabaseService(Service):
         reported as a post-shutdown call.
         """
         if self._write_queue_detached:
-            return RuntimeError(f"DatabaseService.{method}() called after shutdown")
-        return RuntimeError(f"DatabaseService.{method}() called before on_initialize()")
+            return WriteQueueUnavailableError(f"DatabaseService.{method}() called after shutdown")
+        return WriteQueueUnavailableError(f"DatabaseService.{method}() called before on_initialize()")
 
     async def submit(self, coro: Coroutine[Any, Any, Any]) -> Any:
         """Submit a coroutine for serialized execution and await its result.
@@ -604,12 +604,12 @@ class DatabaseService(Service):
         Raises:
             Exception: Whatever exception the coroutine raises.
         """
-        if self._db_write_queue is None:
+        if (queue := self._db_write_queue) is None:  # captured once -- enqueue() has no await, needs no capture
             coro.close()
             raise self.queue_unavailable_error("submit")
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         try:
-            await self._db_write_queue.put((coro, future))
+            await queue.put((coro, future))
         except BaseException:
             coro.close()
             future.cancel()
@@ -629,7 +629,7 @@ class DatabaseService(Service):
         Returns:
             True if enqueued successfully, False if dropped due to a full queue.
         """
-        if self._db_write_queue is None:
+        if self._db_write_queue is None:  # sync method, no await point -- see submit()'s capture-once comment
             coro.close()
             raise self.queue_unavailable_error("enqueue")
         try:
@@ -761,9 +761,9 @@ class DatabaseService(Service):
 
         The submit() call is bounded by _HEARTBEAT_WRITE_TIMEOUT_SECONDS. A wedged write
         worker never raises — it just stops draining the queue — so without this bound
-        serve() would park on submit() forever and never reach its failure-count
-        escalation. A timeout counts as a heartbeat failure identically to a raised
-        sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
+        serve() would park on submit() forever and never reach its failure-count escalation.
+        A timeout, or a WriteQueueUnavailableError from submit(), counts as a heartbeat failure
+        identically to a raised sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
 
         This method is the only place _consecutive_heartbeat_failures moves, so one attempt
         costs exactly one strike. Counting the timeout here and the raise inside the queued
@@ -790,7 +790,7 @@ class DatabaseService(Service):
                 self._consecutive_heartbeat_failures,
                 max_consecutive_heartbeat_failures,
             )
-        except (sqlite3.Error, OSError, ValueError):
+        except (sqlite3.Error, OSError, ValueError, WriteQueueUnavailableError):
             self._consecutive_heartbeat_failures += 1
             self.logger.exception(
                 "Failed to update heartbeat (failure %d/%d)",
