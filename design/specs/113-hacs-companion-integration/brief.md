@@ -39,7 +39,7 @@ reason. That constraint is what reversed the transport decision (below).
 - **v0.1 represents hassette's apps as devices and entities, not services.** HA's convention for
   a set of controllable things the integration knows about is devices and entities picked from
   the standard pickers, not a service with a typed identifier. A `DataUpdateCoordinator` polls
-  hassette's existing `/apps` and `/apps/manifests` endpoints. Each configured app gets **one
+  hassette's existing `/apps/manifests` endpoint. Each configured app gets **one
   device** (`Hassette › motion_lights`, identified by `app_key`) with:
   - a `switch`: on = running; turning it on/off calls `/apps/{app_key}/start|stop`
   - a `button`: reload (`/apps/{app_key}/reload`)
@@ -77,31 +77,30 @@ reason. That constraint is what reversed the transport decision (below).
   hassette is unreachable; log-once-when-unavailable; any services added later are registered in
   `async_setup` (`action-setup`). Don't copy hass-node-red's older idioms.
 - **A hassette API client library on PyPI** holds the wire logic: the conventional "library +
-  thin integration" split. It lives in this repo with its own release-please package entry and
-  publish workflow (`codegen/` is *not* a publishing precedent: it has never been published).
-  The integration requires it as a **range**, never an exact pin, and the library itself must not
-  exact-pin anything HA ships (core #173019; hassfest PR #181913). The same library could later
-  serve the thin-CLI-client idea from the August revisit.
+  thin integration" split. Its design lives in spec 114
+  (`design/specs/114-hassette-client/brief.md`): a `hassette-wire` package owns the wire
+  models, `hassette-client` serves every consumer including the CLI, and both release in
+  lockstep with hassette. The integration
+  requires it as a **range**, never an exact pin, and the library itself must not exact-pin
+  anything HA ships (core #173019; hassfest PR #181913).
 - **App-declared entities remain v0.2.** Entities that apps create through `self.entities`
   (with persistence and restore) are separate from the integration-owned app devices above.
 - **Two repos:** hassette (plus the client library) and `hass-hassette` (HACS layout,
   `zip_release`, real GitHub Releases, in-repo `brand/icon.png`, which has satisfied HACS
   validation since Feb 2026).
 - **Cross-repo CI pins a release.** hassette's system-test and demo-stack HA containers install a
-  pinned `hass-hassette` release, bumped like the HA version. The client library stays 0.x until
-  the integration's end-to-end test has exercised it.
+  pinned `hass-hassette` release, bumped like the HA version.
 - **Status is shown HA-side.** Config entry state (setup retry, auth failed, loaded) is the
   conventional surface. The hassette-side "integration connected" indicator is dropped: hassette
   is the server now and has nothing to report.
-- **Out of the epic:** thin CLI client (adjacent: it may reuse the library, but tracked
-  separately), retained availability, app-declared services (D8).
+- **Out of the epic:** retained availability, app-declared services (D8).
 - **Tracker:** #45's body becomes the epic tracker; #46 stays as the `@template` leaf (entity stage).
 
 ### Proposed staging
 
 | Stage | Scope |
 |---|---|
-| v0.1 | hassette: client library (0.x) + publish plumbing. hass-hassette: single-entry URL + token config flow with reauth; coordinator polling `/apps`; one device per app with running switch, reload button, and status sensor; dynamic add and stale removal; conventional errors; tests; HACS release. Docs both sides, including reverse-proxy/forward-auth guidance. |
+| v0.1 | hassette: client library (spec 114). hass-hassette: single-entry URL + token config flow with reauth; coordinator polling `/apps/manifests`; one device per app with running switch, reload button, and status sensor; dynamic add and stale removal; conventional errors; tests; HACS release. Docs both sides, including reverse-proxy/forward-auth guidance. |
 | v0.2 | hassette: topic-subscription channel on its WS server (today broadcast-only), which also lets the coordinator switch from polling to push; name-based instance routes. hass-hassette: per-instance entities; app-declared persistent entities (sensor, binary_sensor, switch, button, number, select), coordinator-diff sync fed by the subscription, restore (`RestoreEntity` vs `RestoreDataUpdateCoordinator`, to decide), stale-device removal only when certain. `self.entities` app API. |
 | v0.3 | Webhooks: the integration registers HA webhooks and forwards payloads to a hassette endpoint; unblocks #594. |
 | v0.4+ | `@template` (#46); HACS default store; Supervisor add-on discovery (#71). |
@@ -114,11 +113,9 @@ dependency edges (decided 2026-09-24 during `/mine-define`):
 | # | Unit | Repo | Form | Depends on |
 |---|---|---|---|---|
 | A | Start/reload failures return `500` with the app's `error_message` instead of `202` | hassette | #2368 | — |
-| B | `hassette-client` library, contract test, release-please package + PyPI publish | hassette | spec 113 | — (parallel with A) |
+| B | `hassette-wire` contract package and `hassette-client` library, with the CLI moved onto it | hassette | spec 114 (issues, then a slim spec) | — (parallel with A) |
 | C | The integration: config flow, coordinator, platforms, errors, tests, hassfest/HACS CI, HACS release | hass-hassette | own spec, in that repo | B published (path dep during dev) |
 | D | Pinned hass-hassette install in system-test and demo HA containers, one end-to-end system test, hassette docs page | hassette | own spec | A + C released |
-
-The library stays 0.x until D's end-to-end test passes.
 
 ### Decided in the v0.1 define interview (2026-09-24)
 
@@ -131,15 +128,7 @@ end-to-end test green in CI.
   500 path (`web/routes/apps.py`). Today `_start_app_unlocked` and `reload_app` swallow init
   errors, so both answer `202`. The CLI and frontend already surface non-2xx generically.
   RED-then-GREEN tests; the 202/409 paths stay green.
-- **Owned by B:** name `hassette-client`, import `hassette_client`, in `client/` as a uv workspace
-  member with its own `pyproject.toml`. It is async aiohttp with an injected session
-  (`inject-websession`), and **cannot depend on `hassette`** (that would drag hassette's whole
-  dependency tree into HA). Models are pydantic, `pydantic>=2,<3`, using nothing newer than what
-  HA ships. Every path is under the `/api` prefix. Its exceptions map status codes: connection
-  error, 401, 404, 409 (bootstrap not released vs `--app` blocked, told apart by detail), 500
-  (action failed), 503, and timeout. A hassette-side contract test runs real route responses
-  through the client's models so drift fails hassette CI. It has its own nox session and
-  coverage floor.
+- **Owned by B:** see spec 114's brief, which supersedes the B decisions first recorded here.
 - **Owned by C:**
   - Quality target **Silver**, plus the Gold rules the design already meets (dynamic-devices,
     stale-devices, exception-translations, entity-translations).
@@ -181,7 +170,7 @@ end-to-end test green in CI.
   and stop-not-persisting. Known gap: nothing tests hass-hassette against unreleased hassette
   HEAD.
 - **Out of v0.1:** diagnostics, a reconfigure flow, repair issues, zeroconf/Supervisor discovery,
-  per-instance entities, the HACS default store, a CLI port to the library, and per-client tokens.
+  per-instance entities, the HACS default store, and per-client tokens.
 
 ## Open Questions
 
@@ -202,7 +191,7 @@ end-to-end test green in CI.
 - **Deferred within the epic:** per-instance entities and app-declared persistent entities
   (v0.2), webhooks (v0.3), `@template`, the default store, and add-on discovery (v0.4+). The
   per-app devices and entities are in v0.1.
-- **Out:** thin CLI client, retained availability, app-declared services, MQTT Discovery, custom
+- **Out:** retained availability, app-declared services, MQTT Discovery, custom
   `hassette/*` WS commands.
 
 ## Risks and Concerns
@@ -214,8 +203,10 @@ end-to-end test green in CI.
   is new server work that the old transport avoided.
 - **HA release churn.** Monthly HA releases can break the integration; its own CI should track
   HA versions, alongside hassette's `ha-version-bump` cadence.
-- **Release choreography:** library → integration → hassette pin. Keep the library 0.x and make
-  additive changes to keep this rare.
+- **Release choreography:** a hassette release (server and client together, in lockstep; see
+  spec 114) → the integration widens its client range → hassette's system tests bump the
+  `hass-hassette` pin. Because client versions track hassette's, a range the integration pins
+  too narrowly goes stale on every hassette minor release.
 - **Platform issues outside our control:** requirements that install but won't import on HAOS
   2026.4+ (core #171055). Document in troubleshooting.
 
