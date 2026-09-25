@@ -17,7 +17,7 @@ from hassette.core.retention_targets import (
     build_age_where,
     build_tier_where,
 )
-from hassette.exceptions import SchemaVersionError
+from hassette.exceptions import SchemaVersionError, WriteQueueUnavailableError
 from hassette.resources.lifecycle import create_lifecycle_task, hooks_pool_remaining, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
@@ -575,7 +575,7 @@ class DatabaseService(Service):
             self._write_queue_detached = True
         return queue
 
-    def queue_unavailable_error(self, method: str) -> RuntimeError:
+    def queue_unavailable_error(self, method: str) -> WriteQueueUnavailableError:
         """Build the rejection raised when ``_db_write_queue`` is gone.
 
         The queue is ``None`` both before ``on_initialize()`` creates it and after a teardown
@@ -584,10 +584,14 @@ class DatabaseService(Service):
         answer this: an ``on_initialize()`` failure before the queue is created leaves the
         service in ``FAILED``/``CRASHED`` with no teardown having run, which would otherwise be
         reported as a post-shutdown call.
+
+        Returns ``WriteQueueUnavailableError`` (a ``RuntimeError`` subclass) rather than a
+        plain ``RuntimeError`` so ``update_heartbeat()`` can catch exactly this rejection —
+        see that class's docstring for why the distinction matters.
         """
         if self._write_queue_detached:
-            return RuntimeError(f"DatabaseService.{method}() called after shutdown")
-        return RuntimeError(f"DatabaseService.{method}() called before on_initialize()")
+            return WriteQueueUnavailableError(f"DatabaseService.{method}() called after shutdown")
+        return WriteQueueUnavailableError(f"DatabaseService.{method}() called before on_initialize()")
 
     async def submit(self, coro: Coroutine[Any, Any, Any]) -> Any:
         """Submit a coroutine for serialized execution and await its result.
@@ -602,8 +606,8 @@ class DatabaseService(Service):
             The return value of the coroutine.
 
         Raises:
-            RuntimeError: If the write queue is unavailable (never created, or detached by a
-                teardown path).
+            WriteQueueUnavailableError: If the write queue is unavailable (never created, or
+                detached by a teardown path).
             Exception: Whatever exception the coroutine raises.
         """
         queue = self._db_write_queue
@@ -767,10 +771,15 @@ class DatabaseService(Service):
         serve() would park on submit() forever and never reach its failure-count
         escalation. A timeout counts as a heartbeat failure identically to a raised
         sqlite3.Error/OSError/ValueError, so three in a row still escalate to a restart.
-        submit() itself can also raise RuntimeError if the write queue was detached by a
-        concurrent teardown path (e.g. _force_terminal()) between this method's own guard
-        check and the call to submit() — that is counted as a heartbeat failure too, rather
-        than propagating out of serve().
+        submit() itself can also raise WriteQueueUnavailableError if the write queue was
+        detached by a concurrent teardown path (e.g. _force_terminal()) between this method's
+        own guard check and the call to submit() — that is counted as a heartbeat failure too,
+        rather than propagating out of serve(). The except clause below catches that specific
+        type rather than bare RuntimeError so an unrelated RuntimeError surfacing from inside
+        _do_update_heartbeat() itself (e.g. Hassette.session_id racing a session teardown
+        between this method's own guard check and the queued write actually running) still
+        propagates instead of being silently folded into the same "heartbeat failure, retry
+        next interval" bucket as an expected queue-detach rejection.
 
         This method is the only place _consecutive_heartbeat_failures moves, so one attempt
         costs exactly one strike. Counting the timeout here and the raise inside the queued
@@ -797,7 +806,7 @@ class DatabaseService(Service):
                 self._consecutive_heartbeat_failures,
                 max_consecutive_heartbeat_failures,
             )
-        except (sqlite3.Error, OSError, ValueError, RuntimeError):
+        except (sqlite3.Error, OSError, ValueError, WriteQueueUnavailableError):
             self._consecutive_heartbeat_failures += 1
             self.logger.exception(
                 "Failed to update heartbeat (failure %d/%d)",

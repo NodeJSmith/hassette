@@ -270,6 +270,17 @@ class TaskBucketSealedError(RuntimeError, HassetteError):
     """
 
 
+class WriteQueueUnavailableError(RuntimeError, HassetteError):
+    """Raised by ``DatabaseService.submit()``/``enqueue()`` when the write queue is gone.
+
+    Subclasses ``RuntimeError`` so existing callers that only care "submission failed" keep
+    working. The distinct type exists so ``update_heartbeat()`` can count exactly this
+    rejection as a heartbeat failure without also swallowing an unrelated ``RuntimeError``
+    raised from inside the submitted coroutine (e.g. ``Hassette.session_id`` racing a session
+    teardown) under the same except clause.
+    """
+
+
 class AppBootstrapNotReleasedError(HassetteError):
     """Raised when an app start/reload is requested before bootstrap release opens."""
 

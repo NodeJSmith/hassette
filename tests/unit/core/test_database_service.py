@@ -97,6 +97,50 @@ async def initialized_service_with_worker(service: DatabaseService) -> AsyncIter
                 await service._db_worker_task
 
 
+@contextlib.asynccontextmanager
+async def _queue_detached_after_n_reads(
+    service: DatabaseService,
+    real_queue: asyncio.Queue[_WriteQueueItem],
+    reads_before_detach: int,
+) -> AsyncIterator[None]:
+    """Make ``service._db_write_queue`` return the real queue for the first ``reads_before_detach``
+    reads, then ``None`` for every read after -- simulating a teardown path detaching the queue
+    partway through a caller's own sequence of reads (e.g. update_heartbeat()'s guard, then
+    submit()'s entry check).
+
+    Swaps ``service``'s class rather than constructing a new instance, so ``service`` keeps its
+    existing identity and state across the swap. A property on the swapped-in class is a data
+    descriptor and so takes precedence over the plain instance ``__dict__`` value ``__init__``
+    set for ``_db_write_queue``, per Python's attribute lookup rules -- this is what lets a
+    property injected after construction intercept reads of what is, on the real class, an
+    ordinary instance attribute.
+    """
+
+    class _QueueDetachedAfterNReadsService(DatabaseService):
+        restart_spec = DatabaseService.restart_spec
+        _race_reads = 0
+        _race_queue: asyncio.Queue[_WriteQueueItem] | None = None
+
+        @property
+        def _db_write_queue(self) -> asyncio.Queue[_WriteQueueItem] | None:
+            self._race_reads += 1
+            return self._race_queue if self._race_reads <= reads_before_detach else None
+
+        @_db_write_queue.setter
+        def _db_write_queue(self, value: asyncio.Queue[_WriteQueueItem] | None) -> None:
+            self._race_queue = value
+
+    original_class = type(service)
+    service.__class__ = _QueueDetachedAfterNReadsService
+    service._race_reads = 0  # pyright: ignore[reportAttributeAccessIssue]
+    service._race_queue = real_queue  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        yield
+    finally:
+        service.__class__ = original_class
+        service._db_write_queue = real_queue
+
+
 def test_init_sets_defaults(service: DatabaseService) -> None:
     """Constructor sets _db, _db_path, and failure counter to initial values."""
     assert service._db is None
@@ -334,20 +378,23 @@ async def test_timed_out_heartbeat_is_counted_once_even_if_the_write_later_fails
 async def test_update_heartbeat_counts_runtime_error_from_submit_as_failure(
     initialized_service_with_worker: DatabaseService,
 ) -> None:
-    """Regression for issue #2283: a RuntimeError raised by submit() (queue unavailable)
-    must be counted as a heartbeat failure, identically to a timeout or a sqlite3 error,
-    instead of propagating out of update_heartbeat() and crashing serve().
+    """Regression for issue #2283: a WriteQueueUnavailableError raised by submit() (queue
+    unavailable) must be counted as a heartbeat failure, identically to a timeout or a
+    sqlite3 error, instead of propagating out of update_heartbeat() and crashing serve().
+
+    Drives the real submit() path rather than mocking it, so the test also proves
+    update_heartbeat()'s except clause catches the exact type submit() raises. Via
+    ``_queue_detached_after_n_reads()``, the queue is present for update_heartbeat()'s own
+    guard read (the first read) and gone from every read after, so submit()'s own entry check
+    observes an unavailable queue and raises WriteQueueUnavailableError exactly as it would
+    from a genuine detach race.
     """
     service = initialized_service_with_worker
+    real_queue = service._db_write_queue
+    assert real_queue is not None
     assert service._consecutive_heartbeat_failures == 0
 
-    async def raise_after_closing_coro(coro) -> None:
-        # Mirrors what the real submit() does on its unavailable-queue path (coro.close())
-        # so this mock doesn't leak an unawaited `_do_update_heartbeat()` coroutine.
-        coro.close()
-        raise RuntimeError("queue unavailable")
-
-    with patch.object(service, "submit", AsyncMock(side_effect=raise_after_closing_coro)):
+    async with _queue_detached_after_n_reads(service, real_queue, reads_before_detach=1):
         await asyncio.wait_for(service.update_heartbeat(), timeout=5.0)
 
     assert service._consecutive_heartbeat_failures == 1
@@ -368,42 +415,21 @@ async def test_update_heartbeat_survives_write_queue_detached_between_guard_and_
     uncaught (its except clauses only cover ``TimeoutError`` and
     ``(sqlite3.Error, OSError, ValueError)``).
 
-    This test models that race directly: a ``_db_write_queue`` property that returns the
-    real queue for its first two reads (update_heartbeat()'s own guard, then submit()'s
-    entry check / captured-local read) and ``None`` from the third read onward, simulating
-    a detach landing right after both of those checks observed the queue as present.
-    Pre-fix, submit()'s ``.put()`` line is a third read and would hit the simulated
-    ``None``, crashing this test with ``AttributeError``. Post-fix, submit() captures the
-    queue into a local on its (second) read and never reads the attribute again, so it
-    never observes the simulated detach and the heartbeat completes normally.
+    This test models that race directly via ``_queue_detached_after_n_reads()``: the queue is
+    present for its first two reads (update_heartbeat()'s own guard, then submit()'s entry
+    check / captured-local read) and gone from the third read onward, simulating a detach
+    landing right after both of those checks observed the queue as present. Pre-fix,
+    submit()'s ``.put()`` line is a third read and would hit the simulated ``None``, crashing
+    this test with ``AttributeError``. Post-fix, submit() captures the queue into a local on
+    its (second) read and never reads the attribute again, so it never observes the simulated
+    detach and the heartbeat completes normally.
     """
     service = initialized_service_with_worker
     real_queue = service._db_write_queue
     assert real_queue is not None
 
-    class _QueueDetachedAfterTwoReadsService(DatabaseService):
-        restart_spec = DatabaseService.restart_spec
-        _race_reads = 0
-        _race_queue: asyncio.Queue[_WriteQueueItem] | None = None
-
-        @property
-        def _db_write_queue(self) -> asyncio.Queue[_WriteQueueItem] | None:
-            self._race_reads += 1
-            return self._race_queue if self._race_reads <= 2 else None
-
-        @_db_write_queue.setter
-        def _db_write_queue(self, value: asyncio.Queue[_WriteQueueItem] | None) -> None:
-            self._race_queue = value
-
-    original_class = type(service)
-    service.__class__ = _QueueDetachedAfterTwoReadsService
-    service._race_reads = 0  # pyright: ignore[reportAttributeAccessIssue]
-    service._race_queue = real_queue  # pyright: ignore[reportAttributeAccessIssue]
-    try:
+    async with _queue_detached_after_n_reads(service, real_queue, reads_before_detach=2):
         await asyncio.wait_for(service.update_heartbeat(), timeout=5.0)
-    finally:
-        service.__class__ = original_class
-        service._db_write_queue = real_queue
 
     assert service._consecutive_heartbeat_failures == 0
 
