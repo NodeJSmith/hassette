@@ -13,7 +13,7 @@ class MyApp(App[AppConfig]):
             source=A.get_path("payload.data.new_state.attributes.geolocation.locality"),
             condition="San Francisco",
         )
-        await self.bus.on_state_change("sensor.my_device_location", handler=self.on_location_change, changed_to=city_match, name="device_location")
+        await self.bus.on_state_change("sensor.my_device_location", handler=self.on_location_change, where=city_match, name="device_location")
 
     async def on_living_room_on(self, event: CallServiceEvent) -> None: ...
     async def on_location_change(self, event: RawStateChangeEvent) -> None: ...
