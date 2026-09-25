@@ -35,7 +35,7 @@ const RAW_TOML_CLASS = cn(
 const RAW_TOML_HIGHLIGHTED_CLASS = cn(
   RAW_TOML_CLASS,
   "[&_.shiki]:m-0 [&_.shiki]:bg-transparent [&_.shiki]:p-0",
-  "[&_.shiki]:font-inherit [&_.shiki]:text-inherit",
+  "[&_.shiki]:[font-family:inherit] [&_.shiki]:text-inherit",
   "[&_.shiki_span:not(.line)]:text-[var(--shiki-light,var(--ink-1))]",
   "dark:[&_.shiki_span:not(.line)]:text-[var(--shiki-dark,var(--ink-1))]",
 );
@@ -135,7 +135,7 @@ function ConfigInstance({
 }) {
   return (
     <div className="min-w-0" data-testid={`config-instance-${idx}`}>
-      <h4 className="mb-3 border-b border-strong pb-2 font-sans text-sm font-semibold uppercase tracking-[var(--text-label-tracking-mid)] text-foreground-secondary">
+      <h4 className="mb-3 border-b border-[var(--border-strong)] pb-2 font-sans text-sm font-semibold uppercase tracking-[var(--text-label-tracking-mid)] text-foreground-secondary">
         Instance {idx}
       </h4>
       {isConfigRecord(instanceConfig) ? (

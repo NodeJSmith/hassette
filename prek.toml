@@ -156,6 +156,17 @@ files = "^frontend/src/"
 stages = ["pre-commit", "pre-push"]
 groups = ["frontend"]
 
+[[repos.hooks]]
+id = "check-unknown-tailwind-classes"
+name = "Check for unregistered/unknown Tailwind classes"
+language = "system"
+entry = "bash -c 'cd frontend && npx oxlint -c .oxlintrc.json src/'"
+pass_filenames = false
+types_or = ["ts", "tsx", "css"]
+files = "^frontend/src/"
+stages = ["pre-commit", "pre-push"]
+groups = ["frontend"]
+
 # ---------------------------------------------------------------------------
 # Local hooks — codegen (pre-push only)
 # ---------------------------------------------------------------------------

@@ -34,12 +34,13 @@ import { IconChevron } from "./icons";
 const CONFIG_GROUPS_CLASS = "flex flex-col gap-5";
 const CONFIG_SECTION_CLASS = "min-w-0";
 const CONFIG_SECTION_HEAD_CLASS = "flex items-baseline gap-2 border-b border-[var(--border-subtle)] px-4 py-3";
-const CONFIG_SECTION_TITLE_CLASS = "m-0 text-body font-semibold tracking-[-0.01em] text-foreground";
+const CONFIG_SECTION_TITLE_CLASS =
+  "m-0 text-[length:var(--text-body)] font-semibold tracking-[-0.01em] text-foreground";
 const CONFIG_SECTION_COUNT_CLASS = "font-mono text-xs text-foreground-faint";
 const CONFIG_FIELDS_CLASS = "flex flex-col";
 const CONFIG_ROW_CLASS =
   "flex flex-wrap items-baseline gap-2 border-b border-[var(--border-subtle)] px-4 py-3 last:border-b-0";
-const CONFIG_LABEL_CLASS = "text-body font-medium text-foreground";
+const CONFIG_LABEL_CLASS = "text-[length:var(--text-body)] font-medium text-foreground";
 const CONFIG_KEY_CLASS = "bg-transparent p-0 font-mono text-xs text-muted-foreground max-small-mobile:hidden";
 const CONFIG_SPACER_CLASS =
   "min-w-4 flex-1 translate-y-[-3px] border-b border-dotted border-[var(--border-strong)] opacity-55 max-small-mobile:hidden";
@@ -49,7 +50,8 @@ const CONFIG_SCALAR_VALUE_CLASS = "font-mono text-[length:var(--text-mono-sm)] t
 const CONFIG_PATH_VALUE_CLASS =
   "rounded-sm border border-[var(--border-subtle)] bg-muted px-2 py-px font-mono text-[length:var(--text-mono-sm)] text-foreground-secondary";
 const CONFIG_EMPTY_VALUE_CLASS = "text-sm italic text-foreground-faint";
-const CONFIG_SECRET_CLASS = "inline-flex select-none items-center gap-1 font-mono text-body text-muted-foreground";
+const CONFIG_SECRET_CLASS =
+  "inline-flex select-none items-center gap-1 font-mono text-[length:var(--text-body)] text-muted-foreground";
 const CONFIG_SECRET_MASK_CLASS = "text-[15px] italic tracking-[2px]";
 const CONFIG_SECRET_ICON_CLASS = "shrink-0 text-[length:var(--text-mono-md)] opacity-[var(--op-muted)]";
 const CONFIG_LIST_CLASS = "inline-flex flex-wrap justify-end gap-1 max-small-mobile:justify-start";

@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Registers the animate-in, animate-out, fade, zoom, and slide utilities used by the shadcn/radix
+   primitives (dialog.tsx, drawer.tsx, alert-dialog.tsx, popover.tsx, tooltip.tsx) for their
+   open/close transitions. Without it those classes silently produce no CSS. */
+@import "tw-animate-css";
+
 @import "./styles/fonts.css";
 
 @custom-variant dark (&:is([data-theme="dark"] *));
@@ -31,6 +36,17 @@
   --color-accent: var(--highlight-bg);
   --color-muted-foreground: var(--muted-foreground);
   --color-muted: var(--muted);
+  /* foreground-secondary/faint extend the foreground/muted-foreground text-color scale that
+     shadcn's own slots (above) already establish as first-class utilities, so they're promoted
+     here too. This block is otherwise shadcn's fixed vocabulary — other project-specific design
+     tokens (border-subtle, text-body, font-heading, etc.) are deliberately NOT registered here;
+     they're single-purpose roles meant for arbitrary-value consumption only
+     (`border-[var(--border-subtle)]`, `text-[length:var(--text-body)]`), per this file's CSS
+     Architecture convention (see CLAUDE.md). A call site using one of those bare, unprefixed
+     (e.g. `text-body` instead of `text-[length:var(--text-body)]`) is a bug at the call site, not
+     a sign the token belongs here. */
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-foreground-faint: var(--foreground-faint);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);

@@ -70,7 +70,7 @@ function InstanceCard({
   return (
     <button
       type="button"
-      className="flex cursor-pointer flex-col gap-2 rounded-md border border-[var(--border-strong)] bg-card p-4 text-left font-inherit text-sm text-foreground shadow-[var(--shadow-2)] transition-[border-color,box-shadow] hover:shadow-[var(--shadow-3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+      className="flex cursor-pointer flex-col gap-2 rounded-md border border-[var(--border-strong)] bg-card p-4 text-left [font-family:inherit] text-sm text-foreground shadow-[var(--shadow-2)] transition-[border-color,box-shadow] hover:shadow-[var(--shadow-3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
       data-testid={`instance-card-${instance.index}`}
       onClick={() => {
         onNavigate(instance.index);

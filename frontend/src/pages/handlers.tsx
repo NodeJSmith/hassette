@@ -35,7 +35,7 @@ const VALID_SORT_KEYS: ReadonlySet<string> = new Set<HandlerSortKey>([
 const PAGE_CLASS = "flex flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
 const PAGE_HEADER_CLASS = "flex items-baseline gap-4 border-b border-border pb-3";
 const PAGE_TITLE_CLASS =
-  "m-0 font-heading text-[length:var(--text-display)] font-normal tracking-[var(--text-display-tracking)] text-foreground";
+  "m-0 font-[family-name:var(--font-heading)] text-[length:var(--text-display)] font-normal tracking-[var(--text-display-tracking)] text-foreground";
 const TABLE_SECTION_CLASS = "flex flex-col gap-3";
 const SEARCH_INPUT_CLASS =
   "min-w-[var(--size-search-min)] self-end rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0 max-mobile:self-stretch";

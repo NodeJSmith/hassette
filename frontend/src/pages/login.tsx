@@ -14,7 +14,8 @@ const PAGE_CLASS = "flex min-h-screen flex-1 flex-col items-center justify-cente
 // theme changes to Card reach the login view too. The element stays a <form>, which is why
 // cardVariants() is composed here instead of rendering <Card>.
 const CARD_CLASS = cn(cardVariants(), "flex w-full max-w-sm flex-col gap-4 p-6");
-const TITLE_CLASS = "m-0 font-heading text-[length:var(--text-display)] font-normal text-foreground";
+const TITLE_CLASS =
+  "m-0 font-[family-name:var(--font-heading)] text-[length:var(--text-display)] font-normal text-foreground";
 const LABEL_CLASS = "text-sm font-medium text-foreground-secondary";
 const INPUT_CLASS =
   "w-full rounded-md border border-[var(--line-1)] bg-[var(--bg-sunken)] px-3 py-2 text-sm text-[var(--ink-1)] outline-none transition-colors placeholder:text-[var(--ink-4)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]";

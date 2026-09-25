@@ -97,7 +97,7 @@ function CopyIdButton({ text }: { text: string }) {
   return (
     <button
       type="button"
-      className="shrink-0 rounded-sm border border-subtle px-1 py-0 text-xs leading-none text-muted-foreground hover:border-border hover:text-foreground"
+      className="shrink-0 rounded-sm border border-[var(--border-subtle)] px-1 py-0 text-xs leading-none text-muted-foreground hover:border-border hover:text-foreground"
       onClick={handleCopy}
       aria-label="Copy execution ID"
       title={copied ? "Copied" : "Copy execution ID"}

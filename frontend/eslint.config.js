@@ -43,6 +43,22 @@ export default tseslint.config(
           ],
         },
       ],
+      // Module-level Tailwind class-string constants use one naming convention (_CLASS/_CLASSES
+      // suffix) so tooling — specifically oxlint-tailwindcss's `variablePatterns` config in
+      // .oxlintrc.json — can find every one of them. A second convention here creates a lint
+      // blind spot: a class string assigned to a name the pattern doesn't match can go silently
+      // unvalidated. Use FOO_CLASS / FOO_CLASSES instead of fooClassName / fooClassNames.
+      // Scoped to `init.type=Literal|TemplateLiteral` so it only fires on a literal string
+      // assignment (the actual class-string case) and not on unrelated bindings that merely
+      // share the suffix, e.g. `const merged = linkClassName;` rebinding a component prop.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "VariableDeclarator[init.type=/^(Literal|TemplateLiteral)$/] > Identifier.id[name=/ClassNames?$/]",
+          message: "Name class-string constants with a _CLASS/_CLASSES suffix (e.g. FOO_CLASS), not *ClassName(s).",
+        },
+      ],
     },
   },
   {

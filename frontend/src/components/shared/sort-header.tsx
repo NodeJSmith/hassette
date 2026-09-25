@@ -85,7 +85,7 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
     <button
       type="button"
       className={cn(
-        "inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 font-inherit text-foreground-secondary [text-transform:inherit] [letter-spacing:inherit]",
+        "inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 [font-family:inherit] text-foreground-secondary [text-transform:inherit] [letter-spacing:inherit]",
         "hover:text-foreground focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
         active && "font-semibold text-foreground",
       )}
