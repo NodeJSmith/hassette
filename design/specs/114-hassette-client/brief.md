@@ -71,17 +71,21 @@ changes are acceptable when they buy a better design.
   leaves two model sets, and generated models read worse than hand-written ones.
 - **A type lives in `hassette-wire` if and only if it goes over the wire.** There are two
   categories:
-  - **Wire models move.** Every `*Response` and WS message in `web/models.py`, `SystemStatus`
-    and the WS event payloads in `schemas/domain_models.py`, and the telemetry models
-    (`Execution`, `JobSummary`, `ListenerSummary`, `ActivityFeedEntry`, and the rest). The
-    read-side query modules build the telemetry ones directly from DB rows
-    (`Execution.model_validate(row_to_dict(row))` in `core/telemetry/*_queries.py`) and routes
-    return them unchanged. Producing API data is those modules' whole job, so the DB-to-wire
-    mapping lives in their SQL aliases, with no separate mapping layer.
+  - **Wire models move.** Every `*Response` and WS message in `web/models.py` — including
+    `ListenerWithSummary`, despite its name — plus `SystemStatus` and the WS event payloads in
+    `schemas/domain_models.py`, and the telemetry models (`Execution`, `JobSummary`,
+    `ActivityFeedEntry`, and the rest). The read-side query modules build the telemetry ones
+    directly from DB rows (`Execution.model_validate(row_to_dict(row))` in
+    `core/telemetry/*_queries.py`) and routes return them unchanged. Producing API data is those
+    modules' whole job, so the DB-to-wire mapping lives in their SQL aliases, with no separate
+    mapping layer.
   - **Internal models stay in hassette.** The `schemas/app_snapshots.py` dataclasses
     (`AppInstanceInfo`, `AppManifestInfo`, and so on) carry live runtime state, including
     `error: Exception`. The web layer already maps them into `*Response` models, and that
-    mapping stays.
+    mapping stays. `ListenerSummary` (`schemas/listener_models.py`) is the same case: a
+    DB-query-result DTO that no route returns directly, mapped into the wire-facing
+    `ListenerWithSummary` by `to_listener_with_summary()` (`web/mappers.py`). It stays internal
+    too.
 
   Two definitions are only a problem when they describe the same thing. A server wire model and a
   client wire model are the same thing, and the shared package removes that duplication. An
@@ -116,9 +120,13 @@ changes are acceptable when they buy a better design.
   server: unknown fields are ignored, and an unknown enum value parses as `UNKNOWN`. The wire
   enums support that through a pydantic validation context, which only `hassette_client` sets.
   The server validates strictly and never emits `UNKNOWN`, so HA's closed option lists (such as
-  the six `ManifestStatus` values) stay closed server-side. This matches the prior-art norm: one
-  model class, with strictness chosen where it's validated (pydantic strict mode, Stripe's open
-  enums, protobuf's open enums).
+  the six `ManifestStatus` values) stay closed server-side. Lenient parsing only gets the client
+  past validation without crashing; it doesn't by itself define what C does with the result. Any
+  wire enum value C surfaces directly to a user (like the status sensor) needs its own explicit
+  `unknown` option and defined behavior for it — the status sensor is seven values, the six known
+  ones plus `unknown`, with switch/button unavailable the same as `disabled`/`blocked` (epic
+  brief). This matches the prior-art norm: one model class, with strictness chosen where it's
+  validated (pydantic strict mode, Stripe's open enums, protobuf's open enums).
 - **Lenient parsing covers additive changes only. Anything else fails loudly.** A renamed or
   retyped field, or a missing required one, raises a distinct response-validation error, never
   a silent misparse. C maps it to `UpdateFailed`. Version skew gets a floor and a warning, not a

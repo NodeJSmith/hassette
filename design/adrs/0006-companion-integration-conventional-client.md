@@ -52,9 +52,13 @@ The `hass-hassette` integration is a conventional API client of hassette:
 - **Reachability is now a user-setup cost.** HA must reach hassette's API. A remote hassette
   behind a forward-auth proxy needs a bypass for token-authenticated API paths. This is the same
   one-time setup as any HA integration that talks to a proxied self-hosted service. Document it.
-- **ADR-0005 interaction:** the add-on restricts hassette's clients to the ingress gateway when
-  no host port is mapped (`web_api.allowed_client_ips`). The integration, running in HA core,
-  must be allowed as a client, ideally through Supervisor discovery handing it the internal URL.
+- **ADR-0005 interaction:** the add-on's client-reachability story is bearer-token auth
+  (`web_api.auth_token`) plus the optional `web_api.trusted_proxies` peer-address bypass for a
+  forward-auth gateway sending no `Authorization` header (spec 091). `web_api.allowed_client_ips`
+  was only ever a design artifact from the unimplemented ingress-source-guard prereq and never
+  shipped — superseded by `trusted_proxies`. A bearer-authenticated client like the integration
+  doesn't need peer trust at all: it just needs a reachable URL and its config-flow token,
+  ideally handed the internal one via Supervisor discovery.
 - **v0.2 carries the deferred cost:** pushing entity state needs a real topic-subscription
   channel on hassette's WS server, which today is broadcast-only with no request ids
   (`src/hassette/web/routes/ws.py`; fan-out in `core/runtime_query_service.py`). That's new server work, owned by hassette.

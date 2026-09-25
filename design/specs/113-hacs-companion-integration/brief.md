@@ -152,12 +152,15 @@ end-to-end test green in CI.
   - Stale removal keys on `in_current_config: false` or a row disappearing, not on presence in the
     list: the endpoint also returns removed apps that still have DB rows.
   - Per app: `switch` (`{app_key}_running`), `button` (`{app_key}_reload`), and an enum `sensor`
-    (`{app_key}_status`) with the six `ManifestStatus` values (disabled, blocked, degraded,
-    running, failed, stopped). The unique_id format is a one-way door.
-  - Switch on = `running` or `degraded`; off = `stopped` or `failed`. For `disabled` and
-    `blocked` apps, switch and button are unavailable and the sensor stays available.
-    `autostart = false` needs no special handling. A stop from HA lasts until hassette restarts,
-    documented, not fixed.
+    (`{app_key}_status`) with **seven** values: the six `ManifestStatus` values (disabled,
+    blocked, degraded, running, failed, stopped) plus `unknown`, for a status value newer than
+    this integration recognizes (spec 114's lenient parsing turns an unrecognized server-side
+    `ManifestStatus` into `hassette_wire`'s `UNKNOWN`). The unique_id format is a one-way door.
+  - Switch on = `running` or `degraded`; off = `stopped` or `failed`. For `disabled`, `blocked`,
+    and `unknown` apps, switch and button are unavailable and the sensor stays available — an
+    `unknown` status is a version-skew signal to show, not a fetch failure to hide, so it doesn't
+    raise `UpdateFailed`. `autostart = false` needs no special handling. A stop from HA lasts
+    until hassette restarts, documented, not fixed.
   - Every action requests an immediate refresh (no optimistic state). Errors: 404 raises
     `ServiceValidationError(not_found)`; 409 blocked raises
     `ServiceValidationError(blocked_by_filter)`; 409 bootstrap raises
@@ -179,9 +182,11 @@ end-to-end test green in CI.
 
 - **Reachability docs** (D): the forward-auth bypass for token-authenticated API paths; LAN vs
   remote setups.
-- **ADR-0005 interaction** (C/D docs): the add-on restricts clients to the ingress gateway when no
-  host port is mapped (`web_api.allowed_client_ips`). v0.1 documents allowing HA's address;
-  Supervisor discovery handing over the internal URL is v0.4+.
+- **ADR-0005 interaction** (C/D docs): `web_api.allowed_client_ips` never shipped and is
+  superseded by `trusted_proxies` (spec 091) — the integration doesn't need peer-address
+  allowlisting at all, since it authenticates with its config-flow token like any other bearer
+  client. v0.1 just needs that documented; Supervisor discovery handing over the internal URL is
+  v0.4+.
 - **Minimum HA version** (C) for `hacs.json`: derive it from the APIs actually used, and keep a
   release-checklist step so it doesn't drift (HACS enforcement has gaps).
 - **v0.2 WS subscription design** on hassette's server: topics, request ids, backpressure (today
