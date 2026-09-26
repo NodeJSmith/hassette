@@ -26,16 +26,20 @@ interface UseLogDataResult {
   loading: boolean;
 }
 
+// Timing constants below are `export`ed only when use-log-data.test.ts needs to reference them
+// (to derive fake-timer advances instead of hardcoding milliseconds); constants with no test
+// consumer stay module-private.
+
 // Debounce-with-maxWait for coalescing bursty `log_hint` messages into one REST fetch. Each hint
 // resets the debounce timer; maxWait guarantees a fetch fires at least this often even under a
 // continuous burst, so the table isn't silenced for the whole burst duration.
-const HINT_DEBOUNCE_MS = 200;
-const HINT_MAX_WAIT_MS = 500;
+export const HINT_DEBOUNCE_MS = 200;
+export const HINT_MAX_WAIT_MS = 500;
 
 // Bounds for the catch-up loop that follows a full-page response — a full page means there may
 // be more records beyond the page just fetched.
 const CATCH_UP_MAX_PAGES = 5;
-const CATCH_UP_MIN_DELAY_MS = 100;
+export const CATCH_UP_MIN_DELAY_MS = 100;
 
 // Independent fallback for the "hint arrives before DB write completes" race (design.md's
 // documented edge case): the hint that would have triggered a retry only exists if more logging
@@ -43,16 +47,16 @@ const CATCH_UP_MIN_DELAY_MS = 100;
 // further hint ever arrives to pick it up — the UI silently stalls until an unrelated future log
 // line happens to sweep it in. This periodic re-sync runs regardless of hint activity so that
 // window is always bounded, independent of whether logging continues.
-const PERIODIC_RESYNC_MS = 5000;
+export const PERIODIC_RESYNC_MS = 5000;
 
 // Mirrors the WS reconnect backoff constants in use-websocket.ts (INITIAL_BACKOFF_MS=1000,
 // MAX_BACKOFF_MS=30000, BACKOFF_MULTIPLIER=1.5) — same shape, applied to catch-up fetch retries on
 // non-2xx responses instead of WS reconnect attempts. Not imported directly: those constants are
 // module-local to use-websocket.ts.
-const CATCH_UP_INITIAL_BACKOFF_MS = 1000;
+export const CATCH_UP_INITIAL_BACKOFF_MS = 1000;
 const CATCH_UP_MAX_BACKOFF_MS = 30_000;
-const CATCH_UP_BACKOFF_MULTIPLIER = 1.5;
-const CATCH_UP_MAX_RETRIES = 3;
+export const CATCH_UP_BACKOFF_MULTIPLIER = 1.5;
+export const CATCH_UP_MAX_RETRIES = 3;
 
 interface CatchUpFilters {
   appKey?: string;

@@ -175,16 +175,16 @@ class TestWebSocketConnection:
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
         with subscribed_ws(client, logs=True) as ws:
-            put_message(runtime_query_service, "log", level="INFO", message="test")
+            put_message(runtime_query_service, "log_hint")
 
-            assert expect_message(ws, "log")["message"] == "test"
+            expect_message(ws, "log_hint")
 
     def test_log_messages_blocked_when_not_subscribed(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
         with subscribed_ws(client) as ws:
-            # Log should be filtered (subscribe_logs is False by default)
-            put_message(runtime_query_service, "log", level="INFO", message="should not arrive")
+            # log_hint should be filtered (subscribe_logs is False by default)
+            put_message(runtime_query_service, "log_hint")
             # Non-log message to verify the connection is alive
             put_message(runtime_query_service, "app_status_changed", app_key="my_app")
 
@@ -197,36 +197,6 @@ class TestWebSocketConnection:
             put_message(runtime_query_service, "app_status_changed", app_key="my_app")
 
             expect_message(ws, "app_status_changed")
-
-    @pytest.mark.parametrize(
-        ("min_log_level", "filtered_levels", "delivered_level"),
-        [
-            ("WARNING", ["DEBUG", "INFO"], "WARNING"),
-            ("ERROR", ["WARNING"], "ERROR"),
-            # An unparseable level falls back to the INFO default rather than disabling filtering.
-            ("INVALID", ["DEBUG"], "INFO"),
-        ],
-        ids=["warning-threshold", "error-threshold", "invalid-level-defaults-to-info"],
-    )
-    def test_subscribe_min_log_level_filters_below_threshold(
-        self,
-        client: "TestClient",
-        runtime_query_service: RuntimeQueryService,
-        min_log_level: str,
-        filtered_levels: list[str],
-        delivered_level: str,
-    ) -> None:
-        """Levels below the threshold never arrive; the first one at or above it does.
-
-        The filtered levels are enqueued *before* the delivered one, so the fact that the next
-        (and only) frame received is the delivered level proves the earlier ones were dropped.
-        """
-        with subscribed_ws(client, logs=True, min_log_level=min_log_level) as ws:
-            for level in filtered_levels:
-                put_message(runtime_query_service, "log", level=level, message=level.lower())
-            put_message(runtime_query_service, "log", level=delivered_level, message="delivered")
-
-            assert expect_message(ws, "log")["level"] == delivered_level
 
     def test_sentinel_causes_graceful_close(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
@@ -251,13 +221,13 @@ class TestWebSocketConnection:
     def test_multiple_subscribe_updates_state(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        with subscribed_ws(client, logs=True, min_log_level="ERROR") as ws:
-            # A second subscribe replaces the first: INFO should now pass through.
-            ws.send_json({"type": "subscribe", "data": {"logs": True, "min_log_level": "INFO"}})
+        with subscribed_ws(client, logs=False) as ws:
+            # A second subscribe replaces the first: log_hint should now pass through.
+            ws.send_json({"type": "subscribe", "data": {"logs": True}})
             sync_via_ping(ws)
-            put_message(runtime_query_service, "log", level="INFO", message="visible")
+            put_message(runtime_query_service, "log_hint")
 
-            assert expect_message(ws, "log")["level"] == "INFO"
+            expect_message(ws, "log_hint")
 
 
 class TestWebSocketEdgeCases:
@@ -275,13 +245,13 @@ class TestWebSocketEdgeCases:
     def test_subscribe_with_missing_fields_uses_defaults(
         self, client: "TestClient", runtime_query_service: RuntimeQueryService
     ) -> None:
-        """Subscribe with an empty data dict uses defaults: logs=False, min_log_level=INFO."""
+        """Subscribe with an empty data dict uses the default: logs=False."""
         with subscribed_ws(client) as ws:
             ws.send_json({"type": "subscribe", "data": {}})
             sync_via_ping(ws)
-            # Log messages should NOT pass through (logs=False by default)
-            put_message(runtime_query_service, "log", level="INFO", message="should not arrive")
-            # Non-log message confirms connection is alive and log was filtered
+            # log_hint should NOT pass through (logs=False by default)
+            put_message(runtime_query_service, "log_hint")
+            # Non-log message confirms connection is alive and log_hint was filtered
             put_message(runtime_query_service, "app_status_changed", app_key="my_app")
 
             expect_message(ws, "app_status_changed")

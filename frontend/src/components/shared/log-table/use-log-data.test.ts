@@ -11,10 +11,33 @@ import { createTestQueryClient, renderHookWithProviders } from "@/test/query-tes
 import { server } from "@/test/server";
 
 import { CATCH_UP_FETCH_LIMIT, MAX_CACHED_LOG_ENTRIES, REST_FETCH_LIMIT } from "./constants";
-import { useLogData } from "./use-log-data";
+import {
+  CATCH_UP_BACKOFF_MULTIPLIER,
+  CATCH_UP_INITIAL_BACKOFF_MS,
+  CATCH_UP_MAX_RETRIES,
+  CATCH_UP_MIN_DELAY_MS,
+  HINT_DEBOUNCE_MS,
+  HINT_MAX_WAIT_MS,
+  PERIODIC_RESYNC_MS,
+  useLogData,
+} from "./use-log-data";
 
 const LOGS_ENDPOINT = "/api/logs/recent";
 const LOGS_SINCE_ENDPOINT = "/api/logs/since/:sinceId";
+
+// The full span of retry delays fetchSinceWithBackoff waits through on consecutive failures,
+// summed across CATCH_UP_MAX_RETRIES attempts of exponential backoff — derived from the source
+// module's constants so a change to the retry count or backoff shape doesn't silently desync this
+// from the real behavior.
+const CATCH_UP_FULL_RETRY_WINDOW_MS = ((): number => {
+  let delay = CATCH_UP_INITIAL_BACKOFF_MS;
+  let total = 0;
+  for (let i = 0; i < CATCH_UP_MAX_RETRIES; i++) {
+    total += delay;
+    delay *= CATCH_UP_BACKOFF_MULTIPLIER;
+  }
+  return total;
+})();
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -217,7 +240,7 @@ describe("useLogData", () => {
       );
 
       sendHint();
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
       await vi.waitFor(() => {
         expect(result.current.allEntries.map((e) => e.id)).toContain(newEntry.id);
       });
@@ -243,9 +266,9 @@ describe("useLogData", () => {
 
       for (let i = 0; i < 12; i++) {
         sendHint();
-        await vi.advanceTimersByTimeAsync(10); // 12 hints across ~120ms — well within the 200ms debounce
+        await vi.advanceTimersByTimeAsync(10); // 12 hints across ~120ms — well within the debounce window
       }
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
 
       await vi.waitFor(() => {
         expect(fetchCount).toBe(1);
@@ -286,7 +309,7 @@ describe("useLogData", () => {
       server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([duplicate, fresh])));
 
       sendHint();
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
 
       await vi.waitFor(() => {
         expect(result.current.allEntries).toHaveLength(2);
@@ -304,7 +327,7 @@ describe("useLogData", () => {
       server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(resetBatch)));
 
       sendHint();
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
 
       await vi.waitFor(() => {
         expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2, 3]);
@@ -330,8 +353,8 @@ describe("useLogData", () => {
       await renderLoadedLogData(makeEntries(1, 0));
 
       sendHint();
-      // 5 pages x 100ms minimum inter-fetch delay, generous headroom for the fetches themselves.
-      await vi.advanceTimersByTimeAsync(200 + 5 * 100 + 500);
+      // 5 pages x the minimum inter-fetch delay, generous headroom for the fetches themselves.
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS + 5 * CATCH_UP_MIN_DELAY_MS + 500);
 
       await vi.waitFor(() => {
         expect(fetchCount).toBe(5);
@@ -345,8 +368,8 @@ describe("useLogData", () => {
       await renderLoadedLogData(makeEntries(1, 1));
 
       sendHint();
-      // debounce (200ms) + 3 retries at 1000/1500/2250ms backoff, generous headroom.
-      await vi.advanceTimersByTimeAsync(200 + 1000 + 1500 + 2250 + 500);
+      // debounce + 3 retries at the initial/1.5x/2.25x backoff delays, generous headroom.
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS + CATCH_UP_FULL_RETRY_WINDOW_MS + 500);
 
       await vi.waitFor(() => {
         expect(toast.error).toHaveBeenCalled();
@@ -366,9 +389,9 @@ describe("useLogData", () => {
       await renderLoadedLogData(makeEntries(1, 1));
 
       sendHint();
-      // debounce (200ms) + a single fetch attempt, generous headroom — no backoff wait since a
+      // debounce + a single fetch attempt, generous headroom — no backoff wait since a
       // 4xx fails immediately instead of retrying.
-      await vi.advanceTimersByTimeAsync(200 + 500);
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS + 500);
 
       await vi.waitFor(() => {
         expect(toast.error).toHaveBeenCalledTimes(1);
@@ -380,7 +403,7 @@ describe("useLogData", () => {
       // A second hint-triggered episode still runs — the permanent-failure gate only suppresses
       // the toast, not the next episode's attempt.
       sendHint();
-      await vi.advanceTimersByTimeAsync(200 + 500);
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS + 500);
 
       await vi.waitFor(() => {
         expect(fetchCount).toBe(2);
@@ -414,9 +437,9 @@ describe("useLogData", () => {
         }),
       );
 
-      // First hint: debounce fires at +200ms, starting the first (now-hanging) fetch.
+      // First hint: debounce fires, starting the first (now-hanging) fetch.
       sendHint();
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
       await vi.waitFor(() => {
         expect(callCount).toBe(1);
       });
@@ -425,7 +448,7 @@ describe("useLogData", () => {
       // cycle elapses, but the guard must defer performCatchUp until the first run settles —
       // proven by callCount staying at 1 even after this cycle's timers fire.
       sendHint();
-      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(HINT_MAX_WAIT_MS);
       expect(callCount).toBe(1);
 
       // Release the first (hanging) response — only now should the second, chained run start.
@@ -455,7 +478,7 @@ describe("useLogData", () => {
       server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(fresh)));
 
       sendHint();
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
 
       await vi.waitFor(() => {
         expect(result.current.allEntries).toHaveLength(MAX_CACHED_LOG_ENTRIES);
@@ -490,7 +513,7 @@ describe("useLogData", () => {
       await renderLoadedLogData(makeEntries(1, 1));
 
       expect(fetchCount).toBe(0);
-      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(PERIODIC_RESYNC_MS);
 
       await vi.waitFor(() => {
         expect(fetchCount).toBe(1);
@@ -503,9 +526,9 @@ describe("useLogData", () => {
 
       await renderLoadedLogData(makeEntries(1, 1));
 
-      await vi.advanceTimersByTimeAsync(5000);
-      // Let the poll's own retry/backoff cycle (1000/1500/2250ms) exhaust, generous headroom.
-      await vi.advanceTimersByTimeAsync(1000 + 1500 + 2250 + 500);
+      await vi.advanceTimersByTimeAsync(PERIODIC_RESYNC_MS);
+      // Let the poll's own retry/backoff cycle exhaust, generous headroom.
+      await vi.advanceTimersByTimeAsync(CATCH_UP_FULL_RETRY_WINDOW_MS + 500);
 
       expect(toast.error).not.toHaveBeenCalled();
     });
@@ -518,7 +541,7 @@ describe("useLogData", () => {
 
       await renderLoadedLogData(makeEntries(1, 1));
 
-      await vi.advanceTimersByTimeAsync(5000 + 500);
+      await vi.advanceTimersByTimeAsync(PERIODIC_RESYNC_MS + 500);
 
       await vi.waitFor(() => {
         expect(toast.error).toHaveBeenCalledTimes(1);
@@ -552,16 +575,16 @@ describe("useLogData", () => {
       });
 
       sendHint();
-      await vi.advanceTimersByTimeAsync(200); // debounce fires, first attempt starts and fails
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS); // debounce fires, first attempt starts and fails
       await vi.waitFor(() => {
         expect(fetchCount).toBe(1);
       });
 
       unmount();
 
-      // Advance through the full 3-retry backoff window (1000/1500/2250ms) the chain would
-      // otherwise have run through — no further attempts should occur.
-      await vi.advanceTimersByTimeAsync(1000 + 1500 + 2250 + 500);
+      // Advance through the full 3-retry backoff window the chain would otherwise have run
+      // through — no further attempts should occur.
+      await vi.advanceTimersByTimeAsync(CATCH_UP_FULL_RETRY_WINDOW_MS + 500);
       expect(fetchCount).toBe(1);
     });
 
@@ -584,17 +607,17 @@ describe("useLogData", () => {
       });
 
       sendHint();
-      await vi.advanceTimersByTimeAsync(200); // debounce fires, first attempt starts and fails
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS); // debounce fires, first attempt starts and fails
       await vi.waitFor(() => {
         expect(fetchCount).toBe(1);
       });
 
       act(() => rerender({ appKey: "app-b" })); // scopedKey changes — old chain's signal aborts
 
-      // Advance past the point the old chain's next retry (1000ms backoff) would have fired, but
-      // stay well under PERIODIC_RESYNC_MS (5000ms) so the unrelated periodic-poll feature (which
+      // Advance past the point the old chain's next retry (the initial backoff delay) would have
+      // fired, but stay well under PERIODIC_RESYNC_MS so the unrelated periodic-poll feature (which
       // now legitimately runs for the new app-b scopedKey) can't also increment fetchCount here.
-      await vi.advanceTimersByTimeAsync(1000 + 500);
+      await vi.advanceTimersByTimeAsync(CATCH_UP_INITIAL_BACKOFF_MS + 500);
       expect(fetchCount).toBe(1);
     });
   });
@@ -630,7 +653,7 @@ describe("useLogData", () => {
       expect(recentCallCount).toBe(1);
 
       sendHint();
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
       await vi.waitFor(() => {
         expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2]);
       });

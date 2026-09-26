@@ -3,8 +3,6 @@
  * Or: uv run python scripts/export_schemas.py --types
  */
 
-import type { components } from "./generated-types";
-
 export type WsServerMessage =
   | AppStatusChangedWsMessage
   | LogHintWsMessage
@@ -138,11 +136,6 @@ export interface AppManifestsChangedWsMessage {
  */
 export type AppManifestsChangedData = Record<string, never>;
 
-// LogEntryResponse no longer appears in ws-schema.json — the WS payload was
-// trimmed to a pure log_hint notification. WsLogPayload is kept as an alias
-// onto the REST-side type (generated-types.ts, from OpenAPI) since a couple
-// of frontend log-table call sites still reference it.
-export type WsLogPayload = components["schemas"]["LogEntryResponse"];
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
 
 // ExecutionStatus is also defined in generated-types.ts (from OpenAPI).

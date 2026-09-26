@@ -4,7 +4,7 @@ Durable issues discovered during orchestration that were intentionally not fixed
 
 ## KI-001: Unused `WsLogPayload` compat alias reappeared in generated WS types
 
-Status: open
+Status: resolved — fixed during known issues walkthrough
 Run: 144
 Source: impl-review
 Reason not fixed now: out-of-scope
@@ -28,7 +28,7 @@ Acceptance criteria:
 
 ## KI-002: Dead `"log"` message-type branch left in ws.py's send filter
 
-Status: open
+Status: resolved — fixed during known issues walkthrough
 Run: 144
 Source: cross-file-review
 Reason not fixed now: out-of-scope
@@ -50,7 +50,7 @@ Acceptance criteria:
 
 ## KI-003: `use-log-data.test.ts` hardcodes the source module's timing constants as bare literals
 
-Status: open
+Status: resolved — fixed during known issues walkthrough
 Run: 144
 Source: clean-code
 Reason not fixed now: needs-decision
@@ -74,7 +74,7 @@ Acceptance criteria:
 
 ## KI-004: `CATCH_UP_FETCH_LIMIT` is manually kept in sync with the backend's `MAX_QUERY_LIMIT` via a comment only
 
-Status: open
+Status: filed (NodeJSmith/hassette#2390)
 Run: 144
 Source: clean-code
 Reason not fixed now: needs-decision
@@ -97,7 +97,7 @@ Acceptance criteria:
 
 ## KI-005: `useLogData()` is a ~140-line hook blending multiple concerns
 
-Status: open
+Status: filed (NodeJSmith/hassette#2391)
 Run: 144
 Source: clean-code
 Reason not fixed now: needs-decision

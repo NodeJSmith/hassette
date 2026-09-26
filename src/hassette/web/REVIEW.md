@@ -10,8 +10,7 @@ dropped from the API.
 ## WS Message Union Completeness
 Does `src/hassette/web/models.py`'s `WsServerMessage` discriminated union include
 every concrete server-message model (those with a literal `type` field) defined
-in the same file? The generic `WsMessage` (unconstrained `str` discriminator) is
-correctly excluded. A new concrete variant not added to the union will be absent
+in the same file? A new concrete variant not added to the union will be absent
 from the schema and unreachable by the frontend.
 
 ## Telemetry Degradation Category

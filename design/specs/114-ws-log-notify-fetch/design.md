@@ -1,7 +1,7 @@
 # Design: WS Log Notify-and-Fetch
 
 **Date:** 2026-09-25
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-09-25-ws-log-notify-fetch/research.md
 

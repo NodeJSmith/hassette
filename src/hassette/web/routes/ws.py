@@ -9,7 +9,6 @@ from fastapi import APIRouter
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from hassette.web.auth import WS_POLICY_VIOLATION_CLOSE_CODE, authorize_ws
-from hassette.web.dependencies import DEFAULT_LOG_LEVEL, LOG_LEVELS
 from hassette.web.mappers import connected_payload_from
 
 router = APIRouter(tags=["websocket"])
@@ -48,10 +47,10 @@ async def _read_client(websocket: WebSocket, ws_state: dict) -> None:
                 await websocket.send_json({"type": "pong"})
             elif msg_type == "subscribe":
                 sub_data = data.get("data", {})
+                # A client may still send `min_log_level` (harmless, silently ignored) —
+                # log_hint carries no level, so filtering happens client-side after the REST
+                # catch-up fetch instead.
                 ws_state["subscribe_logs"] = sub_data.get("logs", False)
-                raw_level = sub_data.get("min_log_level", DEFAULT_LOG_LEVEL)
-                level = raw_level.upper() if isinstance(raw_level, str) else DEFAULT_LOG_LEVEL
-                ws_state["min_log_level"] = level if level in LOG_LEVELS else DEFAULT_LOG_LEVEL
     except Exception as exc:
         if _is_disconnect(exc):
             return
@@ -66,22 +65,11 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
             message = await queue.get()
             if message is None:
                 break  # shutdown sentinel
-            # Filter log messages based on subscription
+            # Filter log_hint messages based on subscription. log_hint carries no level, so
+            # min_log_level filtering has moved client-side, after the REST catch-up fetch.
             msg_type = message.get("type")
-            if msg_type in ("log", "log_hint"):
-                if not ws_state.get("subscribe_logs", False):
-                    continue
-                # min_log_level only gates the legacy "log" message shape, which nothing emits
-                # anymore — log_hint carries no level, so it always passes through here. The
-                # setting is still accepted on the WS handshake but no longer affects log_hint
-                # delivery cadence; any level filtering for the hint stream must happen client-side
-                # after the REST catch-up fetch.
-                if msg_type == "log":
-                    msg_level = LOG_LEVELS.get(message.get("data", {}).get("level", ""), 0)
-                    configured = ws_state.get("min_log_level", DEFAULT_LOG_LEVEL)
-                    min_level = LOG_LEVELS.get(configured, LOG_LEVELS[DEFAULT_LOG_LEVEL])
-                    if msg_level < min_level:
-                        continue
+            if msg_type == "log_hint" and not ws_state.get("subscribe_logs", False):
+                continue
             await websocket.send_json(message)
     except Exception as exc:
         if _is_disconnect(exc):
@@ -98,7 +86,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
     runtime = websocket.app.state.hassette.runtime_query_service
     queue = await runtime.register_ws_client()
-    ws_state: dict = {"subscribe_logs": False, "min_log_level": DEFAULT_LOG_LEVEL}
+    ws_state: dict = {"subscribe_logs": False}
     try:
         # Send initial connection info (includes uptime_seconds for time-window filtering)
         status = runtime.get_system_status()
