@@ -14,6 +14,7 @@ import { CATCH_UP_FETCH_LIMIT, MAX_CACHED_LOG_ENTRIES, REST_FETCH_LIMIT } from "
 import {
   CATCH_UP_BACKOFF_MULTIPLIER,
   CATCH_UP_INITIAL_BACKOFF_MS,
+  CATCH_UP_MAX_PAGES,
   CATCH_UP_MAX_RETRIES,
   CATCH_UP_MIN_DELAY_MS,
   HINT_DEBOUNCE_MS,
@@ -353,11 +354,11 @@ describe("useLogData", () => {
       await renderLoadedLogData(makeEntries(1, 0));
 
       sendHint();
-      // 5 pages x the minimum inter-fetch delay, generous headroom for the fetches themselves.
-      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS + 5 * CATCH_UP_MIN_DELAY_MS + 500);
+      // CATCH_UP_MAX_PAGES pages x the minimum inter-fetch delay, generous headroom for the fetches themselves.
+      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS + CATCH_UP_MAX_PAGES * CATCH_UP_MIN_DELAY_MS + 500);
 
       await vi.waitFor(() => {
-        expect(fetchCount).toBe(5);
+        expect(fetchCount).toBe(CATCH_UP_MAX_PAGES);
       });
     });
 
@@ -658,8 +659,8 @@ describe("useLogData", () => {
         expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2]);
       });
 
-      // Before Finding 8's fix, useQuery's default full-replace would wholesale-overwrite the
-      // cache with this refetch's stale (single-entry) result, silently erasing id=2.
+      // A base-query refetch must merge into the existing cache rather than wholesale-replacing
+      // it — otherwise this stale (single-entry) refetch result would silently erase id=2.
       await act(async () => {
         await queryClient.refetchQueries({ queryKey: queryKeys.recentLogs() });
       });

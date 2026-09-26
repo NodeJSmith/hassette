@@ -9,13 +9,9 @@ import logging
 import queue
 from unittest.mock import MagicMock
 
-from hassette.logging_ import (
-    HassetteQueueHandler,
-    LogCaptureHandler,
-    _build_log_entry,  # pyright: ignore[reportPrivateUsage]
-)
+from hassette.logging_ import HassetteQueueHandler, LogCaptureHandler
 from hassette.web.models import LogHintWsMessage
-from tests.support.factories import make_log_record, make_recording_log_capture_handler
+from tests.support.factories import build_log_entry, make_log_record, make_recording_log_capture_handler
 from tests.unit.conftest import LoggingPipelineFixture
 
 
@@ -40,7 +36,7 @@ class TestLogCaptureHandlerStillCaptures:
         record = make_log_record(name="hassette.apps.my_app", pathname="test.py", lineno=1, msg="test msg")
         record.source_tier = "app"
 
-        entry = _build_log_entry(record)
+        entry = build_log_entry(record)
 
         assert entry.source_tier == "app"
 
@@ -49,7 +45,7 @@ class TestLogCaptureHandlerStillCaptures:
         record = make_log_record(name="hassette.core", pathname="test.py", lineno=1, msg="framework msg")
         # No source_tier attribute set
 
-        entry = _build_log_entry(record)
+        entry = build_log_entry(record)
 
         assert entry.source_tier is None
 
@@ -71,7 +67,7 @@ class TestLogCaptureHandlerPopulatesCorrelationFields:
         record = make_log_record(name="hassette.test")
         record.execution_id = "exec-999"  # pyright: ignore[reportAttributeAccessIssue]
 
-        entry = _build_log_entry(record)
+        entry = build_log_entry(record)
 
         assert entry.execution_id == "exec-999"
 
@@ -80,7 +76,7 @@ class TestLogCaptureHandlerPopulatesCorrelationFields:
         record.instance_name = "MyApp.0"  # pyright: ignore[reportAttributeAccessIssue]
         record.instance_index = 0  # pyright: ignore[reportAttributeAccessIssue]
 
-        entry = _build_log_entry(record)
+        entry = build_log_entry(record)
 
         assert entry.instance_name == "MyApp.0"
         assert entry.instance_index == 0
@@ -88,7 +84,7 @@ class TestLogCaptureHandlerPopulatesCorrelationFields:
     def test_emit_execution_id_none_when_missing(self) -> None:
         record = make_log_record(name="hassette.test")
 
-        entry = _build_log_entry(record)
+        entry = build_log_entry(record)
 
         assert entry.execution_id is None
 

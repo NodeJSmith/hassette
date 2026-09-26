@@ -1,6 +1,7 @@
 """Log query endpoints."""
 
 import logging
+from collections.abc import Callable
 from logging import getLogger
 from typing import Annotated
 
@@ -21,30 +22,29 @@ LOGGER = getLogger(__name__)
 router = APIRouter(tags=["logs"])
 
 
-def validate_log_level(level: str | None) -> str | None:
-    """Uppercase and validate an optional ``level`` query param; raises 422 if invalid."""
-    if level is None:
+def _validate_choice(
+    value: str | None, valid: frozenset[str], param_name: str, transform: Callable[[str], str]
+) -> str | None:
+    """Normalize and validate an optional query param against a fixed set of choices; raises 422 if invalid."""
+    if value is None:
         return None
-    level = level.upper()
-    if level not in VALID_LOG_LEVEL_NAMES:
+    value = transform(value)
+    if value not in valid:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid level {level!r}. Must be one of: {', '.join(sorted(VALID_LOG_LEVEL_NAMES))}",
+            detail=f"Invalid {param_name} {value!r}. Must be one of: {', '.join(sorted(valid))}",
         )
-    return level
+    return value
+
+
+def validate_log_level(level: str | None) -> str | None:
+    """Uppercase and validate an optional ``level`` query param; raises 422 if invalid."""
+    return _validate_choice(level, VALID_LOG_LEVEL_NAMES, "level", str.upper)
 
 
 def validate_source_tier(source_tier: str | None) -> str | None:
     """Lowercase and validate an optional ``source_tier`` query param; raises 422 if invalid."""
-    if source_tier is None:
-        return None
-    source_tier = source_tier.lower()
-    if source_tier not in VALID_SOURCE_TIERS:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid source_tier {source_tier!r}. Must be one of: {', '.join(sorted(VALID_SOURCE_TIERS))}",
-        )
-    return source_tier
+    return _validate_choice(source_tier, VALID_SOURCE_TIERS, "source_tier", str.lower)
 
 
 @router.get("/logs/recent", response_model=list[LogEntryResponse])

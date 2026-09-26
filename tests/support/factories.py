@@ -26,7 +26,8 @@ from hassette.events.base import Event, HassContext, HassettePayload, HassPayloa
 from hassette.logging_ import (
     LogCaptureHandler,
     LogEntry,
-    _build_log_entry,  # pyright: ignore[reportPrivateUsage]
+    _extract_correlation_attrs,  # pyright: ignore[reportPrivateUsage]
+    _format_exc_info,  # pyright: ignore[reportPrivateUsage]
 )
 from hassette.resources.base import Resource
 from hassette.scheduler.classes import Job, ScheduleStatus
@@ -473,10 +474,30 @@ def make_log_record(
     return logging.LogRecord(name, level, pathname, lineno, msg, args, exc_info)
 
 
+def build_log_entry(record: logging.LogRecord) -> LogEntry:
+    """Build a LogEntry from a LogRecord using the correlation attrs and formatted traceback.
+
+    Test-only: production `LogCaptureHandler.emit()` only needs `record.created` and builds its
+    broadcast payload directly. This assembles the full `LogEntry` shape for tests that need to
+    assert on correlation attrs and message content.
+    """
+    attrs = _extract_correlation_attrs(record)
+    return LogEntry(
+        timestamp=record.created,
+        level=record.levelname,
+        logger_name=record.name,
+        func_name=record.funcName or "",
+        lineno=record.lineno,
+        message=record.getMessage(),
+        exc_info=_format_exc_info(record),
+        **attrs,
+    )
+
+
 class RecordingLogCaptureHandler(LogCaptureHandler):
     """A `LogCaptureHandler` that also records every `LogEntry` it builds, for test assertions.
 
-    Production `LogCaptureHandler` no longer retains captured entries (see `_build_log_entry`) —
+    Production `LogCaptureHandler` no longer retains captured entries (see `build_log_entry`) —
     it only broadcasts a hint. Tests that need to inspect the constructed `LogEntry` objects
     (correlation attrs, message content, shutdown-guard behavior) use this subclass as their
     observation seam instead.
@@ -487,7 +508,7 @@ class RecordingLogCaptureHandler(LogCaptureHandler):
         self.captured: list[LogEntry] = []
 
     def emit(self, record: logging.LogRecord) -> None:
-        self.captured.append(_build_log_entry(record))
+        self.captured.append(build_log_entry(record))
         super().emit(record)
 
 

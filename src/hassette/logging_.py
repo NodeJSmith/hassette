@@ -113,28 +113,6 @@ def _format_exc_info(record: logging.LogRecord) -> str | None:
     return None
 
 
-def _build_log_entry(record: logging.LogRecord) -> LogEntry:  # pyright: ignore[reportUnusedFunction]
-    """Build a LogEntry from a LogRecord using the correlation attrs and formatted traceback.
-
-    No longer called in production code (``LogCaptureHandler.emit()`` only needs
-    ``record.created`` and builds the payload directly) — kept for test call sites
-    (``tests/support/factories.py``'s ``RecordingLogCaptureHandler``,
-    ``tests/unit/test_logging_capture_handler.py``) that need the full ``LogEntry``
-    shape to assert on correlation attrs and message content.
-    """
-    attrs = _extract_correlation_attrs(record)
-    return LogEntry(
-        timestamp=record.created,
-        level=record.levelname,
-        logger_name=record.name,
-        func_name=record.funcName or "",
-        lineno=record.lineno,
-        message=record.getMessage(),
-        exc_info=_format_exc_info(record),
-        **attrs,
-    )
-
-
 class LogCaptureHandler(logging.Handler):
     """Captures log records and broadcasts a hint to WS clients."""
 

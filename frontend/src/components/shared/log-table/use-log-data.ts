@@ -38,7 +38,7 @@ export const HINT_MAX_WAIT_MS = 500;
 
 // Bounds for the catch-up loop that follows a full-page response — a full page means there may
 // be more records beyond the page just fetched.
-const CATCH_UP_MAX_PAGES = 5;
+export const CATCH_UP_MAX_PAGES = 5;
 export const CATCH_UP_MIN_DELAY_MS = 100;
 
 // Independent fallback for the "hint arrives before DB write completes" race (design.md's
@@ -240,52 +240,22 @@ async function performCatchUp(
   }
 }
 
-export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDataResult {
-  const queryClient = useQueryClient();
-
-  const logHintVersion = useAppStore((s) => s.logHintVersion);
-  const timePreset = useAppStore((s) => s.timePreset);
-  const urlWindowParam = useAppStore((s) => s.urlWindowParam);
-  const uptimeSeconds = useAppStore((s) => s.uptimeSeconds);
-
-  const preset = urlWindowParam ?? timePreset;
-  const since = resolveSince(preset, uptimeSeconds) ?? 0;
-  const isWaitingForUptime = preset === "since-restart" && uptimeSeconds === null;
-
-  // Mirrors useScopedQuery's own queryKey computation (see that hook's docstring) — both hooks
-  // read preset/uptimeSeconds from the same store, so the keys always agree, and hint-triggered
-  // writes via setQueryData land in the exact cache entry the base query below owns.
-  const scopedKey = useMemo(
-    () =>
-      [
-        ...queryKeys.recentLogs(appKey, executionId),
-        preset,
-        ...(preset === "since-restart" ? [uptimeSeconds] : []),
-      ] as const,
-    [appKey, executionId, preset, uptimeSeconds],
-  );
-
-  // Merges through mergeCatchUpBatch instead of returning the fresh page directly, so a refetch
-  // (WS reconnect, preset/filter change) never wholesale-replaces entries a concurrent or
-  // just-completed hint-triggered catch-up already merged in — see that function's docstring.
-  // mergeCatchUpBatch writes the merge result into the cache itself; returning it here as well
-  // just makes useScopedQuery's own post-resolution cache write a no-op (same value, redundant set)
-  // instead of a second, conflicting write.
-  const { data, isPending, isError, error } = useScopedQuery<LogEntry[]>(
-    queryKeys.recentLogs(appKey, executionId),
-    async (s, signal) => {
-      const fresh = await getRecentLogs({ appKey, limit: REST_FETCH_LIMIT, executionId, since: s }, signal);
-      mergeCatchUpBatch(queryClient, scopedKey, fresh);
-      return queryClient.getQueryData<LogEntry[]>(scopedKey) ?? fresh;
-    },
-  );
-
-  useEffect(() => {
-    if (isError && error) {
-      toast.error(error instanceof Error ? error.message : "Failed to load recent logs");
-    }
-  }, [isError, error]);
-
+/** Owns the hint-triggered and periodic catch-up scheduling for `useLogData`: the debounce/maxWait
+ * coalescing of `log_hint` events, the bounded periodic re-sync, and the abort/serialization
+ * plumbing (`catchUpChainRef`, `abortControllerRef`) that both share. Pulled out of `useLogData`
+ * itself purely to keep the base-query setup and the catch-up scheduling readable as separate
+ * concerns — every ref, effect body, and dependency array here is unchanged from before the split. */
+function useCatchUpScheduler(
+  queryClient: QueryClient,
+  {
+    scopedKey,
+    appKey,
+    executionId,
+    since,
+    isWaitingForUptime,
+    logHintVersion,
+  }: CatchUpContext & { logHintVersion: number },
+): void {
   // Mirrored into a ref on every render so the debounced/async catch-up flow always reads the
   // latest filters/key instead of a closure captured at the moment the hint arrived.
   const contextRef = useRef<CatchUpContext>({ scopedKey, appKey, executionId, since, isWaitingForUptime });
@@ -377,6 +347,55 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
     debounceTimerRef.current = setTimeout(runCatchUp, HINT_DEBOUNCE_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient is stable; contextRef carries the rest
   }, [logHintVersion]);
+}
+
+export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDataResult {
+  const queryClient = useQueryClient();
+
+  const logHintVersion = useAppStore((s) => s.logHintVersion);
+  const timePreset = useAppStore((s) => s.timePreset);
+  const urlWindowParam = useAppStore((s) => s.urlWindowParam);
+  const uptimeSeconds = useAppStore((s) => s.uptimeSeconds);
+
+  const preset = urlWindowParam ?? timePreset;
+  const since = resolveSince(preset, uptimeSeconds) ?? 0;
+  const isWaitingForUptime = preset === "since-restart" && uptimeSeconds === null;
+
+  // Mirrors useScopedQuery's own queryKey computation (see that hook's docstring) — both hooks
+  // read preset/uptimeSeconds from the same store, so the keys always agree, and hint-triggered
+  // writes via setQueryData land in the exact cache entry the base query below owns.
+  const scopedKey = useMemo(
+    () =>
+      [
+        ...queryKeys.recentLogs(appKey, executionId),
+        preset,
+        ...(preset === "since-restart" ? [uptimeSeconds] : []),
+      ] as const,
+    [appKey, executionId, preset, uptimeSeconds],
+  );
+
+  // Merges through mergeCatchUpBatch instead of returning the fresh page directly, so a refetch
+  // (WS reconnect, preset/filter change) never wholesale-replaces entries a concurrent or
+  // just-completed hint-triggered catch-up already merged in — see that function's docstring.
+  // mergeCatchUpBatch writes the merge result into the cache itself; returning it here as well
+  // just makes useScopedQuery's own post-resolution cache write a no-op (same value, redundant set)
+  // instead of a second, conflicting write.
+  const { data, isPending, isError, error } = useScopedQuery<LogEntry[]>(
+    queryKeys.recentLogs(appKey, executionId),
+    async (s, signal) => {
+      const fresh = await getRecentLogs({ appKey, limit: REST_FETCH_LIMIT, executionId, since: s }, signal);
+      mergeCatchUpBatch(queryClient, scopedKey, fresh);
+      return queryClient.getQueryData<LogEntry[]>(scopedKey) ?? fresh;
+    },
+  );
+
+  useEffect(() => {
+    if (isError && error) {
+      toast.error(error instanceof Error ? error.message : "Failed to load recent logs");
+    }
+  }, [isError, error]);
+
+  useCatchUpScheduler(queryClient, { scopedKey, appKey, executionId, since, isWaitingForUptime, logHintVersion });
 
   const restEntries = useMemo<LogEntry[]>(() => data ?? [], [data]);
 

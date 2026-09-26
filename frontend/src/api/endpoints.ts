@@ -124,31 +124,20 @@ interface LogFilterParams {
   sourceTier?: string | null;
 }
 
+const buildLogFilterParams = (params?: LogFilterParams) => ({
+  level: params?.level,
+  app_key: params?.appKey,
+  limit: params?.limit,
+  since: params?.since,
+  execution_id: params?.executionId,
+  source_tier: params?.sourceTier,
+});
+
 export const getRecentLogs = (params?: LogFilterParams, signal?: AbortSignal) =>
-  apiFetch<LogEntry[]>(
-    buildUrl("/logs/recent", {
-      level: params?.level,
-      app_key: params?.appKey,
-      limit: params?.limit,
-      since: params?.since,
-      execution_id: params?.executionId,
-      source_tier: params?.sourceTier,
-    }),
-    { signal },
-  );
+  apiFetch<LogEntry[]>(buildUrl("/logs/recent", buildLogFilterParams(params)), { signal });
 
 export const getLogsSince = (sinceId: number, params?: LogFilterParams, signal?: AbortSignal) =>
-  apiFetch<LogEntry[]>(
-    buildUrl(`/logs/since/${sinceId}`, {
-      level: params?.level,
-      app_key: params?.appKey,
-      limit: params?.limit,
-      since: params?.since,
-      execution_id: params?.executionId,
-      source_tier: params?.sourceTier,
-    }),
-    { signal },
-  );
+  apiFetch<LogEntry[]>(buildUrl(`/logs/since/${sinceId}`, buildLogFilterParams(params)), { signal });
 
 export const getAllListeners = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }), { signal });
