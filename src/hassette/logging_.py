@@ -77,9 +77,6 @@ class LogEntry:
     execution_id: str | None = None
     instance_name: str | None = None
     instance_index: int | None = None
-    execution_kind: str | None = None
-    listener_id: int | None = None
-    job_id: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -96,9 +93,6 @@ class LogEntry:
             "execution_id": self.execution_id,
             "instance_name": self.instance_name,
             "instance_index": self.instance_index,
-            "execution_kind": self.execution_kind,
-            "listener_id": self.listener_id,
-            "job_id": self.job_id,
         }
 
 
@@ -111,9 +105,6 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
         "instance_name": getattr(record, "instance_name", None),
         "instance_index": getattr(record, "instance_index", None),
         "seq": getattr(record, "seq", 0),
-        "execution_kind": getattr(record, "execution_kind", None),
-        "listener_id": getattr(record, "listener_id", None),
-        "job_id": getattr(record, "job_id", None),
     }
 
 
@@ -166,8 +157,9 @@ class LogCaptureHandler(logging.Handler):
         if self._broadcast_fn and self._loop and self._loop.is_running():
             fn = self._broadcast_fn
             loop = self._loop
-            # LogWsMessage requires a top-level timestamp; entry.to_dict() only nests one under data.
-            payload = {"type": "log", "data": entry.to_dict(), "timestamp": entry.timestamp}
+            # LogHintWsMessage carries no log data — clients that want the new record fetch it
+            # via the REST API. Keeps the broadcast payload independent of LogEntry's shape.
+            payload = {"type": "log_hint", "timestamp": entry.timestamp}
 
             def _schedule_broadcast() -> None:
                 with contextlib.suppress(RuntimeError):

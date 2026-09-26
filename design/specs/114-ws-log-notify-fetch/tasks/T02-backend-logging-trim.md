@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Trim LogEntry, _extract_correlation_attrs, and emit log_hint"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#2", "FR#3", "AC#2"]
 ---

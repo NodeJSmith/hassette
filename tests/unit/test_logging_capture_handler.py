@@ -10,7 +10,7 @@ import queue
 from unittest.mock import MagicMock
 
 from hassette.logging_ import HassetteQueueHandler, LogCaptureHandler
-from hassette.web.models import LogWsMessage
+from hassette.web.models import LogHintWsMessage
 from tests.support.factories import make_log_record
 from tests.unit.conftest import LoggingPipelineFixture
 
@@ -223,10 +223,10 @@ def emit_and_capture_broadcast(handler: LogCaptureHandler, loop: MagicMock, broa
 
 
 class TestLogCaptureHandlerBroadcastEnvelope:
-    """The live log broadcast envelope matches the LogWsMessage schema the frontend validates against."""
+    """The live log broadcast envelope matches the LogHintWsMessage schema the frontend validates against."""
 
-    def test_broadcast_envelope_includes_top_level_timestamp(self) -> None:
-        """The envelope carries a top-level 'timestamp' — without it the frontend drops the message."""
+    def test_broadcast_envelope_is_a_minimal_hint(self) -> None:
+        """The envelope carries only a type and a top-level timestamp — no log data."""
         handler = LogCaptureHandler(buffer_size=100)
         loop = MagicMock()
         loop.is_running.return_value = True
@@ -235,12 +235,11 @@ class TestLogCaptureHandlerBroadcastEnvelope:
 
         payload = emit_and_capture_broadcast(handler, loop, broadcast_fn)
 
-        assert payload["type"] == "log"
-        assert "timestamp" in payload, "log WS envelope missing top-level timestamp"
+        assert payload == {"type": "log_hint", "timestamp": payload["timestamp"]}
         assert isinstance(payload["timestamp"], float)
 
-    def test_broadcast_envelope_validates_against_log_ws_message(self) -> None:
-        """The envelope round-trips through LogWsMessage, the model the frontend schema is generated from."""
+    def test_broadcast_envelope_validates_against_log_hint_ws_message(self) -> None:
+        """The envelope round-trips through LogHintWsMessage, the model the frontend schema is generated from."""
         handler = LogCaptureHandler(buffer_size=100)
         loop = MagicMock()
         loop.is_running.return_value = True
@@ -249,4 +248,4 @@ class TestLogCaptureHandlerBroadcastEnvelope:
 
         payload = emit_and_capture_broadcast(handler, loop, broadcast_fn)
 
-        LogWsMessage.model_validate(payload)
+        LogHintWsMessage.model_validate(payload)

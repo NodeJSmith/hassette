@@ -388,14 +388,11 @@ def make_log_entry(
     execution_id: str | None = None,
     instance_name: str | None = None,
     instance_index: int | None = None,
-    execution_kind: str | None = None,
-    listener_id: int | None = None,
-    job_id: int | None = None,
 ) -> LogEntry:
     """Build a `LogEntry`, defaulting every required field to a neutral placeholder.
 
     `LogEntry` has seven required constructor fields, most of which are irrelevant to any
-    given assertion, plus nine optional fields (`exc_info`, plus eight correlation fields).
+    given assertion, plus six optional fields (`exc_info`, plus five correlation fields).
     Every field is an explicit keyword so callers spell out only what they assert on and
     pyright still checks the rest.
     """
@@ -413,9 +410,6 @@ def make_log_entry(
         execution_id=execution_id,
         instance_name=instance_name,
         instance_index=instance_index,
-        execution_kind=execution_kind,
-        listener_id=listener_id,
-        job_id=job_id,
     )
 
 

@@ -50,7 +50,7 @@ class TestSchemaFreshness:
         "msg_type",
         [
             "AppStatusChangedWsMessage",
-            "LogWsMessage",
+            "LogHintWsMessage",
             "ConnectedWsMessage",
             "ConnectivityWsMessage",
             "ServiceStatusWsMessage",
