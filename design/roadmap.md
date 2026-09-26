@@ -78,8 +78,8 @@ Ordered. Only the first row is committed; the rest can swap.
 | **HA add-on** | pool: `epic:ha-addon`, #71 | #1850 (mounted `/apps` don't load) and #616 (`hassette build`); Supervisor discovery arrives with HACS v0.4 |
 | **HACS v0.3+** | pool: `epic:hacs` | Webhooks (#594), `@template` (#46), HACS default store |
 | **v1.0 release** | pool: `release:v1.0.0` | Tag after the testing redesign and every planned breaking change (client split, HACS v0.2 app API) |
-| **Frontend visual system alignment** | *Frontend Visual System Alignment* (#1427) | Lower priority by choice: frontend is the least familiar area. Needs a very concrete spec before starting |
-| **Frontend quality & facelift** | *Frontend Quality & Facelift* | Same. Individual UI *bugs* can still come in as interrupts |
+| **Frontend visual system alignment** | pool: tracker #1427 (lists all 15 child issues) | Lower priority by choice: frontend is the least familiar area. Needs a very concrete spec before starting. Recreate the milestone from #1427's list when promoted |
+| **Frontend quality & facelift** | pool: `area:ui` | Same. Rescope from scratch into a milestone with a Done-when if promoted. Individual UI *bugs* can still come in as interrupts |
 | **Feature ideas** | unlabeled `type:enhancement` | The icebox. Promote an idea by making it an initiative, not by starting it |
 
 ## Dependency chains
