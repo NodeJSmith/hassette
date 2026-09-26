@@ -243,6 +243,50 @@ class TestLoggingServiceOnInitialize:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
 
+    async def test_on_initialize_sets_capture_handler_notify_level_to_persistence_level(self) -> None:
+        """capture_handler's notify floor tracks whatever the persistence handler actually uses.
+
+        Regression coverage: a per-service logger override (e.g. LoggingConfig.scheduler_service)
+        or a runtime PUT /logs/level change can let a record through below the global log_level,
+        independent of the persistence_level computed here — filtering by this floor at emit()
+        time (see LogCaptureHandler) closes that gap for any logger without having to track their
+        effective levels in LoggingService itself.
+        """
+        hassette = make_mock_hassette(sealed=False, logging={"log_level": "DEBUG", "log_persistence_level": "INFO"})
+        hassette.database_service = make_db_service()
+        svc = await make_initialized_logging_service(hassette=hassette)
+
+        try:
+            assert svc.persistence_handler is not None
+            assert svc.capture_handler._min_notify_level == svc.persistence_handler._persistence_level
+            assert svc.capture_handler._min_notify_level == logging.DEBUG
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+
+    async def test_on_initialize_disables_notify_when_persistence_handler_creation_fails(self) -> None:
+        """If persistence can't be created, nothing is persisted — so no hint should ever fire.
+
+        Otherwise the frontend's REST-based catch-up fetch would be told to look for a record
+        that can never exist in the database.
+        """
+        hassette = make_mock_hassette(sealed=False)
+        hassette.database_service = make_db_service()
+        svc = make_logging_service(hassette=hassette)
+
+        with patch(
+            "hassette.core.logging_service.LogPersistenceHandler",
+            side_effect=RuntimeError("db unavailable"),
+        ):
+            await svc.on_initialize()
+
+        try:
+            assert svc.persistence_handler is None
+            assert svc.capture_handler._min_notify_level > logging.CRITICAL
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+
     async def test_on_initialize_swaps_stream_handler_for_queue_handler(self) -> None:
         """After init, the hassette logger uses QueueHandler not StreamHandler."""
         hassette_logger = logging.getLogger("hassette")

@@ -22,6 +22,8 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 _QUEUE_LISTENER_STOP_TIMEOUT_SECONDS = 5.0
+# Sentinel above CRITICAL so LogCaptureHandler.emit() never notifies while persistence is down.
+_NOTIFY_DISABLED_LEVEL = logging.CRITICAL + 1
 
 
 def _get_loggers(extra_loggers: tuple[str, ...] | None = None) -> list[logging.Logger]:
@@ -121,9 +123,18 @@ class LoggingService(Resource):
                 persistence_level=persistence_level,
             )
             handlers.append(self.persistence_handler)
+            # Keep hints in lockstep with whatever this handler will actually persist — see
+            # LogCaptureHandler's docstring. This also covers per-service level overrides
+            # (LoggingConfig.scheduler_service, etc.) and runtime PUT /logs/level changes to any
+            # logger without needing to track their effective levels here: those records still
+            # reach this handler's emit() and get filtered the same way regardless of which
+            # logger emitted them.
+            self.capture_handler.set_min_notify_level(persistence_level)
         except Exception:
             self.logger.exception("Failed to create persistence handler — logs will not be persisted")
             self.persistence_handler = None
+            # Nothing will be persisted, so no hint could ever be followed by a successful fetch.
+            self.capture_handler.set_min_notify_level(_NOTIFY_DISABLED_LEVEL)
 
         q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=self.hassette.config.logging.log_queue_max)
         queue_handler = HassetteQueueHandler(q)

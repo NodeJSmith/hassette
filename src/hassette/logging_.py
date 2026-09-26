@@ -114,10 +114,22 @@ def _format_exc_info(record: logging.LogRecord) -> str | None:
 
 
 class LogCaptureHandler(logging.Handler):
-    """Captures log records and broadcasts a hint to WS clients."""
+    """Captures log records and broadcasts a hint to WS clients.
+
+    Only notifies for records at or above ``_min_notify_level``, which ``LoggingService`` keeps
+    in lockstep with whatever ``LogPersistenceHandler`` is actually persisting. A hint promises
+    the frontend a fetchable record — it never checks levels itself, so without this floor it
+    would fire for a record from *any* logger whose effective level currently lets it through
+    (a per-service override in ``LoggingConfig``, or a runtime ``PUT /logs/level`` on an arbitrary
+    logger), even when that record falls below the persistence threshold and can never be found by
+    the REST-based catch-up fetch the hint triggers. Filtering here instead of trying to keep a
+    second copy of "every logger's current effective level" in sync closes that gap for any
+    logger, present or future, without enumerating them.
+    """
 
     _broadcast_fn: Callable[[dict], Coroutine[Any, Any, None]] | None
     _loop: asyncio.AbstractEventLoop | None
+    _min_notify_level: int
 
     shutting_down: bool
 
@@ -126,14 +138,21 @@ class LogCaptureHandler(logging.Handler):
         self._broadcast_fn = None
         self._loop = None
         self.shutting_down = False
+        self._min_notify_level = logging.NOTSET
 
     def set_broadcast(self, fn: Callable[[dict], Coroutine[Any, Any, None]], loop: asyncio.AbstractEventLoop) -> None:
         """Called by RuntimeQueryService after initialization to wire up WS broadcast."""
         self._broadcast_fn = fn
         self._loop = loop
 
+    def set_min_notify_level(self, level: int) -> None:
+        """Called by ``LoggingService.on_initialize()`` to match the active persistence floor."""
+        self._min_notify_level = level
+
     def emit(self, record: logging.LogRecord) -> None:
         if self.shutting_down:
+            return
+        if record.levelno < self._min_notify_level:
             return
         if self._broadcast_fn and self._loop and self._loop.is_running():
             fn = self._broadcast_fn

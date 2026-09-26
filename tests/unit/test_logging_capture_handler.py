@@ -170,38 +170,97 @@ class TestHassetteQueueHandlerDrops:
         assert handler.log_queue_drops == 2
 
 
+def make_wired_capture_handler(
+    handler: LogCaptureHandler | None = None,
+) -> tuple[LogCaptureHandler, MagicMock, MagicMock]:
+    """Build (or wire an existing) LogCaptureHandler with set_broadcast() pointed at a
+    running-loop mock — the setup every emit()/broadcast test in this file needs.
+
+    Returns (handler, loop, broadcast_fn).
+    """
+    if handler is None:
+        handler = LogCaptureHandler()
+    loop = MagicMock()
+    loop.is_running.return_value = True
+    broadcast_fn = MagicMock()
+    handler.set_broadcast(broadcast_fn, loop)
+    return handler, loop, broadcast_fn
+
+
 class TestLogCaptureHandlerShutdownGuard:
     """LogCaptureHandler.shutting_down prevents broadcast during shutdown."""
 
     def test_shutting_down_skips_broadcast(self) -> None:
         """When shutting_down is True, emit() still captures but skips call_soon_threadsafe."""
-        handler = make_recording_log_capture_handler()
-        loop = MagicMock()
-        loop.is_running.return_value = True
-        broadcast_fn = MagicMock()
-        handler.set_broadcast(broadcast_fn, loop)
+        handler, loop, _broadcast_fn = make_wired_capture_handler(make_recording_log_capture_handler())
 
         handler.shutting_down = True
         record = make_log_record(msg="shutdown msg")
         handler.emit(record)
 
-        entries = handler.captured
+        entries = handler.captured  # pyright: ignore[reportAttributeAccessIssue]
         assert len(entries) == 1
         assert entries[0].message == "shutdown msg"
         loop.call_soon_threadsafe.assert_not_called()
 
     def test_not_shutting_down_broadcasts(self) -> None:
         """When shutting_down is False, emit() broadcasts via call_soon_threadsafe."""
-        handler = LogCaptureHandler()
-        loop = MagicMock()
-        loop.is_running.return_value = True
-        broadcast_fn = MagicMock()
-        handler.set_broadcast(broadcast_fn, loop)
+        handler, loop, _broadcast_fn = make_wired_capture_handler()
 
         record = make_log_record(msg="live msg")
         handler.emit(record)
 
         loop.call_soon_threadsafe.assert_called_once()
+
+
+class TestLogCaptureHandlerNotifyLevel:
+    """emit() only broadcasts a hint for records at or above set_min_notify_level().
+
+    Regression coverage for the case where a per-service logger override (e.g.
+    LoggingConfig.scheduler_service) or a runtime PUT /logs/level change lets a record through at
+    a level lower than what LogPersistenceHandler is actually persisting — the hint must not
+    promise a record the frontend's REST-based catch-up fetch can never find.
+    """
+
+    def test_defaults_to_notset_so_everything_notifies_until_wired(self) -> None:
+        """Before LoggingService.on_initialize() wires it, notify-gating is a no-op."""
+        handler, loop, _broadcast_fn = make_wired_capture_handler()
+
+        handler.emit(make_log_record(level=logging.DEBUG))
+
+        loop.call_soon_threadsafe.assert_called_once()
+
+    def test_record_below_min_notify_level_does_not_broadcast(self) -> None:
+        """A DEBUG record is suppressed once the floor is raised to INFO."""
+        handler, loop, _broadcast_fn = make_wired_capture_handler()
+        handler.set_min_notify_level(logging.INFO)
+
+        handler.emit(make_log_record(level=logging.DEBUG))
+
+        loop.call_soon_threadsafe.assert_not_called()
+
+    def test_record_at_or_above_min_notify_level_still_broadcasts(self) -> None:
+        """An INFO record still notifies once the floor is raised to INFO."""
+        handler, loop, _broadcast_fn = make_wired_capture_handler()
+        handler.set_min_notify_level(logging.INFO)
+
+        handler.emit(make_log_record(level=logging.INFO))
+
+        loop.call_soon_threadsafe.assert_called_once()
+
+    def test_per_logger_override_below_the_notify_floor_is_still_suppressed(self) -> None:
+        """A logger whose own effective level is more permissive than the notify floor doesn't
+        bypass it — emit() filters by the record's level, not by which logger produced it,
+        so a per-service override (e.g. scheduler_service: DEBUG) can't punch a hole in the
+        floor set from the global persistence level.
+        """
+        handler, loop, _broadcast_fn = make_wired_capture_handler()
+        handler.set_min_notify_level(logging.INFO)
+
+        record = make_log_record(name="hassette.scheduler_service", level=logging.DEBUG)
+        handler.emit(record)
+
+        loop.call_soon_threadsafe.assert_not_called()
 
 
 def emit_and_capture_broadcast(handler: LogCaptureHandler, loop: MagicMock, broadcast_fn: MagicMock) -> dict:
@@ -224,11 +283,7 @@ class TestLogCaptureHandlerBroadcastEnvelope:
 
     def test_broadcast_envelope_is_a_minimal_hint(self) -> None:
         """The envelope carries only a type and a top-level timestamp — no log data."""
-        handler = LogCaptureHandler()
-        loop = MagicMock()
-        loop.is_running.return_value = True
-        broadcast_fn = MagicMock()
-        handler.set_broadcast(broadcast_fn, loop)
+        handler, loop, broadcast_fn = make_wired_capture_handler()
 
         payload = emit_and_capture_broadcast(handler, loop, broadcast_fn)
 
@@ -237,11 +292,7 @@ class TestLogCaptureHandlerBroadcastEnvelope:
 
     def test_broadcast_envelope_validates_against_log_hint_ws_message(self) -> None:
         """The envelope round-trips through LogHintWsMessage, the model the frontend schema is generated from."""
-        handler = LogCaptureHandler()
-        loop = MagicMock()
-        loop.is_running.return_value = True
-        broadcast_fn = MagicMock()
-        handler.set_broadcast(broadcast_fn, loop)
+        handler, loop, broadcast_fn = make_wired_capture_handler()
 
         payload = emit_and_capture_broadcast(handler, loop, broadcast_fn)
 
