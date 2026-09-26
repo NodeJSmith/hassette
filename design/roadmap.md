@@ -47,16 +47,18 @@ milestone that turned out not to be needed out of it, then close the milestone.
 |---|---|---|
 | **HACS companion v0.1** | *HACS v0.1* | #45, `design/specs/113-hacs-companion-integration/brief.md`, `design/specs/114-hassette-client/brief.md` |
 
-Order (spec 114 first; everything after it depends on it):
+Order (spec 114 first; everything after it depends on it). Dependencies follow the work-split
+table in `design/specs/114-hassette-client/brief.md`, which wins if the two disagree:
 
-1. #2384 uv workspace with empty `hassette-wire` / `hassette-client`
-2. #2385 wire models and enums → `hassette-wire`
-3. #2386 async transport + typed methods in `hassette-client`
-4. #2387 CLI moves into `hassette-client[cli]`; #2388 named remote targets
+1. #2384 uv workspace with empty `hassette-wire` / `hassette-client`, and #2382 RFC 9457
+   problem details on the app action routes, and #2381 nested-path boundary rules
+   (independent of each other; any order)
+2. #2385 wire models and enums → `hassette-wire` — needs #2384 and #2381
+3. #2386 async transport, error mapping, typed methods in `hassette-client` — needs #2385 and
+   #2382 (the error mapping uses #2382's stable codes)
+4. #2387 CLI moves into `hassette-client[cli]`, then #2388 named remote targets
 5. hass-hassette repo: config flow, coordinator, platforms, HACS release (its own spec)
 6. Pinned integration in system-test/demo HA + one end-to-end system test + docs page
-
-#2381, #2382 can land any time alongside.
 
 ## Next
 
