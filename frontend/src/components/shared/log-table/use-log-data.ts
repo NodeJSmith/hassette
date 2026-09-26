@@ -77,6 +77,15 @@ function maxId(entries: readonly LogEntry[]): number {
   return entries.length ? Math.max(...entries.map((e) => e.id)) : 0;
 }
 
+/** Matches the backend's own canonical display ordering for `get_log_records` (design.md FR#10:
+ * `timestamp DESC, seq DESC`) — `id` is reserved for the catch-up cursor (`maxId`, monotonic and
+ * restart-safe) and is not used for display order, since DB insertion order (`id`) and event
+ * timestamp order can diverge under concurrent inserts or clock skew. `filterLogEntries`'s
+ * `keepTimestampSourceOrder` fast path depends on the merged cache genuinely holding this order. */
+function byTimestampDesc(a: LogEntry, b: LogEntry): number {
+  return b.timestamp - a.timestamp || b.seq - a.seq;
+}
+
 /** A 4xx response means the request itself is malformed — retrying the identical request can
  * never succeed, so it's treated as permanent rather than transient. */
 function isClientError(err: unknown): boolean {
@@ -132,9 +141,11 @@ async function fetchSinceWithBackoff(
 }
 
 /** Writes a batch of freshly-fetched `LogEntry` results into the base query's cache entry via a
- * dedup+union merge (keyed by `rowKey()`), re-sorted by `id` descending — the DB's monotonic
- * auto-incrementing primary key (design.md FR#10) — and trimmed to `MAX_CACHED_LOG_ENTRIES` so the
- * cache doesn't grow without bound over a long-lived mount.
+ * dedup+union merge (keyed by `rowKey()`), re-sorted via `byTimestampDesc` — matching the
+ * backend's own canonical display order (design.md FR#10: `timestamp DESC, seq DESC`) — and
+ * trimmed to `MAX_CACHED_LOG_ENTRIES` so the cache doesn't grow without bound over a long-lived
+ * mount. Reset detection below still compares by `id` (the monotonic, restart-safe cursor), which
+ * is independent of this display-order sort.
  *
  * Deliberately order-agnostic: this is the single write path for both of the cache's producers —
  * hint-triggered catch-up (`/logs/since`, id-ASC, every record newer than what's cached) and the
@@ -157,7 +168,7 @@ function mergeCatchUpBatch(queryClient: QueryClient, scopedKey: readonly unknown
 
     if (existing.length > 0 && maxId(results) < maxId(existing)) {
       toast.error("Log stream reset — the server's log history was reset.");
-      return [...results].sort((a, b) => b.id - a.id).slice(0, MAX_CACHED_LOG_ENTRIES);
+      return [...results].sort(byTimestampDesc).slice(0, MAX_CACHED_LOG_ENTRIES);
     }
 
     const seen = new Set(existing.map(rowKey));
@@ -168,7 +179,7 @@ function mergeCatchUpBatch(queryClient: QueryClient, scopedKey: readonly unknown
       seen.add(key);
       fresh.push(entry);
     }
-    return [...fresh, ...existing].sort((a, b) => b.id - a.id).slice(0, MAX_CACHED_LOG_ENTRIES);
+    return [...fresh, ...existing].sort(byTimestampDesc).slice(0, MAX_CACHED_LOG_ENTRIES);
   });
 }
 

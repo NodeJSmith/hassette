@@ -143,7 +143,7 @@ describe("useLogData", () => {
 
       expect(result.current.allEntries).toHaveLength(2);
       // Order isn't the raw fetch-response order — the base query now merges through
-      // mergeCatchUpBatch (id-descending), matching real /logs/recent's own latest-N-DESC shape.
+      // mergeCatchUpBatch (timestamp-descending), matching real /logs/recent's own latest-N-DESC shape.
       expect(result.current.allEntries.map((e) => e.message).sort()).toEqual(entries.map((e) => e.message).sort());
     });
   });
@@ -302,6 +302,21 @@ describe("useLogData", () => {
       });
     });
 
+    it("orders the merged cache by timestamp, not insertion (id) order, when the two diverge", async () => {
+      seedState();
+      // Simulates concurrent inserts / clock skew: id 1 has the later timestamp, id 2 the earlier
+      // one — the opposite of makeEntries' usual id-and-timestamp-move-together shape.
+      const rest = [
+        createLogEntry({ id: 1, seq: 1, timestamp: 2000, message: "newer-by-timestamp" }),
+        createLogEntry({ id: 2, seq: 2, timestamp: 1000, message: "older-by-timestamp" }),
+      ];
+      const result = await renderLoadedLogData(rest);
+
+      // filterLogEntries' keepTimestampSourceOrder fast path (use-log-filters.ts) trusts this
+      // array is already timestamp-DESC — id-DESC would put id 2 first instead.
+      expect(result.current.allEntries.map((e) => e.message)).toEqual(["newer-by-timestamp", "older-by-timestamp"]);
+    });
+
     it("resets the cursor and surfaces a notice when a fetch returns a max id below lastSeenId", async () => {
       seedState();
       const rest = makeEntries(1, 50);
@@ -347,11 +362,18 @@ describe("useLogData", () => {
       await triggerHintAndWaitFor(() => {
         expect(getProbeCount()).toBe(1);
       });
+      // dup-ignore-start: PMD CPD's matched span for this boilerplate "final assertions, close
+      // this test, open the next" shape happens to run through this test's own toEqual/toast
+      // assertions and into the next test's declaration line below — PMD ignores identifiers and
+      // literals, so unrelated tests' closing/opening lines match trivially. The marker has to
+      // cover the whole matched span (ending past the "it(" line) or the checker won't recognize
+      // it as ignored; nothing here is meaningfully extractable across an it() boundary.
       expect(result.current.allEntries.map((e) => e.id)).toEqual([50]);
       expect(toast.error).not.toHaveBeenCalled();
     });
 
     it("chains catch-up fetches when a full page is returned, stopping at the 5-page cap", async () => {
+      // dup-ignore-end (see dup-ignore-start above — the marker had to span into this line)
       seedState();
       let fetchCount = 0;
       let nextId = 1;
@@ -415,6 +437,12 @@ describe("useLogData", () => {
       sendHint();
       await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS + 500);
 
+      // dup-ignore-start: PMD CPD's matched span for this boilerplate "final assertions, close
+      // this test, open the next" shape happens to run through this test's own waitFor/toast
+      // assertions and into the next test's declaration line below — PMD ignores identifiers and
+      // literals, so unrelated tests' closing/opening lines match trivially. The marker has to
+      // cover the whole matched span (ending past the "it(" line) or the checker won't recognize
+      // it as ignored; nothing here is meaningfully extractable across an it() boundary.
       await vi.waitFor(() => {
         expect(getFetchCount()).toBe(2);
       });
@@ -422,6 +450,7 @@ describe("useLogData", () => {
     });
 
     it("serializes overlapping catch-up runs instead of racing them, so a slower response never triggers a false reset", async () => {
+      // dup-ignore-end (see dup-ignore-start above — the marker had to span into this line)
       seedState();
       const rest = makeEntries(1, 1); // cache starts at id=1
       const result = await renderLoadedLogData(rest);
@@ -474,8 +503,8 @@ describe("useLogData", () => {
     it("caps the merged cache at MAX_CACHED_LOG_ENTRIES, dropping the oldest rows", async () => {
       seedState();
       const existingCount = MAX_CACHED_LOG_ENTRIES - 10;
-      // `mergeCatchUpBatch` assumes id-DESC cache order (see its docstring); reverse so the seeded
-      // base-query data matches that invariant instead of the ascending order `makeEntries` builds.
+      // `mergeCatchUpBatch` re-sorts on every merge regardless of input order, but seed newest-first
+      // anyway to match the cache's real steady-state shape.
       const rest = makeEntries(existingCount, 1).reverse(); // ids existingCount..1, newest-first
 
       const result = await renderLoadedLogData(rest);
@@ -520,6 +549,12 @@ describe("useLogData", () => {
       await renderLoadedLogData(makeEntries(1, 1));
 
       await vi.advanceTimersByTimeAsync(PERIODIC_RESYNC_MS);
+      // dup-ignore-start: PMD CPD's matched span for this boilerplate "final assertions, close
+      // this test, open the next" shape happens to run through this test's own advanceTimers/toast
+      // assertions and into the next test's declaration line below — PMD ignores identifiers and
+      // literals, so unrelated tests' closing/opening lines match trivially. The marker has to
+      // cover the whole matched span (ending past the "it(" line) or the checker won't recognize
+      // it as ignored; nothing here is meaningfully extractable across an it() boundary.
       // Let the poll's own retry/backoff cycle exhaust, generous headroom.
       await vi.advanceTimersByTimeAsync(CATCH_UP_FULL_RETRY_WINDOW_MS + 500);
 
@@ -527,6 +562,7 @@ describe("useLogData", () => {
     });
 
     it("still toasts once on a permanent (4xx) failure discovered by the periodic poll", async () => {
+      // dup-ignore-end (see dup-ignore-start above — the marker had to span into this line)
       seedState();
       server.use(
         http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json({ detail: "limit too large" }, { status: 422 })),

@@ -347,3 +347,25 @@ records regardless of persistence. `LoggingService.on_initialize()` now clamps t
 persistence level to `min(log_persistence_level, log_level)`, so raising `log_level` always
 raises the persistence floor to match. Lowering `log_persistence_level` below `log_level` (to
 persist less than is logged) still works as before.
+
+### 2026-09-26: live-pause snapshot wasn't actually freezing anything
+
+`useLogFilters`' pause-while-sorting behavior relied on `allEntries` vs. a separate `restEntries`
+staying distinct arrays, but an earlier refactor had made them literally the same array — so
+"pausing" live updates while sorting never froze the displayed rows; hint/catch-up merges kept
+reordering the table underneath the sort. Fixed by snapshotting `allEntries` into a ref on the
+`livePaused` false→true transition and reading that snapshot while paused, dropping it on resume.
+This also made `restEntries` fully vestigial, so it was removed from `UseLogDataResult`,
+`UseLogFiltersParams`, and all call sites.
+
+### 2026-09-26: merged cache was ordered by id, not the documented timestamp order
+
+`mergeCatchUpBatch` sorted the merged cache by `id` descending, but FR#10 only guarantees `id` as
+a monotonic *cursor* for catch-up completeness — the backend's own display query (`get_log_records`)
+orders by `timestamp DESC, seq DESC`, and `filterLogEntries`'s `keepTimestampSourceOrder` fast path
+(`use-log-filters.ts`) assumes the merged cache already holds that same order. `id` and `timestamp`
+order agree in the common case (both roughly track insertion time) but can diverge under
+concurrent inserts or clock skew, which would silently mislabel the fast path's output as
+timestamp-sorted when it wasn't. Fixed by sorting the merge with `byTimestampDesc` (`timestamp
+DESC, seq DESC`, matching the backend) instead of by `id`; reset detection (`maxId`) is unaffected
+since it compares by `id` directly, independent of the array's sort order.
