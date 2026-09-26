@@ -318,6 +318,10 @@ When fixing or modifying any test, run that test locally and confirm it passes b
 
 When a branch adds or edits docs-site pages under `docs/pages/`, run both doc-review skills on the touched pages before opening the PR — `doc-persona-review` (followability) and `doc-accuracy-review` (prose-vs-code truth). Scope each run to the changed page slugs. A `lost`/`stuck-at-step-N` persona verdict, or a confirmed `WRONG`/`OUTDATED_API` accuracy finding, on lines you touched is a ship blocker. See `.claude/rules/doc-rules.md` (Verify with Persona and Accuracy Reviews) for scope and verdict details.
 
+## Roadmap
+
+`design/roadmap.md` is the source of truth for what's being worked on (Now), what's next, and which orderings are forced. Read it when asked what to pick up next. When filing follow-up issues during initiative work, apply its "Follow-up issues" rule: only add the initiative's `epic:*` label or milestone if the initiative's Done-when fails without the issue — otherwise file it into a bucket without the epic label.
+
 ## GitHub Issues
 
 ### Title Conventions
