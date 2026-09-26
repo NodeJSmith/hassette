@@ -6,6 +6,7 @@ used across registration_queries, execution_queries, and summary_queries.
 
 import sqlite3
 from collections.abc import Iterable
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Any, assert_never
 
@@ -28,10 +29,10 @@ DEFAULT_LOG_RECORDS_LIMIT = 100
 DEFAULT_EXECUTION_LOG_LIMIT = 500
 """Default row cap for log records of a single execution (get_log_records_by_execution)."""
 
-# Exports the package's public constants plus the clause-builders shared by the query
-# mixins. The clause-builders keep their underscore prefix (package-internal, not for
-# callers outside hassette.core.telemetry); listing them here marks them as exported so
-# the cross-module imports don't read as unused.
+# Exports the package's public constants plus the clause-builders and row converters shared
+# by the query mixins. These are package-internal (not for callers outside
+# hassette.core.telemetry); listing them here marks them as exported so the cross-module
+# imports don't read as unused.
 __all__ = [
     "DEFAULT_EXECUTION_LOG_LIMIT",
     "DEFAULT_LOG_RECORDS_LIMIT",
@@ -39,7 +40,9 @@ __all__ = [
     "STORAGE_ERRORS",
     "AppHealthAggregates",
     "build_app_summaries",
+    "fetch_all_as_dicts",
     "handler_job_union_arms",
+    "log_record_filter_clauses",
     "row_to_dict",
     "since_clause",
     "source_tier_clause",
@@ -68,6 +71,60 @@ class AppHealthAggregates:
 def row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
     """Convert an aiosqlite Row to a plain dict."""
     return dict(zip(row.keys(), tuple(row), strict=False))
+
+
+async def fetch_all_as_dicts(execute_cm: AbstractAsyncContextManager[aiosqlite.Cursor]) -> list[dict[str, Any]]:
+    """Run a query's ``execute()`` context manager, fetch every row, and convert to dicts.
+
+    Args:
+        execute_cm: A not-yet-entered async context manager yielding a cursor, e.g.
+            ``self.execute(query, params)``. Entered and exited once by this helper.
+    """
+    async with execute_cm as cursor:
+        rows = await cursor.fetchall()
+    return [row_to_dict(row) for row in rows]
+
+
+def log_record_filter_clauses(
+    *,
+    since: float | None,
+    app_key: str | None,
+    level: str | None,
+    execution_id: str | None,
+    source_tier: str | None,
+) -> tuple[list[str], dict[str, Any]]:
+    """Return a (clauses, params) tuple for the log_records filter set.
+
+    Shared by ``get_log_records`` (recency-first fetch) and ``get_log_records_since``
+    (cursor-based catch-up) — both filter the same ``log_records`` columns, differing only
+    in their ordering and in the leading cursor clause ``get_log_records_since`` seeds before
+    calling this helper.
+
+    Args:
+        since: When provided, adds ``lr.timestamp >= :since``.
+        app_key: When provided, adds ``lr.app_key = :app_key``.
+        level: When provided, adds ``lr.level = :level``.
+        execution_id: When provided, adds ``lr.execution_id = :execution_id``.
+        source_tier: When provided, adds ``lr.source_tier = :source_tier``.
+    """
+    clauses: list[str] = []
+    params: dict[str, Any] = {}
+    if since is not None:
+        clauses.append("lr.timestamp >= :since")
+        params["since"] = since
+    if app_key is not None:
+        clauses.append("lr.app_key = :app_key")
+        params["app_key"] = app_key
+    if level is not None:
+        clauses.append("lr.level = :level")
+        params["level"] = level
+    if execution_id is not None:
+        clauses.append("lr.execution_id = :execution_id")
+        params["execution_id"] = execution_id
+    if source_tier is not None:
+        clauses.append("lr.source_tier = :source_tier")
+        params["source_tier"] = source_tier
+    return clauses, params
 
 
 def source_tier_clause(source_tier: QuerySourceTier, alias: str) -> tuple[str, dict[str, str]]:

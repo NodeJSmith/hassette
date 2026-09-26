@@ -9,7 +9,7 @@ import aiosqlite
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.execution_queries import ExecutionQueriesMixin
-from hassette.core.telemetry.helpers import STORAGE_ERRORS, row_to_dict
+from hassette.core.telemetry.helpers import STORAGE_ERRORS, fetch_all_as_dicts, row_to_dict
 from hassette.core.telemetry.helpers import AppHealthAggregates as AppHealthAggregates  # re-exported
 from hassette.core.telemetry.registration_queries import RegistrationQueriesMixin
 from hassette.core.telemetry.summary_queries import SummaryQueriesMixin
@@ -91,9 +91,7 @@ class TelemetryQueryService(ExecutionQueriesMixin, RegistrationQueriesMixin, Sum
         Returns:
             A list of dicts, one per ``app_manifests`` row.
         """
-        async with self.execute("SELECT * FROM app_manifests") as cursor:
-            rows = await cursor.fetchall()
-        return [row_to_dict(row) for row in rows]
+        return await fetch_all_as_dicts(self.execute("SELECT * FROM app_manifests"))
 
     async def get_app_manifest(self, app_key: str) -> dict[str, Any] | None:
         """Return the persisted manifest row for a single app.

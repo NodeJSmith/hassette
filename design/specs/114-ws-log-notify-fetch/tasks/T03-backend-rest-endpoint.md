@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Add get_log_records_since function and REST route"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#4", "FR#5", "FR#10", "AC#3"]
 ---

@@ -243,6 +243,9 @@ def make_log_records_from_buffer(handler: LogCaptureHandler):
     (exact equality per column, not range-based).
     """
 
+    # dup-ignore-start: param list intentionally mirrors TelemetryQueryService.get_log_records
+    # (and get_log_records_since) — this test double stands in for it, so its filter signature
+    # must not drift from the real methods'.
     async def _get_log_records(
         *,
         limit: int = 100,
@@ -252,6 +255,7 @@ def make_log_records_from_buffer(handler: LogCaptureHandler):
         execution_id: str | None = None,
         source_tier: str | None = None,
     ) -> list[dict]:
+        # dup-ignore-end
         entries: list[LogEntry] = list(handler.buffer)
         result = [e.to_dict() for e in entries]
         if since is not None:

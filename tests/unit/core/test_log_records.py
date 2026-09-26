@@ -511,6 +511,102 @@ class TestGetLogRecords:
         assert results == []
 
 
+class TestGetLogRecordsSince:
+    async def test_returns_only_records_after_since_id(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """get_log_records_since() returns only records with id > since_id."""
+        await seed_log_records(db_service)
+        results = await service.get_log_records_since(2, limit=100)
+        assert len(results) == 2
+        assert all(r["id"] > 2 for r in results)
+
+    async def test_since_id_zero_returns_all_records(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """get_log_records_since(0) returns every record (no lower bound in practice)."""
+        await seed_log_records(db_service)
+        results = await service.get_log_records_since(0, limit=100)
+        assert len(results) == 4
+
+    async def test_ordered_by_id_asc(self, db_service: DatabaseService, service: TelemetryQueryService) -> None:
+        """get_log_records_since() orders by id ASC, unlike get_log_records()'s timestamp DESC."""
+        await seed_log_records(db_service)
+        results = await service.get_log_records_since(0, limit=100)
+        ids = [r["id"] for r in results]
+        assert ids == sorted(ids)
+
+    async def test_filter_by_app_key_combined_with_since_id(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """get_log_records_since() combines the app_key filter with the since_id cursor."""
+        await seed_log_records(db_service)
+        results = await service.get_log_records_since(0, limit=100, app_key="app_a")
+        assert all(r["app_key"] == "app_a" for r in results)
+        assert len(results) == 2
+
+    async def test_filter_by_level_combined_with_since_id(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """get_log_records_since() combines the level filter with the since_id cursor."""
+        await seed_log_records(db_service)
+        results = await service.get_log_records_since(0, limit=100, level="ERROR")
+        assert all(r["level"] == "ERROR" for r in results)
+        assert len(results) == 1
+
+    async def test_filter_by_source_tier_combined_with_since_id(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """get_log_records_since() combines the source_tier filter with the since_id cursor."""
+        await seed_log_records(db_service)
+        results = await service.get_log_records_since(0, limit=100, source_tier="framework")
+        assert all(r["source_tier"] == "framework" for r in results)
+        assert len(results) == 1
+
+    async def test_filter_by_execution_id_combined_with_since_id(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """get_log_records_since() combines the execution_id filter with the since_id cursor."""
+        await seed_log_records(db_service)
+        results = await service.get_log_records_since(0, limit=100, execution_id="exec-1")
+        assert all(r["execution_id"] == "exec-1" for r in results)
+        assert len(results) == 2
+
+    async def test_filter_by_since_combined_with_since_id(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """get_log_records_since() combines the since (timestamp) filter with the since_id cursor."""
+        await seed_log_records(db_service)
+        now = time.time()
+        results = await service.get_log_records_since(0, limit=100, since=now - 30)
+        assert len(results) == 2
+
+    async def test_since_id_excludes_matching_filter_rows_below_cursor(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """A filter match with id <= since_id is excluded even though it matches other filters."""
+        await seed_log_records(db_service)
+        # seq=1 and seq=2 both belong to app_a; only seq=2 (id=2) should be excluded by since_id=2.
+        results = await service.get_log_records_since(2, limit=100, app_key="app_a")
+        assert results == []
+
+    async def test_empty_result_when_no_records_match(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """get_log_records_since() returns an empty list when no records match."""
+        await seed_log_records(db_service)
+        results = await service.get_log_records_since(0, limit=100, app_key="nonexistent")
+        assert results == []
+
+    async def test_empty_result_when_since_id_beyond_all_rows(
+        self, db_service: DatabaseService, service: TelemetryQueryService
+    ) -> None:
+        """get_log_records_since() returns an empty list when since_id is past every row."""
+        await seed_log_records(db_service)
+        results = await service.get_log_records_since(1000, limit=100)
+        assert results == []
+
+
 class TestGetLogRecordsByExecution:
     async def seed_for_execution(self, db_service: DatabaseService) -> None:
         now = time.time()
