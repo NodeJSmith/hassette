@@ -351,195 +351,12 @@
       "title": "ExecutionStatus",
       "type": "string"
     },
-    "LogEntryResponse": {
-      "properties": {
-        "seq": {
-          "title": "Seq",
-          "type": "integer"
-        },
-        "timestamp": {
-          "title": "Timestamp",
-          "type": "number"
-        },
-        "level": {
-          "enum": [
-            "DEBUG",
-            "INFO",
-            "WARNING",
-            "ERROR",
-            "CRITICAL"
-          ],
-          "title": "Level",
-          "type": "string"
-        },
-        "logger_name": {
-          "title": "Logger Name",
-          "type": "string"
-        },
-        "func_name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Func Name"
-        },
-        "lineno": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Lineno"
-        },
-        "message": {
-          "title": "Message",
-          "type": "string"
-        },
-        "exc_info": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Exc Info"
-        },
-        "app_key": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "App Key"
-        },
-        "execution_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Execution Id"
-        },
-        "instance_name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Instance Name"
-        },
-        "instance_index": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Instance Index"
-        },
-        "source_tier": {
-          "anyOf": [
-            {
-              "enum": [
-                "app",
-                "framework"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Source Tier"
-        },
-        "execution_kind": {
-          "anyOf": [
-            {
-              "enum": [
-                "handler",
-                "job"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Execution Kind"
-        },
-        "listener_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Listener Id"
-        },
-        "job_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Job Id"
-        }
-      },
-      "required": [
-        "seq",
-        "timestamp",
-        "level",
-        "logger_name",
-        "message"
-      ],
-      "title": "LogEntryResponse",
-      "type": "object"
-    },
-    "LogWsMessage": {
+    "LogHintWsMessage": {
       "properties": {
         "type": {
-          "const": "log",
+          "const": "log_hint",
           "title": "Type",
           "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/LogEntryResponse"
         },
         "timestamp": {
           "title": "Timestamp",
@@ -548,10 +365,9 @@
       },
       "required": [
         "type",
-        "data",
         "timestamp"
       ],
-      "title": "LogWsMessage",
+      "title": "LogHintWsMessage",
       "type": "object"
     },
     "ResourceStatus": {
@@ -700,7 +516,7 @@
       "connected": "#/$defs/ConnectedWsMessage",
       "connectivity": "#/$defs/ConnectivityWsMessage",
       "execution_completed": "#/$defs/ExecutionCompletedWsMessage",
-      "log": "#/$defs/LogWsMessage",
+      "log_hint": "#/$defs/LogHintWsMessage",
       "service_status": "#/$defs/ServiceStatusWsMessage"
     },
     "propertyName": "type"
@@ -710,7 +526,7 @@
       "$ref": "#/$defs/AppStatusChangedWsMessage"
     },
     {
-      "$ref": "#/$defs/LogWsMessage"
+      "$ref": "#/$defs/LogHintWsMessage"
     },
     {
       "$ref": "#/$defs/ConnectedWsMessage"

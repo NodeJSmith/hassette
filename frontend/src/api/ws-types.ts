@@ -5,7 +5,7 @@
 
 export type WsServerMessage =
   | AppStatusChangedWsMessage
-  | LogWsMessage
+  | LogHintWsMessage
   | ConnectedWsMessage
   | ConnectivityWsMessage
   | ServiceStatusWsMessage
@@ -52,28 +52,9 @@ export interface AppStatusChangedData {
   exception_type?: string | null;
   exception_traceback?: string | null;
 }
-export interface LogWsMessage {
-  type: "log";
-  data: LogEntryResponse;
+export interface LogHintWsMessage {
+  type: "log_hint";
   timestamp: number;
-}
-export interface LogEntryResponse {
-  seq: number;
-  timestamp: number;
-  level: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
-  logger_name: string;
-  func_name?: string | null;
-  lineno?: number | null;
-  message: string;
-  exc_info?: string | null;
-  app_key?: string | null;
-  execution_id?: string | null;
-  instance_name?: string | null;
-  instance_index?: number | null;
-  source_tier?: ("app" | "framework") | null;
-  execution_kind?: ("handler" | "job") | null;
-  listener_id?: number | null;
-  job_id?: number | null;
 }
 export interface ConnectedWsMessage {
   type: "connected";
@@ -155,7 +136,13 @@ export interface AppManifestsChangedWsMessage {
  */
 export type AppManifestsChangedData = Record<string, never>;
 
-export type WsLogPayload = LogEntryResponse;
+import type { components } from "./generated-types";
+
+// LogEntryResponse no longer appears in ws-schema.json — the WS payload was
+// trimmed to a pure log_hint notification. WsLogPayload is kept as an alias
+// onto the REST-side type (generated-types.ts, from OpenAPI) since a couple
+// of frontend log-table call sites still reference it.
+export type WsLogPayload = components["schemas"]["LogEntryResponse"];
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
 
 // ExecutionStatus is also defined in generated-types.ts (from OpenAPI).

@@ -1458,6 +1458,8 @@ export interface components {
         };
         /** LogEntryResponse */
         LogEntryResponse: {
+            /** Id */
+            id: number;
             /** Seq */
             seq: number;
             /** Timestamp */

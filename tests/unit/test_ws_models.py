@@ -17,7 +17,7 @@ from hassette.web.models import (
     ConnectivityWsMessage,
     ExecutionCompletedData,
     ExecutionCompletedWsMessage,
-    LogWsMessage,
+    LogHintWsMessage,
     ServiceStatusWsMessage,
     WsServerMessage,
 )
@@ -104,21 +104,11 @@ class TestWsServerMessageDiscriminates:
         assert isinstance(msg, AppStatusChangedWsMessage)
         assert msg.data.app_key == "my_app"
 
-    def test_log_message(self) -> None:
-        msg = validate_envelope(
-            "log",
-            {
-                "seq": 1,
-                "timestamp": TEST_TIMESTAMP,
-                "level": "INFO",
-                "logger_name": "test",
-                "func_name": "test_fn",
-                "lineno": 1,
-                "message": "hello",
-            },
-        )
-        assert isinstance(msg, LogWsMessage)
-        assert msg.data.message == "hello"
+    def test_log_hint_message(self) -> None:
+        msg = MESSAGE_ADAPTER.validate_python({"type": "log_hint", "timestamp": TEST_TIMESTAMP})
+        assert isinstance(msg, LogHintWsMessage)
+        assert msg.timestamp == TEST_TIMESTAMP
+        assert not hasattr(msg, "data")
 
     def test_connected(self) -> None:
         msg = validate_envelope("connected", {"uptime_seconds": 300.0, "entity_count": 5, "app_count": 2})

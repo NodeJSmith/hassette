@@ -33,24 +33,9 @@ describe("validateWsMessage", () => {
     expect(validateWsMessage(msg)).toEqual(msg);
   });
 
-  it("validates a log message", () => {
+  it("validates a log_hint message", () => {
     const msg = {
-      type: "log",
-      data: {
-        seq: 1,
-        timestamp: BASE_TIMESTAMP_SECONDS,
-        level: "INFO",
-        logger_name: "hassette.test",
-        func_name: null,
-        lineno: null,
-        message: "hello",
-        exc_info: null,
-        app_key: null,
-        execution_id: null,
-        instance_name: null,
-        instance_index: null,
-        source_tier: null,
-      },
+      type: "log_hint",
       timestamp: BASE_TIMESTAMP_SECONDS,
     };
     expect(validateWsMessage(msg)).toEqual(msg);

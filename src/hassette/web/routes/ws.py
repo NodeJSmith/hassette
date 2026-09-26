@@ -67,14 +67,16 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
             if message is None:
                 break  # shutdown sentinel
             # Filter log messages based on subscription
-            if message.get("type") == "log":
+            msg_type = message.get("type")
+            if msg_type in ("log", "log_hint"):
                 if not ws_state.get("subscribe_logs", False):
                     continue
-                msg_level = LOG_LEVELS.get(message.get("data", {}).get("level", ""), 0)
-                configured = ws_state.get("min_log_level", DEFAULT_LOG_LEVEL)
-                min_level = LOG_LEVELS.get(configured, LOG_LEVELS[DEFAULT_LOG_LEVEL])
-                if msg_level < min_level:
-                    continue
+                if msg_type == "log":
+                    msg_level = LOG_LEVELS.get(message.get("data", {}).get("level", ""), 0)
+                    configured = ws_state.get("min_log_level", DEFAULT_LOG_LEVEL)
+                    min_level = LOG_LEVELS.get(configured, LOG_LEVELS[DEFAULT_LOG_LEVEL])
+                    if msg_level < min_level:
+                        continue
             await websocket.send_json(message)
     except Exception as exc:
         if _is_disconnect(exc):

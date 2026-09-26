@@ -177,6 +177,7 @@ def make_execution(
 
 
 def make_log_entry_response(
+    id: int = 1,
     seq: int = 1,
     timestamp: float = TEST_EPOCH_B,
     level: str = "INFO",
@@ -193,6 +194,7 @@ def make_log_entry_response(
 ) -> LogEntryResponse:
     """Build a LogEntryResponse with sensible defaults."""
     return LogEntryResponse(
+        id=id,
         seq=seq,
         timestamp=timestamp,
         level=level,  # pyright: ignore[reportArgumentType]
