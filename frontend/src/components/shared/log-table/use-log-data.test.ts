@@ -239,7 +239,7 @@ describe("useLogData", () => {
         }),
       );
 
-      const result = await renderLoadedLogData(makeEntries(1, 1));
+      await renderLoadedLogData(makeEntries(1, 1));
 
       for (let i = 0; i < 12; i++) {
         sendHint();
@@ -250,7 +250,6 @@ describe("useLogData", () => {
       await vi.waitFor(() => {
         expect(fetchCount).toBe(1);
       });
-      void result;
     });
 
     it("fires a catch-up fetch at least every maxWait window under sustained hints", async () => {

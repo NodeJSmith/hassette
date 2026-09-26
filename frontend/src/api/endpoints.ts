@@ -115,17 +115,16 @@ export const getTelemetryStatus = (signal?: AbortSignal) => apiFetch<TelemetrySt
 
 export const getConfig = () => apiFetch<SystemConfig>("/config");
 
-export const getRecentLogs = (
-  params?: {
-    level?: string;
-    appKey?: string;
-    limit?: number;
-    since?: number | null;
-    executionId?: string | null;
-    sourceTier?: string | null;
-  },
-  signal?: AbortSignal,
-) =>
+interface LogFilterParams {
+  level?: string;
+  appKey?: string;
+  limit?: number;
+  since?: number | null;
+  executionId?: string | null;
+  sourceTier?: string | null;
+}
+
+export const getRecentLogs = (params?: LogFilterParams, signal?: AbortSignal) =>
   apiFetch<LogEntry[]>(
     buildUrl("/logs/recent", {
       level: params?.level,
@@ -138,18 +137,7 @@ export const getRecentLogs = (
     { signal },
   );
 
-export const getLogsSince = (
-  sinceId: number,
-  params?: {
-    level?: string;
-    appKey?: string;
-    limit?: number;
-    since?: number | null;
-    executionId?: string | null;
-    sourceTier?: string | null;
-  },
-  signal?: AbortSignal,
-) =>
+export const getLogsSince = (sinceId: number, params?: LogFilterParams, signal?: AbortSignal) =>
   apiFetch<LogEntry[]>(
     buildUrl(`/logs/since/${sinceId}`, {
       level: params?.level,

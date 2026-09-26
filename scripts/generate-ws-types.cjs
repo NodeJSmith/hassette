@@ -28,9 +28,9 @@ const BANNER = `/* @generated from ws-schema.json — do not edit by hand.
  * Or: uv run python scripts/export_schemas.py --types
  */`;
 
-const COMPAT_ALIASES = `
-import type { components } from "./generated-types";
+const COMPAT_ALIASES_IMPORT = `import type { components } from "./generated-types";`;
 
+const COMPAT_ALIASES = `
 // LogEntryResponse no longer appears in ws-schema.json — the WS payload was
 // trimmed to a pure log_hint notification. WsLogPayload is kept as an alias
 // onto the REST-side type (generated-types.ts, from OpenAPI) since a couple
@@ -103,7 +103,7 @@ async function main() {
     "export type $1 = Record<string, never>;",
   );
 
-  const output = `${BANNER}\n\n${tsWithEmptyTypesFixed}${COMPAT_ALIASES}`;
+  const output = `${BANNER}\n\n${COMPAT_ALIASES_IMPORT}\n\n${tsWithEmptyTypesFixed}${COMPAT_ALIASES}`;
   fs.writeFileSync(OUTPUT_PATH, output);
   console.log(`Wrote ${OUTPUT_PATH}`);
 }

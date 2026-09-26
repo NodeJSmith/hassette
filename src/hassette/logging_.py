@@ -113,8 +113,15 @@ def _format_exc_info(record: logging.LogRecord) -> str | None:
     return None
 
 
-def _build_log_entry(record: logging.LogRecord) -> LogEntry:
-    """Build a LogEntry from a LogRecord using the correlation attrs and formatted traceback."""
+def _build_log_entry(record: logging.LogRecord) -> LogEntry:  # pyright: ignore[reportUnusedFunction]
+    """Build a LogEntry from a LogRecord using the correlation attrs and formatted traceback.
+
+    No longer called in production code (``LogCaptureHandler.emit()`` only needs
+    ``record.created`` and builds the payload directly) — kept for test call sites
+    (``tests/support/factories.py``'s ``RecordingLogCaptureHandler``,
+    ``tests/unit/test_logging_capture_handler.py``) that need the full ``LogEntry``
+    shape to assert on correlation attrs and message content.
+    """
     attrs = _extract_correlation_attrs(record)
     return LogEntry(
         timestamp=record.created,
@@ -148,15 +155,15 @@ class LogCaptureHandler(logging.Handler):
         self._loop = loop
 
     def emit(self, record: logging.LogRecord) -> None:
-        entry = _build_log_entry(record)
         if self.shutting_down:
             return
         if self._broadcast_fn and self._loop and self._loop.is_running():
             fn = self._broadcast_fn
             loop = self._loop
             # LogHintWsMessage carries no log data — clients that want the new record fetch it
-            # via the REST API. Keeps the broadcast payload independent of LogEntry's shape.
-            payload = {"type": "log_hint", "timestamp": entry.timestamp}
+            # via the REST API. Keeps the broadcast payload independent of LogEntry's shape, and
+            # avoids building a full LogEntry (message formatting, traceback rendering) here.
+            payload = {"type": "log_hint", "timestamp": record.created}
 
             def _schedule_broadcast() -> None:
                 with contextlib.suppress(RuntimeError):

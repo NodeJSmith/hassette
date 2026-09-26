@@ -283,12 +283,12 @@ class SummaryQueriesMixin:
         execution_id: str | None = None,
         source_tier: str | None = None,
     ) -> list[dict[str, Any]]:
-        # dup-ignore-end
         """Fetch log records with optional filters, ordered by timestamp DESC.
 
         ``session_id`` is intentionally not included in the SELECT — session identity is
         not exposed in the API. All other log_records columns are returned as-is.
         """
+        # dup-ignore-end
         clauses, params = log_record_filter_clauses(
             since=since, app_key=app_key, level=level, execution_id=execution_id, source_tier=source_tier
         )
@@ -318,7 +318,6 @@ class SummaryQueriesMixin:
         execution_id: str | None = None,
         source_tier: str | None = None,
     ) -> list[dict[str, Any]]:
-        # dup-ignore-end
         """Fetch log records with ``id > since_id``, ordered by ``id ASC``, for cursor-based catch-up.
 
         Unlike ``get_log_records()`` (``timestamp DESC, seq DESC`` — newest first, for the
@@ -330,6 +329,7 @@ class SummaryQueriesMixin:
         ``session_id`` is intentionally not included in the SELECT — session identity is
         not exposed in the API. All other log_records columns are returned as-is.
         """
+        # dup-ignore-end
         filter_clauses, params = log_record_filter_clauses(
             since=since, app_key=app_key, level=level, execution_id=execution_id, source_tier=source_tier
         )

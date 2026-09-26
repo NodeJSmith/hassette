@@ -62,7 +62,7 @@ interface CatchUpFilters {
 
 interface CatchUpContext extends CatchUpFilters {
   scopedKey: readonly unknown[];
-  waitingForUptime: boolean;
+  isWaitingForUptime: boolean;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -246,7 +246,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
 
   const preset = urlWindowParam ?? timePreset;
   const since = resolveSince(preset, uptimeSeconds) ?? 0;
-  const waitingForUptime = preset === "since-restart" && uptimeSeconds === null;
+  const isWaitingForUptime = preset === "since-restart" && uptimeSeconds === null;
 
   // Mirrors useScopedQuery's own queryKey computation (see that hook's docstring) — both hooks
   // read preset/uptimeSeconds from the same store, so the keys always agree, and hint-triggered
@@ -284,8 +284,8 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
 
   // Mirrored into a ref on every render so the debounced/async catch-up flow always reads the
   // latest filters/key instead of a closure captured at the moment the hint arrived.
-  const contextRef = useRef<CatchUpContext>({ scopedKey, appKey, executionId, since, waitingForUptime });
-  contextRef.current = { scopedKey, appKey, executionId, since, waitingForUptime };
+  const contextRef = useRef<CatchUpContext>({ scopedKey, appKey, executionId, since, isWaitingForUptime });
+  contextRef.current = { scopedKey, appKey, executionId, since, isWaitingForUptime };
 
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxWaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -330,7 +330,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
   // run) but bypasses the debounce/maxWait timers, which exist only to coalesce bursty hints.
   useEffect(() => {
     const interval = setInterval(() => {
-      if (contextRef.current.waitingForUptime) return;
+      if (contextRef.current.isWaitingForUptime) return;
       const context = contextRef.current;
       catchUpChainRef.current = catchUpChainRef.current
         .catch(() => {})
@@ -347,7 +347,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
     // mounted view's base query above already fetches fresh, so it needs no catch-up.
     if (logHintVersion === prevHintVersionRef.current) return;
     prevHintVersionRef.current = logHintVersion;
-    if (contextRef.current.waitingForUptime) return; // base query isn't fetching yet either
+    if (contextRef.current.isWaitingForUptime) return; // base query isn't fetching yet either
 
     const runCatchUp = () => {
       if (debounceTimerRef.current) {

@@ -21,7 +21,7 @@ LOGGER = getLogger(__name__)
 router = APIRouter(tags=["logs"])
 
 
-def _validate_log_level(level: str | None) -> str | None:
+def validate_log_level(level: str | None) -> str | None:
     """Uppercase and validate an optional ``level`` query param; raises 422 if invalid."""
     if level is None:
         return None
@@ -34,7 +34,7 @@ def _validate_log_level(level: str | None) -> str | None:
     return level
 
 
-def _validate_source_tier(source_tier: str | None) -> str | None:
+def validate_source_tier(source_tier: str | None) -> str | None:
     """Lowercase and validate an optional ``source_tier`` query param; raises 422 if invalid."""
     if source_tier is None:
         return None
@@ -62,8 +62,8 @@ async def get_logs(
     source_tier: Annotated[str | None, Query()] = None,
 ) -> list[LogEntryResponse]:
     """Return recent log records from the database with optional filtering."""
-    level = _validate_log_level(level)
-    source_tier = _validate_source_tier(source_tier)
+    level = validate_log_level(level)
+    source_tier = validate_source_tier(source_tier)
     records: list[LogEntryResponse] = []
     with db_degrades_to(response):
         raw = await telemetry.get_log_records(
@@ -97,8 +97,8 @@ async def get_logs_since(
     the highest ``id`` it has seen can call this to fetch everything it missed (e.g. after a
     WebSocket reconnect) without gaps or duplicates.
     """
-    level = _validate_log_level(level)
-    source_tier = _validate_source_tier(source_tier)
+    level = validate_log_level(level)
+    source_tier = validate_source_tier(source_tier)
     records: list[LogEntryResponse] = []
     with db_degrades_to(response):
         raw = await telemetry.get_log_records_since(

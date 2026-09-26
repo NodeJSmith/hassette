@@ -3,6 +3,8 @@
  * Or: uv run python scripts/export_schemas.py --types
  */
 
+import type { components } from "./generated-types";
+
 export type WsServerMessage =
   | AppStatusChangedWsMessage
   | LogHintWsMessage
@@ -135,8 +137,6 @@ export interface AppManifestsChangedWsMessage {
  * stale, refetch" rather than inspect the payload.
  */
 export type AppManifestsChangedData = Record<string, never>;
-
-import type { components } from "./generated-types";
 
 // LogEntryResponse no longer appears in ws-schema.json — the WS payload was
 // trimmed to a pure log_hint notification. WsLogPayload is kept as an alias
