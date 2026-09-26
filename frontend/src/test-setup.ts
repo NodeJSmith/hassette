@@ -13,9 +13,8 @@
 
 import { afterAll, afterEach, beforeAll } from "vitest";
 
-import { initialState, LOG_BUFFER_CAPACITY, useAppStore } from "./state/store";
+import { initialState, useAppStore } from "./state/store";
 import { server } from "./test/server";
-import { RingBuffer } from "./utils/ring-buffer";
 
 globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
   return setTimeout(cb, 0) as unknown as number;
@@ -66,15 +65,12 @@ beforeAll(() => {
 afterEach(() => {
   server.resetHandlers();
 
-  // Reset the Zustand app store between tests. Plain `setState(initialState())` alone would
-  // reconstruct the RingBuffer via initialState()'s factory already, but we spell it out
-  // explicitly here per the design doc's isolation note: setState(initialState) (no call) reuses
-  // the same mutable buffer reference, so a fresh RingBuffer must always be constructed.
+  // Reset the Zustand app store between tests.
   //
   // initialState() also reads real localStorage for theme/sidebarCollapsed/timePreset, so clear
   // it too — otherwise "defaults" silently means "whatever a prior test in this file wrote."
   localStorage.clear();
-  useAppStore.setState({ ...initialState(), logBuffer: new RingBuffer(LOG_BUFFER_CAPACITY) });
+  useAppStore.setState(initialState());
 });
 
 afterAll(() => {

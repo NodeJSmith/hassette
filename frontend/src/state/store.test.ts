@@ -1,26 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { ConnectedPayload, WsLogPayload } from "../api/ws-types";
-import { RingBuffer } from "../utils/ring-buffer";
-import { initialState, LOG_BUFFER_CAPACITY, useAppStore } from "./store";
-
-function createLogEntry(seq: number): WsLogPayload {
-  return {
-    seq,
-    timestamp: seq * 1000,
-    level: "INFO",
-    logger_name: "test",
-    func_name: "test_func",
-    lineno: 1,
-    message: `msg-${seq}`,
-    exc_info: null,
-    app_key: null,
-    execution_id: null,
-    instance_name: null,
-    instance_index: null,
-    source_tier: null,
-  };
-}
+import type { ConnectedPayload } from "../api/ws-types";
+import { initialState, useAppStore } from "./store";
 
 function createConnectedPayload(overrides: Partial<ConnectedPayload> = {}): ConnectedPayload {
   return {
@@ -31,30 +12,24 @@ function createConnectedPayload(overrides: Partial<ConnectedPayload> = {}): Conn
 }
 
 describe("initialState", () => {
-  it("constructs a fresh RingBuffer instance on each call", () => {
-    const a = initialState();
-    const b = initialState();
-
-    expect(a.logBuffer).not.toBe(b.logBuffer);
-
-    a.logBuffer.push(createLogEntry(1));
-    expect(a.logBuffer.toArray()).toHaveLength(1);
-    expect(b.logBuffer.toArray()).toHaveLength(0);
-  });
-
   it("has a no-op sendLogLevel by default", () => {
     const state = initialState();
     expect(() => state.sendLogLevel("DEBUG")).not.toThrow();
+  });
+
+  it("starts logHintVersion at 0", () => {
+    const state = initialState();
+    expect(state.logHintVersion).toBe(0);
   });
 });
 
 describe("useAppStore", () => {
   beforeEach(() => {
-    useAppStore.setState({ ...initialState(), logBuffer: new RingBuffer<WsLogPayload>(LOG_BUFFER_CAPACITY) });
+    useAppStore.setState(initialState());
   });
 
   describe("handleWsConnected", () => {
-    it("on first connect, does not clear serviceStatus/appStatus/logBuffer/logVersion", () => {
+    it("on first connect, does not clear serviceStatus/appStatus", () => {
       useAppStore.setState({
         serviceStatus: {
           svc: {
@@ -72,8 +47,6 @@ describe("useAppStore", () => {
           "app-a:0": { status: "running", index: 0 },
         },
       });
-      useAppStore.getState().pushLog(createLogEntry(1));
-      const versionBeforeConnect = useAppStore.getState().logVersion;
 
       useAppStore.getState().handleWsConnected(createConnectedPayload(), false);
 
@@ -81,11 +54,9 @@ describe("useAppStore", () => {
       expect(state.connection).toBe("connected");
       expect(state.serviceStatus).toHaveProperty("svc");
       expect(state.appStatus).toHaveProperty("app-a:0");
-      expect(state.logBuffer.toArray()).toHaveLength(1);
-      expect(state.logVersion).toBe(versionBeforeConnect);
     });
 
-    it("on reconnect, clears serviceStatus/appStatus/logBuffer and resets logVersion", () => {
+    it("on reconnect, clears serviceStatus/appStatus", () => {
       useAppStore.setState({
         serviceStatus: {
           svc: {
@@ -103,8 +74,6 @@ describe("useAppStore", () => {
           "app-a:0": { status: "running", index: 0 },
         },
       });
-      useAppStore.getState().pushLog(createLogEntry(1));
-      const versionBeforeReconnect = useAppStore.getState().logVersion;
 
       useAppStore.getState().handleWsConnected(createConnectedPayload(), true);
 
@@ -112,8 +81,6 @@ describe("useAppStore", () => {
       expect(state.connection).toBe("connected");
       expect(state.appStatus).toEqual({});
       expect(state.serviceStatus).toEqual({});
-      expect(state.logBuffer.toArray()).toHaveLength(0);
-      expect(state.logVersion).toBeGreaterThan(versionBeforeReconnect);
     });
 
     it("sets systemVersion from payload, falling back to null when omitted", () => {
@@ -130,37 +97,23 @@ describe("useAppStore", () => {
     });
   });
 
-  describe("pushLog / clearLogs", () => {
-    it("pushLog appends to the buffer and increments logVersion", () => {
-      const versionBefore = useAppStore.getState().logVersion;
+  describe("incrementLogHint", () => {
+    it("increments logHintVersion", () => {
+      const versionBefore = useAppStore.getState().logHintVersion;
 
-      useAppStore.getState().pushLog(createLogEntry(1));
+      useAppStore.getState().incrementLogHint();
 
-      const state = useAppStore.getState();
-      expect(state.logBuffer.toArray()).toHaveLength(1);
-      expect(state.logVersion).toBe(versionBefore + 1);
+      expect(useAppStore.getState().logHintVersion).toBe(versionBefore + 1);
     });
 
-    it("clearLogs empties the buffer and increments logVersion", () => {
-      useAppStore.getState().pushLog(createLogEntry(1));
-      useAppStore.getState().pushLog(createLogEntry(2));
-      const versionAfterPushes = useAppStore.getState().logVersion;
+    it("increments once per call, coalescing is the caller's responsibility", () => {
+      const versionBefore = useAppStore.getState().logHintVersion;
 
-      useAppStore.getState().clearLogs();
+      useAppStore.getState().incrementLogHint();
+      useAppStore.getState().incrementLogHint();
+      useAppStore.getState().incrementLogHint();
 
-      const state = useAppStore.getState();
-      expect(state.logBuffer.toArray()).toHaveLength(0);
-      expect(state.logVersion).toBeGreaterThan(versionAfterPushes);
-    });
-
-    it("getLogEntries reads the current buffer contents", () => {
-      useAppStore.getState().pushLog(createLogEntry(1));
-      useAppStore.getState().pushLog(createLogEntry(2));
-
-      const entries = useAppStore.getState().getLogEntries();
-      expect(entries).toHaveLength(2);
-      expect(entries[0].seq).toBe(1);
-      expect(entries[1].seq).toBe(2);
+      expect(useAppStore.getState().logHintVersion).toBe(versionBefore + 3);
     });
   });
 

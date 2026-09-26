@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Add log_hint WS handler and clean up store dead code"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#6", "FR#7"]
 ---

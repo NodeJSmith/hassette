@@ -1,17 +1,11 @@
 import { create } from "zustand";
 
 import type { components } from "../api/generated-types";
-import type {
-  ConnectedPayload as WsConnectedPayload,
-  WsExecutionCompletedPayload,
-  WsLogPayload,
-} from "../api/ws-types";
+import type { ConnectedPayload as WsConnectedPayload, WsExecutionCompletedPayload } from "../api/ws-types";
 import { getStoredValue, setStoredValue } from "../utils/local-storage";
-import { RingBuffer } from "../utils/ring-buffer";
 import { isTheme } from "../utils/theme";
 
 export const RELATIVE_TIME_TICK_MS = 30_000;
-export const LOG_BUFFER_CAPACITY = 1000;
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
@@ -107,13 +101,13 @@ export interface AppStore extends TelemetryHealth {
   incrementTick: () => void;
 
   // --- logs ---
-  logVersion: number;
-  logBuffer: RingBuffer<WsLogPayload>;
+  /** Bumped on every `log_hint` WS message — the signal `use-log-data.ts` debounces on to
+   * trigger a cursor-based REST fetch. No log content lives in the store; the WS message
+   * carries none. */
+  logHintVersion: number;
   sendLogLevel: (level: string) => void;
   setSendLogLevel: (fn: (level: string) => void) => void;
-  pushLog: (entry: WsLogPayload) => void;
-  clearLogs: () => void;
-  getLogEntries: () => WsLogPayload[];
+  incrementLogHint: () => void;
 
   // --- composite actions ---
   handleWsConnected: (data: WsConnectedPayload, isReconnect: boolean) => void;
@@ -121,8 +115,8 @@ export interface AppStore extends TelemetryHealth {
 
 /**
  * Fresh initial state for the store. A factory (not a static object) so every
- * call — including test `afterEach` resets — constructs a brand-new `RingBuffer`
- * instance instead of reusing a mutated one across tests.
+ * call — including test `afterEach` resets — reads storage-backed defaults fresh
+ * rather than reusing a value captured at module load.
  */
 export function initialState(): Omit<
   AppStore,
@@ -139,9 +133,7 @@ export function initialState(): Omit<
   | "setUrlWindowParam"
   | "incrementTick"
   | "setSendLogLevel"
-  | "pushLog"
-  | "clearLogs"
-  | "getLogEntries"
+  | "incrementLogHint"
   | "handleWsConnected"
 > {
   return {
@@ -166,13 +158,12 @@ export function initialState(): Omit<
     tick: 0,
 
     // --- logs ---
-    logVersion: 0,
-    logBuffer: new RingBuffer<WsLogPayload>(LOG_BUFFER_CAPACITY),
+    logHintVersion: 0,
     sendLogLevel: () => {},
   };
 }
 
-export const useAppStore = create<AppStore>()((set, get) => ({
+export const useAppStore = create<AppStore>()((set) => ({
   ...initialState(),
 
   // --- connection ---
@@ -212,30 +203,15 @@ export const useAppStore = create<AppStore>()((set, get) => ({
 
   // --- logs ---
   setSendLogLevel: (fn) => set({ sendLogLevel: fn }),
-  pushLog: (entry) =>
-    set((state) => {
-      state.logBuffer.push(entry);
-      return { logVersion: state.logVersion + 1 };
-    }),
-  // Not called by handleWsConnected (see its comment) — kept as a standalone store primitive
-  // for callers that need to clear logs on their own, and exercised directly in tests.
-  clearLogs: () =>
-    set((state) => {
-      state.logBuffer.clear();
-      return { logVersion: state.logVersion + 1 };
-    }),
-  getLogEntries: () => get().logBuffer.toArray(),
+  incrementLogHint: () => set((state) => ({ logHintVersion: state.logHintVersion + 1 })),
 
   // --- composite actions ---
   handleWsConnected: (data, isReconnect) =>
     // Everything here must land in this single set() call. Splitting it across multiple set()s
-    // (e.g. calling clearServiceStatus()/clearLogs()) would make atomicity depend on React's
-    // batching rather than the shape of the code — a component could then observe an
-    // intermediate render where connection is "connected" but serviceStatus/appStatus/logs are
-    // stale. The reconnect fields below duplicate what clearServiceStatus/clearLogs do (a fresh
-    // RingBuffer, not `.clear()`, since a new object is what a single object literal needs),
-    // not a call to them.
-    set((state) => ({
+    // (e.g. calling clearServiceStatus()) would make atomicity depend on React's batching
+    // rather than the shape of the code — a component could then observe an intermediate
+    // render where connection is "connected" but serviceStatus/appStatus are stale.
+    set(() => ({
       connection: "connected",
       uptimeSeconds: data.uptime_seconds,
       systemVersion: data.version ?? null,
@@ -246,12 +222,12 @@ export const useAppStore = create<AppStore>()((set, get) => ({
       // instanceLiveStatus()/instanceLiveError() prefer any existing appStatus entry over the
       // freshly-refetched manifest data (see the reconnect invalidateQueries() call in
       // use-websocket.ts) for as long as it stays around -- so a stale entry can outlive the
-      // refetch it was supposed to be superseded by.
+      // refetch it was supposed to be superseded by. Logs carry no such staleness concern here
+      // — there's no WS-delivered log buffer to clear; the cursor-based fetch in use-log-data.ts
+      // handles reconnect catch-up on its own via `since_id`.
       ...(isReconnect && {
         serviceStatus: {},
         appStatus: {},
-        logBuffer: new RingBuffer<WsLogPayload>(LOG_BUFFER_CAPACITY),
-        logVersion: state.logVersion + 1,
       }),
     })),
 }));

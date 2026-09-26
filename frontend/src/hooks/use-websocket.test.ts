@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "../api/client";
 import { getSystemStatus, type SystemStatus } from "../api/endpoints";
 import { useAppStore } from "../state/store";
-import { createLogEntry, createSystemStatus } from "../test/factories";
+import { createSystemStatus } from "../test/factories";
 // dup-ignore-end
 import { createWouterMock } from "../test/mock-wouter";
 import {
@@ -394,29 +394,28 @@ describe("useWebSocket", () => {
     expect(Object.keys(useAppStore.getState().serviceStatus)).toHaveLength(0);
   });
 
-  it("clears log store on reconnect", () => {
-    vi.useFakeTimers();
+  it("increments logHintVersion on log_hint message", () => {
+    const { ws } = renderConnectedWebSocketHook();
+    const versionBefore = useAppStore.getState().logHintVersion;
 
-    // Push some entries into the log store before connecting
-    useAppStore.getState().pushLog(
-      createLogEntry({
-        message: "stale",
-        execution_id: null,
-        instance_name: null,
-        instance_index: null,
-        source_tier: null,
-      }),
-    );
+    act(() => {
+      ws.simulateMessage({ type: "log_hint", timestamp: 1000 });
+    });
 
-    const { ws: ws1 } = renderConnectedWebSocketHook();
+    expect(useAppStore.getState().logHintVersion).toBe(versionBefore + 1);
+  });
 
-    // Log store still has the entry from before connect (first connect does not clear)
-    expect(useAppStore.getState().getLogEntries()).toHaveLength(1);
+  it("increments logHintVersion once per log_hint message received", () => {
+    const { ws } = renderConnectedWebSocketHook();
+    const versionBefore = useAppStore.getState().logHintVersion;
 
-    reconnectWebSocket(ws1);
+    act(() => {
+      ws.simulateMessage({ type: "log_hint", timestamp: 1000 });
+      ws.simulateMessage({ type: "log_hint", timestamp: 1001 });
+      ws.simulateMessage({ type: "log_hint", timestamp: 1002 });
+    });
 
-    // Log store should be cleared on reconnect
-    expect(useAppStore.getState().getLogEntries()).toHaveLength(0);
+    expect(useAppStore.getState().logHintVersion).toBe(versionBefore + 3);
   });
 
   it("writes execution_completed handler batch to executionCompleted", () => {
