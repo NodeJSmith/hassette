@@ -77,6 +77,46 @@ function maxId(entries: readonly LogEntry[]): number {
   return entries.length ? Math.max(...entries.map((e) => e.id)) : 0;
 }
 
+/** Tracks the true monotonic high-water-mark id per `scopedKey`, independently of the trimmed,
+ * timestamp-sorted display cache — see `mergeCatchUpBatch`'s docstring for why the two can't
+ * share one number. Deliberately not a `queryClient` cache entry: nothing ever mounts a `useQuery`
+ * observer for this value, and an unobserved entry is eligible for GC after `gcTime` (as low as 0
+ * in tests, `DEFAULT_GC_TIME_MS` in production) — silently resetting the cursor to 0 mid-session.
+ * Keyed by `QueryClient` instance (one per app session; a fresh one per test) so cursor state
+ * can't leak between an app's lifetime and the next, or between tests. */
+const highWaterMarks = new WeakMap<QueryClient, Map<string, number>>();
+
+function cursorMapFor(queryClient: QueryClient): Map<string, number> {
+  let map = highWaterMarks.get(queryClient);
+  if (!map) {
+    map = new Map();
+    highWaterMarks.set(queryClient, map);
+  }
+  return map;
+}
+
+// Single source of truth for turning a scopedKey into a Map key — every cursor helper below
+// goes through this instead of calling JSON.stringify(scopedKey) itself, so a future change to
+// how scopedKey is serialized (e.g. if it ever gains a member JSON.stringify can't represent
+// deterministically) only has one call site to update.
+function cursorMapKey(scopedKey: readonly unknown[]): string {
+  return JSON.stringify(scopedKey);
+}
+
+function getCursor(queryClient: QueryClient, scopedKey: readonly unknown[]): number {
+  return cursorMapFor(queryClient).get(cursorMapKey(scopedKey)) ?? 0;
+}
+
+function advanceCursor(queryClient: QueryClient, scopedKey: readonly unknown[], batchMaxId: number): void {
+  const map = cursorMapFor(queryClient);
+  const key = cursorMapKey(scopedKey);
+  if (batchMaxId > (map.get(key) ?? 0)) map.set(key, batchMaxId);
+}
+
+function resetCursor(queryClient: QueryClient, scopedKey: readonly unknown[], value: number): void {
+  cursorMapFor(queryClient).set(cursorMapKey(scopedKey), value);
+}
+
 /** Matches the backend's own canonical display ordering for `get_log_records` (design.md FR#10:
  * `timestamp DESC, seq DESC`) — `id` is reserved for the catch-up cursor (`maxId`, monotonic and
  * restart-safe) and is not used for display order, since DB insertion order (`id`) and event
@@ -144,8 +184,16 @@ async function fetchSinceWithBackoff(
  * dedup+union merge (keyed by `rowKey()`), re-sorted via `byTimestampDesc` — matching the
  * backend's own canonical display order (design.md FR#10: `timestamp DESC, seq DESC`) — and
  * trimmed to `MAX_CACHED_LOG_ENTRIES` so the cache doesn't grow without bound over a long-lived
- * mount. Reset detection below still compares by `id` (the monotonic, restart-safe cursor), which
- * is independent of this display-order sort.
+ * mount.
+ *
+ * Also advances a separate, untrimmed high-water-mark cursor (`advanceCursor`/`getCursor`) to the batch's max
+ * `id` — this can't be recovered from the display cache alone: a record with the highest id ever
+ * seen but an older timestamp (concurrent inserts, clock skew/rollback) sorts toward the bottom
+ * and can be immediately trimmed out once the cache is full, and `performCatchUp` computing its
+ * `sinceId` from that trimmed array would then re-fetch and re-discard the same record forever,
+ * stalling the live table. The cursor only ever moves forward on a normal merge (`Math.max` with
+ * whatever's already recorded) and is hard-reset (not maxed) on a detected reset below, since the
+ * pre-reset cursor is no longer meaningful once the history it pointed into has been discarded.
  *
  * Deliberately order-agnostic: this is the single write path for both of the cache's producers —
  * hint-triggered catch-up (`/logs/since`, id-ASC, every record newer than what's cached) and the
@@ -160,16 +208,39 @@ async function fetchSinceWithBackoff(
  * reset and is discarded in favor of a fresh start from this batch, with a one-time notice
  * surfaced — this guard now protects the base-query refresh path too, not just catch-up, since
  * without it stale pre-reset rows would silently outrank genuinely fresher post-reset rows by id
- * forever. */
-function mergeCatchUpBatch(queryClient: QueryClient, scopedKey: readonly unknown[], results: LogEntry[]): void {
+ * forever.
+ *
+ * `detectReset` gates that check and has no default — every call site states its intent
+ * explicitly, since silently inheriting the wrong one for a future call site would misfire the
+ * check below. `true` for catch-up (`performCatchUp`) and the reset probe (`probeForReset`), both
+ * of which fetch strictly relative to a cursor and so a lower max really does mean the DB reset.
+ * The base query's own `/logs/recent` refresh is a plain recency snapshot with no such
+ * relationship to the cache's current cursor — if it starts before a catch-up run but resolves
+ * after that run already advanced the cache, its own (now-stale) max id can be lower than the
+ * cache's current max for a completely ordinary reason, which the reset-detection heuristic can't
+ * tell apart from a real reset. The base query's call site passes `detectReset: false` for
+ * exactly this reason; a real reset is still caught via the catch-up/probe path shortly after (an
+ * empty `/logs/since` against the old, too-high cursor triggers `probeForReset`, which detects it
+ * there instead). */
+function mergeCatchUpBatch(
+  queryClient: QueryClient,
+  scopedKey: readonly unknown[],
+  results: LogEntry[],
+  detectReset: boolean,
+): void {
+  if (results.length === 0) return;
+  const batchMaxId = maxId(results);
+
   queryClient.setQueryData<LogEntry[]>(scopedKey, (old) => {
     const existing = old ?? [];
-    if (results.length === 0) return existing;
 
-    if (existing.length > 0 && maxId(results) < maxId(existing)) {
+    if (detectReset && existing.length > 0 && batchMaxId < maxId(existing)) {
       toast.error("Log stream reset — the server's log history was reset.");
+      resetCursor(queryClient, scopedKey, batchMaxId);
       return [...results].sort(byTimestampDesc).slice(0, MAX_CACHED_LOG_ENTRIES);
     }
+
+    advanceCursor(queryClient, scopedKey, batchMaxId);
 
     const seen = new Set(existing.map(rowKey));
     const fresh: LogEntry[] = [];
@@ -208,7 +279,8 @@ async function probeForReset(
       retry: false,
     });
     if (signal.aborted) return;
-    mergeCatchUpBatch(queryClient, scopedKey, latest);
+    // detectReset: true — this probe exists specifically to detect a reset.
+    mergeCatchUpBatch(queryClient, scopedKey, latest, true);
   } catch {
     // Best-effort — see docstring above.
   }
@@ -251,8 +323,9 @@ async function performCatchUp(
     isFirstFetch = false;
     if (signal.aborted) return;
 
-    const cached = queryClient.getQueryData<LogEntry[]>(scopedKey) ?? [];
-    const sinceId = maxId(cached);
+    // Read from the untrimmed cursor, not maxId(displayCache) — see mergeCatchUpBatch's
+    // docstring for why the display cache alone can't be trusted for this.
+    const sinceId = getCursor(queryClient, scopedKey);
 
     let results: LogEntry[];
     try {
@@ -279,7 +352,8 @@ async function performCatchUp(
       return;
     }
 
-    mergeCatchUpBatch(queryClient, scopedKey, results);
+    // detectReset: true — a cursor-based fetch, so a lower max really is a reset.
+    mergeCatchUpBatch(queryClient, scopedKey, results, true);
 
     if (results.length < CATCH_UP_FETCH_LIMIT) return;
 
@@ -431,7 +505,9 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
     queryKeys.recentLogs(appKey, executionId),
     async (s, signal) => {
       const fresh = await getRecentLogs({ appKey, limit: REST_FETCH_LIMIT, executionId, since: s }, signal);
-      mergeCatchUpBatch(queryClient, scopedKey, fresh);
+      // detectReset: false — a plain recency snapshot with no cursor relationship to the cache's
+      // current max id; see mergeCatchUpBatch's docstring for the race this avoids.
+      mergeCatchUpBatch(queryClient, scopedKey, fresh, false);
       return queryClient.getQueryData<LogEntry[]>(scopedKey) ?? fresh;
     },
   );

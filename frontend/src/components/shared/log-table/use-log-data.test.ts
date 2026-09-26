@@ -523,6 +523,88 @@ describe("useLogData", () => {
       expect(ids).toContain(maxFreshId); // newest rows survive
       expect(ids).not.toContain(1); // oldest rows are the ones trimmed
     });
+
+    it("does not treat a stale, in-flight /logs/recent refetch as a database reset once catch-up has already advanced the cache", async () => {
+      seedState();
+      const queryClient = createTestQueryClient();
+
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
+      const { result } = renderHookWithProviders(() => useLogData({}), { queryClient });
+      await vi.waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      // Simulates a WS-reconnect-triggered invalidateQueries(): a refetch of the same base query
+      // starts now but hangs — its (stale) response is released manually below, after catch-up.
+      let releaseRefetch: ((entries: LogEntry[]) => void) | undefined;
+      server.use(
+        http.get(
+          LOGS_ENDPOINT,
+          () =>
+            new Promise<Response>((resolve) => {
+              releaseRefetch = (entries) => resolve(HttpResponse.json(entries));
+            }),
+        ),
+      );
+      act(() => {
+        void queryClient.invalidateQueries();
+      });
+      await vi.waitFor(() => {
+        expect(releaseRefetch).toBeDefined();
+      });
+
+      // Catch-up runs and completes first, advancing the cache to id=2.
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(makeEntries(1, 2))));
+      await triggerHintAndWaitFor(() => {
+        expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2]);
+      });
+
+      // The stale refetch finally resolves with its own, now-outdated snapshot (still just id=1).
+      await act(async () => {
+        releaseRefetch?.(makeEntries(1, 1));
+      });
+
+      await vi.waitFor(() => {
+        // A real bug here would wipe the cache back down to just [1] and toast a reset.
+        expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2]);
+      });
+      expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
+    });
+
+    it("advances the catch-up cursor past a high-id, old-timestamp row even after it's trimmed out of the display cache", async () => {
+      seedState();
+      // Fill the cache to exactly the cap with ordinary entries (id and timestamp both increasing).
+      const full = makeEntries(MAX_CACHED_LOG_ENTRIES, 1);
+      const result = await renderLoadedLogData(full);
+      expect(result.current.allEntries).toHaveLength(MAX_CACHED_LOG_ENTRIES);
+
+      // Simulates a clock rollback: the highest id ever seen, but an older timestamp than
+      // everything already cached — sorts to the bottom on merge and is immediately trimmed.
+      const rolledBackId = MAX_CACHED_LOG_ENTRIES + 1;
+      const staleTimestampRow = [
+        createLogEntry({ id: rolledBackId, seq: rolledBackId, timestamp: 1, message: "rolled-back" }),
+      ];
+      const capturedSinceIds: string[] = [];
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, ({ params }) => {
+          capturedSinceIds.push(params["sinceId"] as string);
+          return HttpResponse.json(capturedSinceIds.length === 1 ? staleTimestampRow : []);
+        }),
+      );
+
+      await triggerHintAndWaitFor(() => {
+        expect(capturedSinceIds).toHaveLength(1);
+      });
+      // Confirms the setup: the row really was trimmed out of the display cache.
+      expect(result.current.allEntries.map((e) => e.id)).not.toContain(rolledBackId);
+
+      // A second catch-up episode must request from the row's own id, not re-request the same
+      // (now permanently stale) range forever.
+      await triggerHintAndWaitFor(() => {
+        expect(capturedSinceIds).toHaveLength(2);
+      });
+      expect(capturedSinceIds[1]).toBe(String(rolledBackId));
+    });
   });
 
   describe("periodic re-sync", () => {
