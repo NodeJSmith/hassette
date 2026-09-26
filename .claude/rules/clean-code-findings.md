@@ -14,7 +14,7 @@ Do not file findings introduced by the current branch — fix those in the curre
 
 ## Code Quality vs. Architecture — mutually exclusive
 
-This file governs `topic:code-quality` + the **Code Quality** milestone only. There is a sibling track, `topic:architecture` + the **Architecture** milestone, for structural/SOLID work — module decomposition, coupling reduction, redesigning an internal boundary. An issue gets exactly one of the two label+milestone pairs, never both. If a finding could plausibly wear either tag, use the diagnostic below rather than applying both "to be safe." Architecture-track issues have no separate shape doc — file them with `/mine-create-issue` using its standard type/area/size labeling, just with `topic:architecture` + the Architecture milestone instead of the Code Quality pairing below.
+This file governs `topic:code-quality` only. There is a sibling track, `topic:architecture`, for structural/SOLID work — module decomposition, coupling reduction, redesigning an internal boundary. An issue gets exactly one of the two labels, never both. If a finding could plausibly wear either tag, use the diagnostic below rather than applying both "to be safe." Architecture-track issues have no separate shape doc — file them with `/mine-create-issue` using its standard type/area/size labeling, just with `topic:architecture` instead of `topic:code-quality`.
 
 **`topic:code-quality`** — mechanical, local, low-risk. Fixable as a same-shape find-and-replace without changing how a reader traces control flow through the surrounding code: naming a magic constant, extracting a literally-repeated block, deleting dead code, fixing an import-order nit, deduplicating a copy-pasted test fixture. The kind of thing `/mine-clean-code`'s three checkers (llm-checker, lazy-checker, nitpicker) surface.
 
@@ -33,7 +33,7 @@ This file governs `topic:code-quality` + the **Code Quality** milestone only. Th
 - `size:small` (most findings are; use `size:medium` only for coordinated multi-file mechanical changes, e.g. a consistent rename across a package — not for anything that decomposes or restructures)
 - One or more `area:` labels matching the affected code
 
-**Milestone:** `Code Quality`
+**Milestone:** none. Milestones are reserved for roadmap initiatives (`design/roadmap.md`); a pre-existing finding joins one only if that initiative's Done-when fails without it.
 
 **Body structure:**
 
@@ -59,4 +59,4 @@ Do not create one mega-issue for an entire review run. Do not create one issue p
 
 ## Filing Mechanics
 
-Use `/mine-create-issue` to file. After filing, confirm the milestone and labels are set (the create-issue skill handles labels but may not set the milestone automatically).
+Use `/mine-create-issue` to file. After filing, confirm the labels are set.

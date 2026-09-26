@@ -320,7 +320,7 @@ When a branch adds or edits docs-site pages under `docs/pages/`, run both doc-re
 
 ## Roadmap
 
-`design/roadmap.md` is the source of truth for what's being worked on (Now), what's next, and which orderings are forced. Read it when asked what to pick up next. When filing follow-up issues during initiative work, apply its "Follow-up issues" rule: only add the initiative's `epic:*` label or milestone if the initiative's Done-when fails without the issue — otherwise file it into a bucket without the epic label.
+`design/roadmap.md` is the source of truth for what's being worked on (Now), what's next, and which orderings are forced. Read it when asked what to pick up next. Each initiative is a GitHub milestone whose description holds its Done-when; `epic:*` labels mark topic only, and buckets are `topic:*`/`epic:correctness` labels with no milestone. When filing follow-up issues during initiative work, put the issue in the initiative's milestone only if the Done-when fails without it — otherwise leave it milestone-less (an `epic:*` or `topic:*` label is fine).
 
 ## GitHub Issues
 
