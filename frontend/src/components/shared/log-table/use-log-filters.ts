@@ -200,13 +200,19 @@ export function useLogFilters({
 
   // Freezes the table's data source the moment the user pauses live updates (sorts by anything
   // but timestamp), so hint/catch-up merges arriving while "paused — click to resume" is shown
-  // don't keep changing or reordering what's on screen. Only re-snapshots on the false->true
-  // transition — while livePaused stays true across renders, the same captured array keeps
-  // being reused. Resuming (sort back to timestamp) drops the snapshot and reads allEntries live
-  // again immediately, no staleness.
+  // don't keep changing or reordering what's on screen. Re-snapshots on the false->true
+  // transition, and also while already paused if appKey/executionId changes — e.g. LogsPage
+  // updating executionId from a query param without unmounting this hook — since a stale
+  // snapshot from the previous scope would otherwise keep showing until the user manually
+  // resumes. Otherwise, while livePaused stays true and scope is unchanged, the same captured
+  // array keeps being reused. Resuming (sort back to timestamp) drops the snapshot and reads
+  // allEntries live again immediately, no staleness.
   const wasLivePausedRef = useRef(false);
+  const scopeRef = useRef({ appKey, executionId });
+  const scopeChanged = scopeRef.current.appKey !== appKey || scopeRef.current.executionId !== executionId;
+  scopeRef.current = { appKey, executionId };
   const pausedSnapshotRef = useRef<LogEntry[]>(allEntries);
-  if (livePaused && !wasLivePausedRef.current) {
+  if (livePaused && (!wasLivePausedRef.current || scopeChanged)) {
     pausedSnapshotRef.current = allEntries;
   }
   wasLivePausedRef.current = livePaused;

@@ -450,6 +450,22 @@ describe("livePaused", () => {
     act(() => hook.result.current.resetSort());
     expect(messagesOf(hook)).toContain("after-pause");
   });
+
+  it("re-captures the paused snapshot when appKey/executionId changes while still paused", () => {
+    const execAEntries = [entry({ message: "exec-a-row" })];
+    const { hook } = renderLocal(execAEntries, "my_app", "exec-a");
+
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    expect(messagesOf(hook)).toEqual(["exec-a-row"]);
+
+    // Scope changes to a different execution without unmounting (e.g. LogsPage updating
+    // executionId from a query param) while still paused — the frozen snapshot must not keep
+    // showing the previous execution's rows.
+    const execBEntries = [entry({ message: "exec-b-row" })];
+    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b" });
+
+    expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+  });
 });
 
 describe("resetFilters", () => {

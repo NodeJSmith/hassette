@@ -372,6 +372,48 @@ describe("useLogData", () => {
       expect(toast.error).not.toHaveBeenCalled();
     });
 
+    it("detects a reset via the tracked cursor even when the probe's id still exceeds the trimmed display cache's max", async () => {
+      seedState();
+      const full = makeEntries(MAX_CACHED_LOG_ENTRIES, 1);
+      const result = await renderLoadedLogData(full);
+      expect(result.current.allEntries).toHaveLength(MAX_CACHED_LOG_ENTRIES);
+
+      // Two rolled-back rows (high id, oldest timestamp) each merge and get immediately trimmed
+      // out of the display cache — same mechanism as the single-row trimmed-cursor test above —
+      // opening a gap between the tracked cursor (6002) and the display cache's own max id (6000).
+      const rolledBackA = MAX_CACHED_LOG_ENTRIES + 1;
+      const rolledBackB = MAX_CACHED_LOG_ENTRIES + 2;
+      let sinceCallCount = 0;
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, () => {
+          sinceCallCount++;
+          if (sinceCallCount === 1)
+            return HttpResponse.json(makeEntries(1, rolledBackA).map((e) => ({ ...e, timestamp: 1 })));
+          if (sinceCallCount === 2)
+            return HttpResponse.json(makeEntries(1, rolledBackB).map((e) => ({ ...e, timestamp: 1 })));
+          return HttpResponse.json([]);
+        }),
+      );
+
+      await triggerHintAndWaitFor(() => expect(sinceCallCount).toBe(1));
+      await triggerHintAndWaitFor(() => expect(sinceCallCount).toBe(2));
+      const idsAfterTrimming = result.current.allEntries.map((e) => e.id);
+      expect(idsAfterTrimming).not.toContain(rolledBackA);
+      expect(idsAfterTrimming).not.toContain(rolledBackB);
+
+      // The probe's id (6001) lands strictly between the trimmed display max (6000) and the
+      // tracked cursor (6002): comparing against the display cache's own max would miss this as
+      // a reset (6001 >= 6000), but comparing against the cursor correctly catches it (6001 < 6002).
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([])));
+      const probeEntry = createLogEntry({ id: rolledBackA, seq: rolledBackA, timestamp: 5000, message: "post-reset" });
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([probeEntry])));
+
+      await triggerHintAndWaitFor(() => {
+        expect(result.current.allEntries.map((e) => e.id)).toEqual([rolledBackA]);
+      });
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
+    });
+
     it("chains catch-up fetches when a full page is returned, stopping at the 5-page cap", async () => {
       // dup-ignore-end (see dup-ignore-start above — the marker had to span into this line)
       seedState();
@@ -717,7 +759,10 @@ describe("useLogData", () => {
     useFakeTimersForCatchUp();
 
     it("does not let a base-query refetch erase entries a catch-up already merged in", async () => {
-      seedState();
+      // since-restart, not a fixed-window preset: this test is about refetch-merges-not-replaces
+      // semantics, orthogonal to fixed-window pruning (which would otherwise treat these
+      // deliberately tiny, non-wall-clock-relative fixture timestamps as long since expired).
+      seedState("since-restart");
       const queryClient = createTestQueryClient();
       let recentCallCount = 0;
 
@@ -749,6 +794,131 @@ describe("useLogData", () => {
 
       expect(recentCallCount).toBe(2);
       expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2]);
+    });
+  });
+
+  describe("since-restart reconnect (uptime-only key change)", () => {
+    useFakeTimersForCatchUp();
+
+    it("carries the cursor and cached entries forward across a reconnect, instead of abandoning catch-up progress", async () => {
+      seedState("since-restart");
+      const queryClient = createTestQueryClient();
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
+
+      const { result } = renderHookWithProviders(() => useLogData({}), { queryClient });
+      await waitForLoaded(result);
+
+      // A hint-triggered catch-up advances the cursor and cache past the base fetch's own entry.
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(makeEntries(5, 2))));
+      await triggerHintAndWaitFor(() => {
+        expect(result.current.allEntries).toHaveLength(6); // ids 1-6
+      });
+
+      // Simulate a WS reconnect: uptimeSeconds changes (appKey/executionId/preset don't), which
+      // changes scopedKey and fires a fresh base fetch — a limited, disjoint page as a real
+      // reconnect fetch would return, simulating log volume that accumulated while disconnected.
+      const capturedSinceIds: string[] = [];
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, ({ params }) => {
+          capturedSinceIds.push(params["sinceId"] as string);
+          return HttpResponse.json([]);
+        }),
+      );
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 100))));
+      await act(async () => {
+        useAppStore.setState({ uptimeSeconds: 200 });
+      });
+      await vi.waitFor(() => {
+        // Migration means the reconnect's own limited fetch merges with, rather than replaces,
+        // the pre-reconnect cache — ids 1-6 survive alongside the new id 100.
+        expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 100]);
+      });
+
+      // The next catch-up fetch must start from the migrated cursor's advanced value (100, from
+      // the post-reconnect fetch), not from the pre-migration value (6) or from 0.
+      await triggerHintAndWaitFor(() => {
+        expect(capturedSinceIds).toHaveLength(1);
+      });
+      expect(capturedSinceIds[0]).toBe("100");
+    });
+
+    it("does not migrate cursor/cache when appKey changes alongside uptime (a real scope change, not a reconnect)", async () => {
+      seedState("since-restart");
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
+
+      const { result, rerender } = renderHookWithProviders((props: { appKey?: string }) => useLogData(props), {
+        initialProps: { appKey: "app-a" },
+      });
+      await waitForLoaded(result);
+      expect(result.current.allEntries).toHaveLength(1);
+
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 200))));
+      await act(() => {
+        useAppStore.setState({ uptimeSeconds: 200 });
+        rerender({ appKey: "app-b" });
+      });
+      await vi.waitFor(() => {
+        // A different app's view starts from a clean slate — no id=1 carried over from app-a.
+        expect(result.current.allEntries.map((e) => e.id)).toEqual([200]);
+      });
+    });
+  });
+
+  describe("fixed-window pruning", () => {
+    useFakeTimersForCatchUp();
+
+    it("prunes cached entries that have aged out of a fixed time window on refetch", async () => {
+      vi.setSystemTime(new Date(2026, 0, 1, 12, 0, 0).getTime());
+      seedState("1h");
+      const queryClient = createTestQueryClient();
+
+      const staleEntry = createLogEntry({ id: 1, seq: 1, timestamp: Date.now() / 1000 - 1800, message: "stale" });
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([staleEntry])));
+
+      const { result } = renderHookWithProviders(() => useLogData({}), { queryClient });
+      await waitForLoaded(result);
+      expect(result.current.allEntries.map((e) => e.message)).toEqual(["stale"]);
+
+      // 40 minutes later, "stale" (30 min old at fetch time) is now 70 min old — outside the
+      // 1h window. A later refetch (e.g. a WS reconnect) must prune it, not just leave it until
+      // the count-based MAX_CACHED_LOG_ENTRIES cap eventually evicts it.
+      vi.setSystemTime(Date.now() + 40 * 60 * 1000);
+      const freshEntry = createLogEntry({ id: 2, seq: 2, timestamp: Date.now() / 1000 - 60, message: "fresh" });
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([freshEntry])));
+
+      await act(async () => {
+        await queryClient.refetchQueries({ queryKey: queryKeys.recentLogs() });
+        // Flushes react-query's subscriber notification — under fake timers, setSystemTime's
+        // clock jump can leave that notification's own scheduling stranded without this.
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(result.current.allEntries.map((e) => e.message)).toEqual(["fresh"]);
+    });
+
+    it("does not prune anything for the since-restart preset, whose window is the whole post-boot history", async () => {
+      seedState("since-restart");
+      const queryClient = createTestQueryClient();
+
+      const oldEntry = createLogEntry({
+        id: 1,
+        seq: 1,
+        timestamp: Date.now() / 1000 - 100_000,
+        message: "old-but-since-boot",
+      });
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([oldEntry])));
+
+      const { result } = renderHookWithProviders(() => useLogData({}), { queryClient });
+      await waitForLoaded(result);
+
+      const freshEntry = createLogEntry({ id: 2, seq: 2, timestamp: Date.now() / 1000 - 60, message: "fresh" });
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([freshEntry])));
+      await act(async () => {
+        await queryClient.refetchQueries({ queryKey: queryKeys.recentLogs() });
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(result.current.allEntries.map((e) => e.message).sort()).toEqual(["fresh", "old-but-since-boot"]);
     });
   });
 });

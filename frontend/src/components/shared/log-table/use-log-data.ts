@@ -117,6 +117,21 @@ function resetCursor(queryClient: QueryClient, scopedKey: readonly unknown[], va
   cursorMapFor(queryClient).set(cursorMapKey(scopedKey), value);
 }
 
+/** Carries catch-up state from one `scopedKey` to another when only the key's trailing
+ * `uptimeSeconds` component changed — see the since-restart migration block in `useLogData` for
+ * when this fires and why. Copies the high-water-mark cursor (only forward, via `advanceCursor`'s
+ * own `Math.max`) and, if the new key has no cached entries yet, the old key's merged cache too —
+ * so the new key starts exactly where the old one left off instead of from an empty slate. */
+function migrateCursorAndCache(queryClient: QueryClient, oldKey: readonly unknown[], newKey: readonly unknown[]): void {
+  const oldCursor = getCursor(queryClient, oldKey);
+  if (oldCursor > 0) advanceCursor(queryClient, newKey, oldCursor);
+
+  const oldEntries = queryClient.getQueryData<LogEntry[]>(oldKey);
+  if (oldEntries && oldEntries.length > 0 && queryClient.getQueryData<LogEntry[]>(newKey) === undefined) {
+    queryClient.setQueryData<LogEntry[]>(newKey, oldEntries);
+  }
+}
+
 /** Matches the backend's own canonical display ordering for `get_log_records` (design.md FR#10:
  * `timestamp DESC, seq DESC`) — `id` is reserved for the catch-up cursor (`maxId`, monotonic and
  * restart-safe) and is not used for display order, since DB insertion order (`id`) and event
@@ -204,11 +219,13 @@ async function fetchSinceWithBackoff(
  * concurrent or just-completed catch-up had already merged in.
  *
  * Detects DB `id` regression (backup restore / telemetry wipe) from either producer: if the
- * incoming batch's max `id` is below the cache's current max, the cached history predates the
- * reset and is discarded in favor of a fresh start from this batch, with a one-time notice
- * surfaced — this guard now protects the base-query refresh path too, not just catch-up, since
- * without it stale pre-reset rows would silently outrank genuinely fresher post-reset rows by id
- * forever.
+ * incoming batch's max `id` is below the tracked cursor (not the trimmed display cache's own max
+ * — the cursor-owning row can have aged out of the timestamp-sorted cache while the cursor itself
+ * survives, so comparing against the display cache's max can miss a real regression that still
+ * lands below the cursor), the cached history predates the reset and is discarded in favor of a
+ * fresh start from this batch, with a one-time notice surfaced — this guard now protects the
+ * base-query refresh path too, not just catch-up, since without it stale pre-reset rows would
+ * silently outrank genuinely fresher post-reset rows by id forever.
  *
  * `detectReset` gates that check and has no default — every call site states its intent
  * explicitly, since silently inheriting the wrong one for a future call site would misfire the
@@ -221,20 +238,37 @@ async function fetchSinceWithBackoff(
  * tell apart from a real reset. The base query's call site passes `detectReset: false` for
  * exactly this reason; a real reset is still caught via the catch-up/probe path shortly after (an
  * empty `/logs/since` against the old, too-high cursor triggers `probeForReset`, which detects it
- * there instead). */
+ * there instead).
+ *
+ * `windowSince`, when given, drops `existing` entries whose `timestamp` has fallen before it —
+ * the base-query refresh path's only mechanism for evicting rows that have aged out of a fixed
+ * (1h/24h/7d) time window, since `since` slides forward on every refresh but the count-based
+ * `MAX_CACHED_LOG_ENTRIES` trim alone won't evict a quiet, under-cap cache. Deliberately never
+ * applied to `results`/`fresh`: the server already filtered that batch by the same boundary, so
+ * re-filtering it here is redundant in production and actively wrong in tests, whose fixtures use
+ * arbitrary fixed timestamps unrelated to wall-clock time — filtering fresh results would prune
+ * them outright regardless of `since`. Omit `windowSince` entirely for catch-up and the reset
+ * probe, which are cursor-relative rather than window-relative and would otherwise prune records
+ * the current window boundary was never meant to bound. */
+interface MergeOptions {
+  detectReset: boolean;
+  windowSince?: number;
+}
+
 function mergeCatchUpBatch(
   queryClient: QueryClient,
   scopedKey: readonly unknown[],
   results: LogEntry[],
-  detectReset: boolean,
+  { detectReset, windowSince }: MergeOptions,
 ): void {
   if (results.length === 0) return;
   const batchMaxId = maxId(results);
 
   queryClient.setQueryData<LogEntry[]>(scopedKey, (old) => {
     const existing = old ?? [];
+    const trackedCursor = getCursor(queryClient, scopedKey);
 
-    if (detectReset && existing.length > 0 && batchMaxId < maxId(existing)) {
+    if (detectReset && existing.length > 0 && batchMaxId < trackedCursor) {
       toast.error("Log stream reset — the server's log history was reset.");
       resetCursor(queryClient, scopedKey, batchMaxId);
       return [...results].sort(byTimestampDesc).slice(0, MAX_CACHED_LOG_ENTRIES);
@@ -250,7 +284,11 @@ function mergeCatchUpBatch(
       seen.add(key);
       fresh.push(entry);
     }
-    return [...fresh, ...existing].sort(byTimestampDesc).slice(0, MAX_CACHED_LOG_ENTRIES);
+    // Only ever prunes `existing` — never `fresh`, which the server already filtered by the same
+    // boundary. Filtering `fresh` too would be redundant in production and wrong in tests (see
+    // `windowSince`'s docstring above for why).
+    const survivingExisting = windowSince === undefined ? existing : existing.filter((e) => e.timestamp >= windowSince);
+    return [...fresh, ...survivingExisting].sort(byTimestampDesc).slice(0, MAX_CACHED_LOG_ENTRIES);
   });
 }
 
@@ -280,7 +318,7 @@ async function probeForReset(
     });
     if (signal.aborted) return;
     // detectReset: true — this probe exists specifically to detect a reset.
-    mergeCatchUpBatch(queryClient, scopedKey, latest, true);
+    mergeCatchUpBatch(queryClient, scopedKey, latest, { detectReset: true });
   } catch {
     // Best-effort — see docstring above.
   }
@@ -353,7 +391,7 @@ async function performCatchUp(
     }
 
     // detectReset: true — a cursor-based fetch, so a lower max really is a reset.
-    mergeCatchUpBatch(queryClient, scopedKey, results, true);
+    mergeCatchUpBatch(queryClient, scopedKey, results, { detectReset: true });
 
     if (results.length < CATCH_UP_FETCH_LIMIT) return;
 
@@ -482,18 +520,56 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
   const since = resolveSince(preset, uptimeSeconds) ?? 0;
   const isWaitingForUptime = preset === "since-restart" && uptimeSeconds === null;
 
+  // Identifies "the same logical view" independent of uptime — used below to detect a since-
+  // restart reconnect (identity unchanged, only uptime moved) as distinct from an actual scope
+  // change (app/execution/preset switched).
+  const identityKey = useMemo(
+    () => [...queryKeys.recentLogs(appKey, executionId), preset] as const,
+    [appKey, executionId, preset],
+  );
+
   // Mirrors useScopedQuery's own queryKey computation (see that hook's docstring) — both hooks
   // read preset/uptimeSeconds from the same store, so the keys always agree, and hint-triggered
   // writes via setQueryData land in the exact cache entry the base query below owns.
   const scopedKey = useMemo(
-    () =>
-      [
-        ...queryKeys.recentLogs(appKey, executionId),
-        preset,
-        ...(preset === "since-restart" ? [uptimeSeconds] : []),
-      ] as const,
-    [appKey, executionId, preset, uptimeSeconds],
+    () => [...identityKey, ...(preset === "since-restart" ? [uptimeSeconds] : [])] as const,
+    [identityKey, preset, uptimeSeconds],
   );
+
+  // `uptimeSeconds` updates on every WS reconnect (handleWsConnected in store.ts), not only on a
+  // genuine server restart — so for the since-restart preset, a plain reconnect changes scopedKey
+  // and would otherwise abandon the catch-up cursor and merged cache built up under the previous
+  // key, silently dropping a gap of up to (records-since-old-cursor minus REST_FETCH_LIMIT) rows.
+  // Runs during render (before useScopedQuery/useCatchUpScheduler below ever read the new key) so
+  // the migrated state is in place before anything fetches against it. Only fires when the
+  // identity (app/execution/preset) is unchanged — an actual scope change is a real reset of
+  // context, not a reconnect, and gets a fresh cursor/cache on purpose. A genuine server restart
+  // is still caught independently by mergeCatchUpBatch's own id-regression check on the next
+  // merge; this migration only prevents an ordinary reconnect from being mistaken for one.
+  //
+  // Mutating the query cache directly in the render body (rather than a useEffect) is a
+  // deliberate exception to the usual side-effects-in-effects rule: an effect would run one
+  // render too late, after useScopedQuery/useCatchUpScheduler below have already read the new
+  // (unmigrated) key for this render, producing a visible loading flash. The `prevScopedKeyRef`
+  // reference-equality guard makes this idempotent across a StrictMode double-render (the second
+  // invocation always sees `prevScopedKeyRef.current === scopedKey`, since the first invocation
+  // already advanced the ref), so this can't double-migrate.
+  const prevIdentityKeyRef = useRef<readonly unknown[] | null>(null);
+  const prevScopedKeyRef = useRef<readonly unknown[] | null>(null);
+  if (
+    // Both refs are plain reference checks — identityKey and scopedKey are both useMemo'd, so
+    // either one's reference is stable across renders where its own deps didn't change. scopedKey
+    // must differ (something changed) while identityKey must not (that something was only
+    // uptime) for this to be an uptime-only reconnect rather than a real scope change.
+    preset === "since-restart" &&
+    prevScopedKeyRef.current !== null &&
+    prevScopedKeyRef.current !== scopedKey &&
+    prevIdentityKeyRef.current === identityKey
+  ) {
+    migrateCursorAndCache(queryClient, prevScopedKeyRef.current, scopedKey);
+  }
+  prevIdentityKeyRef.current = identityKey;
+  prevScopedKeyRef.current = scopedKey;
 
   // Merges through mergeCatchUpBatch instead of returning the fresh page directly, so a refetch
   // (WS reconnect, preset/filter change) never wholesale-replaces entries a concurrent or
@@ -507,7 +583,12 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
       const fresh = await getRecentLogs({ appKey, limit: REST_FETCH_LIMIT, executionId, since: s }, signal);
       // detectReset: false — a plain recency snapshot with no cursor relationship to the cache's
       // current max id; see mergeCatchUpBatch's docstring for the race this avoids.
-      mergeCatchUpBatch(queryClient, scopedKey, fresh, false);
+      // windowSince: only for fixed-window presets — since-restart's boundary is the whole
+      // post-boot history and isn't meant to prune anything as time passes.
+      mergeCatchUpBatch(queryClient, scopedKey, fresh, {
+        detectReset: false,
+        windowSince: preset === "since-restart" ? undefined : s,
+      });
       return queryClient.getQueryData<LogEntry[]>(scopedKey) ?? fresh;
     },
   );
