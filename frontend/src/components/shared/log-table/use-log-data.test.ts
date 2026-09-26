@@ -3,13 +3,14 @@ import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
+import { queryKeys } from "@/lib/query-keys";
 import { type TimePreset, useAppStore } from "@/state/store";
 import { createLogEntry } from "@/test/factories";
 import { renderLoaded, renderLoadedLogData } from "@/test/log-data-test-utils";
-import { renderHookWithProviders } from "@/test/query-test-utils";
+import { createTestQueryClient, renderHookWithProviders } from "@/test/query-test-utils";
 import { server } from "@/test/server";
 
-import { MAX_CACHED_LOG_ENTRIES, REST_FETCH_LIMIT } from "./constants";
+import { CATCH_UP_FETCH_LIMIT, MAX_CACHED_LOG_ENTRIES, REST_FETCH_LIMIT } from "./constants";
 import { useLogData } from "./use-log-data";
 
 const LOGS_ENDPOINT = "/api/logs/recent";
@@ -103,7 +104,9 @@ describe("useLogData", () => {
 
       expect(result.current.restEntries).toHaveLength(2);
       expect(result.current.allEntries).toHaveLength(2);
-      expect(result.current.restEntries[0].message).toBe(entries[0].message);
+      // Order isn't the raw fetch-response order — the base query now merges through
+      // mergeCatchUpBatch (id-descending), matching real /logs/recent's own latest-N-DESC shape.
+      expect(result.current.restEntries.map((e) => e.message).sort()).toEqual(entries.map((e) => e.message).sort());
     });
   });
 
@@ -319,8 +322,8 @@ describe("useLogData", () => {
         http.get(LOGS_SINCE_ENDPOINT, () => {
           fetchCount++;
           // Always return a full page so the catch-up loop keeps chaining.
-          const page = makeEntries(REST_FETCH_LIMIT, nextId);
-          nextId += REST_FETCH_LIMIT;
+          const page = makeEntries(CATCH_UP_FETCH_LIMIT, nextId);
+          nextId += CATCH_UP_FETCH_LIMIT;
           return HttpResponse.json(page);
         }),
       );
@@ -349,6 +352,41 @@ describe("useLogData", () => {
       await vi.waitFor(() => {
         expect(toast.error).toHaveBeenCalled();
       });
+    });
+
+    it("does not retry a 4xx catch-up failure, and toasts only once per scopedKey across repeated hint episodes", async () => {
+      seedState();
+      let fetchCount = 0;
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, () => {
+          fetchCount++;
+          return HttpResponse.json({ detail: "limit too large" }, { status: 422 });
+        }),
+      );
+
+      await renderLoadedLogData(makeEntries(1, 1));
+
+      sendHint();
+      // debounce (200ms) + a single fetch attempt, generous headroom — no backoff wait since a
+      // 4xx fails immediately instead of retrying.
+      await vi.advanceTimersByTimeAsync(200 + 500);
+
+      await vi.waitFor(() => {
+        expect(toast.error).toHaveBeenCalledTimes(1);
+      });
+      expect(fetchCount).toBe(1);
+
+      vi.mocked(toast.error).mockClear();
+
+      // A second hint-triggered episode still runs — the permanent-failure gate only suppresses
+      // the toast, not the next episode's attempt.
+      sendHint();
+      await vi.advanceTimersByTimeAsync(200 + 500);
+
+      await vi.waitFor(() => {
+        expect(fetchCount).toBe(2);
+      });
+      expect(toast.error).not.toHaveBeenCalled();
     });
 
     it("serializes overlapping catch-up runs instead of racing them, so a slower response never triggers a false reset", async () => {
@@ -428,6 +466,184 @@ describe("useLogData", () => {
       const maxFreshId = existingCount + freshCount;
       expect(ids).toContain(maxFreshId); // newest rows survive
       expect(ids).not.toContain(1); // oldest rows are the ones trimmed
+    });
+  });
+
+  describe("periodic re-sync", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("fires a catch-up fetch on an interval even with no hint activity", async () => {
+      seedState();
+      let fetchCount = 0;
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, () => {
+          fetchCount++;
+          return HttpResponse.json([]);
+        }),
+      );
+
+      await renderLoadedLogData(makeEntries(1, 1));
+
+      expect(fetchCount).toBe(0);
+      await vi.advanceTimersByTimeAsync(5000);
+
+      await vi.waitFor(() => {
+        expect(fetchCount).toBe(1);
+      });
+    });
+
+    it("does not toast on a transient failure from the periodic poll", async () => {
+      seedState();
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.error()));
+
+      await renderLoadedLogData(makeEntries(1, 1));
+
+      await vi.advanceTimersByTimeAsync(5000);
+      // Let the poll's own retry/backoff cycle (1000/1500/2250ms) exhaust, generous headroom.
+      await vi.advanceTimersByTimeAsync(1000 + 1500 + 2250 + 500);
+
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("still toasts once on a permanent (4xx) failure discovered by the periodic poll", async () => {
+      seedState();
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json({ detail: "limit too large" }, { status: 422 })),
+      );
+
+      await renderLoadedLogData(makeEntries(1, 1));
+
+      await vi.advanceTimersByTimeAsync(5000 + 500);
+
+      await vi.waitFor(() => {
+        expect(toast.error).toHaveBeenCalledTimes(1);
+      });
+    });
+  });
+
+  describe("catch-up cancellation", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("stops the catch-up chain's retries after unmount", async () => {
+      seedState();
+      let fetchCount = 0;
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, () => {
+          fetchCount++;
+          return HttpResponse.error();
+        }),
+      );
+
+      const { result, unmount } = renderHookWithProviders(() => useLogData({}));
+      await vi.waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      sendHint();
+      await vi.advanceTimersByTimeAsync(200); // debounce fires, first attempt starts and fails
+      await vi.waitFor(() => {
+        expect(fetchCount).toBe(1);
+      });
+
+      unmount();
+
+      // Advance through the full 3-retry backoff window (1000/1500/2250ms) the chain would
+      // otherwise have run through — no further attempts should occur.
+      await vi.advanceTimersByTimeAsync(1000 + 1500 + 2250 + 500);
+      expect(fetchCount).toBe(1);
+    });
+
+    it("stops the catch-up chain's retries after a filter change (new scopedKey)", async () => {
+      seedState();
+      let fetchCount = 0;
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, () => {
+          fetchCount++;
+          return HttpResponse.error();
+        }),
+      );
+
+      const { result, rerender } = renderHookWithProviders((props: { appKey?: string }) => useLogData(props), {
+        initialProps: { appKey: "app-a" },
+      });
+      await vi.waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+
+      sendHint();
+      await vi.advanceTimersByTimeAsync(200); // debounce fires, first attempt starts and fails
+      await vi.waitFor(() => {
+        expect(fetchCount).toBe(1);
+      });
+
+      act(() => rerender({ appKey: "app-b" })); // scopedKey changes — old chain's signal aborts
+
+      // Advance past the point the old chain's next retry (1000ms backoff) would have fired, but
+      // stay well under PERIODIC_RESYNC_MS (5000ms) so the unrelated periodic-poll feature (which
+      // now legitimately runs for the new app-b scopedKey) can't also increment fetchCount here.
+      await vi.advanceTimersByTimeAsync(1000 + 500);
+      expect(fetchCount).toBe(1);
+    });
+  });
+
+  describe("base-query merge", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("does not let a base-query refetch erase entries a catch-up already merged in", async () => {
+      seedState();
+      const queryClient = createTestQueryClient();
+      let recentCallCount = 0;
+
+      server.use(
+        http.get(LOGS_ENDPOINT, () => {
+          recentCallCount++;
+          // Always returns only the original entry — simulates a base-query refetch (e.g. a WS
+          // reconnect) that races a catch-up merge and doesn't know about the newer record yet.
+          return HttpResponse.json(makeEntries(1, 1));
+        }),
+      );
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(makeEntries(1, 2))));
+
+      const { result } = renderHookWithProviders(() => useLogData({}), { queryClient });
+      await vi.waitFor(() => {
+        expect(result.current.loading).toBe(false);
+      });
+      expect(recentCallCount).toBe(1);
+
+      sendHint();
+      await vi.advanceTimersByTimeAsync(200);
+      await vi.waitFor(() => {
+        expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2]);
+      });
+
+      // Before Finding 8's fix, useQuery's default full-replace would wholesale-overwrite the
+      // cache with this refetch's stale (single-entry) result, silently erasing id=2.
+      await act(async () => {
+        await queryClient.refetchQueries({ queryKey: queryKeys.recentLogs() });
+      });
+
+      expect(recentCallCount).toBe(2);
+      expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2]);
     });
   });
 });

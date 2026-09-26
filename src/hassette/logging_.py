@@ -7,7 +7,6 @@ import queue
 import sys
 import threading
 import traceback
-from collections import deque
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from typing import IO, TYPE_CHECKING, Any, Literal
@@ -114,25 +113,34 @@ def _format_exc_info(record: logging.LogRecord) -> str | None:
     return None
 
 
-class LogCaptureHandler(logging.Handler):
-    """Captures log records into a bounded deque and broadcasts to WS clients."""
+def _build_log_entry(record: logging.LogRecord) -> LogEntry:
+    """Build a LogEntry from a LogRecord using the correlation attrs and formatted traceback."""
+    attrs = _extract_correlation_attrs(record)
+    return LogEntry(
+        timestamp=record.created,
+        level=record.levelname,
+        logger_name=record.name,
+        func_name=record.funcName or "",
+        lineno=record.lineno,
+        message=record.getMessage(),
+        exc_info=_format_exc_info(record),
+        **attrs,
+    )
 
-    _buffer: deque[LogEntry]
+
+class LogCaptureHandler(logging.Handler):
+    """Captures log records and broadcasts a hint to WS clients."""
+
     _broadcast_fn: Callable[[dict], Coroutine[Any, Any, None]] | None
     _loop: asyncio.AbstractEventLoop | None
 
     shutting_down: bool
 
-    def __init__(self, buffer_size: int = 2000) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self._buffer = deque(maxlen=buffer_size)
         self._broadcast_fn = None
         self._loop = None
         self.shutting_down = False
-
-    @property
-    def buffer(self) -> deque[LogEntry]:
-        return self._buffer
 
     def set_broadcast(self, fn: Callable[[dict], Coroutine[Any, Any, None]], loop: asyncio.AbstractEventLoop) -> None:
         """Called by RuntimeQueryService after initialization to wire up WS broadcast."""
@@ -140,18 +148,7 @@ class LogCaptureHandler(logging.Handler):
         self._loop = loop
 
     def emit(self, record: logging.LogRecord) -> None:
-        attrs = _extract_correlation_attrs(record)
-        entry = LogEntry(
-            timestamp=record.created,
-            level=record.levelname,
-            logger_name=record.name,
-            func_name=record.funcName or "",
-            lineno=record.lineno,
-            message=record.getMessage(),
-            exc_info=_format_exc_info(record),
-            **attrs,
-        )
-        self._buffer.append(entry)
+        entry = _build_log_entry(record)
         if self.shutting_down:
             return
         if self._broadcast_fn and self._loop and self._loop.is_running():

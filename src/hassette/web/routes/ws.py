@@ -71,6 +71,11 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
             if msg_type in ("log", "log_hint"):
                 if not ws_state.get("subscribe_logs", False):
                     continue
+                # min_log_level only gates the legacy "log" message shape, which nothing emits
+                # anymore — log_hint carries no level, so it always passes through here. The
+                # setting is still accepted on the WS handshake but no longer affects log_hint
+                # delivery cadence; any level filtering for the hint stream must happen client-side
+                # after the REST catch-up fetch.
                 if msg_type == "log":
                     msg_level = LOG_LEVELS.get(message.get("data", {}).get("level", ""), 0)
                     configured = ws_state.get("min_log_level", DEFAULT_LOG_LEVEL)

@@ -83,6 +83,22 @@ describe("useAppStore", () => {
       expect(state.serviceStatus).toEqual({});
     });
 
+    it("on first connect, does not bump logHintVersion", () => {
+      const versionBefore = useAppStore.getState().logHintVersion;
+
+      useAppStore.getState().handleWsConnected(createConnectedPayload(), false);
+
+      expect(useAppStore.getState().logHintVersion).toBe(versionBefore);
+    });
+
+    it("on reconnect, bumps logHintVersion so use-log-data's cursor catch-up runs", () => {
+      const versionBefore = useAppStore.getState().logHintVersion;
+
+      useAppStore.getState().handleWsConnected(createConnectedPayload(), true);
+
+      expect(useAppStore.getState().logHintVersion).toBe(versionBefore + 1);
+    });
+
     it("sets systemVersion from payload, falling back to null when omitted", () => {
       useAppStore.getState().handleWsConnected(createConnectedPayload({ version: undefined }), false);
       expect(useAppStore.getState().systemVersion).toBeNull();

@@ -78,7 +78,7 @@ class LoggingService(Resource):
     ) -> None:
         super().__init__(hassette, parent=parent)
         self._stream_handler = stream_handler
-        self.capture_handler = LogCaptureHandler(buffer_size=hassette.config.web_api.log_buffer_size)
+        self.capture_handler = LogCaptureHandler()
         self.persistence_handler = None
         self._queue_listener: HassetteQueueListener | None = None
         self._queue_handler: HassetteQueueHandler | None = None

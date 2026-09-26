@@ -27,7 +27,6 @@ STUB_BASE_URL = "http://127.0.0.1:8123"
 STUB_DATA_DIR = "/srv/hassette/data"
 STUB_CONFIG_DIR = "/srv/hassette/config"
 STUB_HOST = "0.0.0.0"
-STUB_LOG_BUFFER_SIZE = 2000
 STUB_JOB_HISTORY_SIZE = 1000
 STUB_STARTUP_TIMEOUT = 30
 STUB_APP_STARTUP_TIMEOUT = 20
@@ -151,7 +150,6 @@ def create_hassette_stub(
     hassette.config.web_api.host = STUB_HOST
     hassette.config.web_api.port = DEFAULT_WEB_API_PORT
     hassette.config.web_api.cors_origins = cors_origins
-    hassette.config.web_api.log_buffer_size = STUB_LOG_BUFFER_SIZE
     hassette.config.web_api.job_history_size = STUB_JOB_HISTORY_SIZE
     hassette.config.web_api.auth_enabled = auth_enabled
     # logging group
@@ -192,7 +190,6 @@ def create_hassette_stub(
             "host": STUB_HOST,
             "port": DEFAULT_WEB_API_PORT,
             "cors_origins": list(cors_origins),
-            "log_buffer_size": STUB_LOG_BUFFER_SIZE,
             "job_history_size": STUB_JOB_HISTORY_SIZE,
             "auth_enabled": auth_enabled,
         },

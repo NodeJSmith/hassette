@@ -9,9 +9,13 @@ import logging
 import queue
 from unittest.mock import MagicMock
 
-from hassette.logging_ import HassetteQueueHandler, LogCaptureHandler
+from hassette.logging_ import (
+    HassetteQueueHandler,
+    LogCaptureHandler,
+    _build_log_entry,  # pyright: ignore[reportPrivateUsage]
+)
 from hassette.web.models import LogHintWsMessage
-from tests.support.factories import make_log_record
+from tests.support.factories import make_log_record, make_recording_log_capture_handler
 from tests.unit.conftest import LoggingPipelineFixture
 
 
@@ -20,46 +24,43 @@ class TestLogCaptureHandlerStillCaptures:
 
     def test_capture_handler_captures_records(self, logging_pipeline: LoggingPipelineFixture) -> None:
         """LogCaptureHandler captures records via the pipeline."""
-        initial_count = len(logging_pipeline.capture.buffer)
+        initial_count = len(logging_pipeline.capture.captured)
         child = logging.getLogger("hassette.test_capture")
         child.info("captured message")
         # Stop listener to flush all pending records
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
-        entries = list(logging_pipeline.capture.buffer)
+        entries = logging_pipeline.capture.captured
         assert len(entries) == initial_count + 1
         assert entries[-1].message == "captured message"
 
     def test_capture_handler_reads_source_tier_from_record(self) -> None:
         """LogCaptureHandler reads source_tier from record attribute (not prefix-matching)."""
-        handler = LogCaptureHandler(buffer_size=100)
         record = make_log_record(name="hassette.apps.my_app", pathname="test.py", lineno=1, msg="test msg")
         record.source_tier = "app"
-        handler.emit(record)
 
-        entries = list(handler.buffer)
-        assert len(entries) == 1
-        assert entries[0].source_tier == "app"
+        entry = _build_log_entry(record)
+
+        assert entry.source_tier == "app"
 
     def test_capture_handler_source_tier_none_when_missing(self) -> None:
         """source_tier is None when record has no source_tier attribute."""
-        handler = LogCaptureHandler(buffer_size=100)
         record = make_log_record(name="hassette.core", pathname="test.py", lineno=1, msg="framework msg")
         # No source_tier attribute set
-        handler.emit(record)
 
-        entries = list(handler.buffer)
-        assert entries[0].source_tier is None
+        entry = _build_log_entry(record)
+
+        assert entry.source_tier is None
 
     def test_no_register_app_logger_method(self) -> None:
         """register_app_logger() is removed from LogCaptureHandler."""
-        handler = LogCaptureHandler(buffer_size=100)
+        handler = LogCaptureHandler()
         assert not hasattr(handler, "register_app_logger")
 
     def test_no_resolve_app_key_method(self) -> None:
         """_resolve_app_key() is removed from LogCaptureHandler."""
-        handler = LogCaptureHandler(buffer_size=100)
+        handler = LogCaptureHandler()
         assert not hasattr(handler, "_resolve_app_key")
 
 
@@ -67,28 +68,28 @@ class TestLogCaptureHandlerPopulatesCorrelationFields:
     """LogCaptureHandler.emit() populates correlation fields from record attributes."""
 
     def test_emit_reads_execution_id_from_record(self) -> None:
-        handler = LogCaptureHandler(buffer_size=100)
         record = make_log_record(name="hassette.test")
         record.execution_id = "exec-999"  # pyright: ignore[reportAttributeAccessIssue]
-        handler.emit(record)
-        entry = list(handler.buffer)[0]
+
+        entry = _build_log_entry(record)
+
         assert entry.execution_id == "exec-999"
 
     def test_emit_reads_instance_name_from_record(self) -> None:
-        handler = LogCaptureHandler(buffer_size=100)
         record = make_log_record(name="hassette.test")
         record.instance_name = "MyApp.0"  # pyright: ignore[reportAttributeAccessIssue]
         record.instance_index = 0  # pyright: ignore[reportAttributeAccessIssue]
-        handler.emit(record)
-        entry = list(handler.buffer)[0]
+
+        entry = _build_log_entry(record)
+
         assert entry.instance_name == "MyApp.0"
         assert entry.instance_index == 0
 
     def test_emit_execution_id_none_when_missing(self) -> None:
-        handler = LogCaptureHandler(buffer_size=100)
         record = make_log_record(name="hassette.test")
-        handler.emit(record)
-        entry = list(handler.buffer)[0]
+
+        entry = _build_log_entry(record)
+
         assert entry.execution_id is None
 
 
@@ -114,7 +115,7 @@ class TestQueueHandlerPipeline:
         try:
             assert "pipeline test" in logging_pipeline.stream.getvalue()
 
-            entries = list(logging_pipeline.capture.buffer)
+            entries = logging_pipeline.capture.captured
             assert any(e.message == "pipeline test" for e in entries)
         finally:
             logging_pipeline.listener.start()
@@ -178,7 +179,7 @@ class TestLogCaptureHandlerShutdownGuard:
 
     def test_shutting_down_skips_broadcast(self) -> None:
         """When shutting_down is True, emit() still captures but skips call_soon_threadsafe."""
-        handler = LogCaptureHandler(buffer_size=100)
+        handler = make_recording_log_capture_handler()
         loop = MagicMock()
         loop.is_running.return_value = True
         broadcast_fn = MagicMock()
@@ -188,14 +189,14 @@ class TestLogCaptureHandlerShutdownGuard:
         record = make_log_record(msg="shutdown msg")
         handler.emit(record)
 
-        entries = list(handler.buffer)
+        entries = handler.captured
         assert len(entries) == 1
         assert entries[0].message == "shutdown msg"
         loop.call_soon_threadsafe.assert_not_called()
 
     def test_not_shutting_down_broadcasts(self) -> None:
         """When shutting_down is False, emit() broadcasts via call_soon_threadsafe."""
-        handler = LogCaptureHandler(buffer_size=100)
+        handler = LogCaptureHandler()
         loop = MagicMock()
         loop.is_running.return_value = True
         broadcast_fn = MagicMock()
@@ -227,7 +228,7 @@ class TestLogCaptureHandlerBroadcastEnvelope:
 
     def test_broadcast_envelope_is_a_minimal_hint(self) -> None:
         """The envelope carries only a type and a top-level timestamp — no log data."""
-        handler = LogCaptureHandler(buffer_size=100)
+        handler = LogCaptureHandler()
         loop = MagicMock()
         loop.is_running.return_value = True
         broadcast_fn = MagicMock()
@@ -240,7 +241,7 @@ class TestLogCaptureHandlerBroadcastEnvelope:
 
     def test_broadcast_envelope_validates_against_log_hint_ws_message(self) -> None:
         """The envelope round-trips through LogHintWsMessage, the model the frontend schema is generated from."""
-        handler = LogCaptureHandler(buffer_size=100)
+        handler = LogCaptureHandler()
         loop = MagicMock()
         loop.is_running.return_value = True
         broadcast_fn = MagicMock()

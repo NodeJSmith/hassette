@@ -1360,12 +1360,6 @@
             "label": "CORS Origins"
           }
         },
-        "log_buffer_size": {
-          "default": 2000,
-          "description": "Maximum number of log entries to keep in the LogCaptureHandler ring buffer.",
-          "title": "Log Buffer Size",
-          "type": "integer"
-        },
         "job_history_size": {
           "default": 1000,
           "description": "Maximum number of job execution records to keep.",

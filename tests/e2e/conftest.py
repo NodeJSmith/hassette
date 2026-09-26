@@ -7,12 +7,12 @@ import subprocess
 import threading
 from pathlib import Path
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
 from playwright.sync_api import Locator, Page, expect
 
-from hassette.logging_ import LogCaptureHandler, LogEntry
 from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
     MANUAL_JOB_ID,
@@ -38,8 +38,12 @@ from tests.e2e.mock_fixtures import (
     wire_scheduler_trigger,
     wire_session_telemetry,
 )
+from tests.support.factories import RecordingLogCaptureHandler, make_recording_log_capture_handler
 from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
+
+if TYPE_CHECKING:
+    from hassette.logging_ import LogEntry
 
 # Shared viewport constants for e2e tests.
 # Mobile height 812 = iPhone X (safe-area / notch testing).
@@ -181,7 +185,7 @@ def runtime_query_service_starting(mock_hassette_starting):
 @pytest.fixture(scope="session")
 def log_handler():
     """Create a LogCaptureHandler with seed log entries for e2e tests."""
-    handler = LogCaptureHandler(buffer_size=100)
+    handler = make_recording_log_capture_handler()
     entries = [
         ("hassette.core", logging.INFO, "Hassette started successfully"),
         ("hassette.apps.my_app", logging.INFO, "MyApp initialized"),
@@ -232,7 +236,7 @@ def ensure_spa_built():
         pytest.fail("Frontend build completed but spa/index.html not found")
 
 
-def make_log_records_from_buffer(handler: LogCaptureHandler):
+def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
     """Return an async function that serves log records from the capture handler buffer.
 
     Replaces ``TelemetryQueryService.get_log_records`` in E2E tests so the seeded
@@ -256,7 +260,7 @@ def make_log_records_from_buffer(handler: LogCaptureHandler):
         source_tier: str | None = None,
     ) -> list[dict]:
         # dup-ignore-end
-        entries: list[LogEntry] = list(handler.buffer)
+        entries: list[LogEntry] = handler.captured
         result = [e.to_dict() for e in entries]
         if since is not None:
             result = [r for r in result if r["timestamp"] >= since]

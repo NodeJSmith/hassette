@@ -211,23 +211,27 @@ export const useAppStore = create<AppStore>()((set) => ({
     // (e.g. calling clearServiceStatus()) would make atomicity depend on React's batching
     // rather than the shape of the code — a component could then observe an intermediate
     // render where connection is "connected" but serviceStatus/appStatus are stale.
-    set(() => ({
+    set((state) => ({
       connection: "connected",
       uptimeSeconds: data.uptime_seconds,
       systemVersion: data.version ?? null,
       // `isReconnect && {...}` is `false` (spreads to nothing) on first connect, or the object
-      // (spreads its fields in) on reconnect — clears stale data only when reconnecting.
-      // appStatus must clear here too: an instance's status/exception can change while
-      // disconnected (the missed app_status_changed event is never replayed), and
+      // (spreads its fields in) on reconnect — clears stale data / triggers catch-up only when
+      // reconnecting. appStatus must clear here too: an instance's status/exception can change
+      // while disconnected (the missed app_status_changed event is never replayed), and
       // instanceLiveStatus()/instanceLiveError() prefer any existing appStatus entry over the
       // freshly-refetched manifest data (see the reconnect invalidateQueries() call in
       // use-websocket.ts) for as long as it stays around -- so a stale entry can outlive the
-      // refetch it was supposed to be superseded by. Logs carry no such staleness concern here
-      // — there's no WS-delivered log buffer to clear; the cursor-based fetch in use-log-data.ts
-      // handles reconnect catch-up on its own via `since_id`.
+      // refetch it was supposed to be superseded by. Logs bump `logHintVersion` here instead: that
+      // is the only trigger use-log-data.ts's cursor-based catch-up watches, so without this the
+      // `since_id` backfill it's built around never actually runs on reconnect — the disconnect
+      // gap would otherwise be silently absorbed only by the unrelated, unfiltered
+      // `invalidateQueries()` in use-websocket.ts, which drops anything older than one base-query
+      // page instead of backfilling it.
       ...(isReconnect && {
         serviceStatus: {},
         appStatus: {},
+        logHintVersion: state.logHintVersion + 1,
       }),
     })),
 }));

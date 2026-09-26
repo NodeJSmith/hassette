@@ -23,7 +23,11 @@ from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
-from hassette.logging_ import LogEntry
+from hassette.logging_ import (
+    LogCaptureHandler,
+    LogEntry,
+    _build_log_entry,  # pyright: ignore[reportPrivateUsage]
+)
 from hassette.resources.base import Resource
 from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.scheduler import Scheduler
@@ -467,6 +471,29 @@ def make_log_record(
     test files. Every field is an explicit keyword so callers spell out only what matters.
     """
     return logging.LogRecord(name, level, pathname, lineno, msg, args, exc_info)
+
+
+class RecordingLogCaptureHandler(LogCaptureHandler):
+    """A `LogCaptureHandler` that also records every `LogEntry` it builds, for test assertions.
+
+    Production `LogCaptureHandler` no longer retains captured entries (see `_build_log_entry`) —
+    it only broadcasts a hint. Tests that need to inspect the constructed `LogEntry` objects
+    (correlation attrs, message content, shutdown-guard behavior) use this subclass as their
+    observation seam instead.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.captured: list[LogEntry] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.captured.append(_build_log_entry(record))
+        super().emit(record)
+
+
+def make_recording_log_capture_handler() -> RecordingLogCaptureHandler:
+    """Build a `RecordingLogCaptureHandler` for observing `LogCaptureHandler.emit()` behavior."""
+    return RecordingLogCaptureHandler()
 
 
 def make_mock_executor() -> MagicMock:

@@ -455,9 +455,6 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     )
     """Allowed CORS origins for the web API, typically the UI dev server."""
 
-    log_buffer_size: int = Field(default=2000)
-    """Maximum number of log entries to keep in the LogCaptureHandler ring buffer."""
-
     job_history_size: int = Field(default=1000)
     """Maximum number of job execution records to keep."""
 

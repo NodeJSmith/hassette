@@ -14,7 +14,7 @@ from hassette.logging_ import (
     LogCaptureHandler,
     LogPersistenceHandler,
 )
-from tests.support.factories import make_log_record
+from tests.support.factories import make_log_record, make_recording_log_capture_handler
 from tests.support.mock_hassette import make_mock_hassette
 
 
@@ -66,7 +66,7 @@ def make_logging_service(
     svc._teardown_report = None
     # Wire the stream handler via proper __init__ path but skip super().__init__
     svc._stream_handler = stream_handler
-    svc.capture_handler = LogCaptureHandler(buffer_size=hassette.config.web_api.log_buffer_size)
+    svc.capture_handler = LogCaptureHandler()
     svc.persistence_handler = None
     svc._queue_listener = None
     svc._queue_handler = None
@@ -568,17 +568,18 @@ class TestSyncToAsyncSwap:
         hassette.database_service = make_db_service()
         stream_handler = logging.StreamHandler()
 
-        pre_capture = LogCaptureHandler(buffer_size=500)
+        pre_capture = make_recording_log_capture_handler()
         hassette_logger.addHandler(stream_handler)
         hassette_logger.addHandler(pre_capture)
 
         svc = make_logging_service(stream_handler=stream_handler, hassette=hassette)
+        svc.capture_handler = make_recording_log_capture_handler()
 
         n = 5
         for i in range(n):
             hassette_logger.warning("pre-init record %d", i)
 
-        pre_init_msgs = [e for e in pre_capture.buffer if e.message.startswith("pre-init record")]
+        pre_init_msgs = [e for e in pre_capture.captured if e.message.startswith("pre-init record")]
         assert len(pre_init_msgs) == n
 
         await svc.on_initialize()
@@ -590,7 +591,9 @@ class TestSyncToAsyncSwap:
         await asyncio.sleep(0.1)
 
         try:
-            post_init_msgs = [e.message for e in svc.capture_handler.buffer if e.message.startswith("post-init record")]
+            post_init_msgs = [
+                e.message for e in svc.capture_handler.captured if e.message.startswith("post-init record")
+            ]
             assert len(post_init_msgs) == m, (
                 f"Expected {m} post-init records in capture handler, got {len(post_init_msgs)}: {post_init_msgs}"
             )

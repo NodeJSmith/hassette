@@ -198,8 +198,14 @@ export const RENDER_CAP = 200;
 export const SEARCH_DEBOUNCE_MS = 150;
 export const REST_FETCH_LIMIT = 1000;
 
+// Page size for hint-triggered catch-up fetches against GET /logs/since/{since_id}, whose
+// server-side cap (MAX_QUERY_LIMIT, src/hassette/schemas/query_constants.py) is 500 — lower than
+// REST_FETCH_LIMIT, which is sized for the higher-limit /logs/recent base query instead. Keep this
+// in sync with the backend's MAX_QUERY_LIMIT.
+export const CATCH_UP_FETCH_LIMIT = 500;
+
 // Ceiling on the hint-triggered catch-up cache (use-log-data.ts's mergeCatchUpBatch) — without
 // this, the cache grows monotonically for the life of the mount under steady log traffic. Sized to
-// comfortably exceed one full CATCH_UP_MAX_PAGES episode (5 * REST_FETCH_LIMIT) plus the initial
-// base-query page, so a normal catch-up burst never gets trimmed mid-episode.
+// comfortably exceed one full CATCH_UP_MAX_PAGES episode (5 * CATCH_UP_FETCH_LIMIT) plus the
+// initial base-query page, so a normal catch-up burst never gets trimmed mid-episode.
 export const MAX_CACHED_LOG_ENTRIES = 6000;
