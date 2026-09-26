@@ -329,6 +329,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/logs/since/{since_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Logs Since
+         * @description Return log records with ``id > since_id``, ordered by ``id ASC``.
+         *
+         *     Cursor-based catch-up endpoint — distinct from ``/logs/recent``, which orders by
+         *     ``timestamp DESC, seq DESC`` for the recency-first dashboard view. A client that tracks
+         *     the highest ``id`` it has seen can call this to fetch everything it missed (e.g. after a
+         *     WebSocket reconnect) without gaps or duplicates.
+         */
+        get: operations["get_logs_since_api_logs_since__since_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/logs/level": {
         parameters: {
             query?: never;
@@ -2188,6 +2213,44 @@ export interface operations {
             };
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogEntryResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_logs_since_api_logs_since__since_id__get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                app_key?: string | null;
+                level?: string | null;
+                since?: number | null;
+                execution_id?: string | null;
+                source_tier?: string | null;
+            };
+            header?: never;
+            path: {
+                since_id: number;
+            };
             cookie?: never;
         };
         requestBody?: never;

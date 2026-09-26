@@ -226,6 +226,7 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
 
 export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEntryResponse {
   return {
+    id: 1,
     seq: 1,
     timestamp: 1700000000,
     level: "INFO",

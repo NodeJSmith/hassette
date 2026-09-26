@@ -727,6 +727,146 @@
         }
       }
     },
+    "/api/logs/since/{since_id}": {
+      "get": {
+        "tags": [
+          "logs"
+        ],
+        "summary": "Get Logs Since",
+        "description": "Return log records with ``id > since_id``, ordered by ``id ASC``.\n\nCursor-based catch-up endpoint \u2014 distinct from ``/logs/recent``, which orders by\n``timestamp DESC, seq DESC`` for the recency-first dashboard view. A client that tracks\nthe highest ``id`` it has seen can call this to fetch everything it missed (e.g. after a\nWebSocket reconnect) without gaps or duplicates.",
+        "operationId": "get_logs_since_api_logs_since__since_id__get",
+        "parameters": [
+          {
+            "name": "since_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "title": "Since Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "app_key",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "App Key"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Level"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "name": "execution_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Execution Id"
+            }
+          },
+          {
+            "name": "source_tier",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Tier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LogEntryResponse"
+                  },
+                  "title": "Response Get Logs Since Api Logs Since  Since Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/logs/level": {
       "put": {
         "tags": [
