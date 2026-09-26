@@ -9,6 +9,7 @@ import { createSystemStatus } from "../test/factories";
 // dup-ignore-end
 import { createWouterMock } from "../test/mock-wouter";
 import {
+  expectLogHintVersionIncrementedBy,
   expectReconnectAfterBackoff,
   MockWebSocket,
   reconnectWebSocket,
@@ -402,7 +403,7 @@ describe("useWebSocket", () => {
       ws.simulateMessage({ type: "log_hint", timestamp: 1000 });
     });
 
-    expect(useAppStore.getState().logHintVersion).toBe(versionBefore + 1);
+    expectLogHintVersionIncrementedBy(versionBefore);
   });
 
   it("increments logHintVersion once per log_hint message received", () => {

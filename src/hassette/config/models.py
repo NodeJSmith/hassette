@@ -207,7 +207,13 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     """Maximum size of the inter-thread log queue. Records are dropped when the queue is full."""
 
     log_persistence_level: LOG_ANNOTATION = Field(default="INFO")
-    """Minimum log level for database persistence. Records below this level are not stored."""
+    """Minimum log level for database persistence. Records below this level are not stored.
+
+    Effectively clamped to never exceed ``log_level``: the web UI's log view reads exclusively
+    from persisted records, so raising ``log_level`` (e.g. to ``"DEBUG"`` for troubleshooting)
+    also raises the persistence floor to match, guaranteeing anything visible in the live log
+    stream is queryable too. Lower this below ``log_level`` to persist less than you log; it can
+    never be raised above ``log_level`` to persist more."""
 
     log_retention_days: int = Field(default=3, ge=1)
     """Number of days to retain persisted log records. Must be <= database.retention_days."""

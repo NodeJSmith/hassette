@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ConnectedPayload } from "../api/ws-types";
+import { expectLogHintVersionIncrementedBy } from "../test/websocket-test-utils";
 import { initialState, useAppStore } from "./store";
 
 function createConnectedPayload(overrides: Partial<ConnectedPayload> = {}): ConnectedPayload {
@@ -96,7 +97,7 @@ describe("useAppStore", () => {
 
       useAppStore.getState().handleWsConnected(createConnectedPayload(), true);
 
-      expect(useAppStore.getState().logHintVersion).toBe(versionBefore + 1);
+      expectLogHintVersionIncrementedBy(versionBefore);
     });
 
     it("sets systemVersion from payload, falling back to null when omitted", () => {
@@ -119,7 +120,7 @@ describe("useAppStore", () => {
 
       useAppStore.getState().incrementLogHint();
 
-      expect(useAppStore.getState().logHintVersion).toBe(versionBefore + 1);
+      expectLogHintVersionIncrementedBy(versionBefore);
     });
 
     it("increments once per call, coalescing is the caller's responsibility", () => {

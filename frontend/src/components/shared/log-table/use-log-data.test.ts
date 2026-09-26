@@ -1,12 +1,18 @@
 import { act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
 import { queryKeys } from "@/lib/query-keys";
 import { type TimePreset, useAppStore } from "@/state/store";
 import { createLogEntry } from "@/test/factories";
-import { renderLoaded, renderLoadedLogData } from "@/test/log-data-test-utils";
+import {
+  renderLoaded,
+  renderLoadedLogData,
+  stubCountingEndpoint,
+  stubCountingHandler,
+  useFakeTimersForCatchUp,
+} from "@/test/log-data-test-utils";
 import { createTestQueryClient, renderHookWithProviders } from "@/test/query-test-utils";
 import { server } from "@/test/server";
 
@@ -68,6 +74,15 @@ function sendHint(): void {
   });
 }
 
+/** Fires a hint, advances past the debounce window, and waits for `assertion` — the common
+ * "trigger a hint-driven catch-up fetch, then wait for its effect" sequence every hint-triggered
+ * test needs. */
+async function triggerHintAndWaitFor(assertion: () => void): Promise<void> {
+  sendHint();
+  await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
+  await vi.waitFor(assertion);
+}
+
 /** Builds `count` log entries with sequential ids starting at `startId`, so tests exercise the
  * `id`-based cursor without hand-writing each entry. */
 function makeEntries(count: number, startId: number): LogEntry[] {
@@ -120,17 +135,16 @@ describe("useLogData", () => {
       expect(url.searchParams.get("limit")).toBe(String(REST_FETCH_LIMIT));
     });
 
-    it("populates restEntries and allEntries with the fetched entries", async () => {
+    it("populates allEntries with the fetched entries", async () => {
       seedState();
       const entries = makeEntries(2, 1);
 
       const result = await renderLoadedLogData(entries);
 
-      expect(result.current.restEntries).toHaveLength(2);
       expect(result.current.allEntries).toHaveLength(2);
       // Order isn't the raw fetch-response order — the base query now merges through
       // mergeCatchUpBatch (id-descending), matching real /logs/recent's own latest-N-DESC shape.
-      expect(result.current.restEntries.map((e) => e.message).sort()).toEqual(entries.map((e) => e.message).sort());
+      expect(result.current.allEntries.map((e) => e.message).sort()).toEqual(entries.map((e) => e.message).sort());
     });
   });
 
@@ -160,24 +174,17 @@ describe("useLogData", () => {
 
     it("refetches when the time preset changes", async () => {
       seedState("1h");
-      let fetchCount = 0;
-
-      server.use(
-        http.get(LOGS_ENDPOINT, () => {
-          fetchCount++;
-          return HttpResponse.json([]);
-        }),
-      );
+      const getFetchCount = stubCountingEndpoint(LOGS_ENDPOINT);
 
       await renderLoaded();
-      const firstFetchCount = fetchCount;
+      const firstFetchCount = getFetchCount();
 
       await act(() => {
         useAppStore.setState({ timePreset: "24h" });
       });
 
       await vi.waitFor(() => {
-        expect(fetchCount).toBeGreaterThan(firstFetchCount);
+        expect(getFetchCount()).toBeGreaterThan(firstFetchCount);
       });
     });
 
@@ -209,18 +216,12 @@ describe("useLogData", () => {
       const result = await renderLoaded();
 
       expect(toast.error).toHaveBeenCalledTimes(1);
-      expect(result.current.restEntries).toHaveLength(0);
+      expect(result.current.allEntries).toHaveLength(0);
     });
   });
 
   describe("hint-triggered catch-up", () => {
-    beforeEach(() => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+    useFakeTimersForCatchUp();
 
     it("fetches from /logs/since after a debounced log_hint, preserving appKey/executionId/since", async () => {
       seedState("1h");
@@ -240,9 +241,7 @@ describe("useLogData", () => {
         }),
       );
 
-      sendHint();
-      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
-      await vi.waitFor(() => {
+      await triggerHintAndWaitFor(() => {
         expect(result.current.allEntries.map((e) => e.id)).toContain(newEntry.id);
       });
 
@@ -255,13 +254,7 @@ describe("useLogData", () => {
 
     it("coalesces 10+ hints within the debounce window into a single fetch", async () => {
       seedState();
-      let fetchCount = 0;
-      server.use(
-        http.get(LOGS_SINCE_ENDPOINT, () => {
-          fetchCount++;
-          return HttpResponse.json([]);
-        }),
-      );
+      const getFetchCount = stubCountingEndpoint(LOGS_SINCE_ENDPOINT);
 
       await renderLoadedLogData(makeEntries(1, 1));
 
@@ -272,19 +265,13 @@ describe("useLogData", () => {
       await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
 
       await vi.waitFor(() => {
-        expect(fetchCount).toBe(1);
+        expect(getFetchCount()).toBe(1);
       });
     });
 
     it("fires a catch-up fetch at least every maxWait window under sustained hints", async () => {
       seedState();
-      let fetchCount = 0;
-      server.use(
-        http.get(LOGS_SINCE_ENDPOINT, () => {
-          fetchCount++;
-          return HttpResponse.json([]);
-        }),
-      );
+      const getFetchCount = stubCountingEndpoint(LOGS_SINCE_ENDPOINT);
 
       await renderLoadedLogData(makeEntries(1, 1));
 
@@ -296,7 +283,7 @@ describe("useLogData", () => {
 
       // maxWait (500ms) must have forced at least one fetch despite the continuous debounce reset.
       await vi.waitFor(() => {
-        expect(fetchCount).toBeGreaterThanOrEqual(1);
+        expect(getFetchCount()).toBeGreaterThanOrEqual(1);
       });
     });
 
@@ -309,10 +296,7 @@ describe("useLogData", () => {
       const fresh = makeEntries(1, 2)[0];
       server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([duplicate, fresh])));
 
-      sendHint();
-      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
-
-      await vi.waitFor(() => {
+      await triggerHintAndWaitFor(() => {
         expect(result.current.allEntries).toHaveLength(2);
         expect(result.current.allEntries.map((e) => e.id).sort()).toEqual([1, 2]);
       });
@@ -327,13 +311,44 @@ describe("useLogData", () => {
       const resetBatch = makeEntries(3, 1);
       server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(resetBatch)));
 
-      sendHint();
-      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
-
-      await vi.waitFor(() => {
+      await triggerHintAndWaitFor(() => {
         expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2, 3]);
       });
       expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
+    });
+
+    it("detects a reset even when the catch-up fetch itself comes back empty, via a /logs/recent probe", async () => {
+      seedState();
+      const rest = makeEntries(1, 50);
+      const result = await renderLoadedLogData(rest);
+
+      // Simulates a DB reset where the fresh max id (3) is still below the stale cursor (50) —
+      // /logs/since/50 can only ever return id > 50, so it comes back empty even though the DB
+      // now holds fresh, lower-id records the probe must catch instead.
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([])));
+      const probeEntry = makeEntries(1, 3)[0];
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([probeEntry])));
+
+      await triggerHintAndWaitFor(() => {
+        expect(result.current.allEntries.map((e) => e.id)).toEqual([3]);
+      });
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
+    });
+
+    it("does not toast or change the cache when the reset probe finds nothing new", async () => {
+      seedState();
+      const rest = makeEntries(1, 50);
+      const result = await renderLoadedLogData(rest);
+
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([])));
+      // A genuinely quiet stream: the probe re-observes the same entry already cached.
+      const getProbeCount = stubCountingEndpoint(LOGS_ENDPOINT, rest);
+
+      await triggerHintAndWaitFor(() => {
+        expect(getProbeCount()).toBe(1);
+      });
+      expect(result.current.allEntries.map((e) => e.id)).toEqual([50]);
+      expect(toast.error).not.toHaveBeenCalled();
     });
 
     it("chains catch-up fetches when a full page is returned, stopping at the 5-page cap", async () => {
@@ -379,13 +394,7 @@ describe("useLogData", () => {
 
     it("does not retry a 4xx catch-up failure, and toasts only once per scopedKey across repeated hint episodes", async () => {
       seedState();
-      let fetchCount = 0;
-      server.use(
-        http.get(LOGS_SINCE_ENDPOINT, () => {
-          fetchCount++;
-          return HttpResponse.json({ detail: "limit too large" }, { status: 422 });
-        }),
-      );
+      const getFetchCount = stubCountingEndpoint(LOGS_SINCE_ENDPOINT, { detail: "limit too large" }, { status: 422 });
 
       await renderLoadedLogData(makeEntries(1, 1));
 
@@ -397,7 +406,7 @@ describe("useLogData", () => {
       await vi.waitFor(() => {
         expect(toast.error).toHaveBeenCalledTimes(1);
       });
-      expect(fetchCount).toBe(1);
+      expect(getFetchCount()).toBe(1);
 
       vi.mocked(toast.error).mockClear();
 
@@ -407,7 +416,7 @@ describe("useLogData", () => {
       await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS + 500);
 
       await vi.waitFor(() => {
-        expect(fetchCount).toBe(2);
+        expect(getFetchCount()).toBe(2);
       });
       expect(toast.error).not.toHaveBeenCalled();
     });
@@ -439,9 +448,7 @@ describe("useLogData", () => {
       );
 
       // First hint: debounce fires, starting the first (now-hanging) fetch.
-      sendHint();
-      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
-      await vi.waitFor(() => {
+      await triggerHintAndWaitFor(() => {
         expect(callCount).toBe(1);
       });
 
@@ -478,10 +485,7 @@ describe("useLogData", () => {
       const fresh = makeEntries(freshCount, existingCount + 1);
       server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(fresh)));
 
-      sendHint();
-      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
-
-      await vi.waitFor(() => {
+      await triggerHintAndWaitFor(() => {
         expect(result.current.allEntries).toHaveLength(MAX_CACHED_LOG_ENTRIES);
       });
 
@@ -493,31 +497,19 @@ describe("useLogData", () => {
   });
 
   describe("periodic re-sync", () => {
-    beforeEach(() => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+    useFakeTimersForCatchUp();
 
     it("fires a catch-up fetch on an interval even with no hint activity", async () => {
       seedState();
-      let fetchCount = 0;
-      server.use(
-        http.get(LOGS_SINCE_ENDPOINT, () => {
-          fetchCount++;
-          return HttpResponse.json([]);
-        }),
-      );
+      const getFetchCount = stubCountingEndpoint(LOGS_SINCE_ENDPOINT);
 
       await renderLoadedLogData(makeEntries(1, 1));
 
-      expect(fetchCount).toBe(0);
+      expect(getFetchCount()).toBe(0);
       await vi.advanceTimersByTimeAsync(PERIODIC_RESYNC_MS);
 
       await vi.waitFor(() => {
-        expect(fetchCount).toBe(1);
+        expect(getFetchCount()).toBe(1);
       });
     });
 
@@ -551,34 +543,21 @@ describe("useLogData", () => {
   });
 
   describe("catch-up cancellation", () => {
-    beforeEach(() => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+    useFakeTimersForCatchUp();
 
     it("stops the catch-up chain's retries after unmount", async () => {
       seedState();
-      let fetchCount = 0;
       server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
-      server.use(
-        http.get(LOGS_SINCE_ENDPOINT, () => {
-          fetchCount++;
-          return HttpResponse.error();
-        }),
-      );
+      const getFetchCount = stubCountingHandler(LOGS_SINCE_ENDPOINT, () => HttpResponse.error());
 
       const { result, unmount } = renderHookWithProviders(() => useLogData({}));
       await vi.waitFor(() => {
         expect(result.current.loading).toBe(false);
       });
 
-      sendHint();
-      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS); // debounce fires, first attempt starts and fails
-      await vi.waitFor(() => {
-        expect(fetchCount).toBe(1);
+      // debounce fires, first attempt starts and fails
+      await triggerHintAndWaitFor(() => {
+        expect(getFetchCount()).toBe(1);
       });
 
       unmount();
@@ -586,19 +565,13 @@ describe("useLogData", () => {
       // Advance through the full 3-retry backoff window the chain would otherwise have run
       // through — no further attempts should occur.
       await vi.advanceTimersByTimeAsync(CATCH_UP_FULL_RETRY_WINDOW_MS + 500);
-      expect(fetchCount).toBe(1);
+      expect(getFetchCount()).toBe(1);
     });
 
     it("stops the catch-up chain's retries after a filter change (new scopedKey)", async () => {
       seedState();
-      let fetchCount = 0;
       server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
-      server.use(
-        http.get(LOGS_SINCE_ENDPOINT, () => {
-          fetchCount++;
-          return HttpResponse.error();
-        }),
-      );
+      const getFetchCount = stubCountingHandler(LOGS_SINCE_ENDPOINT, () => HttpResponse.error());
 
       const { result, rerender } = renderHookWithProviders((props: { appKey?: string }) => useLogData(props), {
         initialProps: { appKey: "app-a" },
@@ -607,10 +580,9 @@ describe("useLogData", () => {
         expect(result.current.loading).toBe(false);
       });
 
-      sendHint();
-      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS); // debounce fires, first attempt starts and fails
-      await vi.waitFor(() => {
-        expect(fetchCount).toBe(1);
+      // debounce fires, first attempt starts and fails
+      await triggerHintAndWaitFor(() => {
+        expect(getFetchCount()).toBe(1);
       });
 
       act(() => rerender({ appKey: "app-b" })); // scopedKey changes — old chain's signal aborts
@@ -619,18 +591,12 @@ describe("useLogData", () => {
       // fired, but stay well under PERIODIC_RESYNC_MS so the unrelated periodic-poll feature (which
       // now legitimately runs for the new app-b scopedKey) can't also increment fetchCount here.
       await vi.advanceTimersByTimeAsync(CATCH_UP_INITIAL_BACKOFF_MS + 500);
-      expect(fetchCount).toBe(1);
+      expect(getFetchCount()).toBe(1);
     });
   });
 
   describe("base-query merge", () => {
-    beforeEach(() => {
-      vi.useFakeTimers({ shouldAdvanceTime: true });
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+    useFakeTimersForCatchUp();
 
     it("does not let a base-query refetch erase entries a catch-up already merged in", async () => {
       seedState();
@@ -653,9 +619,7 @@ describe("useLogData", () => {
       });
       expect(recentCallCount).toBe(1);
 
-      sendHint();
-      await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
-      await vi.waitFor(() => {
+      await triggerHintAndWaitFor(() => {
         expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2]);
       });
 

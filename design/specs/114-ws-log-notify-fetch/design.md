@@ -322,3 +322,28 @@ Not needed: System tests (no reconnection behavior changes), E2E (transparent pl
 ## Open Questions
 
 (None — all questions resolved during discovery.)
+
+## Addendum
+
+### 2026-09-26: reset detection couldn't see an empty catch-up response
+
+AC#9's reset detection compares the catch-up batch's max `id` against the cached cursor — but
+`/logs/since/{since_id}` filters on `id > since_id`, so after a DB reset (ids restart below the
+stale cursor) the endpoint returns an **empty** array, not a low-id one. The merge function
+short-circuited on empty results before ever reaching the comparison, so a reset was invisible to
+every subsequent catch-up fetch (hint-triggered or periodic) until an unrelated base-query
+refresh happened to run. Fixed by probing `/logs/recent?limit=1` whenever a catch-up fetch comes
+back empty against a non-empty cache, and merging that probe result through the same
+`mergeCatchUpBatch` — a quiet stream re-merges its own cached tail (no-op); a reset surfaces via
+the existing max-id comparison. See `probeForReset()` in `use-log-data.ts`.
+
+### 2026-09-26: persistence level can silently exceed log level
+
+`log_persistence_level` (default `INFO`) and `log_level` are independent settings — raising
+`log_level` to `DEBUG` for troubleshooting doesn't raise persistence with it. Since the frontend
+now reads exclusively from persisted records (no more WS-pushed payload), any level between the
+two was emitted but never viewable — a regression versus the old WS path, which delivered live
+records regardless of persistence. `LoggingService.on_initialize()` now clamps the effective
+persistence level to `min(log_persistence_level, log_level)`, so raising `log_level` always
+raises the persistence floor to match. Lowering `log_persistence_level` below `log_level` (to
+persist less than is logged) still works as before.

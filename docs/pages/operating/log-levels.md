@@ -49,7 +49,9 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 | `"console"` | Human-readable format with colors and alignment |
 | `"json"` | Structured JSON, one object per line |
 
-`log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command queries. Defaults to `INFO`. Set to `DEBUG` if you want debug output queryable via `hassette log`.
+`log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command and the web dashboard's log view both read from. Defaults to `INFO`. Set to `DEBUG` if you want debug output queryable via `hassette log` or visible on the dashboard.
+
+Hassette clamps this to `log_level` automatically — persistence can never be stricter than what's actually being logged. Raise `log_level` to `DEBUG` and the persistence floor rises with it, so nothing visible in the console silently disappears from the log view. Lower `log_persistence_level` below `log_level` if you want quieter storage while the console still shows the full stream.
 
 `log_retention_days` (default 3) sets how long persisted records live before the hourly retention pass deletes them. It must be ≤ `retention_days` under `[hassette.database]` (see [Database & Telemetry](../core-concepts/database-telemetry.md)).
 

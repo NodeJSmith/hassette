@@ -17,7 +17,6 @@ import type { FilterState, LevelFilter, LogSortState, TierFilter } from "./types
 
 interface UseLogFiltersParams {
   allEntries: LogEntry[];
-  restEntries: LogEntry[];
   useLocalState?: boolean;
   appKey?: string;
   executionId?: string | null;
@@ -129,7 +128,6 @@ export function filterLogEntries(
 
 export function useLogFilters({
   allEntries,
-  restEntries,
   useLocalState = false,
   appKey,
   executionId,
@@ -200,8 +198,21 @@ export function useLogFilters({
 
   const livePaused = filterState.sort.key !== "timestamp";
 
+  // Freezes the table's data source the moment the user pauses live updates (sorts by anything
+  // but timestamp), so hint/catch-up merges arriving while "paused — click to resume" is shown
+  // don't keep changing or reordering what's on screen. Only re-snapshots on the false->true
+  // transition — while livePaused stays true across renders, the same captured array keeps
+  // being reused. Resuming (sort back to timestamp) drops the snapshot and reads allEntries live
+  // again immediately, no staleness.
+  const wasLivePausedRef = useRef(false);
+  const pausedSnapshotRef = useRef<LogEntry[]>(allEntries);
+  if (livePaused && !wasLivePausedRef.current) {
+    pausedSnapshotRef.current = allEntries;
+  }
+  wasLivePausedRef.current = livePaused;
+
   const { level, tier, app, search, func, sort } = filterState;
-  const source = livePaused ? restEntries : allEntries;
+  const source = livePaused ? pausedSnapshotRef.current : allEntries;
 
   const filtered = useMemo(
     () => filterLogEntries(source, { level, tier, app, search, func, sort }),

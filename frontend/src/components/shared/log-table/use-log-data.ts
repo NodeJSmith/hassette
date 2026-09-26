@@ -18,11 +18,11 @@ interface UseLogDataParams {
 }
 
 interface UseLogDataResult {
-  /** REST entries, including hint-triggered catch-up merges. Kept alongside `restEntries` — both
-   * are currently identical, since there is no more WS-pushed content to distinguish them from —
-   * so downstream consumers (`use-log-filters.ts`'s livePaused freeze) don't need to change. */
+  /** The live, continuously-merged entry cache — base-query results plus every hint-triggered
+   * catch-up merge. `useLogFilters` is responsible for freezing its own snapshot of this when
+   * the user pauses live updates (e.g. by sorting); this hook has only one data source to give
+   * it. */
   allEntries: LogEntry[];
-  restEntries: LogEntry[];
   loading: boolean;
 }
 
@@ -172,6 +172,37 @@ function mergeCatchUpBatch(queryClient: QueryClient, scopedKey: readonly unknown
   });
 }
 
+/** After an empty `/logs/since` page — which can mean either "nothing new" or "the DB was reset
+ * and this cursor now exceeds every id in it" (the endpoint's `id > since_id` filter returns
+ * empty either way, so it can never distinguish the two on its own) — probes `/logs/recent?
+ * limit=1` for the actual latest record and merges it through `mergeCatchUpBatch`, which already
+ * knows how to detect and recover from a reset via its own max-id comparison. A quiet stream just
+ * re-merges its own already-cached tail (deduped, so a no-op); a reset surfaces the standard
+ * "Log stream reset" notice and discards the stale cache, unblocking every subsequent catch-up
+ * fetch. Best-effort: a failed probe defers the check to the next tick rather than blocking or
+ * toasting on its own — the caller has already returned by the time this settles. */
+async function probeForReset(
+  queryClient: QueryClient,
+  scopedKey: readonly unknown[],
+  context: CatchUpContext,
+  signal: AbortSignal,
+): Promise<void> {
+  const { appKey, executionId, since } = context;
+  try {
+    const latest = await queryClient.fetchQuery<LogEntry[]>({
+      queryKey: [...scopedKey, "reset-probe"],
+      queryFn: ({ signal: fetchSignal }) => getRecentLogs({ appKey, executionId, since, limit: 1 }, fetchSignal),
+      staleTime: 0,
+      gcTime: 0,
+      retry: false,
+    });
+    if (signal.aborted) return;
+    mergeCatchUpBatch(queryClient, scopedKey, latest);
+  } catch {
+    // Best-effort — see docstring above.
+  }
+}
+
 /** Runs one catch-up episode: fetch from the cache's current cursor, merge, and — if the page was
  * full — repeat with the advanced cursor, up to `CATCH_UP_MAX_PAGES` consecutive full pages.
  *
@@ -230,7 +261,12 @@ async function performCatchUp(
     if (signal.aborted) return;
     permanentFailureKeyRef.current = null;
 
-    if (results.length === 0) return;
+    if (results.length === 0) {
+      // sinceId > 0 means there's a cursor a reset could actually invalidate — an empty cache
+      // has nothing to protect, so skip the extra request.
+      if (sinceId > 0) await probeForReset(queryClient, scopedKey, context, signal);
+      return;
+    }
 
     mergeCatchUpBatch(queryClient, scopedKey, results);
 
@@ -397,7 +433,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
 
   useCatchUpScheduler(queryClient, { scopedKey, appKey, executionId, since, isWaitingForUptime, logHintVersion });
 
-  const restEntries = useMemo<LogEntry[]>(() => data ?? [], [data]);
+  const allEntries = useMemo<LogEntry[]>(() => data ?? [], [data]);
 
-  return { allEntries: restEntries, restEntries, loading: isPending };
+  return { allEntries, loading: isPending };
 }

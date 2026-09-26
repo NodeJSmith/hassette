@@ -261,7 +261,10 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
     ) -> list[dict]:
         # dup-ignore-end
         entries: list[LogEntry] = handler.captured
-        result = [e.to_dict() for e in entries]
+        # LogEntryResponse.id is a DB-only concept LogEntry doesn't carry (it's the in-memory
+        # pre-persistence capture). seq is already a unique, monotonic per-session counter, so it
+        # stands in for id here — this buffer is the only "database" e2e tests have.
+        result = [{**e.to_dict(), "id": e.seq} for e in entries]
         if since is not None:
             result = [r for r in result if r["timestamp"] >= since]
         if app_key is not None:

@@ -213,6 +213,36 @@ class TestLoggingServiceOnInitialize:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
 
+    async def test_on_initialize_clamps_persistence_level_to_log_level(self) -> None:
+        """A log_level below the persistence default (e.g. DEBUG) raises the persistence floor.
+
+        Prevents a regression where records visible in the console/live log stream are silently
+        unqueryable through the web UI, which now reads exclusively from persisted records.
+        """
+        hassette = make_mock_hassette(sealed=False, logging={"log_level": "DEBUG", "log_persistence_level": "INFO"})
+        hassette.database_service = make_db_service()
+        svc = await make_initialized_logging_service(hassette=hassette)
+
+        try:
+            assert svc.persistence_handler is not None
+            assert svc.persistence_handler._persistence_level == logging.DEBUG
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+
+    async def test_on_initialize_keeps_persistence_level_below_log_level(self) -> None:
+        """A persistence_level deliberately set lower than log_level is left alone."""
+        hassette = make_mock_hassette(sealed=False, logging={"log_level": "INFO", "log_persistence_level": "DEBUG"})
+        hassette.database_service = make_db_service()
+        svc = await make_initialized_logging_service(hassette=hassette)
+
+        try:
+            assert svc.persistence_handler is not None
+            assert svc.persistence_handler._persistence_level == logging.DEBUG
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+
     async def test_on_initialize_swaps_stream_handler_for_queue_handler(self) -> None:
         """After init, the hassette logger uses QueueHandler not StreamHandler."""
         hassette_logger = logging.getLogger("hassette")
