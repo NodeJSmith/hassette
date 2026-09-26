@@ -138,6 +138,30 @@ export const getRecentLogs = (
     { signal },
   );
 
+export const getLogsSince = (
+  sinceId: number,
+  params?: {
+    level?: string;
+    appKey?: string;
+    limit?: number;
+    since?: number | null;
+    executionId?: string | null;
+    sourceTier?: string | null;
+  },
+  signal?: AbortSignal,
+) =>
+  apiFetch<LogEntry[]>(
+    buildUrl(`/logs/since/${sinceId}`, {
+      level: params?.level,
+      app_key: params?.appKey,
+      limit: params?.limit,
+      since: params?.since,
+      execution_id: params?.executionId,
+      source_tier: params?.sourceTier,
+    }),
+    { signal },
+  );
+
 export const getAllListeners = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }), { signal });
 

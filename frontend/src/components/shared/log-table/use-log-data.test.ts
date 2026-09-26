@@ -1,17 +1,19 @@
 import { act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { LogEntry } from "@/api/endpoints";
 import { type TimePreset, useAppStore } from "@/state/store";
 import { createLogEntry } from "@/test/factories";
-import { renderLoaded, renderLoadedLogData, renderLoadedWithRestEntry } from "@/test/log-data-test-utils";
+import { renderLoaded, renderLoadedLogData } from "@/test/log-data-test-utils";
 import { renderHookWithProviders } from "@/test/query-test-utils";
 import { server } from "@/test/server";
 
-import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
+import { MAX_CACHED_LOG_ENTRIES, REST_FETCH_LIMIT } from "./constants";
 import { useLogData } from "./use-log-data";
 
 const LOGS_ENDPOINT = "/api/logs/recent";
+const LOGS_SINCE_ENDPOINT = "/api/logs/since/:sinceId";
 
 vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
@@ -31,6 +33,22 @@ async function waitForLoaded(result: { current: { loading: boolean } }): Promise
   await vi.waitFor(() => {
     expect(result.current.loading).toBe(false);
   });
+}
+
+/** Bumps the store's `log_hint` counter inside `act()` — the trigger `use-log-data.ts` debounces
+ * on. */
+function sendHint(): void {
+  act(() => {
+    useAppStore.getState().incrementLogHint();
+  });
+}
+
+/** Builds `count` log entries with sequential ids starting at `startId`, so tests exercise the
+ * `id`-based cursor without hand-writing each entry. */
+function makeEntries(count: number, startId: number): LogEntry[] {
+  return Array.from({ length: count }, (_, i) =>
+    createLogEntry({ id: startId + i, seq: startId + i, timestamp: 1000 + startId + i, message: `msg-${startId + i}` }),
+  );
 }
 
 beforeEach(() => {
@@ -77,192 +95,15 @@ describe("useLogData", () => {
       expect(url.searchParams.get("limit")).toBe(String(REST_FETCH_LIMIT));
     });
 
-    it("populates restEntries with the fetched entries", async () => {
+    it("populates restEntries and allEntries with the fetched entries", async () => {
       seedState();
-      const entries = [
-        createLogEntry({ seq: 1, timestamp: 1000, message: "first" }),
-        createLogEntry({ seq: 2, timestamp: 2000, message: "second" }),
-      ];
+      const entries = makeEntries(2, 1);
 
       const result = await renderLoadedLogData(entries);
 
       expect(result.current.restEntries).toHaveLength(2);
-      expect(result.current.restEntries[0].message).toBe("first");
-      expect(result.current.restEntries[1].message).toBe("second");
-    });
-
-    it("includes REST entries in allEntries", async () => {
-      seedState();
-      const entries = [createLogEntry({ seq: 1, timestamp: 1000, message: "rest-entry" })];
-
-      const result = await renderLoadedLogData(entries);
-
-      expect(result.current.allEntries.some((e) => e.message === "rest-entry")).toBe(true);
-    });
-  });
-
-  describe("WS merge", () => {
-    it("prepends WS entries above the REST watermark to keep timestamp-desc order", async () => {
-      seedState();
-      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 1000, message: "rest" }));
-
-      act(() => {
-        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
-      });
-
-      await vi.waitFor(() => {
-        expect(result.current.allEntries).toHaveLength(2);
-        expect(result.current.allEntries[0].message).toBe("ws-new");
-        expect(result.current.allEntries[1].message).toBe("rest");
-      });
-    });
-
-    it("orders multiple WS entries newest first before REST entries", async () => {
-      seedState();
-      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 1000, message: "rest" }));
-
-      act(() => {
-        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, message: "ws-older" }));
-        useAppStore.getState().pushLog(createLogEntry({ seq: 3, timestamp: 3000, message: "ws-newer" }));
-      });
-
-      await vi.waitFor(() => {
-        expect(result.current.allEntries.map((e) => e.message)).toEqual(["ws-newer", "ws-older", "rest"]);
-      });
-    });
-
-    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests below that push and check a different message set, not duplicated setup
-    it("excludes WS entries whose rowKey matches a REST entry (deduplication)", async () => {
-      seedState();
-      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 5000, message: "rest" }));
-
-      act(() => {
-        // Same seq+timestamp as REST entry → same rowKey → excluded
-        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 5000, message: "exact-dup" }));
-        // Different seq → different rowKey → included
-        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 5000, message: "same-ts-diff-seq" }));
-        useAppStore.getState().pushLog(createLogEntry({ seq: 3, timestamp: 6000, message: "newer" }));
-      });
-
-      await vi.waitFor(() => {
-        const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toContain("same-ts-diff-seq");
-        expect(messages).toContain("newer");
-        expect(messages).not.toContain("exact-dup");
-      });
-    });
-    // dup-ignore-end
-
-    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
-    it("preserves distinct records that share a timestamp (same-timestamp dedup fix)", async () => {
-      seedState();
-
-      const result = await renderLoadedLogData();
-
-      act(() => {
-        useAppStore.getState().pushLog(createLogEntry({ seq: 10, timestamp: 9000, message: "first" }));
-        useAppStore.getState().pushLog(createLogEntry({ seq: 11, timestamp: 9000, message: "second" }));
-        useAppStore.getState().pushLog(createLogEntry({ seq: 12, timestamp: 9000, message: "third" }));
-      });
-
-      await vi.waitFor(() => {
-        const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toHaveLength(3);
-        expect(messages).toContain("first");
-        expect(messages).toContain("second");
-        expect(messages).toContain("third");
-      });
-    });
-    // dup-ignore-end
-
-    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
-    it("excludes WS entries for a different app_key when appKey is provided", async () => {
-      seedState();
-
-      const result = await renderLoadedLogData([], { appKey: "my_app" });
-
-      act(() => {
-        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 9000, app_key: "my_app", message: "mine" }));
-        useAppStore
-          .getState()
-          .pushLog(createLogEntry({ seq: 2, timestamp: 9001, app_key: "other_app", message: "not-mine" }));
-      });
-
-      await vi.waitFor(() => {
-        const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toContain("mine");
-        expect(messages).not.toContain("not-mine");
-      });
-    });
-    // dup-ignore-end
-
-    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
-    it("excludes WS entries for a different execution_id when executionId is provided", async () => {
-      seedState();
-
-      const result = await renderLoadedLogData([], { executionId: "exec-1" });
-
-      act(() => {
-        useAppStore
-          .getState()
-          .pushLog(createLogEntry({ seq: 1, timestamp: 9000, execution_id: "exec-1", message: "this-exec" }));
-        useAppStore
-          .getState()
-          .pushLog(createLogEntry({ seq: 2, timestamp: 9001, execution_id: "exec-2", message: "other-exec" }));
-      });
-
-      await vi.waitFor(() => {
-        const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toContain("this-exec");
-        expect(messages).not.toContain("other-exec");
-      });
-    });
-    // dup-ignore-end
-
-    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
-    it("includes all WS entries not in the REST set when no filters are provided", async () => {
-      seedState();
-
-      const result = await renderLoadedLogData();
-
-      act(() => {
-        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 1000, app_key: "app-a", message: "a" }));
-        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, app_key: "app-b", message: "b" }));
-      });
-
-      await vi.waitFor(() => {
-        const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toContain("a");
-        expect(messages).toContain("b");
-      });
-    });
-    // dup-ignore-end
-
-    it("throttles live WS entries before exposing them to the table", async () => {
-      seedState();
-
-      const result = await renderLoadedLogData();
-
-      vi.useFakeTimers();
-      try {
-        act(() => {
-          useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 1000, message: "throttled" }));
-        });
-
-        expect(result.current.allEntries.map((e) => e.message)).not.toContain("throttled");
-
-        await act(async () => {
-          vi.advanceTimersByTime(LIVE_LOG_UPDATE_INTERVAL_MS - 1);
-        });
-        expect(result.current.allEntries.map((e) => e.message)).not.toContain("throttled");
-
-        await act(async () => {
-          vi.advanceTimersByTime(1);
-        });
-        expect(result.current.allEntries.map((e) => e.message)).toContain("throttled");
-      } finally {
-        vi.useRealTimers();
-      }
+      expect(result.current.allEntries).toHaveLength(2);
+      expect(result.current.restEntries[0].message).toBe(entries[0].message);
     });
   });
 
@@ -342,6 +183,251 @@ describe("useLogData", () => {
 
       expect(toast.error).toHaveBeenCalledTimes(1);
       expect(result.current.restEntries).toHaveLength(0);
+    });
+  });
+
+  describe("hint-triggered catch-up", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("fetches from /logs/since after a debounced log_hint, preserving appKey/executionId/since", async () => {
+      seedState("1h");
+      const rest = makeEntries(1, 1);
+      let capturedUrl: string | undefined;
+      let capturedSinceId: string | undefined;
+
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(rest)));
+      const result = await renderLoadedLogData(rest, { appKey: "my_app", executionId: "exec-1" });
+
+      const newEntry = makeEntries(1, 2)[0];
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, ({ request, params }) => {
+          capturedUrl = request.url;
+          capturedSinceId = params["sinceId"] as string;
+          return HttpResponse.json([newEntry]);
+        }),
+      );
+
+      sendHint();
+      await vi.advanceTimersByTimeAsync(200);
+      await vi.waitFor(() => {
+        expect(result.current.allEntries.map((e) => e.id)).toContain(newEntry.id);
+      });
+
+      expect(capturedSinceId).toBe("1");
+      const url = new URL(capturedUrl!);
+      expect(url.searchParams.get("app_key")).toBe("my_app");
+      expect(url.searchParams.get("execution_id")).toBe("exec-1");
+      expect(Number(url.searchParams.get("since"))).toBeGreaterThan(0);
+    });
+
+    it("coalesces 10+ hints within the debounce window into a single fetch", async () => {
+      seedState();
+      let fetchCount = 0;
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, () => {
+          fetchCount++;
+          return HttpResponse.json([]);
+        }),
+      );
+
+      const result = await renderLoadedLogData(makeEntries(1, 1));
+
+      for (let i = 0; i < 12; i++) {
+        sendHint();
+        await vi.advanceTimersByTimeAsync(10); // 12 hints across ~120ms — well within the 200ms debounce
+      }
+      await vi.advanceTimersByTimeAsync(200);
+
+      await vi.waitFor(() => {
+        expect(fetchCount).toBe(1);
+      });
+      void result;
+    });
+
+    it("fires a catch-up fetch at least every maxWait window under sustained hints", async () => {
+      seedState();
+      let fetchCount = 0;
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, () => {
+          fetchCount++;
+          return HttpResponse.json([]);
+        }),
+      );
+
+      await renderLoadedLogData(makeEntries(1, 1));
+
+      // Sustained hints every 100ms (< 200ms debounce, so debounce alone never fires) for 1000ms.
+      for (let i = 0; i < 10; i++) {
+        sendHint();
+        await vi.advanceTimersByTimeAsync(100);
+      }
+
+      // maxWait (500ms) must have forced at least one fetch despite the continuous debounce reset.
+      await vi.waitFor(() => {
+        expect(fetchCount).toBeGreaterThanOrEqual(1);
+      });
+    });
+
+    it("merges fetched records into allEntries, deduped by rowKey", async () => {
+      seedState();
+      const rest = makeEntries(1, 1);
+      const result = await renderLoadedLogData(rest);
+
+      const duplicate = { ...rest[0] }; // same id/seq/timestamp → same rowKey
+      const fresh = makeEntries(1, 2)[0];
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([duplicate, fresh])));
+
+      sendHint();
+      await vi.advanceTimersByTimeAsync(200);
+
+      await vi.waitFor(() => {
+        expect(result.current.allEntries).toHaveLength(2);
+        expect(result.current.allEntries.map((e) => e.id).sort()).toEqual([1, 2]);
+      });
+    });
+
+    it("resets the cursor and surfaces a notice when a fetch returns a max id below lastSeenId", async () => {
+      seedState();
+      const rest = makeEntries(1, 50);
+      const result = await renderLoadedLogData(rest);
+
+      // Simulates a DB reset: the batch's max id (3) is below the current cursor (50).
+      const resetBatch = makeEntries(3, 1);
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(resetBatch)));
+
+      sendHint();
+      await vi.advanceTimersByTimeAsync(200);
+
+      await vi.waitFor(() => {
+        expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2, 3]);
+      });
+      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
+    });
+
+    it("chains catch-up fetches when a full page is returned, stopping at the 5-page cap", async () => {
+      seedState();
+      let fetchCount = 0;
+      let nextId = 1;
+
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, () => {
+          fetchCount++;
+          // Always return a full page so the catch-up loop keeps chaining.
+          const page = makeEntries(REST_FETCH_LIMIT, nextId);
+          nextId += REST_FETCH_LIMIT;
+          return HttpResponse.json(page);
+        }),
+      );
+
+      await renderLoadedLogData(makeEntries(1, 0));
+
+      sendHint();
+      // 5 pages x 100ms minimum inter-fetch delay, generous headroom for the fetches themselves.
+      await vi.advanceTimersByTimeAsync(200 + 5 * 100 + 500);
+
+      await vi.waitFor(() => {
+        expect(fetchCount).toBe(5);
+      });
+    });
+
+    it("backs off and reports an error when the catch-up fetch fails", async () => {
+      seedState();
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.error()));
+
+      await renderLoadedLogData(makeEntries(1, 1));
+
+      sendHint();
+      // debounce (200ms) + 3 retries at 1000/1500/2250ms backoff, generous headroom.
+      await vi.advanceTimersByTimeAsync(200 + 1000 + 1500 + 2250 + 500);
+
+      await vi.waitFor(() => {
+        expect(toast.error).toHaveBeenCalled();
+      });
+    });
+
+    it("serializes overlapping catch-up runs instead of racing them, so a slower response never triggers a false reset", async () => {
+      seedState();
+      const rest = makeEntries(1, 1); // cache starts at id=1
+      const result = await renderLoadedLogData(rest);
+
+      let callCount = 0;
+      let releaseFirstCall: (() => void) | undefined;
+
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, async () => {
+          callCount++;
+          if (callCount === 1) {
+            // First run's fetch hangs here — simulates it still being in flight when a second hint
+            // schedules another run. Resolves to id=2, a lower max id than what the second run's
+            // response below will (correctly) advance the cache to.
+            await new Promise<void>((resolve) => {
+              releaseFirstCall = resolve;
+            });
+            return HttpResponse.json(makeEntries(1, 2));
+          }
+          // Second run only reaches this branch after the first has resolved and merged, so its
+          // own sinceId reflects the post-merge cache — never a stale, lower cursor.
+          return HttpResponse.json(makeEntries(1, 10));
+        }),
+      );
+
+      // First hint: debounce fires at +200ms, starting the first (now-hanging) fetch.
+      sendHint();
+      await vi.advanceTimersByTimeAsync(200);
+      await vi.waitFor(() => {
+        expect(callCount).toBe(1);
+      });
+
+      // Second hint arrives while the first fetch is still in flight. Its own debounce/maxWait
+      // cycle elapses, but the guard must defer performCatchUp until the first run settles —
+      // proven by callCount staying at 1 even after this cycle's timers fire.
+      sendHint();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(callCount).toBe(1);
+
+      // Release the first (hanging) response — only now should the second, chained run start.
+      releaseFirstCall?.();
+      await vi.waitFor(() => {
+        expect(callCount).toBe(2);
+      });
+
+      await vi.waitFor(() => {
+        expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2, 10]);
+      });
+      expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
+    });
+
+    it("caps the merged cache at MAX_CACHED_LOG_ENTRIES, dropping the oldest rows", async () => {
+      seedState();
+      const existingCount = MAX_CACHED_LOG_ENTRIES - 10;
+      // `mergeCatchUpBatch` assumes id-DESC cache order (see its docstring); reverse so the seeded
+      // base-query data matches that invariant instead of the ascending order `makeEntries` builds.
+      const rest = makeEntries(existingCount, 1).reverse(); // ids existingCount..1, newest-first
+
+      const result = await renderLoadedLogData(rest);
+      expect(result.current.allEntries).toHaveLength(existingCount);
+
+      const freshCount = 30; // pushes existing+fresh well past the cap
+      const fresh = makeEntries(freshCount, existingCount + 1);
+      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(fresh)));
+
+      sendHint();
+      await vi.advanceTimersByTimeAsync(200);
+
+      await vi.waitFor(() => {
+        expect(result.current.allEntries).toHaveLength(MAX_CACHED_LOG_ENTRIES);
+      });
+
+      const ids = result.current.allEntries.map((e) => e.id);
+      const maxFreshId = existingCount + freshCount;
+      expect(ids).toContain(maxFreshId); // newest rows survive
+      expect(ids).not.toContain(1); // oldest rows are the ones trimmed
     });
   });
 });

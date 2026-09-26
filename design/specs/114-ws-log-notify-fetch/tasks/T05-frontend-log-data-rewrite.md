@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Rewrite use-log-data for hint-triggered REST fetch"
-status: "planned"
+status: "done"
 depends_on: ["T03", "T04"]
 implements: ["FR#6", "FR#7", "FR#8", "AC#4", "AC#5", "AC#6", "AC#9", "AC#10"]
 ---
