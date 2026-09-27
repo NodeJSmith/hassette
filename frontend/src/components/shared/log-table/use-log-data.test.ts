@@ -404,14 +404,16 @@ describe("useLogData", () => {
       // The probe's id (6001) lands strictly between the trimmed display max (6000) and the
       // tracked cursor (6002): comparing against the display cache's own max would miss this as
       // a reset (6001 >= 6000), but comparing against the cursor correctly catches it (6001 < 6002).
-      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([])));
       const probeEntry = createLogEntry({ id: rolledBackA, seq: rolledBackA, timestamp: 5000, message: "post-reset" });
-      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([probeEntry])));
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([])),
+        http.get(LOGS_ENDPOINT, () => HttpResponse.json([probeEntry])),
+      );
 
       await triggerHintAndWaitFor(() => {
         expect(result.current.allEntries.map((e) => e.id)).toEqual([rolledBackA]);
+        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
       });
-      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
     });
 
     it("chains catch-up fetches when a full page is returned, stopping at the 5-page cap", async () => {
@@ -825,13 +827,13 @@ describe("useLogData", () => {
         }),
       );
       server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 100))));
+      // Migration means the reconnect's own limited fetch merges with, rather than replaces, the
+      // pre-reconnect cache — ids 1-6 survive alongside the new id 100.
       await act(async () => {
         useAppStore.setState({ uptimeSeconds: 200 });
-      });
-      await vi.waitFor(() => {
-        // Migration means the reconnect's own limited fetch merges with, rather than replaces,
-        // the pre-reconnect cache — ids 1-6 survive alongside the new id 100.
-        expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 100]);
+        await vi.waitFor(() =>
+          expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 100]),
+        );
       });
 
       // The next catch-up fetch must start from the migrated cursor's advanced value (100, from
@@ -853,12 +855,12 @@ describe("useLogData", () => {
       expect(result.current.allEntries).toHaveLength(1);
 
       server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 200))));
+      // A different app's view starts from a clean slate — no id=1 carried over from app-a.
       await act(() => {
         useAppStore.setState({ uptimeSeconds: 200 });
         rerender({ appKey: "app-b" });
       });
       await vi.waitFor(() => {
-        // A different app's view starts from a clean slate — no id=1 carried over from app-a.
         expect(result.current.allEntries.map((e) => e.id)).toEqual([200]);
       });
     });
