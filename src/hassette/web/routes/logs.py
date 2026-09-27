@@ -12,6 +12,9 @@ from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelRespo
 
 LOGGER = getLogger(__name__)
 
+RECENT_LOGS_DEFAULT_LIMIT = 100
+RECENT_LOGS_LIMIT_CAP = 2000
+
 router = APIRouter(tags=["logs"])
 
 
@@ -19,7 +22,7 @@ router = APIRouter(tags=["logs"])
 async def get_logs(
     telemetry: TelemetryDep,
     response: Response,
-    limit: Annotated[int, Query(ge=1, le=2000)] = 100,
+    limit: Annotated[int, Query(ge=1, le=RECENT_LOGS_LIMIT_CAP)] = RECENT_LOGS_DEFAULT_LIMIT,
     app_key: Annotated[str | None, Query()] = None,
     level: Annotated[str | None, Query()] = None,
     since: Annotated[float | None, Query()] = None,
