@@ -199,9 +199,11 @@ detail.
 
 `harness.api_recorder` exposes a `RecordingApi` that records every call the
 app makes through `self.api`: `turn_on`, `turn_off`, `call_service`,
-`set_state`, `fire_event`, and the `self.api.helpers` create/list/update/delete
+`set_state`, `fire_event`, and the `self.api.helpers` create/update/delete
 methods for Home Assistant helper entities (`input_boolean`, `counter`, and so
 on — see [Managing Helpers](../core-concepts/api/managing-helpers.md)).
+`self.api.helpers.list()` reads the recorder's helper store without recording
+a call, so it cannot be asserted with `assert_called`.
 
 ### assert_called
 
