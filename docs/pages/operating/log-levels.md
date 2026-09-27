@@ -49,11 +49,11 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 | `"console"` | Human-readable format with colors and alignment |
 | `"json"` | Structured JSON, one object per line |
 
-`log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command and the web dashboard's log view both read from. Defaults to `INFO`. Set to `DEBUG` if you want debug output queryable via `hassette log` or visible on the dashboard.
+`log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command and the web dashboard's log view both read from. Defaults to `INFO`. `DEBUG` makes debug output queryable via `hassette log` and visible on the dashboard.
 
 Hassette clamps this to `log_level` automatically — persistence can never be stricter than what's actually being logged. Setting `log_persistence_level` above `log_level` (e.g. `WARNING` while `log_level` stays `INFO`) has no effect; it's silently pulled back down to `log_level`. Raise `log_level` to `DEBUG` and the persistence floor drops with it too, so nothing visible in the console silently disappears from the log view.
 
-`log_persistence_level` is only useful for persisting *more* than the default. A per-service override that logs at `DEBUG` while the global `log_level` stays `INFO` won't be persisted unless you also lower `log_persistence_level` to `DEBUG`. There's no setting that makes storage quieter than whatever is currently being logged.
+`log_persistence_level` is only useful for persisting *more* than the default. A per-service override that logs at `DEBUG` while the global `log_level` stays `INFO` requires `log_persistence_level` to be `DEBUG` as well. There's no setting that makes storage quieter than whatever is currently being logged.
 
 `log_retention_days` (default 3) sets how long persisted records live before the hourly retention pass deletes them. It must be ≤ `retention_days` under `[hassette.database]` (see [Database & Telemetry](../core-concepts/database-telemetry.md)).
 
@@ -61,7 +61,7 @@ Hassette clamps this to `log_level` automatically — persistence can never be s
 
 ## Attaching Loggers Outside the `hassette.` Tree
 
-Python loggers nest by name — `hassette.scheduler` sits under `hassette`, and Hassette's pipeline only wires up that `hassette.*` tree, plus `py.warnings`. A logger created elsewhere — `logging.getLogger("my_app.notify")` in an app's own module, or a third-party library's own logger — inherits Python's default `WARNING` threshold and prints unformatted to stderr instead. Its `INFO` calls never fire, and even its `WARNING`/`ERROR` calls skip console formatting, the live log buffer, and the telemetry database.
+Python loggers nest by name — `hassette.scheduler` sits under `hassette`, and Hassette's pipeline only wires up that `hassette.*` tree, plus `py.warnings`. A logger created elsewhere — `logging.getLogger("my_app.notify")` in an app's own module, or a third-party library's own logger — inherits Python's default `WARNING` threshold and prints unformatted to stderr instead. Its `INFO` calls never fire, and even its `WARNING`/`ERROR` calls skip console formatting and the telemetry database.
 
 `extra_loggers` attaches additional logger names to the exact same pipeline as `hassette` — same handlers, same level, same formatter:
 
@@ -80,7 +80,7 @@ Log records pass through two bounded queues on their way to the database, and ea
 | Log queue full | `log_queue_drops` | `log_queue_max` under `[hassette.logging]` |
 | DB write queue full | `db_write_queue_drops` | `write_queue_max` under `[hassette.database]` |
 
-The log pipeline drops records at two independent queue boundaries. `log_queue_drops` counts records dropped before any handler receives them. These records are absent from console output, the live log buffer, and the database. `db_write_queue_drops` counts records dropped after the persistence handler receives them. These records remain visible in console output and the live buffer, but are absent from the database.
+The log pipeline drops records at two independent queue boundaries. `log_queue_drops` counts records dropped before any handler receives them. These records are absent from console output and the database. `db_write_queue_drops` counts records dropped after the persistence handler receives them. These records can remain visible in configured console output, but are absent from the database and dashboard log view.
 
 Both counters are cumulative since process start. Neither affects app behavior — dropping is what keeps a burst of logging from blocking your automations.
 
