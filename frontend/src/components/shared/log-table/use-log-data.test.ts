@@ -127,6 +127,50 @@ async function refetchRecentLogsAndFlush(queryClient: QueryClient, entries: LogE
   });
 }
 
+/** Stubs `/logs/since/:sinceId` to record each request's `sinceId` param (in call order) into
+ * the returned array, responding via `responseForCall` (1-indexed call count) — defaulting to an
+ * empty page every time. Shared "capture what catch-up asked for" idiom for tests asserting which
+ * cursor a subsequent catch-up fetch started from. */
+function captureSinceIds(responseForCall: (callIndex: number) => LogEntry[] = () => []): string[] {
+  const capturedSinceIds: string[] = [];
+  server.use(
+    http.get(LOGS_SINCE_ENDPOINT, ({ params }) => {
+      capturedSinceIds.push(params["sinceId"] as string);
+      return HttpResponse.json(responseForCall(capturedSinceIds.length));
+    }),
+  );
+  return capturedSinceIds;
+}
+
+/** Triggers a hint and waits for `captureSinceIds`'s array to reach `count` entries. Shared
+ * "wait for the Nth catch-up episode to fire" step for tests built on `captureSinceIds`; each
+ * caller still makes its own assertion afterward about which id(s) were actually captured. */
+async function waitForSinceIdCount(capturedSinceIds: readonly string[], count: number): Promise<void> {
+  await triggerHintAndWaitFor(() => {
+    expect(capturedSinceIds).toHaveLength(count);
+  });
+}
+
+/** Renders `useLogData` for a fresh `since-restart` mount seeded with one base-fetch entry (id
+ * 1), then runs a hint-triggered catch-up that advances the cursor and cache to id 6 (ids 2-6).
+ * Shared "arrange" step for the reconnect tests below, each of which drives its own reconnect
+ * scenario from this common pre-reconnect state (cursor=6, cache=[1..6]). */
+async function renderSinceRestartAtCursorSix() {
+  seedState("since-restart");
+  const queryClient = createTestQueryClient();
+  server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
+
+  const { result } = renderHookWithProviders(() => useLogData({}), { queryClient });
+  await waitForLoaded(result);
+
+  server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(makeEntries(5, 2))));
+  await triggerHintAndWaitFor(() => {
+    expect(result.current.allEntries).toHaveLength(6); // ids 1-6
+  });
+
+  return { result, queryClient };
+}
+
 beforeEach(() => {
   vi.mocked(toast.error).mockClear();
 });
@@ -701,25 +745,15 @@ describe("useLogData", () => {
       const staleTimestampRow = [
         createLogEntry({ id: rolledBackId, seq: rolledBackId, timestamp: 1, message: "rolled-back" }),
       ];
-      const capturedSinceIds: string[] = [];
-      server.use(
-        http.get(LOGS_SINCE_ENDPOINT, ({ params }) => {
-          capturedSinceIds.push(params["sinceId"] as string);
-          return HttpResponse.json(capturedSinceIds.length === 1 ? staleTimestampRow : []);
-        }),
-      );
+      const capturedSinceIds = captureSinceIds((callIndex) => (callIndex === 1 ? staleTimestampRow : []));
 
-      await triggerHintAndWaitFor(() => {
-        expect(capturedSinceIds).toHaveLength(1);
-      });
+      await waitForSinceIdCount(capturedSinceIds, 1);
       // Confirms the setup: the row really was trimmed out of the display cache.
       expect(result.current.allEntries.map((e) => e.id)).not.toContain(rolledBackId);
 
       // A second catch-up episode must request from the row's own id, not re-request the same
       // (now permanently stale) range forever.
-      await triggerHintAndWaitFor(() => {
-        expect(capturedSinceIds).toHaveLength(2);
-      });
+      await waitForSinceIdCount(capturedSinceIds, 2);
       expect(capturedSinceIds[1]).toBe(String(rolledBackId));
     });
   });
@@ -806,6 +840,10 @@ describe("useLogData", () => {
     it("stops the catch-up chain's retries after a filter change (new scopedKey)", async () => {
       seedState();
       server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
+      // dup-ignore-start: same unavoidable "render with a rerenderable appKey, then
+      // triggerHintAndWaitFor" shape as the marker below — each caller's assertion body differs,
+      // so there's nothing left to extract once both the render and the hint trigger are already
+      // their own shared helpers.
       const getFetchCount = stubCountingHandler(LOGS_SINCE_ENDPOINT, () => HttpResponse.error());
 
       const { rerender } = await renderWithRerenderableAppKey("app-a");
@@ -814,6 +852,7 @@ describe("useLogData", () => {
       await triggerHintAndWaitFor(() => {
         expect(getFetchCount()).toBe(1);
       });
+      // dup-ignore-end
 
       act(() => rerender({ appKey: "app-b" })); // scopedKey changes — old chain's signal aborts
 
@@ -830,6 +869,9 @@ describe("useLogData", () => {
 
       let sinceCallCountA = 0;
       let releaseFirstCall: (() => void) | undefined;
+      // dup-ignore-start: same unavoidable "render with a rerenderable appKey, then
+      // triggerHintAndWaitFor" shape as the marker above — see that comment for why this isn't
+      // meaningfully extractable further.
       server.use(
         http.get(LOGS_SINCE_ENDPOINT, async ({ request }) => {
           if (new URL(request.url).searchParams.get("app_key") !== "app-a") return HttpResponse.json([]);
@@ -855,6 +897,7 @@ describe("useLogData", () => {
       await triggerHintAndWaitFor(() => {
         expect(sinceCallCountA).toBe(1);
       });
+      // dup-ignore-end
 
       // Second hint arrives while the first is still in flight — queued behind it, still
       // targeting app-a at this schedule instant.
@@ -874,6 +917,38 @@ describe("useLogData", () => {
       // The queued run must bail via its own already-aborted signal instead of firing a second
       // fetch against the scope nobody's viewing anymore.
       expect(sinceCallCountA).toBe(1);
+    });
+
+    it("aborts the underlying HTTP request itself when scope changes, not just the retry loop around it", async () => {
+      seedState();
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
+
+      // A genuinely hung request (no manual release, unlike the queued-run test above) — the
+      // fix under test is whether abortControllerRef's signal reaches this request at all, not
+      // whether performCatchUp discards a result once one eventually arrives.
+      let capturedSignal: AbortSignal | undefined;
+      // dup-ignore-start: same unavoidable "render with a rerenderable appKey, then
+      // triggerHintAndWaitFor" shape as the markers above — see those comments for why this
+      // isn't meaningfully extractable further (each caller's assertion body differs).
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, ({ request }) => {
+          capturedSignal = request.signal;
+          return new Promise(() => {});
+        }),
+      );
+
+      const { rerender } = await renderWithRerenderableAppKey("app-a");
+
+      await triggerHintAndWaitFor(() => {
+        expect(capturedSignal).toBeDefined();
+      });
+      // dup-ignore-end
+      expect(capturedSignal?.aborted).toBe(false);
+
+      // Scope changes — the effect cleanup calls abortControllerRef.current.abort() for app-a.
+      act(() => rerender({ appKey: "app-b" }));
+
+      expect(capturedSignal?.aborted).toBe(true);
     });
   });
 
@@ -923,29 +998,12 @@ describe("useLogData", () => {
     useFakeTimersForCatchUp();
 
     it("carries the cursor and cached entries forward across a reconnect, instead of abandoning catch-up progress", async () => {
-      seedState("since-restart");
-      const queryClient = createTestQueryClient();
-      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
-
-      const { result } = renderHookWithProviders(() => useLogData({}), { queryClient });
-      await waitForLoaded(result);
-
-      // A hint-triggered catch-up advances the cursor and cache past the base fetch's own entry.
-      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json(makeEntries(5, 2))));
-      await triggerHintAndWaitFor(() => {
-        expect(result.current.allEntries).toHaveLength(6); // ids 1-6
-      });
+      const { result } = await renderSinceRestartAtCursorSix();
 
       // Simulate a WS reconnect: uptimeSeconds changes (appKey/executionId/preset don't), which
       // changes scopedKey and fires a fresh base fetch — a limited, disjoint page as a real
       // reconnect fetch would return, simulating log volume that accumulated while disconnected.
-      const capturedSinceIds: string[] = [];
-      server.use(
-        http.get(LOGS_SINCE_ENDPOINT, ({ params }) => {
-          capturedSinceIds.push(params["sinceId"] as string);
-          return HttpResponse.json([]);
-        }),
-      );
+      const capturedSinceIds = captureSinceIds();
       server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 100))));
       // Migration means the reconnect's own limited fetch merges with, rather than replaces, the
       // pre-reconnect cache — ids 1-6 survive alongside the new id 100.
@@ -956,12 +1014,34 @@ describe("useLogData", () => {
         );
       });
 
-      // The next catch-up fetch must start from the migrated cursor's advanced value (100, from
-      // the post-reconnect fetch), not from the pre-migration value (6) or from 0.
-      await triggerHintAndWaitFor(() => {
-        expect(capturedSinceIds).toHaveLength(1);
+      // The next catch-up fetch must start from the migrated cursor (6), not the post-reconnect
+      // base page's own id (100) — that page is a limited recency snapshot that can't see ids
+      // 7-99, so advancing straight to 100 would permanently skip them. Only the cursor-relative
+      // catch-up endpoint may extend the cursor past what's already been seen.
+      await waitForSinceIdCount(capturedSinceIds, 1);
+      expect(capturedSinceIds[0]).toBe("6");
+    });
+
+    it("does not advance the cursor past a gap left by a reconnect's limited recency page, so catch-up can still fill it", async () => {
+      const { result } = await renderSinceRestartAtCursorSix();
+
+      // Reconnect: the base fetch's own limited recency page (REST_FETCH_LIMIT-capped in
+      // production; a small page here for a fast test) returns only ids 50-52 — a real gap
+      // (7-49) accumulated during the disconnect that this page can't see. The cursor must not
+      // jump to 52, or catch-up would never fetch 7-49.
+      const capturedSinceIds = captureSinceIds();
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(3, 50))));
+      await act(async () => {
+        useAppStore.setState({ uptimeSeconds: 200 });
+        await vi.waitFor(() =>
+          expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([
+            1, 2, 3, 4, 5, 6, 50, 51, 52,
+          ]),
+        );
       });
-      expect(capturedSinceIds[0]).toBe("100");
+
+      await waitForSinceIdCount(capturedSinceIds, 1);
+      expect(capturedSinceIds[0]).toBe("6");
     });
 
     it("does not migrate cursor/cache when appKey changes alongside uptime (a real scope change, not a reconnect)", async () => {

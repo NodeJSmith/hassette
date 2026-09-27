@@ -159,10 +159,14 @@ class CatchUpAbortedError extends Error {}
  * fetch out of the base query's cache entry — the caller merges the successful result into that
  * entry explicitly.
  *
- * `signal` is checked between attempts and around each backoff sleep — it doesn't abort a request
- * already in flight (see `performCatchUp`'s docstring), but it stops the retry loop from starting
- * another attempt or sleeping through a full backoff window once the caller's context (unmount, or
- * a filter change swapping `scopedKey`) is gone. */
+ * `signal` is checked between attempts and around each backoff sleep so the retry loop doesn't
+ * start another attempt or sleep through a full backoff window once the caller's context
+ * (unmount, or a filter change swapping `scopedKey`) is gone. It's also composed (`AbortSignal.any`)
+ * with TanStack's own per-fetch `fetchSignal` and passed to the actual request, so a scope change
+ * genuinely cancels a request already in flight instead of leaving it to resolve on its own —
+ * without this, `catchUpChainRef` (see `performCatchUp`'s docstring) would stay blocked on that
+ * stale request for however long it takes to settle, queuing the new scope's own catch-up runs
+ * behind it even though nothing will use the result. */
 async function fetchSinceWithBackoff(
   queryClient: QueryClient,
   scopedKey: readonly unknown[],
@@ -179,7 +183,7 @@ async function fetchSinceWithBackoff(
       return await queryClient.fetchQuery<LogEntry[]>({
         queryKey: [...scopedKey, "since", sinceId, attempt],
         queryFn: ({ signal: fetchSignal }) =>
-          getLogsSince(sinceId, { ...filters, limit: CATCH_UP_FETCH_LIMIT }, fetchSignal),
+          getLogsSince(sinceId, { ...filters, limit: CATCH_UP_FETCH_LIMIT }, AbortSignal.any([signal, fetchSignal])),
         staleTime: 0,
         gcTime: 0,
         retry: false,
@@ -283,7 +287,15 @@ function mergeCatchUpBatch(
       return [...results].sort(byTimestampDesc).slice(0, MAX_CACHED_LOG_ENTRIES);
     }
 
-    advanceCursor(queryClient, scopedKey, batchMaxId);
+    // Only a cursor-relative fetch (detectReset: true — catch-up or the reset probe, both fetch
+    // strictly `id > cursor`) may extend the cursor past its current value. The base query's own
+    // `/logs/recent` refresh is a plain recency snapshot capped at REST_FETCH_LIMIT: if enough
+    // records accumulated since the cursor was set (e.g. a long disconnect) that the page's own
+    // minimum id already exceeds the cursor, advancing to the page's max id would silently and
+    // permanently skip every id in that gap — no later catch-up fetch ever asks for them again.
+    // Exception: an unestablished cursor (0, nothing to lose) may still be seeded from the very
+    // first base fetch, so the first catch-up episode doesn't needlessly refetch from scratch.
+    if (detectReset || trackedCursor === 0) advanceCursor(queryClient, scopedKey, batchMaxId);
 
     const seen = new Set(existing.map(rowKey));
     const fresh: LogEntry[] = [];
@@ -325,7 +337,7 @@ async function probeForReset(
     const latest = await queryClient.fetchQuery<LogEntry[]>({
       queryKey: [...scopedKey, "reset-probe"],
       queryFn: ({ signal: fetchSignal }) =>
-        getRecentLogs({ appKey, executionId, since, limit: RESET_PROBE_LIMIT }, fetchSignal),
+        getRecentLogs({ appKey, executionId, since, limit: RESET_PROBE_LIMIT }, AbortSignal.any([signal, fetchSignal])),
       staleTime: 0,
       gcTime: 0,
       retry: false,
@@ -353,11 +365,13 @@ async function probeForReset(
  * during a sustained outage; a hint-triggered attempt still surfaces those normally.
  *
  * `signal` is aborted by the hook on unmount or on a filter change (a new `scopedKey`) — checked
- * before each page and threaded into `fetchSinceWithBackoff` so a stranded episode stops scheduling
- * further pages/retries instead of running to completion (up to 5 pages, each with retries/backoff
- * up to 30s) against a view that's already gone. It does not cancel a request already in flight;
- * that request's result is simply discarded (`CatchUpAbortedError`, silent — cancellation isn't a
- * failure worth a toast). */
+ * before each page and threaded into `fetchSinceWithBackoff`/`probeForReset` so a stranded episode
+ * stops scheduling further pages/retries instead of running to completion (up to 5 pages, each
+ * with retries/backoff up to 30s) against a view that's already gone. It's also composed into the
+ * actual in-flight request in both of those (see `fetchSinceWithBackoff`'s docstring), so an
+ * abort genuinely cancels rather than leaving the stale request to resolve on its own and hold
+ * `catchUpChainRef` (see that ref's docstring) blocked behind it. A cancellation is silent
+ * (`CatchUpAbortedError`) — it isn't a failure worth a toast. */
 async function performCatchUp(
   queryClient: QueryClient,
   context: CatchUpContext,
