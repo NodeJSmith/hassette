@@ -333,9 +333,13 @@ class ValueIs(_PredicateOps, Generic[EventT, V]):
     def summarize(self) -> str:
         """Describe the check, which matches when the value extracted by ``source`` satisfies ``condition``.
 
+        When ``condition`` is ``ANY_VALUE``, the predicate matches every event without calling ``source``.
+
         Returns:
-            For a literal condition, ``"value is <condition> from <source>"``; for a callable condition,
+            For a literal condition, ``"value is <condition> from <source>"``; for a callable condition
+            (including condition objects such as ``Glob``, whose own summary is not used),
             ``"custom condition from <source>"``, where ``<source>`` is the extractor's callable name.
+            An ``ANY_VALUE`` condition renders as a literal, e.g. ``"value is <ANY_VALUE> from <source>"``.
         """
         source_name = callable_name(self.source)
         if callable(self.condition):
@@ -573,6 +577,8 @@ class AttrDidChange(_PredicateOps):
 
     def summarize(self) -> str:
         """Describe the check, which matches when attribute ``attr_name`` differs between the old and new state.
+
+        When ``old_state`` is None, it matches if the attribute is present on ``new_state``.
 
         Returns:
             ``"attr <attr_name> changed"``, e.g. ``"attr brightness changed"``.
