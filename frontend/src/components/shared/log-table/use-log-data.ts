@@ -25,6 +25,11 @@ interface UseLogDataResult {
    * being revalidated" (e.g. deciding whether to keep waiting before freezing a snapshot)
    * should use this instead of `loading`. */
   fetching: boolean;
+  /** The base query's fully-resolved TanStack query key (app/execution/preset, plus uptime for
+   * `since-restart`) — the single source of truth for "what scope is currently shown." Callers
+   * that need to detect a scope change (e.g. `useLogFilters`'s paused-snapshot freeze) should
+   * compare this value instead of re-deriving their own copy of which fields define scope. */
+  scopeKey: readonly unknown[];
 }
 
 // Stable empty-array identity for the "no data yet" case — `data ?? []` would otherwise allocate
@@ -59,7 +64,7 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
 
   const baseKey = useMemo(() => queryKeys.recentLogs(appKey, executionId), [appKey, executionId]);
 
-  const { data, isPending, isFetching, isError, error } = useScopedQuery<LogEntry[]>(
+  const { data, isPending, isFetching, isError, error, queryKey } = useScopedQuery<LogEntry[]>(
     baseKey,
     (since, signal) => getRecentLogs({ appKey, executionId, since, limit: REST_FETCH_LIMIT }, signal),
     {
@@ -136,5 +141,5 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
     debounceTimerRef.current = setTimeout(runInvalidate, HINT_DEBOUNCE_MS);
   }, [logHintVersion, queryClient, baseKey]);
 
-  return { allEntries: data ?? EMPTY_ENTRIES, loading: isPending, fetching: isFetching };
+  return { allEntries: data ?? EMPTY_ENTRIES, loading: isPending, fetching: isFetching, scopeKey: queryKey };
 }

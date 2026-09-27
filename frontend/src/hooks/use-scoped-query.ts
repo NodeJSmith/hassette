@@ -52,12 +52,18 @@ export interface UseScopedQueryOptions {
  * @param fetcher  Function accepting a `since` epoch-seconds timestamp.
  * @param options  Optional: `placeholderData` for stale-while-revalidate behavior, `waitForUptime`
  *   to opt out of the since-restart blocking gate.
+ * @returns The usual `useQuery` result, plus the fully-resolved `queryKey` (baseKey + preset +
+ *   uptime-if-since-restart). This is the single source of truth for "what scope is this query
+ *   currently showing" — a caller that needs to detect a scope change (e.g. to invalidate a
+ *   derived snapshot) should compare this key, not re-derive its own copy of the preset/uptime
+ *   logic above. Two independent copies of that logic drift apart silently; see
+ *   use-log-filters.ts's `scopeKey`-based tracking for the pattern.
  */
 export function useScopedQuery<T>(
   baseKey: readonly unknown[],
   fetcher: (since: number, signal: AbortSignal) => Promise<T>,
   options?: UseScopedQueryOptions,
-): UseQueryResult<T> {
+): UseQueryResult<T> & { queryKey: readonly unknown[] } {
   const timePreset = useAppStore((s) => s.timePreset);
   const urlWindowParam = useAppStore((s) => s.urlWindowParam);
   const uptimeSeconds = useAppStore((s) => s.uptimeSeconds);
@@ -74,7 +80,7 @@ export function useScopedQuery<T>(
   // Fixed-window presets omit uptime so cache entries survive reconnects.
   const queryKey = [...baseKey, preset, ...(preset === "since-restart" ? [uptime] : [])] as const;
 
-  return useQuery<T>({
+  const result = useQuery<T>({
     queryKey,
     queryFn: ({ signal }) => {
       // Falls back to an all-time window (since=0) when waitForUptime opted out of the
@@ -89,4 +95,6 @@ export function useScopedQuery<T>(
     refetchInterval: options?.refetchInterval,
     refetchOnMount: options?.refetchOnMount,
   });
+
+  return { ...result, queryKey };
 }

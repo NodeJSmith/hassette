@@ -1,8 +1,8 @@
+import { hashKey } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
 import { useQueryParams } from "@/hooks/use-query-params";
-import { useAppStore } from "@/state/store";
 
 import {
   ALL_LEVELS,
@@ -29,7 +29,16 @@ interface UseLogFiltersParams {
    * changes to an already-cached scope leave `loading` (isPending) false while a background
    * refetch is still settling. See the paused-snapshot block below. Defaults to `false`. */
   fetching?: boolean;
+  /** `allEntries`' own scoped query's fully-resolved query key (from `useLogData`'s `scopeKey`,
+   * ultimately `useScopedQuery`'s `queryKey`) — the single source of truth for what counts as a
+   * scope change for the paused-snapshot freeze below. Compared by value (via TanStack's own
+   * `hashKey`), not destructured into individual fields, so this hook never needs its own copy
+   * of which fields define scope (app/execution/preset/uptime today, whatever it grows to
+   * tomorrow). Defaults to a stable empty key for callers that don't track scope. */
+  scopeKey?: readonly unknown[];
 }
+
+const EMPTY_SCOPE_KEY: readonly unknown[] = [];
 
 interface UseLogFiltersResult {
   visibleEntries: LogEntry[];
@@ -142,17 +151,11 @@ export function useLogFilters({
   executionId,
   loading = false,
   fetching = false,
+  scopeKey = EMPTY_SCOPE_KEY,
 }: UseLogFiltersParams): UseLogFiltersResult {
   const qp = useQueryParams();
   const qpRef = useRef(qp);
   qpRef.current = qp;
-
-  // Mirrors useLogData's own scope identity (queryKeys.recentLogs(appKey, executionId) plus the
-  // time-window preset) so a preset change while paused is recognized as a scope change too, not
-  // just an appKey/executionId change — both read the same store fields for exactly this reason.
-  const timePreset = useAppStore((s) => s.timePreset);
-  const urlWindowParam = useAppStore((s) => s.urlWindowParam);
-  const preset = urlWindowParam ?? timePreset;
 
   // An execution_id already scopes rows to a single execution, whose logs can span
   // both tiers (its app logs plus framework diagnostics about it). Tier-filtering there
@@ -223,10 +226,19 @@ export function useLogFilters({
   // Resuming (sort back to timestamp) drops the snapshot and reads allEntries live again
   // immediately, no staleness.
   //
-  // A fresh freeze starts on the false->true pause transition, or on a scope change
-  // (appKey/executionId/preset) while already paused — e.g. LogsPage updating executionId from a
-  // query param, or switching the time window, without unmounting this hook. Without this, a
+  // A fresh freeze starts on the false->true pause transition, or on a scope change (the caller's
+  // `scopeKey` — e.g. app/execution/preset, or restart uptime for a since-restart window) while
+  // already paused — e.g. LogsPage updating executionId from a query param, switching the time
+  // window, or a WS reconnect updating uptime, without unmounting this hook. Without this, a
   // stale snapshot from the previous scope would keep showing until the user manually resumes.
+  //
+  // scopeChanged compares `scopeKey` by value (via `hashKey`, the same function TanStack uses to
+  // compare its own query keys) rather than re-deriving which individual fields make up a scope.
+  // An earlier version hand-listed appKey/executionId/preset here, missed that useScopedQuery
+  // also folds restart uptime into its key for since-restart windows, and would have needed a
+  // fourth hand-copied field to catch that too — the same class of gap by construction, one field
+  // at a time. Comparing the resolved key directly closes the whole class: whatever
+  // useScopedQuery's key is built from, this comparison automatically tracks it.
   //
   // Either kind of fresh freeze can begin while its own query is still loading — pausing before
   // the initial query resolves, or a scope change whose new query hasn't settled yet — leaving
@@ -244,12 +256,10 @@ export function useLogFilters({
   // background refetches too) instead of `loading`; `awaitingIsScopeChangeRef` remembers which
   // signal a given freeze is waiting on across the renders it spans.
   const wasLivePausedRef = useRef(false);
-  const scopeRef = useRef({ appKey, executionId, preset });
-  const scopeChanged =
-    scopeRef.current.appKey !== appKey ||
-    scopeRef.current.executionId !== executionId ||
-    scopeRef.current.preset !== preset;
-  scopeRef.current = { appKey, executionId, preset };
+  const scopeKeyHash = hashKey(scopeKey);
+  const scopeRef = useRef(scopeKeyHash);
+  const scopeChanged = scopeRef.current !== scopeKeyHash;
+  scopeRef.current = scopeKeyHash;
 
   const pausedSnapshotRef = useRef<LogEntry[]>(allEntries);
   const awaitingLoadRef = useRef(false);

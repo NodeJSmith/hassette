@@ -2,7 +2,6 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
-import { useAppStore } from "@/state/store";
 import { createLogEntry } from "@/test/factories";
 import { createWouterMock } from "@/test/mock-wouter";
 
@@ -43,20 +42,30 @@ interface RenderLocalProps {
   executionId?: string | null;
   loading?: boolean;
   fetching?: boolean;
+  scopeKey?: readonly unknown[];
 }
 
-/** Render useLogFilters with local state (no URL). Uses initialProps for rerender support. */
+/** Render useLogFilters with local state (no URL). Uses initialProps for rerender support.
+ *
+ * `scopeKey` is an opaque test double for `useLogData`'s real (app/execution/preset/uptime)
+ * query key — `useLogFilters` only ever compares it by value, so tests exercising scope-change
+ * behavior pass whatever distinct values are convenient (e.g. `["a"]` vs `["b"]"`) rather than
+ * replicating the real key shape. Tests that don't pass one get the hook's own stable default,
+ * so appKey/executionId varying across rerenders does NOT by itself trigger a scope change here
+ * — the caller must vary `scopeKey` too, matching how the real `useLogData`/`useScopedQuery`
+ * pipeline is the only source of a scope-change signal in production. */
 function renderLocal(
   entries: LogEntry[] = [],
   appKey?: string,
   executionId?: string | null,
   loading?: boolean,
   fetching?: boolean,
+  scopeKey?: readonly unknown[],
 ) {
   const hook = renderHook<ReturnType<typeof useLogFilters>, RenderLocalProps>(
-    ({ entries: allEntries, appKey, executionId, loading, fetching }) =>
-      useLogFilters({ allEntries, useLocalState: true, appKey, executionId, loading, fetching }),
-    { initialProps: { entries, appKey, executionId, loading, fetching } },
+    ({ entries: allEntries, appKey, executionId, loading, fetching, scopeKey }) =>
+      useLogFilters({ allEntries, useLocalState: true, appKey, executionId, loading, fetching, scopeKey }),
+    { initialProps: { entries, appKey, executionId, loading, fetching, scopeKey } },
   );
   return { hook };
 }
@@ -95,7 +104,6 @@ function waitForSearchDebounce(): Promise<void> {
 beforeEach(() => {
   mockSearch = "";
   mockNavigate.mockReset();
-  useAppStore.setState({ timePreset: "since-restart", urlWindowParam: null });
 });
 
 describe("filterLogEntries", () => {
@@ -463,23 +471,25 @@ describe("livePaused", () => {
 
   it("re-captures the paused snapshot when appKey/executionId changes while still paused", () => {
     const execAEntries = [entry({ message: "exec-a-row" })];
-    const { hook } = renderLocal(execAEntries, "my_app", "exec-a");
+    const { hook } = renderLocal(execAEntries, "my_app", "exec-a", undefined, undefined, ["exec-a-scope"]);
 
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     expect(messagesOf(hook)).toEqual(["exec-a-row"]);
 
     // Scope changes to a different execution without unmounting (e.g. LogsPage updating
     // executionId from a query param) while still paused — the frozen snapshot must not keep
-    // showing the previous execution's rows.
+    // showing the previous execution's rows. scopeKey must change alongside appKey/executionId
+    // here — in production this always happens together, since useLogData derives scopeKey from
+    // the same appKey/executionId this hook receives.
     const execBEntries = [entry({ message: "exec-b-row" })];
-    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b" });
+    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", scopeKey: ["exec-b-scope"] });
 
     expect(messagesOf(hook)).toEqual(["exec-b-row"]);
   });
 
   it("keeps tracking a scope change's data until it loads, instead of freezing on the transient empty result", () => {
     const execAEntries = [entry({ message: "exec-a-row" })];
-    const { hook } = renderLocal(execAEntries, "my_app", "exec-a");
+    const { hook } = renderLocal(execAEntries, "my_app", "exec-a", undefined, undefined, ["exec-a-scope"]);
 
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     expect(messagesOf(hook)).toEqual(["exec-a-row"]);
@@ -490,18 +500,30 @@ describe("livePaused", () => {
     // A scope-change freeze tracks `fetching` (isFetching), not `loading` (isPending) — see
     // use-log-filters.ts: a scope change to an already-cached scope can leave `loading` false
     // immediately while a background refetch is still settling.
-    hook.rerender({ entries: [], appKey: "my_app", executionId: "exec-b", fetching: true });
+    hook.rerender({ entries: [], appKey: "my_app", executionId: "exec-b", fetching: true, scopeKey: ["exec-b-scope"] });
     expect(messagesOf(hook)).toEqual([]);
 
     // Data for the new scope lands, but fetching is still true one more render (e.g. react-query
     // still settling a background refetch) — the snapshot must keep tracking, not freeze on this
     // transitional render.
     const execBEntries = [entry({ message: "exec-b-row" })];
-    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", fetching: true });
+    hook.rerender({
+      entries: execBEntries,
+      appKey: "my_app",
+      executionId: "exec-b",
+      fetching: true,
+      scopeKey: ["exec-b-scope"],
+    });
     expect(messagesOf(hook)).toEqual(["exec-b-row"]);
 
     // fetching finally clears — now frozen on the loaded data.
-    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", fetching: false });
+    hook.rerender({
+      entries: execBEntries,
+      appKey: "my_app",
+      executionId: "exec-b",
+      fetching: false,
+      scopeKey: ["exec-b-scope"],
+    });
     expect(messagesOf(hook)).toEqual(["exec-b-row"]);
 
     // Now frozen: a further live update to the same scope must not appear until resumed.
@@ -510,8 +532,41 @@ describe("livePaused", () => {
       appKey: "my_app",
       executionId: "exec-b",
       fetching: false,
+      scopeKey: ["exec-b-scope"],
     });
     expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+  });
+
+  it("re-captures the paused snapshot when scopeKey changes for a reason other than appKey/executionId (e.g. since-restart uptime)", () => {
+    // Regression test for the exact gap Codex flagged: scopeChanged used to be computed from
+    // appKey/executionId/preset alone, so a scope-identity change driven purely by restart uptime
+    // (useScopedQuery folds uptime into its query key for the since-restart preset, but nothing
+    // else about appKey/executionId/preset changes on a WS reconnect) went undetected and the
+    // paused snapshot never re-synced. Comparing the resolved scopeKey directly — same appKey and
+    // executionId throughout, only the key's uptime component differs — closes that gap by
+    // construction rather than requiring a fourth hand-copied field.
+    const beforeEntries = [entry({ message: "pre-reconnect-row" })];
+    const { hook } = renderLocal(beforeEntries, "my_app", "exec-a", undefined, undefined, [
+      "recent-logs",
+      "my_app",
+      "exec-a",
+      "since-restart",
+      100,
+    ]);
+
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    expect(messagesOf(hook)).toEqual(["pre-reconnect-row"]);
+
+    // WS reconnect updates uptimeSeconds; appKey/executionId/preset are unchanged.
+    const afterEntries = [entry({ message: "post-reconnect-row" })];
+    hook.rerender({
+      entries: afterEntries,
+      appKey: "my_app",
+      executionId: "exec-a",
+      scopeKey: ["recent-logs", "my_app", "exec-a", "since-restart", 200],
+    });
+
+    expect(messagesOf(hook)).toEqual(["post-reconnect-row"]);
   });
 
   it("keeps tracking an ordinary pause transition's data until it loads (loading, not fetching)", () => {
@@ -540,21 +595,28 @@ describe("livePaused", () => {
 
   it("re-captures the paused snapshot when the time-window preset changes while still paused", () => {
     const beforeEntries = [entry({ message: "1h-row" })];
-    const { hook } = renderLocal(beforeEntries, "my_app", undefined);
+    const { hook } = renderLocal(beforeEntries, "my_app", undefined, undefined, undefined, [
+      "recent-logs",
+      "my_app",
+      null,
+      "1h",
+    ]);
 
     act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
     expect(messagesOf(hook)).toEqual(["1h-row"]);
 
     // Preset changes (e.g. the user switches the dashboard's time window) without appKey or
-    // executionId changing — useLogData scopes its query by preset too, so the paused snapshot
+    // executionId changing — useLogData's scopeKey folds preset in too, so the paused snapshot
     // must treat this as a scope change and refresh, not keep showing the previous window's rows.
-    // The store update and the new entries land in the same render here, same as they would in
-    // the real component tree (useLogTable calls useLogData then useLogFilters in one render
-    // pass, so both the preset and the resulting allEntries always update together).
+    // scopeKey changing alongside the new entries in the same render mirrors the real component
+    // tree (useLogTable calls useLogData then useLogFilters in one render pass, so scopeKey and
+    // the resulting allEntries always update together).
     const afterEntries = [entry({ message: "24h-row" })];
-    act(() => {
-      useAppStore.setState({ timePreset: "24h" });
-      hook.rerender({ entries: afterEntries, appKey: "my_app", executionId: undefined });
+    hook.rerender({
+      entries: afterEntries,
+      appKey: "my_app",
+      executionId: undefined,
+      scopeKey: ["recent-logs", "my_app", null, "24h"],
     });
 
     expect(messagesOf(hook)).toEqual(["24h-row"]);
