@@ -8,7 +8,7 @@ from pydantic import SecretStr
 
 from hassette import HassetteConfig, context
 from hassette.testing import HassetteHarness, build_harness, wait_for
-from hassette.testing._harness import TEST_TOKEN
+from hassette.testing.config import TEST_TOKEN
 from hassette.utils import app_utils
 from tests.support.fixtures import run_hassette_startup_tasks
 

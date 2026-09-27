@@ -1,8 +1,9 @@
 """Unit tests for the smaller nested config model classes in hassette.config.models.
 
 Covers defaults, field constraints, computed defaults, and intra-model validators.
-LoggingConfig and LifecycleConfig live in their own files; HassetteConfig-level nested
-loading lives in test_config_nested_loading.py.
+LoggingConfig and LifecycleConfig tests live in their own files (they appear here only in the
+shared BaseModel-vs-BaseSettings check); HassetteConfig-level nested loading lives in
+test_config_nested_loading.py.
 """
 
 from pathlib import Path

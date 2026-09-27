@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from hassette.config import HassetteConfig
-from hassette.testing._harness import TEST_TOKEN
+from hassette.testing.config import TEST_TOKEN
 
 
 def make_config(**kwargs) -> HassetteConfig:
