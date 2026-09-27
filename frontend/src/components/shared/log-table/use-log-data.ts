@@ -261,7 +261,16 @@ function mergeCatchUpBatch(
   results: LogEntry[],
   { detectReset, windowSince }: MergeOptions,
 ): void {
-  if (results.length === 0) return;
+  if (results.length === 0) {
+    // Nothing to merge, dedupe, or reset-check — but a fixed-window refresh (windowSince set)
+    // still needs to evict cache entries that aged out of the window while the stream was quiet.
+    // Without this, a batch-empty refetch would otherwise skip pruning entirely and leave expired
+    // rows visible indefinitely (see `windowSince`'s docstring above).
+    if (windowSince !== undefined) {
+      queryClient.setQueryData<LogEntry[]>(scopedKey, (old) => (old ?? []).filter((e) => e.timestamp >= windowSince));
+    }
+    return;
+  }
   const batchMaxId = maxId(results);
 
   queryClient.setQueryData<LogEntry[]>(scopedKey, (old) => {

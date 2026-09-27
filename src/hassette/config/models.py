@@ -209,11 +209,13 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     log_persistence_level: LOG_ANNOTATION = Field(default="INFO")
     """Minimum log level for database persistence. Records below this level are not stored.
 
-    Effectively clamped to never exceed ``log_level``: the web UI's log view reads exclusively
-    from persisted records, so raising ``log_level`` (e.g. to ``"DEBUG"`` for troubleshooting)
-    also raises the persistence floor to match, guaranteeing anything visible in the live log
-    stream is queryable too. Lower this below ``log_level`` to persist less than you log; it can
-    never be raised above ``log_level`` to persist more."""
+    Effectively clamped to never be stricter than ``log_level``: the web UI's log view reads
+    exclusively from persisted records, so setting this above ``log_level`` (e.g. ``"WARNING"``
+    while ``log_level`` stays ``"INFO"``) has no effect — it's silently pulled back down to
+    ``log_level``, since a stricter persistence floor would make records visible in the live log
+    stream unqueryable through the UI. This setting is only useful for persisting *more* than
+    ``log_level``: lower it (e.g. to ``"DEBUG"``) to persist records you don't otherwise log at
+    the global level, such as a per-service override logging at ``"DEBUG"``."""
 
     log_retention_days: int = Field(default=3, ge=1)
     """Number of days to retain persisted log records. Must be <= database.retention_days."""

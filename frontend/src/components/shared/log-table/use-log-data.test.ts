@@ -1,3 +1,4 @@
+import { type QueryClient } from "@tanstack/react-query";
 import { act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -111,6 +112,19 @@ async function renderWithRerenderableAppKey(initialAppKey: string) {
   });
   await waitForLoaded(rendered.result);
   return rendered;
+}
+
+/** Stubs the base-query REST endpoint to return `entries` on its next fetch, then refetches and
+ * flushes the resulting subscriber notification. Shared "act" step for the fixed-window-pruning
+ * tests below, which each assert on `allEntries` afterward with their own expectation. */
+async function refetchRecentLogsAndFlush(queryClient: QueryClient, entries: LogEntry[]): Promise<void> {
+  server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(entries)));
+  await act(async () => {
+    await queryClient.refetchQueries({ queryKey: queryKeys.recentLogs() });
+    // Flushes react-query's subscriber notification — under fake timers, a preceding
+    // setSystemTime clock jump can leave that notification's own scheduling stranded without this.
+    await vi.advanceTimersByTimeAsync(0);
+  });
 }
 
 beforeEach(() => {
@@ -989,16 +1003,30 @@ describe("useLogData", () => {
       // the count-based MAX_CACHED_LOG_ENTRIES cap eventually evicts it.
       vi.setSystemTime(Date.now() + 40 * 60 * 1000);
       const freshEntry = createLogEntry({ id: 2, seq: 2, timestamp: Date.now() / 1000 - 60, message: "fresh" });
-      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([freshEntry])));
-
-      await act(async () => {
-        await queryClient.refetchQueries({ queryKey: queryKeys.recentLogs() });
-        // Flushes react-query's subscriber notification — under fake timers, setSystemTime's
-        // clock jump can leave that notification's own scheduling stranded without this.
-        await vi.advanceTimersByTimeAsync(0);
-      });
+      await refetchRecentLogsAndFlush(queryClient, [freshEntry]);
 
       expect(result.current.allEntries.map((e) => e.message)).toEqual(["fresh"]);
+    });
+
+    it("prunes cached entries that have aged out of a fixed time window even when the refetch returns no fresh entries", async () => {
+      vi.setSystemTime(new Date(2026, 0, 1, 12, 0, 0).getTime());
+      seedState("1h");
+      const queryClient = createTestQueryClient();
+
+      const staleEntry = createLogEntry({ id: 1, seq: 1, timestamp: Date.now() / 1000 - 1800, message: "stale" });
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([staleEntry])));
+
+      const { result } = renderHookWithProviders(() => useLogData({}), { queryClient });
+      await waitForLoaded(result);
+      expect(result.current.allEntries.map((e) => e.message)).toEqual(["stale"]);
+
+      // 40 minutes later, "stale" has aged outside the 1h window, but the quiet-stream refetch
+      // comes back empty — mergeCatchUpBatch must still apply windowSince pruning to the existing
+      // cache in this case, not treat an empty batch as a no-op across the board.
+      vi.setSystemTime(Date.now() + 40 * 60 * 1000);
+      await refetchRecentLogsAndFlush(queryClient, []);
+
+      expect(result.current.allEntries).toEqual([]);
     });
 
     it("does not prune anything for the since-restart preset, whose window is the whole post-boot history", async () => {
@@ -1017,11 +1045,7 @@ describe("useLogData", () => {
       await waitForLoaded(result);
 
       const freshEntry = createLogEntry({ id: 2, seq: 2, timestamp: Date.now() / 1000 - 60, message: "fresh" });
-      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([freshEntry])));
-      await act(async () => {
-        await queryClient.refetchQueries({ queryKey: queryKeys.recentLogs() });
-        await vi.advanceTimersByTimeAsync(0);
-      });
+      await refetchRecentLogsAndFlush(queryClient, [freshEntry]);
 
       expect(result.current.allEntries.map((e) => e.message).sort()).toEqual(["fresh", "old-but-since-boot"]);
     });
