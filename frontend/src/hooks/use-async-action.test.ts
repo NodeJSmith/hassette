@@ -27,6 +27,8 @@ describe("useAsyncAction", () => {
     expect(action).toHaveBeenCalledOnce();
     expect(result.current.loading).toBe(true);
 
+    // dup-ignore-start: generic "await the async action, assert loading settled false" shape
+    // coincidentally matches use-log-data.test.ts's unrelated hook — not real duplication.
     await act(async () => {
       resolveAction();
       await runPromise;
@@ -35,6 +37,7 @@ describe("useAsyncAction", () => {
   });
 
   it("ignores a second run() while the first is still in flight", async () => {
+    // dup-ignore-end
     const { result } = renderHook(() => useAsyncAction());
     let resolveAction!: () => void;
     const action = vi.fn(
@@ -67,11 +70,14 @@ describe("useAsyncAction", () => {
       await result.current.run(action);
     });
 
+    // dup-ignore-start: generic "assert error and loading-settled-false" shape coincidentally
+    // matches use-log-data.test.ts's unrelated hook — not real duplication.
     expect(result.current.error).toBe("boom");
     expect(result.current.loading).toBe(false);
   });
 
   it("stringifies non-Error throws", async () => {
+    // dup-ignore-end
     const { result } = renderHook(() => useAsyncAction());
     const action = vi.fn().mockRejectedValue("raw string error");
 

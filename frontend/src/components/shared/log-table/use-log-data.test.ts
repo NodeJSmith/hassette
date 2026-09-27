@@ -81,11 +81,14 @@ describe("useLogData", () => {
     const result = await renderLoaded();
     expect(getCount()).toBe(1);
 
+    // dup-ignore-start: generic "await the async action, assert loading settled false" shape
+    // coincidentally matches use-async-action.test.ts's unrelated hook — not real duplication.
     await triggerHintAndWaitFor(() => expect(getCount()).toBe(2));
     expect(result.current.loading).toBe(false);
   });
 
   it("coalesces 10+ hints within 100ms into exactly one refetch (design AC#5)", async () => {
+    // dup-ignore-end
     const getCount = stubCountingEndpoint(LOGS_ENDPOINT, []);
 
     await renderLoaded();
