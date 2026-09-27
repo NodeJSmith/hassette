@@ -163,6 +163,7 @@ class Guard(_PredicateOps, typing.Generic[EventT]):
         return self.fn(value)
 
     def summarize(self) -> str:
+        """Return ``"custom condition"``; an arbitrary callable has no inspectable meaning."""
         return "custom condition"
 
 
@@ -257,6 +258,12 @@ class AllOf(_PredicateCombinator):
         return all(p(value) for p in self.predicates)
 
     def summarize(self) -> str:
+        """Describe the combination, which matches only when every contained predicate matches.
+
+        Returns:
+            Each contained predicate's summary joined with ``" and "``, wrapped in parentheses when there are
+            two or more, e.g. ``"(domain light and state changed)"``.
+        """
         joined = " and ".join(_summarize_predicate(p) for p in self.predicates)
         if len(self.predicates) >= 2:
             return f"({joined})"
@@ -271,6 +278,12 @@ class AnyOf(_PredicateCombinator):
         return any(p(event) for p in self.predicates)
 
     def summarize(self) -> str:
+        """Describe the combination, which matches when at least one contained predicate matches.
+
+        Returns:
+            Each contained predicate's summary joined with ``" or "``, wrapped in parentheses when there are
+            two or more, e.g. ``"(entity light.kitchen or entity light.hall)"``.
+        """
         joined = " or ".join(_summarize_predicate(p) for p in self.predicates)
         if len(self.predicates) >= 2:
             return f"({joined})"
@@ -287,6 +300,7 @@ class Not(_PredicateOps):
         return not self.predicate(value)
 
     def summarize(self) -> str:
+        """Return the wrapped predicate's summary prefixed with ``"not "``, e.g. ``"not domain light"``."""
         return "not " + _summarize_predicate(self.predicate)
 
 
@@ -309,6 +323,16 @@ class ValueIs(_PredicateOps, Generic[EventT, V]):
         return compare_value(extracted, self.condition)
 
     def summarize(self) -> str:
+        """Describe the check, which matches when the value extracted by ``source`` satisfies ``condition``.
+
+        When ``condition`` is ``ANY_VALUE``, the predicate matches every event without calling ``source``.
+
+        Returns:
+            For a literal condition, ``"value is <condition> from <source>"``; for a callable condition
+            (including condition objects such as ``Glob``, whose own summary is not used),
+            ``"custom condition from <source>"``, where ``<source>`` is the extractor's callable name.
+            An ``ANY_VALUE`` condition renders as a literal, e.g. ``"value is <ANY_VALUE> from <source>"``.
+        """
         source_name = callable_name(self.source)
         if callable(self.condition):
             return f"custom condition from {source_name}"
@@ -329,6 +353,7 @@ class DidChange(_PredicateOps, Generic[EventT]):
         return old_v != new_v
 
     def summarize(self) -> str:
+        """Return ``"changed"``; matches when the (old, new) pair extracted by ``source`` differs."""
         return "changed"
 
 
@@ -346,6 +371,7 @@ class IsPresent(_PredicateOps):
         return self.source(value) is not MISSING_VALUE
 
     def summarize(self) -> str:
+        """Return ``"is present"``; matches when the extracted value is not ``MISSING_VALUE``."""
         return "is present"
 
 
@@ -363,6 +389,7 @@ class IsMissing(_PredicateOps):
         return self.source(value) is MISSING_VALUE
 
     def summarize(self) -> str:
+        """Return ``"is missing"``; matches when the extracted value is ``MISSING_VALUE``."""
         return "is missing"
 
 
@@ -376,6 +403,7 @@ class StateFrom(_PredicateOps):
         return ValueIs(source=get_state_value_old, condition=self.condition)(value)
 
     def summarize(self) -> str:
+        """Return ``"from <condition>"`` (e.g. ``"from off"``); matches on the old state value."""
         return f"from {_summarize_condition(self.condition)}"
 
 
@@ -389,6 +417,7 @@ class StateTo(_PredicateOps):
         return ValueIs(source=get_state_value_new, condition=self.condition)(value)
 
     def summarize(self) -> str:
+        """Return ``"→ <condition>"`` (e.g. ``"→ on"``); matches on the new state value."""
         return f"{ARROW} {_summarize_condition(self.condition)}"
 
 
@@ -407,6 +436,7 @@ class StateComparison(_PredicateOps):
         return self.condition(get_state_value_old(value), get_state_value_new(value))
 
     def summarize(self) -> str:
+        """Return ``"state <condition>"`` (e.g. ``"state increased"``); compares old and new state."""
         return f"state {_summarize_condition(self.condition)}"
 
 
@@ -421,6 +451,7 @@ class AttrFrom(_PredicateOps):
         return ValueIs(source=get_attr_old(self.attr_name), condition=self.condition)(value)
 
     def summarize(self) -> str:
+        """Return ``"attr <attr_name> from <condition>"`` (e.g. ``"attr brightness from 0"``)."""
         return f"attr {self.attr_name} from {_summarize_condition(self.condition)}"
 
 
@@ -435,6 +466,7 @@ class AttrTo(_PredicateOps):
         return ValueIs(source=get_attr_new(self.attr_name), condition=self.condition)(value)
 
     def summarize(self) -> str:
+        """Return ``"attr <attr_name> → <condition>"`` (e.g. ``"attr brightness → 255"``)."""
         return f"attr {self.attr_name} {ARROW} {_summarize_condition(self.condition)}"
 
 
@@ -456,6 +488,7 @@ class AttrComparison(_PredicateOps):
         return self.condition(old_attr, new_attr)
 
     def summarize(self) -> str:
+        """Return ``"attr <attr_name> <condition>"`` (e.g. ``"attr brightness increased"``)."""
         return f"attr {self.attr_name} {_summarize_condition(self.condition)}"
 
 
@@ -467,6 +500,7 @@ class StateDidChange(_PredicateOps):
         return DidChange(get_state_value_old_new)(value)
 
     def summarize(self) -> str:
+        """Return ``"state changed"``; matches when the old and new state values differ."""
         return "state changed"
 
 
@@ -493,6 +527,13 @@ class AttrDidChange(_PredicateOps):
         return DidChange(get_attr_old_new(self.attr_name))(value)
 
     def summarize(self) -> str:
+        """Describe the check, which matches when attribute ``attr_name`` differs between the old and new state.
+
+        When ``old_state`` is None, it matches if the attribute is present on ``new_state``.
+
+        Returns:
+            ``"attr <attr_name> changed"``, e.g. ``"attr brightness changed"``.
+        """
         return f"attr {self.attr_name} changed"
 
 
@@ -506,6 +547,7 @@ class DomainMatches(_PredicateOps):
         return ValueIs(source=get_domain, condition=_glob_or_literal(self.domain))(value)
 
     def summarize(self) -> str:
+        """Return ``"domain <domain>"`` (e.g. ``"domain light"``); glob patterns are allowed."""
         return f"domain {self.domain}"
 
     def __repr__(self) -> str:
@@ -522,6 +564,7 @@ class EntityMatches(_PredicateOps):
         return ValueIs(source=get_entity_id, condition=_glob_or_literal(self.entity_id))(value)
 
     def summarize(self) -> str:
+        """Return ``"entity <entity_id>"`` (e.g. ``"entity light.*"``); glob patterns are allowed."""
         return f"entity {self.entity_id}"
 
     def __repr__(self) -> str:
@@ -538,6 +581,7 @@ class ServiceMatches(_PredicateOps):
         return ValueIs(source=get_path("payload.data.service"), condition=_glob_or_literal(self.service))(value)
 
     def summarize(self) -> str:
+        """Return ``"service <service>"`` (e.g. ``"service turn_on"``); glob patterns are allowed."""
         return f"service {self.service}"
 
     def __repr__(self) -> str:
@@ -596,6 +640,12 @@ class ServiceDataWhere(_PredicateOps):
         return all(p(value) for p in self._predicates)
 
     def summarize(self) -> str:
+        """Describe the check, which matches when every key in ``spec`` satisfies its condition in the service data.
+
+        Returns:
+            Comma-separated ``"<key> = <condition>"`` pairs, e.g. ``"entity_id = light.*, brightness = 200"``.
+        """
+
         def _fmt(v: Any) -> str:
             if callable(v):
                 return _summarize_condition(v) if hasattr(v, "summarize") else callable_name(v)
