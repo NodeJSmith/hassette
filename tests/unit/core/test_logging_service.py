@@ -267,7 +267,7 @@ class TestLoggingServiceOnInitialize:
     async def test_on_initialize_disables_notify_when_persistence_handler_creation_fails(self) -> None:
         """If persistence can't be created, nothing is persisted — so no hint should ever fire.
 
-        Otherwise the frontend's REST-based catch-up fetch would be told to look for a record
+        Otherwise the frontend's hint-triggered `/logs/recent` refetch would be told to look for a record
         that can never exist in the database.
         """
         hassette = make_mock_hassette(sealed=False)

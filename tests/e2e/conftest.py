@@ -248,8 +248,8 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
     """
 
     # dup-ignore-start: param list intentionally mirrors TelemetryQueryService.get_log_records
-    # (and get_log_records_since) — this test double stands in for it, so its filter signature
-    # must not drift from the real methods'.
+    # — this test double stands in for it, so its filter signature must not drift from the
+    # real method's.
     async def _get_log_records(
         *,
         limit: int = 100,

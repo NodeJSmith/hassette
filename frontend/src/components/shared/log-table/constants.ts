@@ -197,24 +197,3 @@ export const DETAIL_DRAWER_ID = "log-detail-drawer";
 export const RENDER_CAP = 200;
 export const SEARCH_DEBOUNCE_MS = 150;
 export const REST_FETCH_LIMIT = 1000;
-
-// Page size for hint-triggered catch-up fetches against GET /logs/since/{since_id}, whose
-// server-side cap (MAX_QUERY_LIMIT, src/hassette/schemas/query_constants.py) is 500 — lower than
-// REST_FETCH_LIMIT, which is sized for the higher-limit /logs/recent base query instead. Keep this
-// in sync with the backend's MAX_QUERY_LIMIT.
-export const CATCH_UP_FETCH_LIMIT = 500;
-
-// Page size for the reset-detection probe (probeForReset in use-log-data.ts) against
-// /logs/recent, which orders by timestamp DESC, seq DESC — not id DESC — so id and insertion
-// order can diverge under concurrent inserts or clock skew (see byTimestampDesc's docstring). A
-// single-row probe risks taking that one row's id as "the current max," which can understate the
-// true max and misfire a false reset. A modest batch lets maxId() find the true max across the
-// most-recent-by-timestamp rows without paying for a full REST_FETCH_LIMIT/CATCH_UP_FETCH_LIMIT
-// fetch on every probe.
-export const RESET_PROBE_LIMIT = 50;
-
-// Ceiling on the hint-triggered catch-up cache (use-log-data.ts's mergeCatchUpBatch) — without
-// this, the cache grows monotonically for the life of the mount under steady log traffic. Sized to
-// comfortably exceed one full CATCH_UP_MAX_PAGES episode (5 * CATCH_UP_FETCH_LIMIT) plus the
-// initial base-query page, so a normal catch-up burst never gets trimmed mid-episode.
-export const MAX_CACHED_LOG_ENTRIES = 6000;

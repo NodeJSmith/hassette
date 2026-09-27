@@ -20,7 +20,7 @@ describe("PRESET_WINDOW_SECONDS", () => {
 
 describe("resolveSince", () => {
   // dup-ignore-start: bare vi.useFakeTimers()/vi.useRealTimers() pair, shared with
-  // format.test.ts and the log-table catch-up test helper -- nothing left to extract once it's
+  // format.test.ts and the log-table test helper -- nothing left to extract once it's
   // already just calling vitest's own API
   beforeEach(() => {
     vi.useFakeTimers();

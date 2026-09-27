@@ -48,8 +48,8 @@ async def _read_client(websocket: WebSocket, ws_state: dict) -> None:
             elif msg_type == "subscribe":
                 sub_data = data.get("data", {})
                 # A client may still send `min_log_level` (harmless, silently ignored) —
-                # log_hint carries no level, so filtering happens client-side after the REST
-                # catch-up fetch instead.
+                # log_hint carries no level, so filtering happens client-side after the hint
+                # triggers a `/logs/recent` refetch instead.
                 ws_state["subscribe_logs"] = sub_data.get("logs", False)
     except Exception as exc:
         if _is_disconnect(exc):
@@ -66,7 +66,8 @@ async def _send_from_queue(websocket: WebSocket, queue: asyncio.Queue, ws_state:
             if message is None:
                 break  # shutdown sentinel
             # Filter log_hint messages based on subscription. log_hint carries no level, so
-            # min_log_level filtering has moved client-side, after the REST catch-up fetch.
+            # min_log_level filtering has moved client-side, after the `/logs/recent` refetch
+            # the hint triggers.
             msg_type = message.get("type")
             if msg_type == "log_hint" and not ws_state.get("subscribe_logs", False):
                 continue

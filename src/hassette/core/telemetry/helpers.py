@@ -95,10 +95,8 @@ def log_record_filter_clauses(
 ) -> tuple[list[str], dict[str, Any]]:
     """Return a (clauses, params) tuple for the log_records filter set.
 
-    Shared by ``get_log_records`` (recency-first fetch) and ``get_log_records_since``
-    (cursor-based catch-up) — both filter the same ``log_records`` columns, differing only
-    in their ordering and in the leading cursor clause ``get_log_records_since`` seeds before
-    calling this helper.
+    Used by ``get_log_records`` (the recency-first ``/logs/recent`` fetch) to build the
+    ``WHERE`` clause and bind params for the shared ``log_records`` filter columns.
 
     Args:
         since: When provided, adds ``lr.timestamp >= :since``.

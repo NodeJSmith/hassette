@@ -92,12 +92,12 @@ describe("useAppStore", () => {
       expect(useAppStore.getState().logHintVersion).toBe(versionBefore);
     });
 
-    it("on reconnect, bumps logHintVersion so use-log-data's cursor catch-up runs", () => {
+    it("on reconnect, does not bump logHintVersion (use-websocket's invalidateQueries covers logs)", () => {
       const versionBefore = useAppStore.getState().logHintVersion;
 
       useAppStore.getState().handleWsConnected(createConnectedPayload(), true);
 
-      expectLogHintVersionIncrementedBy(versionBefore);
+      expect(useAppStore.getState().logHintVersion).toBe(versionBefore);
     });
 
     it("sets systemVersion from payload, falling back to null when omitted", () => {

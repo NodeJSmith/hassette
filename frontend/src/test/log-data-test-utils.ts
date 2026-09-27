@@ -5,7 +5,8 @@
  * use when the REST response is stubbed separately (a custom handler, or none at all).
  * `renderLoadedLogData()` additionally stubs `/api/logs/recent` to return a static `entries` array
  * before rendering — the common case where the REST response is a static entries array rather
- * than a custom handler.
+ * than a custom handler. `useFakeTimersForLogData()` and the `stubCounting*` helpers below cover
+ * the debounce/periodic-refetch timing and call-counting every `useLogData` test needs.
  */
 
 import { http, HttpResponse, type JsonBodyType } from "msw";
@@ -34,9 +35,12 @@ export async function renderLoadedLogData(entries: LogEntry[] = [], props: Param
 }
 
 /** Registers the `vi.useFakeTimers({ shouldAdvanceTime: true })` / `vi.useRealTimers()` pair that
- * every catch-up/periodic-resync test suite needs — call once at the top of a `describe` block in
- * place of writing both hooks out by hand. */
-export function useFakeTimersForCatchUp(): void {
+ * every `useLogData` debounce/periodic-refetch test suite needs — call once at the top of a
+ * `describe` block in place of writing both hooks out by hand. `shouldAdvanceTime` lets MSW's
+ * async fetch resolution interleave with the fake clock, which a bare `vi.useFakeTimers()` (the
+ * idiom `format.test.ts`/`time-window.test.ts` use for synchronous-only fake-clock tests) does
+ * not provide. */
+export function useFakeTimersForLogData(): void {
   // dup-ignore-start: bare vi.useFakeTimers()/vi.useRealTimers() pair — same idiom as
   // format.test.ts and time-window.test.ts use; nothing left to extract once it's already its
   // own function.

@@ -122,7 +122,7 @@ class LogCaptureHandler(logging.Handler):
     would fire for a record from *any* logger whose effective level currently lets it through
     (a per-service override in ``LoggingConfig``, or a runtime ``PUT /logs/level`` on an arbitrary
     logger), even when that record falls below the persistence threshold and can never be found by
-    the REST-based catch-up fetch the hint triggers. Filtering here instead of trying to keep a
+    the `/logs/recent` refetch the hint triggers. Filtering here instead of trying to keep a
     second copy of "every logger's current effective level" in sync closes that gap for any
     logger, present or future, without enumerating them.
     """

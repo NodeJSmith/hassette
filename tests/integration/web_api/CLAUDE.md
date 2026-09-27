@@ -24,7 +24,7 @@ second file drives the same endpoint.
 - `test_api_app_config.py` — `get_app_config(...)`, `get_global_config(...)`, `manifest_entry(...)`, `config_toml_section(...)`
 - `test_api_app_source.py` — `get_app_source(client, mock_hassette, *, app_dir, full_path)`
 - `test_execution_endpoint.py` — `get_execution_logs(...)`
-- `test_logs_endpoint.py` — `logs_since_path(since_id)`, `LOGS_RECENT_PATH`, `LOGS_LEVEL_PATH`
+- `test_logs_endpoint.py` — `LOGS_RECENT_PATH`, `LOGS_LEVEL_PATH`
 - `test_dashboard_api.py` — `get_health_with_status(client, mock_hassette, **status_fields)`
 - `test_telemetry.py` — `assert_forwarded_to_service(...)`, `LISTENER_DEFAULTS`
 - `test_telemetry_route.py` — `make_live_job(db_id, name, **kw)`, `get_enriched_job_row(...)`

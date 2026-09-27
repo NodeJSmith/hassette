@@ -136,9 +136,6 @@ const buildLogFilterParams = (params?: LogFilterParams) => ({
 export const getRecentLogs = (params?: LogFilterParams, signal?: AbortSignal) =>
   apiFetch<LogEntry[]>(buildUrl("/logs/recent", buildLogFilterParams(params)), { signal });
 
-export const getLogsSince = (sinceId: number, params?: LogFilterParams, signal?: AbortSignal) =>
-  apiFetch<LogEntry[]>(buildUrl(`/logs/since/${sinceId}`, buildLogFilterParams(params)), { signal });
-
 export const getAllListeners = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }), { signal });
 

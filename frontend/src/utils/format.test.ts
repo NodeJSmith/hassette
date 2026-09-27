@@ -14,7 +14,7 @@ import {
 } from "./format";
 
 describe("formatTimestamp", () => {
-  // dup-ignore-start: bare vi.useFakeTimers()/vi.useRealTimers() pair, shared with time-window.test.ts and the log-table catch-up test helper -- nothing left to extract once it's already just calling vitest's own API
+  // dup-ignore-start: bare vi.useFakeTimers()/vi.useRealTimers() pair, shared with time-window.test.ts and the log-table test helper -- nothing left to extract once it's already just calling vitest's own API
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -168,7 +168,7 @@ const BASE_TIMESTAMP_SECONDS = 1_700_000_000; // arbitrary fixed epoch in second
 
 describe("formatRelativeTime", () => {
   // dup-ignore-start: bare vi.useFakeTimers()/vi.useRealTimers() pair, shared with the other
-  // describe blocks in this file, time-window.test.ts, and the log-table catch-up test helper --
+  // describe blocks in this file, time-window.test.ts, and the log-table test helper --
   // nothing left to extract once it's already just calling vitest's own API
   beforeEach(() => {
     vi.useFakeTimers();
@@ -243,7 +243,7 @@ describe("formatRelativeTime", () => {
 
 describe("formatAge", () => {
   // dup-ignore-start: bare vi.useFakeTimers()/vi.useRealTimers() pair, shared with the other
-  // describe blocks in this file, time-window.test.ts, and the log-table catch-up test helper --
+  // describe blocks in this file, time-window.test.ts, and the log-table test helper --
   // nothing left to extract once it's already just calling vitest's own API
   beforeEach(() => {
     vi.useFakeTimers();

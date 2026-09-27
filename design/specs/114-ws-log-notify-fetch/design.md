@@ -369,3 +369,43 @@ concurrent inserts or clock skew, which would silently mislabel the fast path's 
 timestamp-sorted when it wasn't. Fixed by sorting the merge with `byTimestampDesc` (`timestamp
 DESC, seq DESC`, matching the backend) instead of by `id`; reset detection (`maxId`) is unaffected
 since it compares by `id` directly, independent of the array's sort order.
+
+### 2026-09-27: cursor-based catch-up replaced with refetch-on-hint
+
+**Supersedes** FR#4 (`/logs/since` endpoint), FR#6 (cursor-based hint fetch), FR#8 (cursor
+backfill on reconnect), FR#9 (`id` as a cursor — the field stays), FR#10 (id-ordered catch-up
+query), FR#11 (cursor re-sync — the 5-second periodic tick stays, as a plain refetch), AC#3
+(`/logs/since` behavior), AC#6 (cursor part — reconnect still refreshes the view), AC#9 (reset
+notice), AC#10 (catch-up loop bounds), the "Cursor tracking", "Catch-up loop", and "Cursor
+design rationale" architecture sections, the DB `id` regression edge case, and every addendum
+above that patches the cursor (reset probe, id-vs-timestamp ordering). AC#11's toast rule still
+applies: a failed periodic refetch must not re-toast on every tick — `useLogData` toasts once per
+outage and re-arms on the next successful fetch.
+
+**What ships instead.** The frontend no longer maintains a client-side replica of the log table.
+A `log_hint` (debounced 200ms, maxWait 500ms), a WS reconnect (via the unfiltered
+`invalidateQueries()` in `use-websocket.ts`), and a 5-second periodic tick each simply refetch the view's existing
+`GET /logs/recent` base query. Each response **replaces** the cached view — no merge, no cursor,
+no reset detection. `GET /logs/since/{since_id}` and `get_log_records_since()` are deleted.
+`LogEntryResponse.id` stays (a stable row identity, harmless).
+
+**Why.** The cursor design required the client to hold an exact replica of an append-only log
+while the server returned bare arrays carrying no sync metadata (no max id, no DB identity, no
+has-more). Every decision the client had to make — has the DB reset, where is the true max id,
+is this response stale — was an inference from partial evidence, and two producers with
+different orderings (`/logs/recent` by timestamp, `/logs/since` by id) wrote into one cache that
+was also the timestamp-sorted, size-capped display. Each inference had a counterexample; six
+rounds of PR review produced a new one each round, and the hook grew from 88 to ~660 lines.
+With replace-on-fetch, the server's response is always the truth for the view: a DB wipe just
+shows new rows, fixed time windows prune server-side via `since`, and freshly enriched rows
+(execution links that land after the log row) replace stale ones automatically.
+
+**Accepted trade-off.** If more than `REST_FETCH_LIMIT` (1000) records land between two fetches
+(≈2k records/sec sustained, given the 500ms maxWait), the older ones are skipped by the live
+view. They remain in the DB. This is the same guarantee the initial page load already makes —
+the view is a live tail of the most recent N records, not an exhaustive stream. If exact
+catch-up is ever needed, it can be layered on later as a server-described envelope
+(`{entries, max_id, db_epoch, has_more}`) rather than client-side inference.
+
+The "Periodic polling" alternative rejected above is now effectively part of the design as the
+5-second fallback tick; hints remain the primary low-latency trigger.

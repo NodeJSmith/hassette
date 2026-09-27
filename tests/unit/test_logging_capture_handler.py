@@ -219,7 +219,7 @@ class TestLogCaptureHandlerNotifyLevel:
     Regression coverage for the case where a per-service logger override (e.g.
     LoggingConfig.scheduler_service) or a runtime PUT /logs/level change lets a record through at
     a level lower than what LogPersistenceHandler is actually persisting — the hint must not
-    promise a record the frontend's REST-based catch-up fetch can never find.
+    promise a record the frontend's hint-triggered `/logs/recent` refetch can never find.
     """
 
     def test_defaults_to_notset_so_everything_notifies_until_wired(self) -> None:

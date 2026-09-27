@@ -5,16 +5,10 @@ from collections.abc import Callable
 from logging import getLogger
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
-from hassette.web.dependencies import (
-    VALID_LOG_LEVEL_NAMES,
-    VALID_SOURCE_TIERS,
-    LimitQuery,
-    TelemetryDep,
-    db_degrades_to,
-)
+from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep, db_degrades_to
 from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse
 
 LOGGER = getLogger(__name__)
@@ -57,9 +51,6 @@ def validate_source_tier(source_tier: str | None) -> str | None:
 async def get_logs(
     telemetry: TelemetryDep,
     response: Response,
-    # Intentionally higher than the shared `LimitQuery` cap (500): this is the recency-first
-    # dashboard view, which legitimately wants a bigger page than the cursor catch-up endpoint
-    # below. Not drift — see `get_logs_since` for the cursor-based sibling using `LimitQuery`.
     limit: Annotated[int, Query(ge=1, le=RECENT_LOGS_LIMIT_CAP)] = RECENT_LOGS_DEFAULT_LIMIT,
     app_key: Annotated[str | None, Query()] = None,
     level: Annotated[str | None, Query()] = None,
@@ -73,42 +64,6 @@ async def get_logs(
     records: list[LogEntryResponse] = []
     with db_degrades_to(response):
         raw = await telemetry.get_log_records(
-            limit=limit,
-            since=since,
-            app_key=app_key,
-            level=level,
-            execution_id=execution_id,
-            source_tier=source_tier,
-        )
-        records = [LogEntryResponse.model_validate(r) for r in raw]
-    return records
-
-
-@router.get("/logs/since/{since_id}", response_model=list[LogEntryResponse])
-async def get_logs_since(
-    since_id: Annotated[int, Path(ge=0)],
-    telemetry: TelemetryDep,
-    response: Response,
-    limit: LimitQuery = 100,
-    app_key: Annotated[str | None, Query()] = None,
-    level: Annotated[str | None, Query()] = None,
-    since: Annotated[float | None, Query()] = None,
-    execution_id: Annotated[str | None, Query()] = None,
-    source_tier: Annotated[str | None, Query()] = None,
-) -> list[LogEntryResponse]:
-    """Return log records with ``id > since_id``, ordered by ``id ASC``.
-
-    Cursor-based catch-up endpoint — distinct from ``/logs/recent``, which orders by
-    ``timestamp DESC, seq DESC`` for the recency-first dashboard view. A client that tracks
-    the highest ``id`` it has seen can call this to fetch everything it missed (e.g. after a
-    WebSocket reconnect) without gaps or duplicates.
-    """
-    level = validate_log_level(level)
-    source_tier = validate_source_tier(source_tier)
-    records: list[LogEntryResponse] = []
-    with db_degrades_to(response):
-        raw = await telemetry.get_log_records_since(
-            since_id,
             limit=limit,
             since=since,
             app_key=app_key,

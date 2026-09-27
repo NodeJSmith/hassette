@@ -269,8 +269,7 @@ class SummaryQueriesMixin:
             rows = await cursor.fetchall()
         return [SessionRecord.model_validate(row_to_dict(row)) for row in rows]
 
-    # dup-ignore-start: filter param list intentionally mirrors get_log_records_since (same
-    # filter set, different ordering/cursor semantics) and the e2e test double in
+    # dup-ignore-start: filter param list intentionally mirrors the e2e test double in
     # tests/e2e/conftest.py that stands in for this method — signature drift between them
     # would silently break e2e log filtering.
     async def get_log_records(
@@ -301,49 +300,6 @@ class SummaryQueriesMixin:
             " FROM log_records lr"
             " LEFT JOIN executions e ON lr.execution_id = e.execution_id"
             f"{where} ORDER BY lr.timestamp DESC, lr.seq DESC LIMIT :limit"
-        )
-        return await fetch_all_as_dicts(self.execute(query, params))
-
-    # dup-ignore-start: filter param list intentionally mirrors get_log_records (same filter
-    # set, different ordering/cursor semantics) and the e2e test double in tests/e2e/conftest.py
-    # — signature drift between them would silently break e2e log filtering.
-    async def get_log_records_since(
-        self,
-        since_id: int,
-        *,
-        limit: int = DEFAULT_LOG_RECORDS_LIMIT,
-        since: float | None = None,
-        app_key: str | None = None,
-        level: str | None = None,
-        execution_id: str | None = None,
-        source_tier: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Fetch log records with ``id > since_id``, ordered by ``id ASC``, for cursor-based catch-up.
-
-        Unlike ``get_log_records()`` (``timestamp DESC, seq DESC`` — newest first, for the
-        recent-logs view), this orders by ``lr.id ASC`` so a client resuming from a known
-        cursor (e.g. after a WebSocket reconnect) can page forward without gaps or duplicates.
-        ``since_id`` is mandatory — this function always does cursor-based catch-up, never a
-        plain recency fetch.
-
-        ``session_id`` is intentionally not included in the SELECT — session identity is
-        not exposed in the API. All other log_records columns are returned as-is.
-        """
-        # dup-ignore-end
-        filter_clauses, params = log_record_filter_clauses(
-            since=since, app_key=app_key, level=level, execution_id=execution_id, source_tier=source_tier
-        )
-        clauses = ["lr.id > :since_id", *filter_clauses]
-        params["since_id"] = since_id
-
-        where = f" WHERE {' AND '.join(clauses)}"
-        params["limit"] = limit
-
-        query = (
-            "SELECT lr.*, e.kind AS execution_kind, e.listener_id, e.job_id"
-            " FROM log_records lr"
-            " LEFT JOIN executions e ON lr.execution_id = e.execution_id"
-            f"{where} ORDER BY lr.id ASC LIMIT :limit"
         )
         return await fetch_all_as_dicts(self.execute(query, params))
 

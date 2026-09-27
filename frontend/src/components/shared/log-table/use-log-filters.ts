@@ -99,9 +99,9 @@ export function filterLogEntries(
     return true;
   };
 
-  // useLogData provides rows in timestamp DESC order: REST comes from
-  // /logs/recent ordered DESC, and live WS rows are reversed before merge.
-  // Preserve that order for the hot live path instead of re-sorting every batch.
+  // useLogData provides rows in timestamp DESC order — the server's /logs/recent response order,
+  // replaced wholesale on every fetch. Preserve that order for the hot live path instead of
+  // re-sorting every batch.
   const keepTimestampSourceOrder = sort.key === "timestamp";
   const visibleTimestampDescEntries: LogEntry[] = [];
   const sortableEntries: LogEntry[] = [];
@@ -211,10 +211,11 @@ export function useLogFilters({
   const livePaused = filterState.sort.key !== "timestamp";
 
   // Freezes the table's data source the moment the user pauses live updates (sorts by anything
-  // but timestamp), so hint/catch-up merges arriving while "paused — click to resume" is shown
-  // don't keep changing or reordering what's on screen. Otherwise, while livePaused stays true and
-  // scope is unchanged, the same captured array keeps being reused. Resuming (sort back to
-  // timestamp) drops the snapshot and reads allEntries live again immediately, no staleness.
+  // but timestamp), so hint-triggered or periodic refetches arriving while "paused — click to
+  // resume" is shown don't keep changing or reordering what's on screen. Otherwise, while
+  // livePaused stays true and scope is unchanged, the same captured array keeps being reused.
+  // Resuming (sort back to timestamp) drops the snapshot and reads allEntries live again
+  // immediately, no staleness.
   //
   // A fresh freeze starts on the false->true pause transition, or on a scope change
   // (appKey/executionId/preset) while already paused — e.g. LogsPage updating executionId from a
