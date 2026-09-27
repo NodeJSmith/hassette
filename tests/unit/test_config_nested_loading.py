@@ -3,6 +3,8 @@
 Covers nested field access, TOML loading, env var partial updates, and cross-model validation.
 """
 
+from pathlib import Path
+
 import pytest
 from pydantic import SecretStr, ValidationError
 from pydantic_settings.sources import InitSettingsSource
@@ -91,14 +93,7 @@ class TestNestedTomlLoading:
             encoding="utf-8",
         )
 
-        class TomlConfig(HassetteConfig):
-            model_config = HassetteConfig.model_config.copy() | {
-                "cli_parse_args": False,
-                "toml_file": str(toml),
-                "env_file": None,
-            }
-
-        config = TomlConfig()
+        config = load_toml_config(toml)
         assert config.database.retention_days == 14
         # Other database defaults are preserved
         assert config.database.max_size_mb == 500
@@ -112,14 +107,7 @@ class TestNestedTomlLoading:
             encoding="utf-8",
         )
 
-        class TomlConfig(HassetteConfig):
-            model_config = HassetteConfig.model_config.copy() | {
-                "cli_parse_args": False,
-                "toml_file": str(toml),
-                "env_file": None,
-            }
-
-        config = TomlConfig()
+        config = load_toml_config(toml)
         assert config.websocket.heartbeat_interval_seconds == 60
 
     def test_empty_nested_toml_section_produces_defaults(self, tmp_path):
@@ -130,14 +118,7 @@ class TestNestedTomlLoading:
             encoding="utf-8",
         )
 
-        class TomlConfig(HassetteConfig):
-            model_config = HassetteConfig.model_config.copy() | {
-                "cli_parse_args": False,
-                "toml_file": str(toml),
-                "env_file": None,
-            }
-
-        config = TomlConfig()
+        config = load_toml_config(toml)
         assert config.database.retention_days == 7
         assert config.database.max_size_mb == 500
 
@@ -245,3 +226,16 @@ class TestCrossModelValidation:
         error_text = str(exc_info.value)
         # Error should reference both nested paths
         assert "log_retention_days" in error_text or "retention" in error_text
+
+
+def load_toml_config(toml: Path) -> HassetteConfig:
+    """Build a HassetteConfig that reads only the given TOML file (no CLI args, no .env)."""
+
+    class TomlConfig(HassetteConfig):
+        model_config = HassetteConfig.model_config.copy() | {
+            "cli_parse_args": False,
+            "toml_file": str(toml),
+            "env_file": None,
+        }
+
+    return TomlConfig()
