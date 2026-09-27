@@ -16,7 +16,7 @@ import {
 import { createTestQueryClient, renderHookWithProviders } from "@/test/query-test-utils";
 import { server } from "@/test/server";
 
-import { CATCH_UP_FETCH_LIMIT, MAX_CACHED_LOG_ENTRIES, REST_FETCH_LIMIT } from "./constants";
+import { CATCH_UP_FETCH_LIMIT, MAX_CACHED_LOG_ENTRIES, RESET_PROBE_LIMIT, REST_FETCH_LIMIT } from "./constants";
 import {
   CATCH_UP_BACKOFF_MULTIPLIER,
   CATCH_UP_INITIAL_BACKOFF_MS,
@@ -89,6 +89,28 @@ function makeEntries(count: number, startId: number): LogEntry[] {
   return Array.from({ length: count }, (_, i) =>
     createLogEntry({ id: startId + i, seq: startId + i, timestamp: 1000 + startId + i, message: `msg-${startId + i}` }),
   );
+}
+
+/** Establishes the tracked cursor at `cursorId` via the initial REST fetch, then stubs an empty
+ * `/logs/since` page so a subsequent hint's catch-up fetch comes back empty and triggers
+ * `probeForReset`'s `/logs/recent` probe. Shared "arrange" step for every reset-probe test below
+ * — each test still stubs its own `/logs/recent` probe response afterward to exercise its
+ * specific scenario. */
+async function renderWithCursorAndEmptyCatchUp(cursorId: number) {
+  const result = await renderLoadedLogData(makeEntries(1, cursorId));
+  server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([])));
+  return result;
+}
+
+/** Renders `useLogData` with a rerenderable `appKey` prop (via `renderHookWithProviders`'s
+ * `initialProps`) and waits for the initial load to finish. Shared "arrange" step for tests that
+ * change `appKey` mid-test via the returned `rerender`. */
+async function renderWithRerenderableAppKey(initialAppKey: string) {
+  const rendered = renderHookWithProviders((props: { appKey?: string }) => useLogData(props), {
+    initialProps: { appKey: initialAppKey },
+  });
+  await waitForLoaded(rendered.result);
+  return rendered;
 }
 
 beforeEach(() => {
@@ -233,6 +255,12 @@ describe("useLogData", () => {
       const result = await renderLoadedLogData(rest, { appKey: "my_app", executionId: "exec-1" });
 
       const newEntry = makeEntries(1, 2)[0];
+      // dup-ignore-start: PMD CPD's matched span for this boilerplate "stub a handler, then
+      // triggerHintAndWaitFor on a single expect" shape recurs across nearly every hint-triggered
+      // test in this file — see the other dup-ignore-start markers in this file for the sibling
+      // case (closing assertions into the next test's declaration). PMD ignores identifiers and
+      // literals, so unrelated tests' setup/trigger shape matches trivially; nothing here is
+      // meaningfully extractable without hiding what each test actually stubs and asserts.
       server.use(
         http.get(LOGS_SINCE_ENDPOINT, ({ request, params }) => {
           capturedUrl = request.url;
@@ -244,6 +272,7 @@ describe("useLogData", () => {
       await triggerHintAndWaitFor(() => {
         expect(result.current.allEntries.map((e) => e.id)).toContain(newEntry.id);
       });
+      // dup-ignore-end
 
       expect(capturedSinceId).toBe("1");
       const url = new URL(capturedUrl!);
@@ -334,30 +363,60 @@ describe("useLogData", () => {
 
     it("detects a reset even when the catch-up fetch itself comes back empty, via a /logs/recent probe", async () => {
       seedState();
-      const rest = makeEntries(1, 50);
-      const result = await renderLoadedLogData(rest);
-
       // Simulates a DB reset where the fresh max id (3) is still below the stale cursor (50) —
       // /logs/since/50 can only ever return id > 50, so it comes back empty even though the DB
       // now holds fresh, lower-id records the probe must catch instead.
-      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([])));
+      const result = await renderWithCursorAndEmptyCatchUp(50);
       const probeEntry = makeEntries(1, 3)[0];
       server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([probeEntry])));
 
       await triggerHintAndWaitFor(() => {
         expect(result.current.allEntries.map((e) => e.id)).toEqual([3]);
+        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
       });
-      expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
+    });
+
+    it("does not misfire a reset when the probe's single highest-timestamp row has a lower id than other rows in the same batch", async () => {
+      seedState();
+      const result = await renderWithCursorAndEmptyCatchUp(100);
+
+      // /logs/recent orders by timestamp DESC, not id DESC — under concurrent inserts or clock
+      // skew, the highest-timestamp row need not be the highest-id row. This batch simulates
+      // exactly that: sent in timestamp-DESC order (as the real backend would), the first row
+      // (id 97) has a lower id than three rows further down (particularly id 101). A single-row
+      // probe (limit=1) would only ever see id 97 — below the cursor (100) — and misfire a false
+      // reset; a batch large enough to include id 101 must not.
+      const timestampOrderedBatch = [
+        createLogEntry({ id: 97, seq: 97, timestamp: 5000, message: "highest-timestamp-lowest-id" }),
+        createLogEntry({ id: 101, seq: 101, timestamp: 4000, message: "true-max-id" }),
+        createLogEntry({ id: 100, seq: 100, timestamp: 3000, message: "row-100" }),
+        createLogEntry({ id: 99, seq: 99, timestamp: 2000, message: "row-99" }),
+        createLogEntry({ id: 98, seq: 98, timestamp: 1000, message: "row-98" }),
+      ];
+      let capturedLimit: string | null = null;
+      // dup-ignore-start: same unavoidable "stub a handler, then triggerHintAndWaitFor" shape as
+      // the marker above — see that comment for why this isn't meaningfully extractable.
+      server.use(
+        http.get(LOGS_ENDPOINT, ({ request }) => {
+          const limit = Number(new URL(request.url).searchParams.get("limit") ?? "1");
+          capturedLimit = new URL(request.url).searchParams.get("limit");
+          return HttpResponse.json(timestampOrderedBatch.slice(0, limit));
+        }),
+      );
+
+      await triggerHintAndWaitFor(() => {
+        expect(result.current.allEntries.map((e) => e.message)).toContain("true-max-id");
+        expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
+      });
+      // dup-ignore-end
+      expect(Number(capturedLimit)).toBe(RESET_PROBE_LIMIT);
     });
 
     it("does not toast or change the cache when the reset probe finds nothing new", async () => {
       seedState();
-      const rest = makeEntries(1, 50);
-      const result = await renderLoadedLogData(rest);
-
-      server.use(http.get(LOGS_SINCE_ENDPOINT, () => HttpResponse.json([])));
+      const result = await renderWithCursorAndEmptyCatchUp(50);
       // A genuinely quiet stream: the probe re-observes the same entry already cached.
-      const getProbeCount = stubCountingEndpoint(LOGS_ENDPOINT, rest);
+      const getProbeCount = stubCountingEndpoint(LOGS_ENDPOINT, makeEntries(1, 50));
 
       await triggerHintAndWaitFor(() => {
         expect(getProbeCount()).toBe(1);
@@ -735,12 +794,7 @@ describe("useLogData", () => {
       server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
       const getFetchCount = stubCountingHandler(LOGS_SINCE_ENDPOINT, () => HttpResponse.error());
 
-      const { result, rerender } = renderHookWithProviders((props: { appKey?: string }) => useLogData(props), {
-        initialProps: { appKey: "app-a" },
-      });
-      await vi.waitFor(() => {
-        expect(result.current.loading).toBe(false);
-      });
+      const { rerender } = await renderWithRerenderableAppKey("app-a");
 
       // debounce fires, first attempt starts and fails
       await triggerHintAndWaitFor(() => {
@@ -754,6 +808,58 @@ describe("useLogData", () => {
       // now legitimately runs for the new app-b scopedKey) can't also increment fetchCount here.
       await vi.advanceTimersByTimeAsync(CATCH_UP_INITIAL_BACKOFF_MS + 500);
       expect(getFetchCount()).toBe(1);
+    });
+
+    it("aborts a queued catch-up run instead of executing it against a scope that already changed", async () => {
+      seedState();
+      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
+
+      let sinceCallCountA = 0;
+      let releaseFirstCall: (() => void) | undefined;
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, async ({ request }) => {
+          if (new URL(request.url).searchParams.get("app_key") !== "app-a") return HttpResponse.json([]);
+          sinceCallCountA++;
+          if (sinceCallCountA === 1) {
+            // First app-a run's fetch hangs — simulates it still being in flight when a second
+            // hint schedules another run, queued behind it in catchUpChainRef, before scope
+            // changes. `context` and `signal` must be captured together at that schedule time
+            // (still app-a) for the queued run to correctly abort once app-a's controller is
+            // cancelled below — reading the signal lazily at execution time would instead hand it
+            // the new scope's live, un-aborted signal, letting a second app-a fetch fire here.
+            await new Promise<void>((resolve) => {
+              releaseFirstCall = resolve;
+            });
+          }
+          return HttpResponse.json(makeEntries(1, 2));
+        }),
+      );
+
+      const { rerender } = await renderWithRerenderableAppKey("app-a");
+
+      // First hint starts the (now-hanging) fetch for app-a.
+      await triggerHintAndWaitFor(() => {
+        expect(sinceCallCountA).toBe(1);
+      });
+
+      // Second hint arrives while the first is still in flight — queued behind it, still
+      // targeting app-a at this schedule instant.
+      sendHint();
+      await vi.advanceTimersByTimeAsync(HINT_MAX_WAIT_MS);
+      expect(sinceCallCountA).toBe(1); // still queued, not yet executing
+
+      // Scope changes to app-b before the queued run gets its turn — aborts app-a's controller.
+      act(() => rerender({ appKey: "app-b" }));
+
+      // Release the hanging first fetch so the chain advances to the queued (now-stale) run.
+      await act(async () => {
+        releaseFirstCall?.();
+      });
+      await vi.advanceTimersByTimeAsync(HINT_MAX_WAIT_MS + CATCH_UP_MIN_DELAY_MS + 500);
+
+      // The queued run must bail via its own already-aborted signal instead of firing a second
+      // fetch against the scope nobody's viewing anymore.
+      expect(sinceCallCountA).toBe(1);
     });
   });
 
@@ -848,10 +954,7 @@ describe("useLogData", () => {
       seedState("since-restart");
       server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 1))));
 
-      const { result, rerender } = renderHookWithProviders((props: { appKey?: string }) => useLogData(props), {
-        initialProps: { appKey: "app-a" },
-      });
-      await waitForLoaded(result);
+      const { result, rerender } = await renderWithRerenderableAppKey("app-a");
       expect(result.current.allEntries).toHaveLength(1);
 
       server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json(makeEntries(1, 200))));

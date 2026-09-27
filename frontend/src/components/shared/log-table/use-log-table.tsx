@@ -95,6 +95,7 @@ export function useLogTable({
     useLocalState: useLocalState || !!executionId,
     appKey,
     executionId,
+    loading,
   });
 
   const level = filterState.level;

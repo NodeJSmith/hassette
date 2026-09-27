@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
 import { useQueryParams } from "@/hooks/use-query-params";
+import { useAppStore } from "@/state/store";
 
 import {
   ALL_LEVELS,
@@ -20,6 +21,9 @@ interface UseLogFiltersParams {
   useLocalState?: boolean;
   appKey?: string;
   executionId?: string | null;
+  /** Whether `allEntries`' own scoped query is still loading — see the paused-snapshot block
+   * below. Defaults to `false` (never wait) for callers that don't track loading state. */
+  loading?: boolean;
 }
 
 interface UseLogFiltersResult {
@@ -131,10 +135,18 @@ export function useLogFilters({
   useLocalState = false,
   appKey,
   executionId,
+  loading = false,
 }: UseLogFiltersParams): UseLogFiltersResult {
   const qp = useQueryParams();
   const qpRef = useRef(qp);
   qpRef.current = qp;
+
+  // Mirrors useLogData's own scope identity (queryKeys.recentLogs(appKey, executionId) plus the
+  // time-window preset) so a preset change while paused is recognized as a scope change too, not
+  // just an appKey/executionId change — both read the same store fields for exactly this reason.
+  const timePreset = useAppStore((s) => s.timePreset);
+  const urlWindowParam = useAppStore((s) => s.urlWindowParam);
+  const preset = urlWindowParam ?? timePreset;
 
   // An execution_id already scopes rows to a single execution, whose logs can span
   // both tiers (its app logs plus framework diagnostics about it). Tier-filtering there
@@ -200,20 +212,40 @@ export function useLogFilters({
 
   // Freezes the table's data source the moment the user pauses live updates (sorts by anything
   // but timestamp), so hint/catch-up merges arriving while "paused — click to resume" is shown
-  // don't keep changing or reordering what's on screen. Re-snapshots on the false->true
-  // transition, and also while already paused if appKey/executionId changes — e.g. LogsPage
-  // updating executionId from a query param without unmounting this hook — since a stale
-  // snapshot from the previous scope would otherwise keep showing until the user manually
-  // resumes. Otherwise, while livePaused stays true and scope is unchanged, the same captured
-  // array keeps being reused. Resuming (sort back to timestamp) drops the snapshot and reads
-  // allEntries live again immediately, no staleness.
+  // don't keep changing or reordering what's on screen. Otherwise, while livePaused stays true and
+  // scope is unchanged, the same captured array keeps being reused. Resuming (sort back to
+  // timestamp) drops the snapshot and reads allEntries live again immediately, no staleness.
+  //
+  // A fresh freeze starts on the false->true pause transition, or on a scope change
+  // (appKey/executionId/preset) while already paused — e.g. LogsPage updating executionId from a
+  // query param, or switching the time window, without unmounting this hook. Without this, a
+  // stale snapshot from the previous scope would keep showing until the user manually resumes.
+  //
+  // Either kind of fresh freeze can begin while its own query is still loading — pausing before
+  // the initial query resolves, or a scope change whose new query hasn't settled yet — leaving
+  // allEntries briefly `[]` (or whatever was cached under a new key). Snapshotting that transient
+  // value and never revisiting it would freeze the table on stale/empty data forever, since
+  // `startingFreshFreeze` is only true for that one render. `awaitingLoadRef` keeps tracking
+  // allEntries across renders until `loading` clears, then freezes on the settled result instead.
   const wasLivePausedRef = useRef(false);
-  const scopeRef = useRef({ appKey, executionId });
-  const scopeChanged = scopeRef.current.appKey !== appKey || scopeRef.current.executionId !== executionId;
-  scopeRef.current = { appKey, executionId };
+  const scopeRef = useRef({ appKey, executionId, preset });
+  const scopeChanged =
+    scopeRef.current.appKey !== appKey ||
+    scopeRef.current.executionId !== executionId ||
+    scopeRef.current.preset !== preset;
+  scopeRef.current = { appKey, executionId, preset };
+
   const pausedSnapshotRef = useRef<LogEntry[]>(allEntries);
-  if (livePaused && (!wasLivePausedRef.current || scopeChanged)) {
+  const awaitingLoadRef = useRef(false);
+  const startingFreshFreeze = livePaused && (!wasLivePausedRef.current || scopeChanged);
+  const stillAwaitingLoad = livePaused && !startingFreshFreeze && awaitingLoadRef.current;
+
+  if (startingFreshFreeze) {
     pausedSnapshotRef.current = allEntries;
+    awaitingLoadRef.current = loading;
+  } else if (stillAwaitingLoad) {
+    pausedSnapshotRef.current = allEntries;
+    if (!loading) awaitingLoadRef.current = false;
   }
   wasLivePausedRef.current = livePaused;
 

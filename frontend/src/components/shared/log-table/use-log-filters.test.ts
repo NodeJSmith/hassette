@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
+import { useAppStore } from "@/state/store";
 import { createLogEntry } from "@/test/factories";
 import { createWouterMock } from "@/test/mock-wouter";
 
@@ -40,14 +41,15 @@ interface RenderLocalProps {
   entries: LogEntry[];
   appKey?: string;
   executionId?: string | null;
+  loading?: boolean;
 }
 
 /** Render useLogFilters with local state (no URL). Uses initialProps for rerender support. */
-function renderLocal(entries: LogEntry[] = [], appKey?: string, executionId?: string | null) {
-  const hook = renderHook(
-    ({ entries: allEntries, appKey, executionId }: RenderLocalProps) =>
-      useLogFilters({ allEntries, useLocalState: true, appKey, executionId }),
-    { initialProps: { entries, appKey, executionId } },
+function renderLocal(entries: LogEntry[] = [], appKey?: string, executionId?: string | null, loading?: boolean) {
+  const hook = renderHook<ReturnType<typeof useLogFilters>, RenderLocalProps>(
+    ({ entries: allEntries, appKey, executionId, loading }) =>
+      useLogFilters({ allEntries, useLocalState: true, appKey, executionId, loading }),
+    { initialProps: { entries, appKey, executionId, loading } },
   );
   return { hook };
 }
@@ -86,6 +88,7 @@ function waitForSearchDebounce(): Promise<void> {
 beforeEach(() => {
   mockSearch = "";
   mockNavigate.mockReset();
+  useAppStore.setState({ timePreset: "since-restart", urlWindowParam: null });
 });
 
 describe("filterLogEntries", () => {
@@ -465,6 +468,62 @@ describe("livePaused", () => {
     hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b" });
 
     expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+  });
+
+  it("keeps tracking a scope change's data until it loads, instead of freezing on the transient empty result", () => {
+    const execAEntries = [entry({ message: "exec-a-row" })];
+    const { hook } = renderLocal(execAEntries, "my_app", "exec-a");
+
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    expect(messagesOf(hook)).toEqual(["exec-a-row"]);
+
+    // Scope changes to a different execution while still paused, but its query hasn't resolved
+    // yet — allEntries is transiently empty. Snapshotting this instant and never revisiting it
+    // (the old behavior) would freeze the table on nothing forever, even once real data arrives.
+    hook.rerender({ entries: [], appKey: "my_app", executionId: "exec-b", loading: true });
+    expect(messagesOf(hook)).toEqual([]);
+
+    // Data for the new scope lands, but loading is still true one more render (e.g. react-query
+    // reporting isPending until its own settle tick) — the snapshot must keep tracking, not
+    // freeze on this transitional render.
+    const execBEntries = [entry({ message: "exec-b-row" })];
+    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", loading: true });
+    expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+
+    // loading finally clears — now frozen on the loaded data.
+    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", loading: false });
+    expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+
+    // Now frozen: a further live update to the same scope must not appear until resumed.
+    hook.rerender({
+      entries: [...execBEntries, entry({ message: "exec-b-later-row" })],
+      appKey: "my_app",
+      executionId: "exec-b",
+      loading: false,
+    });
+    expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+  });
+
+  it("re-captures the paused snapshot when the time-window preset changes while still paused", () => {
+    const beforeEntries = [entry({ message: "1h-row" })];
+    const { hook } = renderLocal(beforeEntries, "my_app", undefined);
+
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    expect(messagesOf(hook)).toEqual(["1h-row"]);
+
+    // Preset changes (e.g. the user switches the dashboard's time window) without appKey or
+    // executionId changing — useLogData scopes its query by preset too, so the paused snapshot
+    // must treat this as a scope change and refresh, not keep showing the previous window's rows.
+    // The store update and the new entries land in the same render here, same as they would in
+    // the real component tree (useLogTable calls useLogData then useLogFilters in one render
+    // pass, so both the preset and the resulting allEntries always update together).
+    const afterEntries = [entry({ message: "24h-row" })];
+    act(() => {
+      useAppStore.setState({ timePreset: "24h" });
+      hook.rerender({ entries: afterEntries, appKey: "my_app", executionId: undefined });
+    });
+
+    expect(messagesOf(hook)).toEqual(["24h-row"]);
   });
 });
 

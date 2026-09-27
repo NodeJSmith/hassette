@@ -51,7 +51,9 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 
 `log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command and the web dashboard's log view both read from. Defaults to `INFO`. Set to `DEBUG` if you want debug output queryable via `hassette log` or visible on the dashboard.
 
-Hassette clamps this to `log_level` automatically — persistence can never be stricter than what's actually being logged. Raise `log_level` to `DEBUG` and the persistence floor rises with it, so nothing visible in the console silently disappears from the log view. Lower `log_persistence_level` below `log_level` if you want quieter storage while the console still shows the full stream.
+Hassette clamps this to `log_level` automatically — persistence can never be stricter than what's actually being logged. Setting `log_persistence_level` above `log_level` (e.g. `WARNING` while `log_level` stays `INFO`) has no effect; it's silently pulled back down to `log_level`. Raise `log_level` to `DEBUG` and the persistence floor drops with it too, so nothing visible in the console silently disappears from the log view.
+
+`log_persistence_level` is only useful for persisting *more* than the default. A per-service override that logs at `DEBUG` while the global `log_level` stays `INFO` won't be persisted unless you also lower `log_persistence_level` to `DEBUG`. There's no setting that makes storage quieter than whatever is currently being logged.
 
 `log_retention_days` (default 3) sets how long persisted records live before the hourly retention pass deletes them. It must be ≤ `retention_days` under `[hassette.database]` (see [Database & Telemetry](../core-concepts/database-telemetry.md)).
 

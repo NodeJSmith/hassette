@@ -9,7 +9,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { useAppStore } from "@/state/store";
 import { resolveSince } from "@/utils/time-window";
 
-import { CATCH_UP_FETCH_LIMIT, MAX_CACHED_LOG_ENTRIES, REST_FETCH_LIMIT } from "./constants";
+import { CATCH_UP_FETCH_LIMIT, MAX_CACHED_LOG_ENTRIES, RESET_PROBE_LIMIT, REST_FETCH_LIMIT } from "./constants";
 import { rowKey } from "./types";
 
 interface UseLogDataParams {
@@ -294,13 +294,17 @@ function mergeCatchUpBatch(
 
 /** After an empty `/logs/since` page — which can mean either "nothing new" or "the DB was reset
  * and this cursor now exceeds every id in it" (the endpoint's `id > since_id` filter returns
- * empty either way, so it can never distinguish the two on its own) — probes `/logs/recent?
- * limit=1` for the actual latest record and merges it through `mergeCatchUpBatch`, which already
- * knows how to detect and recover from a reset via its own max-id comparison. A quiet stream just
- * re-merges its own already-cached tail (deduped, so a no-op); a reset surfaces the standard
- * "Log stream reset" notice and discards the stale cache, unblocking every subsequent catch-up
- * fetch. Best-effort: a failed probe defers the check to the next tick rather than blocking or
- * toasting on its own — the caller has already returned by the time this settles. */
+ * empty either way, so it can never distinguish the two on its own) — probes `/logs/recent` for
+ * the `RESET_PROBE_LIMIT` most-recent-by-timestamp records and merges them through
+ * `mergeCatchUpBatch`, which already knows how to detect and recover from a reset via its own
+ * max-id comparison over the whole batch. Fetching a batch rather than a single row matters here:
+ * `/logs/recent` orders by timestamp, not id (see `RESET_PROBE_LIMIT`'s docstring), so a single
+ * row's id can understate the true current max under clock skew/concurrent inserts and misfire a
+ * false reset. A quiet stream just re-merges its own already-cached tail (deduped, so a no-op); a
+ * reset surfaces the standard "Log stream reset" notice and discards the stale cache, unblocking
+ * every subsequent catch-up fetch. Best-effort: a failed probe defers the check to the next tick
+ * rather than blocking or toasting on its own — the caller has already returned by the time this
+ * settles. */
 async function probeForReset(
   queryClient: QueryClient,
   scopedKey: readonly unknown[],
@@ -311,7 +315,8 @@ async function probeForReset(
   try {
     const latest = await queryClient.fetchQuery<LogEntry[]>({
       queryKey: [...scopedKey, "reset-probe"],
-      queryFn: ({ signal: fetchSignal }) => getRecentLogs({ appKey, executionId, since, limit: 1 }, fetchSignal),
+      queryFn: ({ signal: fetchSignal }) =>
+        getRecentLogs({ appKey, executionId, since, limit: RESET_PROBE_LIMIT }, fetchSignal),
       staleTime: 0,
       gcTime: 0,
       retry: false,
@@ -440,9 +445,15 @@ function useCatchUpScheduler(
   const catchUpChainRef = useRef<Promise<void>>(Promise.resolve());
 
   // Aborted (and replaced) whenever scopedKey changes, and aborted on unmount — see
-  // performCatchUp's docstring for what this stops. Read via `.current.signal` inside each
-  // scheduled run rather than captured at schedule time, so a run that hasn't started executing
-  // yet always sees the controller current at execution time, not at scheduling time.
+  // performCatchUp's docstring for what this stops. Captured together with `context` at
+  // schedule time (both read from refs at the same synchronous instant), never separately —
+  // a run queued behind an in-flight one in `catchUpChainRef` doesn't execute until the prior
+  // link resolves, and if scope changed in that gap, reading `.current.signal` lazily inside the
+  // `.then()` would pair a stale `context` (old scope) with the *new* scope's live, un-aborted
+  // signal. That mismatched run would never observe its own scope's abort, so it keeps fetching
+  // and retrying against a scope nobody's viewing anymore, blocking the new scope's own queued
+  // run behind it. Pairing both at schedule time means a stale run always carries its own
+  // scope's (already-aborted) signal and bails via `if (signal.aborted) return` like it should.
   const abortControllerRef = useRef<AbortController>(new AbortController());
 
   useEffect(
@@ -465,11 +476,10 @@ function useCatchUpScheduler(
     const interval = setInterval(() => {
       if (contextRef.current.isWaitingForUptime) return;
       const context = contextRef.current;
+      const signal = abortControllerRef.current.signal;
       catchUpChainRef.current = catchUpChainRef.current
         .catch(() => {})
-        .then(() =>
-          performCatchUp(queryClient, context, permanentFailureKeyRef, true, abortControllerRef.current.signal),
-        );
+        .then(() => performCatchUp(queryClient, context, permanentFailureKeyRef, true, signal));
     }, PERIODIC_RESYNC_MS);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- queryClient is stable; refs read fresh values each tick
@@ -492,11 +502,10 @@ function useCatchUpScheduler(
         maxWaitTimerRef.current = null;
       }
       const context = contextRef.current;
+      const signal = abortControllerRef.current.signal;
       catchUpChainRef.current = catchUpChainRef.current
         .catch(() => {})
-        .then(() =>
-          performCatchUp(queryClient, context, permanentFailureKeyRef, false, abortControllerRef.current.signal),
-        );
+        .then(() => performCatchUp(queryClient, context, permanentFailureKeyRef, false, signal));
     };
 
     if (!maxWaitTimerRef.current) {
