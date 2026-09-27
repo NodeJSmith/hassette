@@ -13,7 +13,10 @@ from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelRespo
 LOGGER = getLogger(__name__)
 
 RECENT_LOGS_DEFAULT_LIMIT = 100
+"""Default number of log records `/logs/recent` returns when the client omits `limit`."""
+
 RECENT_LOGS_LIMIT_CAP = 2000
+"""Upper bound a client may request via `/logs/recent`'s `limit` query parameter."""
 
 router = APIRouter(tags=["logs"])
 

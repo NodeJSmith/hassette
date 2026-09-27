@@ -37,11 +37,11 @@ except ImportError:
 pytestmark = pytest.mark.skipif(not HAS_STARLETTE_TC, reason="starlette testclient not available")
 
 LOOPBACK_PEER_IP = "127.0.0.1"
-
-#: HTTP status the websockets client sees when the server rejects the WS handshake pre-accept.
-HANDSHAKE_REJECTED_STATUS = 403
 """The peer address uvicorn reports for the live-server tests' own client, so a `trusted_proxies`
 entry naming it makes those connections trusted."""
+
+HANDSHAKE_REJECTED_STATUS = 403
+"""HTTP status the websockets client sees when the server rejects the WS handshake pre-accept."""
 
 WS_PATH = "/api/ws"
 """The WebSocket route path, hit by every test in this file — single source of truth so a route
