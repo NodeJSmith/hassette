@@ -325,7 +325,7 @@ class LogPersistenceHandler(logging.Handler):
         dropped_lock = self._dropped_lock
         batch_len = len(batch)
 
-        def _do_enqueue(batch=batch) -> None:
+        def _do_enqueue() -> None:
             try:
                 if not db_service.enqueue(db_service._insert_log_records(batch)):
                     with dropped_lock:
