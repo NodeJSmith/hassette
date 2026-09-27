@@ -115,11 +115,11 @@ class LoggingService(Resource):
             self.logger.exception("Failed to create persistence handler — logs will not be persisted")
             self.persistence_handler = None
 
-        q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=self.hassette.config.logging.log_queue_max)
-        queue_handler = HassetteQueueHandler(q)
+        log_queue: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=self.hassette.config.logging.log_queue_max)
+        queue_handler = HassetteQueueHandler(log_queue)
         queue_handler.addFilter(CorrelationFilter())
 
-        listener = HassetteQueueListener(q, *handlers)
+        listener = HassetteQueueListener(log_queue, *handlers)
 
         # Atomic swap: add QueueHandler FIRST, then remove StreamHandler
         _add_handler(loggers, queue_handler)
