@@ -1,3 +1,4 @@
+import { hashKey } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { LogEntry } from "@/api/endpoints";
@@ -17,11 +18,27 @@ import type { FilterState, LevelFilter, LogSortState, TierFilter } from "./types
 
 interface UseLogFiltersParams {
   allEntries: LogEntry[];
-  restEntries: LogEntry[];
   useLocalState?: boolean;
   appKey?: string;
   executionId?: string | null;
+  /** Whether `allEntries`' own scoped query is still loading — see the paused-snapshot block
+   * below. Defaults to `false` (never wait) for callers that don't track loading state. */
+  loading?: boolean;
+  /** Whether `allEntries`' own scoped query has a fetch in flight (foreground or background) —
+   * used instead of `loading` when a fresh freeze starts from a scope change, since scope
+   * changes to an already-cached scope leave `loading` (isPending) false while a background
+   * refetch is still settling. See the paused-snapshot block below. Defaults to `false`. */
+  fetching?: boolean;
+  /** `allEntries`' own scoped query's fully-resolved query key (from `useLogData`'s `scopeKey`,
+   * ultimately `useScopedQuery`'s `queryKey`) — the single source of truth for what counts as a
+   * scope change for the paused-snapshot freeze below. Compared by value (via TanStack's own
+   * `hashKey`), not destructured into individual fields, so this hook never needs its own copy
+   * of which fields define scope (app/execution/preset/uptime today, whatever it grows to
+   * tomorrow). Defaults to a stable empty key for callers that don't track scope. */
+  scopeKey?: readonly unknown[];
 }
+
+const EMPTY_SCOPE_KEY: readonly unknown[] = [];
 
 interface UseLogFiltersResult {
   visibleEntries: LogEntry[];
@@ -96,9 +113,9 @@ export function filterLogEntries(
     return true;
   };
 
-  // useLogData provides rows in timestamp DESC order: REST comes from
-  // /logs/recent ordered DESC, and live WS rows are reversed before merge.
-  // Preserve that order for the hot live path instead of re-sorting every batch.
+  // useLogData provides rows in timestamp DESC order — the server's /logs/recent response order,
+  // replaced wholesale on every fetch. Preserve that order for the hot live path instead of
+  // re-sorting every batch.
   const keepTimestampSourceOrder = sort.key === "timestamp";
   const visibleTimestampDescEntries: LogEntry[] = [];
   const sortableEntries: LogEntry[] = [];
@@ -129,10 +146,12 @@ export function filterLogEntries(
 
 export function useLogFilters({
   allEntries,
-  restEntries,
   useLocalState = false,
   appKey,
   executionId,
+  loading = false,
+  fetching = false,
+  scopeKey = EMPTY_SCOPE_KEY,
 }: UseLogFiltersParams): UseLogFiltersResult {
   const qp = useQueryParams();
   const qpRef = useRef(qp);
@@ -200,8 +219,67 @@ export function useLogFilters({
 
   const livePaused = filterState.sort.key !== "timestamp";
 
+  // Freezes the table's data source the moment the user pauses live updates (sorts by anything
+  // but timestamp), so hint-triggered or periodic refetches arriving while "paused — click to
+  // resume" is shown don't keep changing or reordering what's on screen. Otherwise, while
+  // livePaused stays true and scope is unchanged, the same captured array keeps being reused.
+  // Resuming (sort back to timestamp) drops the snapshot and reads allEntries live again
+  // immediately, no staleness.
+  //
+  // A fresh freeze starts on the false->true pause transition, or on a scope change (the caller's
+  // `scopeKey` — e.g. app/execution/preset, or restart uptime for a since-restart window) while
+  // already paused — e.g. LogsPage updating executionId from a query param, switching the time
+  // window, or a WS reconnect updating uptime, without unmounting this hook. Without this, a
+  // stale snapshot from the previous scope would keep showing until the user manually resumes.
+  //
+  // scopeChanged compares `scopeKey` by value (via `hashKey`, the same function TanStack uses to
+  // compare its own query keys) rather than re-deriving which individual fields make up a scope.
+  // An earlier version hand-listed appKey/executionId/preset here, missed that useScopedQuery
+  // also folds restart uptime into its key for since-restart windows, and would have needed a
+  // fourth hand-copied field to catch that too — the same class of gap by construction, one field
+  // at a time. Comparing the resolved key directly closes the whole class: whatever
+  // useScopedQuery's key is built from, this comparison automatically tracks it.
+  //
+  // Either kind of fresh freeze can begin while its own query is still loading — pausing before
+  // the initial query resolves, or a scope change whose new query hasn't settled yet — leaving
+  // allEntries briefly `[]` (or whatever was cached under a new key). Snapshotting that transient
+  // value and never revisiting it would freeze the table on stale/empty data forever, since
+  // `startingFreshFreeze` is only true for that one render. `awaitingLoadRef` keeps tracking
+  // allEntries across renders until the relevant signal clears, then freezes on the settled
+  // result instead.
+  //
+  // A scope change to a scope that's already cached (e.g. an app viewed earlier) leaves `loading`
+  // (isPending) false immediately, even though a background refetch of that scope is still in
+  // flight — freezing on the stale cached data right away and never revisiting it. An ordinary
+  // pause transition (no scope change) has no such gap: whatever's on screen is what should be
+  // snapshotted right away. So a scope-change freeze tracks `fetching` (isFetching, true for
+  // background refetches too) instead of `loading`; `awaitingIsScopeChangeRef` remembers which
+  // signal a given freeze is waiting on across the renders it spans.
+  const wasLivePausedRef = useRef(false);
+  const scopeKeyHash = hashKey(scopeKey);
+  const scopeRef = useRef(scopeKeyHash);
+  const scopeChanged = scopeRef.current !== scopeKeyHash;
+  scopeRef.current = scopeKeyHash;
+
+  const pausedSnapshotRef = useRef<LogEntry[]>(allEntries);
+  const awaitingLoadRef = useRef(false);
+  const awaitingIsScopeChangeRef = useRef(false);
+  const startingFreshFreeze = livePaused && (!wasLivePausedRef.current || scopeChanged);
+  const stillAwaitingLoad = livePaused && !startingFreshFreeze && awaitingLoadRef.current;
+
+  if (startingFreshFreeze) {
+    pausedSnapshotRef.current = allEntries;
+    awaitingIsScopeChangeRef.current = scopeChanged;
+    awaitingLoadRef.current = scopeChanged ? fetching : loading;
+  } else if (stillAwaitingLoad) {
+    pausedSnapshotRef.current = allEntries;
+    const stillWaiting = awaitingIsScopeChangeRef.current ? fetching : loading;
+    if (!stillWaiting) awaitingLoadRef.current = false;
+  }
+  wasLivePausedRef.current = livePaused;
+
   const { level, tier, app, search, func, sort } = filterState;
-  const source = livePaused ? restEntries : allEntries;
+  const source = livePaused ? pausedSnapshotRef.current : allEntries;
 
   const filtered = useMemo(
     () => filterLogEntries(source, { level, tier, app, search, func, sort }),

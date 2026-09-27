@@ -19,7 +19,6 @@ import { useLogTable } from "./use-log-table";
 vi.mock("./use-log-data", () => ({
   useLogData: () => ({
     allEntries: [],
-    restEntries: [],
     get loading() {
       return mockLoading.value;
     },

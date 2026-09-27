@@ -16,6 +16,7 @@ import { expect, vi } from "vitest";
 
 import type { ConnectedPayload } from "../api/ws-types";
 import { useWebSocket } from "../hooks/use-websocket";
+import { useAppStore } from "../state/store";
 import { createTestQueryClient, renderHookWithProviders } from "./query-test-utils";
 
 /** Minimal mock WebSocket that tracks construction and allows simulating messages. */
@@ -140,4 +141,9 @@ export function reconnectWebSocket(
   const reconnected = MockWebSocket.instances[MockWebSocket.instances.length - 1];
   simulateConnected(reconnected, { uptime_seconds: 200, ...overrides });
   return reconnected;
+}
+
+/** Asserts the store's `logHintVersion` advanced by exactly `delta` (default 1) from `before`. */
+export function expectLogHintVersionIncrementedBy(before: number, delta = 1): void {
+  expect(useAppStore.getState().logHintVersion).toBe(before + delta);
 }

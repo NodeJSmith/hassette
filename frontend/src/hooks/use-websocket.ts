@@ -128,8 +128,8 @@ export function useWebSocket(): void {
             });
             break;
 
-          case "log":
-            useAppStore.getState().pushLog(msg.data);
+          case "log_hint":
+            useAppStore.getState().incrementLogHint();
             break;
 
           case "service_status":

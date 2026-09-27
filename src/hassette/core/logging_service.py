@@ -22,6 +22,8 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 _QUEUE_LISTENER_STOP_TIMEOUT_SECONDS = 5.0
+# Sentinel above CRITICAL so LogCaptureHandler.emit() never notifies while persistence is down.
+_NOTIFY_DISABLED_LEVEL = logging.CRITICAL + 1
 
 
 def _get_loggers(extra_loggers: tuple[str, ...] | None = None) -> list[logging.Logger]:
@@ -78,7 +80,7 @@ class LoggingService(Resource):
     ) -> None:
         super().__init__(hassette, parent=parent)
         self._stream_handler = stream_handler
-        self.capture_handler = LogCaptureHandler(buffer_size=hassette.config.web_api.log_buffer_size)
+        self.capture_handler = LogCaptureHandler()
         self.persistence_handler = None
         self._queue_listener: HassetteQueueListener | None = None
         self._queue_handler: HassetteQueueHandler | None = None
@@ -99,8 +101,18 @@ class LoggingService(Resource):
             handlers.append(self._stream_handler)
         handlers.append(self.capture_handler)
 
-        # Resolve persistence level before the try block so config errors raise loudly
-        persistence_level = logging.getLevelNamesMapping()[self.hassette.config.logging.log_persistence_level]
+        # Resolve persistence level before the try block so config errors raise loudly.
+        # Clamped to never exceed log_level: since the frontend exclusively reads persisted
+        # records (no more live WS payload — see LogHintWsMessage), a stricter persistence_level
+        # than log_level would silently make every record between the two levels unloggable
+        # through the UI, even though it's actively being emitted. Raising log_level (e.g. to
+        # DEBUG for troubleshooting) always raises the persistence floor to match, so anything
+        # visible in the log stream is guaranteed to be queryable too.
+        level_names = logging.getLevelNamesMapping()
+        persistence_level = min(
+            level_names[self.hassette.config.logging.log_persistence_level],
+            level_names[self.hassette.config.logging.log_level],
+        )
 
         # Best-effort: add persistence handler
         try:
@@ -111,9 +123,18 @@ class LoggingService(Resource):
                 persistence_level=persistence_level,
             )
             handlers.append(self.persistence_handler)
+            # Keep hints in lockstep with whatever this handler will actually persist — see
+            # LogCaptureHandler's docstring. This also covers per-service level overrides
+            # (LoggingConfig.scheduler_service, etc.) and runtime PUT /logs/level changes to any
+            # logger without needing to track their effective levels here: those records still
+            # reach this handler's emit() and get filtered the same way regardless of which
+            # logger emitted them.
+            self.capture_handler.set_min_notify_level(persistence_level)
         except Exception:
             self.logger.exception("Failed to create persistence handler — logs will not be persisted")
             self.persistence_handler = None
+            # Nothing will be persisted, so no hint could ever be followed by a successful fetch.
+            self.capture_handler.set_min_notify_level(_NOTIFY_DISABLED_LEVEL)
 
         log_queue: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=self.hassette.config.logging.log_queue_max)
         queue_handler = HassetteQueueHandler(log_queue)

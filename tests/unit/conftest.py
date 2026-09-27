@@ -32,7 +32,6 @@ from hassette.exceptions import HassetteForgottenAwaitWarning
 from hassette.logging_ import (
     CorrelationFilter,
     HassetteQueueListener,
-    LogCaptureHandler,
     LogPersistenceHandler,
     _extract_record_fields,  # pyright: ignore[reportPrivateUsage]
     add_execution_id,
@@ -41,7 +40,7 @@ from hassette.models.entities.light import LightEntity
 from hassette.models.states import LightState
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.testing.config import TEST_TOKEN
-from tests.support.factories import make_mock_parent
+from tests.support.factories import RecordingLogCaptureHandler, make_mock_parent
 
 if TYPE_CHECKING:
     from contextvars import Token
@@ -213,7 +212,7 @@ class LoggingPipelineFixture:
 
     stream: StringIO
     stream_handler: logging.StreamHandler
-    capture: LogCaptureHandler
+    capture: RecordingLogCaptureHandler
     listener: HassetteQueueListener
     queue_handler: logging.handlers.QueueHandler
     logger: logging.Logger
@@ -248,7 +247,7 @@ def logging_pipeline() -> "LoggingPipelineFixture":  # pyright: ignore[reportRet
     stream_handler.setLevel(logging.NOTSET)
     stream_handler.setFormatter(formatter)
 
-    capture = LogCaptureHandler(buffer_size=100)
+    capture = RecordingLogCaptureHandler()
 
     q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=100)
     queue_handler = logging.handlers.QueueHandler(q)

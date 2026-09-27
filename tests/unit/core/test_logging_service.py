@@ -14,7 +14,7 @@ from hassette.logging_ import (
     LogCaptureHandler,
     LogPersistenceHandler,
 )
-from tests.support.factories import make_log_record
+from tests.support.factories import make_log_record, make_recording_log_capture_handler
 from tests.support.mock_hassette import make_mock_hassette
 
 
@@ -66,7 +66,7 @@ def make_logging_service(
     svc._teardown_report = None
     # Wire the stream handler via proper __init__ path but skip super().__init__
     svc._stream_handler = stream_handler
-    svc.capture_handler = LogCaptureHandler(buffer_size=hassette.config.web_api.log_buffer_size)
+    svc.capture_handler = LogCaptureHandler()
     svc.persistence_handler = None
     svc._queue_listener = None
     svc._queue_handler = None
@@ -209,6 +209,80 @@ class TestLoggingServiceOnInitialize:
             assert LogPersistenceHandler not in handler_types
             # mark_ready still called
             assert svc.is_ready()
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+
+    async def test_on_initialize_clamps_persistence_level_to_log_level(self) -> None:
+        """A log_level below the persistence default (e.g. DEBUG) raises the persistence floor.
+
+        Prevents a regression where records visible in the console/live log stream are silently
+        unqueryable through the web UI, which now reads exclusively from persisted records.
+        """
+        hassette = make_mock_hassette(sealed=False, logging={"log_level": "DEBUG", "log_persistence_level": "INFO"})
+        hassette.database_service = make_db_service()
+        svc = await make_initialized_logging_service(hassette=hassette)
+
+        try:
+            assert svc.persistence_handler is not None
+            assert svc.persistence_handler._persistence_level == logging.DEBUG
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+
+    async def test_on_initialize_keeps_persistence_level_below_log_level(self) -> None:
+        """A persistence_level deliberately set lower than log_level is left alone."""
+        hassette = make_mock_hassette(sealed=False, logging={"log_level": "INFO", "log_persistence_level": "DEBUG"})
+        hassette.database_service = make_db_service()
+        svc = await make_initialized_logging_service(hassette=hassette)
+
+        try:
+            assert svc.persistence_handler is not None
+            assert svc.persistence_handler._persistence_level == logging.DEBUG
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+
+    async def test_on_initialize_sets_capture_handler_notify_level_to_persistence_level(self) -> None:
+        """capture_handler's notify floor tracks whatever the persistence handler actually uses.
+
+        Regression coverage: a per-service logger override (e.g. LoggingConfig.scheduler_service)
+        or a runtime PUT /logs/level change can let a record through below the global log_level,
+        independent of the persistence_level computed here — filtering by this floor at emit()
+        time (see LogCaptureHandler) closes that gap for any logger without having to track their
+        effective levels in LoggingService itself.
+        """
+        hassette = make_mock_hassette(sealed=False, logging={"log_level": "DEBUG", "log_persistence_level": "INFO"})
+        hassette.database_service = make_db_service()
+        svc = await make_initialized_logging_service(hassette=hassette)
+
+        try:
+            assert svc.persistence_handler is not None
+            assert svc.capture_handler._min_notify_level == svc.persistence_handler._persistence_level
+            assert svc.capture_handler._min_notify_level == logging.DEBUG
+        finally:
+            if svc._queue_listener is not None:
+                svc._queue_listener.stop()
+
+    async def test_on_initialize_disables_notify_when_persistence_handler_creation_fails(self) -> None:
+        """If persistence can't be created, nothing is persisted — so no hint should ever fire.
+
+        Otherwise the frontend's hint-triggered `/logs/recent` refetch would be told to look for a record
+        that can never exist in the database.
+        """
+        hassette = make_mock_hassette(sealed=False)
+        hassette.database_service = make_db_service()
+        svc = make_logging_service(hassette=hassette)
+
+        with patch(
+            "hassette.core.logging_service.LogPersistenceHandler",
+            side_effect=RuntimeError("db unavailable"),
+        ):
+            await svc.on_initialize()
+
+        try:
+            assert svc.persistence_handler is None
+            assert svc.capture_handler._min_notify_level > logging.CRITICAL
         finally:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
@@ -568,17 +642,18 @@ class TestSyncToAsyncSwap:
         hassette.database_service = make_db_service()
         stream_handler = logging.StreamHandler()
 
-        pre_capture = LogCaptureHandler(buffer_size=500)
+        pre_capture = make_recording_log_capture_handler()
         hassette_logger.addHandler(stream_handler)
         hassette_logger.addHandler(pre_capture)
 
         svc = make_logging_service(stream_handler=stream_handler, hassette=hassette)
+        svc.capture_handler = make_recording_log_capture_handler()
 
         n = 5
         for i in range(n):
             hassette_logger.warning("pre-init record %d", i)
 
-        pre_init_msgs = [e for e in pre_capture.buffer if e.message.startswith("pre-init record")]
+        pre_init_msgs = [e for e in pre_capture.captured if e.message.startswith("pre-init record")]
         assert len(pre_init_msgs) == n
 
         await svc.on_initialize()
@@ -590,7 +665,9 @@ class TestSyncToAsyncSwap:
         await asyncio.sleep(0.1)
 
         try:
-            post_init_msgs = [e.message for e in svc.capture_handler.buffer if e.message.startswith("post-init record")]
+            post_init_msgs = [
+                e.message for e in svc.capture_handler.captured if e.message.startswith("post-init record")
+            ]
             assert len(post_init_msgs) == m, (
                 f"Expected {m} post-init records in capture handler, got {len(post_init_msgs)}: {post_init_msgs}"
             )

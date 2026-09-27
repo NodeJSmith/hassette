@@ -7,7 +7,6 @@ import queue
 import sys
 import threading
 import traceback
-from collections import deque
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from typing import IO, TYPE_CHECKING, Any, Literal
@@ -77,9 +76,6 @@ class LogEntry:
     execution_id: str | None = None
     instance_name: str | None = None
     instance_index: int | None = None
-    execution_kind: str | None = None
-    listener_id: int | None = None
-    job_id: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -96,9 +92,6 @@ class LogEntry:
             "execution_id": self.execution_id,
             "instance_name": self.instance_name,
             "instance_index": self.instance_index,
-            "execution_kind": self.execution_kind,
-            "listener_id": self.listener_id,
-            "job_id": self.job_id,
         }
 
 
@@ -111,9 +104,6 @@ def _extract_correlation_attrs(record: logging.LogRecord) -> dict[str, Any]:
         "instance_name": getattr(record, "instance_name", None),
         "instance_index": getattr(record, "instance_index", None),
         "seq": getattr(record, "seq", 0),
-        "execution_kind": getattr(record, "execution_kind", None),
-        "listener_id": getattr(record, "listener_id", None),
-        "job_id": getattr(record, "job_id", None),
     }
 
 
@@ -124,50 +114,53 @@ def _format_exc_info(record: logging.LogRecord) -> str | None:
 
 
 class LogCaptureHandler(logging.Handler):
-    """Captures log records into a bounded deque and broadcasts to WS clients."""
+    """Captures log records and broadcasts a hint to WS clients.
 
-    _buffer: deque[LogEntry]
+    Only notifies for records at or above ``_min_notify_level``, which ``LoggingService`` keeps
+    in lockstep with whatever ``LogPersistenceHandler`` is actually persisting. A hint promises
+    the frontend a fetchable record — it never checks levels itself, so without this floor it
+    would fire for a record from *any* logger whose effective level currently lets it through
+    (a per-service override in ``LoggingConfig``, or a runtime ``PUT /logs/level`` on an arbitrary
+    logger), even when that record falls below the persistence threshold and can never be found by
+    the `/logs/recent` refetch the hint triggers. Filtering here instead of trying to keep a
+    second copy of "every logger's current effective level" in sync closes that gap for any
+    logger, present or future, without enumerating them.
+    """
+
     _broadcast_fn: Callable[[dict], Coroutine[Any, Any, None]] | None
     _loop: asyncio.AbstractEventLoop | None
+    _min_notify_level: int
 
     shutting_down: bool
 
-    def __init__(self, buffer_size: int = 2000) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self._buffer = deque(maxlen=buffer_size)
         self._broadcast_fn = None
         self._loop = None
         self.shutting_down = False
-
-    @property
-    def buffer(self) -> deque[LogEntry]:
-        return self._buffer
+        self._min_notify_level = logging.NOTSET
 
     def set_broadcast(self, fn: Callable[[dict], Coroutine[Any, Any, None]], loop: asyncio.AbstractEventLoop) -> None:
         """Called by RuntimeQueryService after initialization to wire up WS broadcast."""
         self._broadcast_fn = fn
         self._loop = loop
 
+    def set_min_notify_level(self, level: int) -> None:
+        """Called by ``LoggingService.on_initialize()`` to match the active persistence floor."""
+        self._min_notify_level = level
+
     def emit(self, record: logging.LogRecord) -> None:
-        attrs = _extract_correlation_attrs(record)
-        entry = LogEntry(
-            timestamp=record.created,
-            level=record.levelname,
-            logger_name=record.name,
-            func_name=record.funcName or "",
-            lineno=record.lineno,
-            message=record.getMessage(),
-            exc_info=_format_exc_info(record),
-            **attrs,
-        )
-        self._buffer.append(entry)
         if self.shutting_down:
+            return
+        if record.levelno < self._min_notify_level:
             return
         if self._broadcast_fn and self._loop and self._loop.is_running():
             fn = self._broadcast_fn
             loop = self._loop
-            # LogWsMessage requires a top-level timestamp; entry.to_dict() only nests one under data.
-            payload = {"type": "log", "data": entry.to_dict(), "timestamp": entry.timestamp}
+            # LogHintWsMessage carries no log data — clients that want the new record fetch it
+            # via the REST API. Keeps the broadcast payload independent of LogEntry's shape, and
+            # avoids building a full LogEntry (message formatting, traceback rendering) here.
+            payload = {"type": "log_hint", "timestamp": record.created}
 
             def _schedule_broadcast() -> None:
                 with contextlib.suppress(RuntimeError):

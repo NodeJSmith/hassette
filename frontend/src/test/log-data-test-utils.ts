@@ -5,15 +5,14 @@
  * use when the REST response is stubbed separately (a custom handler, or none at all).
  * `renderLoadedLogData()` additionally stubs `/api/logs/recent` to return a static `entries` array
  * before rendering — the common case where the REST response is a static entries array rather
- * than a custom handler. `renderLoadedWithRestEntry()` further stubs a single REST-origin log
- * entry as the initial REST response — the WS-merge tests' shared setup: one REST entry present
- * before WS pushes arrive.
+ * than a custom handler. `useFakeTimersForLogData()` and the `stubCounting*` helpers below cover
+ * the debounce/periodic-refetch timing and call-counting every `useLogData` test needs.
  */
 
-import { http, HttpResponse } from "msw";
-import { expect, vi } from "vitest";
+import { http, HttpResponse, type JsonBodyType } from "msw";
+import { afterEach, beforeEach, expect, vi } from "vitest";
 
-import type { WsLogPayload } from "../api/ws-types";
+import type { LogEntry } from "../api/endpoints";
 import { useLogData } from "../components/shared/log-table/use-log-data";
 import { renderHookWithProviders } from "./query-test-utils";
 import { server } from "./server";
@@ -30,14 +29,49 @@ export async function renderLoaded(props: Parameters<typeof useLogData>[0] = {})
 
 /** Stubs `/api/logs/recent` to return `entries`, then renders and waits via `renderLoaded`. Covers
  * the common case where the REST response is a static entries array rather than a custom handler. */
-export async function renderLoadedLogData(entries: WsLogPayload[] = [], props: Parameters<typeof useLogData>[0] = {}) {
+export async function renderLoadedLogData(entries: LogEntry[] = [], props: Parameters<typeof useLogData>[0] = {}) {
   server.use(http.get("/api/logs/recent", () => HttpResponse.json(entries)));
   return renderLoaded(props);
 }
 
-/** Stubs a single REST-origin log entry as the initial REST response, then renders and waits via
- * `renderLoadedLogData`. Covers the WS-merge tests' common setup: one REST entry present before WS
- * pushes arrive. */
-export async function renderLoadedWithRestEntry(entry: WsLogPayload) {
-  return renderLoadedLogData([entry]);
+/** Registers the `vi.useFakeTimers({ shouldAdvanceTime: true })` / `vi.useRealTimers()` pair that
+ * every `useLogData` debounce/periodic-refetch test suite needs — call once at the top of a
+ * `describe` block in place of writing both hooks out by hand. `shouldAdvanceTime` lets MSW's
+ * async fetch resolution interleave with the fake clock, which a bare `vi.useFakeTimers()` (the
+ * idiom `format.test.ts`/`time-window.test.ts` use for synchronous-only fake-clock tests) does
+ * not provide. */
+export function useFakeTimersForLogData(): void {
+  // dup-ignore-start: bare vi.useFakeTimers()/vi.useRealTimers() pair — same idiom as
+  // format.test.ts and time-window.test.ts use; nothing left to extract once it's already its
+  // own function.
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  // dup-ignore-end
+}
+
+/** Stubs a GET `endpoint` handler that counts its own calls and delegates the response to
+ * `respond`. Returns a `getCount()` accessor for asserting on call count. Use directly for a
+ * non-JSON response (e.g. `HttpResponse.error()`); `stubCountingEndpoint` below covers the
+ * common JSON case. */
+export function stubCountingHandler(endpoint: string, respond: () => Response): () => number {
+  let count = 0;
+  server.use(
+    http.get(endpoint, () => {
+      count++;
+      return respond();
+    }),
+  );
+  return () => count;
+}
+
+/** Stubs a GET `endpoint` handler that counts its own calls and returns `response` (default: an
+ * empty array) every time, optionally with a custom status via `init`. Returns a `getCount()`
+ * accessor for asserting on call count. */
+export function stubCountingEndpoint(endpoint: string, response: JsonBodyType = [], init?: ResponseInit): () => number {
+  return stubCountingHandler(endpoint, () => HttpResponse.json(response, init));
 }

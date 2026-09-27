@@ -370,8 +370,8 @@ class Hassette(Resource):
         """Return the number of log records dropped because the log queue was full.
 
         Drops here mean ``logging.log_queue_max`` is too small for the current log volume.
-        These records reached no handler at all, so they are missing from console output and
-        the live log buffer as well as the database.
+        These records reached no handler at all, so they are missing from console output as
+        well as the database.
 
         Returns:
             Cumulative count of dropped log records since process start.

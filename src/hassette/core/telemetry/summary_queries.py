@@ -11,6 +11,8 @@ from hassette.core.telemetry.helpers import (
     STORAGE_ERRORS,
     AppHealthAggregates,
     build_app_summaries,
+    fetch_all_as_dicts,
+    log_record_filter_clauses,
     row_to_dict,
     since_clause,
     source_tier_clause,
@@ -267,6 +269,9 @@ class SummaryQueriesMixin:
             rows = await cursor.fetchall()
         return [SessionRecord.model_validate(row_to_dict(row)) for row in rows]
 
+    # dup-ignore-start: filter param list intentionally mirrors the e2e test double in
+    # tests/e2e/conftest.py that stands in for this method — signature drift between them
+    # would silently break e2e log filtering.
     async def get_log_records(
         self,
         *,
@@ -282,24 +287,10 @@ class SummaryQueriesMixin:
         ``session_id`` is intentionally not included in the SELECT — session identity is
         not exposed in the API. All other log_records columns are returned as-is.
         """
-        clauses: list[str] = []
-        params: dict[str, Any] = {}
-
-        if since is not None:
-            clauses.append("lr.timestamp >= :since")
-            params["since"] = since
-        if app_key is not None:
-            clauses.append("lr.app_key = :app_key")
-            params["app_key"] = app_key
-        if level is not None:
-            clauses.append("lr.level = :level")
-            params["level"] = level
-        if execution_id is not None:
-            clauses.append("lr.execution_id = :execution_id")
-            params["execution_id"] = execution_id
-        if source_tier is not None:
-            clauses.append("lr.source_tier = :source_tier")
-            params["source_tier"] = source_tier
+        # dup-ignore-end
+        clauses, params = log_record_filter_clauses(
+            since=since, app_key=app_key, level=level, execution_id=execution_id, source_tier=source_tier
+        )
 
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         params["limit"] = limit
@@ -310,9 +301,7 @@ class SummaryQueriesMixin:
             " LEFT JOIN executions e ON lr.execution_id = e.execution_id"
             f"{where} ORDER BY lr.timestamp DESC, lr.seq DESC LIMIT :limit"
         )
-        async with self.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
-        return [row_to_dict(row) for row in rows]
+        return await fetch_all_as_dicts(self.execute(query, params))
 
     async def get_log_records_by_execution(
         self,

@@ -12,8 +12,8 @@ import pytest
 import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.logging_ import CorrelationFilter, LogCaptureHandler, LogEntry, add_execution_id
-from tests.support.factories import make_log_entry, make_log_record
+from hassette.logging_ import CorrelationFilter, LogEntry, add_execution_id
+from tests.support.factories import make_log_entry, make_log_record, make_recording_log_capture_handler
 from tests.support.helpers import first_json_record_containing
 from tests.unit.conftest import LoggingPipelineFixture
 
@@ -24,7 +24,7 @@ class TestCorrelationFilterSeqIncrements:
     def test_seq_increments_monotonically_via_filter(self) -> None:
         """Seq increments monotonically when CorrelationFilter runs before emit."""
         corr_filter = CorrelationFilter()
-        handler = LogCaptureHandler(buffer_size=100)
+        handler = make_recording_log_capture_handler()
         logger = logging.getLogger("test.seq_increment")
         logger.addFilter(corr_filter)
         logger.addHandler(handler)
@@ -33,7 +33,7 @@ class TestCorrelationFilterSeqIncrements:
         for _ in range(5):
             logger.info("test message")
 
-        entries = list(handler.buffer)
+        entries = handler.captured
         assert len(entries) == 5
         seqs = [e.seq for e in entries]
         # Sequences must be strictly increasing
@@ -46,7 +46,7 @@ class TestCorrelationFilterSeqIncrements:
     def test_seq_starts_at_positive_value_via_filter(self) -> None:
         """Seq is a positive integer stamped by CorrelationFilter."""
         corr_filter = CorrelationFilter()
-        handler = LogCaptureHandler(buffer_size=100)
+        handler = make_recording_log_capture_handler()
         logger = logging.getLogger("test.seq_start")
         logger.addFilter(corr_filter)
         logger.addHandler(handler)
@@ -54,7 +54,7 @@ class TestCorrelationFilterSeqIncrements:
 
         logger.info("first")
 
-        entries = list(handler.buffer)
+        entries = handler.captured
         assert entries[0].seq >= 1
 
         logger.removeFilter(corr_filter)
@@ -63,8 +63,8 @@ class TestCorrelationFilterSeqIncrements:
     def test_shared_filter_produces_global_seq(self) -> None:
         """Two handlers sharing a CorrelationFilter get a global (non-independent) seq."""
         corr_filter = CorrelationFilter()
-        handler_a = LogCaptureHandler(buffer_size=100)
-        handler_b = LogCaptureHandler(buffer_size=100)
+        handler_a = make_recording_log_capture_handler()
+        handler_b = make_recording_log_capture_handler()
 
         logger_a = logging.getLogger("test.seq_shared_a")
         logger_a.addFilter(corr_filter)
@@ -81,8 +81,8 @@ class TestCorrelationFilterSeqIncrements:
         for _ in range(2):
             logger_b.info("b msg")
 
-        seqs_a = [e.seq for e in handler_a.buffer]
-        seqs_b = [e.seq for e in handler_b.buffer]
+        seqs_a = [e.seq for e in handler_a.captured]
+        seqs_b = [e.seq for e in handler_b.captured]
         # All seqs must be unique (global monotonic counter, no repetition)
         all_seqs = seqs_a + seqs_b
         assert len(all_seqs) == len(set(all_seqs)), "seq values must be globally unique"
@@ -218,17 +218,17 @@ class TestSeqMovedToFilter:
     def test_seq_stamped_on_record_before_emit(self) -> None:
         """When CorrelationFilter runs before LogCaptureHandler, seq is on the record."""
         corr_filter = CorrelationFilter()
-        handler = LogCaptureHandler(buffer_size=100)
+        handler = make_recording_log_capture_handler()
         # Manually run filter then emit
         record = make_log_record(name="hassette.test")
         corr_filter.filter(record)
         handler.emit(record)
-        entry = list(handler.buffer)[0]
+        entry = handler.captured[0]
         assert entry.seq >= 1
 
     def test_log_capture_handler_has_no_seq_counter(self) -> None:
         """LogCaptureHandler no longer has a _seq counter of its own."""
-        handler = LogCaptureHandler(buffer_size=100)
+        handler = make_recording_log_capture_handler()
         assert not hasattr(handler, "_seq")
 
 
@@ -277,7 +277,7 @@ class TestCorrelationFilterAppliesToChildLoggers:
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
-        entries = list(logging_pipeline.capture.buffer)
+        entries = logging_pipeline.capture.captured
         child_entries = [e for e in entries if e.message == "child record"]
         assert len(child_entries) == 1
         assert child_entries[0].seq > 0, "seq not stamped on child logger record — filter not running"
@@ -301,6 +301,6 @@ class TestCorrelationFilterAppliesToChildLoggers:
         logging_pipeline.listener.stop()
         logging_pipeline.listener.start()
 
-        entries = list(logging_pipeline.capture.buffer)
+        entries = logging_pipeline.capture.captured
         app_entries = [e for e in entries if e.message == "app record"]
         assert any(e.app_key == "my_app" for e in app_entries)

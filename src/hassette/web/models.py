@@ -175,12 +175,8 @@ class AppManifestListResponse(BaseModel):
     only_apps: list[str] = Field(default_factory=list)
 
 
-class WsMessage(BaseModel):
-    type: str
-    data: dict[str, Any]
-
-
 class LogEntryResponse(BaseModel):
+    id: int
     seq: int
     timestamp: float
     level: LOG_LEVEL_TYPE
@@ -263,9 +259,8 @@ class AppStatusChangedWsMessage(BaseModel):
     timestamp: float
 
 
-class LogWsMessage(BaseModel):
-    type: Literal["log"]
-    data: LogEntryResponse
+class LogHintWsMessage(BaseModel):
+    type: Literal["log_hint"]
     timestamp: float
 
 
@@ -320,7 +315,7 @@ class ExecutionCompletedWsMessage(BaseModel):
 
 WsServerMessage = Annotated[
     AppStatusChangedWsMessage
-    | LogWsMessage
+    | LogHintWsMessage
     | ConnectedWsMessage
     | ConnectivityWsMessage
     | ServiceStatusWsMessage
