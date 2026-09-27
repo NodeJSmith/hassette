@@ -4,7 +4,10 @@ from my_apps.motion_lights import MotionLights
 
 
 async def test_drain_exception_handling():
-    async with AppTestHarness(MotionLights, config={}) as harness:
+    async with AppTestHarness(
+        MotionLights,
+        config={"motion_entity": "binary_sensor.motion", "light_entity": "light.kitchen"},
+    ) as harness:
         try:
             await harness.simulate_state_change("binary_sensor.motion", old_value="off", new_value="on")
         except DrainFailure:
@@ -14,7 +17,10 @@ async def test_drain_exception_handling():
 
 
 async def test_drain_specific_handling():
-    async with AppTestHarness(MotionLights, config={}) as harness:
+    async with AppTestHarness(
+        MotionLights,
+        config={"motion_entity": "binary_sensor.motion", "light_entity": "light.kitchen"},
+    ) as harness:
         try:
             await harness.simulate_state_change("binary_sensor.motion", old_value="off", new_value="on")
         except DrainError as exc:
