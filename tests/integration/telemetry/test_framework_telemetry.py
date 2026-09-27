@@ -20,7 +20,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.testing import HassetteHarness
-from hassette.testing._harness import TEST_TOKEN
+from hassette.testing.config import TEST_TOKEN
 from tests.support.factories import make_job_registration, make_listener_registration
 from tests.support.helpers import DB_HASSETTE_DATABASE_MAX_SIZE_MB, DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette

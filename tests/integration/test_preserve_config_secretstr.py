@@ -5,7 +5,7 @@ without poisoning it to the masked placeholder (``"**********"``).
 """
 
 from hassette.testing import make_test_config
-from hassette.testing._harness import TEST_TOKEN
+from hassette.testing.config import TEST_TOKEN
 from tests.support.harness import preserve_config
 
 

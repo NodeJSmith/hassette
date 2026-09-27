@@ -12,7 +12,7 @@ import pytest
 
 from hassette import context
 from hassette.config.config import HassetteConfig
-from hassette.testing._harness import TEST_TOKEN
+from hassette.testing.config import TEST_TOKEN
 from tests.support.helpers import write_app
 
 
