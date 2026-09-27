@@ -42,14 +42,21 @@ interface RenderLocalProps {
   appKey?: string;
   executionId?: string | null;
   loading?: boolean;
+  fetching?: boolean;
 }
 
 /** Render useLogFilters with local state (no URL). Uses initialProps for rerender support. */
-function renderLocal(entries: LogEntry[] = [], appKey?: string, executionId?: string | null, loading?: boolean) {
+function renderLocal(
+  entries: LogEntry[] = [],
+  appKey?: string,
+  executionId?: string | null,
+  loading?: boolean,
+  fetching?: boolean,
+) {
   const hook = renderHook<ReturnType<typeof useLogFilters>, RenderLocalProps>(
-    ({ entries: allEntries, appKey, executionId, loading }) =>
-      useLogFilters({ allEntries, useLocalState: true, appKey, executionId, loading }),
-    { initialProps: { entries, appKey, executionId, loading } },
+    ({ entries: allEntries, appKey, executionId, loading, fetching }) =>
+      useLogFilters({ allEntries, useLocalState: true, appKey, executionId, loading, fetching }),
+    { initialProps: { entries, appKey, executionId, loading, fetching } },
   );
   return { hook };
 }
@@ -480,18 +487,21 @@ describe("livePaused", () => {
     // Scope changes to a different execution while still paused, but its query hasn't resolved
     // yet — allEntries is transiently empty. Snapshotting this instant and never revisiting it
     // (the old behavior) would freeze the table on nothing forever, even once real data arrives.
-    hook.rerender({ entries: [], appKey: "my_app", executionId: "exec-b", loading: true });
+    // A scope-change freeze tracks `fetching` (isFetching), not `loading` (isPending) — see
+    // use-log-filters.ts: a scope change to an already-cached scope can leave `loading` false
+    // immediately while a background refetch is still settling.
+    hook.rerender({ entries: [], appKey: "my_app", executionId: "exec-b", fetching: true });
     expect(messagesOf(hook)).toEqual([]);
 
-    // Data for the new scope lands, but loading is still true one more render (e.g. react-query
-    // reporting isPending until its own settle tick) — the snapshot must keep tracking, not
-    // freeze on this transitional render.
+    // Data for the new scope lands, but fetching is still true one more render (e.g. react-query
+    // still settling a background refetch) — the snapshot must keep tracking, not freeze on this
+    // transitional render.
     const execBEntries = [entry({ message: "exec-b-row" })];
-    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", loading: true });
+    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", fetching: true });
     expect(messagesOf(hook)).toEqual(["exec-b-row"]);
 
-    // loading finally clears — now frozen on the loaded data.
-    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", loading: false });
+    // fetching finally clears — now frozen on the loaded data.
+    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", fetching: false });
     expect(messagesOf(hook)).toEqual(["exec-b-row"]);
 
     // Now frozen: a further live update to the same scope must not appear until resumed.
@@ -499,9 +509,33 @@ describe("livePaused", () => {
       entries: [...execBEntries, entry({ message: "exec-b-later-row" })],
       appKey: "my_app",
       executionId: "exec-b",
-      loading: false,
+      fetching: false,
     });
     expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+  });
+
+  it("keeps tracking an ordinary pause transition's data until it loads (loading, not fetching)", () => {
+    // Mirrors the scope-change test above, but for the false->true pause transition with no
+    // scope change — that branch tracks `loading` (isPending), not `fetching`.
+    const { hook } = renderLocal([], "my_app", "exec-a", true);
+
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    expect(messagesOf(hook)).toEqual([]);
+
+    const settledEntries = [entry({ message: "settled-row" })];
+    hook.rerender({ entries: settledEntries, appKey: "my_app", executionId: "exec-a", loading: true });
+    expect(messagesOf(hook)).toEqual(["settled-row"]);
+
+    hook.rerender({ entries: settledEntries, appKey: "my_app", executionId: "exec-a", loading: false });
+    expect(messagesOf(hook)).toEqual(["settled-row"]);
+
+    hook.rerender({
+      entries: [...settledEntries, entry({ message: "later-row" })],
+      appKey: "my_app",
+      executionId: "exec-a",
+      loading: false,
+    });
+    expect(messagesOf(hook)).toEqual(["settled-row"]);
   });
 
   it("re-captures the paused snapshot when the time-window preset changes while still paused", () => {

@@ -25,6 +25,15 @@ export interface UseScopedQueryOptions {
    * themselves.
    */
   refetchInterval?: number;
+  /**
+   * Forwarded to `useQuery`'s own `refetchOnMount`. TanStack's default (`true`) only refetches
+   * on mount if the cached entry is past `staleTime` — a remount inside that window silently
+   * serves stale cached data with no network request. Pass `"always"` for a query whose
+   * mount-time freshness matters more than avoiding a redundant fetch (e.g. one that tracks
+   * external notifications that can arrive while unmounted, where a skipped fetch means those
+   * notifications are lost, not just delayed).
+   */
+  refetchOnMount?: boolean | "always";
 }
 
 /**
@@ -78,5 +87,6 @@ export function useScopedQuery<T>(
     placeholderData: options?.placeholderData,
     enabled: !waitingForUptime && (options?.enabled ?? true),
     refetchInterval: options?.refetchInterval,
+    refetchOnMount: options?.refetchOnMount,
   });
 }

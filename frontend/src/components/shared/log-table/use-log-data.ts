@@ -19,6 +19,12 @@ interface UseLogDataResult {
    * cache on every fetch (TanStack's default), there is no merge and no client-side cursor. */
   allEntries: LogEntry[];
   loading: boolean;
+  /** Whether a fetch (foreground or background) is currently in flight for the base query,
+   * regardless of whether cached data already exists — unlike `loading`, which is only true
+   * before the very first result lands. Callers that need to know "is what's cached still
+   * being revalidated" (e.g. deciding whether to keep waiting before freezing a snapshot)
+   * should use this instead of `loading`. */
+  fetching: boolean;
 }
 
 // Stable empty-array identity for the "no data yet" case — `data ?? []` would otherwise allocate
@@ -53,10 +59,18 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
 
   const baseKey = useMemo(() => queryKeys.recentLogs(appKey, executionId), [appKey, executionId]);
 
-  const { data, isPending, isError, error } = useScopedQuery<LogEntry[]>(
+  const { data, isPending, isFetching, isError, error } = useScopedQuery<LogEntry[]>(
     baseKey,
     (since, signal) => getRecentLogs({ appKey, executionId, since, limit: REST_FETCH_LIMIT }, signal),
-    { refetchInterval: PERIODIC_RESYNC_MS },
+    {
+      refetchInterval: PERIODIC_RESYNC_MS,
+      // A remount within staleTime (30s, see query-client.ts) would otherwise serve cached data
+      // with no network fetch — and prevHintVersionRef below re-initializes to the current hint
+      // counter on every mount, so any `log_hint` messages that arrived while unmounted would be
+      // silently discarded rather than just delayed. Forcing a real fetch on mount closes that
+      // window.
+      refetchOnMount: "always",
+    },
   );
 
   // Toast once per outage, not once per failed fetch: every failed refetch (including each
@@ -122,5 +136,5 @@ export function useLogData({ appKey, executionId }: UseLogDataParams): UseLogDat
     debounceTimerRef.current = setTimeout(runInvalidate, HINT_DEBOUNCE_MS);
   }, [logHintVersion, queryClient, baseKey]);
 
-  return { allEntries: data ?? EMPTY_ENTRIES, loading: isPending };
+  return { allEntries: data ?? EMPTY_ENTRIES, loading: isPending, fetching: isFetching };
 }

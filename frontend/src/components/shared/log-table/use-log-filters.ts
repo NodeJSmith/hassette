@@ -24,6 +24,11 @@ interface UseLogFiltersParams {
   /** Whether `allEntries`' own scoped query is still loading — see the paused-snapshot block
    * below. Defaults to `false` (never wait) for callers that don't track loading state. */
   loading?: boolean;
+  /** Whether `allEntries`' own scoped query has a fetch in flight (foreground or background) —
+   * used instead of `loading` when a fresh freeze starts from a scope change, since scope
+   * changes to an already-cached scope leave `loading` (isPending) false while a background
+   * refetch is still settling. See the paused-snapshot block below. Defaults to `false`. */
+  fetching?: boolean;
 }
 
 interface UseLogFiltersResult {
@@ -136,6 +141,7 @@ export function useLogFilters({
   appKey,
   executionId,
   loading = false,
+  fetching = false,
 }: UseLogFiltersParams): UseLogFiltersResult {
   const qp = useQueryParams();
   const qpRef = useRef(qp);
@@ -227,7 +233,16 @@ export function useLogFilters({
   // allEntries briefly `[]` (or whatever was cached under a new key). Snapshotting that transient
   // value and never revisiting it would freeze the table on stale/empty data forever, since
   // `startingFreshFreeze` is only true for that one render. `awaitingLoadRef` keeps tracking
-  // allEntries across renders until `loading` clears, then freezes on the settled result instead.
+  // allEntries across renders until the relevant signal clears, then freezes on the settled
+  // result instead.
+  //
+  // A scope change to a scope that's already cached (e.g. an app viewed earlier) leaves `loading`
+  // (isPending) false immediately, even though a background refetch of that scope is still in
+  // flight — freezing on the stale cached data right away and never revisiting it. An ordinary
+  // pause transition (no scope change) has no such gap: whatever's on screen is what should be
+  // snapshotted right away. So a scope-change freeze tracks `fetching` (isFetching, true for
+  // background refetches too) instead of `loading`; `awaitingIsScopeChangeRef` remembers which
+  // signal a given freeze is waiting on across the renders it spans.
   const wasLivePausedRef = useRef(false);
   const scopeRef = useRef({ appKey, executionId, preset });
   const scopeChanged =
@@ -238,15 +253,18 @@ export function useLogFilters({
 
   const pausedSnapshotRef = useRef<LogEntry[]>(allEntries);
   const awaitingLoadRef = useRef(false);
+  const awaitingIsScopeChangeRef = useRef(false);
   const startingFreshFreeze = livePaused && (!wasLivePausedRef.current || scopeChanged);
   const stillAwaitingLoad = livePaused && !startingFreshFreeze && awaitingLoadRef.current;
 
   if (startingFreshFreeze) {
     pausedSnapshotRef.current = allEntries;
-    awaitingLoadRef.current = loading;
+    awaitingIsScopeChangeRef.current = scopeChanged;
+    awaitingLoadRef.current = scopeChanged ? fetching : loading;
   } else if (stillAwaitingLoad) {
     pausedSnapshotRef.current = allEntries;
-    if (!loading) awaitingLoadRef.current = false;
+    const stillWaiting = awaitingIsScopeChangeRef.current ? fetching : loading;
+    if (!stillWaiting) awaitingLoadRef.current = false;
   }
   wasLivePausedRef.current = livePaused;
 

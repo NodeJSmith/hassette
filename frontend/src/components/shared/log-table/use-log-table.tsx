@@ -70,7 +70,7 @@ export function useLogTable({
 
   const [selectedKey, setSelectedKey] = useState<RowKey | null>(null);
 
-  const { allEntries, loading } = useLogData({
+  const { allEntries, loading, fetching } = useLogData({
     appKey,
     executionId,
   });
@@ -96,6 +96,7 @@ export function useLogTable({
     appKey,
     executionId,
     loading,
+    fetching,
   });
 
   const level = filterState.level;
