@@ -247,18 +247,18 @@ class HassetteQueueListener(logging.handlers.QueueListener):
         self.queue.put(self._sentinel)  # pyright: ignore[reportAttributeAccessIssue]
 
     def _monitor(self) -> None:
-        q = self.queue
-        has_task_done = hasattr(q, "task_done")
+        log_queue = self.queue
+        has_task_done = hasattr(log_queue, "task_done")
         while True:
             try:
                 record = self.dequeue(True)
                 if record is self._sentinel:  # pyright: ignore[reportAttributeAccessIssue]
                     if has_task_done:
-                        q.task_done()  # pyright: ignore[reportAttributeAccessIssue]
+                        log_queue.task_done()  # pyright: ignore[reportAttributeAccessIssue]
                     break
                 self.handle(record)
                 if has_task_done:
-                    q.task_done()  # pyright: ignore[reportAttributeAccessIssue]
+                    log_queue.task_done()  # pyright: ignore[reportAttributeAccessIssue]
             except queue.Empty:
                 for handler in self.handlers:
                     if hasattr(handler, "flush_if_pending"):
@@ -318,9 +318,9 @@ class LogPersistenceHandler(logging.Handler):
         dropped_lock = self._dropped_lock
         batch_len = len(batch)
 
-        def _do_enqueue(b=batch) -> None:
+        def _do_enqueue() -> None:
             try:
-                if not db_service.enqueue(db_service._insert_log_records(b)):
+                if not db_service.enqueue(db_service._insert_log_records(batch)):
                     with dropped_lock:
                         self._dropped += batch_len
             except RuntimeError:

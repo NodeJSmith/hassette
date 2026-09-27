@@ -116,17 +116,17 @@ class SummaryQueriesMixin:
                 last_activity_ts=None,
             )
 
-        d = row_to_dict(row)
+        row_dict = row_to_dict(row)
         return AppHealthAggregates(
-            total_invocations=d["total_invocations"] or 0,
-            handler_errors=d["handler_errors"] or 0,
-            handler_timed_out=d["handler_timed_out"] or 0,
-            handler_avg_duration_ms=d["handler_avg_duration_ms"] or 0.0,
-            total_executions=d["total_executions"] or 0,
-            job_errors=d["job_errors"] or 0,
-            job_timed_out=d["job_timed_out"] or 0,
-            job_avg_duration_ms=d["job_avg_duration_ms"] or 0.0,
-            last_activity_ts=d["last_activity"] if d.get("last_activity") is not None else None,
+            total_invocations=row_dict["total_invocations"] or 0,
+            handler_errors=row_dict["handler_errors"] or 0,
+            handler_timed_out=row_dict["handler_timed_out"] or 0,
+            handler_avg_duration_ms=row_dict["handler_avg_duration_ms"] or 0.0,
+            total_executions=row_dict["total_executions"] or 0,
+            job_errors=row_dict["job_errors"] or 0,
+            job_timed_out=row_dict["job_timed_out"] or 0,
+            job_avg_duration_ms=row_dict["job_avg_duration_ms"] or 0.0,
+            last_activity_ts=row_dict["last_activity"] if row_dict.get("last_activity") is not None else None,
         )
 
     async def get_all_app_summaries(

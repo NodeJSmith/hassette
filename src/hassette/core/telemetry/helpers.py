@@ -276,23 +276,23 @@ def build_app_summaries(
     }
     result: dict[str, AppHealthSummary] = {}
     for app_key in all_keys:
-        lr = listener_reg.get(app_key, {})
-        la = listener_act.get(app_key, {})
-        jr = job_reg.get(app_key, {})
-        ja = job_act.get(app_key, {})
-        last_listener_ts = la.get("last_listener_activity_ts")
-        last_job_ts = ja.get("last_job_activity_ts")
+        app_listener_reg = listener_reg.get(app_key, {})
+        app_listener_act = listener_act.get(app_key, {})
+        app_job_reg = job_reg.get(app_key, {})
+        app_job_act = job_act.get(app_key, {})
+        last_listener_ts = app_listener_act.get("last_listener_activity_ts")
+        last_job_ts = app_job_act.get("last_job_activity_ts")
         last_times = [t for t in (last_listener_ts, last_job_ts) if t is not None]
         result[app_key] = AppHealthSummary(
-            handler_count=lr.get("handler_count", 0),
-            job_count=jr.get("job_count", 0),
-            total_invocations=la.get("total_invocations", 0),
-            total_errors=la.get("total_errors", 0),
-            total_timed_out=la.get("total_timed_out", 0),
-            total_executions=ja.get("total_executions", 0),
-            total_job_errors=ja.get("total_job_errors", 0),
-            total_job_timed_out=ja.get("total_job_timed_out", 0),
-            avg_duration_ms=la.get("avg_duration_ms", 0.0),
+            handler_count=app_listener_reg.get("handler_count", 0),
+            job_count=app_job_reg.get("job_count", 0),
+            total_invocations=app_listener_act.get("total_invocations", 0),
+            total_errors=app_listener_act.get("total_errors", 0),
+            total_timed_out=app_listener_act.get("total_timed_out", 0),
+            total_executions=app_job_act.get("total_executions", 0),
+            total_job_errors=app_job_act.get("total_job_errors", 0),
+            total_job_timed_out=app_job_act.get("total_job_timed_out", 0),
+            avg_duration_ms=app_listener_act.get("avg_duration_ms", 0.0),
             last_activity_ts=max(last_times) if last_times else None,
         )
     return result

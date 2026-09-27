@@ -19,6 +19,12 @@ from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelRespo
 
 LOGGER = getLogger(__name__)
 
+RECENT_LOGS_DEFAULT_LIMIT = 100
+"""Default number of log records `/logs/recent` returns when the client omits `limit`."""
+
+RECENT_LOGS_LIMIT_CAP = 2000
+"""Upper bound a client may request via `/logs/recent`'s `limit` query parameter."""
+
 router = APIRouter(tags=["logs"])
 
 
@@ -54,7 +60,7 @@ async def get_logs(
     # Intentionally higher than the shared `LimitQuery` cap (500): this is the recency-first
     # dashboard view, which legitimately wants a bigger page than the cursor catch-up endpoint
     # below. Not drift — see `get_logs_since` for the cursor-based sibling using `LimitQuery`.
-    limit: Annotated[int, Query(ge=1, le=2000)] = 100,
+    limit: Annotated[int, Query(ge=1, le=RECENT_LOGS_LIMIT_CAP)] = RECENT_LOGS_DEFAULT_LIMIT,
     app_key: Annotated[str | None, Query()] = None,
     level: Annotated[str | None, Query()] = None,
     since: Annotated[float | None, Query()] = None,

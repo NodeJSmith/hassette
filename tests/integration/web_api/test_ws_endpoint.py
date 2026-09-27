@@ -17,6 +17,7 @@ from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
+from hassette.web.auth import WS_POLICY_VIOLATION_CLOSE_CODE
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
 from hassette.web.auth.trusted_proxies import resolve_trusted_proxies
 from hassette.web.routes.ws import _read_client, websocket_endpoint
@@ -38,6 +39,9 @@ pytestmark = pytest.mark.skipif(not HAS_STARLETTE_TC, reason="starlette testclie
 LOOPBACK_PEER_IP = "127.0.0.1"
 """The peer address uvicorn reports for the live-server tests' own client, so a `trusted_proxies`
 entry naming it makes those connections trusted."""
+
+HANDSHAKE_REJECTED_STATUS = 403
+"""HTTP status the websockets client sees when the server rejects the WS handshake pre-accept."""
 
 WS_PATH = "/api/ws"
 """The WebSocket route path, hit by every test in this file — single source of truth so a route
@@ -348,7 +352,7 @@ class TestWebSocketEdgeCases:
         with patch("hassette.web.routes.ws.authorize_ws", return_value=False):
             await websocket_endpoint(mock_ws)
 
-        mock_ws.close.assert_awaited_once_with(code=1008)
+        mock_ws.close.assert_awaited_once_with(code=WS_POLICY_VIOLATION_CLOSE_CODE)
         mock_ws.accept.assert_not_awaited()
         mock_runtime.register_ws_client.assert_not_awaited()
 
@@ -453,7 +457,7 @@ class TestWebSocketAuthorization:
             async with websockets.connect(live_auth_server, open_timeout=5):
                 pass
 
-        assert exc_info.value.response.status_code == 403
+        assert exc_info.value.response.status_code == HANDSHAKE_REJECTED_STATUS
 
     async def test_valid_session_cookie_is_accepted(self, live_auth_server: str) -> None:
         cookie_value = mint_session_cookie(WEB_API_TEST_TOKEN)
@@ -536,4 +540,4 @@ class TestWebSocketTrustedPeerPrecedence:
             ):
                 pass
 
-        assert exc_info.value.response.status_code == 403
+        assert exc_info.value.response.status_code == HANDSHAKE_REJECTED_STATUS

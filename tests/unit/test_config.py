@@ -13,7 +13,7 @@ from pydantic import SecretStr, ValidationError
 from hassette import HassetteConfig, context
 from hassette.config.classes import HassetteTomlConfigSettingsSource
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
-from hassette.testing._harness import TEST_TOKEN
+from hassette.testing.config import TEST_TOKEN
 from hassette.utils import app_utils
 from tests.support.fixtures import run_hassette_startup_tasks
 

@@ -12,12 +12,18 @@ A typical test creates a harness, simulates an event, and asserts on the API cal
 
 The `async with` block initializes the app (running `on_initialize`), then tears it down on exit. `simulate_state_change` publishes an event through the bus and waits for all handlers to finish. `api_recorder.assert_called` verifies the app called the expected service.
 
+The `MotionLights` app used throughout this page declares `motion_entity` as a required config field, so every example passes a `config` dict that sets it. [Testing Configuration Errors](#testing-configuration-errors) shows what happens when it is missing.
+
 The sections below cover each piece of this pattern in detail.
 
 ## Prerequisites
 
 The harness ships in the `hassette[test]` extra. [Write Your First
 Test](index.md) covers installation and `pyproject.toml` setup.
+
+Every example on this page is an `async def` test, so pytest-asyncio must run
+with `asyncio_mode = "auto"`. Without it, async tests silently pass without
+executing. [Write Your First Test](index.md#install) shows the configuration.
 
 ## Seeding State
 
@@ -86,6 +92,12 @@ State value resolution order: the explicit `state=` argument, the value cached
 in the state proxy, then `"unknown"` as a fallback. Seeding state first avoids
 the fallback.
 
+`on_state_change()` takes a `changed=` parameter that defaults to `True`: the
+handler fires only when the entity's state value changes, so an
+attribute-only update does not trigger it.
+[Subscription Methods](../core-concepts/bus/methods.md#on_state_changeentity_id)
+lists the full parameter set.
+
 !!! warning "Attribute changes can fire state-change handlers"
     `on_state_change` handlers registered with `changed=False` fire on any
     `state_changed` event, including attribute-only changes. When an app
@@ -152,6 +164,8 @@ methods.
 
 ### Draining Manually
 
+An app's [task bucket](../core-concepts/apps/task-bucket.md) is the tracker
+that owns every background task the app spawns.
 `drain_task_bucket(timeout=2.0)` waits for the bus dispatch queue and the
 app's task bucket to go quiescent without firing an event. Call it after
 [`trigger_due_jobs()`](time-control.md) when dispatched jobs emit bus events —
@@ -186,7 +200,11 @@ detail.
 
 `harness.api_recorder` exposes a `RecordingApi` that records every call the
 app makes through `self.api`: `turn_on`, `turn_off`, `call_service`,
-`set_state`, `fire_event`, and all helper CRUD methods.
+`set_state`, `fire_event`, and the `self.api.helpers` create/update/delete
+methods for Home Assistant helper entities (`input_boolean`, `counter`, and so
+on — see [Managing Helpers](../core-concepts/api/managing-helpers.md)).
+`self.api.helpers.list()` reads the recorder's helper store without recording
+a call, so it cannot be asserted with `assert_called`.
 
 ### assert_called
 
@@ -243,7 +261,10 @@ returns all recorded calls.
 
 ### reset
 
-`reset()` clears all recorded calls and resets helper definitions. Mid-test
+`reset()` clears all recorded calls and empties the recorder's helper store
+(the helper records seeded with `harness.seed_helper()` or created by the app
+through `self.api.helpers` — see
+[Managing Helpers](../core-concepts/api/managing-helpers.md#testing)). Mid-test
 isolation is the primary use case: asserting separately on two distinct phases
 within one test.
 
@@ -259,6 +280,9 @@ original calls.
 
 `AppConfigurationError` raises during `async with AppTestHarness(...)` entry
 when the `config` dict fails validation. The `async with` body never runs.
+
+An empty `config={}` omits `MotionLights`'s required `motion_entity` field and
+fails validation:
 
 ```python
 --8<-- "pages/testing/snippets/testing_app_configuration_error.py"

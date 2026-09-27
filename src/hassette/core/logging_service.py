@@ -136,11 +136,11 @@ class LoggingService(Resource):
             # Nothing will be persisted, so no hint could ever be followed by a successful fetch.
             self.capture_handler.set_min_notify_level(_NOTIFY_DISABLED_LEVEL)
 
-        q: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=self.hassette.config.logging.log_queue_max)
-        queue_handler = HassetteQueueHandler(q)
+        log_queue: queue.Queue[logging.LogRecord] = queue.Queue(maxsize=self.hassette.config.logging.log_queue_max)
+        queue_handler = HassetteQueueHandler(log_queue)
         queue_handler.addFilter(CorrelationFilter())
 
-        listener = HassetteQueueListener(q, *handlers)
+        listener = HassetteQueueListener(log_queue, *handlers)
 
         # Atomic swap: add QueueHandler FIRST, then remove StreamHandler
         _add_handler(loggers, queue_handler)

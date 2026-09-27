@@ -22,6 +22,8 @@ from tests.support.factories import make_log_record_dict
 
 from .conftest import TELEMETRY_TEST_DDL as DDL
 
+DB_LOCKED_MSG = "database is locked"
+
 
 def run_migrations_to_head(db_path: str) -> None:
     run_migrations(Path(db_path))
@@ -324,7 +326,7 @@ class TestInsertLogRecords:
         records = [_make_rollback_test_record(now)]
 
         with (
-            patch.object(db, "executemany", AsyncMock(side_effect=sqlite3.OperationalError("database is locked"))),
+            patch.object(db, "executemany", AsyncMock(side_effect=sqlite3.OperationalError(DB_LOCKED_MSG))),
             patch.object(db, "rollback", wraps=db.rollback) as mock_rollback,
             pytest.raises(sqlite3.OperationalError),
         ):
@@ -349,9 +351,9 @@ class TestInsertLogRecords:
         db_service.logger = mock_logger  # pyright: ignore[reportAttributeAccessIssue]
 
         with (
-            patch.object(db, "executemany", AsyncMock(side_effect=sqlite3.OperationalError("database is locked"))),
+            patch.object(db, "executemany", AsyncMock(side_effect=sqlite3.OperationalError(DB_LOCKED_MSG))),
             patch.object(db, "rollback", AsyncMock(side_effect=sqlite3.OperationalError("rollback also failed"))),
-            pytest.raises(sqlite3.OperationalError, match="database is locked"),
+            pytest.raises(sqlite3.OperationalError, match=DB_LOCKED_MSG),
         ):
             await db_service._insert_log_records(records)  # pyright: ignore[reportPrivateUsage]
 
