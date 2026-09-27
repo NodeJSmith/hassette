@@ -419,7 +419,69 @@ describe("useLogData", () => {
       expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
     });
 
+    it("does not misfire a reset when a catch-up dispatched against an unestablished cursor resolves after a racing base fetch has already seeded it higher", async () => {
+      seedState();
+
+      let releaseBase: ((entries: LogEntry[]) => void) | undefined;
+      server.use(
+        http.get(LOGS_ENDPOINT, async () => {
+          const entries = await new Promise<LogEntry[]>((resolve) => {
+            releaseBase = resolve;
+          });
+          return HttpResponse.json(entries);
+        }),
+      );
+
+      let releaseSince: ((entries: LogEntry[]) => void) | undefined;
+      server.use(
+        http.get(LOGS_SINCE_ENDPOINT, async () => {
+          const entries = await new Promise<LogEntry[]>((resolve) => {
+            releaseSince = resolve;
+          });
+          return HttpResponse.json(entries);
+        }),
+      );
+
+      const { result } = renderHookWithProviders(() => useLogData({}));
+
+      // A hint fires while the base query is still pending, before the cursor has ever been
+      // established — its catch-up reads sinceId=0 and dispatches /logs/since/0 concurrently
+      // with the still-in-flight base fetch.
+      sendHint();
+      await vi.advanceTimersByTimeAsync(HINT_MAX_WAIT_MS);
+
+      // The base query resolves first. Because the cursor is still unestablished (0), it's
+      // allowed to seed it directly from this page's own max id — jumping straight to 500.
+      await act(async () => {
+        releaseBase?.(makeEntries(1, 500));
+        await vi.waitFor(() => expect(result.current.allEntries.map((e) => e.id)).toEqual([500]));
+      });
+
+      // The catch-up's own response now resolves — it was dispatched back when the cursor was
+      // still 0, so its genuinely non-reset results (ids 1-9) have a lower max id than the
+      // cursor the base query just seeded (500). Comparing against the *live* cursor at merge
+      // time would misread this ordinary race as a database reset; comparing against the cursor
+      // as it stood when this fetch was dispatched does not.
+      // dup-ignore-start: same unavoidable "final assertions, close this test, open the next"
+      // shape as the other dup-ignore-start markers in this file — the checker's matched span
+      // runs through this test's own closing await/expect/toEqual and into the next test's
+      // declaration line (PMD ignores identifiers and literals, so unrelated tests' multi-line
+      // assertion-and-close shapes match trivially). Has to cover the whole span through the
+      // "it(" line below or the checker won't recognize it.
+      await act(async () => {
+        releaseSince?.(makeEntries(9, 1));
+        await vi.waitFor(() =>
+          expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 500,
+          ]),
+        );
+      });
+
+      expect(toast.error).not.toHaveBeenCalledWith(expect.stringContaining("Log stream reset"));
+    });
+
     it("detects a reset even when the catch-up fetch itself comes back empty, via a /logs/recent probe", async () => {
+      // dup-ignore-end (see dup-ignore-start above — the marker had to span into this line)
       seedState();
       // Simulates a DB reset where the fresh max id (3) is still below the stale cursor (50) —
       // /logs/since/50 can only ever return id > 50, so it comes back empty even though the DB
@@ -655,6 +717,12 @@ describe("useLogData", () => {
         expect(callCount).toBe(2);
       });
 
+      // dup-ignore-start: same unavoidable "final assertions, close this test, open the next"
+      // shape as the other dup-ignore-start markers in this file — the checker's matched span
+      // runs through this test's own closing await/expect and into the next test's declaration
+      // line (PMD ignores identifiers and literals, so unrelated tests' multi-line
+      // assertion-and-close shapes match trivially). Has to cover the whole span through the
+      // "it(" line below or the checker won't recognize it.
       await vi.waitFor(() => {
         expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2, 10]);
       });
@@ -662,6 +730,7 @@ describe("useLogData", () => {
     });
 
     it("caps the merged cache at MAX_CACHED_LOG_ENTRIES, dropping the oldest rows", async () => {
+      // dup-ignore-end (see dup-ignore-start above — the marker had to span into this line)
       seedState();
       const existingCount = MAX_CACHED_LOG_ENTRIES - 10;
       // `mergeCatchUpBatch` re-sorts on every merge regardless of input order, but seed newest-first
@@ -725,6 +794,12 @@ describe("useLogData", () => {
         releaseRefetch?.(makeEntries(1, 1));
       });
 
+      // dup-ignore-start: same unavoidable "final assertions, close this test, open the next"
+      // shape as the other dup-ignore-start markers in this file — the checker's matched span
+      // runs through this test's own closing await/expect and into the next test's declaration
+      // line (PMD ignores identifiers and literals, so unrelated tests' multi-line
+      // assertion-and-close shapes match trivially). Has to cover the whole span through the
+      // "it(" line below or the checker won't recognize it.
       await vi.waitFor(() => {
         // A real bug here would wipe the cache back down to just [1] and toast a reset.
         expect(result.current.allEntries.map((e) => e.id).sort((a, b) => a - b)).toEqual([1, 2]);
@@ -733,6 +808,7 @@ describe("useLogData", () => {
     });
 
     it("advances the catch-up cursor past a high-id, old-timestamp row even after it's trimmed out of the display cache", async () => {
+      // dup-ignore-end (see dup-ignore-start above — the marker had to span into this line)
       seedState();
       // Fill the cache to exactly the cap with ordinary entries (id and timestamp both increasing).
       const full = makeEntries(MAX_CACHED_LOG_ENTRIES, 1);

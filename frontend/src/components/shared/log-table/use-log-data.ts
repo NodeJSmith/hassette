@@ -223,13 +223,14 @@ async function fetchSinceWithBackoff(
  * concurrent or just-completed catch-up had already merged in.
  *
  * Detects DB `id` regression (backup restore / telemetry wipe) from either producer: if the
- * incoming batch's max `id` is below the tracked cursor (not the trimmed display cache's own max
- * — the cursor-owning row can have aged out of the timestamp-sorted cache while the cursor itself
- * survives, so comparing against the display cache's max can miss a real regression that still
- * lands below the cursor), the cached history predates the reset and is discarded in favor of a
- * fresh start from this batch, with a one-time notice surfaced — this guard now protects the
- * base-query refresh path too, not just catch-up, since without it stale pre-reset rows would
- * silently outrank genuinely fresher post-reset rows by id forever.
+ * incoming batch's max `id` is below the cursor as it stood when *this* fetch was dispatched (not
+ * the trimmed display cache's own max — the cursor-owning row can have aged out of the
+ * timestamp-sorted cache while the cursor itself survives, so comparing against the display
+ * cache's max can miss a real regression that still lands below the cursor), the cached history
+ * predates the reset and is discarded in favor of a fresh start from this batch, with a one-time
+ * notice surfaced — this guard now protects the base-query refresh path too, not just catch-up,
+ * since without it stale pre-reset rows would silently outrank genuinely fresher post-reset rows
+ * by id forever.
  *
  * `detectReset` gates that check and has no default — every call site states its intent
  * explicitly, since silently inheriting the wrong one for a future call site would misfire the
@@ -244,6 +245,15 @@ async function fetchSinceWithBackoff(
  * empty `/logs/since` against the old, too-high cursor triggers `probeForReset`, which detects it
  * there instead).
  *
+ * `cursorAtDispatch` is required whenever `detectReset` is true — the cursor value `getCursor()`
+ * returned when the caller *dispatched* its request, not whatever `getCursor()` returns now. The
+ * two can differ: the base query's own `/logs/recent` refresh is allowed to seed an unestablished
+ * (0) cursor (see below) purely from its own snapshot, and if it resolves while a cursor-relative
+ * fetch dispatched earlier (when the cursor was still 0) is still in flight, that fetch's own,
+ * genuinely-non-reset results can have a lower max id than the cursor the base query just seeded
+ * — comparing against the *live* cursor at merge time would misread that ordinary race as a
+ * database reset. Comparing against the value true at dispatch time doesn't have this problem.
+ *
  * `windowSince`, when given, drops `existing` entries whose `timestamp` has fallen before it —
  * the base-query refresh path's only mechanism for evicting rows that have aged out of a fixed
  * (1h/24h/7d) time window, since `since` slides forward on every refresh but the count-based
@@ -254,17 +264,20 @@ async function fetchSinceWithBackoff(
  * them outright regardless of `since`. Omit `windowSince` entirely for catch-up and the reset
  * probe, which are cursor-relative rather than window-relative and would otherwise prune records
  * the current window boundary was never meant to bound. */
-interface MergeOptions {
-  detectReset: boolean;
-  windowSince?: number;
-}
+type MergeOptions = { windowSince?: number } & (
+  { detectReset: true; cursorAtDispatch: number } | { detectReset: false }
+);
 
 function mergeCatchUpBatch(
   queryClient: QueryClient,
   scopedKey: readonly unknown[],
   results: LogEntry[],
-  { detectReset, windowSince }: MergeOptions,
+  options: MergeOptions,
 ): void {
+  // Deliberately not destructured: TypeScript only narrows `cursorAtDispatch`'s presence off the
+  // `detectReset` discriminant through direct `options.___` property access, not through a
+  // destructured copy — so every reference below goes through `options` to stay consistent.
+  const { windowSince } = options;
   if (results.length === 0) {
     // Nothing to merge, dedupe, or reset-check — but a fixed-window refresh (windowSince set)
     // still needs to evict cache entries that aged out of the window while the stream was quiet.
@@ -281,7 +294,7 @@ function mergeCatchUpBatch(
     const existing = old ?? [];
     const trackedCursor = getCursor(queryClient, scopedKey);
 
-    if (detectReset && existing.length > 0 && batchMaxId < trackedCursor) {
+    if (options.detectReset && existing.length > 0 && batchMaxId < options.cursorAtDispatch) {
       toast.error("Log stream reset — the server's log history was reset.");
       resetCursor(queryClient, scopedKey, batchMaxId);
       return [...results].sort(byTimestampDesc).slice(0, MAX_CACHED_LOG_ENTRIES);
@@ -294,8 +307,10 @@ function mergeCatchUpBatch(
     // minimum id already exceeds the cursor, advancing to the page's max id would silently and
     // permanently skip every id in that gap — no later catch-up fetch ever asks for them again.
     // Exception: an unestablished cursor (0, nothing to lose) may still be seeded from the very
-    // first base fetch, so the first catch-up episode doesn't needlessly refetch from scratch.
-    if (detectReset || trackedCursor === 0) advanceCursor(queryClient, scopedKey, batchMaxId);
+    // first base fetch, so the first catch-up episode doesn't needlessly refetch from scratch —
+    // safe now that the reset check above compares against `cursorAtDispatch` rather than the
+    // live cursor this seeding could otherwise race ahead of (see this function's docstring).
+    if (options.detectReset || trackedCursor === 0) advanceCursor(queryClient, scopedKey, batchMaxId);
 
     const seen = new Set(existing.map(rowKey));
     const fresh: LogEntry[] = [];
@@ -330,6 +345,7 @@ async function probeForReset(
   queryClient: QueryClient,
   scopedKey: readonly unknown[],
   context: CatchUpContext,
+  cursorAtDispatch: number,
   signal: AbortSignal,
 ): Promise<void> {
   const { appKey, executionId, since } = context;
@@ -343,8 +359,10 @@ async function probeForReset(
       retry: false,
     });
     if (signal.aborted) return;
-    // detectReset: true — this probe exists specifically to detect a reset.
-    mergeCatchUpBatch(queryClient, scopedKey, latest, { detectReset: true });
+    // detectReset: true — this probe exists specifically to detect a reset. cursorAtDispatch is
+    // the cursor value that made the caller's own /logs/since page come back empty in the first
+    // place (see mergeCatchUpBatch's docstring for why that's not necessarily the live cursor).
+    mergeCatchUpBatch(queryClient, scopedKey, latest, { detectReset: true, cursorAtDispatch });
   } catch {
     // Best-effort — see docstring above.
   }
@@ -414,12 +432,13 @@ async function performCatchUp(
     if (results.length === 0) {
       // sinceId > 0 means there's a cursor a reset could actually invalidate — an empty cache
       // has nothing to protect, so skip the extra request.
-      if (sinceId > 0) await probeForReset(queryClient, scopedKey, context, signal);
+      if (sinceId > 0) await probeForReset(queryClient, scopedKey, context, sinceId, signal);
       return;
     }
 
-    // detectReset: true — a cursor-based fetch, so a lower max really is a reset.
-    mergeCatchUpBatch(queryClient, scopedKey, results, { detectReset: true });
+    // detectReset: true — a cursor-based fetch, so a lower max really is a reset. cursorAtDispatch
+    // is this page's own sinceId, not a fresh getCursor() read — see mergeCatchUpBatch's docstring.
+    mergeCatchUpBatch(queryClient, scopedKey, results, { detectReset: true, cursorAtDispatch: sinceId });
 
     if (results.length < CATCH_UP_FETCH_LIMIT) return;
 
