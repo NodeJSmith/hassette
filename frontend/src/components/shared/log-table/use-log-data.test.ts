@@ -1,24 +1,21 @@
 import { act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { LogEntry } from "@/api/endpoints";
 import { type TimePreset, useAppStore } from "@/state/store";
 import { createLogEntry } from "@/test/factories";
-import { renderLoaded, renderLoadedLogData, renderLoadedWithRestEntry } from "@/test/log-data-test-utils";
+import { renderLoaded, stubCountingEndpoint, useFakeTimersForLogData } from "@/test/log-data-test-utils";
 import { renderHookWithProviders } from "@/test/query-test-utils";
 import { server } from "@/test/server";
 
-import { LIVE_LOG_UPDATE_INTERVAL_MS, REST_FETCH_LIMIT } from "./constants";
-import { useLogData } from "./use-log-data";
+import { REST_FETCH_LIMIT } from "./constants";
+import { HINT_DEBOUNCE_MS, HINT_MAX_WAIT_MS, PERIODIC_RESYNC_MS, useLogData } from "./use-log-data";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 const LOGS_ENDPOINT = "/api/logs/recent";
-
-vi.mock("sonner", () => ({
-  toast: { error: vi.fn() },
-}));
-
-// Import after mock so the spy reference is captured.
-const { toast } = await import("sonner");
 
 function seedState(preset: TimePreset = "1h"): void {
   useAppStore.setState({
@@ -27,321 +24,237 @@ function seedState(preset: TimePreset = "1h"): void {
   });
 }
 
-async function waitForLoaded(result: { current: { loading: boolean } }): Promise<void> {
-  await vi.waitFor(() => {
-    expect(result.current.loading).toBe(false);
+/** Bumps the store's `log_hint` counter inside `act()` — the trigger `use-log-data.ts` debounces
+ * on. */
+function sendHint(): void {
+  act(() => {
+    useAppStore.getState().incrementLogHint();
   });
 }
 
-beforeEach(() => {
-  vi.mocked(toast.error).mockClear();
-});
+/** Fires a hint, advances past the debounce window, and waits for `assertion` — the common
+ * "trigger a hint-driven refetch, then wait for its effect" sequence every hint test needs. */
+async function triggerHintAndWaitFor(assertion: () => void): Promise<void> {
+  sendHint();
+  await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
+  await vi.waitFor(assertion);
+}
+
+/** A promise plus its own `resolve`, so a test can control exactly when a mocked fetch settles —
+ * used to hold a `/logs/recent` response open while other hints fire around it. */
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
 
 describe("useLogData", () => {
-  describe("loading state", () => {
-    it("is true initially before REST resolves", () => {
-      seedState();
-      // Override with a never-resolving handler to freeze the fetch in-flight.
-      server.use(http.get(LOGS_ENDPOINT, () => new Promise(() => {})));
+  useFakeTimersForLogData();
 
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      expect(result.current.loading).toBe(true);
-    });
-
-    it("becomes false after REST resolves", async () => {
-      seedState();
-
-      await renderLoaded();
-    });
+  beforeEach(() => {
+    seedState();
+    vi.mocked(toast.error).mockClear();
   });
 
-  describe("REST fetch", () => {
-    it("calls the /api/logs/recent endpoint with appKey, executionId, and limit", async () => {
-      seedState();
-      let capturedUrl: string | undefined;
+  it("fetches /logs/recent with appKey, executionId, since, and limit forwarded", async () => {
+    let capturedUrl: URL | undefined;
+    server.use(
+      http.get(LOGS_ENDPOINT, ({ request }) => {
+        capturedUrl = new URL(request.url);
+        return HttpResponse.json([]);
+      }),
+    );
 
-      server.use(
-        http.get(LOGS_ENDPOINT, ({ request }) => {
-          capturedUrl = request.url;
-          return HttpResponse.json([]);
-        }),
-      );
+    await renderLoaded({ appKey: "my_app", executionId: "exec-1" });
 
-      await renderLoaded({ appKey: "my_app", executionId: "exec-42" });
-
-      expect(capturedUrl).toBeDefined();
-      const url = new URL(capturedUrl!);
-      expect(url.searchParams.get("app_key")).toBe("my_app");
-      expect(url.searchParams.get("execution_id")).toBe("exec-42");
-      expect(url.searchParams.get("limit")).toBe(String(REST_FETCH_LIMIT));
-    });
-
-    it("populates restEntries with the fetched entries", async () => {
-      seedState();
-      const entries = [
-        createLogEntry({ seq: 1, timestamp: 1000, message: "first" }),
-        createLogEntry({ seq: 2, timestamp: 2000, message: "second" }),
-      ];
-
-      const result = await renderLoadedLogData(entries);
-
-      expect(result.current.restEntries).toHaveLength(2);
-      expect(result.current.restEntries[0].message).toBe("first");
-      expect(result.current.restEntries[1].message).toBe("second");
-    });
-
-    it("includes REST entries in allEntries", async () => {
-      seedState();
-      const entries = [createLogEntry({ seq: 1, timestamp: 1000, message: "rest-entry" })];
-
-      const result = await renderLoadedLogData(entries);
-
-      expect(result.current.allEntries.some((e) => e.message === "rest-entry")).toBe(true);
-    });
+    expect(capturedUrl?.searchParams.get("app_key")).toBe("my_app");
+    expect(capturedUrl?.searchParams.get("execution_id")).toBe("exec-1");
+    expect(capturedUrl?.searchParams.get("limit")).toBe(String(REST_FETCH_LIMIT));
+    expect(capturedUrl?.searchParams.has("since")).toBe(true);
   });
 
-  describe("WS merge", () => {
-    it("prepends WS entries above the REST watermark to keep timestamp-desc order", async () => {
-      seedState();
-      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 1000, message: "rest" }));
+  it("refetches exactly once after the debounce window following a single hint", async () => {
+    const getCount = stubCountingEndpoint(LOGS_ENDPOINT, []);
 
-      act(() => {
-        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, message: "ws-new" }));
-      });
+    const result = await renderLoaded();
+    expect(getCount()).toBe(1);
 
-      await vi.waitFor(() => {
-        expect(result.current.allEntries).toHaveLength(2);
-        expect(result.current.allEntries[0].message).toBe("ws-new");
-        expect(result.current.allEntries[1].message).toBe("rest");
-      });
-    });
-
-    it("orders multiple WS entries newest first before REST entries", async () => {
-      seedState();
-      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 1000, message: "rest" }));
-
-      act(() => {
-        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, message: "ws-older" }));
-        useAppStore.getState().pushLog(createLogEntry({ seq: 3, timestamp: 3000, message: "ws-newer" }));
-      });
-
-      await vi.waitFor(() => {
-        expect(result.current.allEntries.map((e) => e.message)).toEqual(["ws-newer", "ws-older", "rest"]);
-      });
-    });
-
-    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests below that push and check a different message set, not duplicated setup
-    it("excludes WS entries whose rowKey matches a REST entry (deduplication)", async () => {
-      seedState();
-      const result = await renderLoadedWithRestEntry(createLogEntry({ seq: 1, timestamp: 5000, message: "rest" }));
-
-      act(() => {
-        // Same seq+timestamp as REST entry → same rowKey → excluded
-        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 5000, message: "exact-dup" }));
-        // Different seq → different rowKey → included
-        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 5000, message: "same-ts-diff-seq" }));
-        useAppStore.getState().pushLog(createLogEntry({ seq: 3, timestamp: 6000, message: "newer" }));
-      });
-
-      await vi.waitFor(() => {
-        const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toContain("same-ts-diff-seq");
-        expect(messages).toContain("newer");
-        expect(messages).not.toContain("exact-dup");
-      });
-    });
-    // dup-ignore-end
-
-    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
-    it("preserves distinct records that share a timestamp (same-timestamp dedup fix)", async () => {
-      seedState();
-
-      const result = await renderLoadedLogData();
-
-      act(() => {
-        useAppStore.getState().pushLog(createLogEntry({ seq: 10, timestamp: 9000, message: "first" }));
-        useAppStore.getState().pushLog(createLogEntry({ seq: 11, timestamp: 9000, message: "second" }));
-        useAppStore.getState().pushLog(createLogEntry({ seq: 12, timestamp: 9000, message: "third" }));
-      });
-
-      await vi.waitFor(() => {
-        const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toHaveLength(3);
-        expect(messages).toContain("first");
-        expect(messages).toContain("second");
-        expect(messages).toContain("third");
-      });
-    });
-    // dup-ignore-end
-
-    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
-    it("excludes WS entries for a different app_key when appKey is provided", async () => {
-      seedState();
-
-      const result = await renderLoadedLogData([], { appKey: "my_app" });
-
-      act(() => {
-        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 9000, app_key: "my_app", message: "mine" }));
-        useAppStore
-          .getState()
-          .pushLog(createLogEntry({ seq: 2, timestamp: 9001, app_key: "other_app", message: "not-mine" }));
-      });
-
-      await vi.waitFor(() => {
-        const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toContain("mine");
-        expect(messages).not.toContain("not-mine");
-      });
-    });
-    // dup-ignore-end
-
-    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
-    it("excludes WS entries for a different execution_id when executionId is provided", async () => {
-      seedState();
-
-      const result = await renderLoadedLogData([], { executionId: "exec-1" });
-
-      act(() => {
-        useAppStore
-          .getState()
-          .pushLog(createLogEntry({ seq: 1, timestamp: 9000, execution_id: "exec-1", message: "this-exec" }));
-        useAppStore
-          .getState()
-          .pushLog(createLogEntry({ seq: 2, timestamp: 9001, execution_id: "exec-2", message: "other-exec" }));
-      });
-
-      await vi.waitFor(() => {
-        const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toContain("this-exec");
-        expect(messages).not.toContain("other-exec");
-      });
-    });
-    // dup-ignore-end
-
-    // dup-ignore-start: parallel WS-merge filter test case — render+push+assert shape token-matches the sibling filter-scenario tests in this describe block that push and check a different message set, not duplicated setup
-    it("includes all WS entries not in the REST set when no filters are provided", async () => {
-      seedState();
-
-      const result = await renderLoadedLogData();
-
-      act(() => {
-        useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 1000, app_key: "app-a", message: "a" }));
-        useAppStore.getState().pushLog(createLogEntry({ seq: 2, timestamp: 2000, app_key: "app-b", message: "b" }));
-      });
-
-      await vi.waitFor(() => {
-        const messages = result.current.allEntries.map((e) => e.message);
-        expect(messages).toContain("a");
-        expect(messages).toContain("b");
-      });
-    });
-    // dup-ignore-end
-
-    it("throttles live WS entries before exposing them to the table", async () => {
-      seedState();
-
-      const result = await renderLoadedLogData();
-
-      vi.useFakeTimers();
-      try {
-        act(() => {
-          useAppStore.getState().pushLog(createLogEntry({ seq: 1, timestamp: 1000, message: "throttled" }));
-        });
-
-        expect(result.current.allEntries.map((e) => e.message)).not.toContain("throttled");
-
-        await act(async () => {
-          vi.advanceTimersByTime(LIVE_LOG_UPDATE_INTERVAL_MS - 1);
-        });
-        expect(result.current.allEntries.map((e) => e.message)).not.toContain("throttled");
-
-        await act(async () => {
-          vi.advanceTimersByTime(1);
-        });
-        expect(result.current.allEntries.map((e) => e.message)).toContain("throttled");
-      } finally {
-        vi.useRealTimers();
-      }
-    });
+    await triggerHintAndWaitFor(() => expect(getCount()).toBe(2));
+    expect(result.current.loading).toBe(false);
   });
 
-  describe("time-window filtering", () => {
-    it("passes the since parameter to the REST fetch", async () => {
-      seedState("1h");
-      let capturedUrl: string | undefined;
+  it("coalesces 10+ hints within 100ms into exactly one refetch (design AC#5)", async () => {
+    const getCount = stubCountingEndpoint(LOGS_ENDPOINT, []);
 
-      server.use(
-        http.get(LOGS_ENDPOINT, ({ request }) => {
-          capturedUrl = request.url;
-          return HttpResponse.json([]);
-        }),
-      );
+    await renderLoaded();
+    expect(getCount()).toBe(1);
 
-      await renderLoaded();
+    for (let i = 0; i < 12; i++) {
+      sendHint();
+      await vi.advanceTimersByTimeAsync(10);
+    }
+    // All 12 hints landed within 120ms — well inside the 200ms debounce window each hint resets.
+    await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
+    await vi.waitFor(() => expect(getCount()).toBe(2));
 
-      expect(capturedUrl).toBeDefined();
-      const url = new URL(capturedUrl!);
-      const since = Number(url.searchParams.get("since"));
-      expect(since).toBeGreaterThan(0);
-      // 1h preset: since should be within ~1h of now
-      const nowSeconds = Date.now() / 1000;
-      expect(since).toBeGreaterThan(nowSeconds - 3700);
-      expect(since).toBeLessThan(nowSeconds);
-    });
-
-    it("refetches when the time preset changes", async () => {
-      seedState("1h");
-      let fetchCount = 0;
-
-      server.use(
-        http.get(LOGS_ENDPOINT, () => {
-          fetchCount++;
-          return HttpResponse.json([]);
-        }),
-      );
-
-      await renderLoaded();
-      const firstFetchCount = fetchCount;
-
-      await act(() => {
-        useAppStore.setState({ timePreset: "24h" });
-      });
-
-      await vi.waitFor(() => {
-        expect(fetchCount).toBeGreaterThan(firstFetchCount);
-      });
-    });
-
-    it("gates fetching until uptimeSeconds is available for since-restart", async () => {
-      // Default: since-restart with null uptime → should not fetch
-
-      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.json([])));
-
-      const { result } = renderHookWithProviders(() => useLogData({}));
-
-      // Should stay in loading state because fetching is disabled
-      expect(result.current.loading).toBe(true);
-
-      // Provide uptime → unblocks fetch
-      await act(() => {
-        useAppStore.setState({ uptimeSeconds: 60 });
-      });
-
-      await waitForLoaded(result);
-    });
+    // No further refetch trickles in once the burst has settled.
+    await vi.advanceTimersByTimeAsync(HINT_MAX_WAIT_MS);
+    expect(getCount()).toBe(2);
   });
 
-  describe("error handling", () => {
-    it("shows a toast error and sets loading to false when the REST fetch rejects", async () => {
-      seedState();
+  it("refetches at least every HINT_MAX_WAIT_MS under continuous hints", async () => {
+    const getCount = stubCountingEndpoint(LOGS_ENDPOINT, []);
 
-      server.use(http.get(LOGS_ENDPOINT, () => HttpResponse.error()));
+    await renderLoaded();
+    expect(getCount()).toBe(1);
 
-      const result = await renderLoaded();
+    // One hint every 100ms for over a second — each hint resets the debounce timer, so only the
+    // maxWait cap can force a refetch through.
+    for (let i = 0; i < 11; i++) {
+      sendHint();
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    // 1100ms elapsed >= 2 * HINT_MAX_WAIT_MS, so at least 2 maxWait-triggered refetches must have
+    // landed on top of the initial fetch.
+    await vi.waitFor(() => expect(getCount()).toBeGreaterThanOrEqual(3));
+  });
 
-      expect(toast.error).toHaveBeenCalledTimes(1);
-      expect(result.current.restEntries).toHaveLength(0);
+  it("does not cancel a slow in-flight fetch under sustained hints (starvation regression)", async () => {
+    const baseline = [createLogEntry({ id: 1, message: "baseline" })];
+    const later = [createLogEntry({ id: 3, message: "later-response" })];
+    const slow = createDeferred<LogEntry[]>();
+
+    let callIndex = 0;
+    server.use(
+      http.get(LOGS_ENDPOINT, async () => {
+        callIndex += 1;
+        if (callIndex === 1) return HttpResponse.json(baseline);
+        if (callIndex === 2) return HttpResponse.json(await slow.promise);
+        return HttpResponse.json(later);
+      }),
+    );
+
+    const result = await renderLoaded();
+    expect(result.current.allEntries[0]?.message).toBe("baseline");
+    expect(callIndex).toBe(1);
+
+    // Trigger the second (slow) fetch — this is the one that must survive the burst below.
+    sendHint();
+    await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
+    await vi.waitFor(() => expect(callIndex).toBe(2));
+
+    // Continuous hints across several maxWait windows while the slow fetch is still pending —
+    // each hint resets the debounce timer (spaced well under HINT_DEBOUNCE_MS), so only the
+    // maxWait cap can force a subsequent invalidate through, repeatedly, while call #2 is
+    // in-flight. `invalidateQueries`'s default `cancelRefetch: true` would abort call #2 on the
+    // first of these and replace it with a fresh (fast, "later-response") fetch — starving out
+    // the slow response forever, since re-resolving an aborted request's promise afterward has no
+    // effect on what the query cache ends up holding.
+    for (let i = 0; i < 16; i++) {
+      sendHint();
+      await vi.advanceTimersByTimeAsync(100);
+    }
+    // Flush the final hint's still-pending debounce timer while the slow fetch is still
+    // unresolved, so no leftover timer from the burst fires later and confounds the assertions
+    // below with a legitimate, unrelated extra fetch.
+    await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
+    expect(callIndex).toBe(2);
+
+    // Now let the slow fetch settle.
+    slow.resolve([createLogEntry({ id: 2, message: "slow-response" })]);
+    await vi.waitFor(() => {
+      expect(result.current.allEntries.some((e) => e.message === "slow-response")).toBe(true);
     });
+
+    // The slow fetch was never cancelled and re-issued: no third call happened.
+    expect(callIndex).toBe(2);
+  });
+
+  it("refetches every PERIODIC_RESYNC_MS with no hints", async () => {
+    const getCount = stubCountingEndpoint(LOGS_ENDPOINT, []);
+
+    await renderLoaded();
+    expect(getCount()).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(PERIODIC_RESYNC_MS);
+    await vi.waitFor(() => expect(getCount()).toBe(2));
+
+    await vi.advanceTimersByTimeAsync(PERIODIC_RESYNC_MS);
+    await vi.waitFor(() => expect(getCount()).toBe(3));
+  });
+
+  it("replaces the cache: a dropped row disappears and a changed row shows its new values", async () => {
+    const first = [
+      createLogEntry({ id: 1, message: "first" }),
+      createLogEntry({ id: 2, message: "second", execution_kind: null }),
+    ];
+    const second = [createLogEntry({ id: 2, message: "second", execution_kind: "handler" })];
+
+    let call = 0;
+    server.use(
+      http.get(LOGS_ENDPOINT, () => {
+        call += 1;
+        return HttpResponse.json(call === 1 ? first : second);
+      }),
+    );
+
+    const result = await renderLoaded();
+    expect(result.current.allEntries.map((e) => e.id)).toEqual([1, 2]);
+
+    await triggerHintAndWaitFor(() => expect(result.current.allEntries).toHaveLength(1));
+    expect(result.current.allEntries[0].id).toBe(2);
+    expect(result.current.allEntries[0].execution_kind).toBe("handler");
+  });
+
+  it("does not fetch while waiting for uptime on since-restart, even on a hint", async () => {
+    seedState("since-restart");
+    useAppStore.setState({ uptimeSeconds: null });
+    const getCount = stubCountingEndpoint(LOGS_ENDPOINT, []);
+
+    const { result } = renderHookWithProviders(() => useLogData({}));
+    expect(result.current.loading).toBe(true);
+    expect(getCount()).toBe(0);
+
+    sendHint();
+    await vi.advanceTimersByTimeAsync(HINT_MAX_WAIT_MS);
+    expect(getCount()).toBe(0);
+  });
+
+  it("clears pending timers on unmount — no fetch fires afterward", async () => {
+    const getCount = stubCountingEndpoint(LOGS_ENDPOINT, []);
+
+    const { result, unmount } = renderHookWithProviders(() => useLogData({}));
+    await vi.waitFor(() => expect(result.current.loading).toBe(false));
+    expect(getCount()).toBe(1);
+
+    sendHint();
+    unmount();
+
+    await vi.advanceTimersByTimeAsync(HINT_MAX_WAIT_MS + PERIODIC_RESYNC_MS);
+    expect(getCount()).toBe(1);
+  });
+  it("toasts once per outage, not on every failed periodic refetch, and re-arms after recovery", async () => {
+    let failing = true;
+    server.use(
+      http.get(LOGS_ENDPOINT, () =>
+        failing ? HttpResponse.json({ detail: "db down" }, { status: 503 }) : HttpResponse.json([]),
+      ),
+    );
+
+    await renderLoaded();
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+
+    // Two more failed periodic ticks — same outage, no new toast.
+    await vi.advanceTimersByTimeAsync(PERIODIC_RESYNC_MS * 2);
+    expect(toast.error).toHaveBeenCalledTimes(1);
+
+    // Recovery re-arms the toast; the next failure is a new outage and toasts again.
+    failing = false;
+    await vi.advanceTimersByTimeAsync(PERIODIC_RESYNC_MS);
+    failing = true;
+    await vi.advanceTimersByTimeAsync(PERIODIC_RESYNC_MS);
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
   });
 });

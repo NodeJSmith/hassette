@@ -197,4 +197,3 @@ export const DETAIL_DRAWER_ID = "log-detail-drawer";
 export const RENDER_CAP = 200;
 export const SEARCH_DEBOUNCE_MS = 150;
 export const REST_FETCH_LIMIT = 1000;
-export const LIVE_LOG_UPDATE_INTERVAL_MS = 750;

@@ -70,7 +70,7 @@ export function useLogTable({
 
   const [selectedKey, setSelectedKey] = useState<RowKey | null>(null);
 
-  const { allEntries, restEntries, loading } = useLogData({
+  const { allEntries, loading } = useLogData({
     appKey,
     executionId,
   });
@@ -91,11 +91,11 @@ export function useLogTable({
     resetFilters,
   } = useLogFilters({
     allEntries,
-    restEntries,
     // Execution-scoped views always use local state — URL params are owned by the parent page.
     useLocalState: useLocalState || !!executionId,
     appKey,
     executionId,
+    loading,
   });
 
   const level = filterState.level;

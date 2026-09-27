@@ -115,28 +115,26 @@ export const getTelemetryStatus = (signal?: AbortSignal) => apiFetch<TelemetrySt
 
 export const getConfig = () => apiFetch<SystemConfig>("/config");
 
-export const getRecentLogs = (
-  params?: {
-    level?: string;
-    appKey?: string;
-    limit?: number;
-    since?: number | null;
-    executionId?: string | null;
-    sourceTier?: string | null;
-  },
-  signal?: AbortSignal,
-) =>
-  apiFetch<LogEntry[]>(
-    buildUrl("/logs/recent", {
-      level: params?.level,
-      app_key: params?.appKey,
-      limit: params?.limit,
-      since: params?.since,
-      execution_id: params?.executionId,
-      source_tier: params?.sourceTier,
-    }),
-    { signal },
-  );
+interface LogFilterParams {
+  level?: string;
+  appKey?: string;
+  limit?: number;
+  since?: number | null;
+  executionId?: string | null;
+  sourceTier?: string | null;
+}
+
+const buildLogFilterParams = (params?: LogFilterParams) => ({
+  level: params?.level,
+  app_key: params?.appKey,
+  limit: params?.limit,
+  since: params?.since,
+  execution_id: params?.executionId,
+  source_tier: params?.sourceTier,
+});
+
+export const getRecentLogs = (params?: LogFilterParams, signal?: AbortSignal) =>
+  apiFetch<LogEntry[]>(buildUrl("/logs/recent", buildLogFilterParams(params)), { signal });
 
 export const getAllListeners = (since?: number | null, signal?: AbortSignal) =>
   apiFetch<ListenerData[]>(buildUrl("/bus/listeners", { since }), { signal });

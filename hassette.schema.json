@@ -951,7 +951,7 @@
         },
         "log_persistence_level": {
           "default": "INFO",
-          "description": "Minimum log level for database persistence. Records below this level are not stored.",
+          "description": "Minimum log level for database persistence. Records below this level are not stored.\n\nEffectively clamped to never be stricter than ``log_level``: the web UI's log view reads\nexclusively from persisted records, so setting this above ``log_level`` (e.g. ``\"WARNING\"``\nwhile ``log_level`` stays ``\"INFO\"``) has no effect \u2014 it's silently pulled back down to\n``log_level``, since a stricter persistence floor would make records visible in the live log\nstream unqueryable through the UI. This setting is only useful for persisting *more* than\n``log_level``: lower it (e.g. to ``\"DEBUG\"``) to persist records you don't otherwise log at\nthe global level, such as a per-service override logging at ``\"DEBUG\"``.",
           "enum": [
             "DEBUG",
             "INFO",
@@ -1359,12 +1359,6 @@
           "ui": {
             "label": "CORS Origins"
           }
-        },
-        "log_buffer_size": {
-          "default": 2000,
-          "description": "Maximum number of log entries to keep in the LogCaptureHandler ring buffer.",
-          "title": "Log Buffer Size",
-          "type": "integer"
         },
         "job_history_size": {
           "default": 1000,

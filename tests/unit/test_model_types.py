@@ -159,6 +159,7 @@ def minimal_log_entry_response(**overrides: Any) -> LogEntryResponse:
     return build(
         LogEntryResponse,
         {
+            "id": 1,
             "seq": 1,
             "timestamp": 1.0,
             "level": "INFO",

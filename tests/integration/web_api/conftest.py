@@ -154,8 +154,10 @@ def make_log_record(  # factory-local: timestamp=float(seq) is load-bearing for 
     app_key: str | None = None,
     execution_id: str | None = None,
     source_tier: str | None = "framework",
+    id: int | None = None,
 ) -> dict:
     return {
+        "id": id if id is not None else seq,
         "seq": seq,
         "timestamp": float(seq),
         "level": level,

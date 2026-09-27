@@ -18,6 +18,13 @@ export interface UseScopedQueryOptions {
    * views where an all-time fallback would be misleading. Default true.
    */
   waitForUptime?: boolean;
+  /**
+   * Forwarded to `useQuery`'s own `refetchInterval` — refetch on a fixed cadence while the
+   * query is mounted and enabled. TanStack stops interval refetches automatically once the
+   * query is disabled (e.g. by `waitForUptime`'s gate), so callers don't need to guard this
+   * themselves.
+   */
+  refetchInterval?: number;
 }
 
 /**
@@ -70,5 +77,6 @@ export function useScopedQuery<T>(
     // waitForUptime, which useQuery doesn't recognize. Add new UseScopedQueryOptions fields here too.
     placeholderData: options?.placeholderData,
     enabled: !waitingForUptime && (options?.enabled ?? true),
+    refetchInterval: options?.refetchInterval,
   });
 }

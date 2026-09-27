@@ -14,6 +14,7 @@ import {
 } from "./format";
 
 describe("formatTimestamp", () => {
+  // dup-ignore-start: bare vi.useFakeTimers()/vi.useRealTimers() pair, shared with time-window.test.ts and the log-table test helper -- nothing left to extract once it's already just calling vitest's own API
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -21,6 +22,7 @@ describe("formatTimestamp", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
+  // dup-ignore-end
 
   it("formats Unix epoch zero without throwing", () => {
     const result = formatTimestamp(0);
@@ -165,6 +167,9 @@ describe("formatTriggerDetail", () => {
 const BASE_TIMESTAMP_SECONDS = 1_700_000_000; // arbitrary fixed epoch in seconds
 
 describe("formatRelativeTime", () => {
+  // dup-ignore-start: bare vi.useFakeTimers()/vi.useRealTimers() pair, shared with the other
+  // describe blocks in this file, time-window.test.ts, and the log-table test helper --
+  // nothing left to extract once it's already just calling vitest's own API
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(BASE_TIMESTAMP_SECONDS * 1000);
@@ -173,6 +178,7 @@ describe("formatRelativeTime", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
+  // dup-ignore-end
 
   it("diff < 60s returns 'just now'", () => {
     expect(formatRelativeTime(BASE_TIMESTAMP_SECONDS - 0)).toBe("just now");
@@ -236,6 +242,9 @@ describe("formatRelativeTime", () => {
 });
 
 describe("formatAge", () => {
+  // dup-ignore-start: bare vi.useFakeTimers()/vi.useRealTimers() pair, shared with the other
+  // describe blocks in this file, time-window.test.ts, and the log-table test helper --
+  // nothing left to extract once it's already just calling vitest's own API
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(BASE_TIMESTAMP_SECONDS * 1000);
@@ -244,6 +253,7 @@ describe("formatAge", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
+  // dup-ignore-end
 
   it("returns seconds for < 60s", () => {
     expect(formatAge(BASE_TIMESTAMP_SECONDS - 12)).toBe("12s");

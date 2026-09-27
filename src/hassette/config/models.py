@@ -207,7 +207,15 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     """Maximum size of the inter-thread log queue. Records are dropped when the queue is full."""
 
     log_persistence_level: LOG_ANNOTATION = Field(default="INFO")
-    """Minimum log level for database persistence. Records below this level are not stored."""
+    """Minimum log level for database persistence. Records below this level are not stored.
+
+    Effectively clamped to never be stricter than ``log_level``: the web UI's log view reads
+    exclusively from persisted records, so setting this above ``log_level`` (e.g. ``"WARNING"``
+    while ``log_level`` stays ``"INFO"``) has no effect — it's silently pulled back down to
+    ``log_level``, since a stricter persistence floor would make records visible in the live log
+    stream unqueryable through the UI. This setting is only useful for persisting *more* than
+    ``log_level``: lower it (e.g. to ``"DEBUG"``) to persist records you don't otherwise log at
+    the global level, such as a per-service override logging at ``"DEBUG"``."""
 
     log_retention_days: int = Field(default=3, ge=1)
     """Number of days to retain persisted log records. Must be <= database.retention_days."""
@@ -454,9 +462,6 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
         json_schema_extra={"ui": {"label": "CORS Origins"}},
     )
     """Allowed CORS origins for the web API, typically the UI dev server."""
-
-    log_buffer_size: int = Field(default=2000)
-    """Maximum number of log entries to keep in the LogCaptureHandler ring buffer."""
 
     job_history_size: int = Field(default=1000)
     """Maximum number of job execution records to keep."""

@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LogEntry } from "@/api/endpoints";
+import { useAppStore } from "@/state/store";
 import { createLogEntry } from "@/test/factories";
 import { createWouterMock } from "@/test/mock-wouter";
 
@@ -38,27 +39,27 @@ function appAndFrameworkEntries(): LogEntry[] {
 
 interface RenderLocalProps {
   entries: LogEntry[];
-  rest: LogEntry[];
   appKey?: string;
   executionId?: string | null;
+  loading?: boolean;
 }
 
 /** Render useLogFilters with local state (no URL). Uses initialProps for rerender support. */
-function renderLocal(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string, executionId?: string | null) {
-  const hook = renderHook(
-    ({ entries: allEntries, rest: restEntries, appKey, executionId }: RenderLocalProps) =>
-      useLogFilters({ allEntries, restEntries, useLocalState: true, appKey, executionId }),
-    { initialProps: { entries, rest, appKey, executionId } },
+function renderLocal(entries: LogEntry[] = [], appKey?: string, executionId?: string | null, loading?: boolean) {
+  const hook = renderHook<ReturnType<typeof useLogFilters>, RenderLocalProps>(
+    ({ entries: allEntries, appKey, executionId, loading }) =>
+      useLogFilters({ allEntries, useLocalState: true, appKey, executionId, loading }),
+    { initialProps: { entries, appKey, executionId, loading } },
   );
   return { hook };
 }
 
 /** Render useLogFilters in URL mode (reads/writes mockSearch). */
-function renderUrl(entries: LogEntry[] = [], rest: LogEntry[] = [], appKey?: string, executionId?: string | null) {
+function renderUrl(entries: LogEntry[] = [], appKey?: string, executionId?: string | null) {
   const hook = renderHook(
-    ({ entries: allEntries, rest: restEntries, appKey, executionId }: RenderLocalProps) =>
-      useLogFilters({ allEntries, restEntries, useLocalState: false, appKey, executionId }),
-    { initialProps: { entries, rest, appKey, executionId } },
+    ({ entries: allEntries, appKey, executionId }: RenderLocalProps) =>
+      useLogFilters({ allEntries, useLocalState: false, appKey, executionId }),
+    { initialProps: { entries, appKey, executionId } },
   );
   return { hook };
 }
@@ -87,6 +88,7 @@ function waitForSearchDebounce(): Promise<void> {
 beforeEach(() => {
   mockSearch = "";
   mockNavigate.mockReset();
+  useAppStore.setState({ timePreset: "since-restart", urlWindowParam: null });
 });
 
 describe("filterLogEntries", () => {
@@ -135,12 +137,12 @@ describe("defaultTier", () => {
   });
 
   it('is "all" when appKey is provided', () => {
-    const { hook } = renderLocal([], [], "my_app");
+    const { hook } = renderLocal([], "my_app");
     expect(hook.result.current.defaultTier).toBe("all");
   });
 
   it('is "all" when executionId is provided (no appKey)', () => {
-    const { hook } = renderLocal([], [], undefined, "exec-1");
+    const { hook } = renderLocal([], undefined, "exec-1");
     expect(hook.result.current.defaultTier).toBe("all");
   });
 });
@@ -231,7 +233,7 @@ describe("tier filtering", () => {
     // An execution_id scopes rows to one execution; its logs can be framework-tier
     // (e.g. CommandExecutor timeout warnings) even when the execution itself is app-tier.
     const entries = appAndFrameworkEntries();
-    const { hook } = renderLocal(entries, [], undefined, "exec-1");
+    const { hook } = renderLocal(entries, undefined, "exec-1");
     const messages = messagesOf(hook);
     expect(messages).toContain("from app");
     expect(messages).toContain("from framework");
@@ -239,7 +241,7 @@ describe("tier filtering", () => {
 
   it('defaults to "all" when appKey is provided', () => {
     const entries = [entry({ source_tier: "framework", message: "from framework" })];
-    const { hook } = renderLocal(entries, [], "my_app");
+    const { hook } = renderLocal(entries, "my_app");
     // "all" tier means framework entries pass through
     const messages = messagesOf(hook);
     expect(messages).toContain("from framework");
@@ -250,12 +252,12 @@ describe("tier filtering", () => {
     // is added to the URL in-place (same mounted hook). defaultTier recomputes "app"->"all",
     // but a stale localTier="app" would keep hiding framework rows — the exact bug this PR fixes.
     const entries = appAndFrameworkEntries();
-    const { hook } = renderLocal(entries, [], undefined, null);
+    const { hook } = renderLocal(entries, undefined, null);
     // No execution scope yet: tier defaults to "app", framework hidden.
     expect(messagesOf(hook)).not.toContain("from framework");
 
     // Execution scope applied to the same mounted hook.
-    act(() => hook.rerender({ entries, rest: [], appKey: undefined, executionId: "exec-1" }));
+    act(() => hook.rerender({ entries, appKey: undefined, executionId: "exec-1" }));
 
     const messages = messagesOf(hook);
     expect(messages).toContain("from app");
@@ -267,12 +269,12 @@ describe("tier filtering", () => {
     // every prop change. Navigating between two executions keeps defaultTier "all", so a user's
     // explicit "framework" choice must survive.
     const entries = appAndFrameworkEntries();
-    const { hook } = renderLocal(entries, [], undefined, "exec-1");
+    const { hook } = renderLocal(entries, undefined, "exec-1");
     act(() => hook.result.current.setTier("framework"));
     expect(messagesOf(hook)).toEqual(["from framework"]);
 
     // Same scope kind (still execution-scoped), different id — defaultTier stays "all".
-    act(() => hook.rerender({ entries, rest: [], appKey: undefined, executionId: "exec-2" }));
+    act(() => hook.rerender({ entries, appKey: undefined, executionId: "exec-2" }));
 
     expect(messagesOf(hook)).toEqual(["from framework"]);
   });
@@ -413,50 +415,121 @@ describe("livePaused", () => {
     expect(hook.result.current.livePaused).toBe(true);
   });
 
-  it("reads from restEntries when paused", () => {
-    const live = [entry({ message: "live" })];
-    const rest = [entry({ message: "rest" })];
-    const { hook } = renderLocal(live, rest);
+  it("freezes entries at the moment pausing began, ignoring later live updates", () => {
+    const beforePause = [entry({ message: "before-pause" })];
+    const { hook } = renderLocal(beforePause);
 
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    expect(messagesOf(hook)).toContain("before-pause");
+
+    // A live update arrives while paused — its own live source changed, but the frozen
+    // snapshot captured at the moment pausing began must not reflect it.
+    const afterPause = [...beforePause, entry({ message: "after-pause" })];
+    hook.rerender({ entries: afterPause, appKey: undefined, executionId: undefined });
+    const messages = messagesOf(hook);
+    expect(messages).toContain("before-pause");
+    expect(messages).not.toContain("after-pause");
+  });
+
+  it("reads live entries when not paused", () => {
+    const live = [entry({ message: "live" })];
+    const { hook } = renderLocal(live);
+
+    const messages = messagesOf(hook);
+    expect(messages).toContain("live");
+  });
+
+  it("resumes live entries immediately when paused is cleared", () => {
+    const beforePause = [entry({ message: "before-pause" })];
+    const { hook } = renderLocal(beforePause);
+
+    // Pause by sorting by level, then a live update arrives that the frozen view must miss.
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    const afterPause = [...beforePause, entry({ message: "after-pause" })];
+    hook.rerender({ entries: afterPause, appKey: undefined, executionId: undefined });
+    expect(messagesOf(hook)).not.toContain("after-pause");
+
+    // Unpause by resetting sort — the live update missed while paused must now be visible.
+    act(() => hook.result.current.resetSort());
+    expect(messagesOf(hook)).toContain("after-pause");
+  });
+
+  it("re-captures the paused snapshot when appKey/executionId changes while still paused", () => {
+    const execAEntries = [entry({ message: "exec-a-row" })];
+    const { hook } = renderLocal(execAEntries, "my_app", "exec-a");
+
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    expect(messagesOf(hook)).toEqual(["exec-a-row"]);
+
+    // Scope changes to a different execution without unmounting (e.g. LogsPage updating
+    // executionId from a query param) while still paused — the frozen snapshot must not keep
+    // showing the previous execution's rows.
+    const execBEntries = [entry({ message: "exec-b-row" })];
+    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b" });
+
+    expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+  });
+
+  it("keeps tracking a scope change's data until it loads, instead of freezing on the transient empty result", () => {
+    const execAEntries = [entry({ message: "exec-a-row" })];
+    const { hook } = renderLocal(execAEntries, "my_app", "exec-a");
+
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    expect(messagesOf(hook)).toEqual(["exec-a-row"]);
+
+    // Scope changes to a different execution while still paused, but its query hasn't resolved
+    // yet — allEntries is transiently empty. Snapshotting this instant and never revisiting it
+    // (the old behavior) would freeze the table on nothing forever, even once real data arrives.
+    hook.rerender({ entries: [], appKey: "my_app", executionId: "exec-b", loading: true });
+    expect(messagesOf(hook)).toEqual([]);
+
+    // Data for the new scope lands, but loading is still true one more render (e.g. react-query
+    // reporting isPending until its own settle tick) — the snapshot must keep tracking, not
+    // freeze on this transitional render.
+    const execBEntries = [entry({ message: "exec-b-row" })];
+    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", loading: true });
+    expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+
+    // loading finally clears — now frozen on the loaded data.
+    hook.rerender({ entries: execBEntries, appKey: "my_app", executionId: "exec-b", loading: false });
+    expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+
+    // Now frozen: a further live update to the same scope must not appear until resumed.
+    hook.rerender({
+      entries: [...execBEntries, entry({ message: "exec-b-later-row" })],
+      appKey: "my_app",
+      executionId: "exec-b",
+      loading: false,
+    });
+    expect(messagesOf(hook)).toEqual(["exec-b-row"]);
+  });
+
+  it("re-captures the paused snapshot when the time-window preset changes while still paused", () => {
+    const beforeEntries = [entry({ message: "1h-row" })];
+    const { hook } = renderLocal(beforeEntries, "my_app", undefined);
+
+    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
+    expect(messagesOf(hook)).toEqual(["1h-row"]);
+
+    // Preset changes (e.g. the user switches the dashboard's time window) without appKey or
+    // executionId changing — useLogData scopes its query by preset too, so the paused snapshot
+    // must treat this as a scope change and refresh, not keep showing the previous window's rows.
+    // The store update and the new entries land in the same render here, same as they would in
+    // the real component tree (useLogTable calls useLogData then useLogFilters in one render
+    // pass, so both the preset and the resulting allEntries always update together).
+    const afterEntries = [entry({ message: "24h-row" })];
     act(() => {
-      hook.result.current.setSort({ key: "level", dir: "desc" });
+      useAppStore.setState({ timePreset: "24h" });
+      hook.rerender({ entries: afterEntries, appKey: "my_app", executionId: undefined });
     });
 
-    const messages = messagesOf(hook);
-    expect(messages).toContain("rest");
-    expect(messages).not.toContain("live");
-  });
-
-  it("reads from allEntries when not paused", () => {
-    const live = [entry({ message: "live" })];
-    const rest = [entry({ message: "rest" })];
-    const { hook } = renderLocal(live, rest);
-
-    const messages = messagesOf(hook);
-    expect(messages).toContain("live");
-    expect(messages).not.toContain("rest");
-  });
-
-  it("switches to allEntries when paused is cleared", () => {
-    const live = [entry({ message: "live" })];
-    const rest = [entry({ message: "rest" })];
-    const { hook } = renderLocal(live, rest);
-
-    // Pause by sorting by level
-    act(() => hook.result.current.setSort({ key: "level", dir: "desc" }));
-    expect(messagesOf(hook)).toContain("rest");
-
-    // Unpause by resetting sort
-    act(() => hook.result.current.resetSort());
-    const messages = messagesOf(hook);
-    expect(messages).toContain("live");
-    expect(messages).not.toContain("rest");
+    expect(messagesOf(hook)).toEqual(["24h-row"]);
   });
 });
 
 describe("resetFilters", () => {
   it("resets level, tier, app, func back to defaults", () => {
-    const { hook } = renderLocal([], [], undefined);
+    const { hook } = renderLocal([], undefined);
     act(() => {
       hook.result.current.setLevel("ERROR");
       hook.result.current.setTier("framework");

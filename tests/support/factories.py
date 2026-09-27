@@ -23,7 +23,12 @@ from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
-from hassette.logging_ import LogEntry
+from hassette.logging_ import (
+    LogCaptureHandler,
+    LogEntry,
+    _extract_correlation_attrs,  # pyright: ignore[reportPrivateUsage]
+    _format_exc_info,  # pyright: ignore[reportPrivateUsage]
+)
 from hassette.resources.base import Resource
 from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.scheduler import Scheduler
@@ -388,14 +393,11 @@ def make_log_entry(
     execution_id: str | None = None,
     instance_name: str | None = None,
     instance_index: int | None = None,
-    execution_kind: str | None = None,
-    listener_id: int | None = None,
-    job_id: int | None = None,
 ) -> LogEntry:
     """Build a `LogEntry`, defaulting every required field to a neutral placeholder.
 
     `LogEntry` has seven required constructor fields, most of which are irrelevant to any
-    given assertion, plus nine optional fields (`exc_info`, plus eight correlation fields).
+    given assertion, plus six optional fields (`exc_info`, plus five correlation fields).
     Every field is an explicit keyword so callers spell out only what they assert on and
     pyright still checks the rest.
     """
@@ -413,9 +415,6 @@ def make_log_entry(
         execution_id=execution_id,
         instance_name=instance_name,
         instance_index=instance_index,
-        execution_kind=execution_kind,
-        listener_id=listener_id,
-        job_id=job_id,
     )
 
 
@@ -473,6 +472,49 @@ def make_log_record(
     test files. Every field is an explicit keyword so callers spell out only what matters.
     """
     return logging.LogRecord(name, level, pathname, lineno, msg, args, exc_info)
+
+
+def build_log_entry(record: logging.LogRecord) -> LogEntry:
+    """Build a LogEntry from a LogRecord using the correlation attrs and formatted traceback.
+
+    Test-only: production `LogCaptureHandler.emit()` only needs `record.created` and builds its
+    broadcast payload directly. This assembles the full `LogEntry` shape for tests that need to
+    assert on correlation attrs and message content.
+    """
+    attrs = _extract_correlation_attrs(record)
+    return LogEntry(
+        timestamp=record.created,
+        level=record.levelname,
+        logger_name=record.name,
+        func_name=record.funcName or "",
+        lineno=record.lineno,
+        message=record.getMessage(),
+        exc_info=_format_exc_info(record),
+        **attrs,
+    )
+
+
+class RecordingLogCaptureHandler(LogCaptureHandler):
+    """A `LogCaptureHandler` that also records every `LogEntry` it builds, for test assertions.
+
+    Production `LogCaptureHandler` no longer retains captured entries (see `build_log_entry`) —
+    it only broadcasts a hint. Tests that need to inspect the constructed `LogEntry` objects
+    (correlation attrs, message content, shutdown-guard behavior) use this subclass as their
+    observation seam instead.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.captured: list[LogEntry] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.captured.append(build_log_entry(record))
+        super().emit(record)
+
+
+def make_recording_log_capture_handler() -> RecordingLogCaptureHandler:
+    """Build a `RecordingLogCaptureHandler` for observing `LogCaptureHandler.emit()` behavior."""
+    return RecordingLogCaptureHandler()
 
 
 def make_mock_executor() -> MagicMock:

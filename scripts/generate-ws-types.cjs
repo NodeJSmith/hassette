@@ -29,7 +29,6 @@ const BANNER = `/* @generated from ws-schema.json — do not edit by hand.
  */`;
 
 const COMPAT_ALIASES = `
-export type WsLogPayload = LogEntryResponse;
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
 
 // ExecutionStatus is also defined in generated-types.ts (from OpenAPI).

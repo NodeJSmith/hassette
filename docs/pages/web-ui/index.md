@@ -99,7 +99,6 @@ The UI can be disabled independently while the REST API stays active:
     | `[hassette.web_api] trusted_proxies` | tuple | `()` | IPs, CIDRs, or hostnames exempt from the token check when the request sends no `Authorization` header |
     | `[hassette.web_api] session_ttl` | int | `3600` | Seconds before an *idle* browser session cookie expires; an actively used session is renewed past the halfway mark and never interrupted |
     | `[hassette.web_api] cors_origins` | tuple | `("http://localhost:3000", "http://localhost:5173")` | Allowed CORS origins |
-    | `[hassette.web_api] log_buffer_size` | int | `2000` | How many log entries the UI keeps in memory |
     | `[hassette.web_api] job_history_size` | int | `1000` | Job execution records to keep |
     | `[hassette.web_api] ui_hot_reload` | bool | `false` | Live-reload on static file changes |
 
