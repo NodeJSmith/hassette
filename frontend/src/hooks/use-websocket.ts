@@ -10,11 +10,11 @@ import { queryKeys } from "../lib/query-keys";
 import { appStatusKey, useAppStore } from "../state/store";
 import { LOGIN_PATH } from "../utils/app-routes";
 
-const MAX_BACKOFF_MS = 30_000;
-const INITIAL_BACKOFF_MS = 1_000;
+export const MAX_BACKOFF_MS = 30_000;
+export const INITIAL_BACKOFF_MS = 1_000;
 const BACKOFF_MULTIPLIER = 1.5;
-const HANDSHAKE_TIMEOUT_MS = 10_000;
-const AUTH_CHECK_TIMEOUT_MS = 5_000;
+export const HANDSHAKE_TIMEOUT_MS = 10_000;
+export const AUTH_CHECK_TIMEOUT_MS = 5_000;
 const DEFAULT_LOG_LEVEL = "INFO";
 const UNAUTHORIZED_STATUS = 401;
 

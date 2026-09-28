@@ -15,6 +15,9 @@ import type { ExecutionKind } from "../components/shared/execution-table";
 import type { ServiceStatusEntry } from "../state/store";
 import type { UnifiedRow } from "../utils/handler-rows";
 
+/** Fixed epoch-seconds timestamp shared by factories that need a deterministic time value. */
+const FIXED_TEST_TIMESTAMP = 1700000000;
+
 type AppManifestResponse = components["schemas"]["AppManifestResponse"];
 type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
 type AppManifestListResponse = components["schemas"]["AppManifestListResponse"];
@@ -89,7 +92,7 @@ export function createAppGridEntry(overrides: Partial<DashboardAppGridEntry> = {
     total_job_errors: 0,
     total_job_timed_out: 0,
     avg_duration_ms: 50,
-    last_activity_ts: 1700000000,
+    last_activity_ts: FIXED_TEST_TIMESTAMP,
     health_status: "good",
     error_rate: 0,
     error_rate_class: "good",
@@ -228,7 +231,7 @@ export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEn
   return {
     id: 1,
     seq: 1,
-    timestamp: 1700000000,
+    timestamp: FIXED_TEST_TIMESTAMP,
     level: "INFO",
     logger_name: "hassette.test",
     func_name: "test_func",
@@ -309,7 +312,7 @@ export function createExecution(kind: ExecutionKind, overrides: Partial<Executio
       : { kind: "job" as const, listener_id: null, job_id: 1, duration_ms: 75 };
   return {
     ...kindFields,
-    execution_start_ts: 1700000000,
+    execution_start_ts: FIXED_TEST_TIMESTAMP,
     status: "success",
     source_tier: "app",
     error_type: null,

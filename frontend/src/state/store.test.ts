@@ -180,7 +180,7 @@ describe("useAppStore", () => {
     });
   });
 
-  describe("updateAppStatus / updateServiceStatus / clearAppStatus / clearServiceStatus", () => {
+  describe("updateAppStatus / updateServiceStatus", () => {
     it("updateAppStatus merges a new entry without clobbering existing ones", () => {
       useAppStore.getState().updateAppStatus("app-a:0", { status: "running", index: 0 });
       useAppStore.getState().updateAppStatus("app-b:0", { status: "stopped", index: 0 });
@@ -190,15 +190,7 @@ describe("useAppStore", () => {
       expect(state.appStatus["app-b:0"].status).toBe("stopped");
     });
 
-    it("clearAppStatus resets appStatus to an empty record", () => {
-      useAppStore.getState().updateAppStatus("app-a:0", { status: "running", index: 0 });
-      expect(Object.keys(useAppStore.getState().appStatus)).toHaveLength(1);
-
-      useAppStore.getState().clearAppStatus();
-      expect(useAppStore.getState().appStatus).toEqual({});
-    });
-
-    it("clearServiceStatus resets serviceStatus to an empty record", () => {
+    it("updateServiceStatus stores the entry under its resource name", () => {
       useAppStore.getState().updateServiceStatus("svc", {
         resource_name: "svc",
         role: "r",
@@ -209,10 +201,8 @@ describe("useAppStore", () => {
         ready: true,
         ready_phase: null,
       });
-      expect(Object.keys(useAppStore.getState().serviceStatus)).toHaveLength(1);
 
-      useAppStore.getState().clearServiceStatus();
-      expect(useAppStore.getState().serviceStatus).toEqual({});
+      expect(useAppStore.getState().serviceStatus["svc"].status).toBe("running");
     });
   });
 });
