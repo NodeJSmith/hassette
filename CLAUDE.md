@@ -31,6 +31,20 @@ hassette status | app | listener | log | job   # query a running instance (--app
 uv run python scripts/seed_db.py --scenario healthy --output /tmp/hassette-healthy.db
 ```
 
+## Workspace Packages
+
+The repo is a uv workspace of three packages released in lockstep from one release-please train (single `"."` component, one release PR, one tag): `hassette` (root), `wire/` → `hassette-wire`, and `client/` → `hassette-client`. Each pins the ones it depends on exactly (`hassette-wire==X`). The root `version` is bumped by release-please's python release-type; the members' `version` lines and every exact pin carry an `# x-release-please-version` marker that a `generic` extra-file rewrites — don't remove the marker when editing those lines. `release-please-config.json` lists every file carrying a marker under `extra-files`, and the release build fails if a member's version differs from hassette's.
+
+The release workflow builds each package into its own `dist/<name>/` directory and publishes them in three separate jobs, chained with `needs:` in order: `publish-pypi-wire`, then `publish-pypi-client`, then `publish-pypi-hassette`. The order is load-bearing (each pins the previous), so don't collapse them back into one job. Each package gets its own GitHub Environment — `release-wire`, `release-client`, `release` — not a shared one: PyPI's *pending* trusted-publisher match (for a project that doesn't exist on PyPI yet) is keyed on `(repository, workflow file, environment name)` alone, since there's no project to disambiguate by, so two packages sharing one environment register as the same pending publisher and PyPI rejects the second. `release-wire`/`release-client` already exist (created via `gh api`, deployment branch policy `main` + `v**` tags copied from `release`; no secrets/variables — trusted publishing is OIDC-only). Each new package still needs its own trusted publisher registered by hand *on PyPI* before its first publish (workflow `release-please.yml`, its own environment name) — that side isn't automatable from here. Run a member's tests with `uv run nox -s wire` / `uv run nox -s client`. A new workspace member touches every one of these:
+
+- `wire/**`-style path filters in the `tests`, `lint`, `e2e-tests` and `docker-tests` workflows, plus a `uv run nox -s <member>` line in `tests.yml`'s `workspace-members` job
+- `pyrightconfig.json`, `prek.toml`, and `[tool.house-lint]`/`norecursedirs` in `pyproject.toml`
+- `ruff.toml`'s per-file-ignores, if the member's tests use `assert` (a `<member>/tests/**/*.py` → `["S101"]` entry)
+- `release-please-config.json`'s `extra-files` (the `# x-release-please-version` marker on the member's `pyproject.toml` does nothing without this)
+- `Dockerfile`, if the member is a runtime dependency of `hassette` rather than a dev-only tool
+- `renovate.json`, if the member is pinned exactly by another workspace member (stops Renovate from bumping a pin release-please owns)
+- `release-please.yml`: a new `publish-pypi-<name>` job calling `_publish-pypi-package.yml`, chained after the member it depends on via `needs:`, with its own GitHub Environment (created the same way as `release-wire`/`release-client`, same branch policy) — and add the job to `release-verify`'s `needs:` and result checks
+
 ## Architecture
 
 | Component | Location | Role |

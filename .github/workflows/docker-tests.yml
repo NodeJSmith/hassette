@@ -8,6 +8,8 @@ on:
     paths:
       - "scripts/docker_start.sh"
       - "Dockerfile"
+      - "wire/**"
+      - "client/**"
       - "tests/test_docker_*.py"
       - ".github/workflows/docker-tests.yml"
 

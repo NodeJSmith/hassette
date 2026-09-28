@@ -1,0 +1,37 @@
+[build-system]
+requires = ["uv_build>=0.10.0,<0.12.0"]
+build-backend = "uv_build"
+
+[project]
+name = "hassette-wire"
+version = "0.54.0"  # x-release-please-version
+description = "Wire contract for the Hassette HTTP and WebSocket API: request/response models and wire enums."
+readme = "README.md"
+authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11,<3.15"
+dependencies = ["pydantic>=2.0"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/nodejsmith/hassette"
+Repository = "https://github.com/nodejsmith/hassette"
+
+[dependency-groups]
+dev = ["pytest>=8.4.0"]
+
+[tool.uv.build-backend]
+module-name = "hassette_wire"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

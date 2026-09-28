@@ -27,6 +27,12 @@
       "matchDatasources": ["docker"],
       "matchPackageNames": ["homeassistant/home-assistant"],
       "enabled": false
+    },
+    {
+      "description": "hassette-wire and hassette-client are workspace members pinned exactly to this repo's own version; release-please rewrites those pins, so Renovate must not open bump PRs against PyPI",
+      "matchManagers": ["pep621"],
+      "matchPackageNames": ["hassette-wire", "hassette-client"],
+      "enabled": false
     }
   ]
 }

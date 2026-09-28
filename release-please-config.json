@@ -4,6 +4,11 @@
 		".": {
 			"release-type": "python",
 			"bump-minor-pre-major": true,
+			"extra-files": [
+				{ "type": "generic", "path": "pyproject.toml" },
+				{ "type": "generic", "path": "wire/pyproject.toml" },
+				{ "type": "generic", "path": "client/pyproject.toml" }
+			],
 			"changelog-sections": [
 				{ "type": "feat", "section": "Features" },
 				{ "type": "fix", "section": "Bug Fixes" },

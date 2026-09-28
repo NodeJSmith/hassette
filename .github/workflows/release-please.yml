@@ -204,18 +204,35 @@ jobs:
             - name: Build frontend SPA
               run: uv run nox -s frontend
 
-            - name: Verify tag matches project version
+            - name: Verify tag and workspace member versions match
               env:
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
               run: |
                   PROJECT_VERSION=$(uv version --short)
                   uv run ./tools/release/check_tag_version.py --ref-name "$TAG_NAME" --project-version "$PROJECT_VERSION"
 
-            - name: Build a binary wheel and a source tarball
-              run: uv build
+                  # The three packages release in lockstep: a member that release-please's
+                  # extra-files missed would publish under a version nothing pins.
+                  for member in hassette-wire hassette-client; do
+                      member_version=$(uv version --short --package "$member")
+                      if [ "$member_version" != "$PROJECT_VERSION" ]; then
+                          echo "::error::$member is at $member_version but hassette is at $PROJECT_VERSION"
+                          exit 1
+                      fi
+                  done
+
+            # One dist directory per package: the PyPI publish action uploads a whole directory
+            # (`packages-dir:`), so this is what lets each publish-pypi-* job upload only its own
+            # package's files. The upload *order* comes from those jobs' `needs:` chain, not from
+            # the directory split itself.
+            - name: Build binary wheels and source tarballs
+              run: |
+                  uv build --package hassette-wire --out-dir dist/wire
+                  uv build --package hassette-client --out-dir dist/client
+                  uv build --package hassette --out-dir dist/hassette
 
             - name: Verify SPA assets in wheel
-              run: uv run ./tools/release/check_wheel_spa.py
+              run: uv run ./tools/release/check_wheel_spa.py --dist-dir dist/hassette
 
             - name: Publish build artifacts
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -223,55 +240,59 @@ jobs:
                   name: pypi-dists
                   path: "./dist"
 
-    publish-pypi:
+    # The three PyPI publish jobs are split one-per-package, each with its own GitHub
+    # Environment, rather than three steps inside one job. PyPI's trusted-publisher match for a
+    # project that doesn't exist yet (a "pending" publisher) is keyed on (repository, workflow
+    # file, environment name) — it has no project name to disambiguate by, so hassette-wire and
+    # hassette-client sharing one environment would be indistinguishable pending registrations
+    # and PyPI refuses the second one. Each job calls the shared `_publish-pypi-package.yml`
+    # reusable workflow (one retry-with-backoff sequence, one place to change it) with its own
+    # `environment:`, which a `workflow_call` job can still declare per call. `needs:` chains the
+    # jobs in upload order — hassette-wire, then hassette-client, then hassette — which is
+    # load-bearing: each package pins the ones before it, so a half-finished publish only ever
+    # leaves a newer package on PyPI that nothing depends on yet, never one published against a
+    # dependency that isn't there.
+    publish-pypi-wire:
         needs: [release-please, build-pypi]
         if: >-
             always()
             && needs.build-pypi.result == 'success'
-        runs-on: ubuntu-latest
-        timeout-minutes: 10
-        environment:
-            name: release
-            url: https://pypi.org/p/hassette
+        uses: ./.github/workflows/_publish-pypi-package.yml
+        with:
+            package-name: hassette-wire
+            packages-dir: dist/wire
+            environment-name: release-wire
+            environment-url: https://pypi.org/p/hassette-wire
         permissions:
             id-token: write
-        steps:
-            - name: Download build artifacts
-              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-              with:
-                  name: pypi-dists
-                  path: "./dist"
 
-            - name: Publish to PyPI (attempt 1)
-              id: attempt1
-              continue-on-error: true
-              uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
-              with:
-                  skip-existing: true
+    publish-pypi-client:
+        needs: [release-please, build-pypi, publish-pypi-wire]
+        if: >-
+            always()
+            && needs.publish-pypi-wire.result == 'success'
+        uses: ./.github/workflows/_publish-pypi-package.yml
+        with:
+            package-name: hassette-client
+            packages-dir: dist/client
+            environment-name: release-client
+            environment-url: https://pypi.org/p/hassette-client
+        permissions:
+            id-token: write
 
-            - name: Wait 30s before retry
-              if: steps.attempt1.outcome == 'failure'
-              run: echo "::warning::Publish attempt 1 failed (likely transient Sigstore/network error), retrying..." && sleep 30
-
-            - name: Publish to PyPI (attempt 2)
-              id: attempt2
-              if: steps.attempt1.outcome == 'failure'
-              continue-on-error: true
-              uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
-              with:
-                  skip-existing: true
-
-            - name: Wait 60s before retry
-              if: steps.attempt2.outcome == 'failure'
-              run: echo "::warning::Publish attempt 2 failed, final retry..." && sleep 60
-
-            # No continue-on-error: job fails hard if all three attempts fail
-            - name: Publish to PyPI (attempt 3)
-              id: attempt3
-              if: steps.attempt2.outcome == 'failure'
-              uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
-              with:
-                  skip-existing: true
+    publish-pypi-hassette:
+        needs: [release-please, build-pypi, publish-pypi-client]
+        if: >-
+            always()
+            && needs.publish-pypi-client.result == 'success'
+        uses: ./.github/workflows/_publish-pypi-package.yml
+        with:
+            package-name: hassette
+            packages-dir: dist/hassette
+            environment-name: release
+            environment-url: https://pypi.org/p/hassette
+        permissions:
+            id-token: write
 
     publish-docker:
         needs: [release-please, build-pypi]
@@ -290,7 +311,7 @@ jobs:
     # Verify even when build-pypi is skipped in a release context — a skipped build
     # during a release is itself the bug (see #998), and verification must catch it.
     release-verify:
-        needs: [release-please, build-pypi, publish-pypi, publish-docker]
+        needs: [release-please, build-pypi, publish-pypi-wire, publish-pypi-client, publish-pypi-hassette, publish-docker]
         if: >-
             always()
             && (
@@ -304,19 +325,27 @@ jobs:
             - name: Check publish results
               env:
                   BUILD_RESULT: ${{ needs.build-pypi.result }}
-                  PYPI_RESULT: ${{ needs.publish-pypi.result }}
+                  PYPI_WIRE_RESULT: ${{ needs.publish-pypi-wire.result }}
+                  PYPI_CLIENT_RESULT: ${{ needs.publish-pypi-client.result }}
+                  PYPI_RESULT: ${{ needs.publish-pypi-hassette.result }}
                   DOCKER_RESULT: ${{ needs.publish-docker.result }}
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
               run: |
-                  # Detect unexpected state where release was created but both publish jobs were skipped
-                  if [ "$PYPI_RESULT" = "skipped" ] && [ "$DOCKER_RESULT" = "skipped" ]; then
-                      echo "::error::Both publish jobs were skipped unexpectedly for release $TAG_NAME — inspect the publish workflow conditions and logs"
+                  # Detect unexpected state where release was created but every publish job was skipped
+                  if [ "$PYPI_WIRE_RESULT" = "skipped" ] && [ "$DOCKER_RESULT" = "skipped" ]; then
+                      echo "::error::Both publish chains were skipped unexpectedly for release $TAG_NAME — inspect the publish workflow conditions and logs"
                       exit 1
                   fi
 
                   failed=""
                   if [ "$BUILD_RESULT" != "success" ]; then
                       failed="$failed Build($BUILD_RESULT)"
+                  fi
+                  if [ "$PYPI_WIRE_RESULT" != "success" ]; then
+                      failed="$failed PyPI-wire($PYPI_WIRE_RESULT)"
+                  fi
+                  if [ "$PYPI_CLIENT_RESULT" != "success" ]; then
+                      failed="$failed PyPI-client($PYPI_CLIENT_RESULT)"
                   fi
                   if [ "$PYPI_RESULT" != "success" ]; then
                       failed="$failed PyPI($PYPI_RESULT)"
@@ -332,7 +361,7 @@ jobs:
                   echo "All publish jobs succeeded for $TAG_NAME"
 
             - name: Verify package on PyPI
-              if: needs.publish-pypi.result == 'success'
+              if: needs.publish-pypi-hassette.result == 'success'
               uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                   ref: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
@@ -340,7 +369,7 @@ jobs:
                   persist-credentials: false
 
             - name: Run PyPI smoke test
-              if: needs.publish-pypi.result == 'success'
+              if: needs.publish-pypi-hassette.result == 'success'
               env:
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
               run: python3 ./tools/release/check_pypi_wheel.py --version "${TAG_NAME#v}"

@@ -62,7 +62,7 @@ rev = "v0.1.1"
 hooks = [
     # HSL102 (file-size) is excluded here — it has a known backlog tracked as a
     # non-blocking CI job (`file-sizes` in lint.yml), not a pre-commit/pre-push gate.
-    { id = "house-lint", args = ["--ignore", "HSL102"], files = '^(src|tests|scripts|tools|codegen|docs|examples)/.*\.py$', stages = ["pre-commit", "pre-push"] },
+    { id = "house-lint", args = ["--ignore", "HSL102"], files = '^(src|tests|scripts|tools|codegen|wire|client|docs|examples)/.*\.py$', stages = ["pre-commit", "pre-push"] },
 ]
 
 # ---------------------------------------------------------------------------

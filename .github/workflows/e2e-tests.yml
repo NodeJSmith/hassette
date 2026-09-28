@@ -29,6 +29,8 @@ jobs:
                   filters: |
                       code:
                         - 'src/**'
+                        - 'wire/**'
+                        - 'client/**'
                         - 'tests/e2e/**'
                         - 'frontend/**'
                         - 'pyproject.toml'
