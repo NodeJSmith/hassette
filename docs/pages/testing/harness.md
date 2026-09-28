@@ -40,10 +40,9 @@ do not run.
 `set_states()` accepts a plain state string or a `(state, attrs)` tuple per
 entity.
 
-!!! warning "Seed state before simulating events"
-    `set_state()` does not fire bus events. It must precede
-    `simulate_state_change()` for the same entity, not follow it. A later
-    `set_state()` silently overwrites the state the simulation wrote.
+Seed before you simulate. See the seed-vs-simulate rule in
+[Write Your First Test](index.md#write-the-test) for the ordering and how it
+affects expected call counts.
 
 ## Simulating Events
 

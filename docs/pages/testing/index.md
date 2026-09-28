@@ -55,7 +55,15 @@ The `async with` block handles the full app lifecycle: it calls `on_initialize()
 --8<-- "pages/testing/snippets/testing_quick_start.py:assert_called"
 ```
 
-If your handler reads entity state during handling (e.g., checking whether a light is already on before toggling it), seed it first with `harness.set_state()` before simulating the event. `set_state()` writes directly to the in-process entity state cache that `self.states` reads from, without publishing a bus event, so no handlers fire. Seed before you simulate.
+If your handler reads entity state during handling (e.g., checking whether a light is already on before toggling it), seed it first with `harness.set_state()` before simulating the event.
+
+!!! warning "Seed silently, then simulate"
+    `set_state()` and `simulate_state_change()` look alike but do different things:
+
+    - **`set_state()` seeds silently.** It writes directly to the in-process entity state cache that `self.states` reads from, without publishing a bus event. No handlers fire, so seeding never adds calls to `api_recorder`.
+    - **`simulate_state_change()` fires handlers.** It publishes a `state_changed` event, and every matching handler runs before it returns.
+
+    Always seed first, then simulate. A `set_state()` call placed *after* `simulate_state_change()` for the same entity silently overwrites the state the simulation wrote.
 
 ```python
 --8<-- "pages/testing/snippets/testing_seed_state.py:seed"
