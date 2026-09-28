@@ -245,9 +245,12 @@ jobs:
     # project that doesn't exist yet (a "pending" publisher) is keyed on (repository, workflow
     # file, environment name) — it has no project name to disambiguate by, so hassette-wire and
     # hassette-client sharing one environment would be indistinguishable pending registrations
-    # and PyPI refuses the second one. Each job calls the shared `_publish-pypi-package.yml`
-    # reusable workflow (one retry-with-backoff sequence, one place to change it) with its own
-    # `environment:`, which a `workflow_call` job can still declare per call. `needs:` chains the
+    # and PyPI refuses the second one. Each job runs the shared `publish-pypi` composite action
+    # (one retry-with-backoff sequence, one place to change it). It must stay a composite action,
+    # not a reusable workflow: see the note in .github/actions/publish-pypi/action.yml. The
+    # sparse checkout in each job exists only so the local action's files are on disk; it has no
+    # `ref:` on purpose, so the action matches the running workflow file rather than the (possibly
+    # older) release tag being published, which may predate the action. `needs:` chains the
     # jobs in upload order — hassette-wire, then hassette-client, then hassette — which is
     # load-bearing: each package pins the ones before it, so a half-finished publish only ever
     # leaves a newer package on PyPI that nothing depends on yet, never one published against a
@@ -257,42 +260,72 @@ jobs:
         if: >-
             always()
             && needs.build-pypi.result == 'success'
-        uses: ./.github/workflows/_publish-pypi-package.yml
-        with:
-            package-name: hassette-wire
-            packages-dir: dist/wire
-            environment-name: release-wire
-            environment-url: https://pypi.org/p/hassette-wire
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        environment:
+            name: release-wire
+            url: https://pypi.org/p/hassette-wire
         permissions:
+            contents: read
             id-token: write
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                  sparse-checkout: .github/actions
+                  persist-credentials: false
+
+            - uses: ./.github/actions/publish-pypi
+              with:
+                  package-name: hassette-wire
+                  packages-dir: dist/wire
 
     publish-pypi-client:
         needs: [release-please, build-pypi, publish-pypi-wire]
         if: >-
             always()
             && needs.publish-pypi-wire.result == 'success'
-        uses: ./.github/workflows/_publish-pypi-package.yml
-        with:
-            package-name: hassette-client
-            packages-dir: dist/client
-            environment-name: release-client
-            environment-url: https://pypi.org/p/hassette-client
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        environment:
+            name: release-client
+            url: https://pypi.org/p/hassette-client
         permissions:
+            contents: read
             id-token: write
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                  sparse-checkout: .github/actions
+                  persist-credentials: false
+
+            - uses: ./.github/actions/publish-pypi
+              with:
+                  package-name: hassette-client
+                  packages-dir: dist/client
 
     publish-pypi-hassette:
         needs: [release-please, build-pypi, publish-pypi-client]
         if: >-
             always()
             && needs.publish-pypi-client.result == 'success'
-        uses: ./.github/workflows/_publish-pypi-package.yml
-        with:
-            package-name: hassette
-            packages-dir: dist/hassette
-            environment-name: release
-            environment-url: https://pypi.org/p/hassette
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        environment:
+            name: release
+            url: https://pypi.org/p/hassette
         permissions:
+            contents: read
             id-token: write
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                  sparse-checkout: .github/actions
+                  persist-credentials: false
+
+            - uses: ./.github/actions/publish-pypi
+              with:
+                  package-name: hassette
+                  packages-dir: dist/hassette
 
     publish-docker:
         needs: [release-please, build-pypi]

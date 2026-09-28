@@ -3,6 +3,25 @@ name: Build & Publish Image
 on:
     pull_request:
         branches: [main] # publish pr-N tagged image for PR testing
+        # Only when something the image is built from changes — mirror the Dockerfile's
+        # COPY/ADD sources when editing this list. Safe as a trigger filter because `build`
+        # isn't a required status check (a required check filtered out here would stay pending).
+        paths:
+            - "Dockerfile"
+            - ".dockerignore"
+            - "src/**"
+            - "frontend/**"
+            - "scripts/**"
+            - "tools/**"
+            - "codegen/pyproject.toml"
+            - "codegen/src/hassette_codegen/__init__.py"
+            - "wire/**"
+            - "client/**"
+            - "pyproject.toml"
+            - "uv.lock"
+            - "README.md"
+            - "LICENSE"
+            - ".github/workflows/build_and_publish_image.yml"
     push:
         branches: [main] # publish main tagged image for bleeding-edge testing
     workflow_call: # called by release-please workflow
