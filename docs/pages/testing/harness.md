@@ -40,7 +40,7 @@ do not run.
 `set_states()` accepts a plain state string or a `(state, attrs)` tuple per
 entity.
 
-Seed before you simulate. See the seed-vs-simulate rule in
+State must be seeded before simulation. See the seed-vs-simulate rule in
 [Write Your First Test](index.md#write-the-test) for the ordering and how it
 affects expected call counts.
 
