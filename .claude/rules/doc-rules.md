@@ -186,6 +186,21 @@ Hassette uses concepts from async Python, dependency injection, and Home Assista
 - **Home Assistant concepts**: Don't explain what entities, services, or automations are. Do explain how Hassette maps to them ("a Hassette `App` is like an AppDaemon app or a Home Assistant automation, but written in Python").
 - **Hassette-specific terms**: Always define on first use within a page. Bus, Scheduler, App, StateManager, Resource — these are Hassette vocabulary and need introduction.
 
+## Mermaid Diagrams
+
+All Mermaid diagrams in `docs/` use this palette:
+
+| Role | Fill | Stroke | Use for |
+|---|---|---|---|
+| **User-facing** | `#e8f0ff` | `#6688cc` | App code, per-app resources, browser |
+| **Data / services** | `#f0f8e8` | `#88aa66` | Data sources, caches, routing |
+| **Framework internals** | `#fff0e8` | `#cc8844` | Shared services, transport, dispatch |
+| **Per-app resources** | `#f8f0ff` | `#8866cc` | When distinguishing per-app from shared |
+| **External / neutral** | `#f0f0f0` | `#999` | Home Assistant, terminal states |
+| **Error states** | `#ffe8e8` | `#cc6666` | FAILED, CRASHED |
+
+Use `flowchart TD` by default, subgraphs with background colors for grouping, and 1-2 lines of text per node; move details to prose or tables below the diagram.
+
 ## Verify with Persona and Accuracy Reviews
 
 When a change adds or edits a docs-site page under `docs/pages/`, run two reviews on the touched pages before shipping: `doc-persona-review` (is the page *followable*?) and `doc-accuracy-review` (is the page *true*?). They are siblings — the persona walkthrough catches gaps a writer who knows the system can't see (terms used before they're defined, missing prerequisites), and the accuracy pass catches prose that drifted from the code (wrong defaults, stale signatures, behavior that no longer matches `src/`). Snippets are Pyright-checked in CI; prose claims are not, so they drift silently after every `src/` change.

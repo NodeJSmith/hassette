@@ -42,7 +42,7 @@
      tokens (border-subtle, text-body, font-heading, etc.) are deliberately NOT registered here;
      they're single-purpose roles meant for arbitrary-value consumption only
      (`border-[var(--border-subtle)]`, `text-[length:var(--text-body)]`), per this file's CSS
-     Architecture convention (see CLAUDE.md). A call site using one of those bare, unprefixed
+     Architecture convention (see .claude/rules/frontend-css.md). A call site using one of those bare, unprefixed
      (e.g. `text-body` instead of `text-[length:var(--text-body)]`) is a bug at the call site, not
      a sign the token belongs here. */
   --color-foreground-secondary: var(--foreground-secondary);

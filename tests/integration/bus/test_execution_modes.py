@@ -3,8 +3,8 @@
 Each mode is exercised through a real ``self.bus.on_state_change(...)`` registration against the
 ``bus_harness`` fixture (real bus, scheduler, state proxy). Handlers block on an ``asyncio.Event``
 gate so re-fires arrive while a prior invocation is still running — the startup-race pattern from
-CLAUDE.md. Suppressed/dropped drops are asserted via the live guard counters (per the testing
-rules: assert the counter increment, not log capture).
+.claude/rules/regression-test-patterns.md. Suppressed/dropped drops are asserted via the live guard
+counters (per the testing rules: assert the counter increment, not log capture).
 
 Guard-internals coverage (live-execution-count snapshots, persisted backpressure policy, the stall
 watchdog, and queued pending_done draining) lives in ``test_execution_modes_guards.py`` — this file

@@ -17,7 +17,7 @@ from the schema and unreachable by the frontend.
 When a new telemetry route is added in `src/hassette/web/routes/telemetry.py`,
 does it use `db_degrades_to()` or an inline `try/except TelemetryUnavailableError`?
 An unguarded DB query that raises through to a 500 instead of degrading to 503
-violates the web layer's DB-failure contract (see `src/hassette/web/CLAUDE.md`).
+violates the web layer's DB-failure contract (see `.claude/rules/web-api.md`).
 
 ## Mapper Layer Coverage
 `src/hassette/web/mappers.py` has explicit mapper functions for domain-to-response

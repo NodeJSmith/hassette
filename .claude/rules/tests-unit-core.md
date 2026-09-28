@@ -1,17 +1,22 @@
+---
+paths:
+  - "tests/unit/core/**"
+---
+
 # Tests: unit/core
 
 Fixtures below are defined in family-scoped `_fixtures_*.py` modules in this directory
 (`_fixtures_app_lifecycle.py`, `_fixtures_app_registry.py`, `_fixtures_command_executor.py`,
 `_fixtures_bus_scheduler.py`, `_fixtures_blocking_io.py`, `_fixtures_service_watcher.py`,
 `_fixtures_telemetry.py`, `_fixtures_websocket.py`) and re-exported from `conftest.py`. Import from
-`.conftest` as before — the re-export keeps that surface stable; only the definitions moved.
+`.conftest`.
 
 **Exception:** `_fixtures_database_service.py` is *not* re-exported from `conftest.py`. It defines
 its own `mock_hassette` (database/lifecycle-config overrides for `DatabaseService` tests), which
 would collide with the differently-configured `mock_hassette` `_fixtures_app_lifecycle.py` already
 re-exports under the same name — merging both into `conftest.py`'s flat namespace would silently
-shadow one or the other. `test_database_service.py` and `test_database_service_toctou_regression.py`
-import `mock_hassette`/`service`/`initialized_service_with_worker` directly from
+shadow one or the other. `test_database_service.py`, `test_database_service_toctou_regression.py`, and
+`test_database_service_retention.py` import `mock_hassette`/`service`/`initialized_service_with_worker` directly from
 `._fixtures_database_service` instead.
 
 ## Available fixtures (re-exported from this directory's conftest.py)

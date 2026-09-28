@@ -38,8 +38,8 @@ app = cyclopts.App(help=__doc__)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 KNOWN_FLAKES_PATH = REPO_ROOT / "scripts" / "known_flakes.yaml"
 
-# Documented, continue-on-error baseline failures on main (see CLAUDE.md,
-# "Known-failing lint checks") -- not test flakiness, skip entirely.
+# Backlog steps that report known debt on main (see .claude/reference/github-workflow.md,
+# "PR checks") -- not test flakiness, skip entirely.
 SKIP_JOB_NAMES = frozenset({"file-sizes", "duplicate-code"})
 
 # Matches pytest's short test summary lines, e.g.:

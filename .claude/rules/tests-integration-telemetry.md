@@ -1,3 +1,8 @@
+---
+paths:
+  - "tests/integration/telemetry/**"
+---
+
 # Tests: integration/telemetry
 
 ## Available fixtures (this directory's conftest.py)

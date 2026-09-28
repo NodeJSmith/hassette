@@ -13,7 +13,6 @@ flakes:
     issue: 1773
     note: >
       Process-wide time.monotonic patch races asyncio's own clock reads.
-      See CLAUDE.md ("time.monotonic patch flake").
 
   - pattern: "TestRunThroughGuard::test_dropped_at_drain_time_resolves_its_own_future"
     issue: 2178

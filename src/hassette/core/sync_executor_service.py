@@ -3,7 +3,8 @@
 The thread pool used by TaskBucket.run_in_thread for all sync user code (handlers, jobs,
 App sync lifecycle hooks) is owned by SyncExecutor (hassette.core.sync_executor) — a plain
 capability class constructed in Hassette.__init__() before the Resource lifecycle starts, so
-every TaskBucket has a working sync executor from birth. This service wraps that capability
+every TaskBucket holds a SyncExecutor reference from birth. The pool does not exist yet at that
+point: submit() raises until on_initialize() has built it. This service wraps that capability
 for Resource/Service lifecycle concerns only: on_initialize() creates the pool (covering both
 initial start and restart-in-place), serve() runs the periodic saturation probe, and
 on_shutdown() tears the pool down within its configured budget.

@@ -37,7 +37,7 @@ async def test_reconcile_deletes_stale_without_history(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_reconcile_retires_stale_with_history(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -94,7 +94,7 @@ async def test_reconcile_deletes_once_true_previous_session(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_reconcile_preserves_once_true_with_current_executions(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -123,7 +123,7 @@ async def test_reconcile_empty_ids_no_crash(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_reconcile_resets_retired_at_on_reupsert(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -166,7 +166,7 @@ async def test_reconcile_deletes_stale_job_not_in_live_set(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_reconcile_retires_stale_job_with_history_non_empty_live_set(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

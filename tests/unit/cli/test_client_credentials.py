@@ -101,7 +101,7 @@ class TestCredentialAttachment:
         header is attached proves ``config.web_api.auth_token`` was actually populated by
         HassetteConfig's normal settings resolution. This means, unlike its sibling tests, it
         can't use the hermetic ``make_cli_config`` factory — see "Credential tests: prefer the
-        hermetic factory" in this directory's CLAUDE.md for why every ambient ``HASSETTE__*``
+        hermetic factory" in .claude/rules/tests-unit-cli.md for why every ambient ``HASSETTE__*``
         var is cleared below, not just the credential-precedence ones: an ambient
         ``HASSETTE__CLI__SERVER_URL`` or ``HASSETTE__WEB_API__HOST`` pointed at a non-loopback
         target would make ``resolve_cli_auth_token()`` skip the server-scoped

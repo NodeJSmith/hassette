@@ -69,6 +69,7 @@ SHARED_FACTORIES = {
     "make_execution_record": "tests.support.factories",
     "wire_dependent_resource": "tests.support.factories",
     "make_manifest": "tests.support.web_manifest_helpers",
+    "make_manifest_db_row": "tests.support.web_manifest_helpers",
     "make_app_instance_info": "tests.support.web_manifest_helpers",
     "make_full_snapshot": "tests.support.web_manifest_helpers",
     "make_manifest_response": "tests.support.web_manifest_helpers",

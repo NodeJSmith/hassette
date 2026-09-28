@@ -1,3 +1,10 @@
+---
+paths:
+  - "CHANGELOG.md"
+  - "release-please-config.json"
+  - ".release-please-manifest.json"
+---
+
 # Changelog Quality (release-please)
 
 This project uses [release-please](https://github.com/googleapis/release-please) to generate changelog entries from conventional commit messages. Every PR that lands on `main` becomes a changelog line item — unless its type is excluded. Write commit messages (and therefore PR titles) with this in mind.

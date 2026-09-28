@@ -1,8 +1,10 @@
 # Copilot Instructions
 
+> Condensed from `CLAUDE.md` and `.claude/rules/`. When a convention there changes, update this file too.
+
 ## Project
 
-Hassette is an async-first Python framework for building Home Assistant automations. Python 3.11–3.13. The frontend is Preact + TypeScript + Vite with CSS Modules.
+Hassette is an async-first Python framework for building Home Assistant automations. Python 3.11–3.14. The frontend is React + TypeScript + Vite, styled with Tailwind CSS v4 and shadcn/ui.
 
 Core components: App (user automations), Bus (event pub/sub), Scheduler (triggers/jobs), Api (HA REST/WebSocket), StateManager (state access/caching). All are async. `Resource` is the base class; `Service` extends it for background services.
 
@@ -33,12 +35,11 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 
 ## Frontend
 
-- **Preact**, not React. Use `class=` in JSX, not `className=`. Import hooks from `preact/hooks`.
-- **CSS Modules** for component-specific styles. Shared design system classes use the `ht-` prefix and live in `frontend/src/styles/`.
-- **Shared components** (`Button`, `Badge`, `Chip`, `Card`) in `components/shared/` — use these instead of raw `ht-btn`/`ht-badge` class strings.
-- **`:global()` required** when referencing global classes from module CSS. Bare `.ht-table` in a module file will break at runtime.
-- **Design tokens** in `frontend/src/tokens.css`. No raw hex colors in shared CSS — reference token variables. Module CSS may use `px` values for component-specific layouts.
-- Functional components only. No class components. Every `useEffect` with subscriptions must return a cleanup function.
+- **React** function components with hooks. No class components. Every `useEffect` with subscriptions must return a cleanup function.
+- **Tailwind utilities in JSX.** Compose conditional classes with `cn()` from `@/lib/utils`. No CSS Modules, no `@apply`, no raw hex colors — use the design tokens.
+- **Design tokens** live in `frontend/src/global.css`, the single CSS entry point. Prefer the shadcn-named tokens (`--background`, `--foreground`, `--primary`, `--border`); reference project tokens without a Tailwind utility as arbitrary values (`text-[var(--handler-job)]`). `--accent` is Hassette's brand color, not shadcn's highlight role (that is `--highlight-bg`).
+- **Primitives** (`Button`, `Badge`, `Card`, `Dialog`, `Table`, etc.) are shadcn components in `components/ui/`; composites live in `components/shared/`. Use them instead of rebuilding standard controls with raw markup.
+- Module-level Tailwind class-string constants are named `FOO_CLASS` / `FOO_CLASSES` so the `no-unknown-classes` lint rule can validate them.
 
 ## Commits and PR Titles
 
@@ -47,7 +48,7 @@ Core components: App (user automations), Bus (event pub/sub), Scheduler (trigger
 
 ## Testing
 
-- `uv run nox -s dev` for local test runs. `uv run nox -s tests` for CI-equivalent (Python 3.11–3.13).
-- `uv run pyright` for type checking.
+- `uv run nox -s dev` for local test runs. `uv run nox -s tests` for CI-equivalent (Python 3.11–3.14).
+- `prek -a` for lint/format; `prek run pyright -a --stage pre-push` for type checking.
 - Two test harnesses: `HassetteHarness` (real components, integration tests) and `create_hassette_stub()` (MagicMock, web/API tests).
 - E2E tests use Playwright with Chromium.

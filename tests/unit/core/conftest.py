@@ -3,7 +3,7 @@
 Fixture definitions live in family-scoped modules alongside this file
 (``_fixtures_*.py``) and are re-exported here so pytest's fixture discovery
 and every ``from .conftest import ...`` in this directory's test files keep
-working unchanged. See tests/unit/core/CLAUDE.md for the fixture inventory.
+working unchanged. See .claude/rules/tests-unit-core.md for the fixture inventory.
 """
 
 from ._fixtures_app_lifecycle import (

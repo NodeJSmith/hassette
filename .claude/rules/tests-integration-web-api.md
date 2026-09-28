@@ -1,3 +1,8 @@
+---
+paths:
+  - "tests/integration/web_api/**"
+---
+
 # Tests: integration/web_api
 
 ## Available fixtures (this directory's conftest.py)
@@ -6,13 +11,14 @@
 - `runtime_query_service` — `create_mock_runtime_query_service(mock_hassette)`
 - `app` — FastAPI app via `create_fastapi_app(mock_hassette)`
 - `client` — httpx2 `AsyncClient` wrapping `app` via `ASGITransport`
+- `auth_hassette`, `auth_app`, `auth_client` — the same chain with `auth_enabled=True`, a real `session_ttl`, and a known auth token, for bearer/cookie/session tests
 
 ## Shared helpers (this directory's conftest.py)
 
 - `get_json(client, url, *, expect_status=200)` — GET, assert the status, return the decoded body. Replaces the `response = await client.get(...)` / `assert response.status_code == ...` / `data = response.json()` triple. Tests needing the `Response` itself (headers, `.text`, cookies) still call `client.get` directly.
 - `telemetry_error(message=DB_LOCKED_MSG)` — an `AsyncMock` raising `TelemetryUnavailableError`; assign it onto the query-service method under test so the method name stays greppable at the call site.
 - `DB_LOCKED_MSG` — the stand-in storage failure message DB-degradation tests raise.
-- `HEALTH_PATH`, `APP_HEALTH_PATH`, `APP_GRID_PATH`, `TELEMETRY_STATUS_PATH` — route paths hit by tests in more than one file; import these rather than redefining the literal locally.
+- `HEALTH_PATH`, `APP_HEALTH_PATH`, `APP_GRID_PATH`, `TELEMETRY_STATUS_PATH`, `CONFIG_PATH` — route paths hit by tests in more than one file; import these rather than redefining the literal locally.
 - `set_websocket_state(mock_hassette, *, connected, ever_connected)` / `set_app_status_snapshot(mock_hassette, *, running, failed)` — drive the health/system-status inputs.
 - `make_log_record(seq, **kw)` (local, deliberately — see `# factory-local:` annotation) — builds a raw log record dict for log-endpoint tests; derives `timestamp` from `seq` so ordering tests get distinct, predictable timestamps. Shadows `tests.support.factories.make_log_record`, which uses a fixed `timestamp=0.0` default and does not fit this file's ordering tests.
 

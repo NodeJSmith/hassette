@@ -1,8 +1,8 @@
 """Unit tests for DatabaseService retention-target definitions and batched delete helpers.
 
-Split out of ``test_database_service.py`` (see that file's docstring and this directory's
-CLAUDE.md) once the write-queue/submit tests there grew the file past house-lint's HSL102
-threshold -- this file's tests are an independent concern (retention-target metadata and the
+Split out of ``test_database_service.py`` (see that file's docstring and
+.claude/rules/tests-unit-core.md) once the write-queue/submit tests there grew the file past
+house-lint's HSL102 threshold -- this file's tests are an independent concern (retention-target metadata and the
 batched-delete SQL helpers), not a companion to any other split file.
 """
 

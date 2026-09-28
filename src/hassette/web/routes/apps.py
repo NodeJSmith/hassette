@@ -146,7 +146,7 @@ def _failed_target_instances(
     ``start``/``reload`` (whole-app or single-instance) can fail during class loading, config
     validation, or ``on_initialize()`` without raising — ``AppFactory``/``AppLifecycleService``
     catch those failures and record them straight to the registry via ``record_failure()``
-    instead (see ``CLAUDE.md``'s Resource Hierarchy section). Reading the registry back after
+    instead. Reading the registry back after
     ``operation()`` completes, via the same ``get_failed_instance_infos()`` the registry already
     uses to re-broadcast stale failures, is how ``_run_app_action`` notices a swallowed failure.
 
@@ -294,7 +294,7 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
     app with historical telemetry but no loaded manifest returns 200 instead of 404. A DB
     failure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that
     don't fit the single-branch ``db_degrades_to`` shape — handled inline (Category D, see
-    ``web/CLAUDE.md``).
+    ``.claude/rules/web-api.md``).
     """
     _validate_app_key(app_key)
 

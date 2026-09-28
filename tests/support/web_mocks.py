@@ -108,8 +108,8 @@ def create_hassette_stub(
     side effects, and snapshot plumbing is handled automatically.
 
     ``is_ready``, ``websocket_connected``, and ``bootstrap_released`` are three
-    independent lifecycle signals in the real framework (see CLAUDE.md's
-    description of ``StateProxy``, ``WebsocketService``, and
+    independent lifecycle signals in the real framework (see
+    ``.claude/rules/core-startup.md``'s description of ``StateProxy``, ``WebsocketService``, and
     ``AppBootstrapCoordinator``) and are kept independent here:
 
     - ``is_ready`` controls only the mocked StateProxy's readiness.

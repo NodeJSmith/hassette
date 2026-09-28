@@ -223,7 +223,7 @@ class TestExecutorOffloadProducesNoBlocking:
         # submission spawns its worker via a synchronous OS thread-creation syscall that runs on
         # the calling (loop) thread — under CI's noisier scheduling that cold-start cost can itself
         # exceed the tight lag_threshold_seconds set below, producing a stall unrelated to the
-        # worker-thread sleep this test actually exercises. See CLAUDE.md's "Config-driven
+        # worker-thread sleep this test actually exercises. See regression-test-patterns.md's "Config-driven
         # real-clock timeouts" pattern.
         pool = ThreadPoolExecutor(max_workers=1)
         try:

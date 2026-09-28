@@ -74,8 +74,8 @@ class ChangeEventLockRace:
         second_task = asyncio.create_task(self.lifecycle_service.handle_change_event())
         # Deterministically wait until the second call has actually queued on the lock
         # (asyncio.Lock.acquire() appends a waiter future synchronously, before its own await)
-        # rather than assuming a single scheduler tick is enough — see CLAUDE.md's
-        # "Deterministic Async Race Gate" convention.
+        # rather than assuming a single scheduler tick is enough — see regression-test-patterns.md's
+        # "Startup races" pattern.
         await wait_for(
             lambda: bool(self.lifecycle_service._change_event_lock._waiters),
             desc="second call queued on the lock",
@@ -95,7 +95,7 @@ class ChangeEventLockRace:
 
 class TestBootstrapAppsSuccessLogging:
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_emits_load_completed_when_apps_running(
         self,
         lifecycle_service: AppLifecycleService,
@@ -237,7 +237,7 @@ class TestHandleChangeEventBranches:
         assert_load_completed_count(event_capture, expected_broadcasts)
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_unblocked_apps_are_folded_into_new_apps(
         self,
         lifecycle_service: AppLifecycleService,
@@ -269,7 +269,7 @@ class TestHandleChangeEventBranches:
         # dup-ignore-end
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     def test_fold_unblocked_apps_preserves_metadata_apps(
         self,
         lifecycle_service: AppLifecycleService,
@@ -289,7 +289,7 @@ class TestHandleChangeEventBranches:
         # dup-ignore-end
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_pre_release_changes_are_deferred_and_coalesced(
         self,
         lifecycle_service: AppLifecycleService,
@@ -330,7 +330,7 @@ class TestHandleChangeEventBranches:
         await lifecycle_service.handle_change_event(changed_file_paths=None)
 
         # dup-ignore-start: pyright null-narrowing guard — two-line pattern with no third
-        # copy to extract (see tests/unit/core/CLAUDE.md).
+        # copy to extract (see .claude/rules/tests-unit-core.md).
         pending = lifecycle_service._pending_reconciliation
         assert pending is not None
         assert pending.original_apps_config is first_original_snapshot
@@ -411,7 +411,7 @@ class TestHandleChangeEventBranches:
 
 class TestReplayPreReleaseReconciliationBranches:
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_metadata_only_replay_broadcasts_without_applying(
         self,
         lifecycle_service: AppLifecycleService,
@@ -437,7 +437,7 @@ class TestReplayPreReleaseReconciliationBranches:
         # dup-ignore-end
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_no_change_replay_does_not_broadcast(
         self,
         lifecycle_service: AppLifecycleService,
@@ -507,7 +507,7 @@ class TestRefreshConfigFailure:
     ) -> None:
         """config.reload() raising is caught; refresh_config still returns a valid (original, current) pair."""
         # dup-ignore-start: single-use manifest arrange block — no third copy to extract
-        # (see tests/unit/core/CLAUDE.md).
+        # (see .claude/rules/tests-unit-core.md).
         manifest1 = MagicMock()
         manifest1.enabled = True
         mock_registry.manifests = {"app_a": manifest1}
