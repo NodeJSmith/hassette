@@ -188,7 +188,8 @@ describe("useWebSocket", () => {
       expect(mockNavigate).not.toHaveBeenCalled();
 
       // Advance past reconnect backoff — must still fire even though the auth check never
-      // resolved or rejected on its own.
+      // resolved or rejected on its own. The first reconnect waits INITIAL_BACKOFF_MS; doubling
+      // it is just a safe margin past that window, not the real backoff multiplier.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(INITIAL_BACKOFF_MS * 2);
       });
