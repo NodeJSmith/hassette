@@ -81,8 +81,6 @@ export interface AppStore extends TelemetryHealth {
   executionCompleted: WsExecutionCompletedPayload[] | null;
   updateAppStatus: (key: string, entry: AppStatusEntry) => void;
   updateServiceStatus: (name: string, entry: ServiceStatusEntry) => void;
-  clearAppStatus: () => void;
-  clearServiceStatus: () => void;
   setExecutionCompleted: (data: WsExecutionCompletedPayload[]) => void;
   setTelemetryHealth: (data: Partial<TelemetryHealth>) => void;
 
@@ -122,8 +120,6 @@ export function initialState(): Omit<
   | "setConnection"
   | "updateAppStatus"
   | "updateServiceStatus"
-  | "clearAppStatus"
-  | "clearServiceStatus"
   | "setExecutionCompleted"
   | "setTelemetryHealth"
   | "setTheme"
@@ -171,10 +167,6 @@ export const useAppStore = create<AppStore>()((set) => ({
   // --- telemetry ---
   updateAppStatus: (key, entry) => set((state) => ({ appStatus: { ...state.appStatus, [key]: entry } })),
   updateServiceStatus: (name, entry) => set((state) => ({ serviceStatus: { ...state.serviceStatus, [name]: entry } })),
-  // Not called by handleWsConnected (see its comment) — kept as a standalone store primitive
-  // for callers that need to clear app/service status on its own, and exercised directly in tests.
-  clearAppStatus: () => set({ appStatus: {} }),
-  clearServiceStatus: () => set({ serviceStatus: {} }),
   setExecutionCompleted: (data) => set({ executionCompleted: data }),
   setTelemetryHealth: (data) => set(data),
 
@@ -207,7 +199,7 @@ export const useAppStore = create<AppStore>()((set) => ({
   // --- composite actions ---
   handleWsConnected: (data, isReconnect) =>
     // Everything here must land in this single set() call. Splitting it across multiple set()s
-    // (e.g. calling clearServiceStatus()) would make atomicity depend on React's batching
+    // (e.g. a separate set() that clears serviceStatus) would make atomicity depend on React's batching
     // rather than the shape of the code — a component could then observe an intermediate
     // render where connection is "connected" but serviceStatus/appStatus are stale.
     set(() => ({

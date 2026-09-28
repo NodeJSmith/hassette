@@ -19,6 +19,7 @@ import {
   simulateConnected,
 } from "../test/websocket-test-utils";
 import { LOGIN_PATH } from "../utils/app-routes";
+import { AUTH_CHECK_TIMEOUT_MS, HANDSHAKE_TIMEOUT_MS, INITIAL_BACKOFF_MS, MAX_BACKOFF_MS } from "./use-websocket";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 
@@ -30,9 +31,6 @@ vi.mock("../api/endpoints", async () => {
 });
 
 const mockedGetSystemStatus = vi.mocked(getSystemStatus);
-
-// Mirrors use-websocket.ts's internal (unexported) HANDSHAKE_TIMEOUT_MS.
-const HANDSHAKE_TIMEOUT_MS = 10_000;
 
 const HEALTHY_SYSTEM_STATUS: SystemStatus = createSystemStatus();
 
@@ -124,7 +122,7 @@ describe("useWebSocket", () => {
 
       // Advance well past the backoff window — no reconnect attempt should have been scheduled.
       act(() => {
-        vi.advanceTimersByTime(30_000);
+        vi.advanceTimersByTime(MAX_BACKOFF_MS);
       });
       expect(MockWebSocket.instances).toHaveLength(1);
     });
@@ -184,7 +182,7 @@ describe("useWebSocket", () => {
       // Use the async variant so the rejection's catch/finally chain (and the subsequent
       // scheduleReconnect() call) actually runs before we advance further.
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(5_000);
+        await vi.advanceTimersByTimeAsync(AUTH_CHECK_TIMEOUT_MS);
       });
 
       expect(mockNavigate).not.toHaveBeenCalled();
@@ -192,7 +190,7 @@ describe("useWebSocket", () => {
       // Advance past reconnect backoff — must still fire even though the auth check never
       // resolved or rejected on its own.
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2_000);
+        await vi.advanceTimersByTimeAsync(INITIAL_BACKOFF_MS * 2);
       });
       expect(MockWebSocket.instances).toHaveLength(2);
     });

@@ -36,8 +36,8 @@ export const WS_PATH = "/api/ws";
 
 function buildUrl(path: string, params: Record<string, string | number | null | undefined>): string {
   const search = new URLSearchParams();
-  for (const [key, val] of Object.entries(params)) {
-    if (val !== null && val !== undefined) search.set(key, String(val));
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== null && value !== undefined) search.set(key, String(value));
   }
   const qs = search.toString();
   return qs ? `${path}?${qs}` : path;
