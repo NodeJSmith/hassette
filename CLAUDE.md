@@ -55,6 +55,24 @@ Rules that bite everywhere:
 
 Subsystem internals live in path-scoped rules under `.claude/rules/` and load automatically when you work in the matching files: `core-startup.md` (startup readiness, app bootstrap gate, StateProxy), `resource-lifecycle.md` (lifecycle, teardown reports), `bus-internals.md`, `web-api.md`, `frontend-css.md`, `demo-and-screenshots.md`, and `tests-*.md` rules for several test directories with notable local fixtures (not every directory has one — check its `conftest.py`). New subsystem guidance goes there too, not in nested `CLAUDE.md` files.
 
+## Designing the Framework
+
+Hassette is a framework. Its real callers are user apps in other repositories, which this repo never sees.
+
+- **In-repo usage is not evidence of demand.** Grepping this repo measures blast radius (call sites to update), not whether users rely on something or struggle with it. `examples/`, `docs/`, and internal apps only show what they happen to demonstrate. Don't dismiss an edge case or rank one API path over another because nothing here exercises it — assume users will. API changes still need changelog entries and migration guidance with zero in-repo callers.
+- **Keep the public surface small.** `App` carries almost nothing; a new helper goes on the most specific component whose role it extends (e.g. presence helpers on `StateManager`, not `Api` or `App` delegators). AppDaemon's broad `self.*` surface is a cautionary tale — diverge from its names and signatures where it chose poorly.
+- **Convenience APIs must earn their place.** Ask what boilerplate it saves, whether callers could write it trivially against the primitives, and whether the wrapper adds failure modes (races, weaker typing, untestable paths) the primitive doesn't have. If it saves a few lines and adds new failure modes, document the pattern instead.
+- **Every new `Api` method is testable through the harness.** Define how it behaves on `RecordingApi` (records an `ApiCall` for writes, reads a harness seed surface for reads) and add the seed API if needed (harness mechanics: `.claude/rules/test-conventions.md`). Never stub it with `NotImplementedError`.
+- **HA-facing design follows Home Assistant / HACS conventions** (Integration Quality Scale, current core idioms). A divergence needs a stated, strong reason.
+
+## Internal Documentation
+
+Applies to `CLAUDE.md`, `.claude/`, `design/`, and code comments — not the user-facing docs site, where stating defaults and values is the point.
+
+- **State decisions; point to code for values.** Write rules, rationale, and which file, component, token, or function is canonical. Don't restate a value, class list, signature, or output format that lives in code — a copied value drifts silently and nothing catches it. A pointer can't drift and steers the reader to reuse instead of reimplement.
+  - Exception: a command may carry the literal value it needs to be copy-pasteable. When that value is defined in code, name the source next to it (e.g. `-n 4` — `XDIST_WORKERS` in `noxfile.py`) so drift can be checked.
+- **A pointer names something that exists.** When you move or rename a doc section, grep for references to it (including code comments) and update them.
+
 ## App Pattern
 
 ```python
@@ -75,6 +93,7 @@ class MyApp(App[MyConfig]):
 
 - Bugs: reproduce, write a failing test (RED), fix (GREEN), run the full file. Patterns for races, timeouts, and sentinel filtering are in `.claude/rules/regression-test-patterns.md` (loads under `tests/`).
 - Test infrastructure, factories, and mock strategy: `.claude/rules/test-conventions.md` and `tests/TESTING.md`.
+- Run pytest with `-n 4`, never `-n auto`. That matches CI (`XDIST_WORKERS` in `noxfile.py`), and `--dist loadscope` makes the worker count change which modules share a worker.
 - Run any test you fix or modify before committing — code inspection misses marker filtering, warning config, fixture scoping, and async timing.
 
 ## Before Shipping
@@ -87,6 +106,7 @@ class MyApp(App[MyConfig]):
 
 - **Issues:** read `.claude/reference/github-workflow.md` before filing — titles, required type/area/size labels, topic labels, body sections. For pre-existing findings from `/mine-clean-code` or review runs, also read `.claude/reference/clean-code-findings.md`.
 - **PR checks:** a red `file-sizes` or `duplicate-code` check always means this PR regressed something; fix it in-PR. Details in the same reference file.
+- **Closing issues:** repeat the keyword for each issue (`closes #1, closes #2`); `Closes #1, #2` only closes the first.
 - **CodeRabbit** auto-review is disabled. Once the PR is created and marked ready, comment `@coderabbitai review`.
 - **Roadmap:** `design/roadmap.md` is the source of truth for Now/Next and forced orderings — read it when asked what to pick up next. Each initiative is a GitHub milestone whose description holds its Done-when. A follow-up issue joins an initiative's milestone only if the Done-when fails without it; otherwise leave it milestone-less (`epic:*`/`topic:*` labels are fine).
 
@@ -110,3 +130,5 @@ Internal design documents live in `design/`, not `docs/` (the published docs sit
 - Ruff + Pyright (commands above).
 - No `from __future__ import annotations`.
 - No blanket `# type: ignore` — use `# pyright: ignore[reportXxx]`.
+- Mixins declare the attributes they expect from their host as class-level annotations. Don't add a runtime `Protocol` to validate the host; a `TYPE_CHECKING`-only one is fine when annotations can't type it (see `_LifecycleHostP` in `resources/mixins.py`).
+- User-facing API methods keep their full docstrings even when siblings repeat them (scheduler `run_*`, bus `on_*` delegates) — users read the method they call. Don't flag that as duplication; duplicated bodies are still fair game.

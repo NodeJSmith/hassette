@@ -21,7 +21,7 @@ mise run demo            # or: uv run python scripts/hassette_demo.py  (~60-90s 
 mise run demo-verify     # non-interactive health check (apps running, listeners registered)
 ```
 
-`hassette_demo.py` wraps `scripts/demo_stack.py`'s `DemoStack` context manager (`docker compose up -d --wait`). Ports: HA `18123`, hassette `18126`, Vite `15173`; override with `DEMO_HA_PORT`, `DEMO_HASSETTE_PORT`, `DEMO_VITE_PORT`. Ctrl-C/SIGTERM tears it down via `docker compose down --remove-orphans`.
+`hassette_demo.py` wraps `scripts/demo_stack.py`'s `DemoStack` context manager (`docker compose up -d --wait`). Ports: HA `18123`, hassette `18126`, Vite `15173`; override with `DEMO_HA_PORT`, `DEMO_HASSETTE_PORT`, `DEMO_VITE_PORT`. Ctrl-C/SIGTERM tears it down via `docker compose down --remove-orphans`. If the wrapper died any other way (e.g. `pkill`), the containers are still running: `docker compose -p hassette-demo down --remove-orphans` (project name: `COMPOSE_PROJECT_NAME` in `scripts/demo_stack.py`).
 
 Gotchas:
 - **Stale app code:** reloading a *failed* app via the REST API reuses the stale module — after editing app code, restart the whole stack.

@@ -500,6 +500,7 @@ All timestamps, durations, rates, counts, and IDs go through the formatters in `
 - Hiding app health or critical failures to create a cleaner composition.
 - Redesigning multiple navigation or interaction models during a polish task.
 - Stacking two elements at the same shadow level (see Depth above).
+- Left-border accents (a thick colored border on one side of a card or row) — a recognizable AI-generated tell. Show hierarchy or emphasis with indentation, spacing, surface changes, heading weight, or full borders.
 - Wrapping a table in the decorative `Card` component instead of `TableCard`.
 
 ## Protect These Patterns

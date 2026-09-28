@@ -42,6 +42,8 @@ A module-level constant holding a Tailwind class string is named `FOO_CLASS` / `
 
 `components.json` configures the New York style with `@/components/ui` as the component directory: `button`, `badge`, `card`, `tooltip`, `dialog`, `alert-dialog`, `popover`, `command`, `drawer`, `table`. Use these instead of rebuilding standard controls with raw markup (`<Button variant="ghost" size="sm">`, `<Badge variant="danger" size="sm">`). Their tests live in `components/shared/` (e.g. `components/shared/button.test.tsx`), treating `components/ui/` as vendored primitives.
 
+Don't hand-roll non-trivial UI primitives (form widgets, schema-driven forms, complex inputs) when a maintained library exists — the edge cases (array editing, dirty tracking, error plumbing, accessibility) are where the bugs live. The bundle-size budget (`frontend/.size-limit.json`) measures the entry chunk only, so `React.lazy` on the route or component that pulls in a large library keeps it off the budget.
+
 ### CI guards
 
 - **`tools/frontend/check_breakpoint_drift.py`** — JS breakpoint constants in `use-media-query.ts` must match the Tailwind screens in `global.css`.

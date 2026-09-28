@@ -14,6 +14,8 @@ Before defining a local `make_*` or `build_*` function in a test file, check `te
 
 If a matching factory exists, import it instead of redefining it. If it doesn't exist and the same shape is needed in 3+ files, add it to `factories.py` (or the appropriate `web_*_helpers.py` submodule for web-layer models) rather than letting a fourth local copy accumulate.
 
+When checking whether a fixture or helper is unused, search `src/hassette/testing/` as well as `tests/` — it ships pytest fixtures that consume other fixtures.
+
 ## Choosing a mock strategy
 
 Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37). Quick version:
