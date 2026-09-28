@@ -8,7 +8,7 @@ the loop-default executor.
 SyncExecutor is a plain class (no Resource/Service base), following the Router
 (hassette.bus.router) and AppRegistry (hassette.core.app_registry) precedent — it is
 constructed during Hassette.__init__() before the Resource lifecycle starts, so every
-TaskBucket has a working sync executor from birth. The pool is not created at
+TaskBucket holds a SyncExecutor reference from birth. The pool is not created at
 construction — rebuild_pool() is the sole pool constructor, called by
 SyncExecutorService.on_initialize() on both first start and restart-in-place.
 
@@ -92,11 +92,12 @@ class SyncExecutor:
     Follows the Router (``hassette.bus.router``) / AppRegistry (``hassette.core.app_registry``)
     pattern — no ``Resource``/``Service`` base class, no ``hassette`` parameter, no lifecycle
     hooks. This is what makes it constructable during ``Hassette.__init__()`` before the
-    Resource lifecycle starts, so every ``TaskBucket`` has a working sync executor from birth.
+    Resource lifecycle starts, so every ``TaskBucket`` holds a ``SyncExecutor`` reference from birth.
 
     The pool is not created at construction — ``rebuild_pool()`` is the sole pool constructor,
-    called by ``SyncExecutorService.on_initialize()`` on both first start and restart-in-place.
-    ``shutdown_pool()`` tears it down within a budgeted timeout.
+    called by ``SyncExecutorService.on_initialize()`` on both first start and restart-in-place;
+    until then ``submit()`` raises. ``shutdown_pool()`` tears the pool down within a budgeted
+    timeout.
     """
 
     executor: InterruptibleThreadPoolExecutor | None
