@@ -24,7 +24,7 @@ This is a Hassette feature. Standard Python ignores type annotations at runtime,
 
 [`self.api.turn_on()`](../core-concepts/api/index.md) calls the `light.turn_on` service in Home Assistant, the same action as toggling a light from the HA UI. Hassette derives the service domain (`light`) from the `light.porch` entity ID automatically — no `domain=` parameter is needed. `light.porch` is an example: replace it with the entity ID of a light in your own Home Assistant instance. You can find available services in **Developer Tools → Services** in your Home Assistant instance.
 
-Handlers are `async def` because Hassette runs them all on its event loop. While one handler waits on an `await` (such as `self.api.turn_on()` waiting for Home Assistant to respond), other handlers keep running, so a slow call in one handler doesn't hold up the rest of your app.
+`on_sun_change` is `async def` so it can `await` Hassette calls like `self.api.turn_on()`. Async handlers run on Hassette's event loop: while one handler is paused at an `await`, other handlers keep running, so a slow call in one handler doesn't hold up the rest of your app. [Async Basics](../migration/async-basics.md) covers the event loop model in more depth. Service calls like `turn_on()` are fire-and-forget by default: the `await` finishes once the command is sent, not once Home Assistant has applied it. [Calling Services](../core-concepts/api/methods.md#calling-services) shows how to wait for confirmation instead.
 
 ## Schedule a Recurring Job
 
@@ -32,7 +32,7 @@ Handlers are `async def` because Hassette runs them all on its event loop. While
 --8<-- "pages/getting-started/snippets/first_automation_step4.py"
 ```
 
-[`self.scheduler.run_minutely()`](../core-concepts/scheduler/methods.md) runs `log_heartbeat` every minute. `log_heartbeat` is a scheduled *job*: a method the scheduler calls on a timer, rather than a handler the bus calls in response to an event. The first run fires one minute after startup. Hassette tracks the job and cancels it automatically on shutdown.
+[`self.scheduler.run_minutely()`](../core-concepts/scheduler/methods.md) runs `log_heartbeat` every minute. `log_heartbeat` is a scheduled *job*: the scheduler calls it on a timer, not in response to an event. The first run fires one minute after startup. Hassette tracks the job and cancels it automatically on shutdown.
 
 `log_heartbeat` has no `D.*` annotations in its signature, because there is no event to extract data from. See [`Scheduler` Methods](../core-concepts/scheduler/methods.md) for `run_daily`, `run_cron`, `run_once`, and more.
 
