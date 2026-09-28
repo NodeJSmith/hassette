@@ -43,7 +43,7 @@ The release workflow builds each package into its own `dist/<name>/` directory a
 - `release-please-config.json`'s `extra-files` (the `# x-release-please-version` marker on the member's `pyproject.toml` does nothing without this)
 - `Dockerfile`, if the member is a runtime dependency of `hassette` rather than a dev-only tool
 - `renovate.json`, if the member is pinned exactly by another workspace member (stops Renovate from bumping a pin release-please owns)
-- `release-please.yml`: a new `publish-pypi-<name>` job calling `_publish-pypi-package.yml`, chained after the member it depends on via `needs:`, with its own GitHub Environment (created the same way as `release-wire`/`release-client`, same branch policy) — and add the job to `release-verify`'s `needs:` and result checks
+- `release-please.yml`: a new `publish-pypi-<name>` job running the `.github/actions/publish-pypi` composite action (not a reusable workflow — PyPI matches `job_workflow_ref`), chained after the member it depends on via `needs:`, with its own GitHub Environment (created the same way as `release-wire`/`release-client`, same branch policy) — and add the job to `release-verify`'s `needs:` and result checks
 
 ## Architecture
 
