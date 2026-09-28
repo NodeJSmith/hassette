@@ -280,7 +280,7 @@ jobs:
         permissions:
             id-token: write
 
-    publish-pypi:
+    publish-pypi-hassette:
         needs: [release-please, build-pypi, publish-pypi-client]
         if: >-
             always()
@@ -311,7 +311,7 @@ jobs:
     # Verify even when build-pypi is skipped in a release context — a skipped build
     # during a release is itself the bug (see #998), and verification must catch it.
     release-verify:
-        needs: [release-please, build-pypi, publish-pypi-wire, publish-pypi-client, publish-pypi, publish-docker]
+        needs: [release-please, build-pypi, publish-pypi-wire, publish-pypi-client, publish-pypi-hassette, publish-docker]
         if: >-
             always()
             && (
@@ -327,7 +327,7 @@ jobs:
                   BUILD_RESULT: ${{ needs.build-pypi.result }}
                   PYPI_WIRE_RESULT: ${{ needs.publish-pypi-wire.result }}
                   PYPI_CLIENT_RESULT: ${{ needs.publish-pypi-client.result }}
-                  PYPI_RESULT: ${{ needs.publish-pypi.result }}
+                  PYPI_RESULT: ${{ needs.publish-pypi-hassette.result }}
                   DOCKER_RESULT: ${{ needs.publish-docker.result }}
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
               run: |
@@ -361,7 +361,7 @@ jobs:
                   echo "All publish jobs succeeded for $TAG_NAME"
 
             - name: Verify package on PyPI
-              if: needs.publish-pypi.result == 'success'
+              if: needs.publish-pypi-hassette.result == 'success'
               uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                   ref: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
@@ -369,7 +369,7 @@ jobs:
                   persist-credentials: false
 
             - name: Run PyPI smoke test
-              if: needs.publish-pypi.result == 'success'
+              if: needs.publish-pypi-hassette.result == 'success'
               env:
                   TAG_NAME: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
               run: python3 ./tools/release/check_pypi_wheel.py --version "${TAG_NAME#v}"
