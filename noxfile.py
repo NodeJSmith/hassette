@@ -60,24 +60,43 @@ def dev(session: "Session"):
     )
 
 
+@nox.session(python=False)
+def wire(session: "Session"):
+    """Run the hassette-wire workspace member's own tests."""
+    session.run("uv", "run", "--directory", "wire", "pytest", "-q", external=True)
+
+
+@nox.session(python=False)
+def client(session: "Session"):
+    """Run the hassette-client workspace member's own tests."""
+    session.run("uv", "run", "--directory", "client", "pytest", "-q", external=True)
+
+
 @nox.session(python="3.11")
 def wheel_smoke(session: "Session"):
-    """Build the wheel and verify the hassette.testing / hassette.test_utils boundary.
+    """Build the wheels and verify the hassette.testing / hassette.test_utils boundary.
 
-    Installs the built wheel into this session's isolated venv (no editable install, no
+    Installs the built wheels into this session's isolated venv (no editable install, no
     ``tests/`` on the path) and checks both directions of the boundary: Tier 1 symbols
     are importable from ``hassette.testing``, and ``hassette.test_utils`` — deleted from
     the source tree — is not importable at all.
+
+    All three workspace wheels are built and installed together: the hassette wheel pins
+    ``hassette-wire`` and ``hassette-client`` to its own version, which are not on PyPI until
+    the release train publishes them.
     """
     dist_dir = Path("dist")
     if dist_dir.exists():
-        for stale in dist_dir.glob("hassette-*.whl"):
+        for stale in dist_dir.glob("*.whl"):
             stale.unlink()
-    session.run("uv", "build", "--wheel", external=True)
+    session.run("uv", "build", "--all-packages", "--wheel", external=True)
+    # Wheel filenames normalize "-" to "_", so this glob matches only the hassette wheel and
+    # skips hassette_wire-*/hassette_client-*; everything else in dist/ is a member wheel.
     wheel = next(dist_dir.glob("hassette-*.whl"))
+    member_wheels = [str(w) for w in dist_dir.glob("*.whl") if w != wheel]
     # ``[test]`` is the documented optional-dependency extra for app authors using
     # hassette.testing — hassette.testing.fixtures imports pytest at module level.
-    session.install(f"{wheel}[test]")
+    session.install(f"{wheel}[test]", *member_wheels)
     session.run("python", "-c", "from hassette.testing import AppTestHarness")
     session.run(
         "python",

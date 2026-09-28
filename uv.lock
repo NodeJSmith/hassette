@@ -8,6 +8,13 @@ resolution-markers = [
     "(python_full_version < '3.13' and sys_platform != 'emscripten') or (python_full_version < '3.12' and sys_platform == 'emscripten')",
 ]
 
+[manifest]
+members = [
+    "hassette",
+    "hassette-client",
+    "hassette-wire",
+]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.6.1"
@@ -986,6 +993,8 @@ dependencies = [
     { name = "fastapi" },
     { name = "frozendict" },
     { name = "glom" },
+    { name = "hassette-client" },
+    { name = "hassette-wire" },
     { name = "httpx2" },
     { name = "humanize" },
     { name = "jsonref" },
@@ -1063,6 +1072,8 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.134.0" },
     { name = "frozendict", specifier = ">=2.4.7" },
     { name = "glom", specifier = ">=24.11.0" },
+    { name = "hassette-client", extras = ["cli"], editable = "client" },
+    { name = "hassette-wire", editable = "wire" },
     { name = "httpx2", specifier = ">=2.12.0" },
     { name = "humanize", specifier = ">=4.13.0" },
     { name = "jsonref", specifier = ">=1.1.0" },
@@ -1126,6 +1137,26 @@ test = [
 ]
 
 [[package]]
+name = "hassette-client"
+version = "0.54.0"
+source = { editable = "client" }
+dependencies = [
+    { name = "hassette-wire" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "hassette-wire", editable = "wire" }]
+provides-extras = ["cli"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.4.0" }]
+
+[[package]]
 name = "hassette-codegen"
 version = "0.1.0"
 source = { editable = "codegen" }
@@ -1145,6 +1176,25 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+
+[[package]]
+name = "hassette-wire"
+version = "0.54.0"
+source = { editable = "wire" }
+dependencies = [
+    { name = "pydantic" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pydantic", specifier = ">=2.0" }]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.4.0" }]
 
 [[package]]
 name = "house-lint"

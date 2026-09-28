@@ -30,6 +30,14 @@ ADD ./tools /app/tools
 # need its metadata even when dev groups are excluded
 ADD ./codegen/pyproject.toml /app/codegen/pyproject.toml
 ADD ./codegen/src/hassette_codegen/__init__.py /app/codegen/src/hassette_codegen/__init__.py
+# wire and client are runtime workspace members (hassette pins both), so unlike codegen they
+# are built into the image and need their full package trees, not just lock metadata. README
+# and LICENSE ride along with pyproject.toml because uv_build validates `readme` and
+# `license-files` when it builds each member.
+ADD ./wire/pyproject.toml ./wire/README.md ./wire/LICENSE /app/wire/
+ADD ./wire/src /app/wire/src
+ADD ./client/pyproject.toml ./client/README.md ./client/LICENSE /app/client/
+ADD ./client/src /app/client/src
 ADD ./pyproject.toml /app/pyproject.toml
 ADD ./uv.lock /app/uv.lock
 ADD ./README.md /app/README.md

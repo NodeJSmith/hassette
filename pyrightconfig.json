@@ -4,6 +4,8 @@
         "examples",
         "scripts",
         "codegen",
+        "wire",
+        "client",
         "tools"
     ],
     "ignore": [
