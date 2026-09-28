@@ -120,7 +120,7 @@ export interface paths {
          *     app with historical telemetry but no loaded manifest returns 200 instead of 404. A DB
          *     failure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that
          *     don't fit the single-branch ``db_degrades_to`` shape — handled inline (Category D, see
-         *     ``web/CLAUDE.md``).
+         *     ``.claude/rules/web-api.md``).
          */
         get: operations["get_app_manifest_api_apps__app_key__manifest_get"];
         put?: never;
@@ -629,7 +629,7 @@ export interface paths {
          *     ``db_degrades_to`` on failure) and overlaid with live runtime state via
          *     ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below
          *     stay Category C (independently caught, degrading to empty defaults while the response
-         *     continues at 200) — see ``web/CLAUDE.md`` for the classification table.
+         *     continues at 200) — see ``.claude/rules/web-api.md`` for the categories.
          *
          *     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
          *     not the manifest-driven app grid.

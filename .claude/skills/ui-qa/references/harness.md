@@ -57,7 +57,7 @@ Captures pages × viewports (320/375/768/900/1280) × themes. Filter with `--pag
 scope it unless the request is a full audit.
 
 The breakpoints matter: 768px and 900px are the responsive boundaries
-(`frontend/DESIGN_RULES.md`), 320px is the floor, 375px is the standard phone, 1280px is
+(`design/context.md`), 320px is the floor, 375px is the standard phone, 1280px is
 desktop.
 
 ## Project context for analysis agents
@@ -66,18 +66,16 @@ Feed analysis subagents these sources rather than letting them invent design opi
 
 | Source | What it defines |
 |--------|-----------------|
-| `frontend/DESIGN_RULES.md` | Responsive rules, table behavior, density, hierarchy |
-| `frontend/src/tokens.css` | All design tokens — anything not derived from these is a finding |
-| `design/context.md` | Design system reference: tokens, component specs, status system, layout patterns |
+| `design/context.md` | Design system reference: tokens, component specs, status system, layout patterns, responsive rules, table behavior, density, hierarchy |
+| `frontend/src/global.css` | All design tokens — anything not derived from these is a finding |
 
 ## Verification battery (after any fix)
 
 ```bash
-cd frontend && npx tsc --noEmit && npm run lint && npx prettier --check 'src/**/*.{ts,tsx,css}' && npx vitest run
-uv run python tools/frontend/check_global_css_allowlist.py
-uv run python tools/frontend/check_dead_global_css.py
-uv run python tools/frontend/check_css_module_globals.py
-uv run python tools/frontend/check_undefined_css_refs.py
+cd frontend && npx tsc --noEmit && npm run lint && npm run lint:css && npx prettier --check 'src/**/*.{ts,tsx,css}' && npx vitest run
+uv run python tools/frontend/check_breakpoint_drift.py
+uv run python tools/frontend/check_dead_tokens.py
+cd frontend && npx oxlint -c .oxlintrc.json src/
 timeout 580 uv run pytest -m e2e -n auto
 ```
 

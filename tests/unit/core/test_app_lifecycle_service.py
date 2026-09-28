@@ -89,7 +89,7 @@ class TestBootstrapAppsAdmission:
         lifecycle_service.start_apps.assert_awaited_once_with(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_bootstrap_replays_deferred_reconciliation_after_startup(
         self,
         lifecycle_service: AppLifecycleService,
@@ -125,7 +125,7 @@ class TestBootstrapAppsAdmission:
         # dup-ignore-end
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_bootstrap_replays_deferred_reconciliation_when_no_manifests(
         self,
         lifecycle_service: AppLifecycleService,
@@ -191,7 +191,7 @@ class TestBootstrapApps:
         lifecycle_service.start_apps.assert_not_called()
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_emits_load_completed_when_no_manifests(
         self,
         lifecycle_service: AppLifecycleService,
@@ -212,7 +212,7 @@ class TestBootstrapApps:
         # dup-ignore-end
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_emits_load_completed_event(
         self,
         lifecycle_service: AppLifecycleService,

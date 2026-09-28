@@ -1,6 +1,12 @@
+---
+paths:
+  - "tests/**"
+  - "src/hassette/testing/**"
+---
+
 # Test Conventions
 
-Closes the discovery gap for test infrastructure: this file is loaded on every session, so it is the one-hop pointer to the shared factories and fixtures. The full reference — mock-strategy rationale, scoping rules, factory signatures, mocking-at-boundaries rules — lives in `tests/TESTING.md`. Read that file for anything not covered here.
+The one-hop pointer to the shared test factories and fixtures, loaded whenever you work under `tests/`. The full reference — mock-strategy rationale, scoping rules, factory signatures, mocking-at-boundaries rules — lives in `tests/TESTING.md`. Read that file for anything not covered here.
 
 ## Before writing a local factory (BLOCKING)
 
@@ -17,6 +23,8 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - **HTTP endpoints, HTML responses, WebSocket frames** — use `create_hassette_stub()`. MagicMock stub, fast, no real services.
 
 ## Canonical factories and where they live
+
+The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.py` — the pre-commit guard reads it, so a factory missing there is not protected against shadowing. The lists below are the commonly used subset.
 
 `tests/support/factories.py` — registration dataclasses and command/job objects:
 
@@ -38,13 +46,21 @@ Full decision table: `tests/TESTING.md` (Choosing a Mock Strategy, lines 27-37).
 - `make_bus_service_with_mock_executor(hassette, registration_id=...)` — `(BusService, executor mock)` wired to a stubbed task bucket
 - `make_scheduler_service_with_mock_executor(hassette, registration_id=...)` — `(SchedulerService, executor mock)`, job queue stubbed too
 - `make_log_record(**kw)` — `logging.LogRecord` with keyword defaults (name, level, pathname, lineno, msg, args, exc_info)
+- `build_log_entry(record)` — `LogEntry` built from a `LogRecord` with correlation attrs and formatted traceback
+- `make_recording_log_capture_handler()` — `RecordingLogCaptureHandler` for observing `LogCaptureHandler.emit()`
+- `make_execution_record(*, kind="handler", session_id=1, ...)` — `ExecutionRecord` for a handler or job execution
+- `make_sync_executor(*, max_workers=2)` — standalone `SyncExecutor` for tests that need `run_in_thread`
 - `wire_dependent_resource(hassette, dependent_cls, *dep_classes)` — dependent `Resource`/`Service` plus its declared `depends_on` types instantiated into `hassette.children`
 
-`tests/support/helpers.py` — event/state builders and misc test helpers:
+`hassette.testing` (public; defined in `src/hassette/testing/_factories.py`) — event/state builders:
 
-- `create_listener(**kw)`, `create_state_change_event(**kw)`, `create_call_service_event(**kw)`
+- `create_state_change_event(**kw)`, `create_call_service_event(**kw)`
 - `make_state_dict(**kw)`, `make_light_state_dict(**kw)`, `make_sensor_state_dict(**kw)`, `make_switch_state_dict(**kw)`
-- `make_typed_state(state_class, state_dict)`, `make_task_bucket()`
+- `make_typed_state(state_class, state_dict)`
+
+`tests/support/helpers.py` — misc test helpers:
+
+- `create_listener(**kw)`, `make_task_bucket()`
 - `make_crashed_event(**kw)` — `HassetteServiceEvent` with CRASHED status for service-watcher/session tests
 - `emit_change_and_wait_for_app_status(hassette, changed_paths, *app_keys, status=RUNNING, timeout=...)` —
   the hot-reload arrange-and-await sequence: wire status listeners, emit a synthetic file-change event,
@@ -90,6 +106,6 @@ come from `hassette.testing` (public API); Tier 2 symbols come from `tests.suppo
 11. `make_mock_parent` — `from tests.support.factories import make_mock_parent`
 12. `TEST_SOURCE_LOCATION` — `from hassette.testing.config import TEST_SOURCE_LOCATION`
 
-## Directory-level pointers
+## Directory-level rules
 
-If a `CLAUDE.md` exists in the test directory you're working in, read it first — it lists that directory's actual fixtures and any module-specific convention. Directories with one today: `tests/unit/bus/`, `tests/unit/core/`, `tests/integration/bus/`, `tests/integration/web_api/`, `tests/integration/telemetry/`.
+Several test directories have their own path-scoped rule listing that directory's fixtures and conventions (`.claude/rules/tests-*.md`). They load automatically alongside this one.

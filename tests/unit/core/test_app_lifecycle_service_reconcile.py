@@ -199,7 +199,7 @@ class TestPersistManifests:
         """A sequential loop would hang here: each upsert only returns once *both* are in
         flight, so a sequential implementation would await the first call forever — surfaced
         by `asyncio.wait_for` below as a `TimeoutError` rather than an actual hang. Deterministic
-        per CLAUDE.md's startup-race pattern — no sleep-based timing races.
+        per regression-test-patterns.md's startup-race pattern — no sleep-based timing races.
         """
         both_in_flight = asyncio.Event()
         in_flight_count = 0

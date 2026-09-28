@@ -427,6 +427,19 @@ Starting coverage from a `.pth` file has one consequence worth knowing about. `c
 
 Every hook no-ops when coverage was not started this way, so ordinary `pytest` runs are unaffected. If you replicate the manual approach above, add `-p tests.coverage_integrity` (with the repo root on `PYTHONPATH`) to get the same protection.
 
+### Floors and branch comparison
+
+The frontend enforces an 80% floor via `thresholds` in `frontend/vitest.config.ts` (run with `cd frontend && npm run test:coverage`). The backend has no local floor; Codecov's `target: auto` catches per-PR regressions.
+
+To compare coverage between a branch and `main`, don't run full suites locally — download the `coverage-xml` artifact from CI and diff the two Cobertura files:
+
+```bash
+gh run list --branch <branch> --workflow tests.yml --status success --limit 1 --json databaseId -q '.[0].databaseId'
+gh run list --branch main --workflow tests.yml --status success --limit 1 --json databaseId -q '.[0].databaseId'
+gh run download <branch-run-id> -n coverage-xml -D /tmp/branch-cov
+gh run download <main-run-id> -n coverage-xml -D /tmp/main-cov
+```
+
 ### What's excluded from coverage
 
 Codegen and pure-data modules are excluded in both `pyproject.toml` (`[tool.coverage.run] omit`) and `.github/codecov.yml` (`ignore`). See the comments in those files for the full list and rationale.

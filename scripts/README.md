@@ -11,11 +11,10 @@ Operational scripts for building, running, and demoing hassette.
   by `hassette_demo.py` and `capture_screenshots.py`; not run directly.
 - **`capture_screenshots.py`** — regenerate `docs/_static/web_ui_*.png` from
   `docs/screenshots.yml` (`--only <name>` to scope). Starts the demo stack via
-  `DemoStack`, runs shot-scraper, tears down. See CLAUDE.md → "Demo Stack & Doc
-  Screenshots".
+  `DemoStack`, runs shot-scraper, tears down. See `.claude/rules/demo-and-screenshots.md`.
 - **`hassette_demo.py`** — thin wrapper around `DemoStack` for interactive visual
   QA: starts the compose stack, prints URLs, blocks until signaled; also
-  `mise run demo`. See CLAUDE.md → "Demo Stack & Doc Screenshots".
+  `mise run demo`. See `.claude/rules/demo-and-screenshots.md`.
 - **`release_contributors.py`** — find external contributors between two git
   tags. Filters bots and repo owner, resolves GitHub usernames from noreply
   emails. Used by the `changelog-review` command during release prep.

@@ -435,7 +435,7 @@ class TestStopApp:
         lifecycle_service.shutdown_instances.assert_not_called()
 
     # dup-ignore-start: pytest test function signature — Python has no way to share a function
-    # signature between separate test functions (see tests/unit/core/CLAUDE.md).
+    # signature between separate test functions (see .claude/rules/tests-unit-core.md).
     async def test_emits_stopped_event_for_discarded_failed_entries(
         self,
         lifecycle_service: AppLifecycleService,

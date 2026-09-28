@@ -22,7 +22,7 @@ ADRs record: context, decision, consequences, and alternatives considered. They 
 
 ### `context.md`
 
-Design system reference for the web UI. Brand context, design tokens, component specifications, status system, layout patterns, and do's/don'ts. Read by all i-* design skills as the canonical design context. Canonical source of truth for design decisions — token values live in `frontend/src/tokens.css`, component implementations in `frontend/src/components/shared/`.
+Design system reference for the web UI. Brand context, design tokens, component specifications, status system, layout patterns, and do's/don'ts. Read by all i-* design skills as the canonical design context. Canonical source of truth for design decisions — token values live in `frontend/src/global.css`, shadcn primitives in `frontend/src/components/ui/`, composite components in `frontend/src/components/shared/`.
 
 ### `audits/`
 

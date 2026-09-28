@@ -56,7 +56,7 @@ async def test_reconcile_rollback_on_exception(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_with_fk_fallback_success_path(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -100,7 +100,7 @@ async def test_persist_execution_batch_with_fk_fallback_success_path(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_violation(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -132,7 +132,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_listener_fk_vio
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violation(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -164,7 +164,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_on_job_fk_violatio
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_failure(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -202,7 +202,7 @@ async def test_persist_execution_batch_with_fk_fallback_drops_row_on_second_fail
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_with_fk_fallback_drops_job_row_on_second_failure(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -248,7 +248,7 @@ async def test_persist_execution_batch_with_fk_fallback_empty_list(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -281,7 +281,7 @@ async def test_persist_execution_batch_with_fk_fallback_rollback_on_exception(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_rollback_on_exception(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

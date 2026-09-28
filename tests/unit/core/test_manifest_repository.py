@@ -82,7 +82,7 @@ async def test_manifest_insert_params_schema_parity(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_upsert_app_manifest_creates_new_row(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -109,7 +109,7 @@ async def test_upsert_app_manifest_creates_new_row(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_upsert_app_manifest_updates_existing_row_preserves_id(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -138,7 +138,7 @@ async def test_upsert_app_manifest_updates_existing_row_preserves_id(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_upsert_app_manifest_refreshes_updated_at_on_conflict(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -174,7 +174,7 @@ async def test_upsert_app_manifest_refreshes_updated_at_on_conflict(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_get_all_app_manifests_returns_all_rows(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -195,7 +195,7 @@ async def test_get_all_app_manifests_returns_all_rows(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_get_app_manifest_returns_single_row_or_none(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

@@ -15,7 +15,7 @@ could otherwise push on:
 
 There is deliberately no wall-clock scaling assertion for the second bound. Bounded retained state
 *is* the proof that per-request work is constant, and it holds deterministically — a timing ratio
-would add nothing but a race against CI's scheduler (see CLAUDE.md on config-driven real-clock
+would add nothing but a race against CI's scheduler (see regression-test-patterns.md on config-driven real-clock
 timeouts for how that failure mode plays out here).
 """
 

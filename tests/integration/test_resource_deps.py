@@ -37,7 +37,7 @@ async def test_init_waves_respect_dependency_ordering(hassette_instance: Hassett
 async def test_service_with_depends_on_waits_for_dep(hassette_instance: Hassette) -> None:
     """A service with depends_on does not proceed to on_initialize until its dep is ready.
 
-    Uses asyncio.Event gate pattern (per CLAUDE.md regression test patterns).
+    Uses asyncio.Event gate pattern (per regression-test-patterns.md).
     GatedDep is registered as a child of hassette_instance so that
     _auto_wait_dependencies finds it via the real children lookup.
     """

@@ -271,7 +271,7 @@ class TestServiceShutdownBodyServeTaskPending:
         assert old_task is not None
 
         try:
-            # Generous headroom over the 0.1s config bounds above (see CLAUDE.md's guidance on
+            # Generous headroom over the 0.1s config bounds above (see regression-test-patterns.md's guidance on
             # config-driven real-clock timeouts) — this proves boundedness, not tightness.
             report = await asyncio.wait_for(svc._shutdown_body(), timeout=5)
 

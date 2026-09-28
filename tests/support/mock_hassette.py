@@ -191,7 +191,8 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True
     The ``websocket.*`` overrides use low retry/timeout values (sub-millisecond for backoff,
     low-single-digit seconds for per-phase timeouts) so tests complete quickly.
     ``total_timeout_seconds`` uses ``TEST_TOTAL_TIMEOUT_SECONDS`` (the production default)
-    to avoid the config-driven real-clock timeout race documented in CLAUDE.md. The
+    to avoid the config-driven real-clock timeout race documented in
+    ``.claude/rules/regression-test-patterns.md``. The
     non-websocket overrides set DEBUG logging and fast lifecycle timeouts.
 
     Args:

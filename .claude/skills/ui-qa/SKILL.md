@@ -40,8 +40,8 @@ Skip the wait only when the stack is already running from earlier in the session
 
 2. Dispatch one **Sonnet** analysis subagent per page (all viewports/themes of that page
    to one agent, so it can compare breakpoints). The prompt names the screenshot files,
-   tells the agent to Read them, and includes the paths to `frontend/DESIGN_RULES.md` and
-   `frontend/src/tokens.css` as the standard to judge against — findings must cite a
+   tells the agent to Read them, and includes the paths to `design/context.md` and
+   `frontend/src/global.css` as the standard to judge against — findings must cite a
    rule or token, not taste. Enforce with `schema`:
 
    ```json
@@ -133,7 +133,7 @@ and the costliest UI bugs (hidden pages, dead ends, lost context) live between p
 
 **Why findings must cite a design rule or an attempted action.** LLM reviewers
 hallucinate taste-based findings under pressure to produce output. Anchoring every
-finding to `DESIGN_RULES.md`/`tokens.css` (screens) or a blocked action (personas) makes
+finding to `design/context.md`/`global.css` (screens) or a blocked action (personas) makes
 findings checkable and keeps "I'd have used more padding" out of the report.
 
 **Why sequential personas.** One shared Playwright MCP browser. Three sequential

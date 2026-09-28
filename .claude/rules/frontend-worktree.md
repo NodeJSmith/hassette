@@ -1,3 +1,11 @@
+---
+paths:
+  - "frontend/**"
+  - "src/hassette/web/**"
+  - "src/hassette/schemas/**"
+  - "scripts/export_schemas.py"
+---
+
 # Frontend in Worktrees
 
 Git worktrees do not share `node_modules/`. Before running frontend builds, tests, or type generation in a worktree, install dependencies:

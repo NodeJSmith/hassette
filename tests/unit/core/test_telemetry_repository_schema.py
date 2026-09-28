@@ -26,7 +26,7 @@ from tests.support.factories import (
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_inserts_handler_records(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -67,7 +67,7 @@ async def test_persist_execution_batch_inserts_handler_records(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_inserts_job_records(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,
@@ -120,7 +120,7 @@ async def test_persist_execution_batch_handles_empty_list(
 
 
 # dup-ignore-start: pytest test function signature — Python has no way to share a function
-# signature between separate test functions (see tests/unit/core/CLAUDE.md).
+# signature between separate test functions (see .claude/rules/tests-unit-core.md).
 async def test_persist_execution_batch_unified(
     telemetry_repo: TelemetryRepository,
     telemetry_db: aiosqlite.Connection,

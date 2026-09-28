@@ -290,7 +290,7 @@ async def dashboard_app_grid(
     ``db_degrades_to`` on failure) and overlaid with live runtime state via
     ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below
     stay Category C (independently caught, degrading to empty defaults while the response
-    continues at 200) — see ``web/CLAUDE.md`` for the classification table.
+    continues at 200) — see ``.claude/rules/web-api.md`` for the categories.
 
     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
     not the manifest-driven app grid.

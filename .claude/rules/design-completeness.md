@@ -1,3 +1,10 @@
+---
+paths:
+  - "src/hassette/**"
+  - "frontend/src/**"
+  - "design/specs/**"
+---
+
 # Design Completeness
 
 Every design document and work package plan must include documentation and frontend changes alongside the core implementation. These are not follow-ups — they ship in the same PR.
@@ -29,14 +36,14 @@ A change requires frontend updates when ANY of these are true:
 
 Frontend changes include:
 - Backend: adding fields to the response model (e.g., `ListenerWithSummary` in `web/models.py`)
-- Regenerating the OpenAPI spec and frontend types: `uv run python scripts/export_schemas.py` then `cd frontend && npx openapi-typescript openapi.json -o src/api/generated-types.ts`
+- Regenerating the OpenAPI/WebSocket schemas and all frontend types: `uv run python scripts/export_schemas.py --types` (see `.claude/rules/frontend-worktree.md`)
 - Updating the UI component to display the new data
 
 "The field exists in the DB but isn't shown in the UI" is a bug, not a follow-up. If the data is persisted and queryable, it should be visible.
 
 A PR that changes rendered frontend files (`frontend/src/**/*.tsx`, `*.css`) must carry visual evidence — a Screenshots section or embedded image in the PR body, an updated `docs/**/*.png`, or the `no-visual-change` label. This is enforced structurally by `tools/frontend/check_pr_screenshots.py` (CI workflow `pr-screenshots.yml`) so it does not depend on this rule being read at the right moment.
 
-When a UI change alters a view that the docs site documents with a screenshot, regenerate the affected `docs/_static/web_ui_*.png` rather than hand-capturing it: `uv run python scripts/capture_screenshots.py --only <name>`. The manifest is `docs/screenshots.yml`. See CLAUDE.md (Demo Stack & Doc Screenshots) for the full workflow, including states that need demo setup to render.
+When a UI change alters a view that the docs site documents with a screenshot, regenerate the affected `docs/_static/web_ui_*.png` rather than hand-capturing it: `uv run python scripts/capture_screenshots.py --only <name>`. The manifest is `docs/screenshots.yml`. See `.claude/rules/demo-and-screenshots.md` for the full workflow, including states that need demo setup to render.
 
 ## Exceptions
 

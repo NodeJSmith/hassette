@@ -667,7 +667,7 @@ async def test_internal_dispatch_with_debounce_routes_through_executor(
 async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "HassetteHarness") -> None:
     """Cancelling a rate limiter during the debounce sleep window prevents the handler from firing.
 
-    Uses the asyncio.Event gate pattern from CLAUDE.md regression test patterns.
+    Uses the asyncio.Event gate pattern from regression-test-patterns.md.
     """
     hassette = hassette_with_bus
     handler_fired = False
