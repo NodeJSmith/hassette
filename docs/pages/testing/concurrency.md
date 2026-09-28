@@ -26,7 +26,7 @@ Harness startup timeouts raise `TimeoutError`, not a `DrainFailure` subclass. A 
 
 `freeze_time` acquires a process-global `threading.Lock` (non-reentrant). Only one harness may hold the time lock at a time, regardless of `App` class. The lock releases when the `AppTestHarness` context manager exits.
 
-A second harness that attempts to acquire the time lock raises `RuntimeError: freeze_time is already held by another harness`. Running `freeze_time` tests serially avoids this, either by avoiding concurrency or by grouping them with `xdist_group` (see below).
+A second harness that attempts to acquire the time lock raises `RuntimeError: freeze_time is already held by another harness`. This happens only when two harnesses hold `freeze_time` at the same time in one process. For example, a test might run two harnesses concurrently via `asyncio.gather()` and freeze time in both. Separate test functions run one after another, so each releases the lock before the next acquires it. Within a single test, call `freeze_time` on only one harness at a time.
 
 ## Parallel Test Suites (pytest-xdist)
 
@@ -36,15 +36,7 @@ Install `pytest-xdist` to enable parallel test execution:
 pip install pytest-xdist   # or: uv add --dev pytest-xdist
 ```
 
-Each xdist worker runs in its own process with its own `threading.Lock`. Workers cannot interfere with each other's frozen clock. The risk is within a single worker: `freeze_time` tests assigned to the same worker may interleave during concurrent async execution.
-
-`@pytest.mark.xdist_group("time_control")` routes all marked tests to the same worker and serializes them. Tests that do not call `freeze_time` do not need this marker.
-
-```python
---8<-- "pages/testing/snippets/testing_xdist_group.py"
-```
-
-Without `-n`, pytest runs sequentially in a single process. The marker has no effect there.
+Each xdist worker runs in its own process with its own `threading.Lock`. Workers cannot interfere with each other's frozen clock, and a single worker runs its assigned tests one at a time. `freeze_time` tests need no special marker or distribution mode under xdist.
 
 ## pytest-asyncio Mode
 
