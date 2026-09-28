@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette-wire"
-version = "0.54.0"  # x-release-please-version
+version = "0.55.0"  # x-release-please-version
 description = "Wire contract for the Hassette HTTP and WebSocket API: request/response models and wire enums."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]

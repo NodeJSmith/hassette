@@ -4,14 +4,14 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette-client"
-version = "0.54.0"  # x-release-please-version
+version = "0.55.0"  # x-release-please-version
 description = "Async client for the Hassette HTTP and WebSocket API."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.15"
-dependencies = ["hassette-wire==0.54.0"]  # x-release-please-version
+dependencies = ["hassette-wire==0.55.0"]  # x-release-please-version
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

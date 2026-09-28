@@ -5,31 +5,98 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.54.0](https://github.com/NodeJSmith/hassette/compare/v0.53.0...v0.54.0) (2026-09-05)
+## [0.55.0](https://github.com/NodeJSmith/hassette/compare/v0.54.0...v0.55.0) (2026-09-28)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+- `TaskBucket.run_sync`'s `timeout_seconds` parameter now defaults to a `NOT_PROVIDED` sentinel instead of `None`. Previously, `None` meant "use the config default" and `float("inf")` meant "block forever" internally. Now, omitting the argument (or passing `NOT_PROVIDED`) means "use the config default," and `None` means "block forever" (matching `concurrent.futures.Future.result(timeout=None)`). `run_sync` is public, documented API — any caller that explicitly passed `timeout_seconds=None` to get the config default must omit the argument instead. (#2301)
 
-* `VacuumEntityFeature.BATTERY`, `VacuumAttributes.battery_icon`, `VacuumAttributes.battery_level`, and `VacuumAttributes.supports_battery` have been removed, mirroring their removal from Home Assistant core's base vacuum entity in 2026.9.0. Code reading vacuum battery state directly from these fields must switch to the entity's own battery sensor (e.g. a paired `sensor.*_battery` entity), which is how HA core itself now exposes this data.
+### Bus & API
 
-### Features
+- New `Bus.wait_for(topic, *, where=None, timeout, name=None)` suspends until a matching event arrives and returns it, with no handler or subscription to manage. It only matches events dispatched after the call, which fits the "call a service, then wait for its effect" pattern. A sync-facade variant (`self.sync.wait_for(...)`) is also available. (#2301)
+- `Topic` is now exported from the top-level package: `from hassette import Topic` (#2360)
+- `Api.call_service()` gains `wait_for_ack=True`, which waits for Home Assistant to confirm the call and raises on failure. It works for services that return no response, where `return_response=True` would be rejected. (#2252)
+- Generated entity methods for services that return data now return the `ServiceResponse` instead of `None`: `weather.get_forecasts()`, `todo.get_items()`, `media_player.browse_media()`, and `media_player.search_media()` (#2237)
 
-* regenerate typed models for Home Assistant 2026.9.0 ([#1908](https://github.com/NodeJSmith/hassette/issues/1908)) ([de7ea95](https://github.com/NodeJSmith/hassette/commit/de7ea9574b779a214b808da88295b620e777ffb3))
+### Telemetry & Database
 
+- New `database.framework_retention_days` (default `1`) sets a separate, shorter retention window for framework-internal execution records. Previously they made up ~98% of the executions table and pushed app execution history out well before `retention_days`. Must be `<= retention_days`. After upgrading, the first cleanup removes framework records older than one day. (#2269)
+- Framework-tier executions are now recorded only when they are interesting. Errors and executions slower than 100 ms are always kept, and routine successes are dropped by default. Tune this with `database.framework_record_errors`, `database.framework_record_slow_ms`, and `database.framework_record_sample_rate`. Dropped records are counted in the new `dropped_filtered` field on `/api/telemetry/status`. App-tier executions are never filtered. (#2362)
+- The size failsafe now deletes framework executions first, then blocking events, then app executions, and it never deletes log records. Log expiry is controlled only by `log_retention_days`. (#2269, #2350)
+- Retention deletes now run in batches (`database.retention_delete_batch`, `database.retention_max_batches_per_target`), and a failure in one table no longer rolls back cleanup for the others (#2269)
+- New `database.write_submit_timeout_seconds` (default `60`) bounds how long a telemetry write waits in the queue. A long retention pass now delays live telemetry instead of stalling it until the queue overflows. (#2377)
+- The `database.heartbeat_interval_seconds`, `retention_interval_seconds`, `size_failsafe_*`, and `max_consecutive_heartbeat_failures` settings are now honored. Previously they were accepted but ignored in favor of hardcoded values. (#2296)
+
+### Logging
+
+- New `logging.extra_loggers` setting sends loggers outside the `hassette.*` namespace (for example, your app's own `my_app.notify` logger or a third-party library) through Hassette's formatting, log capture, and database persistence (#1949)
+- Connecting to, reconnecting to, and disconnecting from Home Assistant are now logged at INFO with the URL, so a working token is visible at the default log level (#1959)
+- The effective `log_persistence_level` is now clamped to `log_level`, so the dashboard never hides records that are actively being logged (#2411)
+- `web_api.log_buffer_size` has been removed. Existing configs that set it still load. (#2411)
+
+### Web UI
+
+- The live log view now refreshes from the database instead of assembling entries from the WebSocket stream, so live rows carry the same execution/handler links as the initial page load. The live view shows the most recent 1000 records. (#2411)
+- The sidebar shows the app key instead of the display name when two apps share a display name (#2243)
+
+### CLI
+
+- A `401` from `hassette status` and other commands now says which credential was sent and where it came from, and lists the remedies (`--token-file`, `cli.token_file`, `HASSETTE__CLI__AUTH_TOKEN`). This also covers the confusing case where a second local instance's token is rejected. (#1960)
+- `hassette job` shows a `Skipped` column, so a predicate-gated job whose predicate never passes no longer reads as `Total 68 / OK 0 / Fail 0` (#1958)
+
+### Packaging
+
+- `hassette` now depends on two new packages released in lockstep with it, `hassette-wire` and `hassette-client`. Both are currently empty placeholders for an upcoming split of framework internals. No imports change. (#2422)
+- The Docker image ships `httpx2`/`httpcore2` 2.12.0, clearing five published CVEs (#2151)
 
 ### Bug Fixes
 
-* broadcast app manifest changes over websocket to fix stale status ([#1899](https://github.com/NodeJSmith/hassette/issues/1899)) ([e786542](https://github.com/NodeJSmith/hassette/commit/e786542a185bdca0e3902fecfa3456562985f5fe))
-* close leaked aiosqlite connections on CancelledError during cache shutdown ([#1903](https://github.com/NodeJSmith/hassette/issues/1903)) ([64e009c](https://github.com/NodeJSmith/hassette/commit/64e009c850a37da07827c787161c984d4084c881))
-* re-attach ResizeObserver in HandlersTab when container node changes ([#1886](https://github.com/NodeJSmith/hassette/issues/1886)) ([a5e3598](https://github.com/NodeJSmith/hassette/commit/a5e3598caa3c46240d9c4c0351ac8e52829c166c))
-* retype loose role annotations in lifecycle Protocol and watcher tests ([#1888](https://github.com/NodeJSmith/hassette/issues/1888)) ([7244b95](https://github.com/NodeJSmith/hassette/commit/7244b95b2c1594c049ee6542f75ced4e182065ca)), closes [#1792](https://github.com/NodeJSmith/hassette/issues/1792)
+- App failures no longer reach framework supervision. A failing app no longer produces spurious ServiceWatcher `skipping restart` warnings or risks a whole-process shutdown, and a crashing app no longer marks the session as failed. (#1955, #2324)
+- Starting an app that is already running no longer replaces its live instances and orphans their listeners, jobs, and tasks (#2245)
+- An instance left running after its app's configured instance count shrinks can now be stopped from the API and the web UI (#1962)
+- `POST /api/apps/{app_key}/start` and `/reload` now return 500 with the error message when the instance ends up `FAILED`, instead of reporting success with 202 (#2370)
+- `HelperClient.increment()`, `decrement()`, and `reset()` for counters no longer fail every time with `service_validation_error` (#2252)
+- Queued invocations dropped during teardown no longer permanently shrink a listener's available dispatch concurrency (#1957)
+- Reading state while the state cache is unavailable (for example, in an `on_shutdown` hook) now raises immediately instead of blocking the event loop for ~0.3–0.4 s in a retry that could never succeed (#1956)
+- Hot-reloading apps no longer accumulates duplicate logging filters, which caused slowly growing memory use and slower logging (#2247)
+- A stalled database write worker is now detected and restarted instead of leaving the service reporting healthy while telemetry silently stops (#1953)
+- Retention and size-failsafe cleanups that could not be queued are retried on the next heartbeat instead of being skipped for a full interval (#2351)
+- Sessions that recorded a crash but never shut down cleanly are now closed out on the next start, so their `once=True` listeners get cleaned up (#2246)
+- `cleanup(timeout=0)` on apps and resources now means "don't wait" instead of silently using the default shutdown timeout. Comparing a job that was never scheduled no longer raises `AttributeError`. (#2251)
+- `predicate_description` in listener and job telemetry (REST API, CLI `--json`, UI) shows a readable qualified name for bare-callable predicates instead of a bound-method repr with a memory address (#1961)
+- The Docker entrypoint no longer leaves a copy of the mounted project in `/tmp/project-build.*` on every container start (#2347)
+- Fixed missing web UI styles: secondary and muted text rendered at the wrong size and color, and dialog, drawer, popover, and tooltip animations were not running (#2379)
+- The Code tab's line-number gutter no longer shows an extra, empty final line (#2275)
+- Screen readers no longer announce the decorative icon on empty-state views (#2202)
+
+### Documentation
+
+- The first-automation guide now explains async handlers, placeholder entities, and the difference between handlers and scheduled jobs (#2412)
+- The testing docs define their harness terms, use valid `MotionLights` configs throughout, consolidate the seed-vs-simulate guidance into one place, and document that `freeze_time` takes a process-global lock (#2407, #2415)
+- Fixed the bus filtering "Custom Accessors" example, which type-checked but never matched at runtime (#2374)
+- Every predicate's `summarize()` now documents what it matches and the shape of the summary it returns (#2404)
+
+## [0.54.0](https://github.com/NodeJSmith/hassette/compare/v0.53.0...v0.54.0) (2026-09-05)
+
+### Breaking Changes
+
+- **Vacuum battery attributes removed** — `VacuumEntityFeature.BATTERY`, `VacuumAttributes.battery_icon`, `VacuumAttributes.battery_level`, and `VacuumAttributes.supports_battery` have been removed, mirroring their removal from Home Assistant core's base vacuum entity in 2026.9.0. Code reading vacuum battery state directly from these fields must switch to the entity's own battery sensor (e.g. a paired `sensor.*_battery` entity), which is how HA core itself now exposes this data. (#1908)
+
+### Typed Models
+
+- Regenerated typed entity/state models for Home Assistant 2026.9.0: `open_cover`/`close_cover`/`set_cover_position` gain an optional `speed` kwarg, and `WaterHeaterEntityStateAttribute` gains `TARGET_TEMPERATURE` as an alias of `TEMPERATURE` (#1908)
+
+### Bug Fixes
+
+- The dashboard's app status now updates live over WebSocket after an app load or reload, instead of only refreshing on an unrelated event. Fixes stale per-instance status on the multi-instance overview. (#1899)
+- Fixed a leaked database connection (and the non-daemon worker thread pinning it open) when a cache-shutdown task was cancelled mid-close (#1903)
+- Fixed the Handlers tab's mobile/desktop layout getting stuck in desktop mode when handlers or jobs loaded in after the initial render (#1886)
 
 ## [0.53.0](https://github.com/NodeJSmith/hassette/compare/v0.52.0...v0.53.0) (2026-09-04)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
-
-* `hassette.test_utils` no longer exists. Public (Tier 1) symbols move to `hassette.testing`; everything else moves to `tests.support` (internal-only, not shipped in the wheel — not usable outside this repo).
+- `hassette.test_utils` no longer exists. Public (Tier 1) symbols move to `hassette.testing`; everything else moves to `tests.support` (internal-only, not shipped in the wheel — not usable outside this repo). (#1881)
     #### Public API — update the import path only
     - `ApiCall`, `AppConfigurationError`, `AppTestHarness`, `DrainError`,
     `DrainFailure`,
@@ -60,7 +127,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     etc.) is no longer part of the wheel. It lived at
     `hassette.test_utils.*` before; it now lives
       at `tests.support.*` inside this repository only.
-* `SensorAttributes` no longer declares `native_value`, `native_unit_of_measurement`, or `suggested_display_precision` (they duplicated the base `State.value`/`unit_of_measurement` fields and are removed for the `sensor` domain only). `StateRegistry.register` and `register_state_converter` drop their unused `device_class` keyword parameter, and `StateKey` drops its `device_class` field (kept as a one-field frozen dataclass with `domain` only — its export names and `isinstance` checks are unchanged).
+- `SensorAttributes` no longer declares `native_value`, `native_unit_of_measurement`, or `suggested_display_precision` (they duplicated the base `State.value`/`unit_of_measurement` fields and are removed for the `sensor` domain only). `StateRegistry.register` and `register_state_converter` drop their unused `device_class` keyword parameter, and `StateKey` drops its `device_class` field (kept as a one-field frozen dataclass with `domain` only — its export names and `isinstance` checks are unchanged). (#1549)
     #### What changes for callers
     - Code reading `sensor_state.attributes.native_value`,
     `.native_unit_of_measurement`, or `.suggested_display_precision` must
@@ -77,36 +144,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
-* add device-class-specific sensor state subtypes ([#1549](https://github.com/NodeJSmith/hassette/issues/1549)) ([e93d877](https://github.com/NodeJSmith/hassette/commit/e93d87778c82f0bb42e60ed1b40647deb2dda14d)), closes [#717](https://github.com/NodeJSmith/hassette/issues/717)
-* add per-instance app restart instead of full app-key restart ([#1687](https://github.com/NodeJSmith/hassette/issues/1687)) ([d84aa21](https://github.com/NodeJSmith/hassette/commit/d84aa21fabd95d73a74e78c47f1b486e316e9460)), closes [#796](https://github.com/NodeJSmith/hassette/issues/796)
-* add per-instance start/stop/reload to frontend and CLI ([#1873](https://github.com/NodeJSmith/hassette/issues/1873)) ([e1c2fc0](https://github.com/NodeJSmith/hassette/commit/e1c2fc06ec92a9563936e33bc9e0f809d59cef9a)), closes [#1860](https://github.com/NodeJSmith/hassette/issues/1860)
-* log elapsed time per shutdown phase for diagnostics ([#1766](https://github.com/NodeJSmith/hassette/issues/1766)) ([1bde18a](https://github.com/NodeJSmith/hassette/commit/1bde18a0bb1deb52c40ff2f8d7c274d67527f387)), closes [#1736](https://github.com/NodeJSmith/hassette/issues/1736)
-
+- New device-class-specific sensor state subtypes, so a sensor's `.attributes` are typed to that device class instead of the generic sensor shape (#1549)
+- Per-instance app restart — restart a single instance instead of every instance under an app key, from Python, the REST API, the CLI, and the dashboard (#1687, #1873)
+- Shutdown-phase timing is now logged (wave-based child shutdown, task-bucket cancellation, `cleanup()`, child-shutdown propagation), so a shutdown timeout log shows which phase consumed the budget instead of just "shutdown timed out" (#1766)
 
 ### Bug Fixes
 
-* align duration log precision in shutdown path ([#1789](https://github.com/NodeJSmith/hassette/issues/1789)) ([a01286e](https://github.com/NodeJSmith/hassette/commit/a01286eb44d3d7777c10cda773210c7a97ad350d)), closes [#1765](https://github.com/NodeJSmith/hassette/issues/1765)
-* fix batch of small backend/frontend issues: jobs API `fire_at` display for non-jittered jobs, `app_activity` default time window, CLI error framing for malformed 2xx responses, duplicate app-init error logs, log-table key collisions on `seq: 0`, and query-param parsing edge cases ([#1872](https://github.com/NodeJSmith/hassette/issues/1872)) ([1e14d5c](https://github.com/NodeJSmith/hassette/commit/1e14d5c45478f2de251102299d3b35cebd037926))
-* enforce status exhaustiveness and fix degraded/skipped status gaps ([#1671](https://github.com/NodeJSmith/hassette/issues/1671)) ([6b65780](https://github.com/NodeJSmith/hassette/commit/6b65780cbfc125619a2e088ced202db5fea85ab5)), closes [#1608](https://github.com/NodeJSmith/hassette/issues/1608) [#1670](https://github.com/NodeJSmith/hassette/issues/1670)
-* handle SIGINT for graceful shutdown instead of silent hang ([#1863](https://github.com/NodeJSmith/hassette/issues/1863)) ([4ad05a8](https://github.com/NodeJSmith/hassette/commit/4ad05a81fef164bd58e3af5d50fd465f086cef15)), closes [#1815](https://github.com/NodeJSmith/hassette/issues/1815)
-* keep non-active handler health cards out of the tab order ([#1742](https://github.com/NodeJSmith/hassette/issues/1742)) ([312a9d0](https://github.com/NodeJSmith/hassette/commit/312a9d0ba878106ccb0555b6cdc6c2dbeb789b59)), closes [#1709](https://github.com/NodeJSmith/hassette/issues/1709)
-* prevent restart after unconfirmed resource teardown ([#1723](https://github.com/NodeJSmith/hassette/issues/1723)) ([fb54e48](https://github.com/NodeJSmith/hassette/commit/fb54e485819027a89de2652d0652f1462ed7f4e5)), closes [#1696](https://github.com/NodeJSmith/hassette/issues/1696)
-* route captured warnings through the logging pipeline ([#1864](https://github.com/NodeJSmith/hassette/issues/1864)) ([67cbf38](https://github.com/NodeJSmith/hassette/commit/67cbf38fb2eb9ad3b0058527d4cd3037ddbd7e91)), closes [#1816](https://github.com/NodeJSmith/hassette/issues/1816)
-* harden shutdown/restart: bound service-watcher event dispatch with a timeout, distinguish cancellation causes during resource cleanup, and preserve terminal-status evidence on forced termination ([#1802](https://github.com/NodeJSmith/hassette/issues/1802)) ([64a1b42](https://github.com/NodeJSmith/hassette/commit/64a1b42c24da87f09758b0f10ba1f09a8bd52b26)), closes [#1795](https://github.com/NodeJSmith/hassette/issues/1795)
-* widen int/enum-typed state attributes HA platforms violate ([#1775](https://github.com/NodeJSmith/hassette/issues/1775)) ([cc2ffff](https://github.com/NodeJSmith/hassette/commit/cc2ffffe2499c9068bdb49477dd63d611b5b6a0e)), closes [#1751](https://github.com/NodeJSmith/hassette/issues/1751) [#1752](https://github.com/NodeJSmith/hassette/issues/1752)
-
+- Fixed a bundle of small issues: incorrect `fire_at` display for non-jittered jobs, a wrong `app_activity` default time window, unhelpful CLI error framing for malformed 2xx responses, duplicate app-init error logs, log-table key collisions on `seq: 0`, and query-param parsing edge cases (#1872)
+- Job/handler status reporting is now exhaustive over all statuses, fixing gaps where `degraded`/`skipped` states weren't handled (#1671)
+- `hassette run` now handles SIGINT with a graceful shutdown instead of hanging silently (#1863)
+- Non-active handler health cards no longer sit in the keyboard tab order (#1742)
+- A resource whose teardown couldn't be confirmed no longer triggers a restart on top of it (#1723)
+- Warnings captured via Python's `warnings` module now flow through the logging pipeline instead of going to stderr only (#1864)
+- Hardened shutdown/restart: service-watcher event dispatch is now bounded by a timeout, cancellation causes are distinguished during resource cleanup, and terminal-status evidence survives a forced termination (#1802)
+- Widened several typed state attributes that are declared as strict int/enum but that real HA platforms sometimes populate with out-of-range or string values, which previously raised validation errors (#1775)
 
 ### Performance Improvements
 
-* remove state_changed WebSocket broadcast to browser clients ([#1639](https://github.com/NodeJSmith/hassette/issues/1639)) ([0878132](https://github.com/NodeJSmith/hassette/commit/08781328897adabde1f1f53277f356d4538c7e7e))
-* **ui:** scope AppDetailPage store selectors to its own app ([#1528](https://github.com/NodeJSmith/hassette/issues/1528)) ([54affbd](https://github.com/NodeJSmith/hassette/commit/54affbdd5fa2963d8f35abe8abd2ac180f5ecb75)), closes [#1465](https://github.com/NodeJSmith/hassette/issues/1465)
-* **ui:** scope execution-completion subscriptions in app-detail children ([#1607](https://github.com/NodeJSmith/hassette/issues/1607)) ([3a84864](https://github.com/NodeJSmith/hassette/commit/3a8486494805d915fed7a04d5bbc4db8158359db)), closes [#1542](https://github.com/NodeJSmith/hassette/issues/1542)
-
+- The dashboard no longer broadcasts every state change over WebSocket to browser clients — cut a source of unnecessary traffic and re-renders (#1639)
+- App-detail pages (and the components mounted inside them) now scope their store subscriptions to their own app, instead of re-rendering on every other app's status and execution activity fleet-wide (#1528, #1607)
 
 ### Documentation
 
-* fix stale accuracy claims in lifecycle.md ([#1760](https://github.com/NodeJSmith/hassette/issues/1760)) ([aa4eed3](https://github.com/NodeJSmith/hassette/commit/aa4eed3c2cbf2340d1a9f1c33574c3fbc8c53b4a)), closes [#1717](https://github.com/NodeJSmith/hassette/issues/1717)
-* replace stale pyright-ignore note in cache patterns ([#1518](https://github.com/NodeJSmith/hassette/issues/1518)) ([840d54f](https://github.com/NodeJSmith/hassette/commit/840d54f0b9f91addd4fe9202ed472f0db29db51b)), closes [#1360](https://github.com/NodeJSmith/hassette/issues/1360)
+- Fixed stale accuracy claims in `lifecycle.md` (#1760)
+- Replaced a stale note in the caching docs that pointed at `# pyright: ignore` comments that don't exist in the referenced snippet (#1518)
 
 ## [0.52.0](https://github.com/NodeJSmith/hassette/compare/v0.51.0...v0.52.0) (2026-08-07)
 
