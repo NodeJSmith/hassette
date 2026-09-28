@@ -227,8 +227,8 @@ class _TestableHassette(Hassette):
         Note: This no-op stub is NOT the right tool for testing startup
         races (e.g., "what happens when a dependency is not yet ready?").
         For startup race tests, use ``asyncio.Event`` as a gate and inject a
-        custom ``wait_for_ready`` side-effect. See ``CLAUDE.md`` → "Bug
-        Investigation Workflow" for the recommended pattern using
+        custom ``wait_for_ready`` side-effect. See
+        ``.claude/rules/regression-test-patterns.md`` for the recommended pattern using
         ``AsyncMock(side_effect=lambda _: gate.wait())``.
         """
         return True

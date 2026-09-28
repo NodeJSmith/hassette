@@ -1,3 +1,8 @@
+---
+paths:
+  - "tests/integration/websocket/**"
+---
+
 # Tests: integration/websocket
 
 ## Available fixtures (this directory's conftest.py)

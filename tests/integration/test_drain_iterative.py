@@ -105,7 +105,7 @@ async def test_drain_waits_for_depth_3_task_chain() -> None:
     Uses an asyncio.Event gate on task_b to prove the drain actually blocked
     on task_b, rather than merely asserting that turn_on was eventually called.
     The gate prevents task_b from completing until we verify the drain is still
-    in progress (following the regression test pattern from CLAUDE.md).
+    in progress (following the regression test pattern from regression-test-patterns.md).
     """
     async with AppTestHarness(Depth3App, config={}) as harness:
         # Start the drain in the background — it must block on task_b's gate

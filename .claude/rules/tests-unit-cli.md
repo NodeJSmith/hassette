@@ -1,3 +1,8 @@
+---
+paths:
+  - "tests/unit/cli/**"
+---
+
 # CLI Tests
 
 ## Two-layer testing
@@ -68,6 +73,7 @@ aborted `nox -s tests_with_coverage` before it wrote `coverage.xml`, since the s
 - `CLIClientFactory` — builds `HassetteCLIClient` instances backed by `MockTransport`; the
   keyword-only resolver flags it forwards are declared once as the `ClientFlags` TypedDict
 - `MockTransportBuilder` — route table for mock HTTP responses
+- `make_post_spy(client)` — wraps `client.post` in a delegating `MagicMock` so tests can assert the posted path
 - `GetSpy` — wraps `client.get` to record paths and params; `spy.params_for(fragment)` returns the
   query params of the first recorded GET whose path contains `fragment`
 - `capture_stdout()` / `capture_stderr()` — Rich console capture
@@ -103,6 +109,7 @@ Reach for these instead of hand-rolling the `patch(...)` / `capture_*()` context
 | `test_since_converter.py` | `convert_since()` unit tests: relative durations, ISO formats, invalid inputs |
 | `test_client.py` | `HassetteCLIClient` HTTP handling, error formatting |
 | `test_client_credentials.py` | Credential/auth tests for `HassetteCLIClient`: bearer-token attachment, TLS verification, non-loopback 401 messaging (split out of `test_client.py`) |
+| `test_target.py` | Target and credential resolution (`cli/target.py`): pure functions, no HTTP client |
 | `test_context.py` | `CLIContext` and launcher meta-command pattern |
 | `test_output.py` | Table rendering, formatters, JSON mode |
 | `test_output_detail.py` | Detail/panel rendering |

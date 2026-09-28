@@ -8,7 +8,7 @@ Covers:
 - C-blocked worker (time.sleep) logged and abandoned; shutdown completes.
 - Custom max_workers and shutdown_timeout change behavior; defaults apply when unset.
 
-Uses the asyncio.Event/threading.Event gate pattern from CLAUDE.md to hold workers
+Uses the asyncio.Event/threading.Event gate pattern from regression-test-patterns.md to hold workers
 across boundaries.
 
 Construction, wiring, and dependency-graph tests live in

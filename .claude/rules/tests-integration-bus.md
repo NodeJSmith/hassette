@@ -1,3 +1,8 @@
+---
+paths:
+  - "tests/integration/bus/**"
+---
+
 # Tests: integration/bus
 
 ## Available fixtures (this directory's conftest.py)

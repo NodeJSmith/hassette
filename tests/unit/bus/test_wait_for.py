@@ -45,7 +45,7 @@ def wait_for_add_listener_mock(bus: "Bus") -> "Iterator[tuple[list[Listener], as
     registration — it needs a mock that actually marks the listener registered. `ready` is set
     each time a registration completes so tests can deterministically await "the task has
     reached its blocking wait" instead of racing a bare `asyncio.sleep(0)` (see
-    CLAUDE.md's regression-test guidance on startup races).
+    regression-test-patterns.md's guidance on startup races).
     """
     registered: list[Listener] = []
     ready = asyncio.Event()
