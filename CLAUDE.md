@@ -112,7 +112,7 @@ class MyApp(App[MyConfig]):
 
 ## Changelog
 
-Never edit `CHANGELOG.md` by hand — release-please generates it from conventional commits, and the squash-merged PR title becomes the changelog line.
+Don't edit `CHANGELOG.md` by hand in feature PRs — release-please generates it from conventional commits, and the squash-merged PR title becomes the changelog line. The only hand edit is curating `CHANGELOG.md` on a release-please PR's branch; `changelog-quality.md` covers that procedure, including why that PR's body is never touched.
 
 - `feat`, `fix`, `perf`, `refactor`, and `docs` appear in the changelog; use `chore:` for internal work (`design/`, `.claude/`, research, tooling), `ci:`, or `test:`. `docs:` is only for user-facing docs.
 - PR titles describe the user-visible outcome, not implementation details or a bundle of fixes.
