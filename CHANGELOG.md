@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ⚠ BREAKING CHANGES
 
-* convert repo to a uv workspace with hassette-wire and hassette-client packages ([#2422](https://github.com/NodeJSmith/hassette/issues/2422))
 * `TaskBucket.run_sync`'s `timeout_seconds` parameter now defaults to a `NOT_PROVIDED` sentinel instead of `None`. Previously, `None` meant "use the config default" and `float("inf")` meant "block forever" internally. Now, omitting the argument (or passing `NOT_PROVIDED`) means "use the config default," and `None` means "block forever" (matching `concurrent.futures.Future.result(timeout=None)`). `run_sync` is public, documented API — any caller that explicitly passed `timeout_seconds=None` to get the config default must omit the argument instead.
 
 ### Features
