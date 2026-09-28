@@ -76,8 +76,8 @@ cd frontend && npx tsc --noEmit && npm run lint && npm run lint:css && npx prett
 uv run python tools/frontend/check_breakpoint_drift.py
 uv run python tools/frontend/check_dead_tokens.py
 cd frontend && npx oxlint -c .oxlintrc.json src/
-timeout 580 uv run pytest -m e2e -n auto
+timeout 580 uv run pytest -m e2e -n 4   # worker count: XDIST_WORKERS in noxfile.py
 ```
 
-Two e2e drawer-backdrop tests are flaky under `-n auto` (#1006) — rerun failures in
-isolation before treating them as regressions.
+Two e2e drawer-backdrop tests (#1006, closed) flaked under a fully parallel `-n auto` run — if
+they fail, rerun them in isolation before treating them as regressions.
