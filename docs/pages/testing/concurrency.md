@@ -26,7 +26,7 @@ Harness startup timeouts raise `TimeoutError`, not a `DrainFailure` subclass. A 
 
 `freeze_time` acquires a process-global `threading.Lock` (non-reentrant). Only one harness may hold the time lock at a time, regardless of `App` class. The lock releases when the `AppTestHarness` context manager exits.
 
-A second harness that attempts to acquire the time lock raises `RuntimeError: freeze_time is already held by another harness`. This happens only when two harnesses that call `freeze_time` are alive at the same time in one process, for example two harnesses run concurrently inside a single test. Separate test functions run one after another, so each releases the lock before the next acquires it. Within a single test, call `freeze_time` on only one harness at a time.
+A second harness that attempts to acquire the time lock raises `RuntimeError: freeze_time is already held by another harness`. This happens only when two harnesses hold `freeze_time` at the same time in one process. For example, a test might run two harnesses concurrently via `asyncio.gather()` and freeze time in both. Separate test functions run one after another, so each releases the lock before the next acquires it. Within a single test, call `freeze_time` on only one harness at a time.
 
 ## Parallel Test Suites (pytest-xdist)
 

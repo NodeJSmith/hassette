@@ -26,7 +26,7 @@ The three steps are separate because advancing time and dispatching jobs are dis
 Calling `freeze_time` again replaces the frozen time. The old patchers stop and new ones start. The clock unfreezes automatically when the harness `async with` block exits.
 
 !!! warning "`freeze_time` holds a process-global lock"
-    `freeze_time` acquires a process-global lock, so only one harness in a process can freeze time at once. A second harness that tries raises `RuntimeError: freeze_time is already held by another harness`. The collision happens only when two harnesses are alive at once in the same process, such as two harnesses in one test run via `asyncio.gather()`. Separate tests run one after another (including on the same `pytest-xdist` worker), and each xdist worker is its own process with its own lock, so ordinary test suites never hit it. See [Concurrency](concurrency.md#time-control-concurrency-freeze_time-only) for details.
+    `freeze_time` acquires a process-global lock, so a second harness that freezes time while another still holds it raises `RuntimeError`. Ordinary test suites, including `pytest-xdist` runs, never hit this. See [Concurrency](concurrency.md#time-control-concurrency-freeze_time-only) for when it can happen.
 
 ## `advance_time(*, seconds, minutes, hours)`
 

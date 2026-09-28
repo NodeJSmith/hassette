@@ -40,9 +40,9 @@ do not run.
 `set_states()` accepts a plain state string or a `(state, attrs)` tuple per
 entity.
 
-State must be seeded before simulation. See the seed-vs-simulate rule in
-[Write Your First Test](index.md#write-the-test) for the ordering and how it
-affects expected call counts.
+State must be seeded before simulation. The "Seed silently, then simulate"
+warning in [Write Your First Test](index.md#write-the-test) covers the ordering
+and why seeding never adds `api_recorder` calls.
 
 ## Simulating Events
 
