@@ -2,6 +2,11 @@
 paths:
   - "src/hassette/core/**"
   - "src/hassette/app/**"
+  - "tests/unit/core/**"
+  - "tests/integration/test_dashboard_without_ha.py"
+  - "tests/integration/test_state_proxy.py"
+  - "tests/system/test_startup*.py"
+  - "tests/system/test_state_proxy.py"
 ---
 
 # Core — Startup, Readiness, and Services
