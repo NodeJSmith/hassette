@@ -980,7 +980,7 @@ wheels = [
 
 [[package]]
 name = "hassette"
-version = "0.54.0"
+version = "0.55.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -1138,7 +1138,7 @@ test = [
 
 [[package]]
 name = "hassette-client"
-version = "0.54.0"
+version = "0.55.0"
 source = { editable = "client" }
 dependencies = [
     { name = "hassette-wire" },
@@ -1179,7 +1179,7 @@ dev = [
 
 [[package]]
 name = "hassette-wire"
-version = "0.54.0"
+version = "0.55.0"
 source = { editable = "wire" }
 dependencies = [
     { name = "pydantic" },
