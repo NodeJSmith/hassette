@@ -35,6 +35,12 @@ function isStoredColumnState(value: unknown): value is StoredColumnState {
   return typeof candidate.version === "number" && Array.isArray(candidate.columns);
 }
 
+function hiddenColumnsForViewport(isMobile: boolean, isTablet: boolean): ReadonlySet<ColumnId> {
+  if (isMobile) return MOBILE_HIDDEN;
+  if (isTablet) return TABLET_HIDDEN;
+  return NO_HIDDEN;
+}
+
 function defaultColumns(context: ViewContext): ColumnId[] {
   switch (context) {
     case "global":
@@ -80,14 +86,7 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
 
   const [userColumns, setUserColumns] = useState<ColumnId[]>(() => readStored(context) ?? defaultColumns(context));
 
-  let viewportHidden: ReadonlySet<ColumnId>;
-  if (isMobile) {
-    viewportHidden = MOBILE_HIDDEN;
-  } else if (isTablet) {
-    viewportHidden = TABLET_HIDDEN;
-  } else {
-    viewportHidden = NO_HIDDEN;
-  }
+  const viewportHidden = hiddenColumnsForViewport(isMobile, isTablet);
 
   const visibleColumns = userColumns.filter((id) => !viewportHidden.has(id));
 
