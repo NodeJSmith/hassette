@@ -76,6 +76,7 @@ SCAN_DIRS: list[str] = [SRC.relative_to(REPO_ROOT).as_posix()]
 #: Layers that own or legitimately wire Hassette internals, so reading ``hassette._foo``
 #: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``testing`` is the test
 #: harness location, whose whole job is assembling real components from their private slots.
+#: Matched via ``is_exempt_layer()`` as a nested-prefix, so ``core/telemetry`` is exempt too.
 PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "testing"})
 #: Reason shown for a private-attr reach-through violation.
 PRIVATE_ATTR_REASON = (
@@ -431,15 +432,12 @@ def check_source(
         for rule in RULES
         if rule.applies(layer) and rule.forbids(module)
     ]
-    private_violations = (
-        []
-        if is_exempt_layer(layer)
-        else [
-            (lineno, PRIVATE_ATTR_MSG_TEMPLATE.format(attr=attr))
-            for lineno, attr in private_hassette_accesses(tree)
-            if not is_allowlisted(rel_path, attr)
-        ]
-    )
+    private_attr_violations = [
+        (lineno, PRIVATE_ATTR_MSG_TEMPLATE.format(attr=attr))
+        for lineno, attr in private_hassette_accesses(tree)
+        if not is_allowlisted(rel_path, attr)
+    ]
+    private_violations = [] if is_exempt_layer(layer) else private_attr_violations
     return sorted(import_violations + private_violations)
 
 

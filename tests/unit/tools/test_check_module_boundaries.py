@@ -556,10 +556,10 @@ def test_layer_of_root_file() -> None:
 
 def test_applies_prefix_matches_prefix_and_nested() -> None:
     pred = applies_prefix("core/telemetry")
-    assert pred("core/telemetry") is True
-    assert pred("core/telemetry/exporters") is True
-    assert pred("core") is False
-    assert pred("core/other") is False
+    assert pred("core/telemetry")
+    assert pred("core/telemetry/exporters")
+    assert not pred("core")
+    assert not pred("core/other")
 
 
 def test_applies_prefix_top_level_matches_arbitrary_nesting() -> None:
@@ -567,23 +567,23 @@ def test_applies_prefix_top_level_matches_arbitrary_nesting() -> None:
     # what preserves backward compatibility now that layer_of() resolves nested paths instead
     # of always collapsing to the top-level package name.
     pred = applies_prefix("bus")
-    assert pred("bus") is True
-    assert pred("bus/predicates") is True
-    assert pred("bus/predicates/deep") is True
+    assert pred("bus")
+    assert pred("bus/predicates")
+    assert pred("bus/predicates/deep")
 
 
 def test_applies_prefix_does_not_match_similar_name() -> None:
     # "core_extra" must not be treated as nested under "core" merely because it starts with
     # the string "core" — applies_prefix() requires a "/" separator, not a bare substring match.
     pred = applies_prefix("core")
-    assert pred("core_extra") is False
+    assert not pred("core_extra")
 
 
 def test_applies_outside_negates_prefix() -> None:
     pred = applies_outside("testing")
-    assert pred("testing") is False
-    assert pred("testing/helpers") is False
-    assert pred("core") is True
+    assert not pred("testing")
+    assert not pred("testing/helpers")
+    assert pred("core")
 
 
 def test_nested_rule_scopes_to_prefix_not_siblings() -> None:
@@ -596,10 +596,10 @@ def test_nested_rule_scopes_to_prefix_not_siblings() -> None:
         forbids=lambda _module: True,
         reason="example nested-scoped rule (see #2381)",
     )
-    assert rule.applies("core/telemetry") is True
-    assert rule.applies("core/telemetry/exporters") is True
-    assert rule.applies("core") is False
-    assert rule.applies("core/app_lifecycle_service") is False
+    assert rule.applies("core/telemetry")
+    assert rule.applies("core/telemetry/exporters")
+    assert not rule.applies("core")
+    assert not rule.applies("core/app_lifecycle_service")
 
 
 def test_bus_rule_still_applies_to_nested_bus_file() -> None:
