@@ -40,7 +40,7 @@ def test_hassette_root_reexports_are_identity_with_hassette_wire():
     assert hassette.ExecutionStatus is hassette_wire.ExecutionStatus
 
 
-def test_no_fr5_fr6_name_survives_on_old_module_surfaces():
+def test_no_moved_contract_name_survives_on_old_module_surfaces():
     for module in OLD_MODULES:
         for name in MOVED_CONTRACT_NAMES:
             assert not hasattr(module, name), f"{module.__name__} still exposes {name}"
