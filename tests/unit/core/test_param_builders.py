@@ -1,7 +1,7 @@
 """Unit tests for the seed script's extracted param builder functions.
 
 Verifies that ``execution_insert_params``, ``listener_insert_params``, and
-``job_insert_params`` (all in ``hassette.core.telemetry.repository``) produce dicts whose
+``job_insert_params`` (all in ``hassette.core.telemetry.insert_params``) produce dicts whose
 keys line up with the real, migrated table schema -- catching schema drift between the
 param builders and the migrations at test time rather than at seed-script runtime.
 """
@@ -11,7 +11,7 @@ from pathlib import Path
 
 from seed_scenarios.base import _BLOCKING_EVENT_COLUMNS, _SESSION_COLUMNS
 
-from hassette.core.telemetry.repository import (
+from hassette.core.telemetry.insert_params import (
     execution_insert_params,
     job_insert_params,
     listener_insert_params,

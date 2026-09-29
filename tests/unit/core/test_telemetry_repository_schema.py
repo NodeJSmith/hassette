@@ -12,11 +12,8 @@ import aiosqlite
 import pytest
 
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.telemetry.repository import (
-    TelemetryRepository,
-    _build_delete_query,
-    _build_retire_query,
-)
+from hassette.core.telemetry.reconcile_sql import _build_delete_query, _build_retire_query
+from hassette.core.telemetry.repository import TelemetryRepository
 from tests.support.factories import (
     DEFAULT_TEST_APP_KEY,
     make_execution_record,
