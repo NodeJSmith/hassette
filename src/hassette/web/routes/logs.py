@@ -56,7 +56,6 @@ async def get_logs(
     level: Annotated[str | None, Query()] = None,
     since: Annotated[float | None, Query()] = None,
     execution_id: Annotated[str | None, Query()] = None,
-    # Deliberately not SourceTierQuery (default "app"): the log viewer shows both tiers unless narrowed.
     source_tier: Annotated[
         str | None,
         Query(
