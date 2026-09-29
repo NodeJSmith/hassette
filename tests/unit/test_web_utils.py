@@ -1,10 +1,10 @@
-"""Tests for src/hassette/web/utils.py — enrich_jobs_with_live_data."""
+"""Tests for src/hassette/web/utils.py — enrich_jobs_with_live and enrich_jobs_with_live_data."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.web.utils import enrich_jobs_with_live_data
+from hassette.web.utils import enrich_jobs_with_live, enrich_jobs_with_live_data
 from tests.support.web_job_helpers import make_job_summary
 
 
@@ -51,3 +51,42 @@ class TestEnrichJobsWithLiveData:
         result = await enrich_jobs_with_live_data([db_summary], scheduler_service)
 
         assert result == [db_summary]
+
+
+class TestEnrichJobsWithLive:
+    """Unit tests for enrich_jobs_with_live — called directly, not through the async wrapper."""
+
+    def test_wrong_typed_live_value_falls_back_to_db_row(self) -> None:
+        """A live job whose overlaid value has the wrong type leaves that job's DB row unmodified.
+
+        Other jobs in the same call are still enriched — the fallback is per-job, not batch-wide.
+        """
+        broken_summary = make_job_summary(job_id=1, job_name="broken_job")
+        healthy_summary = make_job_summary(job_id=2, job_name="healthy_job")
+
+        broken_live = MagicMock()
+        broken_live.db_id = 1
+        broken_live.next_run = None
+        broken_live.fire_at = None
+        broken_live.jitter = object()  # wrong type for the float | None field
+        broken_live.schedule_status.value = "scheduled"
+        broken_live.schedule_status_reason = None
+        broken_live.guard.suppressed = 0
+        broken_live.guard.dropped = 0
+
+        healthy_live = MagicMock()
+        healthy_live.db_id = 2
+        healthy_live.next_run = None
+        healthy_live.fire_at = None
+        healthy_live.jitter = None
+        healthy_live.schedule_status.value = "waiting"
+        healthy_live.schedule_status_reason = None
+        healthy_live.guard.suppressed = 1
+        healthy_live.guard.dropped = 0
+
+        result = enrich_jobs_with_live([broken_summary, healthy_summary], [broken_live, healthy_live])
+
+        assert result[0] is broken_summary
+        assert result[1] is not healthy_summary
+        assert result[1].schedule_status == "waiting"
+        assert result[1].suppressed_count == 1

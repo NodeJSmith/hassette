@@ -12,6 +12,7 @@ from hassette_wire import (
     AppStatusChangedData,
     BootIssueResponse,
     ConnectivityData,
+    ExecutionCompletedData,
     ManifestStatus,
     ServiceInfoResponse,
     ServiceStatusData,
@@ -64,8 +65,8 @@ class RuntimeQueryService(Resource):
     _start_time: float
     _subscriptions: "list[Subscription]"
 
-    _pending_completions: list[dict]
-    """Execution completion dicts (handler and job) accumulated within the current drain tick, flushed as a batch."""
+    _pending_completions: list[ExecutionCompletedData]
+    """Execution completions (handler and job) accumulated within the current drain tick, flushed as a batch."""
 
     _flush_scheduled: bool
     """True when an asyncio.sleep(0) flush has been scheduled for the current tick."""
@@ -80,7 +81,7 @@ class RuntimeQueryService(Resource):
         self._ws_drops_last_logged: float = 0.0
         self._start_time = time.time()
         self._subscriptions = []
-        self._pending_completions: list[dict] = []
+        self._pending_completions: list[ExecutionCompletedData] = []
         self._flush_scheduled = False
 
     @property
@@ -211,20 +212,25 @@ class RuntimeQueryService(Resource):
         await self.build_and_broadcast("connectivity", ConnectivityData(connected=False))
 
     async def on_execution_completed(self, event: Event[Any]) -> None:
-        """Accumulate an execution completion (handler or job) into the pending batch for this drain tick."""
+        """Accumulate an execution completion (handler or job) into the pending batch for this drain tick.
+
+        Builds the wire model through its constructor, so a malformed payload raises here — this
+        is a bus-handler invocation, so ``CommandExecutor._execute`` records the failure and the
+        malformed completion never reaches ``_pending_completions`` or the WS feed.
+        """
         data: ExecutionCompletedPayload = event.payload.data
         self._pending_completions.append(
-            {
-                "kind": data.kind,
-                "app_key": data.app_key,
-                "instance_index": data.instance_index,
-                "status": data.status,
-                "duration_ms": data.duration_ms,
-                "error_type": data.error_type,
-                "listener_id": data.listener_id,
-                "job_id": data.job_id,
-                "thread_leaked": data.thread_leaked,
-            }
+            ExecutionCompletedData(
+                kind=data.kind,
+                app_key=data.app_key,
+                instance_index=data.instance_index,
+                status=data.status,
+                duration_ms=data.duration_ms,
+                error_type=data.error_type,
+                listener_id=data.listener_id,
+                job_id=data.job_id,
+                thread_leaked=data.thread_leaked,
+            )
         )
         await self.schedule_flush()
 
@@ -257,7 +263,11 @@ class RuntimeQueryService(Resource):
         self._pending_completions = []
 
         if completions:
-            entry = {"type": "execution_completed", "data": completions, "timestamp": now}
+            entry = {
+                "type": "execution_completed",
+                "data": [c.model_dump() for c in completions],
+                "timestamp": now,
+            }
             await self.broadcast(entry)
 
     def get_app_status_snapshot(self) -> AppStatusSnapshot:

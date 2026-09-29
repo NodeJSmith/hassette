@@ -6,7 +6,8 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock
 
 import pytest
-from hassette_wire import ResourceStatus, SystemStatusResponse
+from hassette_wire import ExecutionCompletedData, ResourceStatus, SystemStatusResponse
+from pydantic import TypeAdapter, ValidationError
 
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppRegistry
@@ -365,28 +366,28 @@ class TestCompletionPayloadEnrichment:
     """app_key, instance_index, and kind are read directly from event payload."""
 
     async def test_handler_payload_carries_app_identity(self, runtime: RuntimeQueryService) -> None:
-        """app_key and instance_index from a handler execution are stored in the pending dict."""
+        """app_key and instance_index from a handler execution are stored in the pending batch."""
         runtime.broadcast = AsyncMock()
         event = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=42, status="success", duration_ms=5.0, app_key="lights", instance_index=1
         )
         await runtime.on_execution_completed(event)
-        assert runtime._pending_completions[0]["app_key"] == "lights"
-        assert runtime._pending_completions[0]["instance_index"] == 1
-        assert runtime._pending_completions[0]["kind"] == "handler"
-        assert runtime._pending_completions[0]["listener_id"] == 42
+        assert runtime._pending_completions[0].app_key == "lights"
+        assert runtime._pending_completions[0].instance_index == 1
+        assert runtime._pending_completions[0].kind == "handler"
+        assert runtime._pending_completions[0].listener_id == 42
 
     async def test_job_payload_carries_app_identity(self, runtime: RuntimeQueryService) -> None:
-        """app_key and instance_index from a job execution are stored in the pending dict."""
+        """app_key and instance_index from a job execution are stored in the pending batch."""
         runtime.broadcast = AsyncMock()
         event = HassetteExecutionCompletedEvent.from_record(
             kind="job", job_id=99, status="success", duration_ms=8.0, app_key="climate", instance_index=2
         )
         await runtime.on_execution_completed(event)
-        assert runtime._pending_completions[0]["app_key"] == "climate"
-        assert runtime._pending_completions[0]["instance_index"] == 2
-        assert runtime._pending_completions[0]["kind"] == "job"
-        assert runtime._pending_completions[0]["job_id"] == 99
+        assert runtime._pending_completions[0].app_key == "climate"
+        assert runtime._pending_completions[0].instance_index == 2
+        assert runtime._pending_completions[0].kind == "job"
+        assert runtime._pending_completions[0].job_id == 99
 
     async def test_payload_defaults_to_empty_app_key(self, runtime: RuntimeQueryService) -> None:
         """Events without app_key default to empty string and zero index."""
@@ -395,8 +396,8 @@ class TestCompletionPayloadEnrichment:
             kind="handler", listener_id=999, status="success", duration_ms=5.0
         )
         await runtime.on_execution_completed(event)
-        assert runtime._pending_completions[0]["app_key"] == ""
-        assert runtime._pending_completions[0]["instance_index"] == 0
+        assert runtime._pending_completions[0].app_key == ""
+        assert runtime._pending_completions[0].instance_index == 0
 
 
 class TestCompletionBatching:
@@ -417,7 +418,7 @@ class TestCompletionBatching:
         event2 = HassetteExecutionCompletedEvent.from_record(
             kind="handler",
             listener_id=2,
-            status="failed",
+            status="error",
             duration_ms=20.0,
             app_key="my_app",
             instance_index=0,
@@ -436,7 +437,7 @@ class TestCompletionBatching:
         assert msg["data"][0]["listener_id"] == 1
         assert msg["data"][0]["app_key"] == "my_app"
         assert msg["data"][1]["listener_id"] == 2
-        assert msg["data"][1]["status"] == "failed"
+        assert msg["data"][1]["status"] == "error"
         assert msg["data"][1]["error_type"] == "ValueError"
 
     async def test_job_completions_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
@@ -505,6 +506,67 @@ class TestCompletionBatching:
         msg = await assert_flushed_single_message(runtime, broadcast_calls)
         kinds = {item["kind"] for item in msg["data"]}
         assert kinds == {"handler", "job"}
+
+    async def test_flushed_batch_validates_against_execution_completed_data(self, runtime: RuntimeQueryService) -> None:
+        """The broadcast ``data`` list round-trips through ``list[ExecutionCompletedData]``."""
+        broadcast_calls: list[dict] = []
+
+        async def fake_broadcast(msg: dict) -> None:
+            broadcast_calls.append(msg)
+
+        runtime.broadcast = fake_broadcast
+
+        event1 = HassetteExecutionCompletedEvent.from_record(
+            kind="handler", listener_id=1, status="success", duration_ms=10.0, app_key="my_app", instance_index=0
+        )
+        event2 = HassetteExecutionCompletedEvent.from_record(
+            kind="job", job_id=10, status="success", duration_ms=50.0, app_key="scheduler_app", instance_index=0
+        )
+        await runtime.on_execution_completed(event1)
+        await runtime.on_execution_completed(event2)
+
+        msg = await assert_flushed_single_message(runtime, broadcast_calls)
+
+        validated = TypeAdapter(list[ExecutionCompletedData]).validate_python(msg["data"])
+        assert len(validated) == 2
+
+
+class TestCompletionValidation:
+    """A malformed completion raises in on_execution_completed and never reaches the batch."""
+
+    async def test_malformed_completion_between_two_valid_is_isolated(self, runtime: RuntimeQueryService) -> None:
+        broadcast_calls: list[dict] = []
+
+        async def fake_broadcast(msg: dict) -> None:
+            broadcast_calls.append(msg)
+
+        runtime.broadcast = fake_broadcast
+
+        valid1 = HassetteExecutionCompletedEvent.from_record(
+            kind="handler", listener_id=1, status="success", duration_ms=10.0, app_key="my_app", instance_index=0
+        )
+        malformed = HassetteExecutionCompletedEvent.from_record(
+            kind="handler",
+            listener_id=2,
+            status="success",
+            duration_ms="not-a-number",  # pyright: ignore[reportArgumentType]
+            app_key="my_app",
+            instance_index=0,
+        )
+        valid2 = HassetteExecutionCompletedEvent.from_record(
+            kind="handler", listener_id=3, status="success", duration_ms=30.0, app_key="my_app", instance_index=0
+        )
+
+        await runtime.on_execution_completed(valid1)
+        with pytest.raises(ValidationError):
+            await runtime.on_execution_completed(malformed)
+        await runtime.on_execution_completed(valid2)
+
+        assert len(runtime._pending_completions) == 2
+        assert [c.listener_id for c in runtime._pending_completions] == [1, 3]
+
+        msg = await assert_flushed_single_message(runtime, broadcast_calls, expected_entries=2)
+        assert [item["listener_id"] for item in msg["data"]] == [1, 3]
 
 
 class TestSystemStatus:

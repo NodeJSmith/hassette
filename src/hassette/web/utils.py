@@ -44,20 +44,27 @@ def enrich_jobs_with_live(
         try:
             guard = live_job.guard
             enriched.append(
-                js.model_copy(
-                    update={
-                        "schedule_status": live_job.schedule_status.value,
-                        "schedule_status_reason": (
-                            live_job.schedule_status_reason.value
-                            if live_job.schedule_status_reason is not None
-                            else None
-                        ),
-                        "next_run": live_job.next_run.timestamp() if live_job.next_run is not None else None,
-                        "fire_at": live_job.fire_at.timestamp() if live_job.fire_at is not None else None,
-                        "jitter": live_job.jitter,
-                        "suppressed_count": guard.suppressed,
-                        "dropped_count": guard.dropped,
-                    }
+                JobSummary(
+                    **js.model_dump(
+                        exclude={
+                            "schedule_status",
+                            "schedule_status_reason",
+                            "next_run",
+                            "fire_at",
+                            "jitter",
+                            "suppressed_count",
+                            "dropped_count",
+                        }
+                    ),
+                    schedule_status=live_job.schedule_status.value,
+                    schedule_status_reason=(
+                        live_job.schedule_status_reason.value if live_job.schedule_status_reason is not None else None
+                    ),
+                    next_run=live_job.next_run.timestamp() if live_job.next_run is not None else None,
+                    fire_at=live_job.fire_at.timestamp() if live_job.fire_at is not None else None,
+                    jitter=live_job.jitter,
+                    suppressed_count=guard.suppressed,
+                    dropped_count=guard.dropped,
                 )
             )
         except (AttributeError, TypeError, ValueError):

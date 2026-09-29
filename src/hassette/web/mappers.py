@@ -168,16 +168,16 @@ def to_listener_with_summary(
             ``LiveCounts(0, 0, 0)``.
     """
     suppressed, dropped, backpressure_dropped = (live_counts or {}).get(listener.listener_id, LiveCounts(0, 0, 0))
-    # Every ListenerSummary field has a same-named field on ListenerWithSummary, so
-    # from_attributes copies them 1:1. The six fields below have no source attribute
-    # (they are computed or sourced from live_counts) and are set via model_copy.
-    return ListenerWithSummary.model_validate(listener, from_attributes=True).model_copy(
-        update={
-            "listener_kind": listener_kind_from_topic(listener.topic),
-            "handler_summary": format_handler_summary(listener),
-            "target": listener.entity_id or event_name_from_topic(listener.topic),
-            "suppressed_count": suppressed,
-            "dropped_count": dropped,
-            "backpressure_dropped_count": backpressure_dropped,
-        }
+    # Every ListenerSummary field has a same-named field on ListenerWithSummary, so splatting
+    # model_dump() copies them 1:1. The six fields below have no source attribute (they are
+    # computed or sourced from live_counts) and are passed as explicit keyword arguments, so
+    # pyright checks their types and the constructor validates every field — a bad value raises.
+    return ListenerWithSummary(
+        **listener.model_dump(),
+        listener_kind=listener_kind_from_topic(listener.topic),
+        handler_summary=format_handler_summary(listener),
+        target=listener.entity_id or event_name_from_topic(listener.topic),
+        suppressed_count=suppressed,
+        dropped_count=dropped,
+        backpressure_dropped_count=backpressure_dropped,
     )

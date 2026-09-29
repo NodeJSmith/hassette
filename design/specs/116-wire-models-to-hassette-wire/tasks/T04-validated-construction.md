@@ -1,7 +1,7 @@
 ---
 task_id: "T04"
 title: "Validate served models at construction time"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#11", "FR#12", "AC#7", "AC#8"]
 ---

@@ -13,6 +13,7 @@ from hassette_wire import (
     ResourceStatus,
     SystemStatusResponse,
 )
+from pydantic import ValidationError
 
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.schemas.listener_models import ListenerSummary
@@ -345,6 +346,21 @@ def test_to_listener_with_summary_backpressure_dropped_flows_into_backpressure_d
     assert result.backpressure_dropped_count == 7
     assert result.suppressed_count == 2
     assert result.dropped_count == 1
+
+
+def test_to_listener_with_summary_raises_on_wrong_typed_computed_value():
+    """A bad live-counts value makes the constructor raise instead of silently passing through.
+
+    ``model_copy(update=...)`` skips validation, so this only proves the current code path
+    validates once the function builds via ``ListenerWithSummary(...)`` directly.
+    """
+    summary = make_listener_summary(listener_id=42)
+
+    bad_counts = {
+        42: LiveCounts(suppressed="not-a-number", dropped=0, backpressure_dropped=0)  # pyright: ignore[reportArgumentType]
+    }
+    with pytest.raises(ValidationError):
+        to_listener_with_summary(summary, bad_counts)
 
 
 def test_to_listener_with_summary_backpressure_passthrough():

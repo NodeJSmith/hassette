@@ -280,10 +280,16 @@ async def get_app_manifests(
     manifest_list = app_manifest_list_response_from(full_snapshot)
 
     enriched_manifests = [
-        m.model_copy(update={"recent_invocations_1h": invocations_by_key.get(m.app_key, 0)})
+        AppManifestResponse(
+            **m.model_dump(exclude={"recent_invocations_1h"}),
+            recent_invocations_1h=invocations_by_key.get(m.app_key, 0),
+        )
         for m in manifest_list.manifests
     ]
-    return manifest_list.model_copy(update={"manifests": enriched_manifests})
+    return AppManifestListResponse(
+        **manifest_list.model_dump(exclude={"manifests"}),
+        manifests=enriched_manifests,
+    )
 
 
 @router.get("/apps/{app_key}/manifest", response_model=AppManifestResponse)
@@ -317,7 +323,10 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
     except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch recent_invocations_1h for app %s manifest", app_key, exc_info=True)
 
-    return result.model_copy(update={"recent_invocations_1h": invocations})
+    return AppManifestResponse(
+        **result.model_dump(exclude={"recent_invocations_1h"}),
+        recent_invocations_1h=invocations,
+    )
 
 
 @router.post(
