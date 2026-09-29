@@ -20,7 +20,7 @@ interface StoredColumnState {
   columns: ColumnId[];
 }
 
-const ALL_COLUMN_IDS: ColumnId[] = COLUMNS.map((c) => c.id);
+const ALL_COLUMN_IDS: ColumnId[] = COLUMNS.map((col) => col.id);
 const MOBILE_HIDDEN: ReadonlySet<ColumnId> = new Set(["app", "instance", "execution", "function", "module"]);
 const TABLET_HIDDEN: ReadonlySet<ColumnId> = new Set(["module"]);
 const NO_HIDDEN: ReadonlySet<ColumnId> = new Set();
@@ -30,12 +30,15 @@ function storageKey(context: ViewContext): string {
 }
 
 function isStoredColumnState(value: unknown): value is StoredColumnState {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    typeof (value as StoredColumnState).version === "number" &&
-    Array.isArray((value as StoredColumnState).columns)
-  );
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as StoredColumnState;
+  return typeof candidate.version === "number" && Array.isArray(candidate.columns);
+}
+
+function hiddenColumnsForViewport(isMobile: boolean, isTablet: boolean): ReadonlySet<ColumnId> {
+  if (isMobile) return MOBILE_HIDDEN;
+  if (isTablet) return TABLET_HIDDEN;
+  return NO_HIDDEN;
 }
 
 function defaultColumns(context: ViewContext): ColumnId[] {
@@ -83,7 +86,7 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
 
   const [userColumns, setUserColumns] = useState<ColumnId[]>(() => readStored(context) ?? defaultColumns(context));
 
-  const viewportHidden: ReadonlySet<ColumnId> = isMobile ? MOBILE_HIDDEN : isTablet ? TABLET_HIDDEN : NO_HIDDEN;
+  const viewportHidden = hiddenColumnsForViewport(isMobile, isTablet);
 
   const visibleColumns = userColumns.filter((id) => !viewportHidden.has(id));
 
@@ -91,7 +94,7 @@ export function useColumnVisibility(context: ViewContext): UseColumnVisibilityRe
     (id: ColumnId) => {
       setUserColumns((current) => {
         const next = current.includes(id)
-          ? current.filter((c) => c !== id)
+          ? current.filter((existingId) => existingId !== id)
           : [...current, id].sort((a, b) => ALL_COLUMN_IDS.indexOf(a) - ALL_COLUMN_IDS.indexOf(b));
         writeStored(context, next);
         return next;
