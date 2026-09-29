@@ -56,7 +56,15 @@ async def get_logs(
     level: Annotated[str | None, Query()] = None,
     since: Annotated[float | None, Query()] = None,
     execution_id: Annotated[str | None, Query()] = None,
-    source_tier: Annotated[str | None, Query()] = None,
+    # Deliberately not SourceTierQuery (default "app"): the log viewer shows both tiers unless narrowed.
+    source_tier: Annotated[
+        str | None,
+        Query(
+            description="Filter by source tier: 'app' or 'framework'. Omit to return records from both. "
+            "Unlike the telemetry-metrics endpoints, which default to 'app', this default deliberately "
+            "includes everything: the log viewer is a raw feed, not an app-author-facing metric."
+        ),
+    ] = None,
 ) -> list[LogEntryResponse]:
     """Return recent log records from the database with optional filtering."""
     level = validate_log_level(level)

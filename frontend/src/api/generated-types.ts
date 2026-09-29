@@ -2184,6 +2184,7 @@ export interface operations {
                 level?: string | null;
                 since?: number | null;
                 execution_id?: string | null;
+                /** @description Filter by source tier: 'app' or 'framework'. Omit to return records from both. Unlike the telemetry-metrics endpoints, which default to 'app', this default deliberately includes everything: the log viewer is a raw feed, not an app-author-facing metric. */
                 source_tier?: string | null;
             };
             header?: never;
