@@ -4,12 +4,13 @@ import sqlite3
 from typing import ClassVar
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.exceptions import FatalError
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.testing import wait_for
-from hassette.types.enums import ResourceStatus, RestartType
+from hassette.types.enums import RestartType
 from tests.support.helpers import make_service_failed_event
 
 from .conftest import make_system_config, startup_context

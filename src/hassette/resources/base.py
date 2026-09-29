@@ -4,6 +4,8 @@ import uuid
 from logging import INFO, Filter, Logger, LogRecord, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
+from hassette_wire import LOG_LEVEL_TYPE, ResourceStatus, SourceTier
+
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.lifecycle import (
     CLEANUP_SECONDS,
@@ -31,8 +33,8 @@ from hassette.resources.teardown import (
     TeardownReport,
     merge_teardown_reports,
 )
-from hassette.types.enums import TERMINAL_STATUSES, ResourceRole, ResourceStatus
-from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, SourceTier
+from hassette.types.enums import TERMINAL_STATUSES, ResourceRole
+from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX
 
 from .mixins import LifecycleMixin
 

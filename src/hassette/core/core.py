@@ -5,6 +5,7 @@ from contextlib import suppress
 from typing import Any
 
 from dotenv import load_dotenv
+from hassette_wire import ResourceStatus
 
 import hassette.utils.date_utils as date_utils
 from hassette import context
@@ -34,7 +35,6 @@ from hassette.resources.teardown import (
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.types.enums import ResourceStatus
 from hassette.utils.app_utils import run_apps_pre_check
 from hassette.utils.service_utils import topological_levels, topological_sort, validate_dependency_graph, wait_for_ready
 from hassette.utils.url_utils import build_rest_url, build_ws_url

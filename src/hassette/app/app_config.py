@@ -1,10 +1,11 @@
+from hassette_wire import LOG_LEVEL_TYPE
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hassette.config.defaults import ENV_FILE_LOCATIONS
 from hassette.config.helpers import log_level_default_factory
 from hassette.types.enums import BlockingIOBehavior, ForgottenAwaitBehavior
-from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, is_framework_key
+from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, is_framework_key
 
 
 class AppConfig(BaseSettings):

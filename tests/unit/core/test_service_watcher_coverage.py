@@ -11,13 +11,14 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.core.bus_service import BusService
 from hassette.events import HassetteServiceEvent
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.testing import wait_for
-from hassette.types import ResourceStatus, Topic
+from hassette.types import Topic
 from hassette.types.enums import ResourceRole, RestartType
 from tests.support.helpers import (
     PLACEHOLDER_APP_NAME,

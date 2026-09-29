@@ -10,13 +10,14 @@ import threading
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
+from hassette_wire import ResourceStatus
+
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.state_proxy import StateCacheFreshness
 from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
-from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
 from tests.support.web_manifest_helpers import make_full_snapshot

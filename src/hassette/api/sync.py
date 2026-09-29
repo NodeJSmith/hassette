@@ -10,6 +10,7 @@ from enum import StrEnum
 from typing import Any
 
 import aiohttp
+from hassette_wire import LOG_LEVEL_TYPE
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.api.sync_helpers import HelperClientSyncFacade
@@ -18,7 +19,6 @@ from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette

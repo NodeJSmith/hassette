@@ -1,12 +1,12 @@
 """Unit tests for web/mappers.py — domain-to-response model conversions."""
 
 import pytest
+from hassette_wire import ManifestStatus, ResourceStatus
 
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
-from hassette.types.enums import ManifestStatus, ResourceStatus
 from hassette.web.mappers import (
     app_manifest_list_response_from,
     app_status_response_from,

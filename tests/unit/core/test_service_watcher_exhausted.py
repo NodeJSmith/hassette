@@ -9,10 +9,11 @@ Verifies:
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from hassette_wire import ResourceStatus
+
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types import ResourceStatus
 from hassette.types.enums import ResourceRole, RestartType
 
 from .conftest import (

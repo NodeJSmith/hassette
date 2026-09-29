@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
+from hassette_wire import ManifestStatus, ResourceStatus
+
 from hassette.core.app_factory import AppFactory
 from hassette.schemas.app_snapshots import (
     AppFullSnapshot,
@@ -15,7 +17,7 @@ from hassette.schemas.app_snapshots import (
     AppStatusSnapshot,
     tally_manifest_statuses,
 )
-from hassette.types.enums import BlockReason, ManifestStatus, ResourceStatus
+from hassette.types.enums import BlockReason
 from hassette.utils.app_utils import is_valid_instance_name
 from hassette.utils.exception_utils import get_traceback_string
 

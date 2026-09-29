@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.config.classes import AppManifest
 from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
-from hassette.types.enums import ResourceStatus
 from hassette.web.config_view import MASK_SENTINEL
 from tests.integration.conftest import make_manifest_mock
 from tests.support.helpers import create_app_manifest

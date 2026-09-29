@@ -15,10 +15,10 @@ from contextlib import suppress
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.teardown import TeardownCause
-from hassette.types.enums import ResourceStatus
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource

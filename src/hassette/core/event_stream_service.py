@@ -3,10 +3,10 @@
 import typing
 
 from anyio import create_memory_object_stream
+from hassette_wire import LOG_LEVEL_TYPE
 
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from typing import Any

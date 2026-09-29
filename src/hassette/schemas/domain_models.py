@@ -24,9 +24,9 @@ models via ``hassette.web.mappers``. Core services must NOT import from
 
 from typing import Literal
 
+from hassette_wire import ResourceStatus
 from pydantic import BaseModel, Field
 
-from hassette.types.enums import ResourceStatus
 from hassette.utils import get_version
 
 

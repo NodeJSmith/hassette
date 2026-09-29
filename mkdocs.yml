@@ -144,7 +144,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: [src]
+          paths: [src, wire/src]
           options:
             docstring_style: google
             show_root_full_path: false

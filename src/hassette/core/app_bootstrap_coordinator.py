@@ -1,6 +1,8 @@
 import asyncio
 from typing import TYPE_CHECKING, ClassVar
 
+from hassette_wire import LOG_LEVEL_TYPE
+
 from hassette.core.api_resource import ApiResource
 from hassette.core.bus_service import BusService
 from hassette.core.scheduler_service import SchedulerService
@@ -8,7 +10,6 @@ from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
     from hassette import Hassette

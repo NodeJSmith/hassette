@@ -9,10 +9,11 @@ start/stop actions.
 
 from types import SimpleNamespace
 
+from hassette_wire import ResourceStatus
+
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.events.hassette import HassetteAppStateEvent
-from hassette.types.enums import ResourceStatus
 from tests.support.mock_hassette import make_mock_hassette
 
 

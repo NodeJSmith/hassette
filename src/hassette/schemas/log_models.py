@@ -10,9 +10,10 @@ See ``schemas/__init__.py`` for the domain-file map.
 
 from typing import Literal
 
+from hassette_wire import LOG_LEVEL_TYPE, SourceTier
 from pydantic import BaseModel
 
-from hassette.types.types import LOG_LEVEL_TYPE, BlockingAttributionReason, SourceTier
+from hassette.types.types import BlockingAttributionReason
 
 _BlockingTier = Literal["watchdog", "monkeypatch"]
 

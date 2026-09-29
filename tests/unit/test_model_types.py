@@ -7,12 +7,11 @@ values outside that set at validation time.
 from typing import Any
 
 import pytest
+from hassette_wire import ExecutionStatus, ManifestStatus, ResourceStatus
 from pydantic import ValidationError
 
 from hassette.schemas.execution_models import ActivityFeedEntry, Execution
 from hassette.schemas.log_models import LogRecord
-from hassette.types.enums import ManifestStatus, ResourceStatus
-from hassette.types.types import ExecutionStatus
 from hassette.web.models import (
     AppHealthResponse,
     AppInstanceResponse,

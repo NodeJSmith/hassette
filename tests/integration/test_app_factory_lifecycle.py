@@ -5,13 +5,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.config.classes import AppManifest
 from hassette.core.app_factory import AppFactory
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
 from hassette.schemas.app_snapshots import AppInstanceInfo
-from hassette.types.enums import ResourceStatus
 from hassette.utils import app_utils
 
 if TYPE_CHECKING:

@@ -66,7 +66,7 @@ XREF_MAP = {
     "ApiResource": "hassette.core.api_resource.ApiResource",
     "RestartSpec": "hassette.resources.restart.RestartSpec",
     "RestartType": "hassette.types.enums.RestartType",
-    "ResourceStatus": "hassette.types.enums.ResourceStatus",
+    "ResourceStatus": "hassette.ResourceStatus",
     "Hassette": "hassette.core.core.Hassette",
     # Error contexts
     "BusErrorContext": "hassette.bus.error_context.BusErrorContext",

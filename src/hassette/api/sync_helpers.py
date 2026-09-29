@@ -9,12 +9,12 @@ import builtins
 import typing
 from typing import Any
 
+from hassette_wire import LOG_LEVEL_TYPE
 from pydantic import BaseModel
 
 from hassette.api.helpers import HelperDomain
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette

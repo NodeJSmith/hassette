@@ -8,9 +8,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.core.app_registry import AppRegistry
-from hassette.types.enums import BlockReason, ResourceStatus
+from hassette.types.enums import BlockReason
 
 from .conftest import make_app_instance, make_manifest_obj
 

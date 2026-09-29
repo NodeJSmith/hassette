@@ -13,13 +13,13 @@ directly — pass the enum value as-is. ``ServiceInfo.status`` is a ``str`` with
 values; cast for pyright.
 """
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
-from hassette.types.enums import ResourceStatus, Topic
+from hassette.types.enums import Topic
 from hassette.web.models import (
     AppInstanceResponse,
     AppManifestListResponse,
@@ -34,6 +34,9 @@ from hassette.web.models import (
     SystemStatusResponse,
 )
 from hassette.web.telemetry_helpers import format_handler_summary
+
+if TYPE_CHECKING:
+    from hassette_wire import ResourceStatus
 
 TOPIC_KIND_MAP: dict[str, ListenerKind] = {
     Topic.HASS_EVENT_STATE_CHANGED: "state change",

@@ -26,6 +26,7 @@ import contextlib
 import unittest.mock
 
 import pytest
+from hassette_wire import ExecutionMode
 from whenever import ZonedDateTime
 
 import hassette.core.scheduler_service as scheduler_service_module
@@ -36,7 +37,6 @@ from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler import Job, ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
 from hassette.testing import AppTestHarness
-from hassette.types.enums import ExecutionMode
 from tests.support.helpers import noop
 
 # App for one-shot mode tests: verifies mode= is accepted and fires exactly once

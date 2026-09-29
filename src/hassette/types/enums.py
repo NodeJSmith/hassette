@@ -1,5 +1,34 @@
 from enum import StrEnum, auto
 
+import hassette_wire
+
+# The contract enums (ResourceStatus, ManifestStatus, ExecutionMode, BackpressurePolicy,
+# ExecutionStatus) live in hassette_wire — one definition, no mirrors. App authors import
+# ResourceStatus, ExecutionMode, BackpressurePolicy, and ExecutionStatus from hassette. This
+# module keeps the non-contract enums and the constants that reference the moved ones,
+# qualified through hassette_wire rather than re-exported here.
+
+DEFAULT_OVERLAP_MODE: hassette_wire.ExecutionMode = hassette_wire.ExecutionMode.SINGLE
+"""Default overlap mode for registration/summary models when none is resolved yet."""
+
+
+DEFAULT_BACKPRESSURE_POLICY: hassette_wire.BackpressurePolicy = hassette_wire.BackpressurePolicy.BLOCK
+"""Default backpressure policy for registration/summary models when none is specified."""
+
+TERMINAL_STATUSES: frozenset[hassette_wire.ResourceStatus] = frozenset(
+    {hassette_wire.ResourceStatus.STOPPED, hassette_wire.ResourceStatus.EXHAUSTED_DEAD}
+)
+"""Resource has reached an end state — shutdown can skip the STOPPING transition."""
+
+ACTIVE_STATUSES: frozenset[hassette_wire.ResourceStatus] = frozenset(
+    {
+        hassette_wire.ResourceStatus.NOT_STARTED,
+        hassette_wire.ResourceStatus.STARTING,
+        hassette_wire.ResourceStatus.RUNNING,
+    }
+)
+"""Resource is in normal lifecycle progression (not failed, stopped, or exhausted)."""
+
 
 class ForgottenAwaitBehavior(StrEnum):
     """Controls what happens when a protected method is called without ``await``."""
@@ -53,60 +82,6 @@ class RestartType(StrEnum):
 
     TEMPORARY = auto()
     """The service is temporary — once its restart budget is exhausted, it stops permanently."""
-
-
-class ExecutionMode(StrEnum):
-    """Overlap behavior for a listener when a trigger fires while a prior invocation still runs."""
-
-    SINGLE = auto()
-    """Drop the re-fire while a prior invocation is still running."""
-
-    RESTART = auto()
-    """Cancel the running invocation and start a new one."""
-
-    QUEUED = auto()
-    """Serialize triggers, running them one at a time in arrival order."""
-
-    PARALLEL = auto()
-    """Run invocations concurrently with no overlap guard (today's behavior)."""
-
-
-DEFAULT_OVERLAP_MODE: ExecutionMode = ExecutionMode.SINGLE
-"""Default overlap mode for registration/summary models when none is resolved yet."""
-
-
-class BackpressurePolicy(StrEnum):
-    """What a listener does when the *global* dispatch semaphore is saturated.
-
-    The semaphore is shared by all listeners across all apps — saturation means
-    the whole bus is at capacity, not that this listener alone is busy. This is
-    distinct from per-listener rate controls (``debounce``, ``throttle``, ``mode``),
-    which operate inside the handler invoker after a dispatch slot is acquired.
-    """
-
-    BLOCK = auto()
-    """Wait for a dispatch slot — the default for all listeners.
-
-    When the global semaphore is saturated, the dispatch loop blocks until a slot
-    opens, then runs the handler. No events are lost; the cost is added latency.
-    Omitting ``backpressure=`` on a subscription is identical to passing ``BLOCK``.
-    """
-
-    DROP_NEWEST = auto()
-    """Skip this event when the global semaphore is saturated; never waits.
-
-    The dispatch loop checks the semaphore without acquiring it. If saturated, no
-    task is spawned, one drop is recorded on the listener, and the loop moves on.
-    Under normal load (semaphore not locked), dispatches identically to ``BLOCK``.
-
-    A ``DROP_NEWEST`` listener may not run at all during a sustained saturation
-    period — every event it receives while the bus is full is dropped. Use ``BLOCK``
-    for handlers that must run at least once, even under load.
-    """
-
-
-DEFAULT_BACKPRESSURE_POLICY: BackpressurePolicy = BackpressurePolicy.BLOCK
-"""Default backpressure policy for registration/summary models when none is specified."""
 
 
 class Outcome(StrEnum):
@@ -191,46 +166,6 @@ class BlockReason(StrEnum):
     """Hassette is restricted to specific apps via ``run --app``, so this app is excluded."""
 
 
-class ResourceStatus(StrEnum):
-    """Enumeration for resource status."""
-
-    NOT_STARTED = auto()
-    """The resource has not been started yet."""
-
-    STARTING = auto()
-    """The resource is in the process of starting."""
-
-    RUNNING = auto()
-    """The resource is currently running."""
-
-    STOPPING = auto()
-    """The resource is in the process of stopping."""
-
-    STOPPED = auto()
-    """The resource has been stopped without errors."""
-
-    FAILED = auto()
-    """The resource has failed with a recoverable error."""
-
-    CRASHED = auto()
-    """The resource has crashed unexpectedly and cannot recover."""
-
-    EXHAUSTED_DEAD = auto()
-    """The service's restart budget is exhausted with no further restarts (permanent end state)."""
-
-    EXHAUSTED_COOLING = auto()
-    """The service's restart budget is exhausted and a long cooldown is in progress."""
-
-
-TERMINAL_STATUSES: frozenset[ResourceStatus] = frozenset({ResourceStatus.STOPPED, ResourceStatus.EXHAUSTED_DEAD})
-"""Resource has reached an end state — shutdown can skip the STOPPING transition."""
-
-ACTIVE_STATUSES: frozenset[ResourceStatus] = frozenset(
-    {ResourceStatus.NOT_STARTED, ResourceStatus.STARTING, ResourceStatus.RUNNING}
-)
-"""Resource is in normal lifecycle progression (not failed, stopped, or exhausted)."""
-
-
 class ConnectionState(StrEnum):
     """Enumeration for WebSocket connection states."""
 
@@ -242,28 +177,6 @@ class ConnectionState(StrEnum):
 
     CONNECTED = auto()
     """The WebSocket connection is established and active."""
-
-
-class ManifestStatus(StrEnum):
-    """Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``)."""
-
-    DISABLED = auto()
-    """The app is disabled in configuration and will not start."""
-
-    BLOCKED = auto()
-    """The app was intentionally prevented from starting (see ``BlockReason``)."""
-
-    DEGRADED = auto()
-    """At least one instance is running and at least one instance has failed."""
-
-    RUNNING = auto()
-    """All tracked instances are running."""
-
-    FAILED = auto()
-    """All tracked instances have failed and none are running."""
-
-    STOPPED = auto()
-    """The app has no tracked instances (not started, or intentionally stopped)."""
 
 
 class ResourceRole(StrEnum):

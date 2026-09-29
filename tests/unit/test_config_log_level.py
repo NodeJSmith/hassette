@@ -13,6 +13,7 @@ exception — it uses the base-class global default.
 import inspect
 
 import pytest
+from hassette_wire import LOG_LEVEL_TYPE
 
 from hassette.api.api import Api
 from hassette.api.sync import ApiSyncFacade
@@ -39,7 +40,6 @@ from hassette.resources.base import Resource
 from hassette.scheduler.scheduler import Scheduler
 from hassette.state_manager.state_manager import StateManager
 from hassette.task_bucket.task_bucket import TaskBucket
-from hassette.types.types import LOG_LEVEL_TYPE
 from tests.support.mock_hassette import make_mock_hassette
 
 LOG_LEVEL_OVERRIDES = {

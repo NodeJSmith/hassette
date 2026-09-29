@@ -11,6 +11,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ResourceStatus
 from httpx2 import ASGITransport, AsyncClient
 
 from hassette.core.runtime_query_service import RuntimeQueryService
@@ -20,7 +21,7 @@ from hassette.scheduler.classes import ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
 from hassette.schemas.domain_models import ServiceInfo, SystemStatus
 from hassette.schemas.job_models import JobSummary
-from hassette.types.enums import ResourceRole, ResourceStatus
+from hassette.types.enums import ResourceRole
 from hassette.web.app import create_fastapi_app
 from hassette.web.mappers import system_status_response_from
 from hassette.web.models import ServiceInfoResponse

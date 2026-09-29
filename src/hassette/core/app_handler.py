@@ -8,6 +8,8 @@ import asyncio
 import typing
 from typing import ClassVar
 
+from hassette_wire import LOG_LEVEL_TYPE
+
 from hassette.bus import Bus
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_change_detector import ChangeSet
@@ -17,7 +19,6 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.types import Topic
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette

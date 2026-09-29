@@ -35,7 +35,7 @@ from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette_wire import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
@@ -92,7 +92,8 @@ from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import ComparisonCondition
-from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy, WhereClause
+from hassette.types.types import IfExistsPolicy, WhereClause
+from hassette_wire import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -101,8 +102,8 @@ if typing.TYPE_CHECKING:
     from hassette.bus.listeners import Listener
     from hassette.events.base import Event
     from hassette.types import ChangeType, HandlerType, Predicate
-    from hassette.types.enums import BackpressurePolicy, ExecutionMode
     from hassette.types.types import BusErrorHandlerType
+    from hassette_wire import BackpressurePolicy, ExecutionMode
 
 '''
 
@@ -181,8 +182,8 @@ from typing import Any, Unpack
 from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
 from hassette.resources.base import Resource
-from hassette.types.enums import ResourceStatus
 from hassette.types.types import WhereClause
+from hassette_wire import ResourceStatus
 
 if typing.TYPE_CHECKING:
     from hassette import Bus
@@ -229,15 +230,16 @@ from whenever import ZonedDateTime
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.scheduler.classes import Job
-from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
+from hassette.types.types import IfExistsPolicy
+from hassette_wire import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
     from hassette import Hassette, Scheduler
     from hassette.types import JobCallable, TriggerProtocol
-    from hassette.types.enums import ExecutionMode
     from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
+    from hassette_wire import ExecutionMode
 
 '''
 
@@ -312,7 +314,7 @@ from hassette.models.helpers import (
 )
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette_wire import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette

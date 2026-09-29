@@ -10,6 +10,7 @@ from typing import ClassVar, Generic, TypeVar
 
 import uuid_utils
 from fair_async_rlock import FairAsyncRLock
+from hassette_wire import LOG_LEVEL_TYPE, ExecutionMode, ExecutionStatus
 from whenever import TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -27,8 +28,6 @@ from hassette.resources.service import Service
 from hassette.scheduler.classes import Job, ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.scheduler.triggers import _WaitingSentinel
-from hassette.types.enums import ExecutionMode
-from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus
 from hassette.utils.func_utils import callable_stable_name, describe_predicate
 from hassette.utils.serialization import safe_json_serialize
 

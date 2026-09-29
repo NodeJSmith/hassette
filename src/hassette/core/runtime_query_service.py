@@ -6,6 +6,7 @@ import json
 import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from hassette_wire import LOG_LEVEL_TYPE, ManifestStatus
 from pydantic import BaseModel
 
 from hassette.bus import Bus
@@ -27,8 +28,6 @@ from hassette.schemas.domain_models import (
     SystemStatus,
 )
 from hassette.types import Topic
-from hassette.types.enums import ManifestStatus
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
     from hassette import Hassette

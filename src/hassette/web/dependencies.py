@@ -7,11 +7,11 @@ from logging import CRITICAL, DEBUG, ERROR, INFO, WARNING, getLogger
 from typing import TYPE_CHECKING, Annotated, TypedDict
 
 from fastapi import Depends, Path, Query, Request
+from hassette_wire import QuerySourceTier
 from starlette.responses import Response
 
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.query_constants import MAX_QUERY_LIMIT
-from hassette.types.types import QuerySourceTier
 
 if TYPE_CHECKING:
     from hassette import Hassette

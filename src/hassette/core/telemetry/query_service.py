@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import aiosqlite
+from hassette_wire import LOG_LEVEL_TYPE
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.execution_queries import ExecutionQueriesMixin
@@ -16,7 +17,6 @@ from hassette.core.telemetry.summary_queries import SummaryQueriesMixin
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
     from hassette import Hassette

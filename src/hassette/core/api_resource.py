@@ -9,6 +9,7 @@ from http import HTTPStatus
 from typing import Any, ClassVar
 
 import aiohttp
+from hassette_wire import LOG_LEVEL_TYPE
 from tenacity import (
     before_sleep_log,
     retry,
@@ -29,7 +30,6 @@ from hassette.exceptions import (
 from hassette.models.history import normalize_history
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.request_utils import clean_kwargs, format_time_param, orjson_dump
 
 _SSL_SHUTDOWN_DELAY = 0.25

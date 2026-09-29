@@ -10,19 +10,21 @@ import typing
 from collections.abc import Mapping
 from typing import Any, Literal
 
+from hassette_wire import LOG_LEVEL_TYPE
 from whenever import ZonedDateTime
 
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.scheduler.classes import Job
-from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
+from hassette.types.types import IfExistsPolicy
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from hassette_wire import ExecutionMode
+
     from hassette import Hassette, Scheduler
     from hassette.types import JobCallable, TriggerProtocol
-    from hassette.types.enums import ExecutionMode
     from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
 

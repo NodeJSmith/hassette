@@ -4,6 +4,7 @@ from logging import getLogger
 from typing import Generic, NamedTuple
 
 from frozendict import deepfreeze, frozendict
+from hassette_wire import LOG_LEVEL_TYPE
 
 from hassette.conversion import STATE_REGISTRY, StateKey
 from hassette.exceptions import EntityNotInViewError, RegistryNotReadyError
@@ -13,7 +14,6 @@ from hassette.models.states.sensor_shapes import SensorShape, classify_sensor_sh
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import StateReader, StateT
-from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.hass_utils import make_entity_id
 
 if typing.TYPE_CHECKING:

@@ -11,6 +11,7 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
 
 from aiohttp import web
+from hassette_wire import ResourceStatus
 from yarl import URL
 
 import hassette.utils.date_utils as date_utils
@@ -43,7 +44,6 @@ from hassette.testing._reset import reset_app_handler, reset_bus, reset_mock_api
 from hassette.testing._server import SimpleTestServer
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
 from hassette.testing.config import TEST_TOKEN, WAIT_FOR_READY_TIMEOUT_SECONDS
-from hassette.types.enums import ResourceStatus
 from hassette.utils.func_utils import is_async_callable
 
 if typing.TYPE_CHECKING:

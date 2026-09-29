@@ -14,6 +14,7 @@ import aiosqlite
 import anyio
 import pytest
 import tomli_w
+from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 
 from hassette.bus.listeners import (
     DurationConfig,
@@ -34,17 +35,19 @@ from hassette.testing import create_state_change_event, wait_for
 from hassette.testing._simulation import create_component_loaded_event as create_component_loaded_event
 from hassette.testing._simulation import create_service_registered_event as create_service_registered_event
 from hassette.testing.config import TEST_SOURCE_LOCATION
-from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceRole, ResourceStatus, Topic
+from hassette.types.enums import ResourceRole, Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
+    from hassette_wire import SourceTier
+
     from hassette.bus.bus import Bus
     from hassette.events import HassStateDict
     from hassette.execution_mode import ExecutionModeGuard
     from hassette.resources.service import Service
-    from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate, SourceTier
+    from hassette.types.types import BusErrorHandlerType, HandlerType, Predicate
 
 PLACEHOLDER_SERVICE_NAME = "TestService"
 """Stand-in resource_name for the service-lifecycle event factories below. Tests that don't

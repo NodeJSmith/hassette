@@ -95,6 +95,7 @@ from collections.abc import Coroutine, Mapping
 from functools import partial
 from typing import Any, Unpack
 
+from hassette_wire import LOG_LEVEL_TYPE, BackpressurePolicy, ExecutionMode, ResourceStatus
 from typing_extensions import Sentinel
 
 from hassette.const import NOT_PROVIDED
@@ -106,8 +107,7 @@ from hassette.execution_mode import resolve_execution_mode
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import ComparisonCondition, Topic
-from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
-from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy, WhereClause
+from hassette.types.types import IfExistsPolicy, WhereClause
 from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.glob_utils import is_glob

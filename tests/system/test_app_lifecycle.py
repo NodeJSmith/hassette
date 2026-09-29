@@ -6,11 +6,11 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette import Hassette
 from hassette.config.config import HassetteConfig
 from hassette.testing import wait_for
-from hassette.types.enums import ResourceStatus
 
 from .conftest import make_system_config, startup_context
 

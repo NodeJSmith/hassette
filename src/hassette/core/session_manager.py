@@ -4,6 +4,8 @@ import asyncio
 import time
 import typing
 
+from hassette_wire import LOG_LEVEL_TYPE, ResourceStatus
+
 from hassette.bus import Bus
 from hassette.core.service_status_predicates import IS_NOT_APP_ROLE, SERVICE_STATUS_PATH
 from hassette.event_handling.accessors import get_path
@@ -12,8 +14,6 @@ from hassette.events import HassetteServiceEvent
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import Topic
-from hassette.types.enums import ResourceStatus
-from hassette.types.types import LOG_LEVEL_TYPE
 
 SESSION_STATUS_RUNNING = "running"
 SESSION_STATUS_SUCCESS = "success"

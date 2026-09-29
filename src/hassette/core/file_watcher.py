@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import ClassVar
 
+from hassette_wire import LOG_LEVEL_TYPE
 from watchfiles import awatch
 
 from hassette.events.hassette import HassetteFileWatcherEvent
@@ -8,7 +9,6 @@ from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
-from hassette.types.types import LOG_LEVEL_TYPE
 
 
 class FileWatcherService(Service):

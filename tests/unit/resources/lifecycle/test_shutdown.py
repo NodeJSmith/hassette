@@ -16,6 +16,7 @@ import asyncio
 import contextlib
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
 from hassette.resources import lifecycle
@@ -25,7 +26,6 @@ from hassette.resources.operations import ordered_children_for_shutdown
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.task_bucket import make_task_factory
 from hassette.testing import wait_for
-from hassette.types.enums import ResourceStatus
 from tests.support.helpers import GENEROUS_SHUTDOWN_TIMEOUT_SECONDS, SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running

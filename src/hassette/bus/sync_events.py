@@ -9,10 +9,11 @@ import typing
 from collections.abc import Mapping
 from typing import Any, Unpack
 
+from hassette_wire import ResourceStatus
+
 from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
 from hassette.resources.base import Resource
-from hassette.types.enums import ResourceStatus
 from hassette.types.types import WhereClause
 
 if typing.TYPE_CHECKING:

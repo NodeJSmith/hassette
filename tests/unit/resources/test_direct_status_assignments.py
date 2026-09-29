@@ -5,8 +5,9 @@ Verifies:
 - harness/_websocket_service uses _status bypass (not validated setter)
 """
 
+from hassette_wire import ResourceStatus
+
 from hassette.resources.mixins import VALID_TRANSITIONS, LifecycleMixin
-from hassette.types.enums import ResourceStatus
 
 
 def test_app_lifecycle_timeout_stop_valid():

@@ -5,11 +5,13 @@ import time
 from logging import Logger, getLogger
 from typing import TYPE_CHECKING, Any
 
+from hassette_wire import ExecutionStatus
+
 from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.schemas.log_models import BlockingEvent
-from hassette.types.types import ExecutionStatus, is_framework_key
+from hassette.types.types import is_framework_key
 
 LOGGER = getLogger(__name__)
 

@@ -3,13 +3,13 @@
 from dataclasses import asdict
 
 import pytest
+from hassette_wire import ExecutionStatus, ResourceStatus
 from pydantic import TypeAdapter
 
 from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPayload, ServiceStatusPayload
 from hassette.schemas.domain_models import AppStatusChangedData as AppStatusChangedPayload
 from hassette.schemas.domain_models import ServiceStatusData as WsServiceStatusPayload
-from hassette.types.enums import ResourceRole, ResourceStatus
-from hassette.types.types import ExecutionStatus
+from hassette.types.enums import ResourceRole
 from hassette.web.models import (
     AppStatusChangedWsMessage,
     ConnectedPayload,

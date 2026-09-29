@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 from logging import Logger, getLogger
 from typing import Any, cast
 
+from hassette_wire import BackpressurePolicy, ExecutionMode, SourceTier
+
 from hassette.bus.duration_timer import DurationTimer
 from hassette.bus.injection import ParameterInjector
 from hassette.bus.rate_limiter import RateLimiter
@@ -16,8 +18,7 @@ from hassette.execution_mode import (
     drain_pending_done,
     run_through_guard,
 )
-from hassette.types.enums import BackpressurePolicy, ExecutionMode
-from hassette.types.types import SourceTier, WhereClause
+from hassette.types.types import WhereClause
 from hassette.utils.func_utils import callable_name, callable_short_name
 from hassette.utils.type_utils import get_typed_signature
 

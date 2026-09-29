@@ -8,13 +8,15 @@ from concurrent.futures import Future
 from concurrent.futures import TimeoutError as CfTimeoutError  # aliased to distinguish from builtin TimeoutError
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
+from hassette_wire import LOG_LEVEL_TYPE
+
 from hassette import context as ctx
 from hassette.const.misc import NOT_PROVIDED, FalseySentinel
 from hassette.exceptions import TaskBucketSealedError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import elapsed_since, mark_ready
 from hassette.resources.operations import register_task_bucket_factory
-from hassette.types.types import LOG_LEVEL_TYPE, CoroLikeT
+from hassette.types.types import CoroLikeT
 from hassette.utils.func_utils import is_async_callable
 
 _CROSS_THREAD_SPAWN_TIMEOUT_SECS = 10.0

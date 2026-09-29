@@ -1,7 +1,7 @@
 ---
 task_id: "T01"
 title: "Move contract enums, Literals, and CliFormat into hassette_wire"
-status: "planned"
+status: "done"
 depends_on: []
 implements: ["FR#5", "FR#6", "FR#7", "FR#8", "AC#3", "AC#12", "AC#13"]
 ---

@@ -10,10 +10,10 @@ See ``schemas/__init__.py`` for the domain-file map.
 
 from typing import Annotated, Literal
 
+from hassette_wire import CliFormat, ExecutionMode, SourceTier
 from pydantic import BaseModel
 
-from hassette.types.enums import DEFAULT_OVERLAP_MODE, ExecutionMode
-from hassette.types.types import CliFormat, SourceTier
+from hassette.types.enums import DEFAULT_OVERLAP_MODE
 
 
 class JobSummary(BaseModel):

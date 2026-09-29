@@ -10,9 +10,8 @@ See ``schemas/__init__.py`` for the domain-file map.
 
 from typing import Literal, NamedTuple
 
+from hassette_wire import ExecutionStatus, SourceTier
 from pydantic import BaseModel
-
-from hassette.types.types import ExecutionStatus, SourceTier
 
 
 class AppLastError(NamedTuple):
