@@ -1,7 +1,7 @@
 ---
 task_id: "T06"
 title: "Add the oasdiff wire-compatibility check"
-status: "planned"
+status: "done"
 depends_on: ["T03"]
 implements: ["FR#16", "AC#15"]
 ---
