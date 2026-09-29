@@ -31,6 +31,12 @@ layer; #1079). The ``conversion``↔``models`` cycle (#892) is resolved by movin
 conversion behavior into the codec and making models/states a leaf below conversion.
 ``RULES`` is a list so each boundary is added as it becomes clean.
 
+A layer is not limited to a top-level package: ``layer_of()`` resolves the full nested
+path under ``src/hassette`` (``core/telemetry``, not just ``core``), so a rule can target
+one nested module independently of its siblings. ``applies_prefix()`` matches a layer and
+everything nested under it — pass a top-level name for the old, package-wide scope, or a
+nested path (``"core/telemetry"``) to govern only that module (#2381).
+
 Import rules are structural violations, not style — there is no escape hatch. A
 production module that needs a test helper signals a misplaced helper, not a
 boundary to annotate.
@@ -70,6 +76,7 @@ SCAN_DIRS: list[str] = [SRC.relative_to(REPO_ROOT).as_posix()]
 #: Layers that own or legitimately wire Hassette internals, so reading ``hassette._foo``
 #: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``testing`` is the test
 #: harness location, whose whole job is assembling real components from their private slots.
+#: Matched via ``is_exempt_layer()`` as a nested-prefix, so ``core/telemetry`` is exempt too.
 PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "testing"})
 #: Reason shown for a private-attr reach-through violation.
 PRIVATE_ATTR_REASON = (
@@ -129,70 +136,99 @@ def forbids_package(pkg: str) -> Callable[[str], bool]:
     return forbids_prefix(f"hassette.{pkg}")
 
 
+def applies_prefix(prefix: str) -> Callable[[str], bool]:
+    """Return a ``Rule.applies`` predicate matching layer ``prefix`` or any nested layer under it.
+
+    ``layer_of()`` resolves a file to its full nested path (``core/telemetry``, not just
+    ``core``), so a rule governing the top-level layer ``"bus"`` needs this to keep matching
+    files nested under ``bus/`` (``bus/predicates/foo.py`` → layer ``"bus/predicates"``) — an
+    exact-equality ``applies`` would silently stop covering nested files the moment a top-level
+    package grows subdirectories. A rule that wants a narrower, nested-only scope passes a
+    nested prefix directly (``applies_prefix("core/telemetry")``), which does not match sibling
+    files directly under ``core/``.
+    """
+    return lambda layer: layer == prefix or layer.startswith(f"{prefix}/")
+
+
+def applies_outside(prefix: str) -> Callable[[str], bool]:
+    """Return a ``Rule.applies`` predicate matching any layer NOT ``prefix`` or nested under it.
+
+    The negation of ``applies_prefix``, for isolation rules (like ``test-helpers-isolation``)
+    that govern every layer except one.
+    """
+    inside = applies_prefix(prefix)
+    return lambda layer: not inside(layer)
+
+
+def is_exempt_layer(layer: str) -> bool:
+    """Return whether ``layer`` (or an ancestor of it) is in ``PRIVATE_ATTR_EXEMPT_LAYERS``."""
+    return any(applies_prefix(exempt)(layer) for exempt in PRIVATE_ATTR_EXEMPT_LAYERS)
+
+
 RULES: list[Rule] = [
     Rule(
         name="test-helpers-isolation",
-        applies=lambda layer: layer != "testing",
+        applies=applies_outside("testing"),
         forbids=forbids_package("testing"),
         reason="production code must not import test helpers from hassette.testing",
     ),
     Rule(
         name="api-no-core",
-        applies=lambda layer: layer == "api",
+        applies=applies_prefix("api"),
         forbids=forbids_package("core"),
         reason="api must not import core at runtime; core sits above the service layer (#1079)",
     ),
     Rule(
         name="utils-no-events",
-        applies=lambda layer: layer == "utils",
+        applies=applies_prefix("utils"),
         forbids=forbids_package("events"),
         reason="utils sits below events; the only upward dependency (is_event_type) has moved to events/",
     ),
     Rule(
         name="web-no-core",
-        applies=lambda layer: layer == "web",
+        applies=applies_prefix("web"),
         forbids=forbids_package("core"),
         reason="web must not runtime-import core; web-facing data types live in hassette.schemas",
     ),
     Rule(
         name="bus-no-core",
-        applies=lambda layer: layer == "bus",
+        applies=applies_prefix("bus"),
         forbids=forbids_package("core"),
         reason="bus must not import core at runtime; core sits above the service layer (#1089)",
     ),
     Rule(
         name="bus-no-ha-events",
-        applies=lambda layer: layer == "bus",
+        applies=applies_prefix("bus"),
         forbids=forbids_package("events.hass"),
         reason="bus is a generic pub/sub kernel; HA event types are injected from core (#1136)",
     ),
     Rule(
         name="resources-no-task_bucket",
-        applies=lambda layer: layer == "resources",
+        applies=applies_prefix("resources"),
         forbids=forbids_package("task_bucket"),
         reason="resources sits below task_bucket; TaskBucket is injected via register_task_bucket_factory (#1079)",
     ),
     Rule(
         name="scheduler-no-core",
-        applies=lambda layer: layer == "scheduler",
+        applies=applies_prefix("scheduler"),
         forbids=forbids_package("core"),
         reason="scheduler must not runtime-import core; SchedulerService consumed via SchedulerServiceProtocol (#1079)",
     ),
     Rule(
         name="state_manager-no-core",
-        applies=lambda layer: layer == "state_manager",
+        applies=applies_prefix("state_manager"),
         forbids=forbids_package("core"),
         reason="state_manager must not import core at runtime; StateProxy is consumed via StateReader (#1079)",
     ),
     Rule(
         name="models-no-conversion",
-        applies=lambda layer: layer == "models",
+        applies=applies_prefix("models"),
         forbids=forbids_package("conversion"),
         reason="models/states is a leaf below the codec; conversion ↔ models cycle resolved (#892)",
     ),
     Rule(
         name="testing-isolation",
-        applies=lambda layer: layer == "testing",
+        applies=applies_prefix("testing"),
         forbids=forbids_prefix("tests.support"),
         reason="hassette.testing must not import tests.support (one-way dependency, #1333)",
     ),
@@ -200,9 +236,16 @@ RULES: list[Rule] = [
 
 
 def layer_of(path: Path) -> str:
-    """Return the top-level subpackage name a source file belongs to."""
+    """Return the nested subpackage path a source file belongs to, as a '/'-joined layer.
+
+    Resolves the full path under ``SRC`` (``core/telemetry`` for a file under
+    ``src/hassette/core/telemetry/``, not just ``core``), so a ``Rule.applies`` predicate can
+    target a nested module independently of its siblings. Pair with ``applies_prefix()`` to
+    match a layer and everything nested under it — the old top-level-only behavior. A file
+    directly under ``SRC`` (no subpackage) resolves to ``"<root>"``.
+    """
     rel = path.relative_to(SRC)
-    return rel.parts[0] if len(rel.parts) > 1 else "<root>"
+    return "/".join(rel.parts[:-1]) if len(rel.parts) > 1 else "<root>"
 
 
 def package_of(path: Path) -> str:
@@ -389,15 +432,12 @@ def check_source(
         for rule in RULES
         if rule.applies(layer) and rule.forbids(module)
     ]
-    private_violations = (
-        [
-            (lineno, PRIVATE_ATTR_MSG_TEMPLATE.format(attr=attr))
-            for lineno, attr in private_hassette_accesses(tree)
-            if not is_allowlisted(rel_path, attr)
-        ]
-        if layer not in PRIVATE_ATTR_EXEMPT_LAYERS
-        else []
-    )
+    private_attr_violations = [
+        (lineno, PRIVATE_ATTR_MSG_TEMPLATE.format(attr=attr))
+        for lineno, attr in private_hassette_accesses(tree)
+        if not is_allowlisted(rel_path, attr)
+    ]
+    private_violations = [] if is_exempt_layer(layer) else private_attr_violations
     return sorted(import_violations + private_violations)
 
 
