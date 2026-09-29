@@ -23,6 +23,8 @@ Import boundaries enforced today (``RULES``):
 - ``models → conversion`` — models/states is a leaf below the codec; the conversion ↔ models cycle is resolved (#892).
 - ``testing → tests.support`` — hassette.testing ships in the wheel and tests.support does not;
   the dependency is one-way (tests/support/ may import hassette.testing, never the reverse) (#1333).
+- no layer → ``hassette_client`` — the CLI plugin receives the client through the
+  ``hassette.cli`` entry point's ``register(app)`` argument, never through an import (#2387).
 
 The full layer DAG is NOT enforced here yet. The two service-layer core cycles
 (``scheduler``↔``core`` and ``state_manager``↔``core``) are resolved via protocol
@@ -100,7 +102,7 @@ PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
 )
 #: Top-level packages any ``Rule`` below might forbid. ``runtime_imports`` only collects
 #: imports rooted in one of these — everything else is noise no rule cares about.
-WATCHED_ROOTS: frozenset[str] = frozenset({"hassette", "tests"})
+WATCHED_ROOTS: frozenset[str] = frozenset({"hassette", "tests", "hassette_client"})
 
 
 @dataclass(frozen=True)
@@ -232,6 +234,16 @@ RULES: list[Rule] = [
         forbids=forbids_prefix("tests.support"),
         reason="hassette.testing must not import tests.support (one-way dependency, #1333)",
     ),
+    Rule(
+        name="no-hassette-client",
+        applies=lambda _: True,
+        forbids=forbids_prefix("hassette_client"),
+        reason=(
+            "no hassette module may import hassette_client; the CLI plugin receives the client "
+            "through the hassette.cli entry point's register(app) argument, never through an "
+            "import (#2387)"
+        ),
+    ),
 ]
 
 
@@ -340,8 +352,8 @@ def dynamic_import_target(node: ast.Call, bound_names: frozenset[str]) -> str | 
 def runtime_imports(tree: ast.AST, package: str | None = None) -> list[tuple[int, str]]:
     """Return (lineno, imported module) for every runtime import rooted in a watched package.
 
-    Watched roots are ``WATCHED_ROOTS`` (``hassette``, ``tests``) — the two namespaces any
-    ``Rule`` might forbid. ``package`` is the importing module's dotted package, used to
+    Watched roots are ``WATCHED_ROOTS`` (``hassette``, ``tests``, ``hassette_client``) — the
+    namespaces any ``Rule`` might forbid. ``package`` is the importing module's dotted package, used to
     resolve relative imports; when omitted, relative imports are skipped. Covers static
     ``import``/``from`` forms and the dynamic ``importlib.import_module()``/``__import__()``
     forms (with a string-literal argument) — a rule with no escape hatch needs both, since a

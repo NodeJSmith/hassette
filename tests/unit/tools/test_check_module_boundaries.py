@@ -20,6 +20,10 @@ Also pins nested-module layer scoping (#2381): ``layer_of()`` resolves a file's 
 ``src/hassette``, not just its top-level package, and ``applies_prefix()``/``applies_outside()``
 let a ``Rule`` target a nested module independently of its siblings while every existing
 top-level rule keeps matching files nested arbitrarily deep under it.
+
+Also pins the ``no-hassette-client`` rule (#2387): no layer may import ``hassette_client`` at
+runtime — its ``applies`` is unconditional (``lambda _: True``), so it governs every layer rather
+than a single one like the rules above.
 """
 
 import textwrap
@@ -538,6 +542,35 @@ def test_testing_isolation_not_applied_outside_testing_layer() -> None:
     assert check_source(src, "core") == []
 
 
+def test_hassette_client_import_rejected_from_every_layer() -> None:
+    # no-hassette-client applies to every layer (Rule.applies=lambda _: True) — the CLI plugin
+    # receives the client through hassette.cli's register(app) argument, never an import (#2387).
+    # "hassette_client" is a bare WATCHED_ROOTS entry, so "from hassette_client import X" resolves
+    # like "from hassette import testing" does — the imported name is reassembled onto the root.
+    src = "from hassette_client import HassetteClient\n"
+    expected_msg = (
+        "no-hassette-client: imports hassette_client.HassetteClient — "
+        "no hassette module may import hassette_client; the CLI plugin receives the client "
+        "through the hassette.cli entry point's register(app) argument, never through an "
+        "import (#2387)"
+    )
+    for layer in ("core", "web", "cli", "<root>"):
+        assert check_source(src, layer) == [(1, expected_msg)]
+
+
+def test_hassette_client_submodule_import_rejected() -> None:
+    src = "import hassette_client.plugin\n"
+    assert check_source(src, "cli") == [
+        (
+            1,
+            "no-hassette-client: imports hassette_client.plugin — "
+            "no hassette module may import hassette_client; the CLI plugin receives the client "
+            "through the hassette.cli entry point's register(app) argument, never through an "
+            "import (#2387)",
+        )
+    ]
+
+
 def test_layer_of_top_level_file() -> None:
     assert layer_of(SRC / "core" / "foo.py") == "core"
 
@@ -587,9 +620,8 @@ def test_applies_outside_negates_prefix() -> None:
 
 
 def test_nested_rule_scopes_to_prefix_not_siblings() -> None:
-    # Proves a Rule can be scoped to a nested module path (e.g. the "only web/,
-    # core/telemetry/, and runtime_query_service.py may import hassette_wire" rule #2385
-    # needs) independently of sibling files under the same top-level package.
+    # Proves a Rule can be scoped to a nested module path independently of sibling files
+    # under the same top-level package, rather than only a whole top-level layer.
     rule = Rule(
         name="telemetry-example",
         applies=applies_prefix("core/telemetry"),

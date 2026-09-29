@@ -1,7 +1,7 @@
 ---
 task_id: "T05"
 title: "Add hassette_client boundary rule and wire freshness hook"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#13", "FR#15", "AC#9", "AC#11"]
 ---
