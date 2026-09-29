@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock
 
 import pytest
-from hassette_wire import ResourceStatus
+from hassette_wire import ResourceStatus, SystemStatusResponse
 
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_registry import AppRegistry
@@ -17,9 +17,9 @@ from hassette.events.hassette import (
     HassetteSimpleEvent,
 )
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
-from hassette.schemas.domain_models import SystemStatus
 from hassette.testing import wait_for
 from hassette.types.enums import BlockReason, ResourceRole, Topic
+from hassette.utils import get_version
 from tests.support.helpers import create_app_manifest
 from tests.support.mock_hassette import make_mock_hassette
 from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
@@ -510,11 +510,33 @@ class TestCompletionBatching:
 class TestSystemStatus:
     def test_get_system_status(self, runtime: RuntimeQueryService) -> None:
         status = runtime.get_system_status()
-        assert isinstance(status, SystemStatus)
+        assert isinstance(status, SystemStatusResponse)
         assert status.entity_count == 2
         assert status.app_count == 1
         assert status.log_queue_drops == 0
         assert status.db_write_queue_drops == 0
+
+    def test_get_system_status_returns_wire_model_with_version_and_resource_status(
+        self, runtime: RuntimeQueryService
+    ) -> None:
+        """get_system_status() builds the wire response directly, with an explicit version and
+        ResourceStatus-typed service statuses (no round trip through str).
+        """
+        mock_child = MagicMock()
+        mock_child.class_name = "WebsocketService"
+        mock_child.status = ResourceStatus.RUNNING
+        mock_child.role.value = "service"
+        mock_child._ready_reason = "connected to HA"
+        mock_child._retry_at = None
+        runtime.hassette.children = [mock_child]
+
+        status = runtime.get_system_status()
+
+        assert isinstance(status, SystemStatusResponse)
+        assert status.version == get_version()
+        assert len(status.services) == 1
+        for service in status.services:
+            assert isinstance(service.status, ResourceStatus)
 
     def test_get_system_status_reports_log_drop_counters_independently(self, runtime: RuntimeQueryService) -> None:
         runtime.hassette.get_log_queue_drops.return_value = 3

@@ -1,7 +1,7 @@
 ---
 task_id: "T03"
 title: "Collapse SystemStatus into the wire response models"
-status: "planned"
+status: "done"
 depends_on: ["T02"]
 implements: ["FR#3", "AC#6", "AC#2"]
 ---

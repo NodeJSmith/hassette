@@ -16,11 +16,13 @@ Telemetry DB query-result models are split by domain across sibling modules:
 - ``job_models.py`` — per-job summaries, stats, and error records
 - ``summary_models.py`` — app-health and global aggregates
 - ``log_models.py`` — log records and blocking events
-- ``domain_models.py`` — live state snapshots and WS event payloads
+
+Served models, WS payloads, and the live system-status snapshot are defined only in
+``hassette_wire`` — see that package for ``SystemStatusResponse``, ``ServiceInfoResponse``,
+``BootIssueResponse``, and the WS event payload models.
 """
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
-from hassette.schemas.domain_models import BootIssue, ServiceInfo, SystemStatus
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 
@@ -31,8 +33,5 @@ __all__ = [
     "AppInstanceInfo",
     "AppManifestInfo",
     "AppStatusSnapshot",
-    "BootIssue",
     "LiveCounts",
-    "ServiceInfo",
-    "SystemStatus",
 ]

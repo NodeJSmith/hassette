@@ -19,10 +19,8 @@ from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.scheduler.classes import ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
-from hassette.schemas.domain_models import ServiceInfo, SystemStatus
 from hassette.types.enums import ResourceRole
 from hassette.web.app import create_fastapi_app
-from hassette.web.mappers import system_status_response_from
 from tests.support.web_job_helpers import make_job_summary, make_real_job
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
@@ -413,46 +411,12 @@ class TestServiceInfoResponseExtension:
         assert resp.ready_phase is None
         assert resp.retry_at is None
 
-    def test_system_status_response_from_mapper_populates_fields(self) -> None:
-        """system_status_response_from() populates role, ready_phase, retry_at from ServiceInfo."""
-        status = SystemStatus(
-            status="ok",
-            websocket_connected=True,
-            bootstrap_released=True,
-            uptime_seconds=60.0,
-            entity_count=5,
-            app_count=2,
-            services=[
-                ServiceInfo(
-                    name="WebSocketService",
-                    status="running",
-                    role="Service",
-                    ready_phase="connected",
-                    retry_at=None,
-                ),
-                ServiceInfo(
-                    name="DatabaseService",
-                    status="exhausted_cooling",
-                    role="Service",
-                    ready_phase=None,
-                    retry_at=1700001000.0,
-                ),
-            ],
-        )
-
-        response = system_status_response_from(status)
-
-        ws_svc = next(s for s in response.services if s.name == "WebSocketService")
-        assert ws_svc.role == "Service"
-        assert ws_svc.ready_phase == "connected"
-        assert ws_svc.retry_at is None
-
-        db_svc = next(s for s in response.services if s.name == "DatabaseService")
-        assert db_svc.retry_at == 1700001000.0
-        assert db_svc.ready_phase is None
-
     def test_get_system_status_populates_service_info_fields(self) -> None:
-        """get_system_status() populates role, ready_phase, retry_at on ServiceInfo objects."""
+        """get_system_status() populates role, ready_phase, retry_at on ServiceInfoResponse objects.
+
+        Covers both a service with a ready phase and no pending retry, and a second cooling-down
+        service with a retry timestamp and no ready phase.
+        """
         mock_child = MagicMock()
         mock_child.class_name = "WebSocketService"
         mock_child.status = ResourceStatus.RUNNING
@@ -460,13 +424,20 @@ class TestServiceInfoResponseExtension:
         mock_child._ready_reason = "connected to HA"
         mock_child._retry_at = None
 
+        mock_cooling_child = MagicMock()
+        mock_cooling_child.class_name = "DatabaseService"
+        mock_cooling_child.status = ResourceStatus.EXHAUSTED_COOLING
+        mock_cooling_child.role = ResourceRole.SERVICE
+        mock_cooling_child._ready_reason = None
+        mock_cooling_child._retry_at = 1700001000.0
+
         mock_hassette = MagicMock()
         mock_hassette.websocket_service = mock_child
         mock_hassette.websocket_service.is_ready.return_value = True
         mock_hassette._websocket_service = mock_child
         mock_hassette.state_proxy.states = {}
         mock_hassette.state_proxy.is_ready.return_value = True
-        mock_hassette.children = [mock_child]
+        mock_hassette.children = [mock_child, mock_cooling_child]
         mock_hassette.app_handler.registry.get_full_snapshot.return_value = MagicMock(manifests=[])
         mock_hassette.app_handler.get_status_snapshot.return_value = MagicMock(total_count=0)
 
@@ -477,10 +448,15 @@ class TestServiceInfoResponseExtension:
 
         result = svc_instance.get_system_status()
 
-        assert len(result.services) == 1
-        svc_info = result.services[0]
-        assert svc_info.name == "WebSocketService"
-        assert svc_info.role == "service"
+        assert len(result.services) == 2
+        ws_svc = next(s for s in result.services if s.name == "WebSocketService")
+        assert ws_svc.role == "service"
+        assert ws_svc.ready_phase == "connected to HA"
+        assert ws_svc.retry_at is None
+
+        db_svc = next(s for s in result.services if s.name == "DatabaseService")
+        assert db_svc.retry_at == 1700001000.0
+        assert db_svc.ready_phase is None
 
 
 class TestHealthEndpointServiceInfoFields:

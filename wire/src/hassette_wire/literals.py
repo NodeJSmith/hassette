@@ -31,5 +31,5 @@ Verified against ``listener_kind_from_topic()`` return values in ``mappers.py``.
 SystemHealthStatus = Literal["ok", "degraded", "starting"]
 """System-level health status (3 values).
 
-Mirrors ``SystemStatus.status`` from ``src/hassette/schemas/domain_models.py``.
+Mirrors ``SystemStatusResponse.status`` defined in this package (``health.py``).
 """

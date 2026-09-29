@@ -10,9 +10,12 @@ from hassette_wire import (
     LOG_LEVEL_TYPE,
     AppManifestsChangedData,
     AppStatusChangedData,
+    BootIssueResponse,
     ConnectivityData,
     ManifestStatus,
+    ServiceInfoResponse,
     ServiceStatusData,
+    SystemStatusResponse,
 )
 from pydantic import BaseModel
 
@@ -25,8 +28,8 @@ from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
-from hassette.schemas.domain_models import BootIssue, ServiceInfo, SystemStatus
 from hassette.types import Topic
+from hassette.utils import get_version
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -295,7 +298,7 @@ class RuntimeQueryService(Resource):
         except (AttributeError, RuntimeError):
             return False
 
-    def get_system_status(self) -> SystemStatus:
+    def get_system_status(self) -> SystemStatusResponse:
         websocket_service = self.hassette.websocket_service
         is_connected = websocket_service.is_connected
         uptime = time.time() - self._start_time
@@ -312,9 +315,9 @@ class RuntimeQueryService(Resource):
             app_count = 0
 
         services = [
-            ServiceInfo(
+            ServiceInfoResponse(
                 name=child.class_name,
-                status=child.status.value,
+                status=child.status,
                 role=child.role.value,
                 ready_phase=getattr(child, "_ready_reason", None),
                 retry_at=getattr(child, "_retry_at", None),
@@ -335,7 +338,7 @@ class RuntimeQueryService(Resource):
 
         boot_issues = self.collect_boot_issues()
 
-        return SystemStatus(
+        return SystemStatusResponse(
             status=status,
             websocket_connected=is_connected,
             bootstrap_released=bootstrap_released,
@@ -343,21 +346,22 @@ class RuntimeQueryService(Resource):
             entity_count=entity_count,
             app_count=app_count,
             services=services,
+            version=get_version(),
             boot_issues=boot_issues,
             log_queue_drops=self.hassette.get_log_queue_drops(),
             db_write_queue_drops=self.hassette.get_db_write_queue_drops(),
             log_persistence_active=self.hassette.is_log_persistence_active(),
         )
 
-    def collect_boot_issues(self) -> list[BootIssue]:
+    def collect_boot_issues(self) -> list[BootIssueResponse]:
         """Collect boot-time issues from blocked apps, failed app instances, and pending bootstrap.
 
-        Returns a list of ``BootIssue`` objects derived from:
+        Returns a list of ``BootIssueResponse`` objects derived from:
         - App bootstrap not yet released while at least one autostart app is configured — severity ``warn``
         - Apps that are blocked (e.g. import error, pre-check failure) — severity ``warn``
         - Apps that failed to start — severity ``err``
         """
-        issues: list[BootIssue] = []
+        issues: list[BootIssueResponse] = []
         try:
             full_snapshot = self.hassette.app_handler.registry.get_full_snapshot()
         except (AttributeError, RuntimeError):
@@ -365,7 +369,7 @@ class RuntimeQueryService(Resource):
 
         if not self.is_bootstrap_released() and any(manifest.autostart for manifest in full_snapshot.manifests):
             issues.append(
-                BootIssue(
+                BootIssueResponse(
                     severity="warn",
                     label="Apps pending on Home Assistant",
                     detail=(
@@ -378,7 +382,7 @@ class RuntimeQueryService(Resource):
         for manifest in full_snapshot.manifests:
             if manifest.status == ManifestStatus.BLOCKED and manifest.block_reason:
                 issues.append(
-                    BootIssue(
+                    BootIssueResponse(
                         severity="warn",
                         label=f"App blocked: {manifest.display_name}",
                         detail=manifest.block_reason,
@@ -386,7 +390,7 @@ class RuntimeQueryService(Resource):
                 )
             elif manifest.status in (ManifestStatus.FAILED, ManifestStatus.DEGRADED) and manifest.error_message:
                 issues.append(
-                    BootIssue(
+                    BootIssueResponse(
                         severity="err",
                         label=f"App failed: {manifest.display_name}",
                         detail=manifest.error_message,

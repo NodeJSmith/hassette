@@ -4,7 +4,7 @@ from fastapi import APIRouter, Response
 from hassette_wire import LivenessResponse, ReadinessResponse, SystemStatusResponse
 
 from hassette.web.dependencies import RuntimeDep
-from hassette.web.mappers import readiness_response_from, system_status_response_from
+from hassette.web.mappers import readiness_response_from
 
 router = APIRouter(tags=["health"])
 
@@ -12,7 +12,7 @@ router = APIRouter(tags=["health"])
 @router.get("/health", response_model=SystemStatusResponse)
 async def get_health(runtime: RuntimeDep) -> SystemStatusResponse:
     """Return the full system status. Always HTTP 200 while the process can serve."""
-    return system_status_response_from(runtime.get_system_status())
+    return runtime.get_system_status()
 
 
 @router.get("/health/live", response_model=LivenessResponse)

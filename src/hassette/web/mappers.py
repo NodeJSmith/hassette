@@ -3,41 +3,38 @@
 Each function converts a domain type (from ``hassette.schemas``) to the
 appropriate Pydantic response model from ``hassette_wire``. Web routes
 call these instead of receiving pre-mapped response objects from
-``RuntimeQueryService``.
+``RuntimeQueryService`` — except where a service already builds a wire
+response model directly, with no domain source to convert (e.g.
+``LivenessResponse``, and ``SystemStatusResponse`` from
+``RuntimeQueryService.get_system_status()``, returned as-is by
+``/health``).
 
 Enum coercion note
 ------------------
 ``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``), and
 ``AppManifestInfo.status`` is a ``ManifestStatus`` enum (``StrEnum``). Pydantic coerces both
-directly — pass the enum value as-is. ``ServiceInfo.status`` is a ``str`` with ResourceStatus
-values; cast for pyright.
+directly — pass the enum value as-is.
 """
 
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any
 
 from hassette_wire import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
     AppStatusResponse,
-    BootIssueResponse,
     ConnectedPayload,
     ListenerKind,
     ListenerWithSummary,
     ReadinessResponse,
-    ServiceInfoResponse,
     SystemStatusResponse,
 )
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
-from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
 from hassette.types.enums import Topic
 from hassette.web.telemetry_helpers import format_handler_summary
-
-if TYPE_CHECKING:
-    from hassette_wire import ResourceStatus
 
 TOPIC_KIND_MAP: dict[str, ListenerKind] = {
     Topic.HASS_EVENT_STATE_CHANGED: "state change",
@@ -113,50 +110,18 @@ def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListRes
     )
 
 
-def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
-    """Convert a ``SystemStatus`` domain object to ``SystemStatusResponse``."""
-    boot_issues = [
-        BootIssueResponse(severity=issue.severity, label=issue.label, detail=issue.detail)
-        for issue in status.boot_issues
-    ]
-    services = [
-        ServiceInfoResponse(
-            name=service.name,
-            status=cast("ResourceStatus", service.status),  # ServiceInfo.status is str
-            role=service.role,
-            ready_phase=service.ready_phase,
-            retry_at=service.retry_at,
-        )
-        for service in status.services
-    ]
-    return SystemStatusResponse(
-        status=status.status,
-        websocket_connected=status.websocket_connected,
-        bootstrap_released=status.bootstrap_released,
-        uptime_seconds=status.uptime_seconds,
-        entity_count=status.entity_count,
-        app_count=status.app_count,
-        services=services,
-        version=status.version,
-        boot_issues=boot_issues,
-        log_queue_drops=status.log_queue_drops,
-        db_write_queue_drops=status.db_write_queue_drops,
-        log_persistence_active=status.log_persistence_active,
-    )
-
-
-def readiness_response_from(status: SystemStatus) -> ReadinessResponse:
-    """Convert a ``SystemStatus`` domain object to ``ReadinessResponse``.
+def readiness_response_from(status: SystemStatusResponse) -> ReadinessResponse:
+    """Convert a ``SystemStatusResponse`` to ``ReadinessResponse``.
 
     Readiness is derived solely from the aggregate status: ready only when ``ok``.
     """
     return ReadinessResponse(status=status.status, ready=status.status == "ok")
 
 
-def connected_payload_from(status: SystemStatus) -> ConnectedPayload:
-    """Build a ``ConnectedPayload`` from a ``SystemStatus``.
+def connected_payload_from(status: SystemStatusResponse) -> ConnectedPayload:
+    """Build a ``ConnectedPayload`` from a ``SystemStatusResponse``.
 
-    ``uptime_seconds`` is sourced from ``SystemStatus.uptime_seconds``, which
+    ``uptime_seconds`` is sourced from ``SystemStatusResponse.uptime_seconds``, which
     is computed from the same ``_start_time`` used by ``GET /health``.
     """
     return ConnectedPayload(

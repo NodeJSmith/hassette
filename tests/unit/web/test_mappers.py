@@ -15,7 +15,6 @@ from hassette_wire import (
 )
 
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
-from hassette.schemas.domain_models import SystemStatus
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
 from hassette.web.mappers import (
@@ -24,7 +23,6 @@ from hassette.web.mappers import (
     connected_payload_from,
     instance_response_from,
     readiness_response_from,
-    system_status_response_from,
     to_listener_with_summary,
 )
 from tests.support.web_manifest_helpers import make_full_snapshot, make_manifest
@@ -228,7 +226,7 @@ def test_app_manifest_list_response_from_preserves_counts():
     assert result.status_counts["blocked"] == 1
 
 
-def make_system_status(**overrides) -> SystemStatus:
+def make_system_status(**overrides) -> SystemStatusResponse:
     defaults = {
         "status": "ok",
         "websocket_connected": True,
@@ -238,57 +236,14 @@ def make_system_status(**overrides) -> SystemStatus:
         "app_count": 3,
     }
     defaults.update(overrides)
-    return SystemStatus(**defaults)
-
-
-def test_system_status_response_from_preserves_all_fields():
-    """All fields are preserved."""
-    domain = make_system_status()
-
-    result = system_status_response_from(domain)
-
-    assert isinstance(result, SystemStatusResponse)
-    assert result.status == "ok"
-    assert result.websocket_connected is True
-    assert result.bootstrap_released is True
-    assert result.uptime_seconds == 123.4
-    assert result.entity_count == 42
-    assert result.app_count == 3
-
-
-def test_system_status_response_from_carries_log_persistence_fields() -> None:
-    """Drop count and persistence health both reach the response model."""
-    domain = make_system_status(db_write_queue_drops=4, log_persistence_active=True)
-
-    result = system_status_response_from(domain)
-
-    assert result.db_write_queue_drops == 4
-    assert result.log_persistence_active is True
-
-
-def test_system_status_response_from_uptime_zero():
-    """uptime_seconds=0.0 (earliest possible value) passes through."""
-    domain = make_system_status(uptime_seconds=0.0)
-
-    result = system_status_response_from(domain)
-
-    assert result.uptime_seconds == 0.0
-
-
-def test_system_status_response_from_degraded_status():
-    """'degraded' status passes through."""
-    domain = make_system_status(status="degraded")
-
-    result = system_status_response_from(domain)
-
-    assert result.status == "degraded"
+    return SystemStatusResponse(**defaults)
 
 
 def test_connected_payload_from_uses_system_status_fields():
-    """entity_count, app_count, and uptime_seconds come from SystemStatus."""
-    domain = make_system_status(entity_count=100, app_count=5, uptime_seconds=300.0)
+    """entity_count, app_count, and uptime_seconds come from SystemStatusResponse."""
+    status = make_system_status(entity_count=100, app_count=5, uptime_seconds=300.0)
 
-    result = connected_payload_from(domain)
+    result = connected_payload_from(status)
 
     assert isinstance(result, ConnectedPayload)
     assert result.entity_count == 100
@@ -297,19 +252,19 @@ def test_connected_payload_from_uses_system_status_fields():
 
 
 def test_connected_payload_from_uptime_seconds_from_status():
-    """uptime_seconds is derived from SystemStatus, not a separate parameter."""
-    domain = make_system_status(uptime_seconds=42.5)
+    """uptime_seconds is derived from SystemStatusResponse, not a separate parameter."""
+    status = make_system_status(uptime_seconds=42.5)
 
-    result = connected_payload_from(domain)
+    result = connected_payload_from(status)
 
     assert result.uptime_seconds == 42.5
 
 
 def test_connected_payload_from_no_session_id():
     """ConnectedPayload no longer carries session_id."""
-    domain = make_system_status()
+    status = make_system_status()
 
-    result = connected_payload_from(domain)
+    result = connected_payload_from(status)
 
     assert not hasattr(result, "session_id")
 
@@ -465,8 +420,8 @@ def test_liveness_response_status_field_is_literal_live():
 
 def test_readiness_response_from_ok_status():
     """readiness_response_from produces ready=True for 'ok' status."""
-    domain = make_system_status(status="ok")
-    result = readiness_response_from(domain)
+    status = make_system_status(status="ok")
+    result = readiness_response_from(status)
     assert isinstance(result, ReadinessResponse)
     assert result.ready is True
     assert result.status == "ok"
@@ -474,15 +429,15 @@ def test_readiness_response_from_ok_status():
 
 def test_readiness_response_from_degraded_status():
     """readiness_response_from produces ready=False for 'degraded' status."""
-    domain = make_system_status(status="degraded", websocket_connected=False)
-    result = readiness_response_from(domain)
+    status = make_system_status(status="degraded", websocket_connected=False)
+    result = readiness_response_from(status)
     assert result.ready is False
     assert result.status == "degraded"
 
 
 def test_readiness_response_from_starting_status():
     """readiness_response_from produces ready=False for 'starting' status."""
-    domain = make_system_status(status="starting", websocket_connected=False)
-    result = readiness_response_from(domain)
+    status = make_system_status(status="starting", websocket_connected=False)
+    result = readiness_response_from(status)
     assert result.ready is False
     assert result.status == "starting"

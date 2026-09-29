@@ -3,7 +3,8 @@
 These typed models replace raw ``dict`` returns, preventing the
 "column rename -> silent template failure" class of bugs.
 
-For live runtime state models, see ``domain_models.py``.
+For app-registry snapshots, see ``hassette.schemas.app_snapshots``. For the live
+system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
 
 See ``schemas/__init__.py`` for the domain-file map.
 """
