@@ -46,6 +46,10 @@ SourceTierQuery = Annotated[
         "'framework' returns only internal actors. 'all' returns everything."
     ),
 ]
+"""Source-tier filter for telemetry-metrics endpoints, which default to ``"app"``.
+
+``GET /logs/recent`` deliberately defaults to both tiers instead — see ``routes/logs.py``.
+"""
 LimitQuery = Annotated[int, Query(ge=1, le=MAX_QUERY_LIMIT)]
 
 
