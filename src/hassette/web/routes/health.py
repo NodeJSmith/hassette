@@ -1,10 +1,10 @@
 """Health and status endpoints."""
 
 from fastapi import APIRouter, Response
+from hassette_wire import LivenessResponse, ReadinessResponse, SystemStatusResponse
 
 from hassette.web.dependencies import RuntimeDep
 from hassette.web.mappers import readiness_response_from, system_status_response_from
-from hassette.web.models import LivenessResponse, ReadinessResponse, SystemStatusResponse
 
 router = APIRouter(tags=["health"])
 

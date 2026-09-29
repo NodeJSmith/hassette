@@ -3,24 +3,25 @@
 from dataclasses import asdict
 
 import pytest
-from hassette_wire import ExecutionStatus, ResourceStatus
-from pydantic import TypeAdapter
-
-from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPayload, ServiceStatusPayload
-from hassette.schemas.domain_models import AppStatusChangedData as AppStatusChangedPayload
-from hassette.schemas.domain_models import ServiceStatusData as WsServiceStatusPayload
-from hassette.types.enums import ResourceRole
-from hassette.web.models import (
+from hassette_wire import AppStatusChangedData as AppStatusChangedPayload
+from hassette_wire import (
     AppStatusChangedWsMessage,
     ConnectedPayload,
     ConnectedWsMessage,
     ConnectivityWsMessage,
     ExecutionCompletedData,
     ExecutionCompletedWsMessage,
+    ExecutionStatus,
     LogHintWsMessage,
+    ResourceStatus,
     ServiceStatusWsMessage,
     WsServerMessage,
 )
+from hassette_wire import ServiceStatusData as WsServiceStatusPayload
+from pydantic import TypeAdapter
+
+from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPayload, ServiceStatusPayload
+from hassette.types.enums import ResourceRole
 
 TEST_TIMESTAMP = 1234567890.0
 

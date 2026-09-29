@@ -6,7 +6,14 @@ import json
 import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from hassette_wire import LOG_LEVEL_TYPE, ManifestStatus
+from hassette_wire import (
+    LOG_LEVEL_TYPE,
+    AppManifestsChangedData,
+    AppStatusChangedData,
+    ConnectivityData,
+    ManifestStatus,
+    ServiceStatusData,
+)
 from pydantic import BaseModel
 
 from hassette.bus import Bus
@@ -18,15 +25,7 @@ from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
-from hassette.schemas.domain_models import (
-    AppManifestsChangedData,
-    AppStatusChangedData,
-    BootIssue,
-    ConnectivityData,
-    ServiceInfo,
-    ServiceStatusData,
-    SystemStatus,
-)
+from hassette.schemas.domain_models import BootIssue, ServiceInfo, SystemStatus
 from hassette.types import Topic
 
 if TYPE_CHECKING:

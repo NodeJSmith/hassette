@@ -10,10 +10,20 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Annotated, Literal
 
 from fastapi import APIRouter, Query, Response
+from hassette_wire import (
+    ActivityBucket,
+    ActivityFeedEntry,
+    AppHealthResponse,
+    DashboardAppGridEntry,
+    DashboardAppGridResponse,
+    Execution,
+    HealthStatus,
+    JobSummary,
+    ListenerWithSummary,
+    TelemetryStatusResponse,
+)
 
 from hassette.exceptions import TelemetryUnavailableError
-from hassette.schemas.execution_models import ActivityFeedEntry, AppLastError, Execution
-from hassette.schemas.job_models import JobSummary
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.schemas.summary_models import AppHealthSummary
 from hassette.web.dependencies import (
@@ -29,15 +39,6 @@ from hassette.web.dependencies import (
     db_degrades_to,
 )
 from hassette.web.mappers import manifest_response_fields, to_listener_with_summary
-from hassette.web.models import (
-    ActivityBucket,
-    AppHealthResponse,
-    DashboardAppGridEntry,
-    DashboardAppGridResponse,
-    HealthStatus,
-    ListenerWithSummary,
-    TelemetryStatusResponse,
-)
 from hassette.web.telemetry_helpers import (
     classify_error_rate,
     classify_health_bar,
@@ -48,6 +49,7 @@ from hassette.web.utils import enrich_jobs_with_live_data
 
 if TYPE_CHECKING:
     from hassette.schemas.app_snapshots import AppManifestInfo
+    from hassette.schemas.execution_models import AppLastError
 
 LOGGER = getLogger(__name__)
 

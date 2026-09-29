@@ -10,11 +10,10 @@ Covers:
 from typing import Literal
 
 import pytest
-from hassette_wire import ExecutionStatus
+from hassette_wire import Execution, ExecutionStatus
 from pydantic import ValidationError
 
 from hassette.core.execution_record import ExecutionRecord
-from hassette.schemas.execution_models import Execution
 from tests.support.factories import make_execution_record
 from tests.support.web_job_helpers import TEST_EPOCH_B
 

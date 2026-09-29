@@ -9,8 +9,9 @@ import logging
 import queue
 from unittest.mock import MagicMock
 
+from hassette_wire import LogHintWsMessage
+
 from hassette.logging_ import HassetteQueueHandler, LogCaptureHandler
-from hassette.web.models import LogHintWsMessage
 from tests.support.factories import build_log_entry, make_log_record, make_recording_log_capture_handler
 from tests.unit.conftest import LoggingPipelineFixture
 

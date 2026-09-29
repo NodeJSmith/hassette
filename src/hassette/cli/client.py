@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Literal, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
+from hassette_wire import ActionResponse, AppInstanceResponse, AppManifestListResponse
 from pydantic import ValidationError
 from rich.markup import escape
 
@@ -30,7 +31,6 @@ from hassette.cli.target import (
 )
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import FatalError
-from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse
 
 DEFAULT_TIMEOUT = 10.0
 
@@ -226,7 +226,7 @@ class HassetteCLIClient:
         """Perform a POST request to an app mutation endpoint, deserialize, and handle errors.
 
         Action routes (start/stop/reload) take no request body or query params and always
-        respond with an :class:`~hassette.web.models.ActionResponse` on success.
+        respond with an :class:`~hassette_wire.ActionResponse` on success.
 
         Raises:
             SystemExit: On HTTP 4xx/5xx (code 1), network errors (code 2), or a
@@ -268,7 +268,7 @@ class HassetteCLIClient:
                 action.
 
         Returns:
-            The deserialized :class:`~hassette.web.models.ActionResponse`.
+            The deserialized :class:`~hassette_wire.ActionResponse`.
         """
         path = (
             f"/api/apps/{app_key}/{action}"

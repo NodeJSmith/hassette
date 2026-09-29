@@ -1,9 +1,10 @@
 """System-level CLI commands: status, telemetry, dashboard."""
 
+from hassette_wire import DashboardAppGridResponse, SystemStatusResponse, TelemetryStatusResponse
+
 from hassette.cli.client import make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
-from hassette.web.models import DashboardAppGridResponse, SystemStatusResponse, TelemetryStatusResponse
 
 DASHBOARD_COLUMNS: list[Column] = [
     Column("app_key", "App", max_width=20),

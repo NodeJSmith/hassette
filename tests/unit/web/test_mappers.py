@@ -1,7 +1,18 @@
 """Unit tests for web/mappers.py — domain-to-response model conversions."""
 
 import pytest
-from hassette_wire import ManifestStatus, ResourceStatus
+from hassette_wire import (
+    AppInstanceResponse,
+    AppManifestListResponse,
+    AppStatusResponse,
+    ConnectedPayload,
+    ListenerWithSummary,
+    LivenessResponse,
+    ManifestStatus,
+    ReadinessResponse,
+    ResourceStatus,
+    SystemStatusResponse,
+)
 
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.schemas.domain_models import SystemStatus
@@ -15,16 +26,6 @@ from hassette.web.mappers import (
     readiness_response_from,
     system_status_response_from,
     to_listener_with_summary,
-)
-from hassette.web.models import (
-    AppInstanceResponse,
-    AppManifestListResponse,
-    AppStatusResponse,
-    ConnectedPayload,
-    ListenerWithSummary,
-    LivenessResponse,
-    ReadinessResponse,
-    SystemStatusResponse,
 )
 from tests.support.web_manifest_helpers import make_full_snapshot, make_manifest
 from tests.support.web_telemetry_helpers import make_listener_summary

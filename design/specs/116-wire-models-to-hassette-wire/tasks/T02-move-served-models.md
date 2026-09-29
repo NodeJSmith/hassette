@@ -1,7 +1,7 @@
 ---
 task_id: "T02"
 title: "Move served models and WS payloads into hassette_wire"
-status: "planned"
+status: "done"
 depends_on: ["T01"]
 implements: ["FR#1", "FR#2", "FR#4", "FR#9", "FR#10", "AC#1", "AC#4", "AC#5"]
 ---

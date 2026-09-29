@@ -3,10 +3,7 @@
 from typing import Any
 
 import tomli_w
-
-from hassette.config.models import DEFAULT_WEB_API_PORT
-from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
-from hassette.web.models import (
+from hassette_wire import (
     AppConfigResponse,
     AppHealthResponse,
     AppInstanceResponse,
@@ -17,6 +14,9 @@ from hassette.web.models import (
     SystemStatusResponse,
     TelemetryStatusResponse,
 )
+
+from hassette.config.models import DEFAULT_WEB_API_PORT
+from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
 
 
 def make_system_status_response(

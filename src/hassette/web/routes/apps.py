@@ -8,6 +8,14 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import tomli_w
 from fastapi import APIRouter, HTTPException, Request, Response
+from hassette_wire import (
+    ActionResponse,
+    AppConfigResponse,
+    AppManifestListResponse,
+    AppManifestResponse,
+    AppSourceResponse,
+    AppStatusResponse,
+)
 
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
@@ -18,14 +26,6 @@ from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep, db_degrades_to
 from hassette.web.mappers import app_manifest_list_response_from, app_manifest_response_from, app_status_response_from
-from hassette.web.models import (
-    ActionResponse,
-    AppConfigResponse,
-    AppManifestListResponse,
-    AppManifestResponse,
-    AppSourceResponse,
-    AppStatusResponse,
-)
 
 if TYPE_CHECKING:
     from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo

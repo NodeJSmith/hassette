@@ -9,12 +9,12 @@ from typing import Any
 
 import httpx2 as httpx
 import pytest
+from hassette_wire import ActionResponse, AppInstanceResponse, AppManifestListResponse
 from pydantic import BaseModel
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.config.models import WebApiConfig
-from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse
 from tests.support.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, capture_stderr, make_cli_config
 

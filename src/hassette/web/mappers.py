@@ -1,7 +1,7 @@
 """Mapping functions from core domain objects to web response models.
 
 Each function converts a domain type (from ``hassette.schemas``) to the
-appropriate Pydantic response model from ``hassette.web.models``. Web routes
+appropriate Pydantic response model from ``hassette_wire``. Web routes
 call these instead of receiving pre-mapped response objects from
 ``RuntimeQueryService``.
 
@@ -15,12 +15,7 @@ values; cast for pyright.
 
 from typing import TYPE_CHECKING, Any, cast
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
-from hassette.schemas.domain_models import SystemStatus
-from hassette.schemas.listener_models import ListenerSummary
-from hassette.schemas.live_counts import LiveCounts
-from hassette.types.enums import Topic
-from hassette.web.models import (
+from hassette_wire import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
@@ -33,6 +28,12 @@ from hassette.web.models import (
     ServiceInfoResponse,
     SystemStatusResponse,
 )
+
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.domain_models import SystemStatus
+from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.live_counts import LiveCounts
+from hassette.types.enums import Topic
 from hassette.web.telemetry_helpers import format_handler_summary
 
 if TYPE_CHECKING:

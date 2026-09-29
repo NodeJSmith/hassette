@@ -131,7 +131,7 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "ASYNC221", # blocking subprocess in async test functions (docker management)
     "PT031",  # GC-triggered warning tests require del + gc.collect() (two statements)
 ]
-"wire/tests/**/*.py" = ["S101"]
+"wire/tests/**/*.py" = ["S101", "S603"]
 "client/tests/**/*.py" = ["S101"]
 "tests/integration/telemetry/test_session_queries.py" = ["ASYNC251"]
 "tools/*.py" = ["S603", "S607"]

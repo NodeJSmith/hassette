@@ -9,8 +9,9 @@ from collections.abc import Callable, Mapping
 from typing import TypeVar
 from unittest.mock import AsyncMock
 
-from hassette.schemas.execution_models import Execution
-from hassette.schemas.job_models import JobErrorRecord, JobGlobalStats, JobSummary
+from hassette_wire import Execution, JobSummary
+
+from hassette.schemas.job_models import JobErrorRecord, JobGlobalStats
 from hassette.schemas.listener_models import HandlerErrorRecord, ListenerGlobalStats, ListenerSummary
 from hassette.schemas.summary_models import AppHealthSummary, GlobalSummary
 from tests.e2e.mock_fixtures.constants import (

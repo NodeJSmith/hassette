@@ -24,7 +24,6 @@ models via ``hassette.web.mappers``. Core services must NOT import from
 
 from typing import Literal
 
-from hassette_wire import ResourceStatus
 from pydantic import BaseModel, Field
 
 from hassette.utils import get_version
@@ -103,61 +102,3 @@ class SystemStatus(BaseModel):
     False means log persistence is unavailable, so ``db_write_queue_drops`` of 0 reflects a
     dead pipeline rather than a healthy one.
     """
-
-
-class AppStatusChangedData(BaseModel):
-    """Payload for an app lifecycle state-change event broadcast over WebSocket.
-
-    Mirrors ``events.hassette.AppStateChangePayload`` exactly.
-    """
-
-    app_key: str
-    index: int
-    status: ResourceStatus
-    previous_status: ResourceStatus | None = None
-    instance_name: str | None = None
-    class_name: str | None = None
-    exception: str | None = None
-    exception_type: str | None = None
-    exception_traceback: str | None = None
-
-
-class ConnectivityData(BaseModel):
-    """Payload for a Home Assistant WebSocket connectivity event."""
-
-    connected: bool
-
-
-class AppManifestsChangedData(BaseModel):
-    """Payload for a manifest refresh broadcast over WebSocket.
-
-    Carries no fields and does not identify which apps changed — it is a refetch
-    signal, not a diff. Clients should treat receipt as "manifest status may be
-    stale, refetch" rather than inspect the payload.
-    """
-
-
-class ServiceStatusData(BaseModel):
-    """Payload for an internal service status-change event broadcast over WebSocket.
-
-    Mirrors ``events.hassette.ServiceStatusPayload``.
-    """
-
-    resource_name: str
-    role: str
-    status: ResourceStatus
-    previous_status: ResourceStatus | None = None
-    exception: str | None = None
-    exception_type: str | None = None
-    exception_traceback: str | None = None
-    retry_at: float | None = None
-    """Unix timestamp when the next restart will be attempted.
-
-    Populated for ``EXHAUSTED_COOLING`` events (the service is in a long cooldown
-    and will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other
-    statuses.  The frontend uses this to display a live countdown timer.
-    """
-    ready: bool = False
-    """Whether the service had signalled readiness at the time of this status event."""
-    ready_phase: str | None = None
-    """Human-readable description of the current readiness phase, or None if not available."""

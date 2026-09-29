@@ -33,5 +33,4 @@ ignore:
   - "src/hassette/types/enums.py"    # StrEnum declarations
   - "src/hassette/types/types.py"    # type aliases, TypedDicts, Protocols
   - "src/hassette/const/**"          # literal constants
-  - "src/hassette/web/models.py"     # Pydantic response schemas
   - "src/hassette/schemas/**"        # Pydantic query/telemetry schemas

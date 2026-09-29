@@ -3,7 +3,7 @@
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from hassette.schemas.job_models import JobSummary
+from hassette_wire import JobSummary
 
 if TYPE_CHECKING:
     from hassette.core.scheduler_service import SchedulerService

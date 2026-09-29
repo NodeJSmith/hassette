@@ -20,14 +20,7 @@ Telemetry DB query-result models are split by domain across sibling modules:
 """
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
-from hassette.schemas.domain_models import (
-    AppStatusChangedData,
-    BootIssue,
-    ConnectivityData,
-    ServiceInfo,
-    ServiceStatusData,
-    SystemStatus,
-)
+from hassette.schemas.domain_models import BootIssue, ServiceInfo, SystemStatus
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 
@@ -37,12 +30,9 @@ __all__ = [
     "AppFullSnapshot",
     "AppInstanceInfo",
     "AppManifestInfo",
-    "AppStatusChangedData",
     "AppStatusSnapshot",
     "BootIssue",
-    "ConnectivityData",
     "LiveCounts",
     "ServiceInfo",
-    "ServiceStatusData",
     "SystemStatus",
 ]

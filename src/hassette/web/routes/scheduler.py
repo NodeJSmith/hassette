@@ -6,12 +6,11 @@ Returns all scheduled jobs across all apps, enriched with live registry data.
 from logging import getLogger
 
 from fastapi import APIRouter, HTTPException, Request, Response
+from hassette_wire import JobSummary, JobTriggerResponse
 
 from hassette.exceptions import JobRemovedError
-from hassette.schemas.job_models import JobSummary
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.dependencies import SchedulerDep, SinceQuery, SourceTierQuery, TelemetryDep, db_degrades_to
-from hassette.web.models import JobTriggerResponse
 from hassette.web.utils import enrich_jobs_with_live_data
 
 LOGGER = getLogger(__name__)

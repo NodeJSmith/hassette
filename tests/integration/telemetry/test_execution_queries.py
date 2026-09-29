@@ -6,9 +6,9 @@ Covers get_executions() and get_slow_handlers().
 import time
 
 import pytest
+from hassette_wire import Execution
 
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.schemas.execution_models import Execution
 
 from .helpers import DbFixture, insert_execution, insert_invocation, insert_job, insert_listener
 
