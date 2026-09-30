@@ -1,31 +1,25 @@
 from enum import StrEnum, auto
 
-import hassette_wire
+from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 
 # The contract enums (ResourceStatus, ManifestStatus, ExecutionMode, BackpressurePolicy,
-# ExecutionStatus) live in hassette_wire — one definition, no mirrors. App authors import
-# ResourceStatus, ExecutionMode, BackpressurePolicy, and ExecutionStatus from hassette. This
-# module keeps the non-contract enums and the constants that reference the moved ones,
-# qualified through hassette_wire rather than re-exported here.
+# ExecutionStatus) are defined in hassette_wire — one definition, no mirrors. App authors import
+# the public ones (ResourceStatus, ExecutionMode, BackpressurePolicy, ExecutionStatus) from
+# hassette. This module keeps the non-contract enums and the constants that reference the moved
+# ones.
 
-DEFAULT_OVERLAP_MODE: hassette_wire.ExecutionMode = hassette_wire.ExecutionMode.SINGLE
+DEFAULT_OVERLAP_MODE: ExecutionMode = ExecutionMode.SINGLE
 """Default overlap mode for registration/summary models when none is resolved yet."""
 
 
-DEFAULT_BACKPRESSURE_POLICY: hassette_wire.BackpressurePolicy = hassette_wire.BackpressurePolicy.BLOCK
+DEFAULT_BACKPRESSURE_POLICY: BackpressurePolicy = BackpressurePolicy.BLOCK
 """Default backpressure policy for registration/summary models when none is specified."""
 
-TERMINAL_STATUSES: frozenset[hassette_wire.ResourceStatus] = frozenset(
-    {hassette_wire.ResourceStatus.STOPPED, hassette_wire.ResourceStatus.EXHAUSTED_DEAD}
-)
+TERMINAL_STATUSES: frozenset[ResourceStatus] = frozenset({ResourceStatus.STOPPED, ResourceStatus.EXHAUSTED_DEAD})
 """Resource has reached an end state — shutdown can skip the STOPPING transition."""
 
-ACTIVE_STATUSES: frozenset[hassette_wire.ResourceStatus] = frozenset(
-    {
-        hassette_wire.ResourceStatus.NOT_STARTED,
-        hassette_wire.ResourceStatus.STARTING,
-        hassette_wire.ResourceStatus.RUNNING,
-    }
+ACTIVE_STATUSES: frozenset[ResourceStatus] = frozenset(
+    {ResourceStatus.NOT_STARTED, ResourceStatus.STARTING, ResourceStatus.RUNNING}
 )
 """Resource is in normal lifecycle progression (not failed, stopped, or exhausted)."""
 
