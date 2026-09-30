@@ -161,17 +161,26 @@ class RuntimeQueryService(Resource):
         self._ws_drops_since_last_log = 0
         self._ws_drops_last_logged = 0.0
 
-    async def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
-        entry: dict[str, Any] = {"type": event_type, "data": payload.model_dump(), "timestamp": time.time()}
+    async def broadcast_envelope(self, event_type: str, data: Any) -> None:
+        """Broadcast a WS envelope of the shape ``{"type", "data", "timestamp"}``.
+
+        Shared by ``build_and_broadcast`` (a single dumped model) and ``flush_completions``
+        (a list of dumped models) -- both hand this already-dumped ``data``, so there is no
+        ``isinstance`` branching on payload shape here.
+        """
+        entry: dict[str, Any] = {"type": event_type, "data": data, "timestamp": time.time()}
         await self.broadcast(entry)
+
+    async def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
+        await self.broadcast_envelope(event_type, payload.model_dump())
 
     async def on_app_state_changed(self, event: Event) -> None:
         data = event.payload.data
         payload = AppStatusChangedData(
             app_key=data.app_key,
             index=data.index,
-            status=data.status.value,
-            previous_status=data.previous_status.value if data.previous_status else None,
+            status=data.status,
+            previous_status=data.previous_status if data.previous_status else None,
             instance_name=data.instance_name,
             class_name=data.class_name,
             exception=data.exception,
@@ -185,8 +194,8 @@ class RuntimeQueryService(Resource):
         payload = ServiceStatusData(
             resource_name=data.resource_name,
             role=data.role.value,
-            status=data.status.value,
-            previous_status=data.previous_status.value if data.previous_status else None,
+            status=data.status,
+            previous_status=data.previous_status if data.previous_status else None,
             exception=data.exception,
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
@@ -257,18 +266,12 @@ class RuntimeQueryService(Resource):
         # Reset BEFORE the awaits so new events arriving during broadcast land in
         # the fresh pending list and schedule_flush re-arms correctly.
         self._flush_scheduled = False
-        now = time.time()
 
         completions = self._pending_completions
         self._pending_completions = []
 
         if completions:
-            entry = {
-                "type": "execution_completed",
-                "data": [c.model_dump() for c in completions],
-                "timestamp": now,
-            }
-            await self.broadcast(entry)
+            await self.broadcast_envelope("execution_completed", [c.model_dump() for c in completions])
 
     def get_app_status_snapshot(self) -> AppStatusSnapshot:
         return self.hassette.app_handler.get_status_snapshot()
