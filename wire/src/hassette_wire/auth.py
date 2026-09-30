@@ -22,10 +22,8 @@ class SessionRequest(BaseModel):
     token: str = Field(max_length=MAX_SESSION_TOKEN_LENGTH)
     """Bearer token to exchange for a session cookie.
 
-    Length-capped so the constraint rides in the OpenAPI schema and Pydantic rejects an absurd
-    value with a 422 before ``check_bearer_token`` compares it. The real ceiling on this route is
-    ``RequestBodySizeLimitMiddleware`` (see ``web/body_limit.py``) — this is the narrower
-    field-level statement of the same intent, not a substitute for it.
+    Length-capped so the constraint rides in the OpenAPI schema; the server rejects a longer
+    value with a 422.
     """
 
 

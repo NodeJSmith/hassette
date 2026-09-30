@@ -124,7 +124,7 @@ class JobSummary(BaseModel):
     did not run. Counted toward ``total_executions`` per the class invariant."""
     thread_leaked: int = 0
     """Number of executions whose sync worker thread outlived its timeout (see ``Execution.thread_leaked``).
-    Aggregated from the ``executions`` table; a non-zero value flags a job leaking worker threads.
+    A non-zero value flags a job leaking worker threads.
     Mirrors the ``timed_out`` aggregate naming — the bare participle, not a ``_count`` suffix."""
     last_executed_at: float | None
     total_duration_ms: float
@@ -147,10 +147,10 @@ class JobSummary(BaseModel):
     live timing available. A ``None`` value no longer implies the job is done; see
     ``schedule_status``/``schedule_status_reason`` for the reason timing is unavailable."""
     fire_at: float | None = None
-    """Unix epoch seconds of the live job's dispatch time; sourced from live heap. Equals
+    """Unix epoch seconds of the live job's dispatch time; live-only. Equals
     ``next_run`` when no jitter is configured."""
     jitter: float | None = None
-    """Seconds of random jitter offset; sourced from live heap."""
+    """Seconds of random jitter offset; live-only."""
     last_error_message: str | None = None
     """Most recent error message within the query window, or None."""
     last_error_type: str | None = None
@@ -164,8 +164,7 @@ class JobSummary(BaseModel):
     max_duration_ms: float | None = None
     """Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
     mode: ExecutionMode = ExecutionMode.SINGLE
-    """Resolved overlap mode for this job. Persisted at registration; sourced from the DB column
-    ``scheduled_jobs.mode``."""
+    """Resolved overlap mode for this job. Persisted at registration."""
     suppressed_count: int = 0
     """Live count of re-fires suppressed by the guard (``single`` mode). Not persisted by design — read
     live from the in-process guard and reset to 0 on restart."""
