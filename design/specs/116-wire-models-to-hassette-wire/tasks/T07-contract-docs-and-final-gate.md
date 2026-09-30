@@ -1,7 +1,7 @@
 ---
 task_id: "T07"
 title: "Document the wire contract and run the full gate"
-status: "planned"
+status: "done"
 depends_on: ["T04", "T05", "T06"]
 implements: ["FR#14", "AC#10", "AC#14"]
 ---
