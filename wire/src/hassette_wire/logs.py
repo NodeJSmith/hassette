@@ -2,14 +2,14 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from hassette_wire.literals import LOG_LEVEL_TYPE, SourceTier
+from hassette_wire.literals import LogLevel, SourceTier
 
 
 class LogEntryResponse(BaseModel):
     id: int
     seq: int
     timestamp: float
-    level: LOG_LEVEL_TYPE
+    level: LogLevel
     logger_name: str
     func_name: str | None = None
     lineno: int | None = None

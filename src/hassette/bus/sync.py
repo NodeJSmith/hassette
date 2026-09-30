@@ -9,7 +9,7 @@ import typing
 from collections.abc import Mapping
 from typing import Any, Unpack
 
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
@@ -54,7 +54,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
         mark_ready(self, reason="Synchronous Bus facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.bus_service
 
     def add_listener(self, listener: "Listener", *, if_exists: IfExistsPolicy = "error") -> Subscription:

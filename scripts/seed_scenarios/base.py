@@ -11,7 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from hassette_wire import LOG_LEVEL_TYPE, ExecutionStatus
+from hassette_wire import ExecutionStatus, LogLevel
 from whenever import Instant
 
 from hassette.core.database_service import LOG_RECORD_COLUMNS
@@ -430,7 +430,7 @@ def seed_log_records(
     base_offset: float,
     instance_index: int = 0,
     interval_seconds: float = 60.0,
-    level: LOG_LEVEL_TYPE = "INFO",
+    level: LogLevel = "INFO",
     message_prefix: str = "log entry",
     logger_name: str | None = None,
 ) -> int:

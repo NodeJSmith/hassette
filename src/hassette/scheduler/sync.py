@@ -10,7 +10,7 @@ import typing
 from collections.abc import Mapping
 from typing import Any, Literal
 
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 from whenever import ZonedDateTime
 
 from hassette.resources.base import Resource
@@ -49,7 +49,7 @@ class SchedulerSyncFacade(Resource):
         mark_ready(self, reason="Synchronous Scheduler facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.scheduler_service
 
     def add_job(self, job: "Job", *, if_exists: IfExistsPolicy = "error") -> Job:

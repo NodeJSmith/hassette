@@ -11,7 +11,7 @@ See ``schemas/__init__.py`` for the domain-file map.
 
 from typing import Literal
 
-from hassette_wire import LOG_LEVEL_TYPE, SourceTier
+from hassette_wire import LogLevel, SourceTier
 from pydantic import BaseModel
 
 from hassette.types.types import BlockingAttributionReason
@@ -25,7 +25,7 @@ class LogRecord(BaseModel):
     id: int
     seq: int
     timestamp: float
-    level: LOG_LEVEL_TYPE
+    level: LogLevel
     logger_name: str
     func_name: str | None = None
     lineno: int | None = None

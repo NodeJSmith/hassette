@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import Any
 
 import aiohttp
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.api.sync_helpers import HelperClientSyncFacade
@@ -48,7 +48,7 @@ class ApiSyncFacade(Resource):
         mark_ready(self, reason="Synchronous API facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.api
 
     def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:

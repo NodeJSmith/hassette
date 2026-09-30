@@ -1,7 +1,7 @@
 import asyncio
 from typing import TYPE_CHECKING, ClassVar
 
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 from hassette.core.api_resource import ApiResource
 from hassette.core.bus_service import BusService
@@ -32,7 +32,7 @@ class AppBootstrapCoordinator(Resource):
         self._bootstrap_task: asyncio.Task[None] | None = None
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.app_handler
 
     def is_released(self) -> bool:

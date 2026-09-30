@@ -6,7 +6,7 @@ from typing import ClassVar
 
 import uvicorn
 from fastapi import FastAPI
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
@@ -68,7 +68,7 @@ class WebApiService(Service):
         self.scheduler = self.add_child(Scheduler)
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.web_api
 
     async def on_initialize(self) -> None:

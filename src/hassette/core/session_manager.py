@@ -4,7 +4,7 @@ import asyncio
 import time
 import typing
 
-from hassette_wire import LOG_LEVEL_TYPE, ResourceStatus
+from hassette_wire import LogLevel, ResourceStatus
 
 from hassette.bus import Bus
 from hassette.core.service_status_predicates import IS_NOT_APP_ROLE, SERVICE_STATUS_PATH
@@ -60,7 +60,7 @@ class SessionManager(Resource):
         mark_ready(self, reason="SessionManager initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.database_service
 
     @property

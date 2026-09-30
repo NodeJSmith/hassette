@@ -1,4 +1,4 @@
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -28,7 +28,7 @@ class AppConfig(BaseSettings):
     instance_name: str = ""
     """Name for the instance of the app."""
 
-    log_level: LOG_LEVEL_TYPE = Field(default_factory=log_level_default_factory)
+    log_level: LogLevel = Field(default_factory=log_level_default_factory)
     """Log level for the app instance. Defaults to INFO if not provided."""
 
     app_key: str = ""

@@ -2,7 +2,7 @@ import typing
 from logging import Logger, getLogger
 from typing import ClassVar, Generic, TypeVar, cast, final
 
-from hassette_wire import LOG_LEVEL_TYPE, SourceTier
+from hassette_wire import LogLevel, SourceTier
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -176,7 +176,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         return f"{self.class_name}.{self.app_config.instance_name}"
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         """Return the log level from the config for this resource."""
         try:
             return self.app_config.log_level

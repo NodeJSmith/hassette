@@ -95,7 +95,7 @@ from collections.abc import Coroutine, Mapping
 from functools import partial
 from typing import Any, Unpack
 
-from hassette_wire import LOG_LEVEL_TYPE, BackpressurePolicy, ExecutionMode, ResourceStatus
+from hassette_wire import BackpressurePolicy, ExecutionMode, LogLevel, ResourceStatus
 from typing_extensions import Sentinel
 
 from hassette.const import NOT_PROVIDED
@@ -269,7 +269,7 @@ class Bus(Resource):
         self._error_handler = handler
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.bus_service
 

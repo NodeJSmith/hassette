@@ -1,6 +1,6 @@
 """Internal type aliases, protocols, and helpers.
 
-The contract enums and Literals (``ExecutionStatus``, ``SourceTier``, ``LOG_LEVEL_TYPE``,
+The contract enums and Literals (``ExecutionStatus``, ``SourceTier``, ``LogLevel``,
 ``QuerySourceTier``, ``CliFormat``, ``CliFormatStyle``) live in ``hassette_wire`` — one
 definition, no mirrors. App authors import ``ExecutionStatus`` from ``hassette``; the rest
 are imported from ``hassette_wire`` directly.

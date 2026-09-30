@@ -4,7 +4,7 @@ import uuid
 from logging import INFO, Filter, Logger, LogRecord, getLogger
 from typing import Any, ClassVar, TypeVar, final
 
-from hassette_wire import LOG_LEVEL_TYPE, ResourceStatus, SourceTier
+from hassette_wire import LogLevel, ResourceStatus, SourceTier
 
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.lifecycle import (
@@ -260,7 +260,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         return self.unique_name
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         """Return the log level from the config for this resource.
 
         Subclasses that map to a per-service ``LoggingConfig`` field override this with a

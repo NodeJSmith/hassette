@@ -10,7 +10,7 @@ from typing import ClassVar, Generic, TypeVar
 
 import uuid_utils
 from fair_async_rlock import FairAsyncRLock
-from hassette_wire import LOG_LEVEL_TYPE, ExecutionMode, ExecutionStatus
+from hassette_wire import ExecutionMode, ExecutionStatus, LogLevel
 from whenever import TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -90,7 +90,7 @@ class SchedulerService(Service):
         return self.hassette.config.scheduler.default_delay_seconds
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.scheduler_service
 
     async def before_initialize(self) -> None:
@@ -1000,7 +1000,7 @@ class _ScheduledJobQueue(Resource):
         mark_ready(self, reason="Queue ready")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.scheduler_service
 
     async def add(self, job: "Job") -> None:

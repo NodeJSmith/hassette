@@ -40,10 +40,10 @@ from hassette_wire.health import (
     SystemStatusResponse,
 )
 from hassette_wire.literals import (
-    LOG_LEVEL_TYPE,
     ErrorRateClass,
     HealthStatus,
     ListenerKind,
+    LogLevel,
     QuerySourceTier,
     SourceTier,
     SystemHealthStatus,
@@ -79,7 +79,6 @@ from hassette_wire.ws import (
 )
 
 __all__ = [
-    "LOG_LEVEL_TYPE",
     "MAX_SESSION_TOKEN_LENGTH",
     "ActionResponse",
     "ActivityBucket",
@@ -120,6 +119,7 @@ __all__ = [
     "LivenessResponse",
     "LogEntryResponse",
     "LogHintWsMessage",
+    "LogLevel",
     "LogLevelRequest",
     "LogLevelResponse",
     "LogsByExecutionResponse",

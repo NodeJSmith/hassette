@@ -3,7 +3,7 @@
 import typing
 
 from anyio import create_memory_object_stream
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
@@ -37,7 +37,7 @@ class EventStreamService(Resource):
         mark_ready(self, reason="EventStreamService initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.bus_service
 
     @property

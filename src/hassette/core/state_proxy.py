@@ -6,7 +6,7 @@ from itertools import count
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from fair_async_rlock import FairAsyncRLock
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 from hassette.bus import Bus
 from hassette.core.api_resource import ApiResource
@@ -143,7 +143,7 @@ class StateProxy(Resource):
         self._last_logged_sync_failure_generation: int | None = None
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         """Configured log level for the state proxy (``hassette.config.logging.state_proxy``)."""
         return self.hassette.config.logging.state_proxy
 

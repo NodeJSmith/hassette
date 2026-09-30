@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import aiosqlite
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_write_queue import (
@@ -268,7 +268,7 @@ class DatabaseService(Service):
         self._executing_future = None
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.database_service
 
     @property

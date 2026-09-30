@@ -11,7 +11,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 from pydantic import (
     BaseModel,
     BeforeValidator,
@@ -34,7 +34,7 @@ LOGGER = getLogger(__name__)
 APP_SHUTDOWN_TIMEOUT_SECONDS = 10
 
 
-LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
+LOG_ANNOTATION = Annotated[LogLevel, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 APP_REQUIRED_KEYS = frozenset({"filename", "class_name"})
 DEFAULT_WEB_API_PORT = 8126
 

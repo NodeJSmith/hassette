@@ -35,7 +35,7 @@ from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
@@ -68,7 +68,7 @@ class ApiSyncFacade(Resource):
         mark_ready(self, reason="Synchronous API facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.api
 
 '''
@@ -93,7 +93,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import ComparisonCondition
 from hassette.types.types import IfExistsPolicy, WhereClause
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -131,7 +131,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
         mark_ready(self, reason="Synchronous Bus facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.bus_service
 
 '''
@@ -231,7 +231,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.scheduler.classes import Job
 from hassette.types.types import IfExistsPolicy
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
@@ -266,7 +266,7 @@ class SchedulerSyncFacade(Resource):
         mark_ready(self, reason="Synchronous Scheduler facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.scheduler_service
 
 '''
@@ -314,7 +314,7 @@ from hassette.models.helpers import (
 )
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -344,7 +344,7 @@ class HelperClientSyncFacade(Resource):
         mark_ready(self, reason="Synchronous HelperClient facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.api
 
 '''

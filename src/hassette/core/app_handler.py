@@ -8,7 +8,7 @@ import asyncio
 import typing
 from typing import ClassVar
 
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 from hassette.bus import Bus
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
@@ -59,7 +59,7 @@ class AppHandler(Resource):
         return self.registry.get_snapshot()
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.app_handler
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":

@@ -7,13 +7,13 @@ from pathlib import Path
 from typing import cast, get_args
 
 import platformdirs
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 from hassette import context
 from hassette.exceptions import HassetteNotInitializedError
 from hassette.utils import get_parsed_version
 
-LOG_LEVEL_VALUES = get_args(LOG_LEVEL_TYPE)
+LOG_LEVEL_VALUES = get_args(LogLevel)
 
 VERSION = get_parsed_version()
 
@@ -107,24 +107,24 @@ def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | P
     return paths
 
 
-def warn_log_level_not_valid(log_level: str, fallback_value: LOG_LEVEL_TYPE) -> None:
+def warn_log_level_not_valid(log_level: str, fallback_value: LogLevel) -> None:
     LOGGER.warning("Log level %r is not valid, defaulting to %r", log_level, fallback_value)
 
 
-def get_log_level() -> LOG_LEVEL_TYPE:
+def get_log_level() -> LogLevel:
     log_level = os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL")
     return coerce_log_level(log_level, "INFO")
 
 
-def coerce_log_level(value: str | LOG_LEVEL_TYPE | None, fallback: LOG_LEVEL_TYPE) -> LOG_LEVEL_TYPE:
-    """Coerce a log level value to a LOG_LEVEL_TYPE string.
+def coerce_log_level(value: str | LogLevel | None, fallback: LogLevel) -> LogLevel:
+    """Coerce a log level value to a LogLevel string.
 
     Args:
         value: The log level value to coerce.
         fallback: The fallback log level to use if the input is invalid.
 
     Returns:
-        The coerced log level as a LOG_LEVEL_TYPE string or the fallback value.
+        The coerced log level as a LogLevel string or the fallback value.
     """
     if value is None:
         return fallback
@@ -139,10 +139,10 @@ def coerce_log_level(value: str | LOG_LEVEL_TYPE | None, fallback: LOG_LEVEL_TYP
         warn_log_level_not_valid(value, fallback)
         return fallback
 
-    return cast("LOG_LEVEL_TYPE", value)
+    return cast("LogLevel", value)
 
 
-def log_level_default_factory(data: dict[str, LOG_LEVEL_TYPE | None]) -> LOG_LEVEL_TYPE:
+def log_level_default_factory(data: dict[str, LogLevel | None]) -> LogLevel:
     """Default factory for log level fields.
 
     Returns the log_level from the data dictionary if present, otherwise

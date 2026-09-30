@@ -7,12 +7,12 @@ import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from hassette_wire import (
-    LOG_LEVEL_TYPE,
     AppManifestsChangedData,
     AppStatusChangedData,
     BootIssueResponse,
     ConnectivityData,
     ExecutionCompletedData,
+    LogLevel,
     ManifestStatus,
     ServiceInfoResponse,
     ServiceStatusData,
@@ -85,7 +85,7 @@ class RuntimeQueryService(Resource):
         self._flush_scheduled = False
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.web_api
 
     async def on_initialize(self) -> None:

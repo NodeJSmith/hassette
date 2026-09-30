@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import ClassVar
 
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 from watchfiles import awatch
 
 from hassette.events.hassette import HassetteFileWatcherEvent
@@ -21,7 +21,7 @@ class FileWatcherService(Service):
     )
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.file_watcher
 
     async def before_initialize(self) -> None:

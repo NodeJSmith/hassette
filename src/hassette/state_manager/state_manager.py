@@ -4,7 +4,7 @@ from logging import getLogger
 from typing import Generic, NamedTuple
 
 from frozendict import deepfreeze, frozendict
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 from hassette.conversion import STATE_REGISTRY, StateKey
 from hassette.exceptions import EntityNotInViewError, RegistryNotReadyError
@@ -262,7 +262,7 @@ class StateManager(Resource):
         mark_ready(self, reason="StateManager initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.state_proxy
 

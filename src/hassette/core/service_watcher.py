@@ -3,7 +3,7 @@ import time
 import typing
 from typing import ClassVar
 
-from hassette_wire import LOG_LEVEL_TYPE, ResourceStatus
+from hassette_wire import LogLevel, ResourceStatus
 
 from hassette.bus import Bus
 from hassette.core.bus_service import BusService
@@ -108,7 +108,7 @@ class ServiceWatcher(Resource):
         self._cooldown_cycles = {}
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.service_watcher
 
     async def on_initialize(self) -> None:

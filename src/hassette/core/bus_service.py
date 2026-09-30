@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 from uuid import uuid4
 
 import uuid_utils
-from hassette_wire import LOG_LEVEL_TYPE, BackpressurePolicy, ExecutionStatus
+from hassette_wire import BackpressurePolicy, ExecutionStatus, LogLevel
 
 import hassette.utils.date_utils as _date_utils
 from hassette.bus.duration_hold import DurationHoldManager
@@ -121,7 +121,7 @@ class BusService(Service):
         self._removal_callbacks = {}
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.bus_service
 
     @property

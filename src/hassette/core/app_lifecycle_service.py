@@ -10,7 +10,7 @@ from timeit import default_timer as timer
 
 import anyio
 import structlog.contextvars
-from hassette_wire import LOG_LEVEL_TYPE, ResourceStatus
+from hassette_wire import LogLevel, ResourceStatus
 
 import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
@@ -150,7 +150,7 @@ class AppLifecycleService(Resource):
         mark_ready(self, reason="AppLifecycleService initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.app_handler
 
     @property

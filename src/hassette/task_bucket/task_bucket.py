@@ -8,7 +8,7 @@ from concurrent.futures import Future
 from concurrent.futures import TimeoutError as CfTimeoutError  # aliased to distinguish from builtin TimeoutError
 from typing import Any, ParamSpec, TypeVar, cast, overload
 
-from hassette_wire import LOG_LEVEL_TYPE
+from hassette_wire import LogLevel
 
 from hassette import context as ctx
 from hassette.const.misc import NOT_PROVIDED, FalseySentinel
@@ -77,7 +77,7 @@ class TaskBucket(Resource):
         return self.hassette.config.lifecycle.task_cancellation_timeout_seconds
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         """Return the log level from the config."""
         return self.hassette.config.logging.task_bucket
 
