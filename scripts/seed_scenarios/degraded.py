@@ -170,7 +170,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
         start_index=7,
         base_offset=base + 400.0,
     )
-    seq = seed_log_records(
+    seed_log_records(
         ctx,
         start_seq=seq,
         count=1,

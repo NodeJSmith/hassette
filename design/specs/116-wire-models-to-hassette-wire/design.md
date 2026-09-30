@@ -1,7 +1,7 @@
 # Design: Move the wire models and wire enums into hassette-wire
 
 **Date:** 2026-09-29
-**Status:** approved
+**Status:** archived
 **Scope-mode:** hold
 **Research:** design/research/2026-09-25-shared-wire-models/research.md, design/research/2026-09-29-wire-compat-enforcement/research.md (plus `design/specs/114-hassette-client/brief.md`, item 3b)
 

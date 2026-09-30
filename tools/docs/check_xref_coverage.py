@@ -3,7 +3,9 @@
 import re
 from pathlib import Path
 
-DOCS = Path("/home/jessica/source/hassette/.claude/worktrees/928/docs/pages")
+from _doc_skip_checks import is_in_code_block, is_in_heading, is_in_table_row
+
+DOCS = Path(__file__).resolve().parents[2] / "docs" / "pages"
 
 # Symbol -> mkdocstrings reference path
 # Only symbols mentioned 2+ times across docs, plus key exceptions
@@ -87,31 +89,6 @@ XREF_MAP = {
 # Pattern: `ClassName` not already inside [...] link syntax, not in heading
 # Matches `ClassName` but not [`ClassName`] or [`ClassName`](...)
 BACKTICK_RE = re.compile(r"(?<!\[)`([A-Z][A-Za-z]+)`(?!\])")
-
-
-# NOTE: tools/docs/check_bare_symbols.py applies the same code/heading/table skips — keep in sync.
-def is_in_code_block(text: str, pos: int) -> bool:
-    """Check if position is inside a fenced code block."""
-    before = text[:pos]
-    fence_count = len(re.findall(r"^```", before, re.MULTILINE))
-    return fence_count % 2 == 1
-
-
-def is_in_heading(text: str, pos: int) -> bool:
-    """Check if position is on a heading line."""
-    line_start = text.rfind("\n", 0, pos) + 1
-    line = text[line_start:pos]
-    return line.lstrip().startswith("#")
-
-
-def is_in_table_row(text: str, pos: int) -> bool:
-    """Check if position is in a markdown table row (starts with |)."""
-    line_start = text.rfind("\n", 0, pos) + 1
-    line_end = text.find("\n", pos)
-    if line_end == -1:
-        line_end = len(text)
-    line = text[line_start:line_end]
-    return line.strip().startswith("|") and line.strip().endswith("|")
 
 
 def process_page(path: Path) -> list[str]:

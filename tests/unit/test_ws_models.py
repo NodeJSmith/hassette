@@ -1,5 +1,6 @@
 """Tests for typed WebSocket message models."""
 
+import dataclasses
 from dataclasses import asdict
 
 import pytest
@@ -36,6 +37,10 @@ def validate_envelope(msg_type: str, data: object) -> WsServerMessage:
 class TestAppStatusChangedPayloadMatchesDataclass:
     """Verify AppStatusChangedPayload mirrors events.hassette.AppStateChangePayload."""
 
+    def test_field_names_match(self) -> None:
+        dataclass_fields = {f.name for f in dataclasses.fields(AppStateChangePayload)}
+        assert dataclass_fields == set(AppStatusChangedPayload.model_fields)
+
     def test_all_fields_present(self) -> None:
         dataclass_instance = AppStateChangePayload(
             app_key="my_app",
@@ -68,6 +73,12 @@ class TestAppStatusChangedPayloadMatchesDataclass:
 
 class TestServiceStatusPayloadMatchesDataclass:
     """Verify WsServiceStatusPayload mirrors events.hassette.ServiceStatusPayload."""
+
+    def test_field_names_match(self) -> None:
+        # `role`'s type is intentionally narrowed (ResourceRole -> str) at the conversion
+        # site; only the field name is shared, not the type.
+        dataclass_fields = {f.name for f in dataclasses.fields(ServiceStatusPayload)}
+        assert dataclass_fields == set(WsServiceStatusPayload.model_fields)
 
     def test_all_fields_present(self) -> None:
         dataclass_instance = ServiceStatusPayload(

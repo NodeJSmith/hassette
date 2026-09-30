@@ -12,6 +12,11 @@ still parse a response from a server still running the older release that hasn't
 Adding a new enum member or a new value to an open-set Literal is a version-skew change in the
 opposite direction: an older client parsing a newer server's response needs to tolerate a value
 it doesn't recognize. The client package's lenient parsing is what makes that direction safe.
+
+The automated wire-compatibility check enforces these rules for the HTTP contract only. WS
+payloads follow the same rules by convention, but nothing currently verifies a WS change against
+the last release the way `openapi.json` is checked — a WS-breaking change must be caught by
+review, not CI.
 """
 
 from hassette_wire.apps import (

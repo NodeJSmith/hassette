@@ -26,3 +26,12 @@ When a new response model that converts a domain object is added to
 `hassette_wire`, is there a corresponding mapper — or does the
 route inline the conversion? Models constructed directly without a domain source
 (e.g., `LivenessResponse`) correctly have no mapper.
+
+## Validated Construction of Served Models
+Is every `hassette_wire` response model built through its real constructor,
+never `.model_copy(update=...)`? `model_copy` bypasses validation, so an
+overlay can ship a response that was never actually validated. Enforced by
+`tools/check_module_boundaries.py`'s `model-copy-update` rule for `web/` and
+`core/runtime_query_service.py` — if a new site under those paths needs the
+pattern for a real reason, add it to `MODEL_COPY_UPDATE_SCAN_PATHS`'s
+exclusions there rather than silently reintroducing the bypass.

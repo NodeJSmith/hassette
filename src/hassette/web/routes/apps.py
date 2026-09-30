@@ -39,7 +39,7 @@ _VALID_APP_KEY = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]{0,127}$")
 #: Past-tense verb for each action's success log line.
 _ACTION_PAST_TENSE: dict[AppAction, str] = {"start": "Started", "stop": "Stopped", "reload": "Reloaded"}
 
-# Keep in sync with the manifest fields on AppConfigResponse in models.py.
+# Keep in sync with the manifest fields on AppConfigResponse in hassette_wire/apps.py.
 _MANIFEST_FIELD_SCHEMAS: dict[str, dict[str, Any]] = {
     "enabled": {
         "type": "boolean",

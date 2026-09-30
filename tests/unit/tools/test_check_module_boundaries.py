@@ -24,17 +24,24 @@ top-level rule keeps matching files nested arbitrarily deep under it.
 Also pins the ``no-hassette-client`` rule (#2387): no layer may import ``hassette_client`` at
 runtime — its ``applies`` is unconditional (``lambda _: True``), so it governs every layer rather
 than a single one like the rules above.
+
+Also pins the ``model-copy-update`` rule (#2385): ``.model_copy(update=...)`` on a served wire
+model is flagged within ``MODEL_COPY_UPDATE_SCAN_PATHS`` (``web/`` and
+``core/runtime_query_service.py``), not flagged outside that scope (e.g. ``testing/``), and this
+rule is path-scoped by ``rel_path`` rather than by ``layer`` like the import ``Rule``s above.
 """
 
 import textwrap
 
 from check_module_boundaries import (
+    MODEL_COPY_UPDATE_REASON,
     PRIVATE_ATTR_MSG_TEMPLATE,
     SRC,
     Rule,
     applies_outside,
     applies_prefix,
     check_source,
+    in_model_copy_scope,
     layer_of,
 )
 
@@ -659,3 +666,51 @@ def test_private_access_flagged_outside_exempt_layers_similar_name() -> None:
     # "core_extra" must not be exempted just because it starts with the string "core" —
     # regression check for the applies_prefix() "/" separator requirement.
     assert check_source("x = self.hassette._state_proxy\n", "core_extra") == [(1, reach_through_msg("_state_proxy"))]
+
+
+def test_model_copy_update_flagged_in_web_layer() -> None:
+    src = "resp = model.model_copy(update={'status': 'ok'})\n"
+    assert check_source(src, "web", rel_path="web/mappers.py") == [
+        (1, f"model-copy-update: {MODEL_COPY_UPDATE_REASON}")
+    ]
+
+
+def test_model_copy_update_flagged_in_runtime_query_service() -> None:
+    src = "resp = model.model_copy(update={'status': 'ok'})\n"
+    assert check_source(src, "core", rel_path="core/runtime_query_service.py") == [
+        (1, f"model-copy-update: {MODEL_COPY_UPDATE_REASON}")
+    ]
+
+
+def test_model_copy_update_not_flagged_outside_scope() -> None:
+    # Same call, but in testing/ (RecordingApi's harness use) — deliberately out of scope.
+    src = "resp = model.model_copy(update={'status': 'ok'})\n"
+    assert check_source(src, "testing", rel_path="testing/recording_api.py") == []
+
+
+def test_model_copy_update_not_flagged_in_sibling_core_file() -> None:
+    # core/runtime_query_service.py is scoped exactly — a sibling core/ file is not swept in.
+    src = "resp = model.model_copy(update={'status': 'ok'})\n"
+    assert check_source(src, "core", rel_path="core/core.py") == []
+
+
+def test_model_copy_without_update_kwarg_not_flagged() -> None:
+    # A bare model_copy() (deep-copy, no field overlay) is not a validation bypass.
+    src = "resp = model.model_copy()\n"
+    assert check_source(src, "web", rel_path="web/mappers.py") == []
+
+
+def test_model_copy_update_requires_rel_path() -> None:
+    # No rel_path supplied (detection-only callers) — model-copy scope can't be evaluated
+    # without a path, same fail-closed-to-unflagged behavior as is_allowlisted()'s "safe
+    # default" doc — but here the safe default is "don't flag without a path to scope against".
+    src = "resp = model.model_copy(update={'status': 'ok'})\n"
+    assert check_source(src, "web") == []
+
+
+def test_in_model_copy_scope_matches_layer_and_exact_file() -> None:
+    assert in_model_copy_scope("web/mappers.py")
+    assert in_model_copy_scope("web/routes/apps.py")
+    assert in_model_copy_scope("core/runtime_query_service.py")
+    assert not in_model_copy_scope("core/core.py")
+    assert not in_model_copy_scope("testing/recording_api.py")

@@ -13,9 +13,10 @@ from hassette.resources.mixins import VALID_TRANSITIONS, LifecycleMixin
 def test_app_lifecycle_timeout_stop_valid():
     """STARTING → STOPPED is in the valid transition table.
 
-    app_lifecycle_service.py lines 158 and 168 set inst.status = STOPPED when
-    an app fails to start (TimeoutError / Exception). The app is in STARTING
-    state at that point, so the transition must be STARTING → STOPPED.
+    AppLifecycleService.initialize_instances() sets inst.status = STOPPED directly
+    (bypassing the validated setter) in its TimeoutError/Exception handlers, when an
+    app fails to start. The app is in STARTING state at that point, so the transition
+    must be STARTING → STOPPED.
     """
     allowed = VALID_TRANSITIONS[ResourceStatus.STARTING]
     assert ResourceStatus.STOPPED in allowed, (

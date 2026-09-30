@@ -524,21 +524,7 @@ class Listener:
         compare by identity — two fresh lambdas with identical bodies will report
         drift. Use non-lambda predicates or if_exists='replace' to avoid this.
         """
-        return (
-            self.invoker.orig_handler == other.invoker.orig_handler
-            and self.predicate == other.predicate
-            and self.options.once == other.options.once
-            and self.options.debounce == other.options.debounce
-            and self.options.throttle == other.options.throttle
-            and self.options.timeout == other.options.timeout
-            and self.options.timeout_disabled == other.options.timeout_disabled
-            and self.options.priority == other.options.priority
-            and self.options.mode == other.options.mode
-            and self.options.backpressure == other.options.backpressure
-            and self.invoker.kwargs == other.invoker.kwargs
-            and self.invoker.error_handler is other.invoker.error_handler
-            and _duration_configs_match(self.duration_config, other.duration_config)
-        )
+        return all(matches(self, other) for _, matches in _CONFIG_MATCH_FIELDS)
 
     def diff_fields(self, other: "Listener") -> list[str]:
         """Return configuration field names that differ between two listeners.
@@ -547,34 +533,7 @@ class Listener:
         of field names (e.g. 'handler', 'predicate', 'once', 'debounce', ...) for use
         in drift error messages.
         """
-        changed: list[str] = []
-        if self.invoker.orig_handler != other.invoker.orig_handler:
-            changed.append("handler")
-        if self.predicate != other.predicate:
-            changed.append("predicate")
-        if self.options.once != other.options.once:
-            changed.append("once")
-        if self.options.debounce != other.options.debounce:
-            changed.append("debounce")
-        if self.options.throttle != other.options.throttle:
-            changed.append("throttle")
-        if self.options.timeout != other.options.timeout:
-            changed.append("timeout")
-        if self.options.timeout_disabled != other.options.timeout_disabled:
-            changed.append("timeout_disabled")
-        if self.options.priority != other.options.priority:
-            changed.append("priority")
-        if self.options.mode != other.options.mode:
-            changed.append("mode")
-        if self.options.backpressure != other.options.backpressure:
-            changed.append("backpressure")
-        if self.invoker.kwargs != other.invoker.kwargs:
-            changed.append("kwargs")
-        if self.invoker.error_handler is not other.invoker.error_handler:
-            changed.append("error_handler")
-        if not _duration_configs_match(self.duration_config, other.duration_config):
-            changed.append("duration_config")
-        return changed
+        return [name for name, matches in _CONFIG_MATCH_FIELDS if not matches(self, other)]
 
     def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate.
@@ -710,6 +669,26 @@ def _duration_configs_match(a: DurationConfig | None, b: DurationConfig | None) 
         and a.is_attribute_listener == b.is_attribute_listener
         and a.hold_predicate == b.hold_predicate
     )
+
+
+# Single source of truth for Listener.config_matches()/diff_fields(): each entry names a
+# configuration field and how to compare it between two listeners, so the two methods can't
+# drift out of sync on which fields they check.
+_CONFIG_MATCH_FIELDS: tuple[tuple[str, Callable[["Listener", "Listener"], bool]], ...] = (
+    ("handler", lambda a, b: a.invoker.orig_handler == b.invoker.orig_handler),
+    ("predicate", lambda a, b: a.predicate == b.predicate),
+    ("once", lambda a, b: a.options.once == b.options.once),
+    ("debounce", lambda a, b: a.options.debounce == b.options.debounce),
+    ("throttle", lambda a, b: a.options.throttle == b.options.throttle),
+    ("timeout", lambda a, b: a.options.timeout == b.options.timeout),
+    ("timeout_disabled", lambda a, b: a.options.timeout_disabled == b.options.timeout_disabled),
+    ("priority", lambda a, b: a.options.priority == b.options.priority),
+    ("mode", lambda a, b: a.options.mode == b.options.mode),
+    ("backpressure", lambda a, b: a.options.backpressure == b.options.backpressure),
+    ("kwargs", lambda a, b: a.invoker.kwargs == b.invoker.kwargs),
+    ("error_handler", lambda a, b: a.invoker.error_handler is b.invoker.error_handler),
+    ("duration_config", lambda a, b: _duration_configs_match(a.duration_config, b.duration_config)),
+)
 
 
 def make_async_handler(fn: "HandlerType", task_bucket: "TaskBucket") -> "AsyncHandlerType":

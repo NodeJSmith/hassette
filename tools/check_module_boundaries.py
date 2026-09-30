@@ -53,6 +53,14 @@ the import rules, the private-attr rule has an escape hatch — ``PRIVATE_ATTR_A
 legitimately read private state. Each allowlist entry is a conscious, auditable
 exception with a reason.
 
+This guard also forbids **``.model_copy(update=...)`` on a served wire model** within
+``MODEL_COPY_UPDATE_SCAN_PATHS`` — the layers that build ``hassette_wire`` response models
+by hand (#2385). ``model_copy`` bypasses the model's validators, so overlaying fields onto
+an existing instance can ship a response that was never actually validated. This rule is
+path-scoped rather than layer-scoped (unlike the import ``Rule``s above) because it targets
+one specific file (``core/runtime_query_service.py``) alongside a whole layer (``web/``), and
+deliberately excludes ``testing/`` — ``RecordingApi``'s harness use isn't a served model.
+
 Usage:
     python tools/check_module_boundaries.py [FILE ...]
 
@@ -103,6 +111,17 @@ PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
 #: Top-level packages any ``Rule`` below might forbid. ``runtime_imports`` only collects
 #: imports rooted in one of these — everything else is noise no rule cares about.
 WATCHED_ROOTS: frozenset[str] = frozenset({"hassette", "tests", "hassette_client"})
+#: src-relative POSIX paths scanned for ``.model_copy(update=...)`` on a served wire model.
+#: A bare name with no ``/`` matches a whole top-level layer (``"web"`` matches every file
+#: under ``web/``); a full path matches exactly that file. ``testing/`` is deliberately not
+#: included — ``RecordingApi``'s harness use overlays a HA helper-record fixture, not a served
+#: wire model (#2385).
+MODEL_COPY_UPDATE_SCAN_PATHS: frozenset[str] = frozenset({"web", "core/runtime_query_service.py"})
+#: Violation message for a ``.model_copy(update=...)`` call in scope.
+MODEL_COPY_UPDATE_REASON = (
+    "model_copy(update=...) bypasses the model's validators; build served wire models "
+    "through their real constructor instead (#2385)"
+)
 
 
 @dataclass(frozen=True)
@@ -428,6 +447,34 @@ def is_allowlisted(rel_path: str | None, attr: str) -> bool:
     return rel_path is not None and (rel_path, attr) in PRIVATE_ATTR_ALLOWLIST
 
 
+def in_model_copy_scope(rel_path: str) -> bool:
+    """True when ``rel_path`` falls under ``MODEL_COPY_UPDATE_SCAN_PATHS``.
+
+    A bare entry (no ``/``) matches the whole top-level layer (``"web"`` matches
+    ``web/anything.py``); a full path matches only that exact file.
+    """
+    return any(
+        rel_path == scanned or (("/" not in scanned) and rel_path.startswith(f"{scanned}/"))
+        for scanned in MODEL_COPY_UPDATE_SCAN_PATHS
+    )
+
+
+def model_copy_update_calls(tree: ast.AST) -> list[int]:
+    """Return line numbers of every ``<expr>.model_copy(update=...)`` call in the tree.
+
+    Matches any receiver — the rule is a blanket ban within scope, not tied to a specific
+    model type, since resolving the receiver's static type would need more than AST parsing.
+    """
+    return [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "model_copy"
+        and any(kw.arg == "update" for kw in node.keywords)
+    ]
+
+
 def check_source(
     source: str, layer: str, package: str | None = None, rel_path: str | None = None
 ) -> list[tuple[int, str]]:
@@ -450,7 +497,12 @@ def check_source(
         if not is_allowlisted(rel_path, attr)
     ]
     private_violations = [] if is_exempt_layer(layer) else private_attr_violations
-    return sorted(import_violations + private_violations)
+    model_copy_violations = (
+        [(lineno, f"model-copy-update: {MODEL_COPY_UPDATE_REASON}") for lineno in model_copy_update_calls(tree)]
+        if rel_path is not None and in_model_copy_scope(rel_path)
+        else []
+    )
+    return sorted(import_violations + private_violations + model_copy_violations)
 
 
 def check_file(path: Path) -> list[tuple[int, str]]:
@@ -477,7 +529,10 @@ def main() -> int:
         REPO_ROOT,
         check_file,
         summary="module-boundary violation(s)",
-        ok=f"no module-boundary violations across {len(RULES)} import rule(s) + the private-attr rule.",
+        ok=(
+            f"no module-boundary violations across {len(RULES)} import rule(s) + "
+            "the private-attr rule + the model-copy-update rule."
+        ),
     )
 
 
