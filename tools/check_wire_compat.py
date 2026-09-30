@@ -47,6 +47,9 @@ OASDIFF_TIMEOUT_SECONDS = 60
 # oasdiff's checker.Level: ERR=3, WARN=2, INFO=1, NONE=0 (checker/rules package, pinned 1.32.1).
 ERR_LEVEL = 3
 
+LABEL_REVERSED = "reversed: new client, old server"
+LABEL_FORWARD = "forward: old client, new server"
+
 # Reversed run (new client, old server): only these check ids block, regardless of how many other
 # checks a future oasdiff version adds. Both are always ERR by default.
 REVERSED_BLOCKING_CHECK_IDS = frozenset(
@@ -230,7 +233,7 @@ def _run_both_directions(head_openapi_path: Path, release_openapi_path: Path, ig
         head_openapi_path,
         release_openapi_path,
         ignore_file,
-        label="reversed: new client, old server",
+        label=LABEL_REVERSED,
     )
     reversed_blocking = select_reversed_blocking_findings(reversed_findings)
 
@@ -238,7 +241,7 @@ def _run_both_directions(head_openapi_path: Path, release_openapi_path: Path, ig
         release_openapi_path,
         head_openapi_path,
         ignore_file,
-        label="forward: old client, new server",
+        label=LABEL_FORWARD,
     )
     forward_blocking = select_forward_blocking_findings(forward_findings)
 
@@ -247,9 +250,9 @@ def _run_both_directions(head_openapi_path: Path, release_openapi_path: Path, ig
         return 0
 
     if reversed_blocking:
-        print_blocking_findings(reversed_blocking, label="reversed: new client, old server")
+        print_blocking_findings(reversed_blocking, label=LABEL_REVERSED)
     if forward_blocking:
-        print_blocking_findings(forward_blocking, label="forward: old client, new server")
+        print_blocking_findings(forward_blocking, label=LABEL_FORWARD)
     return 1
 
 

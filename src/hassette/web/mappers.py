@@ -98,9 +98,9 @@ def manifest_response_fields(manifest: AppManifestInfo) -> dict[str, Any]:
 def app_manifest_response_from(manifest: AppManifestInfo, recent_invocations_1h: int = 0) -> AppManifestResponse:
     """Convert an ``AppManifestInfo`` snapshot to ``AppManifestResponse``.
 
-    ``recent_invocations_1h`` is not part of the manifest snapshot itself -- it comes from a
+    ``recent_invocations_1h`` is not part of the manifest snapshot itself — it comes from a
     separate, independently-degrading telemetry query (see ``.claude/rules/web-api.md``'s
-    Category C) -- so it's accepted here rather than read off ``manifest``, defaulting to 0 when
+    Category C) — so it's accepted here rather than read off ``manifest``, defaulting to 0 when
     the caller has no count for this app.
     """
     return AppManifestResponse(**manifest_response_fields(manifest), recent_invocations_1h=recent_invocations_1h)

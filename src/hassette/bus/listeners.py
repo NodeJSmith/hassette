@@ -524,7 +524,7 @@ class Listener:
         compare by identity — two fresh lambdas with identical bodies will report
         drift. Use non-lambda predicates or if_exists='replace' to avoid this.
         """
-        return all(matches(self, other) for _, matches in _CONFIG_MATCH_FIELDS)
+        return all(comparator(self, other) for _, comparator in _CONFIG_MATCH_FIELDS)
 
     def diff_fields(self, other: "Listener") -> list[str]:
         """Return configuration field names that differ between two listeners.
@@ -533,7 +533,7 @@ class Listener:
         of field names (e.g. 'handler', 'predicate', 'once', 'debounce', ...) for use
         in drift error messages.
         """
-        return [name for name, matches in _CONFIG_MATCH_FIELDS if not matches(self, other)]
+        return [name for name, comparator in _CONFIG_MATCH_FIELDS if not comparator(self, other)]
 
     def matches(self, ev: "Event[Any]") -> bool:
         """Check if the event matches the listener's predicate.
