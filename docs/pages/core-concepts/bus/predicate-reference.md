@@ -200,7 +200,7 @@ Works with: `CallServiceEvent`.
 
 | Accessor | Signature | Returns | Description |
 |---|---|---|---|
-| `A.get_path` | `get_path(path: str)` | `Any \| MISSING_VALUE` | Extracts a nested value by dot-separated path (e.g., `"new_state.attributes.brightness"`); `MISSING_VALUE` on any access failure. |
+| `A.get_path` | `get_path(path: str)` | `Any \| MISSING_VALUE` | Extracts a nested value by dot-separated path (e.g., `"payload.data.new_state.attributes.brightness"`); `MISSING_VALUE` on any access failure. |
 | `A.get_all_changes` | `get_all_changes(exclude: Sequence[str] = DEFAULT_EXCLUDE)` | `dict[str, Any]` | A recursive diff between old and new state, mapping changed keys to `(old_value, new_value)`. Excludes `last_reported`, `last_updated`, `last_changed`, and `context` by default. |
 
 `get_path` works with any event type. `get_all_changes` works with `RawStateChangeEvent`.
