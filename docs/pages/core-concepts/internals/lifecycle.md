@@ -2,7 +2,7 @@
 
 A [`Resource`][hassette.resources.base.Resource] is any component with a managed lifecycle — Hassette initializes and shuts it down in dependency order. A [`Service`][hassette.resources.service.Service] is a long-running background Resource. Unlike plain resources that initialize once, services can be restarted if they fail. Each service declares a restart policy that controls backoff timing, budget limits, and recovery-failure behavior. This page covers the supervision model, the [service state machine](#resource-state-machine), and readiness signaling.
 
-This page belongs to the [internals section](index.md), which covers Hassette's internal architecture for contributors and advanced users such as authors of custom `Service` subclasses. App authors do not need it to build automations. [Apps — Lifecycle](../apps/lifecycle.md) covers the hooks an app implements.
+This page belongs to the [internals section](index.md), written for contributors and advanced users such as authors of custom `Service` subclasses. App authors do not need it to build automations. [Apps — Lifecycle](../apps/lifecycle.md) covers the hooks an app implements.
 
 ## What Happens When a Service Fails
 
@@ -10,7 +10,7 @@ When a `Service` raises an unhandled exception, Hassette transitions it to `FAIL
 
 The outcome depends on three things: the exception type, how many restarts have already occurred within the current time window, and the service's `restart_type`. Most failures result in an exponential backoff delay followed by a fresh `initialize()` call. Structural failures that no retry will fix skip the backoff and, depending on `restart_type`, enter a long cooldown period (`TRANSIENT`), stop that service permanently while Hassette keeps running (`TEMPORARY`), or shut the system down entirely (`PERMANENT`).
 
-`ServiceWatcher` keeps one [`RestartBudget`][hassette.core.service_watcher.RestartBudget] per service. A `RestartBudget` caps how many restarts a service gets within a sliding time window. Each failed restart records a timestamp. Attempts that fall outside the budget window expire automatically. The budget resets as soon as the restarted service reaches `RUNNING` and signals readiness with `mark_ready()`, bounded by that service's `startup_timeout_seconds` (default 30 s).
+`ServiceWatcher` keeps one [`RestartBudget`][hassette.core.service_watcher.RestartBudget] per service. A `RestartBudget` caps how many restarts a service gets within a sliding time window. Each failed restart records a timestamp. Attempts that fall outside the budget window expire automatically. The budget resets as soon as the restarted service reaches `RUNNING` and signals readiness with `mark_ready()`. `ServiceWatcher` waits up to that service's `startup_timeout_seconds` (default 30 s) for the signal.
 
 ## Restart Types
 
@@ -50,7 +50,7 @@ Backoff between restart attempts uses exponential growth: `backoff_base_seconds 
 
 **Non-retryable errors.** The exception name is in `non_retryable_error_names`. The restart is skipped entirely. `ServiceWatcher` calls `handle_exhaustion()` directly, as if the budget were already spent. This applies to configuration errors that cannot self-correct.
 
-**Fatal errors.** The exception name is in `fatal_error_names`. The service transitions immediately to `CRASHED` and `hassette.shutdown()` is called. `DatabaseService` uses this for [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]. A schema version mismatch requires human intervention, so no retry is attempted. [`FatalError`][hassette.exceptions.FatalError] subclasses take a separate path: the `Service` base class catches them itself and moves the service straight to `CRASHED` without ever emitting the `FAILED` event that this routing reads.
+**Fatal errors.** The exception name is in `fatal_error_names`. The service transitions immediately to `CRASHED` and `hassette.shutdown()` is called. `DatabaseService` uses this for [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]. A schema version mismatch requires human intervention, so no retry is attempted. [`FatalError`][hassette.exceptions.FatalError] subclasses take a separate path, independent of `fatal_error_names`. The `Service` base class catches them itself and moves the service straight to `CRASHED`. It never emits a `FAILED` event, so the routing above never sees them.
 
 ## RestartSpec Reference
 
@@ -103,13 +103,13 @@ stateDiagram-v2
 
 `RUNNING` status and readiness are separate signals. `handle_running()` sets `status = ResourceStatus.RUNNING` and emits a status event. `mark_ready()` sets a readiness `asyncio.Event` that dependents wait on. The framework runs that wait itself, before a dependent's lifecycle hooks fire. App and service code never starts the wait.
 
-A service enters `RUNNING` when its `serve()` loop begins. `initialize()` returns while the service is still `STARTING`; the framework-spawned task that runs `serve()` calls `handle_running()` once `serve()` starts executing. A service signals readiness by calling `mark_ready()` at whatever internal point it is prepared to serve requests. `WebsocketService` calls `mark_ready()` unconditionally during `on_initialize()`, before it ever attempts a connection — lifecycle readiness is intentionally decoupled from HA connectivity so dependents aren't blocked when Home Assistant is unreachable. `BusService` calls it after the internal event stream is open.
+A service enters `RUNNING` just before its `serve()` loop begins. `initialize()` returns while the service is still `STARTING`. A framework-spawned task then calls `handle_running()` and invokes `serve()` immediately after. A service signals readiness by calling `mark_ready()` at whatever internal point it is prepared to serve requests. `WebsocketService` calls `mark_ready()` unconditionally during `on_initialize()`, before it ever attempts a connection — lifecycle readiness is intentionally decoupled from HA connectivity so dependents aren't blocked when Home Assistant is unreachable. `BusService` calls it after the internal event stream is open.
 
 `depends_on` lists the resource types a service waits for before running its own `on_initialize()`. The wait is on readiness, not on `RUNNING` status. A dependent service does not proceed until all declared dependencies have called `mark_ready()`.
 
 | Signal | Set by | Waited on by |
 |---|---|---|
-| `status = RUNNING` | `handle_running()` when `serve()` begins | Nothing (informational only) |
+| `status = RUNNING` | `handle_running()`, just before `serve()` begins | Nothing (informational only) |
 | `ready_event` | `mark_ready()` at service-defined readiness point | Dependents via `depends_on` auto-wait |
 
 ## Wave Startup and Shutdown
@@ -122,8 +122,8 @@ For the full dependency graph and startup wave diagram, see [Architecture & Data
 
 ## Teardown Safety and Restart Refusal
 
-This section is for authors of custom `Service` subclasses, whose shutdown hooks and background tasks
-produce the evidence described here.
+This section is for authors of custom `Service` subclasses. Their shutdown hooks and background
+tasks produce the teardown evidence this section describes.
 
 `STOPPED` describes lifecycle *phase*, not proof that a resource's work has actually stopped. A
 shutdown hook can fail, a child can time out, a background task can ignore cancellation — and the
