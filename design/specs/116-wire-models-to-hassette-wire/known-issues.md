@@ -134,8 +134,8 @@ and exercised in `tests/unit/test_telemetry_models.py` (`TestGlobalSummary`/`Tes
 Confirmed present in this exact form at the base commit (fb4f7083), so pre-existing.
 
 Why deferred:
-This branch's own design doc (`design/specs/116-wire-models-to-hassette-wire/design.md`, Status:
-approved, not archived) explicitly excludes deleting these in this PR — its Non-Goals section
+This branch's own design doc (`design/specs/116-wire-models-to-hassette-wire/design.md`)
+explicitly excludes deleting these in this PR — its Non-Goals section
 names `GlobalSummary`/`SessionSummary` (along with `HandlerErrorRecord`, `JobErrorRecord`, the
 `*GlobalStats` types) as "unserved, possibly dead telemetry models... a separate cleanup." A
 fix-now attempt during the known-issues walkthrough confirmed this and did not delete anything.

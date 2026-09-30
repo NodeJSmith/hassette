@@ -1,11 +1,8 @@
-"""Guards the `hassette_wire` move: identity at the `hassette` root, and no moved contract
-name re-exported from an old surviving module's public `__all__`.
+"""Public paths for the contract enums and Literals defined in `hassette_wire`.
 
-The contract enums and Literals must be defined only in `hassette_wire`, with the public ones
-re-exported as the *same object* from the `hassette` root. `hassette.types` and `hassette.schemas`
-are the only old surviving modules that declare `__all__`; a moved contract name appearing in
-either would mean it is re-exported from that surface, not just importable via an internal
-qualified reference (which `hasattr` can't distinguish from re-export).
+The app-author-facing ones are re-exported from the `hassette` root as the same objects, and
+no contract name is re-exported through `hassette.types` or `hassette.schemas` (`__all__` is
+checked rather than attribute presence, so those modules may still import a name for their own use).
 """
 
 from hassette_wire import BackpressurePolicy, ExecutionMode, ExecutionStatus, ResourceStatus
@@ -22,7 +19,7 @@ MOVED_CONTRACT_NAMES = (
     "BackpressurePolicy",
     "ExecutionStatus",
     "SourceTier",
-    "LOG_LEVEL_TYPE",
+    "LogLevel",
     "QuerySourceTier",
 )
 

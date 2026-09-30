@@ -164,9 +164,7 @@ class RuntimeQueryService(Resource):
     async def broadcast_envelope(self, event_type: str, data: Any) -> None:
         """Broadcast a WS envelope of the shape ``{"type", "data", "timestamp"}``.
 
-        Shared by ``build_and_broadcast`` (a single dumped model) and ``flush_completions``
-        (a list of dumped models) -- both hand this already-dumped ``data``, so there is no
-        ``isinstance`` branching on payload shape here.
+        ``data`` is already dumped: a single model's dict, or a list of them for a batch.
         """
         entry: dict[str, Any] = {"type": event_type, "data": data, "timestamp": time.time()}
         await self.broadcast(entry)
@@ -180,7 +178,7 @@ class RuntimeQueryService(Resource):
             app_key=data.app_key,
             index=data.index,
             status=data.status,
-            previous_status=data.previous_status if data.previous_status else None,
+            previous_status=data.previous_status,
             instance_name=data.instance_name,
             class_name=data.class_name,
             exception=data.exception,
@@ -195,7 +193,7 @@ class RuntimeQueryService(Resource):
             resource_name=data.resource_name,
             role=data.role.value,
             status=data.status,
-            previous_status=data.previous_status if data.previous_status else None,
+            previous_status=data.previous_status,
             exception=data.exception,
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
