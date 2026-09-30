@@ -406,11 +406,7 @@ class TestCompletionBatching:
     async def test_handler_completions_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
         """Multiple handler execution events in the same tick emit one broadcast."""
         broadcast_calls: list[dict] = []
-
-        async def fake_broadcast(msg: dict) -> None:
-            broadcast_calls.append(msg)
-
-        runtime.broadcast = fake_broadcast
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=1, status="success", duration_ms=10.0, app_key="my_app", instance_index=0
@@ -443,11 +439,7 @@ class TestCompletionBatching:
     async def test_job_completions_batched_into_one_message(self, runtime: RuntimeQueryService) -> None:
         """Multiple job execution events in the same tick emit one broadcast."""
         broadcast_calls: list[dict] = []
-
-        async def fake_broadcast(msg: dict) -> None:
-            broadcast_calls.append(msg)
-
-        runtime.broadcast = fake_broadcast
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
             kind="job", job_id=10, status="success", duration_ms=50.0, app_key="scheduler_app", instance_index=0
@@ -486,11 +478,7 @@ class TestCompletionBatching:
     async def test_mixed_handler_and_job_emit_single_message(self, runtime: RuntimeQueryService) -> None:
         """Handler and job completions in same tick emit one unified message, not two."""
         broadcast_calls: list[dict] = []
-
-        async def fake_broadcast(msg: dict) -> None:
-            broadcast_calls.append(msg)
-
-        runtime.broadcast = fake_broadcast
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         handler_event = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=1, status="success", duration_ms=5.0, app_key="my_app", instance_index=0
@@ -510,11 +498,7 @@ class TestCompletionBatching:
     async def test_flushed_batch_validates_against_execution_completed_data(self, runtime: RuntimeQueryService) -> None:
         """The broadcast ``data`` list round-trips through ``list[ExecutionCompletedData]``."""
         broadcast_calls: list[dict] = []
-
-        async def fake_broadcast(msg: dict) -> None:
-            broadcast_calls.append(msg)
-
-        runtime.broadcast = fake_broadcast
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         event1 = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=1, status="success", duration_ms=10.0, app_key="my_app", instance_index=0
@@ -536,11 +520,7 @@ class TestCompletionValidation:
 
     async def test_malformed_completion_between_two_valid_is_isolated(self, runtime: RuntimeQueryService) -> None:
         broadcast_calls: list[dict] = []
-
-        async def fake_broadcast(msg: dict) -> None:
-            broadcast_calls.append(msg)
-
-        runtime.broadcast = fake_broadcast
+        runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
         valid1 = HassetteExecutionCompletedEvent.from_record(
             kind="handler", listener_id=1, status="success", duration_ms=10.0, app_key="my_app", instance_index=0
