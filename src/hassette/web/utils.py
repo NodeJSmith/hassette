@@ -43,30 +43,18 @@ def enrich_jobs_with_live(
             continue
         try:
             guard = live_job.guard
-            enriched.append(
-                JobSummary(
-                    **js.model_dump(
-                        exclude={
-                            "schedule_status",
-                            "schedule_status_reason",
-                            "next_run",
-                            "fire_at",
-                            "jitter",
-                            "suppressed_count",
-                            "dropped_count",
-                        }
-                    ),
-                    schedule_status=live_job.schedule_status.value,
-                    schedule_status_reason=(
-                        live_job.schedule_status_reason.value if live_job.schedule_status_reason is not None else None
-                    ),
-                    next_run=live_job.next_run.timestamp() if live_job.next_run is not None else None,
-                    fire_at=live_job.fire_at.timestamp() if live_job.fire_at is not None else None,
-                    jitter=live_job.jitter,
-                    suppressed_count=guard.suppressed,
-                    dropped_count=guard.dropped,
-                )
-            )
+            live_fields = {
+                "schedule_status": live_job.schedule_status.value,
+                "schedule_status_reason": (
+                    live_job.schedule_status_reason.value if live_job.schedule_status_reason is not None else None
+                ),
+                "next_run": live_job.next_run.timestamp() if live_job.next_run is not None else None,
+                "fire_at": live_job.fire_at.timestamp() if live_job.fire_at is not None else None,
+                "jitter": live_job.jitter,
+                "suppressed_count": guard.suppressed,
+                "dropped_count": guard.dropped,
+            }
+            enriched.append(JobSummary(**{**js.model_dump(), **live_fields}))
         except (AttributeError, TypeError, ValueError):
             LOGGER.warning("Failed to enrich job summary for job_id=%s; using DB row", js.job_id, exc_info=True)
             enriched.append(js)
