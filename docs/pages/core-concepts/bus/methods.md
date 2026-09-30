@@ -14,8 +14,8 @@ Every subscription method accepts these parameters. Individual method tables bel
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `handler` | `HandlerType` | — | The function called when the event matches. See [Writing Handlers](handlers.md). |
-| `name` | `str \| None` | `None` | Required. Identifies this listener in logs and the monitoring UI. Must be unique per app instance and topic. Omitting raises `ListenerNameRequiredError`. |
-| `on_error` | `BusErrorHandlerType \| None` | `None` | Per-listener error handler. Overrides the app-level handler set via `bus.on_error()`. Available on `on_state_change`, `on_attribute_change`, `on_call_service`, `on_service_registered`, `on_component_loaded`, `on_app_state_changed`, and `on()`. |
+| `name` | `str` | — | Required. Identifies this listener in logs and the monitoring UI. Must be unique per app instance and topic. Omitting it raises `TypeError` (no default value). An empty string raises `ListenerNameRequiredError`. |
+| `on_error` | `BusErrorHandlerType \| None` | `None` | Per-listener error handler. Overrides the app-level handler set via `bus.on_error()`. Available on `on_state_change`, `on_attribute_change`, `on_call_service`, `on_service_registered`, `on_component_loaded`, `on_app_state_changed`, `on_hassette_service_status`, and `on()`. |
 | `timeout` | `float \| None` | `None` | Per-listener timeout in seconds. If the handler runs longer, it is cancelled. `None` inherits `event_handler_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
 | `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this listener regardless of config. |
 | `debounce` | `float \| None` | `None` | Delays the handler until events have been quiet for N seconds. Each new event resets the timer. |
@@ -350,7 +350,7 @@ The global default comes from `event_handler_timeout_seconds` in `hassette.toml`
 
 ### `name=` requirement
 
-Every registration method requires `name=`. Omitting it raises `ListenerNameRequiredError` at call time.
+Every registration method requires `name=`. The parameter has no default, so omitting it raises Python's `TypeError`. Passing an empty string raises `ListenerNameRequiredError` at call time. [`wait_for`](#wait_fortopic) is the exception — its `name` is optional.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
