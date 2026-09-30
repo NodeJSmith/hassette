@@ -132,13 +132,13 @@ A framework fix doesn't reach existing apps on its own. Authors who already wrot
 
 For each entry in the release, ask: what did an app author have to write by hand, or avoid doing, before this shipped? A `fix:` often retires a defensive pattern; a `feat:` often replaces hand-rolled code (manual namespacing, hand-written mocks, sleeps in tests, a warning in the author's own conventions doc). In-repo usage won't answer this. The workarounds live in user apps, so reason from the problem the entry solved, and from the linked issue if it describes what people were doing instead.
 
-If any entry retires a workaround, add a `### For App Authors: You Can Now Delete` subsection to that release, one bullet per workaround:
+If any entry retires a workaround, add a `### For App Authors: You Can Now Delete` section to that release, one bullet per workaround:
 
 - Name the workaround concretely enough that an author can grep their app for it
 - Say what replaces it, or that nothing needs to
 - Reference the entry's issue or PR as `(#NNN)`
 
-Omit the subsection when nothing qualifies; don't add an empty one. This applies to the release being curated only. Don't backfill it into older releases, including when cleaning up their formatting.
+Omit the section when nothing qualifies; don't add an empty one. This applies to the release being curated only. Don't backfill it into older releases, including when cleaning up their formatting.
 
 ### Do NOT edit the PR body (CRITICAL)
 
