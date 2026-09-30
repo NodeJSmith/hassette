@@ -64,9 +64,13 @@ Rewrite the release section to match the v0.24.0 style:
 **Breaking changes:**
 Each must explain (1) what changed, (2) what user code is affected, (3) what to do. Use field-by-field details when types changed. Put these in a `### Breaking Changes` section at the top.
 
+**Workarounds made obsolete:**
+For each kept entry, check whether it retires something app authors had to hand-write or avoid in their own apps, following "For App Authors: You Can Now Delete" in the changelog quality rule above. If any qualify, add a `### For App Authors: You Can Now Delete` section directly after `### Breaking Changes` (first, if the release has none). Add it even when the release has too few entries to be grouped.
+
 **Grouping:**
 When 5+ entries remain, group by feature area with `### Section` headers:
 - `### Breaking Changes` (always first if present)
+- `### For App Authors: You Can Now Delete` (directly after Breaking Changes if present)
 - Topic sections like `### Scheduler`, `### Bus`, `### Web UI`, `### State Models`, `### Test Utilities`, `### API`, `### Error Handling`
 - `### Bug Fixes` (always last)
 - `### Documentation` (only if user-facing docs changed)
@@ -92,9 +96,11 @@ AskUserQuestion:
       description: "Only edit the new release section"
 ```
 
+Cleaning up an older release covers its formatting only. Don't add a `### For App Authors: You Can Now Delete` section to it.
+
 ## Step 6: Push
 
-1. Show a summary: entries removed, entries rewritten, breaking changes added.
+1. Show a summary: entries removed, entries rewritten, breaking changes added, obsolete workarounds named (or that none were found).
 2. Ask for approval:
 
 ```
