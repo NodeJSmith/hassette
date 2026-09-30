@@ -277,19 +277,7 @@ async def get_app_manifests(
         total=len(manifest_infos),
         status_counts=tally_manifest_statuses(manifest_infos),
     )
-    manifest_list = app_manifest_list_response_from(full_snapshot)
-
-    enriched_manifests = [
-        AppManifestResponse(
-            **m.model_dump(exclude={"recent_invocations_1h"}),
-            recent_invocations_1h=invocations_by_key.get(m.app_key, 0),
-        )
-        for m in manifest_list.manifests
-    ]
-    return AppManifestListResponse(
-        **manifest_list.model_dump(exclude={"manifests"}),
-        manifests=enriched_manifests,
-    )
+    return app_manifest_list_response_from(full_snapshot, invocations_by_key)
 
 
 @router.get("/apps/{app_key}/manifest", response_model=AppManifestResponse)
@@ -314,7 +302,6 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
 
     manifest_info = runtime.overlay_manifest_rows([db_row])[0]
-    result = app_manifest_response_from(manifest_info)
 
     invocations = 0
     try:
@@ -323,10 +310,7 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
     except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch recent_invocations_1h for app %s manifest", app_key, exc_info=True)
 
-    return AppManifestResponse(
-        **result.model_dump(exclude={"recent_invocations_1h"}),
-        recent_invocations_1h=invocations,
-    )
+    return app_manifest_response_from(manifest_info, invocations)
 
 
 @router.post(

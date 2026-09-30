@@ -20,6 +20,7 @@ from hassette.schemas.listener_models import ListenerSummary
 from hassette.schemas.live_counts import LiveCounts
 from hassette.web.mappers import (
     app_manifest_list_response_from,
+    app_manifest_response_from,
     app_status_response_from,
     connected_payload_from,
     instance_response_from,
@@ -204,6 +205,44 @@ def test_app_manifest_list_response_from_passes_manifest_field_through(
     result = app_manifest_list_response_from(full)
 
     assert getattr(result.manifests[0], response_attr) == expected
+
+
+def test_app_manifest_response_from_defaults_recent_invocations_to_zero():
+    """recent_invocations_1h defaults to 0 when the caller passes no count."""
+    manifest = make_manifest("app_a")
+
+    result = app_manifest_response_from(manifest)
+
+    assert result.recent_invocations_1h == 0
+
+
+def test_app_manifest_response_from_uses_given_recent_invocations():
+    """recent_invocations_1h is set from the explicit argument."""
+    manifest = make_manifest("app_a")
+
+    result = app_manifest_response_from(manifest, recent_invocations_1h=7)
+
+    assert result.recent_invocations_1h == 7
+
+
+def test_app_manifest_list_response_from_looks_up_invocations_by_app_key():
+    """Each manifest's recent_invocations_1h is looked up from invocations_by_key by app_key."""
+    manifests = [make_manifest("app_a"), make_manifest("app_b")]
+    full = make_full_snapshot(manifests)
+
+    result = app_manifest_list_response_from(full, invocations_by_key={"app_a": 3})
+
+    by_key = {m.app_key: m.recent_invocations_1h for m in result.manifests}
+    assert by_key == {"app_a": 3, "app_b": 0}
+
+
+def test_app_manifest_list_response_from_defaults_invocations_to_zero_when_omitted():
+    """Omitting invocations_by_key entirely defaults every manifest's count to 0."""
+    full = make_full_snapshot([make_manifest("app_a")])
+
+    result = app_manifest_list_response_from(full)
+
+    assert result.manifests[0].recent_invocations_1h == 0
 
 
 def test_app_manifest_list_response_from_preserves_counts():

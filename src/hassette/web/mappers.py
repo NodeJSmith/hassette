@@ -95,17 +95,33 @@ def manifest_response_fields(manifest: AppManifestInfo) -> dict[str, Any]:
     # dup-ignore-end
 
 
-def app_manifest_response_from(manifest: AppManifestInfo) -> AppManifestResponse:
-    """Convert an ``AppManifestInfo`` snapshot to ``AppManifestResponse``."""
-    return AppManifestResponse(**manifest_response_fields(manifest))
+def app_manifest_response_from(manifest: AppManifestInfo, recent_invocations_1h: int = 0) -> AppManifestResponse:
+    """Convert an ``AppManifestInfo`` snapshot to ``AppManifestResponse``.
+
+    ``recent_invocations_1h`` is not part of the manifest snapshot itself -- it comes from a
+    separate, independently-degrading telemetry query (see ``.claude/rules/web-api.md``'s
+    Category C) -- so it's accepted here rather than read off ``manifest``, defaulting to 0 when
+    the caller has no count for this app.
+    """
+    return AppManifestResponse(**manifest_response_fields(manifest), recent_invocations_1h=recent_invocations_1h)
 
 
-def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListResponse:
-    """Convert an ``AppFullSnapshot`` to ``AppManifestListResponse``."""
+def app_manifest_list_response_from(
+    full: AppFullSnapshot, invocations_by_key: dict[str, int] | None = None
+) -> AppManifestListResponse:
+    """Convert an ``AppFullSnapshot`` to ``AppManifestListResponse``.
+
+    ``invocations_by_key`` maps ``app_key`` to its ``recent_invocations_1h`` count; an app absent
+    from the mapping (including when the mapping itself is omitted) defaults to 0.
+    """
+    invocations_by_key = invocations_by_key or {}
     return AppManifestListResponse(
         total=full.total,
         status_counts=full.status_counts,
-        manifests=[app_manifest_response_from(manifest) for manifest in full.manifests],
+        manifests=[
+            app_manifest_response_from(manifest, invocations_by_key.get(manifest.app_key, 0))
+            for manifest in full.manifests
+        ],
         only_apps=full.only_apps,
     )
 
