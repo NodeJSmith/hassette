@@ -5,6 +5,8 @@ mark ready in an init hook; ``Service`` subclasses with a ``serve()`` loop mark 
 running. The exceptions are documented in the rule file.
 """
 
+import importlib
+import pkgutil
 import re
 from pathlib import Path
 
@@ -15,14 +17,17 @@ from hassette.api.api import Api
 from hassette.api.helpers import HelperClient
 from hassette.api.sync import ApiSyncFacade
 from hassette.api.sync_helpers import HelperClientSyncFacade
+from hassette.app.app import App, AppSync
 from hassette.bus.bus import Bus
 from hassette.bus.sync import BusSyncFacade
+from hassette.bus.sync_events import BusSyncEventShortcuts
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
+from hassette.core.core import Hassette
 from hassette.core.database_service import DatabaseService
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
@@ -37,6 +42,8 @@ from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.core.web_api_service import WebApiService
 from hassette.core.web_ui_watcher import WebUiWatcherService
 from hassette.core.websocket_service import WebsocketService
+from hassette.resources.base import Resource
+from hassette.resources.service import Service
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.sync import SchedulerSyncFacade
 from hassette.state_manager.state_manager import StateManager
@@ -45,7 +52,7 @@ from hassette.testing.recording_api import RecordingApi
 from tests.support.ready_timing import assert_marks_ready_in, find_mark_ready_classes
 
 RULE_FILE = Path(__file__).parents[3] / ".claude" / "rules" / "resource-lifecycle.md"
-TABLE_ROW = re.compile(r"^\| `(\w+)\(\)` \| (.+) \|$", re.MULTILINE)
+TABLE_ROW = re.compile(r"^\| (`\w+\(\)`.*?) \| (`.+) \|$", re.MULTILINE)
 DEVIATION_BULLET = re.compile(r"^- \*\*`(\w+)`\*\*", re.MULTILINE)
 
 MARK_READY_HOOKS: dict[type, tuple[str, ...]] = {
@@ -86,6 +93,16 @@ MARK_READY_HOOKS: dict[type, tuple[str, ...]] = {
     WebsocketService: ("on_initialize", "start_recv_and_subscribe"),
 }
 
+# Resource subclasses that never call mark_ready(self), and who marks them ready instead. Subclasses of a
+# class in MARK_READY_HOOKS inherit its hook and need no entry here.
+NOT_SELF_MARKED: dict[type, str] = {
+    App: "AppLifecycleService marks each app instance ready after on_initialize()",
+    AppSync: "subclass of App",
+    BusSyncEventShortcuts: "intermediate base class of BusSyncFacade",
+    Hassette: "the coordinator signals startup through ready_event, not mark_ready()",
+    Service: "abstract base class",
+}
+
 
 @pytest.mark.parametrize(
     ("resource_cls", "hooks"),
@@ -101,13 +118,41 @@ def test_table_covers_every_resource_that_marks_itself_ready() -> None:
     assert find_mark_ready_classes(source_root) == {cls.__name__ for cls in MARK_READY_HOOKS}
 
 
+def all_resource_subclasses() -> set[type]:
+    """Import every hassette module and return each ``Resource`` subclass defined in the package."""
+    for module in pkgutil.walk_packages(hassette.__path__, f"{hassette.__name__}."):
+        importlib.import_module(module.name)
+    found: set[type] = set()
+    pending = [Resource]
+    while pending:
+        for sub in pending.pop().__subclasses__():
+            if sub not in found:
+                found.add(sub)
+                pending.append(sub)
+    return {cls for cls in found if cls.__module__.startswith(f"{hassette.__name__}.")}
+
+
+def test_every_resource_has_a_readiness_source() -> None:
+    """A new Resource subclass must mark itself ready, inherit a class that does, or be listed in NOT_SELF_MARKED."""
+    unaccounted = {
+        cls.__qualname__
+        for cls in all_resource_subclasses()
+        if not any(issubclass(cls, known) for known in (*MARK_READY_HOOKS, *NOT_SELF_MARKED))
+    }
+    assert not unaccounted, (
+        f"Resource subclasses with no mark_ready(self) call and no NOT_SELF_MARKED entry: {unaccounted}"
+    )
+
+
 def test_rule_file_table_matches_hook_table() -> None:
     """The table in resource-lifecycle.md lists the same classes and hooks as MARK_READY_HOOKS."""
     text = RULE_FILE.read_text(encoding="utf-8")
-    documented = {name: hook for hook, cells in TABLE_ROW.findall(text) for name in re.findall(r"`(\w+)`", cells)}
-    deviations = set(DEVIATION_BULLET.findall(text))
-    expected = {cls.__name__: hooks for cls, hooks in MARK_READY_HOOKS.items()}
+    documented: dict[str, frozenset[str]] = {}
+    for hook_cell, names_cell in TABLE_ROW.findall(text):
+        hooks = frozenset(re.findall(r"`(\w+)\(\)`", hook_cell))
+        for name in re.findall(r"`(\w+)`", names_cell):
+            documented[name] = hooks
+    expected = {cls.__name__: frozenset(hooks) for cls, hooks in MARK_READY_HOOKS.items()}
 
-    assert set(documented) | deviations == set(expected)
-    for name, hook in documented.items():
-        assert expected[name] == (hook,), f"{name}: rule file says {hook}(), test table says {expected[name]}"
+    assert documented == expected
+    assert set(DEVIATION_BULLET.findall(text)) <= set(documented), "every deviation bullet names a class in the table"

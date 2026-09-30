@@ -27,7 +27,7 @@ Readiness is what `depends_on` auto-wait and the startup waves block on, so mark
 - **`Service` with a `serve()` loop**: call it inside `serve()`, once the loop's prerequisites are open and just before it starts consuming work. `_serve_wrapper()` in `service.py` runs `serve()` after `initialize()` completes, so marking ready in `on_initialize()` would unblock dependents before anything is draining their work.
 - A `serve()` that returns goes through `handle_stop()`, which calls `mark_not_ready()`. A service that is disabled by config but must stay ready marks ready in `on_initialize()` and parks `serve()` on `self.shutdown_event.wait()` instead of returning.
 
-`tests/unit/resources/test_mark_ready_timing.py` is the canonical, enforced copy of this table (via `assert_marks_ready_in()` in `tests/support/ready_timing.py`) and fails when a new class calls `mark_ready(self)` without being listed. Update both together.
+`tests/unit/resources/test_mark_ready_timing.py` is the canonical, enforced copy of this table (via `assert_marks_ready_in()` in `tests/support/ready_timing.py`) and fails when a new class calls `mark_ready(self)` without being listed, or when a new `Resource` subclass has no readiness source at all (its `NOT_SELF_MARKED` map covers classes marked ready by something else). Update both together.
 
 | Hook | Resources |
 |---|---|
@@ -35,6 +35,9 @@ Readiness is what `depends_on` auto-wait and the startup waves block on, so mark
 | `after_initialize()` | `AppHandler`, `StateManager` |
 | `__init__()` | `TaskBucket` |
 | `serve()` | `BusService`, `CommandExecutor`, `DatabaseService`, `FileWatcherService`, `SchedulerService`, `SyncExecutorService` |
+| `on_initialize()` (deviation) | `WebApiService` |
+| `on_initialize()`, `serve()` (deviation) | `WebUiWatcherService` |
+| `on_initialize()`, `start_recv_and_subscribe()` (deviation) | `WebsocketService` |
 
 Services that deviate from the `serve()` rule, and why:
 
