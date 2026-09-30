@@ -5,6 +5,7 @@ import time
 from typing import Annotated
 
 import pytest
+from hassette_wire import CliFormat
 from pydantic import BaseModel
 
 from hassette.cli.output import (
@@ -18,7 +19,6 @@ from hassette.cli.output import (
     render_detail,
     render_detail_dict,
 )
-from hassette.types.types import CliFormat
 from tests.unit.cli.conftest import capture_human, parse_json_stdout
 
 

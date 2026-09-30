@@ -8,6 +8,14 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import tomli_w
 from fastapi import APIRouter, HTTPException, Request, Response
+from hassette_wire import (
+    ActionResponse,
+    AppConfigResponse,
+    AppManifestListResponse,
+    AppManifestResponse,
+    AppSourceResponse,
+    AppStatusResponse,
+)
 
 from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
@@ -18,14 +26,6 @@ from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep, db_degrades_to
 from hassette.web.mappers import app_manifest_list_response_from, app_manifest_response_from, app_status_response_from
-from hassette.web.models import (
-    ActionResponse,
-    AppConfigResponse,
-    AppManifestListResponse,
-    AppManifestResponse,
-    AppSourceResponse,
-    AppStatusResponse,
-)
 
 if TYPE_CHECKING:
     from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo
@@ -39,7 +39,7 @@ _VALID_APP_KEY = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]{0,127}$")
 #: Past-tense verb for each action's success log line.
 _ACTION_PAST_TENSE: dict[AppAction, str] = {"start": "Started", "stop": "Stopped", "reload": "Reloaded"}
 
-# Keep in sync with the manifest fields on AppConfigResponse in models.py.
+# Keep in sync with the manifest fields on AppConfigResponse in hassette_wire/apps.py.
 _MANIFEST_FIELD_SCHEMAS: dict[str, dict[str, Any]] = {
     "enabled": {
         "type": "boolean",
@@ -277,13 +277,7 @@ async def get_app_manifests(
         total=len(manifest_infos),
         status_counts=tally_manifest_statuses(manifest_infos),
     )
-    manifest_list = app_manifest_list_response_from(full_snapshot)
-
-    enriched_manifests = [
-        m.model_copy(update={"recent_invocations_1h": invocations_by_key.get(m.app_key, 0)})
-        for m in manifest_list.manifests
-    ]
-    return manifest_list.model_copy(update={"manifests": enriched_manifests})
+    return app_manifest_list_response_from(full_snapshot, invocations_by_key)
 
 
 @router.get("/apps/{app_key}/manifest", response_model=AppManifestResponse)
@@ -308,7 +302,6 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
         raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
 
     manifest_info = runtime.overlay_manifest_rows([db_row])[0]
-    result = app_manifest_response_from(manifest_info)
 
     invocations = 0
     try:
@@ -317,7 +310,7 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
     except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch recent_invocations_1h for app %s manifest", app_key, exc_info=True)
 
-    return result.model_copy(update={"recent_invocations_1h": invocations})
+    return app_manifest_response_from(manifest_info, invocations)
 
 
 @router.post(

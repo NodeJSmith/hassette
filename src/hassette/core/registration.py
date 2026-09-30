@@ -2,8 +2,9 @@
 
 from dataclasses import dataclass
 
-from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, BackpressurePolicy, ExecutionMode
-from hassette.types.types import SourceTier
+from hassette_wire import BackpressurePolicy, ExecutionMode, SourceTier
+
+from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
 
 
 @dataclass(frozen=True)

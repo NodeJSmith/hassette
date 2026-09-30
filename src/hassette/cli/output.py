@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from typing import Any
 
+from hassette_wire import CliFormat, ResourceStatus
 from pydantic import BaseModel
 from rich.console import Console, OverflowMethod
 from rich.panel import Panel
@@ -25,8 +26,6 @@ from rich.table import Table
 from whenever import Instant, OffsetDateTime, PlainDateTime
 
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
-from hassette.types.enums import ResourceStatus
-from hassette.types.types import CliFormat
 
 stdout_console = Console(file=sys.stdout, highlight=False)
 stderr_console = Console(file=sys.stderr, stderr=True, highlight=False)
@@ -267,7 +266,7 @@ def render_detail(
 
     Nested sub-models render as labeled sections with indented key-value rows.
     Lists of scalars render inline as comma-separated values. Fields annotated
-    with :class:`~hassette.types.types.CliFormat` are formatted via the
+    with :class:`~hassette_wire.CliFormat` are formatted via the
     ``CLI_FORMATTERS`` registry in human mode.
     """
     if json_mode:

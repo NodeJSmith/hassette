@@ -8,7 +8,7 @@ removes the ``web → core`` import cycle.
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from hassette.types.enums import ManifestStatus, ResourceStatus
+from hassette_wire import ManifestStatus, ResourceStatus
 
 MANIFEST_STATUS_KEYS = tuple(ManifestStatus)
 

@@ -42,7 +42,8 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.testing",  # AppTestHarness, RecordingApi, event factories, etc.
         # Tier C: autoref targets in narrative docs
         "hassette.exceptions",  # HassetteError, EntityNotFoundError, InvalidAuthError, HassetteForgottenAwaitWarning
-        # ForgottenAwaitBehavior, ResourceStatus, RestartType, and other framework enums
+        # ForgottenAwaitBehavior, RestartType, and other framework enums (plus the wire contract
+        # enums appended via EXTRA_PAGE_IDENTIFIERS below)
         "hassette.types.enums",
         "hassette.state_manager.state_manager",  # StateManager, DomainStates
         "hassette.di",  # AnnotationDetails, build_injection_plan, TypeMatcher, AnnotatedMatcher, etc.
@@ -70,6 +71,29 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.core.api_resource",  # ApiResource referenced in internals docs
     }
 )
+
+
+# Root-level re-exports of `hassette_wire` objects (the `hassette` package's public surface for
+# the contract enums — app authors import them via `from hassette import ResourceStatus`, never
+# from `hassette_wire` directly). They're aliases on the `hassette` package, not modules, so they
+# can't go in PUBLIC_MODULES (which expects real module paths) — instead each is rendered as an
+# extra `:::` block appended to an existing module page via EXTRA_PAGE_IDENTIFIERS below, landing
+# them next to the framework's other public enums rather than under a standalone nav section.
+# `mkdocstrings.handlers.python.options.preload_modules` (see mkdocs.yml) loads `hassette_wire`
+# before any `hassette.*` page renders, so griffe can resolve these aliases regardless of the
+# order pages happen to render in.
+ROOT_REEXPORTS: tuple[str, ...] = (
+    "BackpressurePolicy",
+    "ExecutionMode",
+    "ExecutionStatus",
+    "ResourceStatus",
+)
+
+# Maps a module already in PUBLIC_MODULES to extra top-level identifiers whose docs should render
+# on that same page, appended after the module's own `:::` block.
+EXTRA_PAGE_IDENTIFIERS: dict[str, tuple[str, ...]] = {
+    "hassette.types.enums": tuple(f"hassette.{name}" for name in ROOT_REEXPORTS),
+}
 
 
 def format_title(part: str) -> str:
@@ -110,7 +134,7 @@ def write_overview_page(nav: mkdocs_gen_files.Nav) -> None:  # pyright: ignore[r
 
 
 def write_module_stubs(nav: mkdocs_gen_files.Nav) -> None:  # pyright: ignore[reportPrivateImportUsage]
-    """Walk SRC_DIR and write a per-module reference stub for each public module."""
+    """Walk *SRC_DIR* and write a per-module reference stub for each module in *PUBLIC_MODULES*."""
     for path in sorted(SRC_DIR.rglob("*.py")):
         module_parts = path.relative_to(SRC_DIR).with_suffix("").parts
 
@@ -147,6 +171,10 @@ def write_module_stubs(nav: mkdocs_gen_files.Nav) -> None:  # pyright: ignore[re
 
         with mkdocs_gen_files.open(full_doc_path, "w") as fd:
             fd.write(f"::: {module_path}\n")
+            for extra_identifier in EXTRA_PAGE_IDENTIFIERS.get(module_path, ()):
+                fd.write(f"\n::: {extra_identifier}\n")
+                if DEBUG:
+                    print(f"[gen-ref] appending {extra_identifier} to {full_doc_path}")
 
         mkdocs_gen_files.set_edit_path(full_doc_path, path.relative_to(ROOT))
 

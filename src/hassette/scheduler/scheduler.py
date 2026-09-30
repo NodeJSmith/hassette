@@ -79,6 +79,7 @@ from collections.abc import Coroutine, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from hassette_wire import LogLevel
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -89,7 +90,7 @@ from hassette.execution_mode import resolve_execution_mode
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import SchedulerServiceProtocol, TriggerProtocol
-from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy
+from hassette.types.types import IfExistsPolicy
 from hassette.utils.await_guard import guard_await
 from hassette.utils.func_utils import callable_name, callable_stable_name, is_async_callable
 from hassette.utils.source_capture import capture_registration_source
@@ -100,12 +101,13 @@ from .sync import SchedulerSyncFacade
 from .triggers import WAITING, After, Cron, Daily, EntityTime, Every, Once, _WaitingSentinel
 
 if typing.TYPE_CHECKING:
+    from hassette_wire import ExecutionMode, SourceTier
+
     from hassette import Hassette
     from hassette.bus import Subscription
     from hassette.events import HassStateDict
     from hassette.types import JobCallable
-    from hassette.types.enums import ExecutionMode
-    from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate, SourceTier
+    from hassette.types.types import SchedulerErrorHandlerType, SchedulerPredicate
 
 
 _SCHEDULER_MATCHERS = (TypeMatcher(Job),)
@@ -206,7 +208,7 @@ class Scheduler(Resource):
         self._error_handler = handler
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.scheduler_service
 

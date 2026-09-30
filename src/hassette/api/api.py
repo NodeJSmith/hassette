@@ -169,6 +169,7 @@ from http import HTTPStatus
 from typing import Any, Literal, overload
 
 import aiohttp
+from hassette_wire import LogLevel
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.const.misc import FalseySentinel
@@ -185,7 +186,6 @@ from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.await_guard import guard_await
 from hassette.utils.request_utils import format_time_param
 from hassette.utils.source_capture import capture_source_location
@@ -322,7 +322,7 @@ class Api(Resource):
         mark_ready(self, reason="API initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.api
 

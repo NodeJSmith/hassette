@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import aiosqlite
+from hassette_wire import LogLevel
 
 from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.execution_queries import ExecutionQueriesMixin
@@ -16,7 +17,6 @@ from hassette.core.telemetry.summary_queries import SummaryQueriesMixin
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -36,7 +36,7 @@ class TelemetryQueryService(ExecutionQueriesMixin, RegistrationQueriesMixin, Sum
         self._snapshot_lock = asyncio.Lock()
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.web_api
 
     async def on_initialize(self) -> None:

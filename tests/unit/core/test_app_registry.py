@@ -8,10 +8,10 @@ The `get_full_snapshot()`, blocking, autostart, and manifest-info tests live in
 from unittest.mock import MagicMock
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.core.app_registry import AppRegistry
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
-from hassette.types.enums import ResourceStatus
 
 from .conftest import make_manifest_obj
 

@@ -29,6 +29,7 @@ import builtins
 import typing
 from typing import Any, Literal, overload
 
+from hassette_wire import LogLevel
 from pydantic import BaseModel
 
 from hassette.models.helpers import (
@@ -59,7 +60,6 @@ from hassette.models.helpers import (
 )
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 from .api import _expect_dict, _expect_list, _ws_helper_call
 
@@ -142,7 +142,7 @@ class HelperClient(Resource):
         mark_ready(self, reason="Helper client initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.api
 

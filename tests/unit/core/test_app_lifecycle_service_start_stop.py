@@ -8,13 +8,13 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.testing import EventCapture
 from hassette.types import Topic
-from hassette.types.enums import ResourceStatus
 from tests.unit.core._fixtures_app_lifecycle import make_mock_app_instance
 
 

@@ -3,17 +3,18 @@
 These typed models replace raw ``dict`` returns, preventing the
 "column rename -> silent template failure" class of bugs.
 
-For live runtime state models, see ``domain_models.py``.
+For app-registry snapshots, see ``hassette.schemas.app_snapshots``. For the live
+system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
 
 See ``schemas/__init__.py`` for the domain-file map.
 """
 
 from typing import Literal
 
+from hassette_wire import BackpressurePolicy, ExecutionMode, SourceTier
 from pydantic import BaseModel
 
-from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, BackpressurePolicy, ExecutionMode
-from hassette.types.types import SourceTier
+from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
 
 
 class ListenerSummary(BaseModel):

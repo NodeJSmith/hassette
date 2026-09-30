@@ -1,6 +1,7 @@
 """Login exchange endpoint for the Hassette Web API."""
 
 from fastapi import APIRouter, HTTPException, Request, Response
+from hassette_wire import SessionRequest, SessionResponse
 
 from hassette.web.auth.session import (
     SESSION_COOKIE_NAME,
@@ -10,7 +11,6 @@ from hassette.web.auth.session import (
 )
 from hassette.web.auth.trusted_proxies import get_trusted_proxies, peer_address
 from hassette.web.dependencies import AuthDep, HassetteDep
-from hassette.web.models import SessionRequest, SessionResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

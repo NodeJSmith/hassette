@@ -7,23 +7,25 @@ values outside that set at validation time.
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
-
-from hassette.schemas.execution_models import ActivityFeedEntry, Execution
-from hassette.schemas.log_models import LogRecord
-from hassette.types.enums import ManifestStatus, ResourceStatus
-from hassette.types.types import ExecutionStatus
-from hassette.web.models import (
+from hassette_wire import (
+    ActivityFeedEntry,
     AppHealthResponse,
     AppInstanceResponse,
     AppManifestResponse,
     DashboardAppGridEntry,
+    Execution,
     ExecutionCompletedData,
+    ExecutionStatus,
     ListenerWithSummary,
     LogEntryResponse,
+    ManifestStatus,
+    ResourceStatus,
     ServiceInfoResponse,
     SystemStatusResponse,
 )
+from pydantic import ValidationError
+
+from hassette.schemas.log_models import LogRecord
 
 STANDARD_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 

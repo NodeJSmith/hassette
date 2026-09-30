@@ -9,10 +9,11 @@ enforcement added in #1076 (Layer 2).
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
+from hassette_wire import BackpressurePolicy, ExecutionMode
+
 from hassette.core.bus_service import _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS, BusService
 from hassette.task_bucket import TaskBucket
 from hassette.testing import wait_for
-from hassette.types.enums import BackpressurePolicy, ExecutionMode
 from tests.support.factories import make_mock_event
 from tests.support.helpers import create_listener
 from tests.support.mock_hassette import make_mock_hassette

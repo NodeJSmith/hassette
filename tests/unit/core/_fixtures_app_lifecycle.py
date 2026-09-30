@@ -8,13 +8,13 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.core.app_change_detector import ChangeSet
 from hassette.core.app_handler import AppHandler
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.testing import EventCapture
 from hassette.types import Topic
-from hassette.types.enums import ResourceStatus
 from tests.support.mock_hassette import make_mock_hassette
 
 # Shared fixture/factory config values — named so re-tuning is a single-site edit.

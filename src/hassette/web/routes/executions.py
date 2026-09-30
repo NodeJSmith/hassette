@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING, Annotated
 
 import uuid_utils
 from fastapi import APIRouter, HTTPException, Query, Response
+from hassette_wire import LogEntryResponse, LogsByExecutionResponse
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.web.dependencies import HassetteDep, TelemetryDep
-from hassette.web.models import LogEntryResponse, LogsByExecutionResponse
 
 if TYPE_CHECKING:
     from hassette.core.telemetry.query_service import TelemetryQueryService

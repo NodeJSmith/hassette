@@ -19,6 +19,7 @@ Verifies leaf resource readiness:
 import asyncio
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
@@ -29,7 +30,6 @@ from hassette.resources.lifecycle import handle_failed, handle_starting
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.scheduler.scheduler import Scheduler
-from hassette.types.enums import ResourceStatus
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running
 

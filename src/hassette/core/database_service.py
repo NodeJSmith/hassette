@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import aiosqlite
+from hassette_wire import LogLevel
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_write_queue import (
@@ -29,7 +30,6 @@ from hassette.resources.lifecycle import create_lifecycle_task, hooks_pool_remai
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
-from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
 
 if typing.TYPE_CHECKING:
@@ -268,7 +268,7 @@ class DatabaseService(Service):
         self._executing_future = None
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.database_service
 
     @property

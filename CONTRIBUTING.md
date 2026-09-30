@@ -143,6 +143,24 @@ def my_function(param: str) -> int:
 - Leverage Pydantic models for data validation
 - Use `typing` and `typing_extensions` features appropriately
 
+### Wire Contract
+
+The HTTP/WebSocket wire contract — every served model, enum, and Literal — lives in
+`wire/src/hassette_wire/`, not in `src/hassette`. A field added to a wire model after the first
+published `hassette-wire` release must be optional with a default, so a client built against a
+newer release can still parse a response from a server still running an older release that
+hasn't added the field yet. Adding an enum member or a new Literal value is a version-skew
+change in the opposite direction (older client, newer server), which the client package's
+lenient parsing handles.
+
+A PR that deliberately breaks the wire contract adds one line per reported change to
+`tools/wire_compat_ignore.txt`, copied from the compatibility check's output. Clear those lines
+out once the release that ships the break goes out — the file should stay empty otherwise.
+
+The automated compatibility check (`tools/check_wire_compat.py`) covers the HTTP contract
+(`openapi.json`) only. WS payloads follow the same rules but have no automated cross-release
+check yet — a WS-breaking change relies on review, not CI.
+
 ## Documentation
 
 Documentation is built with [MkDocs](https://www.mkdocs.org/) and [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/).

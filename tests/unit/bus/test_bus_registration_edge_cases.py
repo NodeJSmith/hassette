@@ -15,6 +15,7 @@ Covers:
 import typing
 
 import pytest
+from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
 
 from hassette import C
 from hassette.events.hassette import HassetteAppStateEvent
@@ -25,7 +26,6 @@ from hassette.testing import (
     make_full_state_change_event,
     make_state_dict,
 )
-from hassette.types.enums import BackpressurePolicy, ExecutionMode, ResourceStatus
 from tests.support.helpers import create_component_loaded_event, create_service_registered_event
 
 from .conftest import mock_add_listener

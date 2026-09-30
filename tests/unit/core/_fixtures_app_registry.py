@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from hassette.types.enums import ResourceStatus
+from hassette_wire import ResourceStatus
 
 
 def make_manifest_obj(  # factory-local: SimpleNamespace input shape for AppRegistry, not AppManifestInfo output

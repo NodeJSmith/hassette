@@ -1,0 +1,61 @@
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, Field
+
+from hassette_wire.cli_format import CliFormat
+from hassette_wire.enums import ResourceStatus
+from hassette_wire.literals import SystemHealthStatus
+
+
+class BootIssueResponse(BaseModel):
+    """A boot-time issue entry in the system status response."""
+
+    severity: Literal["err", "warn"]
+    label: str
+    detail: str
+
+
+class ServiceInfoResponse(BaseModel):
+    """Structured info for one internal service."""
+
+    name: str
+    status: ResourceStatus
+    role: str = ""
+    """Role of the service (e.g. 'service', 'resource'). Empty string when not available."""
+    ready_phase: str | None = None
+    """Human-readable description of the current readiness phase, or None if not available."""
+    retry_at: float | None = None
+    """Unix timestamp when the next restart will be attempted (cooling state), or None."""
+
+
+class SystemStatusResponse(BaseModel):
+    status: SystemHealthStatus
+    websocket_connected: bool
+    bootstrap_released: bool
+    uptime_seconds: Annotated[float, CliFormat("uptime")]
+    entity_count: int
+    app_count: int
+    services: Annotated[list[ServiceInfoResponse], CliFormat("services")] = Field(default_factory=list)
+    version: str = ""
+    boot_issues: list[BootIssueResponse] = Field(default_factory=list)
+    log_queue_drops: int = 0
+    """Log records dropped because the log queue was full — tune ``logging.log_queue_max``."""
+
+    db_write_queue_drops: int = 0
+    """Log records dropped because the DB write queue was full, unavailable, or closed."""
+
+    log_persistence_active: bool = False
+    """False means log persistence is unavailable — ``db_write_queue_drops`` of 0 is not health."""
+
+
+class LivenessResponse(BaseModel):
+    """Response model for GET /api/health/live."""
+
+    status: Literal["live"] = "live"
+
+
+class ReadinessResponse(BaseModel):
+    """Response model for GET /api/health/ready."""
+
+    status: SystemHealthStatus
+    ready: bool

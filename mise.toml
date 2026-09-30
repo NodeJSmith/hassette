@@ -3,6 +3,7 @@ prek = "0.4.11"
 python = ["3.14.7"]
 uv = "latest"
 java = "temurin-21.0.12+101.0.LTS" # PMD CPD (tools/check_duplicate_code.py) is a JVM tool
+"github:oasdiff/oasdiff" = "1.32.1" # wire-compat check (tools/check_wire_compat.py); CI installs the same version via go install, see tests.yml
 
 [env]
 # _.file = '.env'

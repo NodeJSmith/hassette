@@ -19,6 +19,7 @@ from typing import ClassVar
 from unittest.mock import AsyncMock
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.exceptions import FatalError, RestartRefusedError
 from hassette.resources.base import Resource
@@ -28,7 +29,6 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.resources.teardown import TeardownCause
 from hassette.testing import wait_for
-from hassette.types.enums import ResourceStatus
 from tests.support.factories import wire_dependent_resource
 from tests.support.helpers import (
     GENEROUS_SHUTDOWN_TIMEOUT_SECONDS,

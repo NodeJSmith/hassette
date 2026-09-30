@@ -9,6 +9,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from hassette_wire import ExecutionMode
 
 from hassette.execution_mode import (
     STALL_THRESHOLD_SECONDS,
@@ -17,7 +18,6 @@ from hassette.execution_mode import (
     run_through_guard,
     run_with_stall_watch,
 )
-from hassette.types.enums import ExecutionMode
 from tests.support.helpers import prime_guard
 
 #: Hang guard for this module's event handshakes, which complete in milliseconds. It only converts

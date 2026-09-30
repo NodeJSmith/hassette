@@ -10,6 +10,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
 from unittest.mock import AsyncMock, MagicMock, Mock
 
+from hassette_wire import ExecutionMode, ExecutionStatus, SourceTier
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -35,8 +36,8 @@ from hassette.scheduler.scheduler import Scheduler
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
 from hassette.testing.recording_api import RecordingApi
 from hassette.types import JobCallable, SchedulerErrorHandlerType, TriggerProtocol
-from hassette.types.enums import DEFAULT_OVERLAP_MODE, ExecutionMode
-from hassette.types.types import ExecutionStatus, SchedulerPredicate, SourceTier
+from hassette.types.enums import DEFAULT_OVERLAP_MODE
+from hassette.types.types import SchedulerPredicate
 from tests.support.mock_hassette import make_mock_hassette
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
 

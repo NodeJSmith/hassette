@@ -11,6 +11,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
+from hassette_wire import LogLevel
 from pydantic import (
     BaseModel,
     BeforeValidator,
@@ -27,13 +28,13 @@ from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.helpers import coerce_log_level, log_level_default_factory
 from hassette.logging_ import RESERVED_EXTRA_LOGGER_NAMES
 from hassette.types.enums import BlockingIOBehavior
-from hassette.types.types import LOG_LEVEL_TYPE, RawAppDict
+from hassette.types.types import RawAppDict
 
 LOGGER = getLogger(__name__)
 APP_SHUTDOWN_TIMEOUT_SECONDS = 10
 
 
-LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
+LOG_ANNOTATION = Annotated[LogLevel, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 APP_REQUIRED_KEYS = frozenset({"filename", "class_name"})
 DEFAULT_WEB_API_PORT = 8126
 

@@ -3,10 +3,10 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Response
+from hassette_wire import ListenerWithSummary
 
 from hassette.web.dependencies import HassetteDep, TelemetryDep, TelemetryFiltersDep, db_degrades_to
 from hassette.web.mappers import to_listener_with_summary
-from hassette.web.models import ListenerWithSummary
 
 router = APIRouter(tags=["bus"])
 

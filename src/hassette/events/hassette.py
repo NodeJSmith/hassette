@@ -2,10 +2,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
+from hassette_wire import ExecutionStatus, ResourceStatus
+
 from hassette.events.base import Event, HassettePayload
 from hassette.schemas.app_snapshots import AppInstanceInfo
-from hassette.types import ResourceRole, ResourceStatus, Topic
-from hassette.types.types import ExecutionStatus
+from hassette.types import ResourceRole, Topic
 from hassette.utils import get_traceback_string
 
 if TYPE_CHECKING:

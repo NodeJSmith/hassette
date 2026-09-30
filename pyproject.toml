@@ -203,7 +203,6 @@ omit = [
     "*/types/enums.py",      # StrEnum declarations
     "*/types/types.py",      # type aliases, TypedDicts, Protocols
     "*/const/*",             # literal constants
-    "*/web/models.py",       # Pydantic response schemas
     "*/schemas/*",           # Pydantic query/telemetry schemas
 ]
 

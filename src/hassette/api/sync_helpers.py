@@ -9,12 +9,12 @@ import builtins
 import typing
 from typing import Any
 
+from hassette_wire import LogLevel
 from pydantic import BaseModel
 
 from hassette.api.helpers import HelperDomain
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -41,7 +41,7 @@ class HelperClientSyncFacade(Resource):
         mark_ready(self, reason="Synchronous HelperClient facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.api
 
     def list(self, domain: HelperDomain) -> builtins.list[Any]:

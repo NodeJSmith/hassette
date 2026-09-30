@@ -14,9 +14,9 @@ and shutdown() (continue_on_error=True). Verifies:
 import asyncio
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.resources.operations import run_hooks
-from hassette.types.enums import ResourceStatus
 from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import ConcreteResource

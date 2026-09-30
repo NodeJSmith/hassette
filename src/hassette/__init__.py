@@ -1,5 +1,7 @@
 import logging
 
+from hassette_wire import BackpressurePolicy, ExecutionMode, ExecutionStatus, ResourceStatus
+
 from .api import Api
 from .app import App, AppConfig, AppSync
 from .bus import Bus
@@ -20,7 +22,7 @@ from .models import entities, states
 from .models.services import ServiceResponse
 from .scheduler import Scheduler
 from .task_bucket import TaskBucket
-from .types.enums import BackpressurePolicy, BlockingIOBehavior, ExecutionMode, ForgottenAwaitBehavior, Topic
+from .types.enums import BlockingIOBehavior, ForgottenAwaitBehavior, Topic
 
 A = accessors
 C = conditions
@@ -46,6 +48,7 @@ __all__ = [
     "C",
     "D",
     "ExecutionMode",
+    "ExecutionStatus",
     "ForgottenAwaitBehavior",
     "Hassette",
     "HassetteBlockingIOWarning",
@@ -53,6 +56,7 @@ __all__ = [
     "HassetteForgottenAwaitWarning",
     "P",
     "RawStateChangeEvent",
+    "ResourceStatus",
     "Scheduler",
     "ServiceResponse",
     "TaskBucket",

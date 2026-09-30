@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from anyio import ClosedResourceError
+from hassette_wire import ResourceStatus
 
 import hassette.core.core as core_module
 from hassette import context
@@ -25,7 +26,6 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import COORDINATOR_MARGIN_FRACTION, compute_shutdown_budget
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import wait_for
-from hassette.types.enums import ResourceStatus
 from hassette.utils.url_utils import build_rest_url, build_ws_url
 from tests.support.factories import make_log_record
 from tests.support.harness import preserve_config

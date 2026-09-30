@@ -14,18 +14,18 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
-from hassette.cli.client import HassetteCLIClient
-from hassette.schemas.job_models import JobSummary
-from hassette.web.models import (
+from hassette_wire import (
     AppManifestListResponse,
     ConfigSchemaResponse,
     DashboardAppGridResponse,
+    JobSummary,
     ListenerWithSummary,
     LogEntryResponse,
     SystemStatusResponse,
     TelemetryStatusResponse,
 )
+
+from hassette.cli.client import HassetteCLIClient
 
 from .conftest import (
     HA_TOKEN,

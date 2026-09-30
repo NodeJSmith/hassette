@@ -11,7 +11,7 @@ authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.15"
-dependencies = ["pydantic>=2.0"]
+dependencies = ["pydantic>=2.7"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

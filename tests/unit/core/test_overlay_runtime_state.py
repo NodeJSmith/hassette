@@ -4,9 +4,10 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.core.app_registry import AppRegistry, overlay_runtime_state
-from hassette.types.enums import BlockReason, ResourceStatus
+from hassette.types.enums import BlockReason
 from tests.support.helpers import create_app_manifest
 from tests.support.web_manifest_helpers import make_manifest_db_row
 

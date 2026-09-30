@@ -12,6 +12,7 @@ import aiohttp
 import anyio
 from aiohttp import ClientConnectorError, ClientOSError, ClientTimeout, ServerDisconnectedError, WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError
+from hassette_wire import LogLevel
 from tenacity import (
     before_sleep_log,
     retry,
@@ -46,7 +47,6 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState, RestartType
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -167,7 +167,7 @@ class WebsocketService(Service):
         mark_ready(self, reason="WebSocket service initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.websocket
 
     @property

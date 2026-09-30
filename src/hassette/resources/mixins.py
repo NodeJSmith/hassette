@@ -4,13 +4,15 @@ import typing
 from logging import Logger, getLogger
 from typing import Any, Protocol
 
+from hassette_wire import ResourceStatus
+
 from hassette.exceptions import InvalidLifecycleTransitionError
 from hassette.resources.teardown import TeardownReport
-from hassette.types.enums import ResourceRole, ResourceStatus
 from hassette.types.types import CoroLikeT
 
 if typing.TYPE_CHECKING:
     from hassette.resources.lifecycle import ShutdownBudget
+    from hassette.types.enums import ResourceRole
 
 LOGGER = getLogger(__name__)
 

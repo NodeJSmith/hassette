@@ -3,6 +3,7 @@ paths:
   - "frontend/**"
   - "src/hassette/web/**"
   - "src/hassette/schemas/**"
+  - "wire/src/hassette_wire/**"
   - "scripts/export_schemas.py"
 ---
 
@@ -18,7 +19,7 @@ One-time per worktree. `package-lock.json` is shared via the worktree's file cop
 
 ## Schema regeneration
 
-After modifying backend response models (`web/models.py`, `src/hassette/schemas/*.py`) or route signatures:
+After modifying backend response models (`wire/src/hassette_wire/**`, `src/hassette/schemas/*.py`) or route signatures:
 
 1. Regenerate schemas and all TypeScript types in one command:
    ```bash

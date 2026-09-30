@@ -12,6 +12,7 @@ from typing import ClassVar
 
 import structlog.contextvars
 import uuid_utils
+from hassette_wire import ExecutionStatus, LogLevel
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.commands import ExecuteJob, InvokeHandler
@@ -34,7 +35,6 @@ from hassette.resources.service import Service
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.schemas.log_models import BlockingEvent
 from hassette.types.enums import RestartType
-from hassette.types.types import LOG_LEVEL_TYPE, ExecutionStatus
 from hassette.utils.execution import ExecutionResult, track_execution
 
 if typing.TYPE_CHECKING:
@@ -172,7 +172,7 @@ class CommandExecutor(Service):
         self._clock = time.monotonic
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.command_executor
 
     async def serve(self) -> None:

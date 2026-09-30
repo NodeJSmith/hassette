@@ -2,12 +2,12 @@
 
 from typing import Any
 
+from hassette_wire import Execution, JobSummary
+
 from hassette.cli.client import make_client, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
-from hassette.schemas.execution_models import Execution
-from hassette.schemas.job_models import JobSummary
 
 JOB_EXECUTION_COLUMNS: list[Column] = [
     Column("status", "Status", max_width=10),

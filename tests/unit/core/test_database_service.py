@@ -7,12 +7,12 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from hassette_wire import ResourceStatus
 
 # Underscore-prefixed names below are intentional test-only reaches into module internals.
 from hassette.core.database_service import DatabaseService, _WriteQueueItem
 from hassette.core.database_write_queue import log_worker_exit
 from hassette.testing import wait_for
-from hassette.types.enums import ResourceStatus
 from tests.support.helpers import async_noop
 from tests.unit.core._fixtures_database_service import initialized_service_with_worker, service
 

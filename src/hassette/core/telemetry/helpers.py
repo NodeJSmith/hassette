@@ -11,9 +11,10 @@ from dataclasses import dataclass
 from typing import Any, assert_never
 
 import aiosqlite
+from hassette_wire import QuerySourceTier
 
 from hassette.schemas.summary_models import AppHealthSummary
-from hassette.types.types import QuerySourceTier, is_framework_key
+from hassette.types.types import is_framework_key
 
 # Storage-layer exceptions translated to TelemetryUnavailableError at the read boundary.
 # Named once here so both the execute() chokepoint and the get_all_app_summaries bypass

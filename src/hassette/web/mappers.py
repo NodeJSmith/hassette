@@ -1,38 +1,39 @@
 """Mapping functions from core domain objects to web response models.
 
 Each function converts a domain type (from ``hassette.schemas``) to the
-appropriate Pydantic response model from ``hassette.web.models``. Web routes
+appropriate Pydantic response model from ``hassette_wire``. Web routes
 call these instead of receiving pre-mapped response objects from
-``RuntimeQueryService``.
+``RuntimeQueryService`` — except where a service already builds a wire
+response model directly, with no domain source to convert (e.g.
+``LivenessResponse``, and ``SystemStatusResponse`` from
+``RuntimeQueryService.get_system_status()``, returned as-is by
+``/health``).
 
 Enum coercion note
 ------------------
 ``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``), and
 ``AppManifestInfo.status`` is a ``ManifestStatus`` enum (``StrEnum``). Pydantic coerces both
-directly — pass the enum value as-is. ``ServiceInfo.status`` is a ``str`` with ResourceStatus
-values; cast for pyright.
+directly — pass the enum value as-is.
 """
 
-from typing import Any, cast
+from typing import Any
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
-from hassette.schemas.domain_models import SystemStatus
-from hassette.schemas.listener_models import ListenerSummary
-from hassette.schemas.live_counts import LiveCounts
-from hassette.types.enums import ResourceStatus, Topic
-from hassette.web.models import (
+from hassette_wire import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
     AppStatusResponse,
-    BootIssueResponse,
     ConnectedPayload,
     ListenerKind,
     ListenerWithSummary,
     ReadinessResponse,
-    ServiceInfoResponse,
     SystemStatusResponse,
 )
+
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.live_counts import LiveCounts
+from hassette.types.enums import Topic
 from hassette.web.telemetry_helpers import format_handler_summary
 
 TOPIC_KIND_MAP: dict[str, ListenerKind] = {
@@ -94,65 +95,49 @@ def manifest_response_fields(manifest: AppManifestInfo) -> dict[str, Any]:
     # dup-ignore-end
 
 
-def app_manifest_response_from(manifest: AppManifestInfo) -> AppManifestResponse:
-    """Convert an ``AppManifestInfo`` snapshot to ``AppManifestResponse``."""
-    return AppManifestResponse(**manifest_response_fields(manifest))
+def app_manifest_response_from(manifest: AppManifestInfo, recent_invocations_1h: int = 0) -> AppManifestResponse:
+    """Convert an ``AppManifestInfo`` snapshot to ``AppManifestResponse``.
+
+    ``recent_invocations_1h`` is not part of the manifest snapshot itself — it comes from a
+    separate, independently-degrading telemetry query (see ``.claude/rules/web-api.md``'s
+    Category C) — so it's accepted here rather than read off ``manifest``, defaulting to 0 when
+    the caller has no count for this app.
+    """
+    return AppManifestResponse(**manifest_response_fields(manifest), recent_invocations_1h=recent_invocations_1h)
 
 
-def app_manifest_list_response_from(full: AppFullSnapshot) -> AppManifestListResponse:
-    """Convert an ``AppFullSnapshot`` to ``AppManifestListResponse``."""
+def app_manifest_list_response_from(
+    full: AppFullSnapshot, invocations_by_key: dict[str, int] | None = None
+) -> AppManifestListResponse:
+    """Convert an ``AppFullSnapshot`` to ``AppManifestListResponse``.
+
+    ``invocations_by_key`` maps ``app_key`` to its ``recent_invocations_1h`` count; an app absent
+    from the mapping (including when the mapping itself is omitted) defaults to 0.
+    """
+    invocations_by_key = invocations_by_key or {}
     return AppManifestListResponse(
         total=full.total,
         status_counts=full.status_counts,
-        manifests=[app_manifest_response_from(manifest) for manifest in full.manifests],
+        manifests=[
+            app_manifest_response_from(manifest, invocations_by_key.get(manifest.app_key, 0))
+            for manifest in full.manifests
+        ],
         only_apps=full.only_apps,
     )
 
 
-def system_status_response_from(status: SystemStatus) -> SystemStatusResponse:
-    """Convert a ``SystemStatus`` domain object to ``SystemStatusResponse``."""
-    boot_issues = [
-        BootIssueResponse(severity=issue.severity, label=issue.label, detail=issue.detail)
-        for issue in status.boot_issues
-    ]
-    services = [
-        ServiceInfoResponse(
-            name=service.name,
-            status=cast("ResourceStatus", service.status),  # ServiceInfo.status is str
-            role=service.role,
-            ready_phase=service.ready_phase,
-            retry_at=service.retry_at,
-        )
-        for service in status.services
-    ]
-    return SystemStatusResponse(
-        status=status.status,
-        websocket_connected=status.websocket_connected,
-        bootstrap_released=status.bootstrap_released,
-        uptime_seconds=status.uptime_seconds,
-        entity_count=status.entity_count,
-        app_count=status.app_count,
-        services=services,
-        version=status.version,
-        boot_issues=boot_issues,
-        log_queue_drops=status.log_queue_drops,
-        db_write_queue_drops=status.db_write_queue_drops,
-        log_persistence_active=status.log_persistence_active,
-    )
-
-
-def readiness_response_from(status: SystemStatus) -> ReadinessResponse:
-    """Convert a ``SystemStatus`` domain object to ``ReadinessResponse``.
+def readiness_response_from(status: SystemStatusResponse) -> ReadinessResponse:
+    """Convert a ``SystemStatusResponse`` to ``ReadinessResponse``.
 
     Readiness is derived solely from the aggregate status: ready only when ``ok``.
     """
     return ReadinessResponse(status=status.status, ready=status.status == "ok")
 
 
-def connected_payload_from(status: SystemStatus) -> ConnectedPayload:
-    """Build a ``ConnectedPayload`` from a ``SystemStatus``.
+def connected_payload_from(status: SystemStatusResponse) -> ConnectedPayload:
+    """Build a ``ConnectedPayload`` from a ``SystemStatusResponse``.
 
-    ``uptime_seconds`` is sourced from ``SystemStatus.uptime_seconds``, which
+    ``uptime_seconds`` is sourced from ``SystemStatusResponse.uptime_seconds``, which
     is computed from the same ``_start_time`` used by ``GET /health``.
     """
     return ConnectedPayload(
@@ -199,16 +184,16 @@ def to_listener_with_summary(
             ``LiveCounts(0, 0, 0)``.
     """
     suppressed, dropped, backpressure_dropped = (live_counts or {}).get(listener.listener_id, LiveCounts(0, 0, 0))
-    # Every ListenerSummary field has a same-named field on ListenerWithSummary, so
-    # from_attributes copies them 1:1. The six fields below have no source attribute
-    # (they are computed or sourced from live_counts) and are set via model_copy.
-    return ListenerWithSummary.model_validate(listener, from_attributes=True).model_copy(
-        update={
-            "listener_kind": listener_kind_from_topic(listener.topic),
-            "handler_summary": format_handler_summary(listener),
-            "target": listener.entity_id or event_name_from_topic(listener.topic),
-            "suppressed_count": suppressed,
-            "dropped_count": dropped,
-            "backpressure_dropped_count": backpressure_dropped,
-        }
+    # Every ListenerSummary field has a same-named field on ListenerWithSummary, so splatting
+    # model_dump() copies them 1:1. The six fields below have no source attribute (they are
+    # computed or sourced from live_counts) and are passed as explicit keyword arguments, so
+    # pyright checks their types and the constructor validates every field — a bad value raises.
+    return ListenerWithSummary(
+        **listener.model_dump(),
+        listener_kind=listener_kind_from_topic(listener.topic),
+        handler_summary=format_handler_summary(listener),
+        target=listener.entity_id or event_name_from_topic(listener.topic),
+        suppressed_count=suppressed,
+        dropped_count=dropped,
+        backpressure_dropped_count=backpressure_dropped,
     )

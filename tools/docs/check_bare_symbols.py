@@ -14,6 +14,8 @@ import re
 import sys
 from pathlib import Path
 
+from _doc_skip_checks import is_in_code_block, is_in_heading, is_in_table_row
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DOCS_DIR = REPO_ROOT / "docs" / "pages"
 
@@ -41,20 +43,22 @@ SYMBOLS = {
 def check_page(path: Path, fix: bool = False) -> list[str]:
     text = path.read_text()
     lines = text.split("\n")
-    in_code = False
     findings: list[str] = []
     new_lines = []
 
+    offset = 0
     for i, line in enumerate(lines, 1):
+        line_start = offset
+        line_end = line_start + len(line)
+        offset = line_end + 1  # account for the newline join point
+
         if line.strip().startswith("```"):
-            in_code = not in_code
             new_lines.append(line)
             continue
-        # Skip code fences (handled above), table rows, and headings. Symbols in
-        # headings are titles by convention and are not code-formatted.
-        # NOTE: tools/docs/check_xref_coverage.py applies the same three skips — keep in sync.
-        stripped = line.strip()
-        if in_code or stripped.startswith("|") or stripped.startswith("#"):
+
+        # Skip code fences, table rows, and headings. Symbols in headings are
+        # titles by convention and are not code-formatted.
+        if is_in_code_block(text, line_end) or is_in_heading(text, line_end) or is_in_table_row(text, line_end):
             new_lines.append(line)
             continue
 
