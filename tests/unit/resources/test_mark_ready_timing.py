@@ -48,6 +48,7 @@ from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.sync import SchedulerSyncFacade
 from hassette.state_manager.state_manager import StateManager
 from hassette.task_bucket.task_bucket import TaskBucket
+from hassette.testing._harness import _TestableHassette
 from hassette.testing.recording_api import RecordingApi
 from tests.support.ready_timing import assert_marks_ready_in, find_mark_ready_classes
 
@@ -93,14 +94,16 @@ MARK_READY_HOOKS: dict[type, tuple[str, ...]] = {
     WebsocketService: ("on_initialize", "start_recv_and_subscribe"),
 }
 
-# Resource subclasses that never call mark_ready(self), and who marks them ready instead. Subclasses of a
-# class in MARK_READY_HOOKS inherit its hook and need no entry here.
+# Resource subclasses that never call mark_ready(self), and who marks them ready instead. Matched by identity:
+# a subclass of one of these still needs its own readiness source. Subclasses of a class in MARK_READY_HOOKS
+# inherit its hook and need no entry here.
 NOT_SELF_MARKED: dict[type, str] = {
     App: "AppLifecycleService marks each app instance ready after on_initialize()",
     AppSync: "subclass of App",
     BusSyncEventShortcuts: "intermediate base class of BusSyncFacade",
     Hassette: "the coordinator signals startup through ready_event, not mark_ready()",
     Service: "abstract base class",
+    _TestableHassette: "the test harness sets ready_event directly, like Hassette",
 }
 
 
@@ -137,7 +140,7 @@ def test_every_resource_has_a_readiness_source() -> None:
     unaccounted = {
         cls.__qualname__
         for cls in all_resource_subclasses()
-        if not any(issubclass(cls, known) for known in (*MARK_READY_HOOKS, *NOT_SELF_MARKED))
+        if cls not in NOT_SELF_MARKED and not any(issubclass(cls, known) for known in MARK_READY_HOOKS)
     }
     assert not unaccounted, (
         f"Resource subclasses with no mark_ready(self) call and no NOT_SELF_MARKED entry: {unaccounted}"
