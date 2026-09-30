@@ -34,7 +34,8 @@ Readiness is what `depends_on` auto-wait and the startup waves block on, so mark
 | `on_initialize()` | `Api`, `ApiResource`, `ApiSyncFacade`, `AppBootstrapCoordinator`, `AppLifecycleService`, `Bus`, `BusSyncFacade`, `EventStreamService`, `HelperClient`, `HelperClientSyncFacade`, `LoggingService`, `RecordingApi`, `RuntimeQueryService`, `Scheduler`, `SchedulerSyncFacade`, `ServiceWatcher`, `SessionManager`, `StateProxy`, `TelemetryQueryService`, `_ScheduledJobQueue` |
 | `after_initialize()` | `AppHandler`, `StateManager` |
 | `__init__()` | `TaskBucket` |
-| `serve()` | `BusService`, `CommandExecutor`, `DatabaseService`, `FileWatcherService`, `SchedulerService`, `SyncExecutorService` |
+| `serve()` | `BusService`, `CommandExecutor`, `DatabaseService`, `SchedulerService`, `SyncExecutorService` |
+| `serve()` (deviation) | `FileWatcherService` |
 | `on_initialize()` (deviation) | `WebApiService` |
 | `on_initialize()`, `serve()` (deviation) | `WebUiWatcherService` |
 | `on_initialize()`, `start_recv_and_subscribe()` (deviation) | `WebsocketService` |
