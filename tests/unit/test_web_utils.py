@@ -56,6 +56,34 @@ class TestEnrichJobsWithLiveData:
 class TestEnrichJobsWithLive:
     """Unit tests for enrich_jobs_with_live — called directly, not through the async wrapper."""
 
+    def test_every_live_field_overlays_the_db_row(self) -> None:
+        """Each live-sourced field replaces the DB value.
+
+        The live values are merged over the DB row by key, and ``JobSummary`` ignores unknown
+        keys, so a misspelled key would silently keep the DB value — asserting all seven catches it.
+        """
+        db_summary = make_job_summary(job_id=1)
+
+        live_job = MagicMock()
+        live_job.db_id = 1
+        live_job.next_run.timestamp.return_value = 1111.0
+        live_job.fire_at.timestamp.return_value = 2222.0
+        live_job.jitter = 3.5
+        live_job.schedule_status.value = "waiting"
+        live_job.schedule_status_reason.value = "trigger_error"
+        live_job.guard.suppressed = 4
+        live_job.guard.dropped = 5
+
+        result = enrich_jobs_with_live([db_summary], [live_job])[0]
+
+        assert result.next_run == pytest.approx(1111.0)
+        assert result.fire_at == pytest.approx(2222.0)
+        assert result.jitter == pytest.approx(3.5)
+        assert result.schedule_status == "waiting"
+        assert result.schedule_status_reason == "trigger_error"
+        assert result.suppressed_count == 4
+        assert result.dropped_count == 5
+
     def test_wrong_typed_live_value_falls_back_to_db_row(self) -> None:
         """A live job whose overlaid value has the wrong type leaves that job's DB row unmodified.
 
