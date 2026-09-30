@@ -3,18 +3,17 @@
 
 Runs ``oasdiff breaking`` twice against HEAD's ``frontend/openapi.json`` and the same file as it
 existed at the latest ``v*`` git tag reachable from HEAD, in both version-skew directions.
-Severity is decided in Python from oasdiff's JSON findings (``id`` + ``level``), not from an
-``oasdiff --severity-levels`` file — a per-check-id allowlist here means a newer oasdiff that adds
-checks can't produce spurious failures in the reversed run just by existing.
+Blocking is decided in Python from oasdiff's JSON findings (``id`` + ``level``):
 
 - **Reversed (new client, old server):** ``oasdiff breaking <HEAD> <last-release>``. oasdiff
   judges the *old-client/new-server* direction by default, which scores a newly required response
   field as ``info`` (non-breaking). Swapping the argument order flips that same change to
   ``response-required-property-removed`` / ``response-property-became-optional``, both ``error``
   — a client written against the last release cannot handle a response the new server now
-  requires. Only findings whose ``id`` is in ``REVERSED_BLOCKING_CHECK_IDS`` block this run; every
-  other finding (a reversed run also flags legitimate additions, like a new endpoint, as "removed")
-  is ignored.
+  requires. Only findings whose ``id`` is in ``REVERSED_BLOCKING_CHECK_IDS`` block this run — a
+  named allowlist, so a newer oasdiff that adds checks can't fail it just by existing, and a
+  reversed run also flags legitimate additions (like a new endpoint) as "removed", which must not
+  block.
 - **Forward (old client, new server):** ``oasdiff breaking <last-release> <HEAD>``. Every
   ERR-level finding blocks except ``FORWARD_ALLOWED_ERR_CHECK_IDS``
   (``response-property-enum-value-added``) — enum/Literal value growth is the old-client/new-server
@@ -64,31 +63,25 @@ FORWARD_ALLOWED_ERR_CHECK_IDS = frozenset(
     }
 )
 
-_NO_EXEMPT_IDS: frozenset[str] = frozenset()
-
 
 def resolve_latest_release_tag(repo_root: Path) -> str | None:
-    """Return the latest ``v*`` git tag reachable from HEAD, or None if there is none.
+    """Return the highest ``v*`` git tag reachable from HEAD, or None if there is none.
 
-    Uses ``git describe`` rather than a repo-wide ``git tag --list`` + version sort, so a branch
-    forked before a release doesn't get compared against a tag it can't see yet.
+    ``git tag --list --merged HEAD`` limits candidates to tags whose commit is an ancestor of
+    HEAD, so a branch forked before a release isn't compared against a tag it can't see yet.
+    Empty stdout with exit 0 means no reachable tag; any non-zero exit is a real git failure.
     """
     result = subprocess.run(
-        ["git", "describe", "--tags", "--abbrev=0", "--match", "v*"],
+        ["git", "tag", "--list", "v*", "--merged", "HEAD", "--sort=-v:refname"],
         cwd=repo_root,
         capture_output=True,
         text=True,
         timeout=GIT_TIMEOUT_SECONDS,
     )
-    if result.returncode == 0:
-        return result.stdout.strip()
-
-    stderr = result.stderr.strip()
-    # git describe's two "nothing to describe" messages: no v* tag exists anywhere in the repo, or
-    # none of the existing v* tags are reachable from HEAD.
-    if "no names found" in stderr.lower() or "no tags can describe" in stderr.lower():
-        return None
-    raise RuntimeError(f"git describe failed: {stderr}")
+    if result.returncode != 0:
+        raise RuntimeError(f"git tag --list failed: {result.stderr.strip()}")
+    tags = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    return tags[0] if tags else None
 
 
 def extract_tagged_openapi(repo_root: Path, tag: str, dest_dir: Path) -> Path:
@@ -112,8 +105,7 @@ def run_oasdiff(base: Path, revision: Path, ignore_file: Path, label: str) -> li
 
     ``--err-ignore`` is applied by oasdiff itself, so an ignored finding never appears in the
     returned list. Any non-zero exit code is a genuine tool error (bad args, unreadable spec,
-    malformed output) — severity is decided entirely in Python from the returned findings, so
-    oasdiff itself is never asked to fail the run via ``--fail-on``.
+    malformed output).
     """
     print(f"--- oasdiff breaking ({label}): {base} -> {revision} ---")
     result = subprocess.run(
@@ -138,28 +130,40 @@ def run_oasdiff(base: Path, revision: Path, ignore_file: Path, label: str) -> li
 
     findings: list[dict[str, Any]] = json.loads(result.stdout) if result.stdout.strip() else []
     for finding in findings:
-        print(f"  [{finding['id']}] {finding['operation']} {finding['path']}: {finding['text']}")
+        print(f"  [{finding['id']}] {describe_finding_location(finding)}: {finding['text']}")
     return findings
 
 
-def select_blocking_findings(
-    findings: list[dict[str, Any]],
-    *,
-    only_ids: frozenset[str] | None = None,
-    exempt_ids: frozenset[str] = _NO_EXEMPT_IDS,
-) -> list[dict[str, Any]]:
-    """Return the findings that should fail the run.
+def describe_finding_location(finding: dict[str, Any]) -> str:
+    """Return a finding's location prefix: ``METHOD /path`` for a paths-scoped finding, or
+    ``components`` for one that isn't (security, schema, webhook, and other non-path checks report
+    no ``operation``/``path`` at all).
 
-    ``only_ids`` (reversed run): keep only findings whose id is in the set — an allowlist of what
-    blocks. ``exempt_ids`` (forward run): keep every ERR-level finding except those ids — a
-    denylist of exceptions. A run passes ``only_ids`` XOR ``exempt_ids``, never both.
+    ``section`` is the reliable discriminator: verified empirically for oasdiff 1.32.1 that a
+    components-scoped finding (e.g. ``webhook-removed``) omits the ``operation``/``path`` keys
+    entirely rather than leaving them empty, so checking their truthiness would raise ``KeyError``
+    on the ones that omit them.
     """
+    if finding["section"] == "paths":
+        return f"{finding['operation']} {finding['path']}"
+    return "components"
+
+
+def select_reversed_blocking_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Findings that block the reversed run: only ``REVERSED_BLOCKING_CHECK_IDS`` at ERR level."""
     return [
         finding
         for finding in findings
-        if finding.get("level") == ERR_LEVEL
-        and (only_ids is None or finding["id"] in only_ids)
-        and finding["id"] not in exempt_ids
+        if finding["id"] in REVERSED_BLOCKING_CHECK_IDS and finding["level"] == ERR_LEVEL
+    ]
+
+
+def select_forward_blocking_findings(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Findings that block the forward run: every ERR-level finding except ``FORWARD_ALLOWED_ERR_CHECK_IDS``."""
+    return [
+        finding
+        for finding in findings
+        if finding["level"] == ERR_LEVEL and finding["id"] not in FORWARD_ALLOWED_ERR_CHECK_IDS
     ]
 
 
@@ -167,21 +171,15 @@ def format_ignore_line(finding: dict[str, Any]) -> str:
     """Format a finding as the line to paste into ``tools/wire_compat_ignore.txt``.
 
     Matches oasdiff's own ``--err-ignore`` line format: ``METHOD /path <description>`` for a
-    path-scoped finding, ``components <description>`` for one with no operation/path (e.g. a
-    removed shared schema).
+    path-scoped finding, ``components <description>`` for a components-scoped one.
     """
-    operation = finding.get("operation")
-    path = finding.get("path")
-    if operation and path:
-        return f"{operation} {path} {finding['text']}"
-    return f"components {finding['text']}"
+    return f"{describe_finding_location(finding)} {finding['text']}"
 
 
 def print_blocking_findings(findings: list[dict[str, Any]], label: str) -> None:
-    print(f"Wire compatibility check FAILED ({label}). Paste one line per finding below into")
-    print("tools/wire_compat_ignore.txt to accept it as a deliberate, reviewed break:")
+    print(f"Wire compatibility check FAILED ({label}). Paste each line below into tools/wire_compat_ignore.txt:")
     for finding in findings:
-        print(f"  [{finding['id']}] {format_ignore_line(finding)}")
+        print(format_ignore_line(finding))
 
 
 def main(
@@ -234,7 +232,7 @@ def _run_both_directions(head_openapi_path: Path, release_openapi_path: Path, ig
         ignore_file,
         label="reversed: new client, old server",
     )
-    reversed_blocking = select_blocking_findings(reversed_findings, only_ids=REVERSED_BLOCKING_CHECK_IDS)
+    reversed_blocking = select_reversed_blocking_findings(reversed_findings)
 
     forward_findings = run_oasdiff(
         release_openapi_path,
@@ -242,7 +240,7 @@ def _run_both_directions(head_openapi_path: Path, release_openapi_path: Path, ig
         ignore_file,
         label="forward: old client, new server",
     )
-    forward_blocking = select_blocking_findings(forward_findings, exempt_ids=FORWARD_ALLOWED_ERR_CHECK_IDS)
+    forward_blocking = select_forward_blocking_findings(forward_findings)
 
     if not reversed_blocking and not forward_blocking:
         print(f"Wire compatibility check passed against {label}.")

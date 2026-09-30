@@ -16,10 +16,10 @@ from pathlib import Path
 import pytest
 from check_wire_compat import (
     DEFAULT_IGNORE_FILE,
-    FORWARD_ALLOWED_ERR_CHECK_IDS,
     format_ignore_line,
     main,
-    select_blocking_findings,
+    resolve_latest_release_tag,
+    select_forward_blocking_findings,
 )
 
 pytestmark = pytest.mark.skipif(shutil.which("oasdiff") is None, reason="oasdiff not found on PATH")
@@ -30,6 +30,22 @@ FIXTURES = Path(__file__).parent / "fixtures" / "wire_compat"
 def _run(name: str, ignore_file: Path = DEFAULT_IGNORE_FILE) -> int:
     d = FIXTURES / name
     return main(head_openapi_path=d / "head.json", release_openapi_path=d / "release.json", ignore_file=ignore_file)
+
+
+def _init_throwaway_repo(repo_dir: Path) -> Path:
+    """Create a throwaway git repo at ``repo_dir`` with a committed ``frontend/openapi.json``.
+
+    Returns the ``frontend`` directory so callers can overwrite ``openapi.json`` for later commits.
+    """
+    frontend_dir = repo_dir / "frontend"
+    frontend_dir.mkdir()
+    (frontend_dir / "openapi.json").write_text("{}")
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "add", "-A"], cwd=repo_dir, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=repo_dir, check=True, capture_output=True)
+    return frontend_dir
 
 
 def test_new_required_response_property_fails() -> None:
@@ -50,6 +66,16 @@ def test_removed_response_property_fails() -> None:
 def test_removed_endpoint_fails() -> None:
     """An endpoint present in the release and removed at HEAD is blocked."""
     assert _run("removed_endpoint") != 0
+
+
+def test_removed_webhook_fails() -> None:
+    """A webhook present in the release and removed at HEAD is blocked.
+
+    This is a components-scoped finding (``webhook-removed``, ``section: "components"``) — oasdiff
+    reports no ``operation``/``path`` for it at all, unlike every other fixture here. It exists to
+    prove the check doesn't crash on a finding shaped like this.
+    """
+    assert _run("removed_webhook") != 0
 
 
 def test_new_optional_response_property_passes() -> None:
@@ -90,8 +116,36 @@ def test_removed_response_property_passes_when_listed_in_ignore_file(tmp_path: P
         timeout=30,
     )
     findings = json.loads(result.stdout)
-    blocking = select_blocking_findings(findings, exempt_ids=FORWARD_ALLOWED_ERR_CHECK_IDS)
+    blocking = select_forward_blocking_findings(findings)
     assert blocking, f"expected a blocking finding in:\n{result.stdout}"
+
+    ignore_file = tmp_path / "wire_compat_ignore.txt"
+    ignore_file.write_text(format_ignore_line(blocking[0]) + "\n")
+
+    exit_code = main(
+        head_openapi_path=d / "head.json", release_openapi_path=d / "release.json", ignore_file=ignore_file
+    )
+    assert exit_code == 0
+
+
+def test_removed_webhook_passes_when_listed_in_ignore_file(tmp_path: Path) -> None:
+    """A components-scoped deliberate break (no operation/path) also passes once ignored.
+
+    Proves ``format_ignore_line``'s ``components <description>`` form — used when a finding has no
+    operation/path — actually suppresses the finding via ``--err-ignore``, not just the
+    ``METHOD /path <description>`` form the other ignore test covers.
+    """
+    d = FIXTURES / "removed_webhook"
+    result = subprocess.run(
+        ["oasdiff", "breaking", str(d / "release.json"), str(d / "head.json"), "--format", "json"],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    findings = json.loads(result.stdout)
+    blocking = select_forward_blocking_findings(findings)
+    assert blocking, f"expected a blocking finding in:\n{result.stdout}"
+    assert format_ignore_line(blocking[0]).startswith("components "), blocking[0]
 
     ignore_file = tmp_path / "wire_compat_ignore.txt"
     ignore_file.write_text(format_ignore_line(blocking[0]) + "\n")
@@ -104,14 +158,7 @@ def test_removed_response_property_passes_when_listed_in_ignore_file(tmp_path: P
 
 def test_missing_release_tag_fails_with_a_named_message(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """When no `v*` tag exists anywhere in the repo, the check fails loudly instead of skipping."""
-    frontend_dir = tmp_path / "frontend"
-    frontend_dir.mkdir()
-    (frontend_dir / "openapi.json").write_text("{}")
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=tmp_path, check=True, capture_output=True)
+    _init_throwaway_repo(tmp_path)
 
     exit_code = main(repo_root=tmp_path)
 
@@ -126,14 +173,7 @@ def test_unreachable_release_tag_fails_with_a_named_message(tmp_path: Path, caps
     would report the release's later additions as removals. Here the tag lives on a sibling branch
     that HEAD (``main``) never merged, so it must be treated the same as no tag at all.
     """
-    frontend_dir = tmp_path / "frontend"
-    frontend_dir.mkdir()
-    (frontend_dir / "openapi.json").write_text("{}")
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "config", "user.name", "Test"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "initial"], cwd=tmp_path, check=True, capture_output=True)
+    frontend_dir = _init_throwaway_repo(tmp_path)
 
     subprocess.run(["git", "checkout", "-q", "-b", "other"], cwd=tmp_path, check=True, capture_output=True)
     (frontend_dir / "openapi.json").write_text('{"changed": true}')
@@ -145,3 +185,12 @@ def test_unreachable_release_tag_fails_with_a_named_message(tmp_path: Path, caps
 
     assert exit_code != 0
     assert "v*" in capsys.readouterr().err
+
+
+def test_highest_reachable_tag_wins(tmp_path: Path) -> None:
+    """When multiple `v*` tags are reachable from HEAD, the highest version wins, not tag-creation order."""
+    _init_throwaway_repo(tmp_path)
+    subprocess.run(["git", "tag", "v1.0.0"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(["git", "tag", "v1.10.0"], cwd=tmp_path, check=True, capture_output=True)
+
+    assert resolve_latest_release_tag(tmp_path) == "v1.10.0"
