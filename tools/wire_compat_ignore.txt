@@ -1,15 +1,16 @@
 # tools/wire_compat_ignore.txt
 #
 # Accepted deliberate wire-compatibility breaks for tools/check_wire_compat.py.
-# One line per accepted oasdiff finding, in oasdiff's own text-output format:
+# One line per accepted oasdiff finding, in oasdiff's own --err-ignore format:
 #   METHOD /path <change description>
 #   components <change description>
 #
 # A PR that breaks the wire contract on purpose (titled with `!`, carrying a
 # `BREAKING CHANGE:` footer) adds one line per reported change here, copied
-# verbatim from the oasdiff output it needs to silence. Once the next `v*`
-# release tag contains the change, oasdiff stops reporting it and the line
-# goes inert — clear this file back to empty after that release ships.
+# verbatim from the failing check's output — it prints the exact line to paste
+# for every blocking finding. Once the next `v*` release tag contains the
+# change, oasdiff stops reporting it and the line goes inert — clear this file
+# back to empty after that release ships.
 #
 # This file intentionally starts empty (comment lines only; oasdiff's
 # --err-ignore parser treats any non-matching line as inert, so the header
