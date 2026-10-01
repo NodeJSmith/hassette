@@ -239,7 +239,10 @@ class HelperClient(Resource):
         """Update an existing helper.
 
         Args:
-            helper_id: The ID of the helper to update.
+            helper_id: The helper's storage id (the record's ``id`` field), not its
+                ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
+                The two often look alike but are not guaranteed to match (renaming the entity
+                changes only the ``entity_id``); look the id up with ``list(domain)``.
             params: Fields to update (unset fields are left unchanged). The concrete type
                 determines the domain and the return type via overload resolution.
 
@@ -251,7 +254,7 @@ class HelperClient(Resource):
             self._api, domain, "update", **{id_key: helper_id}, **params.model_dump(exclude_unset=True)
         )
         record = record_type.model_validate(_expect_dict(val, f"{domain}/update"))
-        self.logger.debug("Updated %s helper %r", domain, helper_id)
+        self.logger.info("Updated %s helper %r", domain, helper_id)
         return record
 
     # delete dispatches on a Literal domain string
@@ -278,11 +281,14 @@ class HelperClient(Resource):
 
         Args:
             domain: The helper domain (e.g. "input_boolean", "counter").
-            helper_id: The ID of the helper to delete.
+            helper_id: The helper's storage id (the record's ``id`` field), not its
+                ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
+                The two often look alike but are not guaranteed to match (renaming the entity
+                changes only the ``entity_id``); look the id up with ``list(domain)``.
         """
         id_key = ID_KEYS[domain]
         await _ws_helper_call(self._api, domain, "delete", **{id_key: helper_id})
-        self.logger.debug("Deleted %s helper %r", domain, helper_id)
+        self.logger.info("Deleted %s helper %r", domain, helper_id)
 
     # counter shortcuts
     # Counter service-call shortcuts (operate on live entity state, not stored

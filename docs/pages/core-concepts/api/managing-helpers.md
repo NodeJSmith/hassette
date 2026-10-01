@@ -38,6 +38,15 @@ the same-named helper both succeed, leaving two semantically-duplicate records. 
 is no `name_in_use` error code to catch. Each helper's name should carry a prefix
 unique to its owning app, and only one app should provision it.
 
+**`helper_id` is the storage id, not the `entity_id`.** `helpers.update` and
+`helpers.delete` take the record's `id` field (`"vacation_mode"`), not the entity id used
+in states and automations (`"input_boolean.vacation_mode"`). Passing the `entity_id` raises
+`FailedMessageError(code="not_found")`. The two often look alike, but nothing keeps them in
+sync: renaming the entity under Settings → Entities changes only the `entity_id`, and name
+collisions can give the stored `id` and the `entity_id` different suffixes. Stripping the
+domain from an `entity_id` is not a reliable way to get the stored `id`;
+`helpers.list(domain)` returns every record with its stored `id`.
+
 **`CreateInputDatetimeParams` requires `has_date=True` or `has_time=True`.** Both
 fields `False` raises `ValidationError` at construction time, before any network call.
 `UpdateInputDatetimeParams` does not enforce this constraint on partial updates, because
@@ -99,9 +108,9 @@ is useful, as `helpers.list("input_boolean")` is the only retrieval path if the 
 ```
 
 `helpers.update(helper_id, params)` accepts a `helper_id` string (the stored `id` field, not the
-display name) and a partial params object. Only fields present in the params object are
-sent to HA; absent fields retain their stored values. A `helper_id` that does not exist
-raises `FailedMessageError(code="not_found")`.
+display name or the `entity_id`; see [Common Pitfalls](#common-pitfalls)) and a partial params
+object. Only fields present in the params object are sent to HA; absent fields retain their
+stored values. A `helper_id` that does not exist raises `FailedMessageError(code="not_found")`.
 
 ### Delete
 
@@ -109,8 +118,8 @@ raises `FailedMessageError(code="not_found")`.
 --8<-- "pages/core-concepts/api/snippets/managing-helpers/crud_operations.py:delete"
 ```
 
-`helpers.delete(domain, helper_id)` returns `None`. It raises `FailedMessageError(code="not_found")` if the id
-is absent from storage.
+`helpers.delete(domain, helper_id)` returns `None`. Like `update`, it takes the stored `id`, not
+the `entity_id`. It raises `FailedMessageError(code="not_found")` if the id is absent from storage.
 
 ### All Supported Domains
 
