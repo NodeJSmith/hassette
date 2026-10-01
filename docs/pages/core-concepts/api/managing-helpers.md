@@ -39,13 +39,13 @@ is no `name_in_use` error code to catch. Each helper's name should carry a prefi
 unique to its owning app, and only one app should provision it.
 
 **`helper_id` is the storage id, not the `entity_id`.** `helpers.update` and
-`helpers.delete` take the record's `id` field (`"vacation_mode"`), not the entity id you see
+`helpers.delete` take the record's `id` field (`"vacation_mode"`), not the entity id used
 in states and automations (`"input_boolean.vacation_mode"`). Passing the `entity_id` raises
 `FailedMessageError(code="not_found")`. The two line up at creation (`entity_id` is
 `<domain>.<id>`), but renaming the entity under Settings → Entities changes only the
 `entity_id`. The stored `id` stays the same. Helpers created in the HA UI may also have an
-opaque `id` unrelated to their name. When you don't already hold the record, find the id with
-`helpers.list(domain)`.
+opaque `id` unrelated to their name. `helpers.list(domain)` returns every record with its
+stored `id`.
 
 **`CreateInputDatetimeParams` requires `has_date=True` or `has_time=True`.** Both
 fields `False` raises `ValidationError` at construction time, before any network call.
@@ -108,8 +108,9 @@ is useful, as `helpers.list("input_boolean")` is the only retrieval path if the 
 ```
 
 `helpers.update(helper_id, params)` accepts a `helper_id` string (the stored `id` field, not the
-display name or the `entity_id`; see [Common Pitfalls](#common-pitfalls)) and a partial params object. Only fields present in the params object are
-sent to HA; absent fields retain their stored values. A `helper_id` that does not exist
+display name or the `entity_id`; see [Common Pitfalls](#common-pitfalls)) and a partial params
+object. Only fields present in the params object are sent to HA; absent fields retain their
+stored values. A `helper_id` that does not exist
 raises `FailedMessageError(code="not_found")`.
 
 ### Delete

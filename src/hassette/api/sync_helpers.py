@@ -71,7 +71,10 @@ class HelperClientSyncFacade(Resource):
         """Update an existing helper.
 
         Args:
-            helper_id: The ID of the helper to update.
+            helper_id: The helper's storage-collection id (the record's ``id`` field), not its
+                ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
+                The id matches the ``entity_id`` object id at creation but diverges if the entity
+                is later renamed in Home Assistant; look it up with ``list(domain)`` when unsure.
             params: Fields to update (unset fields are left unchanged). The concrete type
                 determines the domain and the return type via overload resolution.
 
@@ -85,7 +88,10 @@ class HelperClientSyncFacade(Resource):
 
         Args:
             domain: The helper domain (e.g. "input_boolean", "counter").
-            helper_id: The ID of the helper to delete.
+            helper_id: The helper's storage-collection id (the record's ``id`` field), not its
+                ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
+                The id matches the ``entity_id`` object id at creation but diverges if the entity
+                is later renamed in Home Assistant; look it up with ``list(domain)`` when unsure.
         """
         return self.task_bucket.run_sync(self._helpers.delete(domain, helper_id))  # pyright: ignore[reportCallIssue, reportArgumentType]
 

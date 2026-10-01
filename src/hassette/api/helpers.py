@@ -242,7 +242,7 @@ class HelperClient(Resource):
             helper_id: The helper's storage-collection id (the record's ``id`` field), not its
                 ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
                 The id matches the ``entity_id`` object id at creation but diverges if the entity
-                is later renamed in Home Assistant; look it up with ``list()`` when unsure.
+                is later renamed in Home Assistant; look it up with ``list(domain)`` when unsure.
             params: Fields to update (unset fields are left unchanged). The concrete type
                 determines the domain and the return type via overload resolution.
 
@@ -284,7 +284,7 @@ class HelperClient(Resource):
             helper_id: The helper's storage-collection id (the record's ``id`` field), not its
                 ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
                 The id matches the ``entity_id`` object id at creation but diverges if the entity
-                is later renamed in Home Assistant; look it up with ``list()`` when unsure.
+                is later renamed in Home Assistant; look it up with ``list(domain)`` when unsure.
         """
         id_key = ID_KEYS[domain]
         await _ws_helper_call(self._api, domain, "delete", **{id_key: helper_id})
