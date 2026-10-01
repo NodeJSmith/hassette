@@ -223,6 +223,8 @@ For container startup failures, dependency installation, health check failures, 
 
 **[`FailedMessageError`][hassette.exceptions.FailedMessageError]** A message sent over the WebSocket returned an error response from Home Assistant. Check `e.code` for the structured error type from HA. `e.code` is `None` for locally-synthesized failures like transport timeouts.
 
+**[`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError]** A command was sent, but no response arrived, so it may or may not have applied. It is raised as [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] (no response in time; also a `FailedMessageError` with `code=None`) or [`ResponseLostError`][hassette.exceptions.ResponseLostError] (the connection dropped while waiting; also a `RetryableConnectionClosedError`). Don't re-send a write blindly. Check state first: read the target entity's state after `call_service` or `fire_event`, or call `helpers.list(domain)` after a helper change. See [Low-level access](core-concepts/api/methods.md#low-level-access).
+
 ### Registration
 
 **`ListenerNameRequiredError`** `name=` was omitted on a bus registration call. Add a stable `name=` parameter to the registration.

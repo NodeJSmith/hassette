@@ -70,11 +70,28 @@ A helper created during `on_initialize` is still present on the next run. The
 idempotent bootstrap pattern in [Creating a Helper on Startup](#creating-a-helper-on-startup)
 exists for this reason.
 
-**[`RetryableConnectionClosedError`][hassette.exceptions.RetryableConnectionClosedError] is a second exception class callers may receive.**
-A WebSocket disconnect mid-CRUD propagates as `RetryableConnectionClosedError`, not
-[`FailedMessageError`][hassette.exceptions.FailedMessageError]. Exception handlers that target only `FailedMessageError` miss
-this case. A broader `except` clause covering both exception types handles it
-correctly.
+**A create, update, or delete can end with its outcome unknown.** Hassette sends each of these
+exactly once. If Home Assistant's reply never arrives, the call raises
+[`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError], meaning the change was sent but
+nobody can say whether it applied. It comes as one of two subclasses:
+[`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] when the reply timed out, or
+[`ResponseLostError`][hassette.exceptions.ResponseLostError] when the WebSocket disconnected while
+waiting. Catch `OutcomeUnknownError` to handle both, then call `helpers.list(domain)` to see
+whether the change landed:
+
+```python
+--8<-- "pages/core-concepts/api/snippets/managing-helpers/outcome_unknown.py:recover"
+```
+
+!!! warning "The change may already have applied"
+    Don't re-send a create, update, or delete after an `OutcomeUnknownError` without checking
+    first. A re-sent create that already landed makes a duplicate helper with a `_2` id, and a
+    re-sent delete that already landed raises `FailedMessageError(code="not_found")`.
+
+Code that already catches [`FailedMessageError`][hassette.exceptions.FailedMessageError] or
+[`RetryableConnectionClosedError`][hassette.exceptions.RetryableConnectionClosedError] keeps
+working: `ResponseTimeoutError` is a `FailedMessageError` with `code=None`, and
+`ResponseLostError` is a `RetryableConnectionClosedError`.
 
 ## CRUD Operations
 

@@ -275,6 +275,22 @@ within one test.
 before the reset (e.g., `saved = harness.api_recorder.calls`) retains the
 original calls.
 
+### Simulating an unknown outcome
+
+The recorder never times out, so to test how an app handles a command whose
+outcome is unknown, patch the recorder method with an `AsyncMock` that raises
+[`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] (or
+[`ResponseLostError`][hassette.exceptions.ResponseLostError]). Both are
+subclasses of [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError];
+see [Low-level access](../core-concepts/api/methods.md#low-level-access).
+
+```python
+--8<-- "pages/testing/snippets/testing_outcome_unknown.py"
+```
+
+A patched method no longer records calls, so assert on the mock itself
+(`call_service.assert_awaited_once()`) rather than with `assert_called`.
+
 ## Testing Configuration Errors
 
 `AppConfigurationError` raises during `async with AppTestHarness(...)` entry
