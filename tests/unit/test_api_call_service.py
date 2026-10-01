@@ -90,16 +90,18 @@ async def test_call_service_return_response_still_parses_response() -> None:
     api.ws_send_json.assert_not_awaited()
     kwargs = api.ws_send_and_wait.await_args.kwargs
     assert kwargs["return_response"] is True
-    # wait_for_ack still declares the call non-idempotent, so the send-exactly-once guarantee
-    # holds even on the branch that also asks for response data.
     assert kwargs["retry_on_timeout"] is False
 
 
-async def test_call_service_return_response_alone_keeps_retrying() -> None:
-    """Without wait_for_ack, return_response keeps its long-standing retry-on-timeout behavior."""
+async def test_call_service_return_response_alone_does_not_retry_on_timeout() -> None:
+    """No call_service path re-sends: a service that returns a response can still have side effects.
+
+    The framework can't tell a read-like service (weather.get_forecasts) from one that acts
+    (conversation.process, a script returning a response), so a timeout raises instead of re-sending.
+    """
     api = make_api()
     api.ws_send_and_wait = AsyncMock(return_value={"response": {}, "context": {}})
 
     await api.call_service("weather", "get_forecasts", return_response=True)
 
-    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is True
+    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
