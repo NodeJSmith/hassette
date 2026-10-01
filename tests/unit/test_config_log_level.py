@@ -28,7 +28,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.scheduler_service import SchedulerService, _ScheduledJobQueue
+from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.session_manager import SessionManager
 from hassette.core.state_proxy import StateProxy
@@ -37,6 +37,7 @@ from hassette.core.web_api_service import WebApiService
 from hassette.core.web_ui_watcher import WebUiWatcherService
 from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource
+from hassette.scheduler.job_queue import _ScheduledJobQueue
 from hassette.scheduler.scheduler import Scheduler
 from hassette.state_manager.state_manager import StateManager
 from hassette.task_bucket.task_bucket import TaskBucket

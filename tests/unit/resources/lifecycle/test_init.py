@@ -23,12 +23,12 @@ from hassette_wire import ResourceStatus
 
 from hassette.api.api import Api
 from hassette.bus.bus import Bus
-from hassette.core.scheduler_service import _ScheduledJobQueue
 from hassette.exceptions import LifecycleReentryError
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_failed, handle_starting
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.scheduler.job_queue import _ScheduledJobQueue
 from hassette.scheduler.scheduler import Scheduler
 from tests.support.mock_hassette import make_mock_hassette
 from tests.unit.resources.conftest import ConcreteResource, wait_for_running

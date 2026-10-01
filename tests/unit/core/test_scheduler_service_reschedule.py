@@ -26,8 +26,9 @@ from whenever import ZonedDateTime
 
 import hassette.core.scheduler_service as hassette_svc_module
 import hassette.utils.date_utils as date_utils
-from hassette.core.scheduler_service import HeapQueue, SchedulerService, _ScheduledJobQueue
+from hassette.core.scheduler_service import SchedulerService
 from hassette.scheduler.classes import Job, ScheduleStatus, ScheduleStatusReason
+from hassette.scheduler.job_queue import HeapQueue, _ScheduledJobQueue
 from hassette.scheduler.triggers import WAITING, Every, _WaitingSentinel
 from tests.support.factories import make_scheduled_job
 
@@ -178,7 +179,7 @@ class TestJitter:
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
         # Patch random.uniform to always return the max jitter
-        with patch("hassette.core.scheduler_service.random.uniform", return_value=10.0):
+        with patch("hassette.core.scheduler_dispatch.random.uniform", return_value=10.0):
             await svc.dispatch_and_log(job)
 
         # next_run should be the unjittered future_time
@@ -217,7 +218,7 @@ class TestJitter:
         job = make_scheduled_job(trigger=trig, jitter=60.0)
         svc.run_job_with_guard = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        with patch("hassette.core.scheduler_service.random.uniform", return_value=30.0):
+        with patch("hassette.core.scheduler_dispatch.random.uniform", return_value=30.0):
             await svc.dispatch_and_log(job)
 
         expected_next_run = future_time.round("second")
@@ -526,7 +527,7 @@ class TestBehindScheduleWarning:
         svc.task_bucket.make_async_adapter = MagicMock(return_value=AsyncMock())
 
         # Case 1: run_job called exactly at fire_at — no warning expected
-        with patch("hassette.core.scheduler_service.date_utils.now", return_value=base_time):
+        with patch("hassette.core.scheduler_dispatch.date_utils.now", return_value=base_time):
             await svc.run_job(job)
 
         svc.logger.warning.assert_not_called()
@@ -534,7 +535,7 @@ class TestBehindScheduleWarning:
         # Case 2: run_job called 90s after fire_at (> 60s threshold) — warning expected
         svc.logger.warning.reset_mock()
         late_time = base_time.add(seconds=90)
-        with patch("hassette.core.scheduler_service.date_utils.now", return_value=late_time):
+        with patch("hassette.core.scheduler_dispatch.date_utils.now", return_value=late_time):
             await svc.run_job(job)
 
         svc.logger.warning.assert_called_once()
@@ -561,7 +562,7 @@ class TestBehindScheduleWarning:
         svc.task_bucket.make_async_adapter = MagicMock(return_value=AsyncMock())
 
         late_time = base_time.add(seconds=90)  # 90s > 60s threshold
-        with patch("hassette.core.scheduler_service.date_utils.now", return_value=late_time):
+        with patch("hassette.core.scheduler_dispatch.date_utils.now", return_value=late_time):
             await svc.run_job(job, trigger_mode="manual")
 
         svc.logger.warning.assert_not_called()
@@ -569,7 +570,7 @@ class TestBehindScheduleWarning:
         # Sanity check: the same fire_at with trigger_mode=None (automatic) DOES warn —
         # confirms the gate is on trigger_mode, not a change to the underlying calculation.
         svc.logger.warning.reset_mock()
-        with patch("hassette.core.scheduler_service.date_utils.now", return_value=late_time):
+        with patch("hassette.core.scheduler_dispatch.date_utils.now", return_value=late_time):
             await svc.run_job(job, trigger_mode=None)
 
         svc.logger.warning.assert_called_once()
