@@ -12,7 +12,7 @@ Each state class declares a `value_type` class variable — the type (or tuple o
 --8<-- "pages/core-concepts/states/snippets/state-registry/value_type_example.py"
 ```
 
-When state data arrives from Home Assistant, `StateRegistry.try_convert_state()` runs the full pipeline. Dependency injection calls it automatically; direct calls are only needed when converting raw dicts outside a handler, such as in tests or data scripts. Given this raw input:
+`StateRegistry.try_convert_state()` runs the full pipeline on a raw state dict. Dependency injection does not go through it: it converts straight to the class named in the annotation. Direct calls are for converting raw dicts outside a handler, such as in tests or data scripts. Given this raw input:
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/flow_raw_input.py"
@@ -102,7 +102,9 @@ resolves the union by matching each type's domain against the incoming entity's 
 
 For `D.StateNew[states.SensorState | states.BinarySensorState]`, the DI system extracts
 the domain from the entity ID, checks each type in the union, and selects the one whose
-`Literal` domain matches. When no type matches, conversion falls back to `BaseState`.
+`Literal` domain matches. There is no `BaseState` fallback: when no type matches, the
+dependency cannot be resolved and the handler is not called (see
+[Dependency Injection](../bus/dependency-injection.md)).
 
 ## Value Conversion
 
@@ -120,11 +122,12 @@ When no registered converter exists, the registry tries the target type's constr
 fallback. A successful constructor call does not register the pair — each miss goes through the constructor directly. Custom converters registered via `register_simple_type_converter` or `@register_type_converter_fn` are added normally.
 
 !!! warning
-    For union `value_type` declarations (`value_type = (int, float, str)`), conversion is
-    attempted in order and the first success wins. Every value from Home Assistant arrives
-    as a string, so `str` always succeeds immediately — placing it first short-circuits
-    before `int` or `float` are tried. The most specific type must come first:
-    `(int, float, str)` is correct; `(str, int, float)` is not.
+    For tuple `value_type` declarations, a value that is already an instance of any type
+    in the tuple is returned unchanged. Only otherwise are the types tried in order, first
+    success winning. Every value from Home Assistant arrives as a string, so a tuple that
+    includes `str` — in any position — never converts anything: `(int, float, str)` and
+    `(str, int, float)` both leave `"42"` as the string `"42"`. Leave `str` out of a tuple
+    whose other types should be coerced.
 
 ### Built-in Converters
 
@@ -159,7 +162,7 @@ library, which ships with Hassette.
 
 | From | To | Method |
 |------|----|--------|
-| `str` | `ZonedDateTime` | Parses ISO, plain, or date-only strings (date-only assumes system timezone) |
+| `str` | `ZonedDateTime` | Parses ISO, plain, or date-only strings (naive and date-only strings assume the configured `timezone`, or the system timezone when unset) |
 | `str` | `Date` | `Date.parse_iso` |
 | `str` | `Time` | `Time.parse_iso` |
 | `str` | `OffsetDateTime` | `OffsetDateTime.parse_iso` |
@@ -173,7 +176,7 @@ library, which ships with Hassette.
 
 | From | To | Method |
 |------|----|--------|
-| `str` | `datetime` | Via `ZonedDateTime` then `py_datetime()` |
+| `str` | `datetime` | Via `ZonedDateTime` then `to_stdlib()` |
 | `str` | `time` | Via `Time.parse_iso().py_time()` |
 | `str` | `date` | Via `Date.parse_iso().py_date()` |
 | `Time` | `time` | `py_time()` |
@@ -237,8 +240,8 @@ available at module import time.
 
 #### `InvalidDataForStateConversionError`
 
-Raised when the state data is malformed or missing required fields. For example, the input
-is `None` or contains an `event` key instead of a state dict.
+Raised when the input is an event envelope (a dict with an `event` key) instead of a
+state dict. Extract the state from `event.payload.data.new_state` or `old_state` first.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/error_invalid_data.py"
