@@ -172,6 +172,7 @@ class TestLateReplyToTimedOutWrite:
         _time_out_immediately(websocket_service)
         msg_id = await _timed_out_write(websocket_service, type="fire_event", event_type="doorbell")
 
+        caplog.clear()
         with caplog.at_level(logging.INFO):
             websocket_service.respond_if_necessary({"type": "result", "id": msg_id, "success": True, "result": None})
 

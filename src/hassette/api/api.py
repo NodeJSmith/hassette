@@ -179,6 +179,7 @@ from hassette.exceptions import (
     ConnectionClosedError,
     EntityNotFoundError,
     FailedMessageError,
+    OutcomeUnknownError,
     UnableToConvertStateError,
 )
 from hassette.models.entities import BaseEntity
@@ -247,20 +248,29 @@ def normalize_notifier(notifier: str) -> str:
 # Only imported by hassette.api.helpers (cross-module) — pyright's reportUnusedFunction does not
 # credit a leading-underscore name's use in another module, so it flags this as unused without
 # the suppression below.
-async def _ws_helper_call(api: "Api", domain: str, operation: str, **data: Any) -> Any:  # pyright: ignore[reportUnusedFunction]
+async def _ws_helper_call(  # pyright: ignore[reportUnusedFunction]
+    api: "Api", domain: str, operation: str, *, retry_on_timeout: bool = True, **data: Any
+) -> Any:
     """Call ws_send_and_wait with domain/operation context on failure.
 
     Preserves ``code`` and ``original_data`` from the original FailedMessageError
     so callers can inspect them via ``except FailedMessageError as e: e.code``.
     Chains through ``raise ... from e`` so the original traceback is retained.
 
-    Note: a WebSocket disconnect during the call raises
-    ``RetryableConnectionClosedError``, which propagates through this wrapper
-    unwrapped. Callers that need uniform exception handling should catch both
-    ``FailedMessageError`` and ``RetryableConnectionClosedError``.
+    ``retry_on_timeout`` is forwarded to ``ws_send_and_wait``: the writes (create, update,
+    delete) pass False so a lost response can't apply them twice; ``list`` keeps the default.
+
+    Note: a WebSocket disconnect during the call raises ``ResponseLostError`` (a
+    ``RetryableConnectionClosedError``), and a response timeout raises
+    ``ResponseTimeoutError``. Both propagate through this wrapper unwrapped — their
+    messages already omit payload values. Catch ``OutcomeUnknownError`` to handle both.
     """
     try:
-        return await api.ws_send_and_wait(type=f"{domain}/{operation}", **data)
+        return await api.ws_send_and_wait(type=f"{domain}/{operation}", retry_on_timeout=retry_on_timeout, **data)
+    except OutcomeUnknownError:
+        # ResponseTimeoutError is also a FailedMessageError; catch it first so the rewrap
+        # below doesn't erase its outcome-unknown type.
+        raise
     except FailedMessageError as exc:
         # Include only field names in the error message — values may contain
         # sensitive data (e.g., `input_text.initial` on a password-mode helper)
@@ -332,8 +342,8 @@ class Api(Resource):
         Args:
             retry_on_timeout: Whether a response timeout may be retried. Defaults to True.
                 Pass False for a non-idempotent command — a retry re-sends it, duplicating a side
-                effect Home Assistant may already have applied. See
-                :meth:`WebsocketService.send_and_wait`.
+                effect Home Assistant may already have applied. A timeout then raises
+                ``ResponseTimeoutError``. See :meth:`WebsocketService.send_and_wait`.
             **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
                 policy and is consumed here, so it is the one name this escape hatch cannot
                 forward as a payload field.
@@ -512,7 +522,8 @@ class Api(Resource):
         if not event_data:
             data.pop("event_data")
 
-        return await self.ws_send_and_wait(**data)
+        # Sent once: a re-send after a lost response would fire the event twice.
+        return await self.ws_send_and_wait(retry_on_timeout=False, **data)
 
     # Overload order is load-bearing — Pyright matches top-to-bottom, first hit wins.
     # The None-returning (return_response not True) overload MUST come first so a call
@@ -580,16 +591,16 @@ class Api(Resource):
                 False. Waits on Home Assistant's result envelope instead of sending
                 fire-and-forget, surfacing HA-side failures as ``FailedMessageError`` without
                 asking for response data — so it works for services that return no response,
-                which ``return_response`` cannot. Waiting also declares the call non-idempotent:
-                it is sent exactly once, and if the envelope never arrives it raises rather than
-                re-sending, because Home Assistant may already have applied it. A timeout
-                therefore means the outcome is unknown, not that the call was skipped. Setting it
-                alongside ``return_response`` adds only that send-exactly-once guarantee, since
-                that path already waits on the same envelope.
+                which ``return_response`` cannot.
             **data: Additional data to send with the service call.
 
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
+
+        Raises:
+            ResponseTimeoutError: If ``return_response`` or ``wait_for_ack`` is set and no response
+                arrived in time. The call is never re-sent, because Home Assistant may already
+                have applied it, so the outcome is unknown rather than skipped.
         """
         # Cheap path — see fire_event (same rationale for all api methods)
         source_location = capture_source_location()
@@ -629,15 +640,13 @@ class Api(Resource):
             self.logger.debug("Adding extra data to service call: %s", data)
             payload["service_data"] = data
 
-        # wait_for_ack is the caller's declaration that this service call is non-idempotent. A
-        # retry re-sends the payload under a fresh message id, and a lost response envelope does
-        # not mean HA skipped the call — so re-sending would apply it twice (counter.increment
-        # would count twice). This governs re-sending on both waiting paths below, independently
-        # of whether response data was requested.
-        retry_on_timeout = not wait_for_ack
-
+        # Neither waiting path re-sends on timeout. A retry re-sends the payload under a fresh
+        # message id, and a lost response envelope does not mean HA skipped the call — so
+        # re-sending would apply it twice (counter.increment would count twice). A service that
+        # returns a response can still act (conversation.process, scripts), and the framework
+        # can't tell which kind it is calling.
         if return_response:
-            resp = await self.ws_send_and_wait(retry_on_timeout=retry_on_timeout, **payload)
+            resp = await self.ws_send_and_wait(retry_on_timeout=False, **payload)
             return ServiceResponse(**resp)
 
         if wait_for_ack:
@@ -646,7 +655,7 @@ class Api(Resource):
             # counter.increment) reject return_response=True outright, so this is the only way
             # to surface their HA-side errors. ws_send_and_wait raises FailedMessageError on a
             # failed envelope, so no envelope parsing is needed here.
-            await self.ws_send_and_wait(retry_on_timeout=retry_on_timeout, **payload)
+            await self.ws_send_and_wait(retry_on_timeout=False, **payload)
             return None
 
         await self.ws_send_json(**payload)

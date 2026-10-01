@@ -4,6 +4,7 @@ import logging
 import time
 import traceback
 import typing
+from collections import OrderedDict
 from contextlib import AsyncExitStack, suppress
 from itertools import count
 from typing import Any, ClassVar, cast
@@ -40,6 +41,9 @@ from hassette.exceptions import (
     FailedMessageError,
     InvalidAuthError,
     InvalidLifecycleTransitionError,
+    OutcomeUnknownError,
+    ResponseLostError,
+    ResponseTimeoutError,
     RetryableConnectionClosedError,
 )
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
@@ -83,6 +87,10 @@ RETRYABLE = (
 # full call stack down into asyncio internals.
 INVALID_TRANSITION_TRACE_LIMIT = 3
 
+# Most timed-out non-retried sends remembered at once, so a late reply can settle whether the
+# write applied. Oldest entries are evicted first; a reply arriving after eviction stays silent.
+TIMED_OUT_WRITE_RECORD_CAP = 100
+
 
 class WebsocketService(Service):
     restart_spec: ClassVar[RestartSpec] = RestartSpec(
@@ -106,6 +114,9 @@ class WebsocketService(Service):
 
     _response_futures: dict[int, asyncio.Future[Any]]
     """Mapping of message IDs to futures for awaiting responses."""
+
+    _timed_out_writes: OrderedDict[int, str]
+    """Message id -> command type of each non-retried send that timed out on this connection."""
 
     _seq: typing.Iterator[int]
     """Iterator for generating unique message IDs."""
@@ -135,6 +146,7 @@ class WebsocketService(Service):
         self._session = None
         self._ws = None
         self._response_futures = {}
+        self._timed_out_writes = OrderedDict()
         self._seq = count(1)
         self._recv_task = None
         self._subscription_ids = set()
@@ -513,6 +525,7 @@ class WebsocketService(Service):
                 with suppress(Exception):
                     fut.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
         self._response_futures.clear()
+        self._timed_out_writes.clear()
         self._subscription_ids.clear()
         self._ws = None
         self._recv_task = None
@@ -630,6 +643,7 @@ class WebsocketService(Service):
             if not fut.done():
                 fut.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
         self._response_futures.clear()
+        self._timed_out_writes.clear()
 
         # Try to unsubscribe (best-effort; ignore errors if socket is going away). This must run
         # before the send-ready gate closes below — send_json() raises immediately once the gate
@@ -678,7 +692,7 @@ class WebsocketService(Service):
                 the command again. That is safe for reads, but duplicates the side effect of a
                 command Home Assistant already applied before its response envelope was lost.
                 Callers sending a non-idempotent command must pass False and accept a
-                ``FailedMessageError`` on the first timeout. (``subscribe_events`` solves the same
+                ``ResponseTimeoutError`` on the first timeout. (``subscribe_events`` solves the same
                 problem with its own retry loop, which unsubscribes the abandoned attempt.)
             **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
                 policy and is consumed here, so it cannot double as a payload field name.
@@ -687,9 +701,16 @@ class WebsocketService(Service):
             The response data from the WebSocket.
 
         Raises:
-            FailedMessageError: If sending the message fails after all retries.
+            ResponseTimeoutError: If no response arrived in time (after all retries, if retried).
+                The command may or may not have applied.
+            ResponseLostError: If the connection dropped while waiting. Never retried; the
+                command may or may not have applied.
+            FailedMessageError: If Home Assistant rejected the command, or sending it failed
+                after all retries.
         """
         caller_id = data.pop("id", None)
+        command_type = str(data.get("type"))
+        msg_id: int | None = None  # set by each attempt; read after the last one raises
 
         @retry(
             retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
@@ -699,21 +720,40 @@ class WebsocketService(Service):
             reraise=True,
         )
         async def send_with_retry() -> dict[str, Any]:
-            nonlocal caller_id
+            nonlocal caller_id, msg_id
             if caller_id is not None:
-                data["id"] = msg_id = caller_id
+                attempt_id = caller_id
                 caller_id = None
             else:
-                data["id"] = msg_id = self.get_next_message_id()
+                attempt_id = self.get_next_message_id()
+            data["id"] = msg_id = attempt_id
 
             try:
-                return await self.send_and_await_response(data, msg_id)
+                return await self.send_and_await_response(data, attempt_id)
+            # Messages name only the command type and id: payload values may be sensitive
+            # (e.g. input_text.initial on a password-mode helper) and these messages reach logs.
             except TimeoutError:
-                raise FailedMessageError(
-                    f"Response timed out after {self.resp_timeout_seconds}s (data: {data})"
+                raise ResponseTimeoutError(
+                    f"{command_type!r} (id {attempt_id}): no response within {self.resp_timeout_seconds}s; "
+                    "the command may or may not have applied",
+                    original_data=dict(data),
                 ) from None
+            except RetryableConnectionClosedError as exc:
+                raise ResponseLostError(
+                    f"{command_type!r} (id {attempt_id}): connection lost while waiting for a response; "
+                    "the command may or may not have applied",
+                    close_code=exc.close_code,
+                ) from exc
 
-        return await send_with_retry()
+        try:
+            return await send_with_retry()
+        except OutcomeUnknownError as exc:
+            self.logger.warning("%s", exc)
+            if isinstance(exc, ResponseTimeoutError) and not retry_on_timeout and msg_id is not None:
+                self._timed_out_writes[msg_id] = command_type
+                if len(self._timed_out_writes) > TIMED_OUT_WRITE_RECORD_CAP:
+                    self._timed_out_writes.popitem(last=False)
+            raise
 
     def respond_if_necessary(self, message: dict) -> None:
         if message.get("type") != "result":
@@ -726,7 +766,10 @@ class WebsocketService(Service):
             return
 
         fut = self._response_futures.get(msg_id)
-        if not fut or fut.done():
+        if fut is None:
+            self._settle_timed_out_write(msg_id, message)
+            return
+        if fut.done():
             return
 
         if message.get("success"):
@@ -744,6 +787,26 @@ class WebsocketService(Service):
                     error_envelope,
                 )
             fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
+
+    def _settle_timed_out_write(self, msg_id: int, message: dict) -> None:
+        """Log a late reply to a timed-out non-retried send, which settles whether it applied."""
+        command_type = self._timed_out_writes.pop(msg_id, None)
+        if command_type is None:
+            return
+        if message.get("success"):
+            self.logger.info(
+                "Late reply to timed-out %r (id %s): it succeeded, so the command applied after the timeout",
+                command_type,
+                msg_id,
+            )
+        else:
+            code = (message.get("error") or {}).get("code")
+            self.logger.warning(
+                "Late reply to timed-out %r (id %s): it failed (code %r), so the command did not apply",
+                command_type,
+                msg_id,
+                code,
+            )
 
     async def _send_json_when_socket_live(self, **data: Any) -> None:
         self.logger.debug("Sending WebSocket message: %s", data)
