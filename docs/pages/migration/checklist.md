@@ -90,7 +90,7 @@ See [Testing](testing.md) for the test harness guide.
 
 !!! warning "Async gotchas"
     - Forgetting `await` on `self.api.*` calls is the most common migration mistake. The call returns a coroutine object and silently does nothing — see [Async Basics](async-basics.md) for the full explanation.
-    - Every `self.bus.on_*()` call requires `name=`. Omitting it raises `ListenerNameRequiredError` at runtime.
+    - Every `self.bus.on_*()` call requires `name=`. Omitting it raises `TypeError`; an empty name raises `ListenerNameRequiredError`.
     - In `AppSync`, use `.sync` facades for bus, scheduler, and API: `self.bus.sync.on_state_change(...)`, `self.scheduler.sync.run_in(...)`, `self.api.sync.call_service(...)`. Calling the async methods from sync hooks returns un-awaited coroutines that silently do nothing.
     - Do not use `.sync` facades inside `App` lifecycle methods. Use the async API instead, or switch to `AppSync`.
 
