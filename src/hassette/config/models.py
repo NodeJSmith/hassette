@@ -34,7 +34,7 @@ LOGGER = getLogger(__name__)
 APP_SHUTDOWN_TIMEOUT_SECONDS = 10
 
 
-LOG_ANNOTATION = Annotated[LogLevel, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
+LogLevelAnnotation = Annotated[LogLevel, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 APP_REQUIRED_KEYS = frozenset({"filename", "class_name"})
 DEFAULT_WEB_API_PORT = 8126
 
@@ -197,7 +197,7 @@ class WebSocketConfig(ExcludeExtrasMixin, BaseModel):
 class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     """Logging level, format, queue, persistence, and per-service log-level settings."""
 
-    log_level: LOG_ANNOTATION = Field(default="INFO")
+    log_level: LogLevelAnnotation = Field(default="INFO")
     """Logging level for Hassette."""
 
     log_format: Literal["auto", "console", "json"] = Field(default="auto")
@@ -207,7 +207,7 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     log_queue_max: int = Field(default=2000, ge=1)
     """Maximum size of the inter-thread log queue. Records are dropped when the queue is full."""
 
-    log_persistence_level: LOG_ANNOTATION = Field(default="INFO")
+    log_persistence_level: LogLevelAnnotation = Field(default="INFO")
     """Minimum log level for database persistence. Records below this level are not stored.
 
     Effectively clamped to never be stricter than ``log_level``: the web UI's log view reads
@@ -221,43 +221,43 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     log_retention_days: int = Field(default=3, ge=1)
     """Number of days to retain persisted log records. Must be <= database.retention_days."""
 
-    database_service: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    database_service: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the database service. Defaults to log_level."""
 
-    bus_service: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    bus_service: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the event bus service. Defaults to log_level."""
 
-    scheduler_service: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    scheduler_service: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the scheduler service. Defaults to log_level."""
 
-    app_handler: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    app_handler: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the app handler service. Defaults to log_level."""
 
-    web_api: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    web_api: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the web API service. Defaults to log_level."""
 
-    websocket: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    websocket: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the WebSocket service. Defaults to log_level."""
 
-    service_watcher: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    service_watcher: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the service watcher. Defaults to log_level."""
 
-    file_watcher: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    file_watcher: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the file watcher service. Defaults to log_level."""
 
-    task_bucket: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    task_bucket: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for task buckets. Defaults to log_level."""
 
-    command_executor: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    command_executor: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the command executor service. Defaults to log_level."""
 
-    apps: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    apps: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Default logging level for apps, can be overridden in app initialization. Defaults to log_level."""
 
-    state_proxy: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    state_proxy: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the state proxy resource. Defaults to log_level."""
 
-    api: LOG_ANNOTATION = Field(default_factory=log_level_default_factory)
+    api: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
     """Logging level for the API resource (REST/WebSocket client). Defaults to log_level."""
 
     extra_loggers: tuple[Annotated[str, StringConstraints(min_length=1, pattern=r".*\S.*")], ...] = Field(

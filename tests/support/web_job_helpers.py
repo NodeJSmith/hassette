@@ -23,7 +23,6 @@ from hassette.types.types import SchedulerPredicate
 
 
 def make_job(
-    job_id: str = "job-1",
     name: str = "check_lights",
     owner_id: str = "MyApp.MyApp[0]",
     next_run: str = "2024-01-01T00:05:00",
@@ -58,7 +57,6 @@ def make_job(
     else:
         trigger = None
     return SimpleNamespace(
-        job_id=job_id,
         db_id=db_id,
         name=name,
         owner_id=owner_id,

@@ -78,11 +78,11 @@ class WebApiService(Service):
             return
 
         web_api_config = self.hassette.config.web_api
-        loopback = is_loopback_host(web_api_config.host)
+        is_loopback = is_loopback_host(web_api_config.host)
 
         # Hard block: an explicitly-disabled auth on a non-loopback bind would serve an
         # unauthenticated API to any network peer that can reach the port.
-        if not web_api_config.auth_enabled and not loopback:
+        if not web_api_config.auth_enabled and not is_loopback:
             raise FatalError(
                 f"Cannot start Web API with auth_enabled=False and host={web_api_config.host!r}. "
                 "Disabling auth_enabled requires host to be a loopback address (127.0.0.1, ::1, or "
@@ -93,7 +93,7 @@ class WebApiService(Service):
         # Warning only: no evidence of a fronting proxy, so hassette cannot detect whether TLS is
         # terminated anywhere in front of it. Auth (token/cookie) still protects the API — this is
         # about transport security, not authentication.
-        if not loopback and not web_api_config.trusted_proxies:
+        if not is_loopback and not web_api_config.trusted_proxies:
             self.logger.warning(
                 "Web API is bound to non-loopback host %r with no trusted_proxies configured. "
                 "Hassette has no TLS support of its own — if this instance is reachable from an "

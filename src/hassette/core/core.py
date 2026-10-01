@@ -525,11 +525,11 @@ class Hassette(Resource):
             raise _service_not_wired_error("TypeRegistry")
         return self._type_registry
 
-    def get_app(self, app_name: str, index: int = 0) -> App[AppConfig] | None:
+    def get_app(self, app_key: str, index: int = 0) -> App[AppConfig] | None:
         """Get a specific app instance if running.
 
         Args:
-            app_name: The name of the app.
+            app_key: The app key of the app.
             index: The index of the app instance, defaults to 0.
 
         Returns:
@@ -537,7 +537,7 @@ class Hassette(Resource):
         """
         # note: return type left deliberately empty to allow underlying call to define it
 
-        return self.app_handler.get(app_name, index)
+        return self.app_handler.get(app_key, index)
 
     @classmethod
     def get_instance(cls) -> "Hassette":

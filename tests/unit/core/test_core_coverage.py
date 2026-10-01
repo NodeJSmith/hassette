@@ -63,13 +63,13 @@ async def wired_hassette(test_config: HassetteConfig):
 class TestUrlProperties:
     def test_ws_url_delegates_to_build_ws_url(self, test_config: HassetteConfig) -> None:
         """ws_url returns the same value as calling build_ws_url(config) directly."""
-        h = Hassette(test_config)
-        assert h.ws_url == build_ws_url(test_config)
+        hassette = Hassette(test_config)
+        assert hassette.ws_url == build_ws_url(test_config)
 
     def test_rest_url_delegates_to_build_rest_url(self, test_config: HassetteConfig) -> None:
         """rest_url returns the same value as calling build_rest_url(config) directly."""
-        h = Hassette(test_config)
-        assert h.rest_url == build_rest_url(test_config)
+        hassette = Hassette(test_config)
+        assert hassette.rest_url == build_rest_url(test_config)
 
 
 class TestGetInstance:
@@ -96,9 +96,9 @@ class TestDropCountersAndErrorHandlerFailures:
 class TestGetLogDropCounters:
     def test_returns_zero_before_logging_service_wired(self, test_config: HassetteConfig) -> None:
         """Both counters return 0 when _logging_service is None (pre-wiring)."""
-        h = Hassette(test_config)
-        assert h.get_log_queue_drops() == 0
-        assert h.get_db_write_queue_drops() == 0
+        hassette = Hassette(test_config)
+        assert hassette.get_log_queue_drops() == 0
+        assert hassette.get_db_write_queue_drops() == 0
 
     async def test_db_write_queue_drops_from_persistence_handler(self, wired_hassette: Hassette) -> None:
         """get_db_write_queue_drops() forwards real persistence-handler DB queue drops."""
@@ -129,8 +129,8 @@ class TestGetLogDropCounters:
 class TestIsLogPersistenceActive:
     def test_returns_false_before_logging_service_wired(self, test_config: HassetteConfig) -> None:
         """is_log_persistence_active() is False when _logging_service is None (pre-wiring)."""
-        h = Hassette(test_config)
-        assert h.is_log_persistence_active() is False
+        hassette = Hassette(test_config)
+        assert hassette.is_log_persistence_active() is False
 
     def test_forwards_logging_service_persistence_active(self, wired_hassette: Hassette) -> None:
         """is_log_persistence_active() forwards the logging service's persistence_active."""
@@ -152,8 +152,8 @@ class TestStartupTasksEnvFiles:
         with preserve_config(test_config):
             test_config.import_dot_env_files = False
             test_config.run_app_precheck = False
-            h = Hassette(test_config)
-            h.startup_tasks()
+            hassette = Hassette(test_config)
+            hassette.startup_tasks()
 
         load_dotenv_mock.assert_not_called()
 
@@ -168,8 +168,8 @@ class TestStartupTasksAppPrecheck:
 
         with preserve_config(test_config):
             test_config.run_app_precheck = False
-            h = Hassette(test_config)
-            h.startup_tasks()
+            hassette = Hassette(test_config)
+            hassette.startup_tasks()
 
         precheck_mock.assert_not_called()
 
@@ -182,9 +182,9 @@ class TestStartupTasksAppPrecheck:
         with preserve_config(test_config):
             test_config.run_app_precheck = True
             test_config.allow_startup_if_app_precheck_fails = False
-            h = Hassette(test_config)
+            hassette = Hassette(test_config)
             with pytest.raises(AppPrecheckFailedError):
-                h.startup_tasks()
+                hassette.startup_tasks()
 
     def test_precheck_failure_continues_when_allowed(
         self, test_config: HassetteConfig, monkeypatch: pytest.MonkeyPatch
@@ -195,79 +195,79 @@ class TestStartupTasksAppPrecheck:
         with preserve_config(test_config):
             test_config.run_app_precheck = True
             test_config.allow_startup_if_app_precheck_fails = True
-            h = Hassette(test_config)
-            h.startup_tasks()  # must not raise
+            hassette = Hassette(test_config)
+            hassette.startup_tasks()  # must not raise
 
 
 class TestRunForeverEdgeCases:
     async def test_skips_loop_watchdog_when_disabled(self, wired_hassette: Hassette) -> None:
         """run_forever() never installs the loop watchdog when watchdog_enabled is False."""
-        h = wired_hassette
-        h.wait_for_ready = AsyncMock(return_value=True)
-        h._session_manager.mark_orphaned_sessions = AsyncMock()
-        h._session_manager.create_session = AsyncMock()
-        h.shutdown = AsyncMock()
+        hassette = wired_hassette
+        hassette.wait_for_ready = AsyncMock(return_value=True)
+        hassette._session_manager.mark_orphaned_sessions = AsyncMock()
+        hassette._session_manager.create_session = AsyncMock()
+        hassette.shutdown = AsyncMock()
 
         # start() is a module-level function (hassette.resources.lifecycle), not a
         # method — patch it at the call site (core.py) rather than reassigning instance
         # attributes, since run_forever() calls the free function directly for every child.
         with (
             patch("hassette.core.core.start") as mock_start,
-            preserve_config(h.config),
+            preserve_config(hassette.config),
         ):
-            h.config.blocking_io.watchdog_enabled = False
-            task = asyncio.create_task(h.run_forever())
+            hassette.config.blocking_io.watchdog_enabled = False
+            task = asyncio.create_task(hassette.run_forever())
             await wait_for(lambda: mock_start.called, desc="run_forever started")
-            h.shutdown_event.set()
+            hassette.shutdown_event.set()
             await task
 
-        assert h._loop_watchdog is None
+        assert hassette._loop_watchdog is None
 
     async def test_cancelled_during_shutdown_wait_converts_to_graceful_shutdown(self, wired_hassette: Hassette) -> None:
         """run_forever() catches CancelledError while waiting for shutdown and completes without raising."""
-        h = wired_hassette
-        h.wait_for_ready = AsyncMock(return_value=True)
-        h._session_manager.mark_orphaned_sessions = AsyncMock()
-        h._session_manager.create_session = AsyncMock()
-        h.shutdown = AsyncMock()
+        hassette = wired_hassette
+        hassette.wait_for_ready = AsyncMock(return_value=True)
+        hassette._session_manager.mark_orphaned_sessions = AsyncMock()
+        hassette._session_manager.create_session = AsyncMock()
+        hassette.shutdown = AsyncMock()
 
         with patch("hassette.core.core.start"):
-            task = asyncio.create_task(h.run_forever())
-            await wait_for(lambda: h.ready_event.is_set(), desc="run_forever reached the shutdown wait")
+            task = asyncio.create_task(hassette.run_forever())
+            await wait_for(lambda: hassette.ready_event.is_set(), desc="run_forever reached the shutdown wait")
             task.cancel()
 
             # The coroutine swallows CancelledError internally (converts it to graceful shutdown),
             # so awaiting the task must return normally, not raise.
             await task
 
-        h.shutdown.assert_awaited()
+        hassette.shutdown.assert_awaited()
 
     async def test_unexpected_exception_during_shutdown_wait_is_logged_and_shuts_down(
         self, wired_hassette: Hassette
     ) -> None:
         """run_forever() logs (not raises) an unexpected exception from shutdown_event.wait()."""
-        h = wired_hassette
-        h.wait_for_ready = AsyncMock(return_value=True)
-        h._session_manager.mark_orphaned_sessions = AsyncMock()
-        h._session_manager.create_session = AsyncMock()
-        h.shutdown = AsyncMock()
-        h.shutdown_event.wait = AsyncMock(side_effect=RuntimeError("event loop primitive broke"))
+        hassette = wired_hassette
+        hassette.wait_for_ready = AsyncMock(return_value=True)
+        hassette._session_manager.mark_orphaned_sessions = AsyncMock()
+        hassette._session_manager.create_session = AsyncMock()
+        hassette.shutdown = AsyncMock()
+        hassette.shutdown_event.wait = AsyncMock(side_effect=RuntimeError("event loop primitive broke"))
         error_mock = Mock()
-        h.logger.error = error_mock
+        hassette.logger.error = error_mock
 
         with patch("hassette.core.core.start"):
-            await h.run_forever()  # must not raise
+            await hassette.run_forever()  # must not raise
 
         error_mock.assert_called()
-        h.shutdown.assert_awaited()
+        hassette.shutdown.assert_awaited()
 
 
 class TestSendEventGuards:
     async def test_raises_before_event_stream_service_wired(self, test_config: HassetteConfig) -> None:
         """send_event() raises RuntimeError naming EventStreamService when unwired."""
-        h = Hassette(test_config)
+        hassette = Hassette(test_config)
         with pytest.raises(RuntimeError, match="EventStreamService"):
-            await h.send_event(Mock(topic="test.topic"))
+            await hassette.send_event(Mock(topic="test.topic"))
 
     async def test_noop_when_streams_closed(self, wired_hassette: Hassette) -> None:
         """send_event() does not forward to the stream service once event streams are closed."""
@@ -287,18 +287,18 @@ class TestShutdownChildren:
         """_shutdown_children() records CHILD_SHUTDOWN_FAILED and the failed child's identity
         in the aggregated report, but still awaits every sibling's shutdown.
         """
-        h = wired_hassette
-        for child in h.children:
+        hassette = wired_hassette
+        for child in hassette.children:
             child.shutdown = AsyncMock()
-        h._file_watcher.shutdown = AsyncMock(side_effect=RuntimeError("child broke"))
+        hassette._file_watcher.shutdown = AsyncMock(side_effect=RuntimeError("child broke"))
 
-        result = await h._shutdown_children()
+        result = await hassette._shutdown_children()
 
         assert TeardownCause.CHILD_SHUTDOWN_FAILED in result.causes
-        assert h._file_watcher.unique_name in result.affected_resources
-        h._file_watcher.shutdown.assert_awaited_once()
-        for child in h.children:
-            if child is not h._file_watcher:
+        assert hassette._file_watcher.unique_name in result.affected_resources
+        hassette._file_watcher.shutdown.assert_awaited_once()
+        for child in hassette.children:
+            if child is not hassette._file_watcher:
                 child.shutdown.assert_awaited_once()
 
     async def test_merges_child_report_when_shutdown_raises(self, wired_hassette: Hassette) -> None:
@@ -308,45 +308,45 @@ class TestShutdownChildren:
         aggregated report -- not dropped in favor of only the generic ``CHILD_SHUTDOWN_FAILED``
         cause.
         """
-        h = wired_hassette
-        for child in h.children:
+        hassette = wired_hassette
+        for child in hassette.children:
             child.shutdown = AsyncMock()
-        h._file_watcher.shutdown = AsyncMock(side_effect=RuntimeError("coordinator boom"))
-        h._file_watcher._teardown_report = TeardownReport(
+        hassette._file_watcher.shutdown = AsyncMock(side_effect=RuntimeError("coordinator boom"))
+        hassette._file_watcher._teardown_report = TeardownReport(
             causes=(TeardownCause.COORDINATOR_FAILED,), failed_operations=("_run_shutdown_coordinator",)
         )
 
-        result = await h._shutdown_children()
+        result = await hassette._shutdown_children()
 
         assert TeardownCause.CHILD_SHUTDOWN_FAILED in result.causes
         assert TeardownCause.COORDINATOR_FAILED in result.causes, (
             "child's own stored cause must be merged into the parent"
         )
         assert "_run_shutdown_coordinator" in result.failed_operations
-        assert h._file_watcher.unique_name in result.affected_resources
+        assert hassette._file_watcher.unique_name in result.affected_resources
 
     async def test_force_terminates_wave_on_timeout_and_records_timed_out_cause(self, wired_hassette: Hassette) -> None:
         """_shutdown_children() force-terminates the timed-out wave's children and records
         CHILD_SHUTDOWN_TIMED_OUT on the aggregated report.
         """
-        h = wired_hassette
+        hassette = wired_hassette
 
         async def hang(*_args, **_kwargs):
             await asyncio.sleep(1000)
 
-        for child in h.children:
+        for child in hassette.children:
             child.shutdown = AsyncMock()
             child._force_terminal = Mock()
-        h._file_watcher.shutdown = hang
+        hassette._file_watcher.shutdown = hang
 
-        with preserve_config(h.config):
+        with preserve_config(hassette.config):
             # 0.5s still triggers force-termination with 10x+ margin over the hanging
             # child's 1000s sleep, while giving CI scheduling jitter enough headroom.
-            h.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
-            result = await h._shutdown_children()
+            hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
+            result = await hassette._shutdown_children()
 
         assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
-        h._file_watcher._force_terminal.assert_called_once()
+        hassette._file_watcher._force_terminal.assert_called_once()
 
     async def test_wave_timeout_does_not_abandon_later_waves(self, wired_hassette: Hassette) -> None:
         """A wave that times out force-terminates its own children and records evidence, but
@@ -360,24 +360,24 @@ class TestShutdownChildren:
         down in the very last wave. Hanging AppHandler must not prevent those from ever being
         asked to shut down.
         """
-        h = wired_hassette
+        hassette = wired_hassette
 
         async def hang(*_args, **_kwargs):
             await asyncio.sleep(1000)
 
-        for child in h.children:
+        for child in hassette.children:
             child.shutdown = AsyncMock()
             child._force_terminal = Mock()
-        h._app_handler.shutdown = hang
+        hassette._app_handler.shutdown = hang
 
-        with preserve_config(h.config):
-            h.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
-            result = await h._shutdown_children()
+        with preserve_config(hassette.config):
+            hassette.config.lifecycle.resource_shutdown_timeout_seconds = 0.5
+            result = await hassette._shutdown_children()
 
         assert TeardownCause.CHILD_SHUTDOWN_TIMED_OUT in result.causes
-        h._app_handler._force_terminal.assert_called_once()
-        h._sync_executor_service.shutdown.assert_awaited_once()
-        h._database_service.shutdown.assert_awaited_once()
+        hassette._app_handler._force_terminal.assert_called_once()
+        hassette._sync_executor_service.shutdown.assert_awaited_once()
+        hassette._database_service.shutdown.assert_awaited_once()
 
     async def test_multi_wave_hang_finishes_within_coordinator_margin(self, wired_hassette: Hassette) -> None:
         """When every wave hangs, _shutdown_children() must still finish within the coordinator
@@ -392,24 +392,24 @@ class TestShutdownChildren:
         most-foundational resources. Worst case: (N-1)*0.1 + 1.0 = 1.6s at ~7 waves, well
         within the 3.0s margin.
         """
-        h = wired_hassette
+        hassette = wired_hassette
         total_timeout = 30.0
 
         async def hang(*_args, **_kwargs):
             await asyncio.sleep(1000)
 
-        for child in h.children:
+        for child in hassette.children:
             child.shutdown = hang
             child._force_terminal = Mock()
 
         loop = asyncio.get_running_loop()
 
-        with preserve_config(h.config):
-            h.config.lifecycle.resource_shutdown_timeout_seconds = total_timeout
-            h._shutdown_budget = compute_shutdown_budget(total_timeout, loop.time())
+        with preserve_config(hassette.config):
+            hassette.config.lifecycle.resource_shutdown_timeout_seconds = total_timeout
+            hassette._shutdown_budget = compute_shutdown_budget(total_timeout, loop.time())
 
             start_time = loop.time()
-            result = await h._shutdown_children()
+            result = await hassette._shutdown_children()
             elapsed = loop.time() - start_time
 
         margin = total_timeout * COORDINATOR_MARGIN_FRACTION
@@ -428,14 +428,14 @@ class TestShutdownChildren:
 
 
 @contextmanager
-def hanging_shutdown_body(h: Hassette, total_shutdown_timeout_seconds: float):
+def hanging_shutdown_body(hassette: Hassette, total_shutdown_timeout_seconds: float):
     """Patch ``Resource._shutdown_body()`` to hang forever and set a short total-shutdown
     timeout, so tests can exercise the coordinator's force-terminal path deterministically.
 
     Patches ``_shutdown_body()``, not ``shutdown()``: ``shutdown()`` is the ``@final``
     coordinator front door (``coordinate_shutdown()``) that itself enforces the timeout being
     tested here. Hassette doesn't override ``shutdown()``, only ``_shutdown_body()`` — patching
-    ``Resource.shutdown`` would replace ``h.shutdown()``'s own entry point (and every child's)
+    ``Resource.shutdown`` would replace ``hassette.shutdown()``'s own entry point (and every child's)
     with the hang, bypassing the total-timeout enforcement entirely instead of exercising it.
     """
 
@@ -444,39 +444,39 @@ def hanging_shutdown_body(h: Hassette, total_shutdown_timeout_seconds: float):
 
     with (
         patch.object(Resource, "_shutdown_body", new=hang_forever),
-        preserve_config(h.config),
+        preserve_config(hassette.config),
     ):
-        h.config.lifecycle.total_shutdown_timeout_seconds = total_shutdown_timeout_seconds
+        hassette.config.lifecycle.total_shutdown_timeout_seconds = total_shutdown_timeout_seconds
         yield
 
 
 class TestShutdownTotalTimeout:
     async def test_forces_all_children_terminal_when_super_shutdown_times_out(self, wired_hassette: Hassette) -> None:
         """shutdown() force-terminates every child if the wrapped super().shutdown() exceeds the total timeout."""
-        h = wired_hassette
-        for child in h.children:
+        hassette = wired_hassette
+        for child in hassette.children:
             child._force_terminal = Mock()
 
         # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
         # headroom to win its race against the coordinator's outer wait.
-        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
-            await h.shutdown()
+        with hanging_shutdown_body(hassette, total_shutdown_timeout_seconds=0.5):
+            await hassette.shutdown()
 
-        assert h.shutdown_completed is True
-        assert h.status == ResourceStatus.STOPPED
-        for child in h.children:
+        assert hassette.shutdown_completed is True
+        assert hassette.status == ResourceStatus.STOPPED
+        for child in hassette.children:
             child._force_terminal.assert_called_once()
 
     async def test_normal_shutdown_sets_stopped_and_completed(self, wired_hassette: Hassette) -> None:
         """shutdown() sets shutdown_completed and STOPPED status on the ordinary (non-timeout) path."""
-        h = wired_hassette
-        for child in h.children:
+        hassette = wired_hassette
+        for child in hassette.children:
             child.shutdown = AsyncMock()
 
-        await h.shutdown()
+        await hassette.shutdown()
 
-        assert h.shutdown_completed is True
-        assert h.status == ResourceStatus.STOPPED
+        assert hassette.shutdown_completed is True
+        assert hassette.status == ResourceStatus.STOPPED
 
     async def test_total_timeout_report_has_total_timeout_and_forced_terminal_causes(
         self, wired_hassette: Hassette
@@ -485,20 +485,20 @@ class TestShutdownTotalTimeout:
         and FORCED_TERMINAL causes when the total shutdown timeout fires, while still closing
         event streams via the existing fallback.
         """
-        h = wired_hassette
-        for child in h.children:
+        hassette = wired_hassette
+        for child in hassette.children:
             child._force_terminal = Mock()
 
         # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
         # headroom to win its race against the coordinator's outer wait.
-        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
-            report = await h.shutdown()
+        with hanging_shutdown_body(hassette, total_shutdown_timeout_seconds=0.5):
+            report = await hassette.shutdown()
 
         assert report.is_restart_safe is False
         assert TeardownCause.TOTAL_TIMEOUT in report.causes
         assert TeardownCause.FORCED_TERMINAL in report.causes
-        assert h.teardown_report == report
-        assert h.event_streams_closed is True
+        assert hassette.teardown_report == report
+        assert hassette.event_streams_closed is True
 
     async def test_total_timeout_stores_report_before_force_terminating_children(
         self, wired_hassette: Hassette
@@ -507,20 +507,20 @@ class TestShutdownTotalTimeout:
         descendants are force-finalized, so a caller observing mid-force-terminal already
         sees ``is_restart_safe`` ``False`` rather than an absent report.
         """
-        h = wired_hassette
+        hassette = wired_hassette
         observed_unsafe_before_force: list[bool] = []
 
         def record_and_force() -> None:
-            report = h._teardown_report
+            report = hassette._teardown_report
             observed_unsafe_before_force.append(report is not None and not report.is_restart_safe)
 
-        for child in h.children:
+        for child in hassette.children:
             child._force_terminal = Mock(side_effect=record_and_force)
 
         # 0.5s (with COORDINATOR_MARGIN_FRACTION) still gives the body enough
         # headroom to win its race against the coordinator's outer wait.
-        with hanging_shutdown_body(h, total_shutdown_timeout_seconds=0.5):
-            await h.shutdown()
+        with hanging_shutdown_body(hassette, total_shutdown_timeout_seconds=0.5):
+            await hassette.shutdown()
 
         assert observed_unsafe_before_force, "no children were force-terminated"
         assert all(observed_unsafe_before_force), (
@@ -531,57 +531,57 @@ class TestShutdownTotalTimeout:
 class TestBeforeShutdownCounterFallback:
     async def test_falls_back_to_zero_counters_when_get_drop_counters_raises(self, wired_hassette: Hassette) -> None:
         """before_shutdown() finalizes the session with (0, 0, 0) if get_drop_counters() raises."""
-        h = wired_hassette
-        h._command_executor.get_drop_counters = Mock(side_effect=RuntimeError("counters unavailable"))
-        h._session_manager.finalize_session = AsyncMock()
+        hassette = wired_hassette
+        hassette._command_executor.get_drop_counters = Mock(side_effect=RuntimeError("counters unavailable"))
+        hassette._session_manager.finalize_session = AsyncMock()
 
-        await h.before_shutdown()
+        await hassette.before_shutdown()
 
-        h._session_manager.finalize_session.assert_awaited_once_with(drop_counters=(0, 0, 0))
+        hassette._session_manager.finalize_session.assert_awaited_once_with(drop_counters=(0, 0, 0))
 
 
 class TestOnChildrenStopped:
     async def test_emits_stopped_event_and_closes_streams(self, wired_hassette: Hassette) -> None:
         """_on_children_stopped() calls handle_stop() then closes event streams."""
-        h = wired_hassette
-        original_close = h._event_stream_service.close_streams
+        hassette = wired_hassette
+        original_close = hassette._event_stream_service.close_streams
         close_streams_mock = AsyncMock()
-        h._event_stream_service.close_streams = close_streams_mock
+        hassette._event_stream_service.close_streams = close_streams_mock
 
         try:
             # handle_stop() is a module-level function (hassette.resources.lifecycle), not a
             # method — patch it at the call site (core.py) rather than reassigning an instance
             # attribute, since _on_children_stopped() calls the free function directly.
             with patch("hassette.core.core.handle_stop") as mock_handle_stop:
-                await h._on_children_stopped()
+                await hassette._on_children_stopped()
 
-                mock_handle_stop.assert_awaited_once_with(h)
+                mock_handle_stop.assert_awaited_once_with(hassette)
             close_streams_mock.assert_awaited_once()
         finally:
-            h._event_stream_service.close_streams = original_close
+            hassette._event_stream_service.close_streams = original_close
 
 
 class TestRecordFatalReason:
     def test_first_reason_wins(self, test_config: HassetteConfig) -> None:
         """record_fatal_reason() keeps the first recorded reason; later calls are ignored."""
-        h = Hassette(test_config)
-        h.record_fatal_reason("first failure")
-        h.record_fatal_reason("second failure")
-        assert h.fatal_shutdown_reason == "first failure"
+        hassette = Hassette(test_config)
+        hassette.record_fatal_reason("first failure")
+        hassette.record_fatal_reason("second failure")
+        assert hassette.fatal_shutdown_reason == "first failure"
 
 
 class TestRaiseIfFatalShutdown:
     def test_raises_fatal_error_when_reason_recorded(self, test_config: HassetteConfig) -> None:
         """_raise_if_fatal_shutdown() raises FatalError carrying the recorded reason."""
-        h = Hassette(test_config)
-        h.record_fatal_reason("boom")
+        hassette = Hassette(test_config)
+        hassette.record_fatal_reason("boom")
         with pytest.raises(FatalError, match="boom"):
-            h._raise_if_fatal_shutdown()
+            hassette._raise_if_fatal_shutdown()
 
     def test_noop_when_no_reason_recorded(self, test_config: HassetteConfig) -> None:
         """_raise_if_fatal_shutdown() is a no-op on a clean shutdown (no fatal reason)."""
-        h = Hassette(test_config)
-        h._raise_if_fatal_shutdown()  # must not raise
+        hassette = Hassette(test_config)
+        hassette._raise_if_fatal_shutdown()  # must not raise
 
 
 class TestWiredAccessorsReturnBackingAttribute:
@@ -592,15 +592,15 @@ class TestWiredAccessorsReturnBackingAttribute:
         and integration tests that create a real session) — wire_services() alone does not create
         a session, so accessing it here would raise "Session ID is not initialized".
         """
-        h = wired_hassette
-        assert h.states is h._states
-        assert h.state_registry is h._state_registry
-        assert h.type_registry is h._type_registry
-        assert h.app_handler is h._app_handler
-        assert h.api_service is h._api_service
-        assert h.session_manager is h._session_manager
-        assert h.event_stream_service is h._event_stream_service
-        assert h.bus is h._bus
+        hassette = wired_hassette
+        assert hassette.states is hassette._states
+        assert hassette.state_registry is hassette._state_registry
+        assert hassette.type_registry is hassette._type_registry
+        assert hassette.app_handler is hassette._app_handler
+        assert hassette.api_service is hassette._api_service
+        assert hassette.session_manager is hassette._session_manager
+        assert hassette.event_stream_service is hassette._event_stream_service
+        assert hassette.bus is hassette._bus
 
 
 class TestTryStateProxy:
