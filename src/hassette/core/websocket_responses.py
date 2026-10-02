@@ -16,8 +16,9 @@ from hassette.exceptions import FailedMessageError, RetryableConnectionClosedErr
 if typing.TYPE_CHECKING:
     import asyncio
 
-# Most timed-out non-retried sends remembered at once, so a late reply can settle whether the
-# write applied. Oldest entries are evicted first; a reply arriving after eviction stays silent.
+# Most timed-out non-retried sends remembered at once, so a late reply can report whether the
+# write later succeeded or whether Home Assistant reported failure. Oldest entries are evicted
+# first; a reply arriving after eviction stays silent.
 TIMED_OUT_WRITE_RECORD_CAP = 100
 
 
@@ -77,13 +78,19 @@ class PendingResponses:
             fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
 
     def record_timed_out_write(self, msg_id: int, command_type: str) -> None:
-        """Remember a timed-out non-retried send so a late reply can settle whether it applied."""
+        """Remember a timed-out non-retried send so a late reply can report its outcome."""
         self.timed_out_writes[msg_id] = command_type
         if len(self.timed_out_writes) > TIMED_OUT_WRITE_RECORD_CAP:
             self.timed_out_writes.popitem(last=False)
 
     def settle_timed_out_write(self, msg_id: int, message: dict) -> None:
-        """Log a late reply to a timed-out non-retried send, which settles whether it applied."""
+        """Log a late reply to a timed-out non-retried send and drop its record.
+
+        A late success proves the write applied. A late failure only reports that Home
+        Assistant returned an error for it -- a call_service write (a script, a custom
+        service) can partly apply before failing, so a failure reply does not prove the
+        command had no effect.
+        """
         command_type = self.timed_out_writes.pop(msg_id, None)
         if command_type is None:
             return
@@ -96,7 +103,8 @@ class PendingResponses:
         else:
             code = (message.get("error") or {}).get("code")
             self.logger.warning(
-                "Late reply to timed-out %r (id %s): it failed (code %r), so the command did not apply",
+                "Late reply to timed-out %r (id %s): Home Assistant reported failure (code %r); "
+                "check state before re-sending",
                 command_type,
                 msg_id,
                 code,

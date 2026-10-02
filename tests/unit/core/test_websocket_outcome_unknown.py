@@ -193,7 +193,7 @@ class TestLateReplyToTimedOutWrite:
         assert msg_id not in websocket_service._pending.timed_out_writes
 
     async def test_late_failure_logs_warning_and_drops_entry(self, websocket_service: WebsocketService) -> None:
-        """A late failure settles a timed-out write as not applied."""
+        """A late failure reports HA's error for a timed-out write, not that it failed to apply."""
         _time_out_immediately(websocket_service)
         msg_id = await _timed_out_write(websocket_service, type="counter/delete", counter_id="motion")
         websocket_service._pending.logger = Mock()
