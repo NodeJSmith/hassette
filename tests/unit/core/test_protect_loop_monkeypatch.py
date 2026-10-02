@@ -91,52 +91,38 @@ def capture_blocking_io_warnings(action: Callable[[], None] | None = None) -> li
 
 
 class TestEnablementMatrix:
-    def test_dev_mode_installs(self) -> None:
-        """dev_mode=True → Tier 2 installs."""
-        run_install(make_blocking_io_hassette(dev_mode=True), expect_installed=True)
-
-    def test_prod_default_does_not_install(self) -> None:
-        """Production without flag → NOT patched."""
+    @pytest.mark.parametrize(
+        ("dev_mode", "deep_detection_enabled", "allow_in_prod", "expected"),
+        [
+            # dev: on unless explicitly disabled; allow_deep_detection_in_prod is irrelevant
+            (True, None, False, True),
+            (True, None, True, True),
+            (True, True, False, True),
+            (True, True, True, True),
+            (True, False, False, False),
+            (True, False, True, False),
+            # prod: unset follows the allow flag, which is a standalone opt-in
+            (False, None, False, False),
+            (False, None, True, True),
+            # prod: an explicit True installs regardless of the allow flag
+            (False, True, False, True),
+            (False, True, True, True),
+            # prod: an explicit False always wins, even with the allow flag
+            (False, False, False, False),
+            (False, False, True, False),
+        ],
+    )
+    def test_enablement(
+        self, dev_mode: bool, deep_detection_enabled: bool | None, allow_in_prod: bool, expected: bool
+    ) -> None:
+        """Full dev/prod x deep_detection_enabled x allow_deep_detection_in_prod matrix."""
         run_install(
-            make_blocking_io_hassette(dev_mode=False, allow_deep_detection_in_prod=False), expect_installed=False
-        )
-
-    def test_prod_with_flag_and_explicit_enabled_installs(self) -> None:
-        """Production with deep_detection_enabled=True + allow_deep_detection_in_prod=True → patched.
-
-        The enablement spec: deep_detection_enabled=None → follows dev_mode. With dev_mode=False
-        that yields enabled=False → returns False early. To reach the prod flag check, the operator
-        must set deep_detection_enabled=True explicitly; the prod gate then gates on
-        allow_deep_detection_in_prod.
-        """
-        run_install(
-            make_blocking_io_hassette(dev_mode=False, deep_detection_enabled=True, allow_deep_detection_in_prod=True),
-            expect_installed=True,
-        )
-
-    def test_explicit_disabled_overrides_dev_mode(self) -> None:
-        """deep_detection_enabled=False overrides dev_mode=True."""
-        run_install(make_blocking_io_hassette(dev_mode=True, deep_detection_enabled=False), expect_installed=False)
-
-    def test_explicit_enabled_prod_no_allow_flag_not_installed(self) -> None:
-        """deep_detection_enabled=True in prod without allow flag → NOT installed (prod gate applies).
-
-        Flow:
-            enabled = True (not None)
-            if not enabled: return False   # skip
-            if dev_mode: return True       # False → continue
-            return allow_deep_detection_in_prod  # False → NOT installed
-        """
-        run_install(
-            make_blocking_io_hassette(dev_mode=False, deep_detection_enabled=True, allow_deep_detection_in_prod=False),
-            expect_installed=False,
-        )
-
-    def test_explicit_enabled_prod_with_allow_flag(self) -> None:
-        """deep_detection_enabled=True + prod + allow flag → installed."""
-        run_install(
-            make_blocking_io_hassette(dev_mode=False, deep_detection_enabled=True, allow_deep_detection_in_prod=True),
-            expect_installed=True,
+            make_blocking_io_hassette(
+                dev_mode=dev_mode,
+                deep_detection_enabled=deep_detection_enabled,
+                allow_deep_detection_in_prod=allow_in_prod,
+            ),
+            expect_installed=expected,
         )
 
 

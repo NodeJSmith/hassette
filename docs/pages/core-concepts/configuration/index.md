@@ -166,7 +166,7 @@ The [`StateManager`](../states/index.md) — the local entity-state cache apps a
 
 - **`deep_detection_enabled`** (bool or `null`): Whether to enable Tier 2 call-site interception. `null` (default) follows `dev_mode` — on in development, off in production. Set explicitly to override.
 
-- **`allow_deep_detection_in_prod`** (bool): Allow Tier 2 in production when `dev_mode` is `false`. Currently it only takes effect when `deep_detection_enabled` is also `true`. Default: `false`.
+- **`allow_deep_detection_in_prod`** (bool): Enable Tier 2 in production even when `dev_mode` is `false`, without also setting `deep_detection_enabled`. An explicit `deep_detection_enabled = false` still wins. Mirrors `allow_reload_in_prod` semantics. Default: `false`.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/blocking_io_config.toml"

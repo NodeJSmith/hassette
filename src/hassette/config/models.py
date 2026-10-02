@@ -706,9 +706,9 @@ class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
     allow_deep_detection_in_prod: bool = Field(default=False)
     """Whether to enable Tier 2 deep detection in production mode.
 
-    When True, Tier 2 call-site interception is active even when ``dev_mode`` is False,
-    regardless of ``deep_detection_enabled``. Mirrors ``allow_reload_in_prod`` semantics.
-    Defaults to False."""
+    When True, Tier 2 call-site interception is active even when ``dev_mode`` is False, without
+    also setting ``deep_detection_enabled``. An explicit ``deep_detection_enabled=False`` still
+    disables Tier 2. Mirrors ``allow_reload_in_prod`` semantics. Defaults to False."""
 
 
 class CliConfig(ExcludeExtrasMixin, BaseModel):
