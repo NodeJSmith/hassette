@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
 import pytest
+from hassette_wire import SourceTier
 
 from hassette.commands import InvokeHandler
 from hassette.core import execution_pipeline
@@ -23,7 +24,6 @@ from hassette.core.execution_pipeline import RetryableBatch
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.execution_record_builder import build_execution_record
 from hassette.core.telemetry.repository import TelemetryRepository
-from hassette.types.types import SourceTier
 from hassette.utils.execution import ExecutionResult
 
 from .conftest import init_executor, make_invocation

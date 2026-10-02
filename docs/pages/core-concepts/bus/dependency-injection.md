@@ -74,7 +74,7 @@ State extractors accept union types for handlers that cover multiple entity doma
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/union_types.py"
 ```
 
-Hassette determines the concrete state class from the entity's domain at dispatch time — see [State Conversion](../states/conversion.md) for details.
+Hassette tries each member of the union in order and uses the first one that validates against the entity's domain. See [State Conversion](../states/conversion.md#union-type-support) for details.
 
 ## Custom Keyword Arguments
 
@@ -86,7 +86,7 @@ DI composes with `kwargs=` passed at registration. DI-annotated parameters resol
 
 ## Handler Signature Restrictions
 
-Any handler with at least one `D.*` annotation is a DI handler. DI handlers do not support positional-only parameters (those before `/`) or `*args`. Regular parameters and `**kwargs` are both valid. Every DI parameter requires a type annotation. Hassette uses the annotation to determine what to extract.
+Bus handlers do not support positional-only parameters (those before `/`) or `*args`, whether or not they use a `D.*` annotation. Registration raises `DependencyInjectionError` for either. Regular parameters and `**kwargs` are both valid. Every DI parameter requires a type annotation. Hassette uses the annotation to determine what to extract.
 
 Not all `D.*` annotations work with every subscription method. [Subscription Methods](methods.md) lists the compatible annotations for each method.
 

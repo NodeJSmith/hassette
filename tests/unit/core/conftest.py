@@ -52,7 +52,7 @@ from ._fixtures_telemetry import (
     telemetry_repo,
     telemetry_session_id,
 )
-from ._fixtures_websocket import websocket_service, websocket_service_strict
+from ._fixtures_websocket import cleanup_disconnected, run_cleanup, websocket_service, websocket_service_strict
 
 __all__ = [
     "COOLDOWN_NEVER_REACHED_SECONDS",
@@ -67,6 +67,7 @@ __all__ = [
     "assert_job_count",
     "assert_listener_count",
     "assert_load_completed_count",
+    "cleanup_disconnected",
     "fetch_job_field",
     "fetch_listener_field",
     "init_executor",
@@ -91,6 +92,7 @@ __all__ = [
     "mock_hassette",
     "mock_manifest",
     "mock_registry",
+    "run_cleanup",
     "set_registry_apps",
     "stub_detected_changes",
     "telemetry_db",

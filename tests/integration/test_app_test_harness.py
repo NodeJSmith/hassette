@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette import D, context
 from hassette.app.app import App
@@ -17,7 +18,6 @@ from hassette.events import CallServiceEvent, RawStateChangeEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent
 from hassette.models import states
 from hassette.testing import AppConfigurationError, AppTestHarness, RecordingApi, wait_for
-from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
     from pathlib import Path

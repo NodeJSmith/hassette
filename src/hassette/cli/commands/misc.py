@@ -1,9 +1,10 @@
 """Miscellaneous CLI commands: config."""
 
+from hassette_wire import ConfigSchemaResponse
+
 from hassette.cli.client import make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import render_detail_dict
-from hassette.web.models import ConfigSchemaResponse
 
 
 def cmd_config(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:

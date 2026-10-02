@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from hassette.types.types import SourceTier
+from hassette_wire import SourceTier
 
 if typing.TYPE_CHECKING:
     from hassette.config.config import HassetteConfig

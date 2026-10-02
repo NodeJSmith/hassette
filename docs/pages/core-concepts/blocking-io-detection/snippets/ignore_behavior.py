@@ -3,7 +3,6 @@ from hassette.types.enums import BlockingIOBehavior
 
 
 class LegacyAppConfig(AppConfig):
-    app_key: str = "legacy_app"
     # Suppress detection for this app while migration is in progress.
     blocking_io_behavior: BlockingIOBehavior | None = BlockingIOBehavior.IGNORE
 

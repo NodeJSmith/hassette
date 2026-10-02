@@ -12,6 +12,7 @@ import aiohttp
 import anyio
 from aiohttp import ClientConnectorError, ClientOSError, ClientTimeout, ServerDisconnectedError, WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError
+from hassette_wire import LogLevel
 from tenacity import (
     before_sleep_log,
     retry,
@@ -29,7 +30,8 @@ from hassette.core.early_drop_policy import (
     log_resilience_budget,
 )
 from hassette.core.observer_list import ObserverList
-from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS
+from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS, SINGLE_ATTEMPT
+from hassette.core.websocket_responses import PendingResponses
 from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import (
@@ -39,6 +41,9 @@ from hassette.exceptions import (
     FailedMessageError,
     InvalidAuthError,
     InvalidLifecycleTransitionError,
+    OutcomeUnknownError,
+    ResponseLostError,
+    ResponseTimeoutError,
     RetryableConnectionClosedError,
 )
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
@@ -46,7 +51,6 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState, RestartType
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -104,8 +108,8 @@ class WebsocketService(Service):
     _ws: aiohttp.ClientWebSocketResponse | None
     """WebSocket connection."""
 
-    _response_futures: dict[int, asyncio.Future[Any]]
-    """Mapping of message IDs to futures for awaiting responses."""
+    _pending: PendingResponses
+    """Owns response-future correlation and timed-out-write tracking for this connection."""
 
     _seq: typing.Iterator[int]
     """Iterator for generating unique message IDs."""
@@ -134,7 +138,7 @@ class WebsocketService(Service):
         self._stack = AsyncExitStack()
         self._session = None
         self._ws = None
-        self._response_futures = {}
+        self._pending = PendingResponses(self.logger)
         self._seq = count(1)
         self._recv_task = None
         self._subscription_ids = set()
@@ -167,7 +171,7 @@ class WebsocketService(Service):
         mark_ready(self, reason="WebSocket service initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.websocket
 
     @property
@@ -494,6 +498,9 @@ class WebsocketService(Service):
         Does NOT close self._session — that is owned by serve()'s async with block.
         Suppresses all exceptions so cleanup never prevents retry.
         """
+        # The code from a peer CLOSE frame or a detected abnormal closure (1006, e.g. heartbeat
+        # timeout). Read before close() below, which would stamp hassette's own code on an open socket.
+        close_code = self._ws.close_code if self._ws is not None else None
         self._send_ready_event.clear()
 
         if self._recv_task is not None:
@@ -508,11 +515,7 @@ class WebsocketService(Service):
             with suppress(Exception):
                 await self._ws.close()
 
-        for fut in list(self._response_futures.values()):
-            if not fut.done():
-                with suppress(Exception):
-                    fut.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
-        self._response_futures.clear()
+        self._pending.fail_all(close_code)
         self._subscription_ids.clear()
         self._ws = None
         self._recv_task = None
@@ -547,18 +550,25 @@ class WebsocketService(Service):
             await self.raw_recv()
 
     async def send_and_await_response(
-        self, payload: dict[str, Any], msg_id: int, *, allow_pre_ready: bool = False
+        self,
+        payload: dict[str, Any],
+        msg_id: int,
+        *,
+        allow_pre_ready: bool = False,
+        late_reply_command: str | None = None,
     ) -> Any:
         """Register a response future for msg_id, send payload, and await the reply.
 
         Registers the future before sending so a fast reply arriving before ``send_json``
-        returns is never dropped. Always pops the future from ``_response_futures`` on
-        exit — success, timeout, or any other exception.
+        returns is never dropped. On exit the entry leaves the pending-responses table, except
+        that a timeout with ``late_reply_command`` set keeps it there, marked timed out.
 
         Args:
             payload: The JSON payload to send. Must already include ``"id": msg_id``.
             msg_id: The message id used to correlate the response future.
             allow_pre_ready: Whether to use the private pre-readiness send path for setup traffic.
+            late_reply_command: Command type to log a late reply under if this times out. Only
+                for a non-retried write; None drops the entry on timeout like any other exit.
 
         Returns:
             The response payload once ``respond_if_necessary`` resolves the future.
@@ -567,15 +577,24 @@ class WebsocketService(Service):
             TimeoutError: If no response arrives within ``resp_timeout_seconds``.
         """
         fut = self.hassette.loop.create_future()
-        self._response_futures[msg_id] = fut
+        self._pending.register(msg_id, fut)
         try:
             if allow_pre_ready:
                 await self._send_json_when_socket_live(**payload)
             else:
                 await self.send_json(**payload)
-            return await asyncio.wait_for(fut, timeout=self.resp_timeout_seconds)
+            # asyncio.wait, unlike wait_for, never cancels fut. A reply landing after the deadline
+            # but before this task resumes still resolves it and is returned below, and the
+            # check-and-mark that follows has no await in it for a reply to slip into.
+            await asyncio.wait({fut}, timeout=self.resp_timeout_seconds)
+            if fut.done():
+                return fut.result()
+            if late_reply_command is not None:
+                self._pending.mark_timed_out(msg_id, late_reply_command)
+            raise TimeoutError
         finally:
-            self._response_futures.pop(msg_id, None)
+            # A no-op for an entry just marked timed out: that one stays to await its late reply.
+            self._pending.discard(msg_id)
 
     async def subscribe_events(self, event_type: str | None = None) -> int:
         """Subscribe to HA events; returns the subscription ID HA confirmed.
@@ -625,11 +644,9 @@ class WebsocketService(Service):
         """Cleanup resources after the WebSocket connection is closed."""
         self.set_connection_state(ConnectionState.DISCONNECTED)
 
-        # Set exceptions for all pending response futures
-        for fut in list(self._response_futures.values()):
-            if not fut.done():
-                fut.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
-        self._response_futures.clear()
+        # Set exceptions for all pending response futures, before the close() below can replace
+        # the socket's close code (peer CLOSE frame or detected abnormal closure) with our own.
+        self._pending.fail_all(self._ws.close_code if self._ws is not None else None)
 
         # Try to unsubscribe (best-effort; ignore errors if socket is going away). This must run
         # before the send-ready gate closes below — send_json() raises immediately once the gate
@@ -678,7 +695,7 @@ class WebsocketService(Service):
                 the command again. That is safe for reads, but duplicates the side effect of a
                 command Home Assistant already applied before its response envelope was lost.
                 Callers sending a non-idempotent command must pass False and accept a
-                ``FailedMessageError`` on the first timeout. (``subscribe_events`` solves the same
+                ``ResponseTimeoutError`` on the first timeout. (``subscribe_events`` solves the same
                 problem with its own retry loop, which unsubscribes the abandoned attempt.)
             **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
                 policy and is consumed here, so it cannot double as a payload field name.
@@ -687,13 +704,20 @@ class WebsocketService(Service):
             The response data from the WebSocket.
 
         Raises:
-            FailedMessageError: If sending the message fails after all retries.
+            ResponseTimeoutError: If no response arrived in time (after all retries, if retried).
+                The command may or may not have applied.
+            ResponseLostError: If the connection dropped while waiting. Never retried; the
+                command may or may not have applied.
+            FailedMessageError: If Home Assistant rejected the command, or sending it failed
+                after all retries.
         """
         caller_id = data.pop("id", None)
+        command_type = str(data.get("type"))
+        late_reply_command = None if retry_on_timeout else command_type
 
         @retry(
             retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
-            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS if retry_on_timeout else 1),
+            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS if retry_on_timeout else SINGLE_ATTEMPT),
             wait=wait_exponential_jitter(),
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
             reraise=True,
@@ -701,49 +725,38 @@ class WebsocketService(Service):
         async def send_with_retry() -> dict[str, Any]:
             nonlocal caller_id
             if caller_id is not None:
-                data["id"] = msg_id = caller_id
+                attempt_id = caller_id
                 caller_id = None
             else:
-                data["id"] = msg_id = self.get_next_message_id()
+                attempt_id = self.get_next_message_id()
+            data["id"] = attempt_id
 
             try:
-                return await self.send_and_await_response(data, msg_id)
+                return await self.send_and_await_response(data, attempt_id, late_reply_command=late_reply_command)
+            # Messages name only the command type and id: payload values may be sensitive
+            # (e.g. input_text.initial on a password-mode helper) and these messages reach logs.
             except TimeoutError:
-                raise FailedMessageError(
-                    f"Response timed out after {self.resp_timeout_seconds}s (data: {data})"
+                raise ResponseTimeoutError(
+                    f"{command_type!r} (id {attempt_id}): no response within {self.resp_timeout_seconds}s; "
+                    "the command may or may not have applied",
+                    original_data=dict(data),
                 ) from None
+            except RetryableConnectionClosedError as exc:
+                raise ResponseLostError(
+                    f"{command_type!r} (id {attempt_id}): connection lost while waiting for a response; "
+                    "the command may or may not have applied",
+                    close_code=exc.close_code,
+                ) from exc
 
-        return await send_with_retry()
+        try:
+            return await send_with_retry()
+        except OutcomeUnknownError as exc:
+            self.logger.warning("%s", exc)
+            raise
 
     def respond_if_necessary(self, message: dict) -> None:
-        if message.get("type") != "result":
-            return
-
-        msg_id = message.get("id")
-
-        if not msg_id:
-            self.logger.warning("Received result message without ID: %s", message)
-            return
-
-        fut = self._response_futures.get(msg_id)
-        if not fut or fut.done():
-            return
-
-        if message.get("success"):
-            fut.set_result(message.get("result"))
-        else:
-            # HA error envelope shape (see design/specs/2037-helper-crud-api/design.md):
-            #   {"type": "result", "success": false, "error": {"code": "<code>", "message": "<msg>"}}
-            error_envelope = message.get("error") or {}
-            err = error_envelope.get("message", "Unknown error")
-            code = error_envelope.get("code")
-            if code is None and error_envelope:
-                self.logger.debug(
-                    "HA error envelope has no 'code' field (raw envelope: %r). "
-                    "e.code will be None — caller code-guards will fall through.",
-                    error_envelope,
-                )
-            fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
+        """Resolve a pending response future (or log a late reply to a timed-out write) for ``message``."""
+        self._pending.respond_if_necessary(message)
 
     async def _send_json_when_socket_live(self, **data: Any) -> None:
         self.logger.debug("Sending WebSocket message: %s", data)

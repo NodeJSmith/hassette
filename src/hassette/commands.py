@@ -11,7 +11,9 @@ dataclasses (no Pydantic, no ``get_type_hints()`` at runtime).
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from hassette.types import AsyncHandlerType, SourceTier
+from hassette_wire import SourceTier
+
+from hassette.types import AsyncHandlerType
 
 if TYPE_CHECKING:
     from hassette.bus.listeners import Listener

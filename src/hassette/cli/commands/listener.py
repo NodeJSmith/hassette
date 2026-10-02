@@ -2,12 +2,12 @@
 
 from typing import Any
 
+from hassette_wire import Execution, ListenerWithSummary
+
 from hassette.cli.client import make_client, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_handler_short, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
-from hassette.schemas.execution_models import Execution
-from hassette.web.models import ListenerWithSummary
 
 LISTENER_LIST_COLUMNS: list[Column] = [
     Column("listener_id", "ID", max_width=6),

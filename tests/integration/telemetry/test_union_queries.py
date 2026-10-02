@@ -6,9 +6,9 @@ Covers ``get_app_recent_activity``, ``get_per_app_activity_buckets``, and
 """
 
 import pytest
+from hassette_wire import ActivityFeedEntry
 
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.schemas.execution_models import ActivityFeedEntry
 
 from .helpers import (
     BASE_TS,

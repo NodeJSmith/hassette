@@ -124,6 +124,21 @@ Before merging a release-please PR, review the generated changelog and manually 
 2. **Expand vague entries** — if a commit subject is too terse, add context from the PR body
 3. **Group by feature area** — reorganize flat lists into topic-grouped sections (matching the v0.24.0 style) when a release has 5+ entries
 4. **Verify breaking change descriptions** — ensure they tell the user what to do, not just what changed internally
+5. **Name the workarounds this release makes obsolete** — see below
+
+### For App Authors: You Can Now Delete
+
+A framework fix doesn't reach existing apps on its own. Authors who already wrote a workaround keep it, and keep paying for a problem that no longer exists, unless the release notes tell them it can go. The changelog is where they look before upgrading (`docs/pages/operating/upgrading.md`, "Reading the Changelog"), so that's where the notice goes.
+
+For each entry in the release, ask: what did an app author have to write by hand, or avoid doing, before this shipped? A `fix:` often retires a defensive pattern; a `feat:` often replaces hand-rolled code (manual namespacing, hand-written mocks, sleeps in tests, a warning in the author's own conventions doc). In-repo usage won't answer this. The workarounds live in user apps, so reason from the problem the entry solved, and from the linked issue if it describes what people were doing instead.
+
+If any entry retires a workaround, add a `### For App Authors: You Can Now Delete` section to that release, one bullet per workaround:
+
+- Name the workaround concretely enough that an author can grep their app for it
+- Say what replaces it, or that nothing needs to
+- Reference the entry's issue or PR as `(#NNN)`
+
+Omit the section when nothing qualifies; don't add an empty one. This applies to the release being curated only. Don't backfill it into older releases, including when cleaning up their formatting.
 
 ### Do NOT edit the PR body (CRITICAL)
 

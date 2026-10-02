@@ -6,6 +6,18 @@ import json
 import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from hassette_wire import (
+    AppManifestsChangedData,
+    AppStatusChangedData,
+    BootIssueResponse,
+    ConnectivityData,
+    ExecutionCompletedData,
+    LogLevel,
+    ManifestStatus,
+    ServiceInfoResponse,
+    ServiceStatusData,
+    SystemStatusResponse,
+)
 from pydantic import BaseModel
 
 from hassette.bus import Bus
@@ -17,18 +29,8 @@ from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
-from hassette.schemas.domain_models import (
-    AppManifestsChangedData,
-    AppStatusChangedData,
-    BootIssue,
-    ConnectivityData,
-    ServiceInfo,
-    ServiceStatusData,
-    SystemStatus,
-)
 from hassette.types import Topic
-from hassette.types.enums import ManifestStatus
-from hassette.types.types import LOG_LEVEL_TYPE
+from hassette.utils import get_version
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -63,8 +65,8 @@ class RuntimeQueryService(Resource):
     _start_time: float
     _subscriptions: "list[Subscription]"
 
-    _pending_completions: list[dict]
-    """Execution completion dicts (handler and job) accumulated within the current drain tick, flushed as a batch."""
+    _pending_completions: list[ExecutionCompletedData]
+    """Execution completions (handler and job) accumulated within the current drain tick, flushed as a batch."""
 
     _flush_scheduled: bool
     """True when an asyncio.sleep(0) flush has been scheduled for the current tick."""
@@ -79,11 +81,11 @@ class RuntimeQueryService(Resource):
         self._ws_drops_last_logged: float = 0.0
         self._start_time = time.time()
         self._subscriptions = []
-        self._pending_completions: list[dict] = []
+        self._pending_completions: list[ExecutionCompletedData] = []
         self._flush_scheduled = False
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.web_api
 
     async def on_initialize(self) -> None:
@@ -159,17 +161,24 @@ class RuntimeQueryService(Resource):
         self._ws_drops_since_last_log = 0
         self._ws_drops_last_logged = 0.0
 
-    async def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
-        entry: dict[str, Any] = {"type": event_type, "data": payload.model_dump(), "timestamp": time.time()}
+    async def broadcast_envelope(self, event_type: str, data: Any) -> None:
+        """Broadcast a WS envelope of the shape ``{"type", "data", "timestamp"}``.
+
+        ``data`` is already dumped: a single model's dict, or a list of them for a batch.
+        """
+        entry: dict[str, Any] = {"type": event_type, "data": data, "timestamp": time.time()}
         await self.broadcast(entry)
+
+    async def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
+        await self.broadcast_envelope(event_type, payload.model_dump())
 
     async def on_app_state_changed(self, event: Event) -> None:
         data = event.payload.data
         payload = AppStatusChangedData(
             app_key=data.app_key,
             index=data.index,
-            status=data.status.value,
-            previous_status=data.previous_status.value if data.previous_status else None,
+            status=data.status,
+            previous_status=data.previous_status,
             instance_name=data.instance_name,
             class_name=data.class_name,
             exception=data.exception,
@@ -183,8 +192,8 @@ class RuntimeQueryService(Resource):
         payload = ServiceStatusData(
             resource_name=data.resource_name,
             role=data.role.value,
-            status=data.status.value,
-            previous_status=data.previous_status.value if data.previous_status else None,
+            status=data.status,
+            previous_status=data.previous_status,
             exception=data.exception,
             exception_type=data.exception_type,
             exception_traceback=data.exception_traceback,
@@ -210,20 +219,25 @@ class RuntimeQueryService(Resource):
         await self.build_and_broadcast("connectivity", ConnectivityData(connected=False))
 
     async def on_execution_completed(self, event: Event[Any]) -> None:
-        """Accumulate an execution completion (handler or job) into the pending batch for this drain tick."""
+        """Accumulate an execution completion (handler or job) into the pending batch for this drain tick.
+
+        Builds the wire model through its constructor, so a malformed payload raises here — this
+        is a bus-handler invocation, so ``CommandExecutor._execute`` records the failure and the
+        malformed completion never reaches ``_pending_completions`` or the WS feed.
+        """
         data: ExecutionCompletedPayload = event.payload.data
         self._pending_completions.append(
-            {
-                "kind": data.kind,
-                "app_key": data.app_key,
-                "instance_index": data.instance_index,
-                "status": data.status,
-                "duration_ms": data.duration_ms,
-                "error_type": data.error_type,
-                "listener_id": data.listener_id,
-                "job_id": data.job_id,
-                "thread_leaked": data.thread_leaked,
-            }
+            ExecutionCompletedData(
+                kind=data.kind,
+                app_key=data.app_key,
+                instance_index=data.instance_index,
+                status=data.status,
+                duration_ms=data.duration_ms,
+                error_type=data.error_type,
+                listener_id=data.listener_id,
+                job_id=data.job_id,
+                thread_leaked=data.thread_leaked,
+            )
         )
         await self.schedule_flush()
 
@@ -250,14 +264,12 @@ class RuntimeQueryService(Resource):
         # Reset BEFORE the awaits so new events arriving during broadcast land in
         # the fresh pending list and schedule_flush re-arms correctly.
         self._flush_scheduled = False
-        now = time.time()
 
         completions = self._pending_completions
         self._pending_completions = []
 
         if completions:
-            entry = {"type": "execution_completed", "data": completions, "timestamp": now}
-            await self.broadcast(entry)
+            await self.broadcast_envelope("execution_completed", [c.model_dump() for c in completions])
 
     def get_app_status_snapshot(self) -> AppStatusSnapshot:
         return self.hassette.app_handler.get_status_snapshot()
@@ -297,7 +309,7 @@ class RuntimeQueryService(Resource):
         except (AttributeError, RuntimeError):
             return False
 
-    def get_system_status(self) -> SystemStatus:
+    def get_system_status(self) -> SystemStatusResponse:
         websocket_service = self.hassette.websocket_service
         is_connected = websocket_service.is_connected
         uptime = time.time() - self._start_time
@@ -314,9 +326,9 @@ class RuntimeQueryService(Resource):
             app_count = 0
 
         services = [
-            ServiceInfo(
+            ServiceInfoResponse(
                 name=child.class_name,
-                status=child.status.value,
+                status=child.status,
                 role=child.role.value,
                 ready_phase=getattr(child, "_ready_reason", None),
                 retry_at=getattr(child, "_retry_at", None),
@@ -337,7 +349,7 @@ class RuntimeQueryService(Resource):
 
         boot_issues = self.collect_boot_issues()
 
-        return SystemStatus(
+        return SystemStatusResponse(
             status=status,
             websocket_connected=is_connected,
             bootstrap_released=bootstrap_released,
@@ -345,21 +357,22 @@ class RuntimeQueryService(Resource):
             entity_count=entity_count,
             app_count=app_count,
             services=services,
+            version=get_version(),
             boot_issues=boot_issues,
             log_queue_drops=self.hassette.get_log_queue_drops(),
             db_write_queue_drops=self.hassette.get_db_write_queue_drops(),
             log_persistence_active=self.hassette.is_log_persistence_active(),
         )
 
-    def collect_boot_issues(self) -> list[BootIssue]:
+    def collect_boot_issues(self) -> list[BootIssueResponse]:
         """Collect boot-time issues from blocked apps, failed app instances, and pending bootstrap.
 
-        Returns a list of ``BootIssue`` objects derived from:
+        Returns a list of ``BootIssueResponse`` objects derived from:
         - App bootstrap not yet released while at least one autostart app is configured — severity ``warn``
         - Apps that are blocked (e.g. import error, pre-check failure) — severity ``warn``
         - Apps that failed to start — severity ``err``
         """
-        issues: list[BootIssue] = []
+        issues: list[BootIssueResponse] = []
         try:
             full_snapshot = self.hassette.app_handler.registry.get_full_snapshot()
         except (AttributeError, RuntimeError):
@@ -367,7 +380,7 @@ class RuntimeQueryService(Resource):
 
         if not self.is_bootstrap_released() and any(manifest.autostart for manifest in full_snapshot.manifests):
             issues.append(
-                BootIssue(
+                BootIssueResponse(
                     severity="warn",
                     label="Apps pending on Home Assistant",
                     detail=(
@@ -380,7 +393,7 @@ class RuntimeQueryService(Resource):
         for manifest in full_snapshot.manifests:
             if manifest.status == ManifestStatus.BLOCKED and manifest.block_reason:
                 issues.append(
-                    BootIssue(
+                    BootIssueResponse(
                         severity="warn",
                         label=f"App blocked: {manifest.display_name}",
                         detail=manifest.block_reason,
@@ -388,7 +401,7 @@ class RuntimeQueryService(Resource):
                 )
             elif manifest.status in (ManifestStatus.FAILED, ManifestStatus.DEGRADED) and manifest.error_message:
                 issues.append(
-                    BootIssue(
+                    BootIssueResponse(
                         severity="err",
                         label=f"App failed: {manifest.display_name}",
                         detail=manifest.error_message,

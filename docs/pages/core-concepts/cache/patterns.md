@@ -87,7 +87,7 @@ If values do not survive a restart, check four common causes:
 - **Missing `await`.** `self.cache.set(...)` without `await` returns a coroutine object and never runs — no error, no write, no log message. Every data method on `self.cache` is a coroutine.
 - **Exception during initialization.** The app may raise before the write executes. Check `hassette log --app <key>` for errors.
 - **Cache directory lacks write permissions.** Check `ls -la {data_dir}/{app_key}/{index}/cache/` — the Hassette process must own the directory.
-- **Stored value is not picklable.** Unpicklable objects raise `PicklingError` at write time.
+- **Stored value is not picklable.** Unpicklable objects raise at write time: usually `TypeError` (file handles, locks, sockets, generators) or `pickle.PicklingError` (lambdas and other functions pickle cannot reference).
 
 ### Cache Grows Large
 

@@ -9,11 +9,11 @@ the single source of truth so the two callers can't drift apart.
 
 from unittest.mock import MagicMock
 
+from hassette_wire import WsServerMessage
 from pydantic import TypeAdapter
 
 from hassette.config.config import HassetteConfig
 from hassette.web.app import create_fastapi_app
-from hassette.web.models import WsServerMessage
 
 CONFIG_SCHEMA_URL = "https://json-schema.org/draft/2020-12/schema"
 CONFIG_SCHEMA_TITLE = "Hassette Configuration"

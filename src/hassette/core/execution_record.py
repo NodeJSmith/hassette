@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from hassette.types.types import ExecutionStatus, SourceTier
+from hassette_wire import ExecutionStatus, SourceTier
 
 SYNTHETIC_ORIGIN = "HASSETTE_SYNTHETIC"
 """trigger_origin value for immediate-fire synthetic events with no HA counterpart."""

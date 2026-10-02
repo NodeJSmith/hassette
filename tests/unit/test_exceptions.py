@@ -16,6 +16,9 @@ from hassette.exceptions import (
     ConnectionClosedError,
     EntityNotInViewError,
     FailedMessageError,
+    OutcomeUnknownError,
+    ResponseLostError,
+    ResponseTimeoutError,
     RetryableConnectionClosedError,
 )
 from hassette.models.states.sensor_shapes import NumericSensorState
@@ -138,6 +141,32 @@ def test_retryable_connection_closed_error_inheritance() -> None:
     e = RetryableConnectionClosedError("connection dropped")
 
     assert isinstance(e, ConnectionClosedError)
+
+
+def test_response_timeout_error_is_outcome_unknown_failed_message() -> None:
+    """Takes FailedMessageError's constructor; existing ``except FailedMessageError`` still catches it."""
+    exc = ResponseTimeoutError("timed out", original_data={"type": "fire_event", "id": 3})
+
+    assert isinstance(exc, OutcomeUnknownError)
+    assert isinstance(exc, FailedMessageError)
+    assert not isinstance(exc, TimeoutError)
+    assert exc.code is None
+    assert exc.original_data == {"type": "fire_event", "id": 3}
+
+
+def test_response_lost_error_is_outcome_unknown_connection_closed() -> None:
+    """Takes RetryableConnectionClosedError's constructor and is not a FailedMessageError."""
+    exc = ResponseLostError("connection lost", close_code=1006)
+
+    assert isinstance(exc, OutcomeUnknownError)
+    assert isinstance(exc, RetryableConnectionClosedError)
+    assert not isinstance(exc, FailedMessageError)
+    assert exc.close_code == 1006
+
+
+def test_outcome_unknown_error_is_a_bodyless_marker() -> None:
+    """No ``__init__`` of its own, so the two concrete parents' constructors never meet."""
+    assert "__init__" not in vars(OutcomeUnknownError)
 
 
 def test_entity_not_in_view_error_defines_own_init() -> None:

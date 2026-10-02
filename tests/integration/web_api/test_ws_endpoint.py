@@ -10,12 +10,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import websockets.exceptions
 from fastapi import FastAPI
+from hassette_wire import ResourceStatus
 from starlette.websockets import WebSocket
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
-from hassette.types.enums import ResourceStatus
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth import WS_POLICY_VIOLATION_CLOSE_CODE
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie

@@ -21,7 +21,7 @@ Three hooks fire in order:
 `before_initialize` and `after_initialize` exist for setup that must happen strictly before or after the main registration. Most apps only need `on_initialize`.
 
 !!! note
-    The base implementations of these hooks are empty. No `super()` call is necessary.
+    The base `on_initialize` and `after_initialize` are empty, so overrides need no `super()` call. The base `before_initialize` initializes `self.cache`, so an override must call `await super().before_initialize()` first. (`AppSync` handles this for `before_initialize_sync`.)
 
 ## Shutdown
 

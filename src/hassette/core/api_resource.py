@@ -9,6 +9,7 @@ from http import HTTPStatus
 from typing import Any, ClassVar
 
 import aiohttp
+from hassette_wire import LogLevel
 from tenacity import (
     before_sleep_log,
     retry,
@@ -29,7 +30,6 @@ from hassette.exceptions import (
 from hassette.models.history import normalize_history
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.request_utils import clean_kwargs, format_time_param, orjson_dump
 
 _SSL_SHUTDOWN_DELAY = 0.25
@@ -88,7 +88,7 @@ class ApiResource(Resource):
         await asyncio.sleep(_SSL_SHUTDOWN_DELAY if self.hassette.config.verify_ssl else 0)
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.api
 
     @property

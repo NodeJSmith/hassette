@@ -3,21 +3,20 @@
 from typing import Any
 from unittest.mock import MagicMock
 
+from hassette_wire import BootIssueResponse, SystemStatusResponse
 from httpx2 import AsyncClient
-
-from hassette.schemas.domain_models import BootIssue, SystemStatus
 
 from .conftest import HEALTH_PATH, get_json
 
 
 async def get_health_with_status(client: AsyncClient, mock_hassette, **status_fields) -> Any:
-    """Wire a `SystemStatus` onto the runtime query service, then GET `/api/health`.
+    """Wire a `SystemStatusResponse` onto the runtime query service, then GET `/api/health`.
 
     Only the fields a test actually asserts on are passed; the rest keep a healthy baseline so
     the assertion reads as "given this status, the response carries these fields".
     """
     mock_hassette.runtime_query_service.get_system_status = MagicMock(
-        return_value=SystemStatus(
+        return_value=SystemStatusResponse(
             status="ok",
             websocket_connected=True,
             bootstrap_released=True,
@@ -46,7 +45,7 @@ class TestVersionInHealth:
             entity_count=0,
             app_count=0,
             version="1.0.0",
-            boot_issues=[BootIssue(severity="warn", label="App blocked", detail="my_app: import error")],
+            boot_issues=[BootIssueResponse(severity="warn", label="App blocked", detail="my_app: import error")],
         )
 
         assert "boot_issues" in data

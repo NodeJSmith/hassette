@@ -4,7 +4,7 @@
 The REST and WebSocket schemas are independent: `build_openapi_schema()` derives
 `frontend/openapi.json` from FastAPI routes, while `build_ws_schema()` derives
 `frontend/ws-schema.json` from `WsServerMessage`. When a new field is added to a
-response model in `src/hassette/web/models.py`, does the matching transport's
+response model in `wire/src/hassette_wire/`, does the matching transport's
 chain complete? REST: `scripts/export_schemas.py` → `npm run types` →
 `frontend/src/api/generated-types.ts`. WS: `scripts/export_schemas.py` →
 `npm run ws-types` → `frontend/src/api/ws-types.ts` and separately
@@ -13,7 +13,7 @@ chain complete? REST: `scripts/export_schemas.py` → `npm run types` →
 ## WS Message Handler Completeness
 `frontend/src/hooks/use-websocket.ts` dispatches on `message.type` with an
 exhaustive `never` check at the end. When a new concrete `WsServerMessage`
-variant (with a literal `type` field) is added to `src/hassette/web/models.py`,
+variant (with a literal `type` field) is added to `wire/src/hassette_wire/`,
 does `use-websocket.ts` have a handler branch for it? Not every variant needs
 Zustand state — some trigger React Query invalidation instead — but every
 variant needs a dispatch branch or the `never` check will fail at compile time.

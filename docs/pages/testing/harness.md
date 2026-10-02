@@ -152,8 +152,8 @@ without a live instance:
 | Method | Fires the event for |
 |---|---|
 | `simulate_websocket_connected()` / `simulate_websocket_disconnected()` | `on_websocket_connected` / `on_websocket_disconnected` — reconnection logic |
-| `simulate_app_state_changed(app_key, status, ...)` | `on_app_state_changed` — inter-app coordination |
-| `simulate_app_running(app_key)` / `simulate_app_stopping(app_key)` | the matching shorthands |
+| `simulate_app_state_changed(status, ...)` | `on_app_state_changed` — status changes of the app under test |
+| `simulate_app_running()` / `simulate_app_stopping()` | `on_app_running` / `on_app_stopping` |
 | `simulate_homeassistant_restart()` / `_start()` / `_stop()` | `on_homeassistant_restart` / `_start` / `_stop` |
 | `simulate_component_loaded(component)` | `on_component_loaded` |
 | `simulate_service_registered(domain, service)` | `on_service_registered` |
@@ -275,6 +275,22 @@ within one test.
 before the reset (e.g., `saved = harness.api_recorder.calls`) retains the
 original calls.
 
+### Simulating an unknown outcome
+
+The recorder never times out, so to test how an app handles a command whose
+outcome is unknown, patch the recorder method with an `AsyncMock` that raises
+[`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] (or
+[`ResponseLostError`][hassette.exceptions.ResponseLostError]). Both are
+subclasses of [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError];
+see [Low-level access](../core-concepts/api/methods.md#low-level-access).
+
+```python
+--8<-- "pages/testing/snippets/testing_outcome_unknown.py"
+```
+
+A patched method no longer records calls, so assert on the mock itself
+(`call_service.assert_awaited_once()`) rather than with `assert_called`.
+
 ## Testing Configuration Errors
 
 `AppConfigurationError` raises during `async with AppTestHarness(...)` entry
@@ -310,7 +326,7 @@ output.
 | Parameter | Type | Description |
 |---|---|---|
 | `app_cls` | `type[App]` | The `App` subclass to test |
-| `config` | `dict[str, Any]` | Config values validated against the app's [AppConfig][hassette.app.app_config.AppConfig] |
+| `config` | `Mapping[str, Any] \| None` | Config values validated against the app's [AppConfig][hassette.app.app_config.AppConfig]. Defaults to an empty mapping. |
 | `tmp_path` | `Path \| None` | Directory for Hassette data. Auto-created and cleaned up if omitted. |
 
 ### Properties

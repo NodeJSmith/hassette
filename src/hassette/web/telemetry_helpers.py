@@ -3,7 +3,7 @@
 from logging import getLogger
 from typing import Protocol
 
-from hassette.web.models import ErrorRateClass, HealthStatus
+from hassette_wire import ErrorRateClass, HealthStatus
 
 LOGGER = getLogger(__name__)
 

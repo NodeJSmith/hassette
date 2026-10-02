@@ -111,7 +111,7 @@ pyright
 
 ## Handler Registration Fails
 
-**[`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError].** All bus registration methods require a `name=` parameter. Omitting it raises this error immediately at registration time. Add a stable, descriptive name:
+**[`ListenerNameRequiredError`][hassette.exceptions.ListenerNameRequiredError].** All bus registration methods require a `name=` parameter. Leaving it out raises Python's `TypeError`; passing an empty name raises this error at registration time. Add a stable, descriptive name:
 
 ```python
 await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, name="kitchen_light")
@@ -223,9 +223,11 @@ For container startup failures, dependency installation, health check failures, 
 
 **[`FailedMessageError`][hassette.exceptions.FailedMessageError]** A message sent over the WebSocket returned an error response from Home Assistant. Check `e.code` for the structured error type from HA. `e.code` is `None` for locally-synthesized failures like transport timeouts.
 
+**[`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError]** A command was sent, but no response arrived, so it may or may not have applied. It is raised as [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] (no response in time; also a `FailedMessageError` with `code=None`) or [`ResponseLostError`][hassette.exceptions.ResponseLostError] (the connection dropped while waiting; also a `RetryableConnectionClosedError`). Don't re-send a write blindly. Check state first: read the target entity's state after `call_service` or `fire_event`, or call `helpers.list(domain)` after a helper change. See [Low-level access](core-concepts/api/methods.md#low-level-access).
+
 ### Registration
 
-**`ListenerNameRequiredError`** `name=` was omitted on a bus registration call. Add a stable `name=` parameter to the registration.
+**`ListenerNameRequiredError`** `name=` was empty on a bus registration call (leaving it out entirely raises `TypeError`). Add a stable `name=` parameter to the registration.
 
 **`DuplicateListenerError`** Two listeners in the same app instance registered with the same name and topic. Use distinct names.
 

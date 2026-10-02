@@ -9,12 +9,12 @@ import builtins
 import typing
 from typing import Any
 
+from hassette_wire import LogLevel
 from pydantic import BaseModel
 
 from hassette.api.helpers import HelperDomain
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -41,7 +41,7 @@ class HelperClientSyncFacade(Resource):
         mark_ready(self, reason="Synchronous HelperClient facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.api
 
     def list(self, domain: HelperDomain) -> builtins.list[Any]:
@@ -71,7 +71,10 @@ class HelperClientSyncFacade(Resource):
         """Update an existing helper.
 
         Args:
-            helper_id: The ID of the helper to update.
+            helper_id: The helper's storage id (the record's ``id`` field), not its
+                ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
+                The two often look alike but are not guaranteed to match (renaming the entity
+                changes only the ``entity_id``); look the id up with ``list(domain)``.
             params: Fields to update (unset fields are left unchanged). The concrete type
                 determines the domain and the return type via overload resolution.
 
@@ -85,7 +88,10 @@ class HelperClientSyncFacade(Resource):
 
         Args:
             domain: The helper domain (e.g. "input_boolean", "counter").
-            helper_id: The ID of the helper to delete.
+            helper_id: The helper's storage id (the record's ``id`` field), not its
+                ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
+                The two often look alike but are not guaranteed to match (renaming the entity
+                changes only the ``entity_id``); look the id up with ``list(domain)``.
         """
         return self.task_bucket.run_sync(self._helpers.delete(domain, helper_id))  # pyright: ignore[reportCallIssue, reportArgumentType]
 

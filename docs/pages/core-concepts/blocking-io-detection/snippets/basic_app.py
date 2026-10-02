@@ -4,7 +4,6 @@ from hassette import App, AppConfig
 
 
 class SensorAppConfig(AppConfig):
-    app_key: str = "sensor_app"
     sensor_entity: str = "sensor.outdoor_temperature"
 
 

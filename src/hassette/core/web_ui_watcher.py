@@ -3,13 +3,13 @@
 from pathlib import Path
 from typing import ClassVar
 
+from hassette_wire import LogLevel
 from watchfiles import awatch
 
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
-from hassette.types.types import LOG_LEVEL_TYPE
 
 _WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 _WATCH_DIRS = [_WEB_DIR / "static", _WEB_DIR / "templates"]
@@ -40,7 +40,7 @@ class WebUiWatcherService(Service):
     )
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.file_watcher
 
     async def on_initialize(self) -> None:

@@ -12,12 +12,13 @@ file covers instance initialization, failed-instance cleanup, and instance/all-a
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 
+from hassette_wire import ResourceStatus
+
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.testing import EventCapture
 from hassette.types import Topic
-from hassette.types.enums import ResourceStatus
 from tests.support.factories import make_mock_parent
 from tests.support.helpers import noop
 from tests.support.mock_hassette import make_mock_hassette

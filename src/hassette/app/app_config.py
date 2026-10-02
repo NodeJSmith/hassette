@@ -1,10 +1,10 @@
-from pydantic import Field, field_validator
+from hassette_wire import LogLevel
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hassette.config.defaults import ENV_FILE_LOCATIONS
 from hassette.config.helpers import log_level_default_factory
 from hassette.types.enums import BlockingIOBehavior, ForgottenAwaitBehavior
-from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, LOG_LEVEL_TYPE, is_framework_key
 
 
 class AppConfig(BaseSettings):
@@ -27,11 +27,8 @@ class AppConfig(BaseSettings):
     instance_name: str = ""
     """Name for the instance of the app."""
 
-    log_level: LOG_LEVEL_TYPE = Field(default_factory=log_level_default_factory)
+    log_level: LogLevel = Field(default_factory=log_level_default_factory)
     """Log level for the app instance. Defaults to INFO if not provided."""
-
-    app_key: str = ""
-    """Configuration-level app key. Reserved: '__hassette__' and '__hassette__.*' prefixes are rejected."""
 
     forgotten_await_behavior: ForgottenAwaitBehavior | None = None
     """Per-app control for forgotten-await detection behavior.
@@ -46,14 +43,3 @@ class AppConfig(BaseSettings):
     When ``None`` (default), the global ``HassetteConfig.blocking_io.behavior`` is used,
     which itself defaults to ``"warn"``.  Set to ``"ignore"`` to suppress detection for this app,
     or ``"error"`` to escalate via ``filterwarnings("error")``."""
-
-    @field_validator("app_key")
-    @classmethod
-    def _reject_hassette_sentinel(cls, v: str) -> str:
-        if is_framework_key(v):
-            raise ValueError(
-                f"'{v}' is a reserved app_key used by the framework internally "
-                f"(reserved prefix: '{FRAMEWORK_APP_KEY_PREFIX}'). "
-                "Choose a different app_key for your application."
-            )
-        return v

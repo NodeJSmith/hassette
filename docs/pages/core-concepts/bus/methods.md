@@ -5,7 +5,7 @@
 All registration methods are `async` and must be awaited. See [Registration](#registration) for what that guarantees.
 
 !!! warning "Forgetting `await` registers nothing"
-    A subscription call without `await` returns a coroutine object and registers no listener — the handler never fires, and no error is raised at the call site. Python logs `RuntimeWarning: coroutine 'Bus.on_state_change' was never awaited` when the coroutine is garbage-collected, but the message is easy to miss. When a handler never fires, check the registration is awaited, then confirm the listener exists with `hassette listener --app <key>`.
+    A subscription call without `await` returns a coroutine object and registers no listener — the handler never fires, and no error is raised at the call site. When the coroutine is garbage-collected, Hassette emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the app and call site (subject to [configuration](../../troubleshooting.md#forgotten-await)), but the message is easy to miss. When a handler never fires, check the registration is awaited, then confirm the listener exists with `hassette listener --app <key>`.
 
 ## Shared Parameters
 
@@ -14,8 +14,8 @@ Every subscription method accepts these parameters. Individual method tables bel
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `handler` | `HandlerType` | — | The function called when the event matches. See [Writing Handlers](handlers.md). |
-| `name` | `str \| None` | `None` | Required. Identifies this listener in logs and the monitoring UI. Must be unique per app instance and topic. Omitting raises `ListenerNameRequiredError`. |
-| `on_error` | `BusErrorHandlerType \| None` | `None` | Per-listener error handler. Overrides the app-level handler set via `bus.on_error()`. Available on `on_state_change`, `on_attribute_change`, `on_call_service`, `on_service_registered`, `on_component_loaded`, `on_app_state_changed`, and `on()`. |
+| `name` | `str` | — | Required. Identifies this listener in logs and the monitoring UI. Must be unique per app instance and topic. Omitting it raises `TypeError` (no default value). An empty string raises `ListenerNameRequiredError`. |
+| `on_error` | `BusErrorHandlerType \| None` | `None` | Per-listener error handler. Overrides the app-level handler set via `bus.on_error()`. See [Per-registration handler](#per-registration-handler). |
 | `timeout` | `float \| None` | `None` | Per-listener timeout in seconds. If the handler runs longer, it is cancelled. `None` inherits `event_handler_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
 | `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this listener regardless of config. |
 | `debounce` | `float \| None` | `None` | Delays the handler until events have been quiet for N seconds. Each new event resets the timer. |
@@ -177,7 +177,7 @@ Three shorthands delegate to `on_call_service("homeassistant", ...)`.
 | `on_homeassistant_stop(handler, ...)` | `on_call_service("homeassistant", "stop", ...)` |
 | `on_homeassistant_restart(handler, ...)` | `on_call_service("homeassistant", "restart", ...)` |
 
-All three accept `handler`, `where`, `kwargs`, `name`, and the [shared parameters](#shared-parameters) (`debounce`, `throttle`, `once`, `timeout`, `timeout_disabled`). They do not expose `on_error` directly. Per-registration error handling requires `on_call_service` directly.
+All three accept `handler`, `where`, `kwargs`, `name`, `on_error`, and the [shared parameters](#shared-parameters) (`debounce`, `throttle`, `once`, `timeout`, `timeout_disabled`, `mode`, `backpressure`, `if_exists`).
 
 ## `on(topic)`
 
@@ -264,7 +264,7 @@ The first `wait_for` uses `~P.StateTo("idle")` — anything other than idle — 
 
 ### `on_app_state_changed` and shorthands
 
-`on_app_state_changed` fires when any app instance transitions to a new [`ResourceStatus`][hassette.types.enums.ResourceStatus] (e.g., `RUNNING`, `STOPPING`, `STOPPED`, `FAILED`). Two shorthands cover the most common cases.
+`on_app_state_changed` fires when any app instance transitions to a new [`ResourceStatus`][hassette.ResourceStatus] (e.g., `RUNNING`, `STOPPING`, `STOPPED`, `FAILED`). Two shorthands cover the most common cases.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/on_app_events.py:app_state_changed"
@@ -279,7 +279,7 @@ The first `wait_for` uses `~P.StateTo("idle")` — anything other than idle — 
 `on_app_running(app_key=...)` delegates to `on_app_state_changed(status=ResourceStatus.RUNNING)`.
 `on_app_stopping(app_key=...)` delegates to `on_app_state_changed(status=ResourceStatus.STOPPING)`.
 
-The shorthands do not expose `on_error` directly. Per-listener error handling requires `on_app_state_changed` with `on_error=` directly.
+Both shorthands accept `on_error` and forward it to `on_app_state_changed`.
 
 ### `on_websocket_connected` and `on_websocket_disconnected`
 
@@ -289,17 +289,17 @@ Fire when the Hassette WebSocket connection to Home Assistant opens or closes.
 --8<-- "pages/core-concepts/bus/snippets/methods/on_app_events.py:websocket"
 ```
 
-Both methods accept `handler`, `where`, `kwargs`, `name`, and `**opts`. Neither exposes `on_error`. Both delegate to `on()` internally.
+Both methods accept `handler`, `where`, `kwargs`, `name`, `on_error`, and `**opts`. Both delegate to `on()` internally.
 
 ### `on_hassette_service_status` and shorthands
 
-`on_hassette_service_status` fires when a Hassette background service (WebSocket, database, bus, scheduler) transitions to a new [`ResourceStatus`][hassette.types.enums.ResourceStatus]. Most apps never need this — Hassette restarts failed services on its own. It exists for apps that pause work or alert when a service goes down. Three shorthands cover the common cases: `on_hassette_service_failed` (status `FAILED`), `on_hassette_service_crashed` (status `CRASHED`), and `on_hassette_service_started` (status `RUNNING`).
+`on_hassette_service_status` fires when a Hassette background service (WebSocket, database, bus, scheduler) transitions to a new [`ResourceStatus`][hassette.ResourceStatus]. Most apps never need this — Hassette restarts failed services on its own. It exists for apps that pause work or alert when a service goes down. Three shorthands cover the common cases: `on_hassette_service_failed` (status `FAILED`), `on_hassette_service_crashed` (status `CRASHED`), and `on_hassette_service_started` (status `RUNNING`).
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/on_service_events.py:service"
 ```
 
-All four accept `handler`, `where`, `kwargs`, `name`, and `**opts`. [Service supervision](../internals/lifecycle.md) explains when each status fires.
+All four accept `handler`, `where`, `kwargs`, `name`, `on_error`, and `**opts`. [Service supervision](../internals/lifecycle.md) explains when each status fires.
 
 ## Error Handling
 
@@ -313,7 +313,7 @@ All four accept `handler`, `where`, `kwargs`, `name`, and `**opts`. [Service sup
 
 ### Per-registration handler
 
-`on_error=` on a registration overrides the app-level fallback for that listener only.
+`on_error=` on a registration overrides the app-level fallback for that listener only. Every registration method that takes a `handler` accepts it, including the lifecycle, app-state, WebSocket, and service-status shorthands.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/handlers/bus_error_handler_per_reg.py"
@@ -332,8 +332,6 @@ All four accept `handler`, `where`, `kwargs`, `name`, and `**opts`. [Service sup
 
 Error handlers run as fire-and-forget tasks. Handlers that start near app shutdown may be cancelled before they complete. Error handlers are not a reliable delivery channel during system teardown.
 
-`on_error` is not available on `on_homeassistant_start`, `on_homeassistant_stop`, `on_homeassistant_restart`, `on_app_running`, `on_app_stopping`, `on_websocket_connected`, or `on_websocket_disconnected`. Per-registration error handling on these events requires the underlying method (`on_call_service`, `on_app_state_changed`, or `on()`) directly.
-
 ## Timeout Configuration
 
 `timeout=` overrides the global `event_handler_timeout_seconds` for a single listener. `timeout_disabled=True` removes timeout enforcement entirely for that listener.
@@ -350,7 +348,7 @@ The global default comes from `event_handler_timeout_seconds` in `hassette.toml`
 
 ### `name=` requirement
 
-Every registration method requires `name=`. Omitting it raises `ListenerNameRequiredError` at call time.
+Every registration method requires `name=`. The parameter has no default, so omitting it raises Python's `TypeError`. Passing an empty string raises `ListenerNameRequiredError` at call time. [`wait_for`](#wait_fortopic) is the exception — its `name` is optional.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
@@ -381,7 +379,7 @@ Listener names must be unique per app instance and topic. Registering a second l
 | Value | Behavior |
 |---|---|
 | `"error"` (default) | Raises `DuplicateListenerError` when a listener with the same name and topic already exists. |
-| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`, `priority`), handler kwargs, per-registration error handler, and duration configuration. The returned subscription is the same live handle as the original registrant's — cancelling it removes the listener for all holders. |
+| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`, `priority`), execution `mode`, `backpressure`, handler kwargs, per-registration error handler, and duration configuration. The returned subscription is the same live handle as the original registrant's — cancelling it removes the listener for all holders. |
 | `"replace"` | Cancels the existing listener and registers the new one. The new configuration does not need to match the old one. |
 
 `if_exists` matters most in `on_initialize`, which re-runs on app reload.

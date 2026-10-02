@@ -177,6 +177,10 @@ class FailedMessageError(HassetteError):
     ``code`` is populated when the error originates from an HA error envelope
     (see ``FailedMessageError.from_error_response``). It is ``None`` for
     locally-synthesized failures such as transport timeouts.
+
+    ``original_data`` is the HA error envelope for an HA-side failure. On a
+    :class:`ResponseTimeoutError` it is instead the outgoing request payload,
+    since no envelope arrived.
     """
 
     def __init__(
@@ -199,6 +203,38 @@ class FailedMessageError(HassetteError):
     ) -> "FailedMessageError":
         msg = f"WebSocket message failed with response '{error}' (data={original_data})"
         return cls(msg, code=code, original_data=original_data)
+
+
+class OutcomeUnknownError(HassetteError):
+    """A command was sent, but no response arrived, so it may or may not have applied.
+
+    Catch this to handle both ways it happens: :class:`ResponseTimeoutError` (no response
+    within the timeout) and :class:`ResponseLostError` (the connection dropped while waiting).
+
+    Don't blindly re-send a write after this error: if it already applied, a re-send applies it
+    twice. Check state instead. After a helper ``create``/``update``/``delete``, call
+    ``api.helpers.list(domain)`` to see whether it landed (the "Managing helpers" docs page shows
+    the pattern). After ``fire_event`` or ``call_service``, check the side effect yourself, for
+    example by reading the target entity's state.
+    """
+
+
+class ResponseTimeoutError(OutcomeUnknownError, FailedMessageError):
+    """No response arrived within the response timeout, so the command may or may not have applied.
+
+    ``code`` is ``None`` (locally synthesized). ``original_data`` is the outgoing request payload,
+    not an HA response envelope. The message names only the command ``type``, message id, and
+    timeout, never payload values.
+    """
+
+
+class ResponseLostError(OutcomeUnknownError, RetryableConnectionClosedError):
+    """The connection dropped while waiting for a response, so the command may or may not have applied.
+
+    Still a :class:`RetryableConnectionClosedError` (``close_code`` included), but "retryable"
+    refers to the connection, not the command — see :class:`OutcomeUnknownError` before
+    re-sending a write.
+    """
 
 
 class InvalidAuthError(FatalError):

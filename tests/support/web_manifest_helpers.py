@@ -6,14 +6,16 @@ These build manifest and snapshot objects used by both e2e and integration web t
 from collections.abc import Sequence
 from typing import Any
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, tally_manifest_statuses
-from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
-from hassette.types.enums import ManifestStatus, ResourceStatus
-from hassette.web.models import (
+from hassette_wire import (
     AppInstanceResponse,
     AppManifestListResponse,
     AppManifestResponse,
+    ManifestStatus,
+    ResourceStatus,
 )
+
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, tally_manifest_statuses
+from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 
 
 def _tally_statuses(manifests: Sequence[AppManifestInfo | AppManifestResponse]) -> dict[str, int]:

@@ -144,12 +144,14 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: [src]
+          paths: [src, wire/src]
           options:
             docstring_style: google
             show_root_full_path: false
             members_order: source
             show_signature_annotations: true
+            preload_modules:
+              - hassette_wire
           inventories:
             - https://docs.python.org/3/objects.inv
             - https://docs.pydantic.dev/latest/objects.inv

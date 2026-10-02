@@ -2,11 +2,11 @@
 
 from typing import TYPE_CHECKING, Any
 
+from hassette_wire import JobSummary, QuerySourceTier
+
 from hassette.core.telemetry.helpers import row_to_dict, since_clause, source_tier_clause
-from hassette.schemas.job_models import JobSummary
 from hassette.schemas.listener_models import ListenerSummary, SlowHandlerRecord
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT
-from hassette.types.types import QuerySourceTier
 
 if TYPE_CHECKING:
     from collections.abc import Callable

@@ -7,6 +7,7 @@ from typing import Annotated, Any
 from unittest.mock import patch
 
 import pytest
+from hassette_wire import CliFormat
 from pydantic import BaseModel
 from rich.console import Console
 from whenever import Instant
@@ -23,7 +24,6 @@ from hassette.cli.output import (
     render_detail,
     render_table,
 )
-from hassette.types.types import CliFormat
 from tests.unit.cli.conftest import CAPTURE_CONSOLE_WIDTH, capture_human, parse_json_stdout
 
 # Simple test models

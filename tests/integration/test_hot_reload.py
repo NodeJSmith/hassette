@@ -12,10 +12,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.config.classes import AppManifest
 from hassette.testing import HassetteHarness
-from hassette.types import ResourceStatus
 from tests.support.harness import preserve_config
 from tests.support.helpers import (
     create_app_manifest,

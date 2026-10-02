@@ -160,16 +160,20 @@ class MonkeypatchEvent:
 
 
 def _should_install(hassette: "Hassette") -> bool:
-    """Decide whether Tier 2 should be installed, mirroring allow_reload_in_prod precedent."""
+    """Decide whether Tier 2 should be installed, mirroring allow_reload_in_prod precedent.
+
+    An explicit ``deep_detection_enabled=False`` always wins. In dev mode Tier 2 is otherwise on.
+    In production it installs when ``deep_detection_enabled`` is explicitly ``True`` or when
+    ``allow_deep_detection_in_prod`` is set — the latter is a standalone opt-in.
+    """
     cfg = hassette.config
     enabled: bool | None = cfg.blocking_io.deep_detection_enabled
-    if enabled is None:
-        enabled = cfg.dev_mode  # None → follow dev_mode
-    if not enabled:
-        return False  # explicitly disabled
+    if enabled is False:
+        return False  # explicit opt-out always wins
     if cfg.dev_mode:
-        return True  # dev: on
-    return cfg.blocking_io.allow_deep_detection_in_prod  # prod: only with explicit opt-in
+        return True  # dev: on unless explicitly disabled
+    # enabled is None or True here; False already returned above.
+    return enabled is True or cfg.blocking_io.allow_deep_detection_in_prod
 
 
 # Wrapper factory

@@ -44,7 +44,7 @@ Each base class determines the Python type of `value` on the resulting state obj
 
 ### `DateTimeBaseState`: `ZonedDateTime`, `PlainDateTime`, or `Date` value
 
-[`DateTimeBaseState`][hassette.models.states.base.DateTimeBaseState] declares a datetime `value_type`. The conversion pipeline parses the raw state string into a [`whenever`](https://whenever.readthedocs.io/) datetime type (`from whenever import ZonedDateTime` — Hassette's date/time library). The exact type depends on the string format from Home Assistant.
+[`DateTimeBaseState`][hassette.models.states.base.DateTimeBaseState] declares a datetime `value_type`. The conversion pipeline parses the raw state string into a [`whenever`](https://whenever.readthedocs.io/) datetime type (`from whenever import ZonedDateTime` — Hassette's date/time library). Every string format Home Assistant sends (offset-aware, naive, or date-only) becomes a `ZonedDateTime`; naive and date-only strings assume the configured timezone.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/custom-states/datetime_base_state.py"
@@ -66,7 +66,7 @@ When no built-in base class fits, a class can inherit from `BaseState[T]` direct
 --8<-- "pages/core-concepts/states/snippets/custom-states/define_your_own.py"
 ```
 
-`value_type` should include `type(None)` when the state can be unset.
+A state that can be unset (`unknown` or `unavailable`) parameterizes the base class with `| None`, as in `BaseState[MyValueType | None]`, and includes `type(None)` in `value_type`. The generic parameter is what Pydantic validates `value` against; without `| None`, an unavailable entity fails conversion.
 
 ## Adding Typed Attributes
 

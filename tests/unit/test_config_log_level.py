@@ -3,7 +3,7 @@
 Verifies each Resource subclass listed in OVERRIDE_CASES:
 1. Overrides config_log_level (no fallthrough to global default)
 2. Returns the expected config field value
-3. Has a LOG_LEVEL_TYPE return annotation
+3. Has a LogLevel return annotation
 
 The list is curated, not auto-discovered. When adding a new Resource
 subclass, add it to OVERRIDE_CASES. Hassette (root) is an intentional
@@ -13,6 +13,7 @@ exception — it uses the base-class global default.
 import inspect
 
 import pytest
+from hassette_wire import LogLevel
 
 from hassette.api.api import Api
 from hassette.api.sync import ApiSyncFacade
@@ -27,7 +28,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.scheduler_service import SchedulerService, _ScheduledJobQueue
+from hassette.core.scheduler_service import SchedulerService
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.core.session_manager import SessionManager
 from hassette.core.state_proxy import StateProxy
@@ -36,10 +37,10 @@ from hassette.core.web_api_service import WebApiService
 from hassette.core.web_ui_watcher import WebUiWatcherService
 from hassette.core.websocket_service import WebsocketService
 from hassette.resources.base import Resource
+from hassette.scheduler.job_queue import _ScheduledJobQueue
 from hassette.scheduler.scheduler import Scheduler
 from hassette.state_manager.state_manager import StateManager
 from hassette.task_bucket.task_bucket import TaskBucket
-from hassette.types.types import LOG_LEVEL_TYPE
 from tests.support.mock_hassette import make_mock_hassette
 
 LOG_LEVEL_OVERRIDES = {
@@ -137,10 +138,10 @@ def test_api_resource_does_not_return_global_log_level() -> None:
 
 @pytest.mark.parametrize("cls", ALL_OVERRIDE_CLASSES, ids=[c.__name__ for c in ALL_OVERRIDE_CLASSES])
 def test_config_log_level_has_log_level_type_annotation(cls: type[Resource]) -> None:
-    """Every config_log_level override must declare -> LOG_LEVEL_TYPE."""
+    """Every config_log_level override must declare -> LogLevel."""
     prop = inspect.getattr_static(cls, "config_log_level")
     assert isinstance(prop, property), f"{cls.__name__}.config_log_level is not a property"
     hints = {"return": prop.fget.__annotations__.get("return")} if prop.fget else {}
-    assert hints.get("return") is LOG_LEVEL_TYPE, (
-        f"{cls.__name__}.config_log_level return annotation is {hints.get('return')}, expected LOG_LEVEL_TYPE"
+    assert hints.get("return") is LogLevel, (
+        f"{cls.__name__}.config_log_level return annotation is {hints.get('return')}, expected LogLevel"
     )

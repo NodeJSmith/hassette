@@ -3,103 +3,16 @@
 These typed models replace raw ``dict`` returns, preventing the
 "column rename -> silent template failure" class of bugs.
 
-For live runtime state models, see ``domain_models.py``.
+For app-registry snapshots, see ``hassette.schemas.app_snapshots``. For the live
+system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
 
 See ``schemas/__init__.py`` for the domain-file map.
 """
 
-from typing import Annotated, Literal
+from typing import Literal
 
+from hassette_wire import SourceTier
 from pydantic import BaseModel
-
-from hassette.types.enums import DEFAULT_OVERLAP_MODE, ExecutionMode
-from hassette.types.types import CliFormat, SourceTier
-
-
-class JobSummary(BaseModel):
-    """Per-job summary returned by ``get_job_summary()``.
-
-    ``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``
-    are tracked separately.
-    Invariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``.
-    """
-
-    job_id: int
-    app_key: str
-    instance_index: int
-    job_name: str
-    handler_method: str
-    trigger_type: str | None
-    trigger_label: str = ""
-    trigger_detail: str | None = None
-    args_json: str
-    kwargs_json: str
-    source_location: str
-    registration_source: str | None
-    source_tier: SourceTier = "app"
-    predicate_description: str | None = None
-    """Structural description of the job's scheduler predicate — ``repr()`` for composed
-    predicate objects, the qualified name for a bare callable. ``None`` when unset."""
-    human_description: str | None = None
-    """Human-readable summary of the job's scheduler predicate, or ``None`` when unset."""
-    total_executions: int
-    successful: int
-    failed: int
-    cancelled: int = 0
-    timed_out: int = 0
-    skipped: int = 0
-    """Number of executions where the scheduler predicate returned ``False`` and the handler
-    did not run. Counted toward ``total_executions`` per the class invariant."""
-    thread_leaked: int = 0
-    """Number of executions whose sync worker thread outlived its timeout (see ``Execution.thread_leaked``).
-    Aggregated from the ``executions`` table; a non-zero value flags a job leaking worker threads.
-    Mirrors the ``timed_out`` aggregate naming — the bare participle, not a ``_count`` suffix."""
-    last_executed_at: float | None
-    total_duration_ms: float
-    avg_duration_ms: float
-    group: str | None = None
-    """Scheduler group name, persisted at registration."""
-    schedule_status: str = "scheduled"
-    """Current schedule status: ``scheduled``, ``waiting``, ``completed``, or ``manual``.
-    Persisted at registration and every status transition; live enrichment overlays the
-    current in-process value, so a DB-only degraded response still reflects the last
-    persisted status."""
-    schedule_status_reason: str | None = None
-    """Optional diagnostic reason qualifying ``schedule_status``: ``legacy_unknown`` for rows
-    backfilled by the schema migration before live re-registration establishes an exact
-    status, or ``trigger_error`` for a ``completed`` job whose trigger raised while computing
-    its next occurrence. ``None`` for a clean status with no override."""
-    next_run: Annotated[float | None, CliFormat("relative_time")] = None
-    """Unix epoch seconds of the next scheduled fire time (unjittered); live-only — always
-    ``None`` in a DB-only response, and ``None`` for every status except ``scheduled`` with
-    live timing available. A ``None`` value no longer implies the job is done; see
-    ``schedule_status``/``schedule_status_reason`` for the reason timing is unavailable."""
-    fire_at: float | None = None
-    """Unix epoch seconds of the live job's dispatch time; sourced from live heap. Equals
-    ``next_run`` when no jitter is configured."""
-    jitter: float | None = None
-    """Seconds of random jitter offset; sourced from live heap."""
-    last_error_message: str | None = None
-    """Most recent error message within the query window, or None."""
-    last_error_type: str | None = None
-    """Most recent error exception type within the query window, or None."""
-    last_error_ts: float | None = None
-    """Unix epoch of the most recent error within the query window, or None."""
-    last_error_traceback: str | None = None
-    """Traceback from the most recent error within the query window, or None."""
-    min_duration_ms: float | None = None
-    """Minimum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
-    max_duration_ms: float | None = None
-    """Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
-    mode: ExecutionMode = DEFAULT_OVERLAP_MODE
-    """Resolved overlap mode for this job. Persisted at registration; sourced from the DB column
-    ``scheduled_jobs.mode``."""
-    suppressed_count: int = 0
-    """Live count of re-fires suppressed by the guard (``single`` mode). Not persisted by design — read
-    live from the in-process guard and reset to 0 on restart."""
-    dropped_count: int = 0
-    """Live count of re-fires dropped due to queue cap (``queued`` mode). Not persisted by design — read
-    live from the in-process guard and reset to 0 on restart."""
 
 
 class JobGlobalStats(BaseModel):

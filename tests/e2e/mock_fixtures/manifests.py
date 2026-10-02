@@ -4,8 +4,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
+from hassette_wire import ManifestStatus, ResourceStatus
+
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
-from hassette.types.enums import ManifestStatus, ResourceStatus
 from tests.e2e.mock_fixtures.constants import (
     APP_KEY_BROKEN_APP,
     APP_KEY_DISABLED_APP,

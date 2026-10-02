@@ -2,8 +2,9 @@
 
 import asyncio
 
+from hassette_wire import ExecutionMode
+
 from hassette.execution_mode import DEFAULT_QUEUE_DEPTH, ExecutionModeGuard, Outcome
-from hassette.types.enums import ExecutionMode
 
 
 class Tracker:

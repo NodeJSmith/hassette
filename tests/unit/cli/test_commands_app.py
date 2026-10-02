@@ -7,6 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+from hassette_wire import ActionResponse, AppInstanceResponse, AppManifestListResponse
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
@@ -24,7 +25,6 @@ from hassette.cli.commands.app import (
 )
 from hassette.cli.context import CLIContext
 from hassette.cli.output import now_epoch
-from hassette.web.models import ActionResponse, AppInstanceResponse, AppManifestListResponse
 from tests.support.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from tests.support.web_response_helpers import (
     make_app_config_response,

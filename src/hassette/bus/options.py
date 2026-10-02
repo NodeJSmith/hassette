@@ -7,9 +7,9 @@ reference ``Unpack[Options]`` at runtime — keeping ``Options`` here breaks the
 cycle.
 """
 
+from hassette_wire import BackpressurePolicy, ExecutionMode
 from typing_extensions import TypedDict
 
-from hassette.types.enums import BackpressurePolicy, ExecutionMode
 from hassette.types.types import IfExistsPolicy
 
 

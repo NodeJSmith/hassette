@@ -5,6 +5,7 @@ import time
 from unittest.mock import AsyncMock, MagicMock, PropertyMock
 
 import pytest
+from hassette_wire import ExecutionStatus
 
 from hassette.commands import ExecuteJob
 from hassette.core import execution_pipeline
@@ -13,7 +14,6 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.execution_record_builder import build_execution_record
 from hassette.exceptions import DependencyError, HassetteError
-from hassette.types.types import ExecutionStatus
 from hassette.utils.execution import ExecutionResult
 from tests.support.factories import (
     make_execution_record,

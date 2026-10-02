@@ -5,11 +5,13 @@ import time
 from logging import Logger, getLogger
 from typing import TYPE_CHECKING, Any
 
+from hassette_wire import ExecutionStatus
+
 from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.schemas.log_models import BlockingEvent
-from hassette.types.types import ExecutionStatus, is_framework_key
+from hassette.types.types import is_framework_key
 
 LOGGER = getLogger(__name__)
 
@@ -616,7 +618,7 @@ class TelemetryRepository:
             live_listener_ids: IDs of currently active listener rows.
             live_job_ids: IDs of currently active scheduled_job rows.
             session_id: Current session ID, used to guard once=True row deletion.
-                When None, once=True rows are unconditionally deleted.
+                When None, once=True row cleanup is skipped and deferred to the next successful restart.
             instance_index: When provided, scopes all five SQL paths (both listener queries,
                 the once=True cleanup block, and both scheduled_jobs queries) to this instance
                 so restarting one instance does not delete or retire sibling instances' rows.

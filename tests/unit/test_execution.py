@@ -5,9 +5,9 @@ import traceback as tb_module
 from unittest.mock import patch
 
 import pytest
+from hassette_wire import ExecutionStatus
 
 from hassette.exceptions import DependencyError, DependencyInjectionError, HassetteError
-from hassette.types.types import ExecutionStatus
 from hassette.utils.execution import MAX_TRACEBACK_SIZE, ExecutionResult, track_execution
 
 

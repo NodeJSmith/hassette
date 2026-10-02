@@ -9,11 +9,11 @@ Tests verify:
 from unittest.mock import AsyncMock
 
 import pytest
+from hassette_wire import ExecutionMode
 
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.types.enums import ExecutionMode
 from tests.support.factories import (
     make_bus_service_with_mock_executor,
     make_job_registration,

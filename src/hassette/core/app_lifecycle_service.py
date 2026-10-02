@@ -10,6 +10,7 @@ from timeit import default_timer as timer
 
 import anyio
 import structlog.contextvars
+from hassette_wire import LogLevel, ResourceStatus
 
 import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
@@ -23,9 +24,8 @@ from hassette.exceptions import (
 )
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_crash, mark_ready
-from hassette.types import ResourceStatus, Topic
+from hassette.types import Topic
 from hassette.types.enums import BlockReason
-from hassette.types.types import LOG_LEVEL_TYPE
 from hassette.utils.exception_utils import get_short_traceback
 
 if typing.TYPE_CHECKING:
@@ -150,7 +150,7 @@ class AppLifecycleService(Resource):
         mark_ready(self, reason="AppLifecycleService initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.app_handler
 
     @property
@@ -313,7 +313,7 @@ class AppLifecycleService(Resource):
         """
         if instance_index is not None:
             structlog.contextvars.bind_contextvars(
-                app_key=inst.app_config.app_key or None,
+                app_key=inst.app_key,
                 instance_name=inst.app_config.instance_name,
                 instance_index=instance_index,
             )
