@@ -8,7 +8,7 @@ Detection runs on two independent tiers.
 
 **Tier 1 — loop-responsiveness watchdog.** A daemon thread measures how long the event loop goes without responding to a heartbeat tick. When the gap exceeds `blocking_io.lag_threshold_seconds` (default 100ms), Hassette emits a [`HassetteBlockingIOWarning`][hassette.exceptions.HassetteBlockingIOWarning] naming the app and execution that owned the loop at the time, and records a row in the `blocking_events` telemetry table.
 
-**Tier 2 — call-site interception.** Hassette patches the known blocking primitives — `time.sleep`, `builtins.open`, `os.listdir`, `os.scandir`, `os.walk`, `glob.glob`, and blocking socket methods — to fire a warning and DB row at the exact call site. Tier 2 is on by default in `dev_mode` and off by default in production (enable with `allow_deep_detection_in_prod`).
+**Tier 2 — call-site interception.** Hassette patches the known blocking primitives — `time.sleep`, `builtins.open`, `os.listdir`, `os.scandir`, `os.walk`, `glob.glob`, and blocking socket methods — to fire a warning and DB row at the exact call site. Tier 2 is on by default in `dev_mode` and off by default in production. To enable it in production, set `allow_deep_detection_in_prod = true` (or `deep_detection_enabled = true`); an explicit `deep_detection_enabled = false` keeps it off in any mode.
 
 Both tiers share the same thread-id gate: calls that originate on a worker thread (via `asyncio.to_thread` or `run_in_executor`) pass through without triggering detection. Only calls on the event loop thread itself are flagged.
 

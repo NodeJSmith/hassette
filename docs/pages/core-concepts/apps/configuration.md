@@ -12,7 +12,7 @@ An app block requires two fields: `filename` and `class_name`. `filename` is the
 --8<-- "pages/core-concepts/configuration/snippets/single_instance.toml"
 ```
 
-`enabled` disables the app without removing the config block when set to `false`. `autostart` controls whether the app starts when Hassette starts — it defaults to `true`. `display_name` sets a friendly label for logs; it defaults to the class name.
+`enabled` disables the app without removing the config block when set to `false`. `autostart` controls whether the app starts when Hassette starts — it defaults to `true`. `display_name` sets a friendly label for logs; it defaults to the app key (`presence` in the block above).
 
 `enabled` and `autostart` are orthogonal. An app with `enabled = true` and `autostart = false` is registered and appears in the apps list, but Hassette does not start it at boot or on live config reload. It remains idle until started on demand via the UI or `POST /apps/{key}/start`. A later config reload of an unrelated app leaves it running if it was already started.
 
@@ -23,7 +23,7 @@ class_name = "HeavyProcessorApp"
 autostart = false
 ```
 
-`enabled = false` is the hard off-switch — it marks an app as excluded from Hassette entirely. `autostart = false` means "registered but not started automatically." The apps dashboard shows a **no autostart** marker on rows where `autostart = false`.
+`enabled = false` is the hard off-switch — the app never loads or starts, but it stays registered and the apps dashboard lists it as **disabled**. `autostart = false` means "registered but not started automatically." The apps dashboard shows a **no autostart** marker on rows where `autostart = false`.
 
 !!! note "Alternative field names"
     `filename` also accepts `file_name`. `class_name` also accepts `class`, `module`, and `module_name`. `filename` and `class_name` are the recommended names; the alternatives exist for compatibility.
@@ -74,7 +74,7 @@ A live config reload restarts only the instances whose `config` block actually c
 
 ## Typed Configuration
 
-The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch raises a Pydantic `ValidationError` before any app starts, showing the field name and expected type. [Apps](../apps/index.md) covers defining the model — including [secret fields](index.md#secret-fields) (typed `SecretStr`, masked in the dashboard) and [presentation metadata](index.md#presentation-metadata) (the `ui` hints that control how each field renders).
+The values supplied under `config` are validated at startup against an [`AppConfig`][hassette.app.app_config.AppConfig] subclass defined in Python. A missing required field or a type mismatch fails that instance with a Pydantic `ValidationError`, logged with the field name and expected type. Other apps and instances still start. [Apps](../apps/index.md) covers defining the model — including [secret fields](index.md#secret-fields) (typed `SecretStr`, masked in the dashboard) and [presentation metadata](index.md#presentation-metadata) (the `ui` hints that control how each field renders).
 
 ## Developer Settings {#developer-settings}
 

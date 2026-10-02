@@ -16,7 +16,7 @@ The outcome depends on three things: the exception type, how many restarts have 
 
 [`RestartType`][hassette.types.enums.RestartType] controls what `ServiceWatcher` does when the restart budget is exhausted.
 
-**`PERMANENT`** means the service cannot be absent. When the budget runs out, `ServiceWatcher` transitions the service to `CRASHED` and calls `hassette.shutdown()`. [`BusService`][hassette.core.bus_service.BusService] and [`SchedulerService`][hassette.core.scheduler_service.SchedulerService] — the shared services behind every app's `self.bus` and `self.scheduler` — use this type. Without them, no automations can run.
+**`PERMANENT`** means the service cannot be absent. When the budget runs out, `ServiceWatcher` emits a `CRASHED` status event for the service and calls `hassette.shutdown()`. The service's own status stays `FAILED` until shutdown moves it on. [`BusService`][hassette.core.bus_service.BusService] and [`SchedulerService`][hassette.core.scheduler_service.SchedulerService] — the shared services behind every app's `self.bus` and `self.scheduler` — use this type. Without them, no automations can run.
 
 **`TRANSIENT`** means the service can tolerate a long outage. When the budget runs out, the service enters `EXHAUSTED_COOLING`, waits for `cooldown_seconds`, resets the budget, and retries. If `max_cooldown_cycles` is set to a non-zero value, the service moves to `EXHAUSTED_DEAD` after that many failed cooldown cycles. [`WebsocketService`][hassette.core.websocket_service.WebsocketService], [`DatabaseService`][hassette.core.database_service.DatabaseService], and [`WebApiService`][hassette.core.web_api_service.WebApiService] use this type.
 
@@ -50,7 +50,7 @@ Backoff between restart attempts uses exponential growth: `backoff_base_seconds 
 
 **Non-retryable errors.** The exception name is in `non_retryable_error_names`. The restart is skipped entirely. `ServiceWatcher` calls `handle_exhaustion()` directly, as if the budget were already spent. This applies to configuration errors that cannot self-correct.
 
-**Fatal errors.** The exception name is in `fatal_error_names`. The service transitions immediately to `CRASHED` and `hassette.shutdown()` is called. `DatabaseService` uses this for [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]. A schema version mismatch requires human intervention, so no retry is attempted. [`FatalError`][hassette.exceptions.FatalError] subclasses take a separate path, independent of `fatal_error_names`. The `Service` base class catches them itself and moves the service straight to `CRASHED`. It never emits a `FAILED` event, so the routing above never sees them.
+**Fatal errors.** The exception name is in `fatal_error_names`. `ServiceWatcher` emits a `CRASHED` status event immediately and calls `hassette.shutdown()`, without attempting a restart. `DatabaseService` uses this for [`SchemaVersionError`][hassette.exceptions.SchemaVersionError]. A schema version mismatch requires human intervention, so no retry is attempted. [`FatalError`][hassette.exceptions.FatalError] subclasses take a separate path, independent of `fatal_error_names`. The `Service` base class catches them itself and moves the service straight to `CRASHED`. It never emits a `FAILED` event, so the routing above never sees them.
 
 ## RestartSpec Reference
 
@@ -89,7 +89,7 @@ stateDiagram-v2
     FAILED --> STARTING : ServiceWatcher restart
     FAILED --> EXHAUSTED_COOLING : TRANSIENT budget exhausted
     FAILED --> EXHAUSTED_DEAD : TEMPORARY budget exhausted
-    FAILED --> CRASHED : PERMANENT budget exhausted / fatal error
+    RUNNING --> CRASHED : FatalError raised from serve()
     EXHAUSTED_COOLING --> STARTING : cooldown complete, budget reset
     EXHAUSTED_COOLING --> EXHAUSTED_DEAD : max_cooldown_cycles exceeded
     CRASHED --> [*]
@@ -97,7 +97,7 @@ stateDiagram-v2
     STOPPED --> [*]
 ```
 
-`NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` is a transient state. `ServiceWatcher` acts on it immediately and moves the service forward. `CRASHED` and `EXHAUSTED_DEAD` are terminal states from which no recovery occurs. `EXHAUSTED_COOLING` is a waiting state. The service re-enters `STARTING` after the cooldown period completes.
+`NOT_STARTED` is the initial state. `STARTING` covers the period from `initialize()` entry through lifecycle hook execution. `RUNNING` is the normal operating state. For services, it persists for the lifetime of the `serve()` loop. `STOPPING` and `STOPPED` represent clean shutdown. `FAILED` is a transient state. `ServiceWatcher` acts on it immediately and moves the service forward. `CRASHED` is set when a `FatalError` escapes `serve()`, and Hassette shuts down. `EXHAUSTED_DEAD` is terminal: no recovery occurs. `EXHAUSTED_COOLING` is a waiting state. The service re-enters `STARTING` after the cooldown period completes.
 
 ## Readiness vs Running
 

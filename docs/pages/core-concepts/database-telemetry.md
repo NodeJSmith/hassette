@@ -70,9 +70,9 @@ Both routines are non-blocking and do not interrupt automations or telemetry col
 
 ## Registration Persistence
 
-Listener and job registrations survive restarts. On startup, Hassette matches existing registrations against the database by natural key. A listener's natural key combines the app key, instance index, `name=` value, and topic. A job's natural key combines the app key, instance index, and `name=` value, since jobs have no topic. Predicate configuration is stored as display metadata and does not affect matching. Matched registrations are updated in place via upsert semantics. Registrations absent from the new session receive a `retired_at` timestamp rather than deletion.
+Listener and job registrations survive restarts. On startup, Hassette matches existing registrations against the database by natural key. A listener's natural key combines the app key, instance index, `name=` value, and topic. A job's natural key combines the app key, instance index, and `name=` value, since jobs have no topic. Predicate configuration is stored as display metadata and does not affect matching. Matched registrations are updated in place via upsert semantics. Registrations absent from the new session that have execution history receive a `retired_at` timestamp rather than deletion. Absent registrations with no execution history are deleted outright. `once=True` listeners that are no longer live are deleted once they have no execution in the current session. If the session ID isn't available at startup, their cleanup waits for a later restart.
 
-The Apps page stats strip shows accurate counts even after a restart because of this persistence. Historical registrations from prior sessions remain visible in the web UI until they age out of the retention window. During development, renaming a handler or changing its topic leaves the old registration visible until it ages out (default 7 days).
+The Apps page stats strip shows accurate counts even after a restart because of this persistence. Historical registrations from prior sessions remain visible in the web UI until they age out of the retention window. During development, renaming a handler or changing its topic leaves the old registration visible until it ages out (default 7 days), as long as the old one had run at least once.
 
 ## Checking Telemetry Health
 
@@ -89,8 +89,8 @@ Three commands and their API equivalents cover telemetry and system health.
 
 | `status` body field | HTTP | Meaning |
 |---|---|---|
-| `ok` | 200 | WebSocket currently connected (per-service health is in the `services` field) |
-| `degraded` | 200 | Was connected at least once; currently disconnected (e.g. HA restarting) |
+| `ok` | 200 | WebSocket currently connected and app bootstrap released (per-service health is in the `services` field) |
+| `degraded` | 200 | Connected at least once, but not fully healthy: either disconnected now (e.g. HA restarting), or connected with app bootstrap not yet released. Check the [`websocket_connected` and `bootstrap_released` fields](../web-ui/health-endpoints.md#aggregate-status-apihealth) to tell which |
 | `starting` | 200 | Has not finished the initial connection yet |
 
 A fatal crash (a PERMANENT service exhausting its restart budget, or a startup failure) records a `failure` status to the current telemetry session before Hassette exits with a non-zero exit code. A clean operator shutdown (SIGTERM / `docker stop`) exits 0.

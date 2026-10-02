@@ -8,6 +8,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
+import structlog
 from hassette_wire import ResourceStatus
 
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
@@ -501,3 +502,23 @@ class TestStopApp:
         await lifecycle_service.stop_app("test_app")
 
         assert call_order == ["get_failed_instance_infos", "unregister_app"]
+
+
+class TestShutdownInstanceLogContext:
+    async def test_binds_real_app_key_during_shutdown(self, lifecycle_service: AppLifecycleService) -> None:
+        """Log records emitted while an instance shuts down carry its real app_key, not None."""
+        inst = make_mock_app_instance(instance_name="inst_0")
+        inst.app_key = "my_app"
+        bound: dict[str, object] = {}
+
+        async def capture_context() -> None:
+            bound.update(structlog.contextvars.get_contextvars())
+
+        inst.shutdown = AsyncMock(side_effect=capture_context)
+
+        await lifecycle_service.shutdown_instance(inst, instance_index=0)
+
+        assert bound["app_key"] == "my_app"
+        assert bound["instance_name"] == "inst_0"
+        assert bound["instance_index"] == 0
+        assert "app_key" not in structlog.contextvars.get_contextvars()

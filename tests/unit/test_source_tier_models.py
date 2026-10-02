@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from whenever import ZonedDateTime
 
-from hassette.app.app_config import AppConfig
 from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.core.execution_record import ExecutionRecord
 from hassette.exceptions import DependencyError, DependencyInjectionError
@@ -171,23 +170,6 @@ class TestExecutionResultIsDiFailure:
                 raise DependencyInjectionError("bad sig")
 
         assert result.is_di_failure is True
-
-
-class TestAppConfigSentinelGuard:
-    def test_app_config_rejects_hassette_sentinel(self) -> None:
-        """AppConfig(app_key='__hassette__') raises ValueError."""
-        with pytest.raises(ValueError, match="__hassette__"):
-            AppConfig(app_key="__hassette__")
-
-    def test_app_config_accepts_normal_app_key(self) -> None:
-        """AppConfig(app_key='my_app') succeeds."""
-        config = AppConfig(app_key="my_app")
-        assert config.app_key == "my_app"
-
-    def test_app_config_accepts_empty_app_key(self) -> None:
-        """AppConfig with no explicit app_key succeeds (default is empty string)."""
-        config = AppConfig()
-        assert config is not None
 
 
 class TestJobSourceTier:

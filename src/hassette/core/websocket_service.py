@@ -30,7 +30,7 @@ from hassette.core.early_drop_policy import (
     log_resilience_budget,
 )
 from hassette.core.observer_list import ObserverList
-from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS
+from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS, SINGLE_ATTEMPT
 from hassette.core.websocket_responses import PendingResponses
 from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
@@ -697,7 +697,7 @@ class WebsocketService(Service):
 
         @retry(
             retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
-            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS if retry_on_timeout else 1),
+            stop=stop_after_attempt(MAX_RETRY_ATTEMPTS if retry_on_timeout else SINGLE_ATTEMPT),
             wait=wait_exponential_jitter(),
             before_sleep=before_sleep_log(self.logger, logging.WARNING),
             reraise=True,
