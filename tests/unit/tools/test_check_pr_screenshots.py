@@ -107,3 +107,10 @@ def test_branch_scoped_raw_urls_extracts_only_unpinned() -> None:
 def test_non_image_branch_raw_link_does_not_block() -> None:
     body = f"![after]({SHA_URL})\nConfig: https://raw.githubusercontent.com/NodeJSmith/hassette/main/mkdocs.yml"
     assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is True
+
+
+@pytest.mark.parametrize("trailer", [".", ",", ";", ":", "!", "*", "`", "]"])
+def test_bare_branch_scoped_url_followed_by_punctuation_is_flagged(trailer: str) -> None:
+    body = f"## Screenshots\n\nSee {MAIN_URL}{trailer}"
+    assert branch_scoped_raw_urls(body) == [MAIN_URL]
+    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
