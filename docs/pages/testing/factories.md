@@ -41,7 +41,7 @@ State factories build raw HA-format state dicts. The harness calls them internal
 | `state` | `"on"` | `"on"` or `"off"`. |
 | `brightness` | `None` | Brightness 0–255. Omitted from attributes if not set. |
 | `color_temp` | `None` | Color temperature in mireds. Omitted from attributes if not set. |
-| `**kwargs` | | Extra attributes or top-level state dict fields (`last_changed`, `last_updated`, `context`). |
+| `**kwargs` | | Extra attributes or top-level state dict fields (`last_changed`, `last_updated`, `last_reported`, `context`). |
 
 ### `make_sensor_state_dict`
 

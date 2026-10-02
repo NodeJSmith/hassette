@@ -15,7 +15,7 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `A
 !!! info "What's `D.StateNew[states.LightState]`?"
     That annotation is [dependency injection](../bus/dependency-injection.md). The handler declares what data it needs, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
 
-Two more things to notice in the example. Every method is `async def`, and the registration call is awaited — that pattern holds for all bus, scheduler, and API calls, and a missing `await` silently does nothing (see [Call Services](#call-services) below) — [Async Basics](../../migration/async-basics.md) explains why. The `name=` parameter is required on every subscription; it labels the listener in logs and the [web UI](../../web-ui/index.md).
+The example defines every method with `async def` and awaits the registration call. All bus, scheduler, and API calls follow this pattern; without `await`, a call never runs (see [Call Services](#call-services) below) — [Async Basics](../../migration/async-basics.md) explains why. Every subscription requires `name=`, which labels the listener in logs and the [web UI](../../web-ui/index.md).
 
 ## Configuration
 
@@ -39,10 +39,12 @@ With `env_prefix="MYAPP_"`, the field `api_key` reads from `MYAPP_API_KEY`. Fiel
 
 ### Base Fields
 
-Every `AppConfig` includes two built-in fields:
+Every `AppConfig` includes four built-in fields. Two identify and log the app:
 
 - `instance_name`: a string that uniquely identifies one running instance of the app. Defaults to an empty string; Hassette derives a display name from the class name when it is not set.
-- `log_level`: controls the logging verbosity for this app's logger. Inherits the process-level default when not set.
+- `log_level`: controls the logging verbosity for this app's logger. Defaults to `"INFO"` when not set; it does not inherit the global `logging.apps` level.
+
+The other two, `forgotten_await_behavior` and `blocking_io_behavior`, override the global developer settings for one app. See [Developer Settings](configuration.md#developer-settings).
 
 The app's key from `hassette.toml` is not an `AppConfig` field. Hassette exposes it at runtime as `self.app_key`.
 
@@ -77,7 +79,7 @@ Each field sets optional presentation hints under a `ui` namespace through `json
 | `widget` | force a value format, e.g. `"path"` | format derived from the field type |
 
 !!! note "`tier` is reserved"
-    The `ui` namespace also defines a `tier` key (`"common"` / `"advanced"`) for a future show-advanced view. It has no effect yet — don't repurpose the key before that lands.
+    The `ui` namespace reserves a `tier` key (`"common"` / `"advanced"`) for a future show-advanced view. It has no effect yet — don't repurpose the key before that lands.
 
 ### TOML Registration
 
@@ -142,7 +144,7 @@ See the [States](../states/index.md) page for typed domain access and custom sta
 ```
 
 !!! warning "Forgetting `await` on API calls"
-    Every `self.api.*` method is a coroutine. It must be awaited. Writing `self.api.call_service(...)` without `await` returns a coroutine object and silently does nothing: no error is raised, no service is called, and no log message appears. If an API call seems to have no effect, check that `await` is present.
+    Every `self.api.*` method is a coroutine. It must be awaited. Writing `self.api.call_service(...)` without `await` returns a coroutine object and no service is called. No error is raised at the call site; Hassette emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] when the coroutine is garbage-collected (subject to [configuration](../../troubleshooting.md#forgotten-await)), which is easy to miss. An API call that appears to have no effect may be missing `await`.
 
 See the [API](../api/index.md) page for state access, entity management, and more.
 

@@ -28,7 +28,7 @@ When the same setting appears in multiple sources, the higher-precedence source 
 --8<-- "pages/core-concepts/configuration/snippets/file_discovery.md"
 
 !!! tip "Docker"
-    In Docker, the configuration volume mounts to `/config`. Hassette checks `/config/hassette.toml` first.
+    In Docker, the configuration volume mounts to `/config`, so `/config/hassette.toml` is normally the only config file present.
 
 ## IDE Support {#ide-support}
 
@@ -166,7 +166,7 @@ The [`StateManager`](../states/index.md) — the local entity-state cache apps a
 
 - **`deep_detection_enabled`** (bool or `null`): Whether to enable Tier 2 call-site interception. `null` (default) follows `dev_mode` — on in development, off in production. Set explicitly to override.
 
-- **`allow_deep_detection_in_prod`** (bool): Enable Tier 2 in production even when `dev_mode` is `false`. Mirrors `allow_reload_in_prod` semantics. Default: `false`.
+- **`allow_deep_detection_in_prod`** (bool): Allow Tier 2 in production when `dev_mode` is `false`. Currently it only takes effect when `deep_detection_enabled` is also `true`. Default: `false`.
 
 ```toml
 --8<-- "pages/core-concepts/configuration/snippets/blocking_io_config.toml"

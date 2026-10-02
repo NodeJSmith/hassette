@@ -32,7 +32,7 @@ The bus (`self.bus`) delivers Home Assistant events — including service calls 
 
 `P` is an alias for [`hassette.event_handling.predicates`](../core-concepts/bus/filtering.md), a module of event-filtering functions. `P.ServiceDataWhere({"entity_id": self.app_config.primary_light})` narrows the subscription further — the predicate compares the `entity_id` field in the incoming call's service data against the configured primary light. Calls targeting any other entity are dropped without invoking the handler.
 
-`name=` on the subscription is required — it labels the listener in logs and in `hassette listener` output. Omitting it raises `ListenerNameRequiredError` at registration time.
+`name=` on the subscription is required — it labels the listener in logs and in `hassette listener` output. Omitting it raises `TypeError` at registration time.
 
 The handler receives a [`CallServiceEvent`][hassette.events.hass.hass.CallServiceEvent], the Python object Hassette builds from the raw service call. `event.payload.data.service_data` holds the dict the caller passed to `light.turn_on` — for example, if someone set brightness to 200, `service_data` is `{"brightness": 200, "entity_id": "light.living_room_main"}`. That dict contains whatever combination of `brightness`, `color_temp`, `transition`, and other parameters the caller included. The handler checks each key individually and forwards only the ones present. Keys absent from the original call stay out of the accent call. The accent light keeps its existing values for those attributes.
 

@@ -30,7 +30,7 @@ The bus (`self.bus`) delivers Home Assistant events to subscribed handlers — e
 
 `D.StateNew[states.SensorState]` is a [dependency injection](../core-concepts/bus/dependency-injection.md) annotation. `D` is an alias for `hassette.event_handling.dependencies` — Hassette inspects the handler's parameter types at registration and passes the extracted value in automatically. `D.StateNew` delivers the new state, already converted to a [`SensorState`][hassette.models.states.sensor.SensorState] object. `SensorState.value` is `str | None` — the framework sets it to `None` when the entity is `"unavailable"` or `"unknown"` — so the handler converts it to a `float` before comparing against `THRESHOLD`. The `try`/`except` guards against the `None` and non-numeric values that HA sensors report during startup.
 
-`name=` on `on_state_change` is required — it labels the listener in logs and in `hassette listener` output. Omitting it raises `ListenerNameRequiredError` at registration time.
+`name=` on `on_state_change` is required — it labels the listener in logs and in `hassette listener` output. Omitting it raises `TypeError` at registration time.
 
 When the stabilized temperature meets or exceeds `THRESHOLD`, a log line records the crossing, the previous value, and the debounce duration.
 

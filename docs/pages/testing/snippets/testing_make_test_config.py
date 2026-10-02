@@ -14,5 +14,6 @@ def test_config_defaults(tmp_path: Path):
 
 def test_config_overrides(tmp_path: Path):
     config = make_test_config(data_dir=tmp_path, token="my-real-token", web_api={"run": True})
-    assert config.token == "my-real-token"
+    assert config.token is not None
+    assert config.token.get_secret_value() == "my-real-token"
     assert config.web_api.run is True

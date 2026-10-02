@@ -61,9 +61,11 @@ different wire payloads.
 **`CounterRecord` and [`CounterState`][hassette.models.states.counter.CounterState] are two different models.** `CounterRecord`
 represents stored configuration, returned by `helpers.list("counter")`, `helpers.create(...)`, and
 `helpers.update(...)`. `CounterState` represents the live runtime value, returned by
-`get_state("counter.mycounter")`. Changes to stored config (for example, updating
-`initial`) take effect after an HA restart. `helpers.increment`, `helpers.decrement`,
-and `helpers.reset` are immediate but do not modify stored config.
+`get_state("counter.mycounter")`. Config updates apply immediately: the state's
+attributes reflect them and the current value is clamped to any new `minimum` or
+`maximum`. Updating `initial` does not change the current value; the next
+`helpers.reset` (or an HA restart without `restore`) uses it. `helpers.increment`,
+`helpers.decrement`, and `helpers.reset` are immediate but do not modify stored config.
 
 **Helper creation persists across HA restarts.** HA stores helpers in `.storage/`.
 A helper created during `on_initialize` is still present on the next run. The

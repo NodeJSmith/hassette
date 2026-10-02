@@ -5,7 +5,7 @@
 All registration methods are `async` and must be awaited. See [Registration](#registration) for what that guarantees.
 
 !!! warning "Forgetting `await` registers nothing"
-    A subscription call without `await` returns a coroutine object and registers no listener — the handler never fires, and no error is raised at the call site. Python logs `RuntimeWarning: coroutine 'Bus.on_state_change' was never awaited` when the coroutine is garbage-collected, but the message is easy to miss. When a handler never fires, check the registration is awaited, then confirm the listener exists with `hassette listener --app <key>`.
+    A subscription call without `await` returns a coroutine object and registers no listener — the handler never fires, and no error is raised at the call site. When the coroutine is garbage-collected, Hassette emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the app and call site (subject to [configuration](../../troubleshooting.md#forgotten-await)), but the message is easy to miss. When a handler never fires, check the registration is awaited, then confirm the listener exists with `hassette listener --app <key>`.
 
 ## Shared Parameters
 
@@ -177,7 +177,7 @@ Three shorthands delegate to `on_call_service("homeassistant", ...)`.
 | `on_homeassistant_stop(handler, ...)` | `on_call_service("homeassistant", "stop", ...)` |
 | `on_homeassistant_restart(handler, ...)` | `on_call_service("homeassistant", "restart", ...)` |
 
-All three accept `handler`, `where`, `kwargs`, `name`, `on_error`, and the [shared parameters](#shared-parameters) (`debounce`, `throttle`, `once`, `timeout`, `timeout_disabled`).
+All three accept `handler`, `where`, `kwargs`, `name`, `on_error`, and the [shared parameters](#shared-parameters) (`debounce`, `throttle`, `once`, `timeout`, `timeout_disabled`, `mode`, `backpressure`, `if_exists`).
 
 ## `on(topic)`
 
@@ -379,7 +379,7 @@ Listener names must be unique per app instance and topic. Registering a second l
 | Value | Behavior |
 |---|---|
 | `"error"` (default) | Raises `DuplicateListenerError` when a listener with the same name and topic already exists. |
-| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`, `priority`), handler kwargs, per-registration error handler, and duration configuration. The returned subscription is the same live handle as the original registrant's — cancelling it removes the listener for all holders. |
+| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`, `priority`), execution `mode`, `backpressure`, handler kwargs, per-registration error handler, and duration configuration. The returned subscription is the same live handle as the original registrant's — cancelling it removes the listener for all holders. |
 | `"replace"` | Cancels the existing listener and registers the new one. The new configuration does not need to match the old one. |
 
 `if_exists` matters most in `on_initialize`, which re-runs on app reload.

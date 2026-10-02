@@ -1,6 +1,6 @@
 # States
 
-The [`StateManager`][hassette.state_manager.state_manager.StateManager] keeps a real-time, in-memory copy of all Home Assistant entity states. `self.states` is a `StateManager` instance available on every [`App`](../apps/index.md) — it provides synchronous, typed access with no `await` and no API calls.
+Hassette keeps a real-time, in-memory copy of all Home Assistant entity states. `self.states` is a [`StateManager`][hassette.state_manager.state_manager.StateManager] instance available on every [`App`](../apps/index.md) — it provides synchronous, typed access with no `await` and no API calls.
 
 <div style="text-align: center">
 
@@ -83,7 +83,7 @@ Every state object is a [`BaseState`][hassette.models.states.base.BaseState] sub
 !!! warning "`value` is typed Python, not the raw HA string"
     Home Assistant stores `"on"`/`"off"` strings; [state conversion](conversion.md) turns them into `True`/`False` for toggle domains like `light`, `switch`, and `binary_sensor`. `state.value == "on"` is always `False` — compare against `True` instead. Code ported from AppDaemon or HA templates that compares against `"on"` silently never matches. The `changed_to=`/`changed_from=` filters on [`on_state_change()`](../bus/methods.md#on_state_changeentity_id) are the exception: they compare raw HA strings.
 
-**`attributes`** is a typed [`AttributesBase`][hassette.models.states.base.AttributesBase] subclass with domain-specific fields. `LightState.attributes.brightness` is an integer. `ClimateState.attributes.current_temperature` is a float. Pyright knows the types.
+**`attributes`** is a typed [`AttributesBase`][hassette.models.states.base.AttributesBase] subclass with domain-specific fields. `LightState.attributes.brightness` is a number. `ClimateState.attributes.current_temperature` is a float. Pyright knows the types.
 
 **`is_unknown`** and **`is_unavailable`** are `True` when HA reports the entity as `"unknown"` or `"unavailable"`, respectively. Both flags are `False` for normal states.
 
@@ -117,8 +117,8 @@ Hassette auto-generates typed state classes for 55 Home Assistant domains from H
 
 Three common examples:
 
-- **`states.LightState`** has `value: bool | None`, `attributes.brightness: int | None`, `attributes.color_temp_kelvin: int | None`
-- **`states.SensorState`** has `value: str | None`, `attributes.unit_of_measurement: str | None`, `attributes.device_class: SensorDeviceClass | None`
+- **`states.LightState`** has `value: bool | None`, `attributes.brightness: int | float | None`, `attributes.color_temp_kelvin: int | float | None`
+- **`states.SensorState`** has `value: str | None`, `attributes.unit_of_measurement: str | None`, `attributes.device_class: SensorDeviceClass | str | None`
 - **`states.BinarySensorState`** has `value: bool | None`, `attributes.device_class: BinarySensorDeviceClass | None`
 
 The API reference lists all 55 classes with their full attribute signatures. Domains not covered there are handled by [Custom States](custom-states.md).
@@ -136,7 +136,7 @@ The API reference lists all 55 classes with their full attribute signatures. Dom
 
 `uptime` classifies as the timestamp shape — Home Assistant renders both through the same code path, differing only by a drift-normalization step that leaves the value's type unchanged, so there is no separate uptime class.
 
-Two paths reach a narrowed shape. Dependency injection names the class directly — `D` (`hassette.dependencies`) tells Hassette what to extract from the event; `D.StateNew[T]` means "give me the new state, converted to `T`" (see [Dependency Injection](../bus/dependency-injection.md)):
+Two paths reach a narrowed shape. Dependency injection names the class directly — `D` (`hassette.event_handling.dependencies`) tells Hassette what to extract from the event; `D.StateNew[T]` means "give me the new state, converted to `T`" (see [Dependency Injection](../bus/dependency-injection.md)):
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/sensor_shapes.py:annotation"
@@ -219,7 +219,7 @@ The quantifiers read the `person` domain, falling back to `device_tracker` only 
 
 **Startup.** The cache is populated at startup via a full API fetch before `on_initialize` runs. Apps can read current state immediately.
 
-**Staleness.** WebSocket `state_changed` events keep the cache current. A periodic background poll (default every 30 seconds) guards against missed events. The `StateManager` event handler runs before app handlers, so handlers always see the latest state.
+**Staleness.** WebSocket `state_changed` events keep the cache current. A periodic background poll (default every 30 seconds) guards against missed events. The cache's event handler runs before app handlers, so handlers always see the latest state.
 
 **Reconnection.** During a HA disconnect the cache is retained — `self.states.get()` returns the last known (stale) values while Hassette reconnects. Once the reconnect completes, a fresh API fetch replaces the cache atomically.
 

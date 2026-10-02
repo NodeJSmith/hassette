@@ -80,7 +80,7 @@ Outbound calls go through the per-app [Api][hassette.api.api.Api] handle, which 
 
 ### `depends_on` ClassVar
 
-Services declare startup dependencies as a class-level `ClassVar`. The framework reads these declarations at construction time and computes a topological startup order.
+Services declare startup dependencies as a class-level `ClassVar`. The framework reads these declarations in `wire_services()` and computes a topological startup order.
 
 ```python
 --8<-- "pages/core-concepts/snippets/index_depends_on.py"
@@ -92,7 +92,7 @@ Services declare startup dependencies as a class-level `ClassVar`. The framework
 
 The dependency graph partitions into topological levels. All services in a wave start concurrently. The framework waits for every service in a wave to signal readiness before advancing. Shutdown runs in reverse wave order.
 
-A `ValueError` with the full cycle path raises at construction time if the dependency graph contains a cycle.
+A `ValueError` with the full cycle path raises from `wire_services()` if the dependency graph contains a cycle.
 
 ### Framework Dependency Graph
 
@@ -103,6 +103,8 @@ graph BT
 
     subgraph wave0["Wave 0 — No Dependencies"]
         DB[DatabaseService]
+        SYNC[SyncExecutorService]
+        API[ApiResource]
         WS[WebsocketService]
     end
 
@@ -110,7 +112,6 @@ graph BT
         BUS[BusService]
         SCHED[SchedulerService]
         CMD[CommandExecutor]
-        API[ApiResource]
         LOG[LoggingService]
         TQS[TelemetryQueryService]
     end
@@ -121,42 +122,39 @@ graph BT
     end
 
     subgraph wave3["Wave 3"]
-        AH[AppHandler]
-    end
-
-    subgraph wave4["Wave 4"]
+        ABC[AppBootstrapCoordinator]
         RQS[RuntimeQueryService]
     end
 
-    subgraph wave5["Wave 5 — Last to Start"]
+    subgraph wave4["Wave 4 — Last to Start"]
+        AH[AppHandler]
         WEB[WebApiService]
     end
 
-    BUS --> DB
-    SCHED --> DB
+    BUS --> DB & SYNC
+    SCHED --> DB & SYNC
     CMD --> DB
     LOG --> DB
     TQS --> DB
-    API --> WS
     SW --> BUS
-    SP --> WS & API & BUS & SCHED
-    AH --> WS & API & BUS & SCHED & SP
-    RQS --> BUS & SP & AH & LOG
-    WEB --> RQS & TQS
+    SP --> API & BUS & SCHED
+    ABC --> API & BUS & SCHED & SP & SYNC
+    RQS --> BUS & SP & LOG
+    AH --> ABC
+    WEB --> RQS & TQS & SCHED
 
     style wave0 fill:#e8f0ff,stroke:#6688cc
     style wave1 fill:#dde8f8,stroke:#6688cc
     style wave2 fill:#d0e0f0,stroke:#6688cc
     style wave3 fill:#c4d8e8,stroke:#6688cc
     style wave4 fill:#b8d0e0,stroke:#6688cc
-    style wave5 fill:#acc8d8,stroke:#6688cc
 ```
 
-Shutdown proceeds in reverse wave order. [`WebApiService`][hassette.core.web_api_service.WebApiService] stops first. [`DatabaseService`][hassette.core.database_service.DatabaseService] and `WebsocketService` stop last.
+Shutdown proceeds in reverse wave order. [`WebApiService`][hassette.core.web_api_service.WebApiService] and `AppHandler` stop first. [`DatabaseService`][hassette.core.database_service.DatabaseService] and `WebsocketService` stop last. `StateProxy` and `RuntimeQueryService` deliberately leave `WebsocketService` and `AppHandler` out of `depends_on`; each handles that ordering itself.
 
 ## Component Ownership
 
-Every component is a [Resource][hassette.resources.base.Resource] in a parent/child tree rooted at the `Hassette` instance. Apps receive four lightweight handles (`Bus`, `Scheduler`, `Api`, `StateManager`) that delegate to shared framework services.
+Framework services are [Resource][hassette.resources.base.Resource] instances in a parent/child tree rooted at the `Hassette` instance. Two exceptions show as dashed edges below: `AppRegistry` is a plain in-memory registry, and app instances are tracked by `AppRegistry` rather than added as children. Apps receive four lightweight handles (`Bus`, `Scheduler`, `Api`, `StateManager`) that delegate to shared framework services.
 
 ```mermaid
 graph TD
@@ -199,7 +197,7 @@ graph TD
     Hassette --- apps
 
     AppHandler --> AppLifecycleService
-    AppHandler --> AppRegistry
+    AppHandler -.-> AppRegistry
 
     subgraph perapp["Per-App Resources (0..N instances)"]
         App
@@ -209,7 +207,7 @@ graph TD
         App --> StateManager
     end
 
-    AppLifecycleService --> App
+    AppLifecycleService -. manages .-> App
 
     style infra fill:#f0f8e8,stroke:#88aa66
     style core fill:#fff0e8,stroke:#cc8844
