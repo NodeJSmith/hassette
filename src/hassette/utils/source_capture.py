@@ -20,6 +20,9 @@ SOURCE_CACHE_MAX_SIZE = 256
 # Stack frames inspected after skipping internal frames — user code is 1-3 frames
 # from the public def, so 8 leaves generous headroom.
 DEFAULT_FRAME_LIMIT = 8
+# Frames at the top of inspect.stack() that belong to the walk itself: _walk_to_caller, then the
+# public walker (find_caller_frame or find_caller_stack_frame) that called it.
+_WALKER_FRAMES = 2
 
 
 def is_internal_frame(frame: Any) -> bool:
@@ -90,11 +93,12 @@ def find_caller_frame(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FR
 
     Returns ``("<unknown>", 0)`` when stack walking fails entirely.
     """
-    # +1 skips this function's own frame on top of find_caller_stack_frame's.
-    frame = find_caller_stack_frame(frames_to_skip=frames_to_skip + 1, limit=limit)
-    if frame is None:
+    chosen = _walk_to_caller(frames_to_skip, limit)
+    if chosen is None:
         return ("<unknown>", 0)
-    return (frame.filename, frame.lineno)
+    filename = getattr(chosen, "filename", "<unknown>") or "<unknown>"
+    lineno: int = getattr(chosen, "lineno", 0) or 0
+    return (filename, lineno)
 
 
 def find_caller_stack_frame(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FRAME_LIMIT) -> StackFrame | None:
@@ -102,13 +106,7 @@ def find_caller_stack_frame(*, frames_to_skip: int = 0, limit: int | None = DEFA
 
     Returns ``None`` when stack walking fails entirely.
     """
-    try:
-        # context=0 (zero source lines per frame) is the cheapest walk. Called here, not in
-        # pick_caller_frame, so the skipped own-frame is this function's.
-        raw_stack = inspect.stack(context=0)
-    except Exception:
-        return None
-    chosen = pick_caller_frame(raw_stack[1 + frames_to_skip :], limit)
+    chosen = _walk_to_caller(frames_to_skip, limit)
     if chosen is None:
         return None
     f_globals = getattr(getattr(chosen, "frame", chosen), "f_globals", None)
@@ -118,6 +116,21 @@ def find_caller_stack_frame(*, frames_to_skip: int = 0, limit: int | None = DEFA
         function=getattr(chosen, "function", "<unknown>") or "<unknown>",
         module=f_globals.get("__name__") if isinstance(f_globals, dict) else None,
     )
+
+
+def _walk_to_caller(frames_to_skip: int, limit: int | None) -> Any:
+    """Return the first non-hassette ``FrameInfo`` above the public walker that called this.
+
+    Only ``find_caller_frame`` and ``find_caller_stack_frame`` may call this, directly: the slice
+    drops this function's frame and theirs, so ``frames_to_skip`` counts from their caller.
+    Returns ``None`` when stack walking fails or the window is empty.
+    """
+    try:
+        # context=0 (zero source lines per frame) is the cheapest walk.
+        raw_stack = inspect.stack(context=0)
+    except Exception:
+        return None
+    return pick_caller_frame(raw_stack[_WALKER_FRAMES + frames_to_skip :], limit)
 
 
 def pick_caller_frame(frames: list[Any], limit: int | None) -> Any:
@@ -173,8 +186,8 @@ def capture_registration_source(
     Args:
         frames_to_skip: Additional frames at the top of the stack to skip
             before applying the hassette-internal filter.  Defaults to 0.
-        limit: Maximum number of stack frames to inspect, counted *after*
-            skipping our own frame and ``frames_to_skip``.  Defaults to ``DEFAULT_FRAME_LIMIT``,
+        limit: Maximum number of stack frames to inspect, counted from this function's
+            frame after skipping ``frames_to_skip``.  Defaults to ``DEFAULT_FRAME_LIMIT``,
             which is sufficient for all public registration/scheduling/fire
             methods (user code is 1-3 frames from the public def).  Pass
             ``None`` for an unbounded walk.  Note: ``inspect.stack``'s

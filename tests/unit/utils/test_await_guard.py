@@ -359,31 +359,24 @@ def test_source_capture_is_internal_frame_module_name():
     assert is_internal_frame(types.SimpleNamespace(f_globals={"__name__": ""})) is False
 
 
-def _fake_stack_frames():
-    """A fake stack: the two source_capture walker frames, two hassette internals, then user code."""
-    own_frame = types.SimpleNamespace(
-        filename="<self>",
-        lineno=0,
-        frame=types.SimpleNamespace(f_globals={"__name__": "hassette.utils.source_capture"}),
+def _fake_frame_info(filename: str, lineno: int, module: str) -> types.SimpleNamespace:
+    """The ``FrameInfo`` attributes the walk reads; hassette-ness comes from ``module`` alone."""
+    return types.SimpleNamespace(
+        filename=filename, lineno=lineno, frame=types.SimpleNamespace(f_globals={"__name__": module})
     )
+
+
+def _fake_stack_frames():
+    """A fake ``inspect.stack()``: the two walker frames, two hassette internals, then user code.
+
+    The walk drops the two walker frames, so ``limit`` counts from the bus frame.
+    """
     return [
-        own_frame,  # find_caller_stack_frame
-        own_frame,  # find_caller_frame
-        types.SimpleNamespace(
-            filename="/site-packages/hassette/bus/bus.py",
-            lineno=350,
-            frame=types.SimpleNamespace(f_globals={"__name__": "hassette.bus.bus"}),
-        ),
-        types.SimpleNamespace(
-            filename="/site-packages/hassette/utils/await_guard.py",
-            lineno=10,
-            frame=types.SimpleNamespace(f_globals={"__name__": "hassette.utils.await_guard"}),
-        ),
-        types.SimpleNamespace(
-            filename="/home/user/apps/my_automation.py",
-            lineno=77,
-            frame=types.SimpleNamespace(f_globals={"__name__": "my_automation"}),
-        ),
+        _fake_frame_info("<walk>", 0, "hassette.utils.source_capture"),  # _walk_to_caller
+        _fake_frame_info("<walker>", 0, "hassette.utils.source_capture"),  # find_caller_frame
+        _fake_frame_info("/site-packages/hassette/bus/bus.py", 350, "hassette.bus.bus"),
+        _fake_frame_info("/site-packages/hassette/utils/await_guard.py", 10, "hassette.utils.await_guard"),
+        _fake_frame_info("/home/user/apps/my_automation.py", 77, "my_automation"),
     ]
 
 
@@ -425,7 +418,7 @@ def test_source_capture_limit_applied_after_skip(monkeypatch):
     """
     monkeypatch.setattr(inspect, "stack", lambda *_args, **_kw: _fake_stack_frames())
 
-    # 3 frames remain after the own-frame skips: [bus, await_guard, user].
+    # 3 frames remain after the walker frames are dropped: [bus, await_guard, user].
     # limit=3 must keep the user frame in the window (a pre-skip slice would drop it).
     source_location, _ = capture_registration_source(limit=3)
     assert source_location == "/home/user/apps/my_automation.py:77"

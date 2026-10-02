@@ -8,6 +8,7 @@ from hassette_wire import StackFrame
 
 from hassette.core.telemetry.blocking_findings import (
     classifier_for_apps,
+    decode_stacks,
     group_findings,
     summarize_unattributed,
 )
@@ -224,6 +225,16 @@ class TestUnattributed:
         assert summary.recent[0].app_frame is not None
         assert summary.recent[0].app_frame.display_path == "calendar_service.py"
         assert summary.recent[1].app_frame is None
+
+
+class TestDecodeStacks:
+    def test_unreadable_value_reads_as_no_frames_in_place(self) -> None:
+        rows = [
+            {"id": 1, "frames": encode_frames([SSL])},
+            {"id": 2, "frames": "not json"},
+            {"id": 3, "frames": None},
+        ]
+        assert decode_stacks(rows, id_field="id") == [[SSL], [], []]
 
 
 class TestClassifierForApps:

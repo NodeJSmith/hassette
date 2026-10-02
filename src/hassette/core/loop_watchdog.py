@@ -61,9 +61,10 @@ if TYPE_CHECKING:
 # The daemon polls several times per watchdog interval so it notices a stall promptly
 # without the in-loop tick and the poll aliasing into a missed detection.
 _POLL_SUBDIVISIONS = 3
-# Frames kept per stalled stack. Deep library stacks (an HTTP client through urllib3, http.client
-# and ssl) can run past 30 frames below the app code that called them, which would leave the app
-# frame uncaptured; the walk runs on the watchdog thread, so a deeper limit costs the loop nothing.
+# Non-hassette frames kept per stalled stack. Deep library stacks (an HTTP client through urllib3,
+# http.client and ssl) can sit many frames below the app code that called them, and a small limit
+# would cut the stack before reaching the app frame; the walk runs on the watchdog thread, so a
+# deeper limit costs the loop nothing.
 _MAX_STACK_FRAMES = 60
 
 

@@ -148,9 +148,9 @@ class TestStorage:
 
 
 class FakeFrame:
-    """The attributes ``capture_frames`` reads from a live frame."""
+    """The attributes ``capture_frames`` reads from a live frame; hassette-ness comes from ``module`` alone."""
 
-    def __init__(self, filename: str, function: str, module: str, *, back: "FakeFrame | None") -> None:
+    def __init__(self, *, filename: str, function: str, module: str, back: "FakeFrame | None") -> None:
         self.f_code = SimpleNamespace(co_filename=filename, co_name=function)
         self.f_lineno = 1
         self.f_globals = {"__name__": module}
@@ -166,15 +166,24 @@ class TestCapture:
 
     def test_skipped_hassette_frames_do_not_use_up_the_limit(self) -> None:
         """An app frame below many framework frames is still captured."""
-        app = FakeFrame("/apps/presence.py", "refresh", "presence", back=None)
+        app = FakeFrame(filename="/apps/presence.py", function="refresh", module="presence", back=None)
         outer = app
-        for _ in range(50):
-            outer = FakeFrame("/site/hassette/core/x.py", "dispatch", "hassette.core.x", back=outer)
-        library = FakeFrame("/site/requests/api.py", "get", "requests.api", back=outer)
+        for _ in range(50):  # more framework frames than the limit below
+            outer = FakeFrame(filename="/site/hassette/x.py", function="dispatch", module="hassette.x", back=outer)
+        library = FakeFrame(filename="/site/requests/api.py", function="get", module="requests.api", back=outer)
 
         frames = capture_frames(library, max_frames=2)
 
         assert [f.function for f in frames] == ["get", "refresh"]
+
+    def test_stops_at_the_limit_keeping_the_innermost_frames(self) -> None:
+        outer = None
+        for depth in range(10):
+            outer = FakeFrame(filename="/site/lib.py", function=f"f{depth}", module="lib", back=outer)
+
+        frames = capture_frames(outer, max_frames=3)
+
+        assert [f.function for f in frames] == ["f9", "f8", "f7"]
 
     def test_text_form_matches_stored_source_location_format(self) -> None:
         frames = [frame("/a.py", lineno=3, function="g", module="a"), frame("/b.py", lineno=9, function="h")]

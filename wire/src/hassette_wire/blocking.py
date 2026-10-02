@@ -17,14 +17,12 @@ UnattributedReason = Literal["displaced", "framework"]
 loop, so attribution was withheld; ``"framework"`` — no app execution was responsible."""
 
 
+# blocking_events.frames rows written by every earlier release are decoded with this model, so a
+# change must still read them: give a new field a default, and never rename, retype, or make required
+# an existing field. A row that fails to decode loses its stack. tests/unit/utils/test_stack_frames.py
+# pins the stored shape.
 class StackFrame(BaseModel):
-    """One captured stack frame.
-
-    Rows written by every earlier release are decoded with this model, so a change must still read
-    them: give a new field a default, and never rename, retype, or make required an existing field.
-    A row that fails to decode loses its stack and shows as "call site not captured".
-    ``tests/unit/utils/test_stack_frames.py`` pins the stored shape.
-    """
+    """One captured stack frame."""
 
     model_config = ConfigDict(frozen=True)
 

@@ -47,6 +47,7 @@ _FINDING_GROUPS_QUERY = """
     GROUP BY be.app_key, be.instance_index, be.instance_name, be.tier, be.primitive, be.frames,
              e.listener_id, e.job_id, l.name, l.handler_method, sj.job_name, sj.handler_method
     -- latest_event_id breaks last-seen ties so the order, and so each finding's latest stack, is stable.
+    -- It also names a row to inspect when a group's frames can't be decoded.
     ORDER BY last_seen_ts DESC, latest_event_id DESC
     LIMIT :limit
 """

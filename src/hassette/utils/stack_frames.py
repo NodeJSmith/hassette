@@ -39,6 +39,7 @@ def capture_frames(frame: Any, *, max_frames: int) -> tuple[StackFrame, ...]:
 
     Skipped hassette frames don't count toward the limit, so framework layers between a library
     call and the app code that made it can't use up the budget before the app frame is reached.
+    The walk itself is bounded only by the stack's depth.
     """
     frames: list[StackFrame] = []
     while frame is not None and len(frames) < max_frames:
@@ -70,7 +71,8 @@ def encode_frames(frames: Sequence[StackFrame] | None) -> str | None:
 def decode_frames(raw: str | None) -> list[StackFrame] | None:
     """Parse a ``blocking_events.frames`` value: NULL yields no frames, an unreadable value ``None``.
 
-    Callers treat ``None`` as no frames and report the count once per read, not once per row.
+    ``decode_stacks`` in ``hassette.core.telemetry.blocking_findings`` is the reader that turns
+    ``None`` into no frames and reports it.
     """
     if raw is None:
         return []
