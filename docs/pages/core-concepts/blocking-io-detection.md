@@ -48,6 +48,8 @@ With both tiers on (Tier 2 runs by default in `dev_mode`), one blocking call usu
 
 **On the apps list.** An app that blocked the loop shows an amber **N blocking** badge next to its status. The badge links to the app's overview.
 
+![The blocking badge on an apps-list row](../../_static/web_ui_apps_blocking_badge.png)
+
 **On the diagnostics page.** Stalls that Hassette couldn't pin on an app appear in a [loop stalls panel](../web-ui/diagnostics.md#loop-stalls). These are never credited to an app, even when the stack contains app code.
 
 **From the CLI.** [`hassette blocking`](../cli/commands.md#hassette-blocking) lists the same findings for every app, plus the unattributed stalls. `--app` narrows it to one app.

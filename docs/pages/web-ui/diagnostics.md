@@ -57,6 +57,8 @@ The loop stalls panel appears when [blocking-IO detection](../core-concepts/bloc
 
 The panel shows the count of each and the longest stall, then lists the most recent stalls with their duration and a **show stack** toggle. When a stall's stack contains app code, the row names that line as a lead to investigate. The stall still isn't credited to that app, because a helper in one app's directory can be called by several apps.
 
+![The loop stalls panel with one stall's stack expanded](../../_static/web_ui_diagnostics_loop_stalls.png)
+
 Stalls that Hassette did credit to an app appear on that app's overview instead.
 
 ## Related pages
