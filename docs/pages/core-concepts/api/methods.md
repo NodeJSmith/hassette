@@ -225,13 +225,13 @@ costs a round trip, so it suits calls where a silent failure would matter rather
 Unlike `return_response=True`, it works with any service that returns no response, because it
 asks for none. The exception is the small set of services Home Assistant declares as
 *response-only* (`weather.get_forecasts`, `conversation.process`): those reject a call that does
-not request the response. Pass `return_response=True` for them — combining the two keeps the
-send-exactly-once guarantee while still returning the payload.
+not request the response. Pass `return_response=True` for them; it waits on the same confirmation.
 
-The ack wait sends the call exactly once. If the confirmation never arrives, it raises rather than
-re-sending, because a service call is a side effect and Home Assistant may already have applied it.
-A `FailedMessageError` from a timeout therefore means the outcome is unknown, not that the call was
-skipped.
+Whenever `call_service` waits, through either flag, it sends the call exactly once. If the
+confirmation never arrives, it raises
+[`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] rather than re-sending, because
+a service call can have side effects and Home Assistant may already have applied it. The outcome is
+unknown, not skipped. [Low-level access](#low-level-access) covers how to check what happened.
 
 ### `turn_on(entity_id, domain, **data)`
 
@@ -424,6 +424,11 @@ subscribed to that event type receives it.
 --8<-- "pages/core-concepts/api/snippets/api_utilities.py:fire_event"
 ```
 
+`fire_event` waits for Home Assistant's confirmation and sends the event exactly once. If the
+confirmation never arrives, it raises
+[`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError]. The event may or may not have
+fired; see [Low-level access](#low-level-access).
+
 !!! note "Broadcasting between Hassette apps"
     `fire_event` leaves the framework. The event travels to Home Assistant and back. For
     broadcasting between apps in the same Hassette process,
@@ -545,12 +550,27 @@ For HA endpoints without a typed method — the device registry, area registry, 
 | `rest_request(method, url, ...)` | A request to any REST path | The raw `aiohttp` response |
 | `get_rest_request` / `post_rest_request` / `delete_rest_request` | Method-specific wrappers around `rest_request` | The raw `aiohttp` response |
 
-`ws_send_and_wait` re-sends the command when Home Assistant's response never arrives. That suits
-a read, but the re-send goes out under a fresh message id, so a command Home Assistant already
-applied before the response was lost gets applied a second time. Pass `retry_on_timeout=False`
-for a command that must not run twice — it then raises on the first timeout, leaving the outcome
-unknown rather than duplicating the effect. `retry_on_timeout` is the one keyword this escape
-hatch reads itself rather than forwarding, so it cannot double as a raw payload field name.
+!!! warning "`ws_send_and_wait` re-sends on timeout by default"
+    When Home Assistant's response never arrives, `ws_send_and_wait` re-sends the command under a
+    fresh message id. That suits a read, but a write Home Assistant already applied before the
+    response was lost gets applied a second time. A command that must not run twice — creating a
+    registry entry, a custom integration's write — carries `retry_on_timeout=False` instead. With
+    that flag set, `ws_send_and_wait` raises
+    [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] on the first timeout rather
+    than duplicating the effect. A safe recovery checks state before re-sending anything.
+
+`retry_on_timeout` is the one keyword this escape hatch reads itself rather than forwarding, so it
+cannot double as a raw payload field name.
+
+The typed writes never re-send: `call_service` when it waits, `fire_event`, and helper
+`create`/`update`/`delete`. A command that was sent but never answered raises a subclass of
+[`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError]: `ResponseTimeoutError` when no
+response arrived in time, or [`ResponseLostError`][hassette.exceptions.ResponseLostError] when the
+connection dropped while waiting. One `except OutcomeUnknownError` handles both. Either way, the
+command may or may not have applied. `fire_event` and `call_service` can't confirm their side
+effect (a service response reports only what Home Assistant chose to return), so confirming the
+effect means reading state directly — for example, the target entity's state. For helpers, [Managing
+Helpers](managing-helpers.md#common-pitfalls) shows how to check with `helpers.list`.
 
 ---
 

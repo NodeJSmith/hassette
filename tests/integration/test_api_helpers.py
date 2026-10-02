@@ -15,7 +15,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from hassette.api.api import Api, _expect_dict, _expect_list, _ws_helper_call
-from hassette.exceptions import FailedMessageError
+from hassette.exceptions import (
+    FailedMessageError,
+    OutcomeUnknownError,
+    ResponseLostError,
+    ResponseTimeoutError,
+    RetryableConnectionClosedError,
+)
 from hassette.models.helpers import (
     CounterRecord,
     CreateCounterParams,
@@ -102,7 +108,7 @@ async def test_ws_helper_call_propagates_success():
 
     result = await _ws_helper_call(mock_api, "d", "op")
     assert result == {"id": "x"}
-    mock_api.ws_send_and_wait.assert_awaited_once_with(type="d/op")
+    mock_api.ws_send_and_wait.assert_awaited_once_with(type="d/op", retry_on_timeout=True)
 
 
 async def test_ws_helper_call_chains_error_with_context():
@@ -132,13 +138,77 @@ async def test_ws_helper_call_chains_error_with_context():
     assert e.__cause__ is original
 
 
+async def test_ws_helper_call_passes_response_timeout_through_unwrapped():
+    """A response timeout keeps its outcome-unknown type instead of being rebuilt as plain FailedMessageError."""
+    original = ResponseTimeoutError("'d/op' (id 7): no response within 10s", original_data={"type": "d/op", "id": 7})
+    mock_api = MagicMock(spec=Api)
+    mock_api.ws_send_and_wait = AsyncMock(side_effect=original)
+
+    with pytest.raises(ResponseTimeoutError) as exc_info:
+        await _ws_helper_call(mock_api, "d", "op", key="secret-value")
+
+    assert exc_info.value is original
+
+
+async def test_ws_helper_call_passes_response_lost_through():
+    """A disconnect stays catchable as RetryableConnectionClosedError and as OutcomeUnknownError."""
+    original = ResponseLostError("'d/op' (id 7): connection lost while waiting for a response")
+    mock_api = MagicMock(spec=Api)
+    mock_api.ws_send_and_wait = AsyncMock(side_effect=original)
+
+    with pytest.raises(RetryableConnectionClosedError) as exc_info:
+        await _ws_helper_call(mock_api, "d", "op")
+
+    assert exc_info.value is original
+    assert isinstance(exc_info.value, OutcomeUnknownError)
+
+
+async def test_helper_create_does_not_retry_on_timeout(api: Api):
+    api.ws_send_and_wait = AsyncMock(return_value=IB_RECORD)
+
+    await api.helpers.create(CreateInputBooleanParams(name="Vacation Mode"))
+
+    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
+
+
+async def test_helper_update_does_not_retry_on_timeout(api: Api):
+    api.ws_send_and_wait = AsyncMock(return_value=IB_RECORD)
+
+    await api.helpers.update("vacation_mode", UpdateInputBooleanParams(name="Holiday Mode"))
+
+    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
+
+
+async def test_helper_delete_does_not_retry_on_timeout(api: Api):
+    """A retried delete that already applied would raise a false not_found, so it is sent once."""
+    api.ws_send_and_wait = AsyncMock(return_value=None)
+
+    await api.helpers.delete("input_boolean", "vacation_mode")
+
+    assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
+
+
+async def test_helper_create_timeout_raises_response_timeout(api: Api):
+    api.ws_send_and_wait = AsyncMock(side_effect=ResponseTimeoutError("'input_boolean/create' (id 3): timed out"))
+
+    with pytest.raises(ResponseTimeoutError):
+        await api.helpers.create(CreateInputBooleanParams(name="Vacation Mode"))
+
+
+async def test_helper_delete_disconnect_is_still_retryable_connection_closed(api: Api):
+    api.ws_send_and_wait = AsyncMock(side_effect=ResponseLostError("'input_boolean/delete' (id 3): connection lost"))
+
+    with pytest.raises(RetryableConnectionClosedError):
+        await api.helpers.delete("input_boolean", "vacation_mode")
+
+
 async def test_list_input_booleans(api: Api):
     """list_input_booleans sends correct command and parses response."""
     api.ws_send_and_wait = AsyncMock(return_value=[IB_RECORD])
 
     result = await api.helpers.list("input_boolean")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_boolean/list")
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_boolean/list", retry_on_timeout=True)
     assert isinstance(result, list)
     assert len(result) == 1
     assert isinstance(result[0], InputBooleanRecord)
@@ -195,7 +265,7 @@ async def test_list_input_numbers(api: Api):
 
     result = await api.helpers.list("input_number")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_number/list")
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_number/list", retry_on_timeout=True)
     assert isinstance(result[0], InputNumberRecord)
     assert result[0].id == "brightness"
 
@@ -241,7 +311,7 @@ async def test_list_input_texts(api: Api):
 
     result = await api.helpers.list("input_text")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_text/list")
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_text/list", retry_on_timeout=True)
     assert isinstance(result[0], InputTextRecord)
     assert result[0].id == "wifi_password"
 
@@ -286,7 +356,7 @@ async def test_list_input_selects(api: Api):
 
     result = await api.helpers.list("input_select")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_select/list")
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_select/list", retry_on_timeout=True)
     assert isinstance(result[0], InputSelectRecord)
     assert result[0].id == "theme"
     assert result[0].options == ["light", "dark"]
@@ -333,7 +403,7 @@ async def test_list_input_datetimes(api: Api):
 
     result = await api.helpers.list("input_datetime")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_datetime/list")
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_datetime/list", retry_on_timeout=True)
     assert isinstance(result[0], InputDatetimeRecord)
     assert result[0].id == "alarm_time"
 
@@ -379,7 +449,7 @@ async def test_list_input_buttons(api: Api):
 
     result = await api.helpers.list("input_button")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="input_button/list")
+    api.ws_send_and_wait.assert_awaited_once_with(type="input_button/list", retry_on_timeout=True)
     assert isinstance(result[0], InputButtonRecord)
     assert result[0].id == "restart_btn"
 
@@ -425,7 +495,7 @@ async def test_list_counters(api: Api):
 
     result = await api.helpers.list("counter")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="counter/list")
+    api.ws_send_and_wait.assert_awaited_once_with(type="counter/list", retry_on_timeout=True)
     assert isinstance(result[0], CounterRecord)
     assert result[0].id == "motion_count"
 
@@ -474,7 +544,7 @@ async def test_list_timers(api: Api):
 
     result = await api.helpers.list("timer")
 
-    api.ws_send_and_wait.assert_awaited_once_with(type="timer/list")
+    api.ws_send_and_wait.assert_awaited_once_with(type="timer/list", retry_on_timeout=True)
     assert isinstance(result[0], TimerRecord)
     assert result[0].id == "cooldown"
 

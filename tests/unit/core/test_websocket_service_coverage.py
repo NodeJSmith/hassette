@@ -18,11 +18,12 @@ from aiohttp.client_exceptions import ClientConnectorError
 
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
-from hassette.resources.service import Service
 from hassette.testing import EventCapture
 from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
+
+from .conftest import cleanup_disconnected, run_cleanup
 
 
 class TestTimeoutAndLogLevelProperties:
@@ -62,9 +63,9 @@ class TestSubscribeEvents:
         async def fake_send_json(**data):
             captured.update(data)
             msg_id = data["id"]
-            fut = websocket_service._response_futures.get(msg_id)
-            if fut and not fut.done():
-                fut.set_result(None)
+            entry = websocket_service._pending.entries.get(msg_id)
+            if entry and not entry.future.done():
+                entry.future.set_result(None)
 
         websocket_service._send_ready_event.set()
         websocket_service._send_json_when_socket_live = AsyncMock(side_effect=fake_send_json)
@@ -82,9 +83,9 @@ class TestSubscribeEvents:
         async def fake_send_json(**data):
             captured.update(data)
             msg_id = data["id"]
-            fut = websocket_service._response_futures.get(msg_id)
-            if fut and not fut.done():
-                fut.set_result(None)
+            entry = websocket_service._pending.entries.get(msg_id)
+            if entry and not entry.future.done():
+                entry.future.set_result(None)
 
         websocket_service._send_ready_event.set()
         websocket_service._send_json_when_socket_live = AsyncMock(side_effect=fake_send_json)
@@ -100,7 +101,7 @@ class TestSendAndWaitCallerProvidedId:
         """send_and_wait uses an explicitly-passed id (as subscribe_events does) rather than allocating one."""
 
         async def resolve_immediately(**data):
-            websocket_service._response_futures[data["id"]].set_result({"ok": True})
+            websocket_service._pending.entries[data["id"]].future.set_result({"ok": True})
 
         websocket_service.send_json = AsyncMock(side_effect=resolve_immediately)
 
@@ -218,17 +219,12 @@ class TestCleanup:
     ) -> None:
         """cleanup() resolves every pending response future with RetryableConnectionClosedError."""
         fut = websocket_service.hassette.loop.create_future()
-        websocket_service._response_futures[7] = fut
-        websocket_service._ws = None
-        websocket_service._session = None
-        websocket_service._recv_task = None
-
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        websocket_service._pending.register(7, fut)
+        await cleanup_disconnected(websocket_service)
 
         assert fut.done()
         assert isinstance(fut.exception(), RetryableConnectionClosedError)
-        assert websocket_service._response_futures == {}
+        assert websocket_service._pending.entries == {}
 
     async def test_cleanup_attempts_unsubscribe_for_each_subscription_and_clears_ids(
         self, websocket_service: WebsocketService
@@ -242,8 +238,7 @@ class TestCleanup:
         send_json_mock = AsyncMock()
         websocket_service.send_json = send_json_mock
 
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await run_cleanup(websocket_service)
 
         assert send_json_mock.await_count == 2
         called_subscriptions = {call.kwargs["subscription"] for call in send_json_mock.await_args_list}
@@ -262,8 +257,7 @@ class TestCleanup:
         send_json_mock = AsyncMock()
         websocket_service.send_json = send_json_mock
 
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await run_cleanup(websocket_service)
 
         send_json_mock.assert_not_awaited()
         assert websocket_service._subscription_ids == {1}, "skipped branch must not clear subscription_ids"
@@ -281,8 +275,7 @@ class TestCleanup:
         fake_session.close = AsyncMock()
         websocket_service._session = fake_session
 
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await run_cleanup(websocket_service)
 
         assert websocket_service._recv_task is None
         assert recv_task.cancelled()
@@ -311,8 +304,7 @@ class TestCleanup:
         # Simulate a live, connected socket — the gate a real cleanup() call would see.
         websocket_service._send_ready_event.set()
 
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await run_cleanup(websocket_service)
 
         assert fake_ws.send_json.await_count == 2, (
             "expected send_json to actually reach the websocket for each subscription, not be "
@@ -461,7 +453,7 @@ class TestRespondIfNecessaryGuards:
     def test_ignores_non_result_message(self, websocket_service: WebsocketService) -> None:
         """respond_if_necessary is a no-op for message types other than 'result'."""
         fut = websocket_service.hassette.loop.create_future()
-        websocket_service._response_futures[1] = fut
+        websocket_service._pending.register(1, fut)
 
         websocket_service.respond_if_necessary({"type": "event", "id": 1})
 
@@ -470,17 +462,17 @@ class TestRespondIfNecessaryGuards:
     def test_ignores_message_without_id(self, websocket_service: WebsocketService) -> None:
         """respond_if_necessary warns and returns without touching futures when id is missing."""
         fut = websocket_service.hassette.loop.create_future()
-        websocket_service._response_futures[1] = fut
+        websocket_service._pending.register(1, fut)
 
         websocket_service.respond_if_necessary({"type": "result", "success": True})
 
         assert not fut.done()
-        assert 1 in websocket_service._response_futures
+        assert 1 in websocket_service._pending.entries
 
     def test_ignores_unmatched_id(self, websocket_service: WebsocketService) -> None:
         """respond_if_necessary is a no-op when the message id has no pending future."""
         fut = websocket_service.hassette.loop.create_future()
-        websocket_service._response_futures[1] = fut
+        websocket_service._pending.register(1, fut)
 
         websocket_service.respond_if_necessary({"type": "result", "id": 999, "success": True})
 
@@ -490,7 +482,7 @@ class TestRespondIfNecessaryGuards:
         """respond_if_necessary leaves an already-resolved future untouched."""
         fut = websocket_service.hassette.loop.create_future()
         fut.set_result("first result")
-        websocket_service._response_futures[3] = fut
+        websocket_service._pending.register(3, fut)
 
         websocket_service.respond_if_necessary(
             {"type": "result", "id": 3, "success": False, "error": {"message": "late error"}}
@@ -501,7 +493,7 @@ class TestRespondIfNecessaryGuards:
     def test_error_without_code_field_defaults_to_none(self, websocket_service: WebsocketService) -> None:
         """respond_if_necessary sets code=None on the exception when HA's error envelope omits 'code'."""
         fut = websocket_service.hassette.loop.create_future()
-        websocket_service._response_futures[5] = fut
+        websocket_service._pending.register(5, fut)
 
         websocket_service.respond_if_necessary(
             {"type": "result", "id": 5, "success": False, "error": {"message": "no code field here"}}

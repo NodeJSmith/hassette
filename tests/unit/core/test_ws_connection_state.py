@@ -6,7 +6,7 @@ set_connection_state() validation, and proper state transitions in serve/connect
 
 import logging
 import time
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -20,6 +20,8 @@ from hassette.testing.config import (
     TEST_EARLY_DROP_STABLE_WINDOW_SECONDS,
 )
 from hassette.types.enums import ConnectionState
+
+from .conftest import cleanup_disconnected
 
 
 class TestInitialState:
@@ -365,14 +367,7 @@ class TestCleanShutdownDisconnects:
         # First put service into CONNECTED state
         websocket_service._connection_state = ConnectionState.CONNECTED
 
-        # Stub everything cleanup touches
-        websocket_service._ws = None
-        websocket_service._session = None
-        websocket_service._recv_task = None
-
-        # Patch the parent cleanup to avoid issues with mock hassette
-        with patch.object(type(websocket_service).__bases__[0], "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await cleanup_disconnected(websocket_service)
 
         assert websocket_service.connection_state == ConnectionState.DISCONNECTED
 

@@ -211,7 +211,9 @@ class HelperClient(Resource):
             The stored record returned by Home Assistant.
         """
         domain, record_type = CREATE_DISPATCH[type(params)]
-        val = await _ws_helper_call(self._api, domain, "create", **params.model_dump(exclude_unset=True))
+        val = await _ws_helper_call(
+            self._api, domain, "create", retry_on_timeout=False, **params.model_dump(exclude_unset=True)
+        )
         record = record_type.model_validate(_expect_dict(val, f"{domain}/create"))
         self.logger.info("Created %s helper %r", domain, record.id)  # pyright: ignore[reportAttributeAccessIssue]
         return record
@@ -251,7 +253,12 @@ class HelperClient(Resource):
         """
         domain, record_type, id_key = UPDATE_DISPATCH[type(params)]
         val = await _ws_helper_call(
-            self._api, domain, "update", **{id_key: helper_id}, **params.model_dump(exclude_unset=True)
+            self._api,
+            domain,
+            "update",
+            retry_on_timeout=False,
+            **{id_key: helper_id},
+            **params.model_dump(exclude_unset=True),
         )
         record = record_type.model_validate(_expect_dict(val, f"{domain}/update"))
         self.logger.info("Updated %s helper %r", domain, helper_id)
@@ -287,7 +294,7 @@ class HelperClient(Resource):
                 changes only the ``entity_id``); look the id up with ``list(domain)``.
         """
         id_key = ID_KEYS[domain]
-        await _ws_helper_call(self._api, domain, "delete", **{id_key: helper_id})
+        await _ws_helper_call(self._api, domain, "delete", retry_on_timeout=False, **{id_key: helper_id})
         self.logger.info("Deleted %s helper %r", domain, helper_id)
 
     # counter shortcuts
