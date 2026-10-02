@@ -44,7 +44,7 @@ Every `AppConfig` includes two built-in fields:
 - `instance_name`: a string that uniquely identifies one running instance of the app. Defaults to an empty string; Hassette derives a display name from the class name when it is not set.
 - `log_level`: controls the logging verbosity for this app's logger. Inherits the process-level default when not set.
 
-The app's key from `hassette.toml` is not a config field; read it at runtime via `self.app_key`.
+The app's key from `hassette.toml` is not an `AppConfig` field. Hassette exposes it at runtime as `self.app_key`.
 
 `AppConfig` allows arbitrary extra fields by default. A subclass can tighten this by setting `extra="forbid"` in its own `model_config`.
 
