@@ -251,7 +251,7 @@ describe("ConfigSchemaView", () => {
       enabled: true,
       autostart: true,
     };
-    const frameworkFields = ["instance_name", "log_level", "app_key", "enabled", "autostart"];
+    const frameworkFields = ["instance_name", "log_level", "enabled", "autostart"];
 
     it("renders user fields under 'App Settings' when frameworkFields is provided", () => {
       const { getByTestId } = render(

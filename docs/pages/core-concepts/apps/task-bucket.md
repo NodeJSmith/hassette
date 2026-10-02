@@ -105,12 +105,12 @@ Manual cleanup is not required.
 
 ## Inspecting and Cancelling Tasks
 
-Apps rarely need these directly — shutdown calls them automatically. `pending_tasks()` returns the
-set of tasks the bucket currently tracks; `pending_task_names()` returns a synchronous, sorted
+Apps rarely need these directly — shutdown calls them automatically. `pending_tasks()` returns a
+list of the bucket's tasks that are still running; `pending_task_names()` returns a synchronous, sorted
 snapshot of their names, safe to call without awaiting anything. `cancel_all()` cancels every
 tracked task and returns a tuple of the names still pending after the bounded wait described above
 — an empty tuple means every task finished. `cancel_all_sync()` is the fire-and-forget variant for
-sync contexts. `seal()` and `is_sealed()` expose the bucket's admission state directly. Custom
+sync contexts. `seal()` and the `is_sealed` property expose the bucket's admission state directly. Custom
 teardown sequences and the [test harness](../../testing/harness.md) drain helpers use these.
 
 ??? note "Advanced: collecting task exceptions in test infrastructure"

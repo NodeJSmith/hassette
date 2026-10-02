@@ -10,6 +10,7 @@ from enum import StrEnum
 from typing import Any
 
 import aiohttp
+from hassette_wire import LogLevel
 from whenever import Date, PlainDateTime, ZonedDateTime
 
 from hassette.api.sync_helpers import HelperClientSyncFacade
@@ -18,7 +19,6 @@ from hassette.models.history import HistoryEntry
 from hassette.models.services import ServiceResponse
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import Api, Hassette
@@ -48,7 +48,7 @@ class ApiSyncFacade(Resource):
         mark_ready(self, reason="Synchronous API facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.api
 
     def ws_send_and_wait(self, *, retry_on_timeout: bool = True, **data: Any) -> Any:
@@ -57,8 +57,8 @@ class ApiSyncFacade(Resource):
         Args:
             retry_on_timeout: Whether a response timeout may be retried. Defaults to True.
                 Pass False for a non-idempotent command — a retry re-sends it, duplicating a side
-                effect Home Assistant may already have applied. See
-                :meth:`WebsocketService.send_and_wait`.
+                effect Home Assistant may already have applied. A timeout then raises
+                ``ResponseTimeoutError``. See :meth:`WebsocketService.send_and_wait`.
             **data: The data to send as a JSON payload. ``retry_on_timeout`` is client-side
                 policy and is consumed here, so it is the one name this escape hatch cannot
                 forward as a payload field.
@@ -212,16 +212,15 @@ class ApiSyncFacade(Resource):
                 False. Waits on Home Assistant's result envelope instead of sending
                 fire-and-forget, surfacing HA-side failures as ``FailedMessageError`` without
                 asking for response data — so it works for services that return no response,
-                which ``return_response`` cannot. Waiting also declares the call non-idempotent:
-                it is sent exactly once, and if the envelope never arrives it raises rather than
-                re-sending, because Home Assistant may already have applied it. A timeout
-                therefore means the outcome is unknown, not that the call was skipped. Setting it
-                alongside ``return_response`` adds only that send-exactly-once guarantee, since
-                that path already waits on the same envelope.
+                which ``return_response`` cannot.
             **data: Additional data to send with the service call.
 
         Returns:
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
+
+        Raises:
+            ResponseTimeoutError: If ``return_response`` or ``wait_for_ack`` is set and times out.
+                Never re-sent, since Home Assistant may already have applied it.
         """
         return self.task_bucket.run_sync(
             self._api.call_service(domain, service, target, return_response, wait_for_ack=wait_for_ack, **data)

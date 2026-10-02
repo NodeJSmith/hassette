@@ -3,7 +3,8 @@
 # dup-ignore-file: per-app scenario blocks repeat the same seed-helper call shape by design
 # -- see the package docstring in __init__.py.
 
-from hassette.types.types import ExecutionStatus
+from hassette_wire import ExecutionStatus
+
 from seed_scenarios.base import (
     APP_TIME_SPACING_SECONDS,
     HEARTBEAT_OFFSET_SECONDS,
@@ -169,7 +170,7 @@ def scenario_degraded(ctx: SeedContext) -> None:
         start_index=7,
         base_offset=base + 400.0,
     )
-    seq = seed_log_records(
+    seed_log_records(
         ctx,
         start_seq=seq,
         count=1,

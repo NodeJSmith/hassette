@@ -29,6 +29,7 @@ import builtins
 import typing
 from typing import Any, Literal, overload
 
+from hassette_wire import LogLevel
 from pydantic import BaseModel
 
 from hassette.models.helpers import (
@@ -59,7 +60,6 @@ from hassette.models.helpers import (
 )
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.types.types import LOG_LEVEL_TYPE
 
 from .api import _expect_dict, _expect_list, _ws_helper_call
 
@@ -142,7 +142,7 @@ class HelperClient(Resource):
         mark_ready(self, reason="Helper client initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         """Return the log level from the config for this resource."""
         return self.hassette.config.logging.api
 
@@ -211,7 +211,9 @@ class HelperClient(Resource):
             The stored record returned by Home Assistant.
         """
         domain, record_type = CREATE_DISPATCH[type(params)]
-        val = await _ws_helper_call(self._api, domain, "create", **params.model_dump(exclude_unset=True))
+        val = await _ws_helper_call(
+            self._api, domain, "create", retry_on_timeout=False, **params.model_dump(exclude_unset=True)
+        )
         record = record_type.model_validate(_expect_dict(val, f"{domain}/create"))
         self.logger.info("Created %s helper %r", domain, record.id)  # pyright: ignore[reportAttributeAccessIssue]
         return record
@@ -239,7 +241,10 @@ class HelperClient(Resource):
         """Update an existing helper.
 
         Args:
-            helper_id: The ID of the helper to update.
+            helper_id: The helper's storage id (the record's ``id`` field), not its
+                ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
+                The two often look alike but are not guaranteed to match (renaming the entity
+                changes only the ``entity_id``); look the id up with ``list(domain)``.
             params: Fields to update (unset fields are left unchanged). The concrete type
                 determines the domain and the return type via overload resolution.
 
@@ -248,10 +253,15 @@ class HelperClient(Resource):
         """
         domain, record_type, id_key = UPDATE_DISPATCH[type(params)]
         val = await _ws_helper_call(
-            self._api, domain, "update", **{id_key: helper_id}, **params.model_dump(exclude_unset=True)
+            self._api,
+            domain,
+            "update",
+            retry_on_timeout=False,
+            **{id_key: helper_id},
+            **params.model_dump(exclude_unset=True),
         )
         record = record_type.model_validate(_expect_dict(val, f"{domain}/update"))
-        self.logger.debug("Updated %s helper %r", domain, helper_id)
+        self.logger.info("Updated %s helper %r", domain, helper_id)
         return record
 
     # delete dispatches on a Literal domain string
@@ -278,11 +288,14 @@ class HelperClient(Resource):
 
         Args:
             domain: The helper domain (e.g. "input_boolean", "counter").
-            helper_id: The ID of the helper to delete.
+            helper_id: The helper's storage id (the record's ``id`` field), not its
+                ``entity_id``. Pass ``"vacation_mode"``, not ``"input_boolean.vacation_mode"``.
+                The two often look alike but are not guaranteed to match (renaming the entity
+                changes only the ``entity_id``); look the id up with ``list(domain)``.
         """
         id_key = ID_KEYS[domain]
-        await _ws_helper_call(self._api, domain, "delete", **{id_key: helper_id})
-        self.logger.debug("Deleted %s helper %r", domain, helper_id)
+        await _ws_helper_call(self._api, domain, "delete", retry_on_timeout=False, **{id_key: helper_id})
+        self.logger.info("Deleted %s helper %r", domain, helper_id)
 
     # counter shortcuts
     # Counter service-call shortcuts (operate on live entity state, not stored

@@ -4,6 +4,8 @@ import asyncio
 import contextlib
 from typing import TYPE_CHECKING, Any, assert_never
 
+from hassette_wire import QuerySourceTier
+
 from hassette.core.telemetry.helpers import (
     DEFAULT_EXECUTION_LOG_LIMIT,
     DEFAULT_LOG_RECORDS_LIMIT,
@@ -19,7 +21,6 @@ from hassette.core.telemetry.helpers import (
 )
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.summary_models import AppHealthSummary, SessionRecord
-from hassette.types.types import QuerySourceTier
 
 if TYPE_CHECKING:
     from collections.abc import Callable

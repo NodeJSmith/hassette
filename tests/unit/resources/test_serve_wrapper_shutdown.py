@@ -1,10 +1,10 @@
 """Tests for Service._serve_wrapper handling of ClosedResourceError during shutdown."""
 
 from anyio import ClosedResourceError
+from hassette_wire import ResourceStatus
 
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types.enums import ResourceStatus
 from tests.support.mock_hassette import make_mock_hassette
 
 

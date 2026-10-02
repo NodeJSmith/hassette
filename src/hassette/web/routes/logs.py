@@ -6,10 +6,10 @@ from logging import getLogger
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
+from hassette_wire import LogEntryResponse, LogLevelRequest, LogLevelResponse
 
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep, db_degrades_to
-from hassette.web.models import LogEntryResponse, LogLevelRequest, LogLevelResponse
 
 LOGGER = getLogger(__name__)
 
@@ -56,7 +56,14 @@ async def get_logs(
     level: Annotated[str | None, Query()] = None,
     since: Annotated[float | None, Query()] = None,
     execution_id: Annotated[str | None, Query()] = None,
-    source_tier: Annotated[str | None, Query()] = None,
+    source_tier: Annotated[
+        str | None,
+        Query(
+            description="Filter by source tier: 'app' or 'framework'. Omit to return records from both. "
+            "Unlike the telemetry-metrics endpoints, which default to 'app', this default deliberately "
+            "includes everything: the log viewer is a raw feed, not an app-author-facing metric."
+        ),
+    ] = None,
 ) -> list[LogEntryResponse]:
     """Return recent log records from the database with optional filtering."""
     level = validate_log_level(level)

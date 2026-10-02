@@ -1,26 +1,28 @@
 """Tests for typed WebSocket message models."""
 
+import dataclasses
 from dataclasses import asdict
 
 import pytest
-from pydantic import TypeAdapter
-
-from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPayload, ServiceStatusPayload
-from hassette.schemas.domain_models import AppStatusChangedData as AppStatusChangedPayload
-from hassette.schemas.domain_models import ServiceStatusData as WsServiceStatusPayload
-from hassette.types.enums import ResourceRole, ResourceStatus
-from hassette.types.types import ExecutionStatus
-from hassette.web.models import (
+from hassette_wire import AppStatusChangedData as AppStatusChangedPayload
+from hassette_wire import (
     AppStatusChangedWsMessage,
     ConnectedPayload,
     ConnectedWsMessage,
     ConnectivityWsMessage,
     ExecutionCompletedData,
     ExecutionCompletedWsMessage,
+    ExecutionStatus,
     LogHintWsMessage,
+    ResourceStatus,
     ServiceStatusWsMessage,
     WsServerMessage,
 )
+from hassette_wire import ServiceStatusData as WsServiceStatusPayload
+from pydantic import TypeAdapter
+
+from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPayload, ServiceStatusPayload
+from hassette.types.enums import ResourceRole
 
 TEST_TIMESTAMP = 1234567890.0
 
@@ -34,6 +36,10 @@ def validate_envelope(msg_type: str, data: object) -> WsServerMessage:
 
 class TestAppStatusChangedPayloadMatchesDataclass:
     """Verify AppStatusChangedPayload mirrors events.hassette.AppStateChangePayload."""
+
+    def test_field_names_match(self) -> None:
+        dataclass_fields = {f.name for f in dataclasses.fields(AppStateChangePayload)}
+        assert dataclass_fields == set(AppStatusChangedPayload.model_fields)
 
     def test_all_fields_present(self) -> None:
         dataclass_instance = AppStateChangePayload(
@@ -67,6 +73,12 @@ class TestAppStatusChangedPayloadMatchesDataclass:
 
 class TestServiceStatusPayloadMatchesDataclass:
     """Verify WsServiceStatusPayload mirrors events.hassette.ServiceStatusPayload."""
+
+    def test_field_names_match(self) -> None:
+        # `role`'s type is intentionally narrowed (ResourceRole -> str) at the conversion
+        # site; only the field name is shared, not the type.
+        dataclass_fields = {f.name for f in dataclasses.fields(ServiceStatusPayload)}
+        assert dataclass_fields == set(WsServiceStatusPayload.model_fields)
 
     def test_all_fields_present(self) -> None:
         dataclass_instance = ServiceStatusPayload(

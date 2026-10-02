@@ -11,6 +11,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
+from hassette_wire import LogLevel
 from pydantic import (
     BaseModel,
     BeforeValidator,
@@ -27,13 +28,13 @@ from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.helpers import coerce_log_level, log_level_default_factory
 from hassette.logging_ import RESERVED_EXTRA_LOGGER_NAMES
 from hassette.types.enums import BlockingIOBehavior
-from hassette.types.types import LOG_LEVEL_TYPE, RawAppDict
+from hassette.types.types import RawAppDict
 
 LOGGER = getLogger(__name__)
 APP_SHUTDOWN_TIMEOUT_SECONDS = 10
 
 
-LOG_ANNOTATION = Annotated[LOG_LEVEL_TYPE, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
+LOG_ANNOTATION = Annotated[LogLevel, BeforeValidator(partial(coerce_log_level, fallback="INFO"))]
 APP_REQUIRED_KEYS = frozenset({"filename", "class_name"})
 DEFAULT_WEB_API_PORT = 8126
 
@@ -699,15 +700,16 @@ class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
     deep_detection_enabled: bool | None = Field(default=None)
     """Whether to enable Tier 2 call-site interception (monkeypatching of blocking primitives).
 
-    When ``None`` (default), follows ``dev_mode``: enabled in dev, disabled in production.
-    Set explicitly to ``True`` or ``False`` to override the dev_mode default."""
+    When ``None`` (default), follows ``dev_mode``: enabled in dev, disabled in production unless
+    ``allow_deep_detection_in_prod`` is set. Set explicitly to ``True`` or ``False`` to override
+    the dev_mode default."""
 
     allow_deep_detection_in_prod: bool = Field(default=False)
     """Whether to enable Tier 2 deep detection in production mode.
 
-    When True, Tier 2 call-site interception is active even when ``dev_mode`` is False,
-    regardless of ``deep_detection_enabled``. Mirrors ``allow_reload_in_prod`` semantics.
-    Defaults to False."""
+    When True, Tier 2 call-site interception is active even when ``dev_mode`` is False, without
+    also setting ``deep_detection_enabled``. An explicit ``deep_detection_enabled=False`` still
+    disables Tier 2. Mirrors ``allow_reload_in_prod`` semantics. Defaults to False."""
 
 
 class CliConfig(ExcludeExtrasMixin, BaseModel):

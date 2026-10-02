@@ -3,10 +3,7 @@
 from typing import Any
 
 import tomli_w
-
-from hassette.config.models import DEFAULT_WEB_API_PORT
-from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
-from hassette.web.models import (
+from hassette_wire import (
     AppConfigResponse,
     AppHealthResponse,
     AppInstanceResponse,
@@ -17,6 +14,9 @@ from hassette.web.models import (
     SystemStatusResponse,
     TelemetryStatusResponse,
 )
+
+from hassette.config.models import DEFAULT_WEB_API_PORT
+from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
 
 
 def make_system_status_response(
@@ -150,12 +150,12 @@ def make_config_schema_response() -> ConfigSchemaResponse:
                 "host": "0.0.0.0",
                 "port": DEFAULT_WEB_API_PORT,
                 "cors_origins": [],
-                "job_history_size": 100,
+                "job_history_size": 1000,
             },
             "logging": {"log_level": "INFO", "web_api": "WARNING"},
             "lifecycle": {
                 "startup_timeout_seconds": 30,
-                "app_startup_timeout_seconds": 10,
+                "app_startup_timeout_seconds": 20,
                 "app_shutdown_timeout_seconds": 10,
             },
             "apps": {"autodetect": True, "directory": "apps"},

@@ -1,7 +1,13 @@
+"""Internal type aliases, protocols, and helpers.
+
+The contract enums and Literals (``ExecutionStatus``, ``SourceTier``, ``LogLevel``,
+``QuerySourceTier``, ``CliFormat``, ``CliFormatStyle``) live in ``hassette_wire`` — one
+definition, no mirrors. App authors import ``ExecutionStatus`` from ``hassette``; the rest
+are imported from ``hassette_wire`` directly.
+"""
+
 from collections.abc import Awaitable, Callable, Coroutine, Sequence
-from dataclasses import dataclass
 from datetime import time
-from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol, Required, TypeAlias, TypeVar, runtime_checkable
 
@@ -24,12 +30,6 @@ if TYPE_CHECKING:
     from hassette.task_bucket import TaskBucket
 
 
-CliFormatStyle = Literal["duration_ms", "duration_s", "uptime", "relative_time", "services"]
-
-
-LOG_LEVEL_TYPE = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-"""Log levels for configuring logging."""
-
 FRAMEWORK_APP_KEY = "__hassette__"
 """Reserved app_key for framework-internal listeners and jobs.
 
@@ -44,25 +44,6 @@ The trailing dot distinguishes the prefix from the bare sentinel so that
 Use ``is_framework_key()`` rather than comparing against this constant directly."""
 
 
-@dataclass(frozen=True)
-class CliFormat:
-    """Annotated metadata marker declaring how a field renders in CLI human mode.
-
-    Attach to model fields via ``Annotated[float, CliFormat("duration_ms")]``.
-    The render layer introspects ``model_fields[name].metadata`` and dispatches
-    to the matching formatter. JSON serialization is unaffected.
-    """
-
-    style: CliFormatStyle
-    none_text: str | None = None
-    """Display text to use when the field value is ``None``, overriding the render layer's default
-    placeholder (``""`` in tables, ``"—"`` in detail panels). E.g. ``none_text="done"`` for a
-    ``next_run`` field that reads ``None`` once a one-shot job has fired."""
-
-
-SourceTier = Literal["app", "framework"]
-"""Identifies whether a telemetry record originates from a user app or the framework itself."""
-
 IfExistsPolicy = Literal["error", "skip", "replace"]
 """Collision policy for listener/job registration when a matching name already exists."""
 
@@ -73,23 +54,6 @@ BlockingAttributionReason = Literal["attributed", "framework", "displaced"]
 framework/library call), or Tier 1 found the loop running its own machinery with no task in flight
 (e.g. idle in ``select()``). ``"displaced"`` — an execution was bound but a *different* task was
 frozen/calling, so the app_key was withheld rather than blaming the most-recently-bound app."""
-
-
-class ExecutionStatus(StrEnum):
-    """Status values for handler invocations and job executions.
-
-    Must stay in sync with the ``executions.status`` CHECK constraint.
-    """
-
-    SUCCESS = "success"
-    ERROR = "error"
-    CANCELLED = "cancelled"
-    TIMED_OUT = "timed_out"
-    SKIPPED = "skipped"
-
-
-QuerySourceTier = Literal["app", "framework", "all"]
-"""Valid source_tier values for query-side filtering. 'all' disables the filter."""
 
 
 def is_framework_key(app_key: str | None) -> bool:

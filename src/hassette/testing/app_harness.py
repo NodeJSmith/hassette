@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
 from unittest.mock import AsyncMock
 
 import pydantic
+from hassette_wire import ResourceStatus
 from pydantic import BaseModel
 from pydantic_settings.sources import InitSettingsSource
 
@@ -45,7 +46,6 @@ from hassette.testing._simulation import SimulationMixin
 from hassette.testing._time_control import TimeControlMixin
 from hassette.testing.config import make_test_config
 from hassette.testing.recording_api import RECORD_TYPE_TO_DOMAIN, RecordingApi
-from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
     from hassette import Hassette

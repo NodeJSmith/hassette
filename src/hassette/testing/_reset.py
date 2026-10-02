@@ -6,10 +6,12 @@ fixtures without test pollution.
 
 from typing import TYPE_CHECKING
 
+from hassette_wire import ResourceStatus
+
 from hassette.core.app_lifecycle_service import AppAdmissionMode
 from hassette.resources.lifecycle import mark_ready
 from hassette.testing.config import WAIT_FOR_READY_TIMEOUT_SECONDS
-from hassette.types.enums import ACTIVE_STATUSES, ResourceStatus
+from hassette.types.enums import ACTIVE_STATUSES
 
 if TYPE_CHECKING:
     from hassette.bus.bus import Bus

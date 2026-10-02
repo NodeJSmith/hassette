@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ExecutionMode
 
 from hassette import Hassette
 from hassette.commands import InvokeHandler
@@ -17,7 +18,6 @@ from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.sync_executor import SyncExecutor
-from hassette.types.enums import ExecutionMode
 from tests.support.helpers import (
     DB_HASSETTE_DATABASE_MAX_SIZE_MB,
     DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,

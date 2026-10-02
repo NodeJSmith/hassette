@@ -3,11 +3,12 @@
 import time
 from typing import TYPE_CHECKING, Any
 
+from hassette_wire import ActivityFeedEntry, Execution, QuerySourceTier
+
 from hassette.const.misc import SECONDS_PER_HOUR
 from hassette.core.telemetry.helpers import handler_job_union_arms, row_to_dict, since_clause, source_tier_clause
-from hassette.schemas.execution_models import ActivityFeedEntry, AppLastError, Execution
+from hassette.schemas.execution_models import AppLastError
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
-from hassette.types.types import QuerySourceTier
 
 if TYPE_CHECKING:
     from collections.abc import Callable

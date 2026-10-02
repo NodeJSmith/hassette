@@ -20,7 +20,7 @@ def _make_subscribe_side_effect(ws: WebsocketService, *, succeed_on_call: int = 
         if data.get("type") == "subscribe_events" and call_count >= succeed_on_call:
             ws.hassette.config.websocket.response_timeout_seconds = 5
             msg_id = data["id"]
-            fut = ws._response_futures[msg_id]
+            fut = ws._pending.entries[msg_id].future
             fut.set_result(None)
 
     return side_effect
@@ -87,7 +87,7 @@ class TestSubscribeEventsRetry:
         assert sub_id in websocket_service._subscription_ids
         assert first_attempt_id not in websocket_service._subscription_ids
 
-    async def test_no_response_futures_leak_after_retry(self, websocket_service: WebsocketService) -> None:
+    async def test_no_pending_futures_leak_after_retry(self, websocket_service: WebsocketService) -> None:
         """All response futures are cleaned up after retry, even for abandoned attempts."""
         websocket_service.hassette.config.websocket.response_timeout_seconds = 0
         websocket_service._send_json_when_socket_live = AsyncMock(
@@ -96,4 +96,4 @@ class TestSubscribeEventsRetry:
 
         await websocket_service.subscribe_events()
 
-        assert websocket_service._response_futures == {}, "All futures should be cleaned up"
+        assert websocket_service._pending.entries == {}, "All futures should be cleaned up"

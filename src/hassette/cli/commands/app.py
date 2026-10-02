@@ -4,6 +4,13 @@ import sys
 from typing import Annotated, Any
 
 from cyclopts import Parameter
+from hassette_wire import (
+    ActivityFeedEntry,
+    AppConfigResponse,
+    AppHealthResponse,
+    AppManifestListResponse,
+    AppSourceResponse,
+)
 
 import hassette.cli.output as cli_output
 from hassette.cli.client import make_client, query_params
@@ -17,8 +24,6 @@ from hassette.cli.output import (
     render_table,
 )
 from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
-from hassette.schemas.execution_models import ActivityFeedEntry
-from hassette.web.models import AppConfigResponse, AppHealthResponse, AppManifestListResponse, AppSourceResponse
 
 #: Past-tense verb used in success messages, keyed by action name. Mirrors
 #: ``_ACTION_PAST_TENSE`` in ``hassette.web.routes.apps`` (same three actions, same shape), but

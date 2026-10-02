@@ -5,10 +5,12 @@ import logging
 import uuid
 from unittest.mock import AsyncMock, MagicMock, Mock
 
+from hassette_wire import ResourceStatus
+
 from hassette.core.service_watcher import ServiceWatcher
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types.enums import ResourceStatus, RestartType
+from hassette.types.enums import RestartType
 from tests.support.helpers import block_until_cancelled
 from tests.support.mock_hassette import make_mock_hassette
 

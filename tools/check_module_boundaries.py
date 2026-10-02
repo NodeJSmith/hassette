@@ -23,6 +23,8 @@ Import boundaries enforced today (``RULES``):
 - ``models → conversion`` — models/states is a leaf below the codec; the conversion ↔ models cycle is resolved (#892).
 - ``testing → tests.support`` — hassette.testing ships in the wheel and tests.support does not;
   the dependency is one-way (tests/support/ may import hassette.testing, never the reverse) (#1333).
+- no layer → ``hassette_client`` — the CLI plugin receives the client through the
+  ``hassette.cli`` entry point's ``register(app)`` argument, never through an import (#2387).
 
 The full layer DAG is NOT enforced here yet. The two service-layer core cycles
 (``scheduler``↔``core`` and ``state_manager``↔``core``) are resolved via protocol
@@ -30,6 +32,12 @@ inversion (``SchedulerServiceProtocol`` and ``StateReader`` in the ``types`` lea
 layer; #1079). The ``conversion``↔``models`` cycle (#892) is resolved by moving
 conversion behavior into the codec and making models/states a leaf below conversion.
 ``RULES`` is a list so each boundary is added as it becomes clean.
+
+A layer is not limited to a top-level package: ``layer_of()`` resolves the full nested
+path under ``src/hassette`` (``core/telemetry``, not just ``core``), so a rule can target
+one nested module independently of its siblings. ``applies_prefix()`` matches a layer and
+everything nested under it — pass a top-level name for the old, package-wide scope, or a
+nested path (``"core/telemetry"``) to govern only that module (#2381).
 
 Import rules are structural violations, not style — there is no escape hatch. A
 production module that needs a test helper signals a misplaced helper, not a
@@ -44,6 +52,14 @@ the import rules, the private-attr rule has an escape hatch — ``PRIVATE_ATTR_A
 — because a few framework internals (a Resource/Hassette dependency-check bypass hook)
 legitimately read private state. Each allowlist entry is a conscious, auditable
 exception with a reason.
+
+This guard also forbids **``.model_copy(update=...)`` on a served wire model** within
+``MODEL_COPY_UPDATE_SCAN_PATHS`` — the layers that build ``hassette_wire`` response models
+by hand (#2385). ``model_copy`` bypasses the model's validators, so overlaying fields onto
+an existing instance can ship a response that was never actually validated. This rule is
+path-scoped rather than layer-scoped (unlike the import ``Rule``s above) because it targets
+one specific file (``core/runtime_query_service.py``) alongside a whole layer (``web/``), and
+deliberately excludes ``testing/`` — ``RecordingApi``'s harness use isn't a served model.
 
 Usage:
     python tools/check_module_boundaries.py [FILE ...]
@@ -70,6 +86,7 @@ SCAN_DIRS: list[str] = [SRC.relative_to(REPO_ROOT).as_posix()]
 #: Layers that own or legitimately wire Hassette internals, so reading ``hassette._foo``
 #: there is not a reach-through. ``core`` is where ``Hassette`` lives; ``testing`` is the test
 #: harness location, whose whole job is assembling real components from their private slots.
+#: Matched via ``is_exempt_layer()`` as a nested-prefix, so ``core/telemetry`` is exempt too.
 PRIVATE_ATTR_EXEMPT_LAYERS = frozenset({"core", "testing"})
 #: Reason shown for a private-attr reach-through violation.
 PRIVATE_ATTR_REASON = (
@@ -93,7 +110,18 @@ PRIVATE_ATTR_ALLOWLIST: frozenset[tuple[str, str]] = frozenset(
 )
 #: Top-level packages any ``Rule`` below might forbid. ``runtime_imports`` only collects
 #: imports rooted in one of these — everything else is noise no rule cares about.
-WATCHED_ROOTS: frozenset[str] = frozenset({"hassette", "tests"})
+WATCHED_ROOTS: frozenset[str] = frozenset({"hassette", "tests", "hassette_client"})
+#: src-relative POSIX paths scanned for ``.model_copy(update=...)`` on a served wire model.
+#: A bare name with no ``/`` matches a whole top-level layer (``"web"`` matches every file
+#: under ``web/``); a full path matches exactly that file. ``testing/`` is deliberately not
+#: included — ``RecordingApi``'s harness use overlays a HA helper-record fixture, not a served
+#: wire model (#2385).
+MODEL_COPY_UPDATE_SCAN_PATHS: frozenset[str] = frozenset({"web", "core/runtime_query_service.py"})
+#: Violation message for a ``.model_copy(update=...)`` call in scope.
+MODEL_COPY_UPDATE_REASON = (
+    "model_copy(update=...) bypasses the model's validators; build served wire models "
+    "through their real constructor instead (#2385)"
+)
 
 
 @dataclass(frozen=True)
@@ -129,80 +157,126 @@ def forbids_package(pkg: str) -> Callable[[str], bool]:
     return forbids_prefix(f"hassette.{pkg}")
 
 
+def applies_prefix(prefix: str) -> Callable[[str], bool]:
+    """Return a ``Rule.applies`` predicate matching layer ``prefix`` or any nested layer under it.
+
+    ``layer_of()`` resolves a file to its full nested path (``core/telemetry``, not just
+    ``core``), so a rule governing the top-level layer ``"bus"`` needs this to keep matching
+    files nested under ``bus/`` (``bus/predicates/foo.py`` → layer ``"bus/predicates"``) — an
+    exact-equality ``applies`` would silently stop covering nested files the moment a top-level
+    package grows subdirectories. A rule that wants a narrower, nested-only scope passes a
+    nested prefix directly (``applies_prefix("core/telemetry")``), which does not match sibling
+    files directly under ``core/``.
+    """
+    return lambda layer: layer == prefix or layer.startswith(f"{prefix}/")
+
+
+def applies_outside(prefix: str) -> Callable[[str], bool]:
+    """Return a ``Rule.applies`` predicate matching any layer NOT ``prefix`` or nested under it.
+
+    The negation of ``applies_prefix``, for isolation rules (like ``test-helpers-isolation``)
+    that govern every layer except one.
+    """
+    inside = applies_prefix(prefix)
+    return lambda layer: not inside(layer)
+
+
+def is_exempt_layer(layer: str) -> bool:
+    """Return whether ``layer`` (or an ancestor of it) is in ``PRIVATE_ATTR_EXEMPT_LAYERS``."""
+    return any(applies_prefix(exempt)(layer) for exempt in PRIVATE_ATTR_EXEMPT_LAYERS)
+
+
 RULES: list[Rule] = [
     Rule(
         name="test-helpers-isolation",
-        applies=lambda layer: layer != "testing",
+        applies=applies_outside("testing"),
         forbids=forbids_package("testing"),
         reason="production code must not import test helpers from hassette.testing",
     ),
     Rule(
         name="api-no-core",
-        applies=lambda layer: layer == "api",
+        applies=applies_prefix("api"),
         forbids=forbids_package("core"),
         reason="api must not import core at runtime; core sits above the service layer (#1079)",
     ),
     Rule(
         name="utils-no-events",
-        applies=lambda layer: layer == "utils",
+        applies=applies_prefix("utils"),
         forbids=forbids_package("events"),
         reason="utils sits below events; the only upward dependency (is_event_type) has moved to events/",
     ),
     Rule(
         name="web-no-core",
-        applies=lambda layer: layer == "web",
+        applies=applies_prefix("web"),
         forbids=forbids_package("core"),
         reason="web must not runtime-import core; web-facing data types live in hassette.schemas",
     ),
     Rule(
         name="bus-no-core",
-        applies=lambda layer: layer == "bus",
+        applies=applies_prefix("bus"),
         forbids=forbids_package("core"),
         reason="bus must not import core at runtime; core sits above the service layer (#1089)",
     ),
     Rule(
         name="bus-no-ha-events",
-        applies=lambda layer: layer == "bus",
+        applies=applies_prefix("bus"),
         forbids=forbids_package("events.hass"),
         reason="bus is a generic pub/sub kernel; HA event types are injected from core (#1136)",
     ),
     Rule(
         name="resources-no-task_bucket",
-        applies=lambda layer: layer == "resources",
+        applies=applies_prefix("resources"),
         forbids=forbids_package("task_bucket"),
         reason="resources sits below task_bucket; TaskBucket is injected via register_task_bucket_factory (#1079)",
     ),
     Rule(
         name="scheduler-no-core",
-        applies=lambda layer: layer == "scheduler",
+        applies=applies_prefix("scheduler"),
         forbids=forbids_package("core"),
         reason="scheduler must not runtime-import core; SchedulerService consumed via SchedulerServiceProtocol (#1079)",
     ),
     Rule(
         name="state_manager-no-core",
-        applies=lambda layer: layer == "state_manager",
+        applies=applies_prefix("state_manager"),
         forbids=forbids_package("core"),
         reason="state_manager must not import core at runtime; StateProxy is consumed via StateReader (#1079)",
     ),
     Rule(
         name="models-no-conversion",
-        applies=lambda layer: layer == "models",
+        applies=applies_prefix("models"),
         forbids=forbids_package("conversion"),
         reason="models/states is a leaf below the codec; conversion ↔ models cycle resolved (#892)",
     ),
     Rule(
         name="testing-isolation",
-        applies=lambda layer: layer == "testing",
+        applies=applies_prefix("testing"),
         forbids=forbids_prefix("tests.support"),
         reason="hassette.testing must not import tests.support (one-way dependency, #1333)",
+    ),
+    Rule(
+        name="no-hassette-client",
+        applies=lambda _: True,
+        forbids=forbids_prefix("hassette_client"),
+        reason=(
+            "no hassette module may import hassette_client; the CLI plugin receives the client "
+            "through the hassette.cli entry point's register(app) argument, never through an "
+            "import (#2387)"
+        ),
     ),
 ]
 
 
 def layer_of(path: Path) -> str:
-    """Return the top-level subpackage name a source file belongs to."""
+    """Return the nested subpackage path a source file belongs to, as a '/'-joined layer.
+
+    Resolves the full path under ``SRC`` (``core/telemetry`` for a file under
+    ``src/hassette/core/telemetry/``, not just ``core``), so a ``Rule.applies`` predicate can
+    target a nested module independently of its siblings. Pair with ``applies_prefix()`` to
+    match a layer and everything nested under it — the old top-level-only behavior. A file
+    directly under ``SRC`` (no subpackage) resolves to ``"<root>"``.
+    """
     rel = path.relative_to(SRC)
-    return rel.parts[0] if len(rel.parts) > 1 else "<root>"
+    return "/".join(rel.parts[:-1]) if len(rel.parts) > 1 else "<root>"
 
 
 def package_of(path: Path) -> str:
@@ -297,8 +371,8 @@ def dynamic_import_target(node: ast.Call, bound_names: frozenset[str]) -> str | 
 def runtime_imports(tree: ast.AST, package: str | None = None) -> list[tuple[int, str]]:
     """Return (lineno, imported module) for every runtime import rooted in a watched package.
 
-    Watched roots are ``WATCHED_ROOTS`` (``hassette``, ``tests``) — the two namespaces any
-    ``Rule`` might forbid. ``package`` is the importing module's dotted package, used to
+    Watched roots are ``WATCHED_ROOTS`` (``hassette``, ``tests``, ``hassette_client``) — the
+    namespaces any ``Rule`` might forbid. ``package`` is the importing module's dotted package, used to
     resolve relative imports; when omitted, relative imports are skipped. Covers static
     ``import``/``from`` forms and the dynamic ``importlib.import_module()``/``__import__()``
     forms (with a string-literal argument) — a rule with no escape hatch needs both, since a
@@ -373,6 +447,34 @@ def is_allowlisted(rel_path: str | None, attr: str) -> bool:
     return rel_path is not None and (rel_path, attr) in PRIVATE_ATTR_ALLOWLIST
 
 
+def in_model_copy_scope(rel_path: str) -> bool:
+    """True when ``rel_path`` falls under ``MODEL_COPY_UPDATE_SCAN_PATHS``.
+
+    A bare entry (no ``/``) matches the whole top-level layer (``"web"`` matches
+    ``web/anything.py``); a full path matches only that exact file.
+    """
+    return any(
+        rel_path == scanned or (("/" not in scanned) and rel_path.startswith(f"{scanned}/"))
+        for scanned in MODEL_COPY_UPDATE_SCAN_PATHS
+    )
+
+
+def model_copy_update_calls(tree: ast.AST) -> list[int]:
+    """Return line numbers of every ``<expr>.model_copy(update=...)`` call in the tree.
+
+    Matches any receiver — the rule is a blanket ban within scope, not tied to a specific
+    model type, since resolving the receiver's static type would need more than AST parsing.
+    """
+    return [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "model_copy"
+        and any(kw.arg == "update" for kw in node.keywords)
+    ]
+
+
 def check_source(
     source: str, layer: str, package: str | None = None, rel_path: str | None = None
 ) -> list[tuple[int, str]]:
@@ -389,16 +491,18 @@ def check_source(
         for rule in RULES
         if rule.applies(layer) and rule.forbids(module)
     ]
-    private_violations = (
-        [
-            (lineno, PRIVATE_ATTR_MSG_TEMPLATE.format(attr=attr))
-            for lineno, attr in private_hassette_accesses(tree)
-            if not is_allowlisted(rel_path, attr)
-        ]
-        if layer not in PRIVATE_ATTR_EXEMPT_LAYERS
+    private_attr_violations = [
+        (lineno, PRIVATE_ATTR_MSG_TEMPLATE.format(attr=attr))
+        for lineno, attr in private_hassette_accesses(tree)
+        if not is_allowlisted(rel_path, attr)
+    ]
+    private_violations = [] if is_exempt_layer(layer) else private_attr_violations
+    model_copy_violations = (
+        [(lineno, f"model-copy-update: {MODEL_COPY_UPDATE_REASON}") for lineno in model_copy_update_calls(tree)]
+        if rel_path is not None and in_model_copy_scope(rel_path)
         else []
     )
-    return sorted(import_violations + private_violations)
+    return sorted(import_violations + private_violations + model_copy_violations)
 
 
 def check_file(path: Path) -> list[tuple[int, str]]:
@@ -425,7 +529,10 @@ def main() -> int:
         REPO_ROOT,
         check_file,
         summary="module-boundary violation(s)",
-        ok=f"no module-boundary violations across {len(RULES)} import rule(s) + the private-attr rule.",
+        ok=(
+            f"no module-boundary violations across {len(RULES)} import rule(s) + "
+            "the private-attr rule + the model-copy-update rule."
+        ),
     )
 
 

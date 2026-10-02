@@ -12,12 +12,12 @@ import typing
 from unittest.mock import Mock
 
 import pytest
+from hassette_wire import ExecutionMode
 
 from hassette.app.app import App, AppSync
 from hassette.resources.base import Resource
 from hassette.resources.service import Service
 from hassette.scheduler.triggers import After
-from hassette.types.enums import ExecutionMode
 from tests.support.factories import make_mock_parent, make_scheduler
 from tests.support.helpers import noop
 

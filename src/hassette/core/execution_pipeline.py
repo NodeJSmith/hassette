@@ -19,9 +19,10 @@ import typing
 from dataclasses import dataclass, field
 from dataclasses import replace as dataclass_replace
 
+from hassette_wire import ExecutionStatus
+
 from hassette.core.execution_record import ExecutionRecord
 from hassette.events.hassette import HassetteExecutionCompletedEvent
-from hassette.types.types import ExecutionStatus
 
 if typing.TYPE_CHECKING:
     from hassette.core.command_executor import CommandExecutor

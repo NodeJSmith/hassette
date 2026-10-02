@@ -11,8 +11,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
+from hassette_wire import ExecutionStatus
+
 from hassette.exceptions import DependencyError
-from hassette.types.types import ExecutionStatus
 
 MAX_TRACEBACK_SIZE = 8192
 TRACEBACK_TRUNCATION_SUFFIX = "\n... [truncated]"

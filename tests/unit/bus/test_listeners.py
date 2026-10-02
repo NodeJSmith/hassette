@@ -3,11 +3,11 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import BackpressurePolicy
 
 from hassette.bus.listeners import Listener, ListenerOptions, Subscription
 from hassette.event_handling.predicates import StateTo
 from hassette.types import Predicate
-from hassette.types.enums import BackpressurePolicy
 from tests.support.helpers import create_listener, make_task_bucket
 
 

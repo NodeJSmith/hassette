@@ -244,7 +244,16 @@ name = "Check schemas are up to date"
 language = "system"
 entry = "tools/check_schemas_fresh.py"
 pass_filenames = false
-files = "^src/hassette/(web/|config/)"
+files = "^(src/hassette/(web/|config/)|wire/src/hassette_wire/)"
+stages = ["pre-push"]
+
+[[repos.hooks]]
+id = "check-wire-compat"
+name = "Check wire compatibility against the latest release"
+language = "system"
+entry = "tools/check_wire_compat.py"
+pass_filenames = false
+files = "^(src/hassette/(web/|config/)|wire/src/hassette_wire/|tools/(check_wire_compat\\.py|wire_compat_.*\\.txt))"
 stages = ["pre-push"]
 
 [[repos.hooks]]

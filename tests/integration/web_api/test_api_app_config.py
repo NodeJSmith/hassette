@@ -165,7 +165,7 @@ class TestAppConfigEndpoint:
         framework_fields = response.json()["framework_fields"]
         assert "instance_name" in framework_fields
         assert "log_level" in framework_fields
-        assert "app_key" in framework_fields
+        assert "app_key" not in framework_fields
         assert "enabled" in framework_fields
         assert "autostart" in framework_fields
         assert "brightness" not in framework_fields

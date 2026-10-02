@@ -10,12 +10,11 @@ from collections.abc import Sequence
 from unittest.mock import AsyncMock
 
 import pytest
+from hassette_wire import ExecutionMode, JobSummary
 from httpx2 import AsyncClient
 
 from hassette.scheduler.classes import Job
 from hassette.scheduler.triggers import Every
-from hassette.schemas.job_models import JobSummary
-from hassette.types.enums import ExecutionMode
 from tests.support.web_job_helpers import make_job_summary, make_real_job
 
 from .conftest import get_json

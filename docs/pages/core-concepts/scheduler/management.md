@@ -167,7 +167,7 @@ Jitter is useful when several apps schedule work at the same wall-clock time and
 
 | Attribute | Type | Description |
 |---|---|---|
-| `name` | `str` | Human-readable name. Auto-generated from the callable and trigger when not provided. Appears in logs; idempotent re-registration matches on this name. |
+| `name` | `str` | Human-readable name, set by the required `name=` argument on every scheduling call. Appears in logs; idempotent re-registration matches on this name. |
 | `schedule_status` | `ScheduleStatus` | One of `scheduled`, `waiting`, `completed`, `manual`. See [Schedule status](#schedule-status). |
 | `next_run` | `ZonedDateTime \| None` | Unjittered logical fire time. `None` for every status except `scheduled`. Subsequent trigger calculations use this as `previous_run`. |
 | `trigger` | `TriggerProtocol \| None` | The trigger that drives scheduling. `None` for a manual-only job. |

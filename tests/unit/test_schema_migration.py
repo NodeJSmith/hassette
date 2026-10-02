@@ -7,12 +7,12 @@ from typing import get_args
 from unittest.mock import MagicMock, patch
 
 import pytest
+from hassette_wire import ExecutionStatus, SourceTier
 
 from hassette.config.config import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
 from hassette.testing.config import LATEST_MIGRATION_VERSION, TEST_TOKEN
-from hassette.types.types import ExecutionStatus, SourceTier
 from tests.support.sql import insert_execution_row, sqlite_conn
 
 

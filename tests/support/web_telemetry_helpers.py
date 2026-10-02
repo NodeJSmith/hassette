@@ -2,12 +2,21 @@
 
 from typing import Literal
 
-from hassette.schemas.execution_models import ActivityFeedEntry, Execution
+from hassette_wire import (
+    ActivityFeedEntry,
+    BackpressurePolicy,
+    Execution,
+    ExecutionMode,
+    ExecutionStatus,
+    ListenerWithSummary,
+    LogEntryResponse,
+    LogsByExecutionResponse,
+    SourceTier,
+)
+
 from hassette.schemas.listener_models import ListenerSummary
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B, TEST_SOURCE_LOCATION
-from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE, BackpressurePolicy, ExecutionMode
-from hassette.types.types import ExecutionStatus, SourceTier
-from hassette.web.models import ListenerWithSummary, LogEntryResponse, LogsByExecutionResponse
+from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
 
 
 def make_activity_feed_entry(

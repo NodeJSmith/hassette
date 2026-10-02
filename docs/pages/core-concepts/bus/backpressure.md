@@ -110,8 +110,11 @@ visually distinct from one that dropped a single event under a brief spike.
 ![Listener detail panel with the Backpressure Dropped cell showing the drop count and rate](../../../_static/web_ui_backpressure_dropped.png)
 
 The `backpressure_dropped_count` field is also available on the listener
-summary returned by the web API. A zero drop count at all policy types means
-the bus has remained below saturation since the last restart.
+summary returned by the web API. Only `drop_newest` listeners count drops, so
+a zero count does not prove the bus never saturated: a `block` listener waits at
+a saturated gate without touching any counter. Saturation always logs a
+rate-limited `Event dispatch saturated` warning, which is the signal to watch
+when your listeners use `block`.
 
 ## Composition
 

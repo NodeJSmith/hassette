@@ -19,6 +19,8 @@ Verifies:
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
+from hassette_wire import ResourceStatus
+
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.cache import AsyncCache
@@ -26,7 +28,6 @@ from hassette.resources.base import Resource
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
-from hassette.types.enums import ResourceStatus
 from tests.support.factories import make_scheduled_job
 from tests.support.helpers import SHORT_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.mock_hassette import make_mock_hassette

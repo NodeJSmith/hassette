@@ -179,7 +179,7 @@ These parameters are accepted by every scheduling method. Individual method tabl
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `name` | `str` | `""` | Identifies the job in logs and the monitoring UI. Auto-generated from the callable and trigger when empty. Must be unique within the app instance — see [Idempotent Registration](#idempotent-registration). |
+| `name` | `str` | — | Required. Identifies the job in logs and the monitoring UI. Omitting it raises `TypeError` (no default value); an empty string raises `SchedulerNameRequiredError`. Must be unique within the app instance — see [Idempotent Registration](#idempotent-registration). |
 | `group` | `str \| None` | `None` | Group name for bulk management. See [Job Management](management.md) for grouping. |
 | `jitter` | `float \| None` | `None` | Random offset in seconds applied at enqueue time. See [Job Management](management.md) for jitter. |
 | `timeout` | `float \| None` | `None` | Per-job timeout in seconds. `None` inherits the global `scheduler.job_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
@@ -230,7 +230,7 @@ Job names must be unique within an app instance. Registering a second job with a
 | Value | Behavior |
 |---|---|
 | `"error"` (default) | Raises `ValueError` when a job with the same name already exists. |
-| `"skip"` | Returns the existing job when its configuration matches the new registration. Raises `ValueError` when names match but configurations differ. Two jobs match when they share the same callable, trigger (by `trigger_id()`), group, jitter, timeout, `timeout_disabled`, `args`, `kwargs`, and `on_error` handler. |
+| `"skip"` | Returns the existing job when its configuration matches the new registration. Raises `ValueError` when names match but configurations differ. Two jobs match when they share the same callable, trigger (by `trigger_id()`), group, jitter, timeout, `timeout_disabled`, `args`, `kwargs`, `on_error` handler, `mode`, and `where` predicate. |
 | `"replace"` | Removes the existing job and registers the new one. The new job's configuration does not need to match the old one. |
 
 `if_exists` matters most in `on_initialize`, which re-runs on app reload (triggered by config changes or `hassette reload`).

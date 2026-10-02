@@ -3,16 +3,18 @@
 These typed models replace raw ``dict`` returns, preventing the
 "column rename -> silent template failure" class of bugs.
 
-For live runtime state models, see ``domain_models.py``.
+For app-registry snapshots, see ``hassette.schemas.app_snapshots``. For the live
+system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
 
 See ``schemas/__init__.py`` for the domain-file map.
 """
 
 from typing import Literal
 
+from hassette_wire import LogLevel, SourceTier
 from pydantic import BaseModel
 
-from hassette.types.types import LOG_LEVEL_TYPE, BlockingAttributionReason, SourceTier
+from hassette.types.types import BlockingAttributionReason
 
 _BlockingTier = Literal["watchdog", "monkeypatch"]
 
@@ -23,7 +25,7 @@ class LogRecord(BaseModel):
     id: int
     seq: int
     timestamp: float
-    level: LOG_LEVEL_TYPE
+    level: LogLevel
     logger_name: str
     func_name: str | None = None
     lineno: int | None = None

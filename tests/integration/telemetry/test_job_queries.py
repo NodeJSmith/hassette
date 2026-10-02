@@ -1,9 +1,9 @@
 """Integration tests for TelemetryQueryService.get_job_summary()."""
 
 import pytest
+from hassette_wire import JobSummary
 
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.schemas.job_models import JobSummary
 
 from .helpers import (
     BASE_TS,

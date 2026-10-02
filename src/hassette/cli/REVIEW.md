@@ -2,7 +2,7 @@
 
 ## Response Model Deserialization
 Does `HassetteCLIClient` in `src/hassette/cli/client.py` correctly deserialize
-every response model it uses from `src/hassette/web/models.py`? Missing required
+every response model it uses from `wire/src/hassette_wire/`? Missing required
 fields raise `ValidationError` (caught by `_handle_malformed_response`), so
 those aren't silent. The silent risk is *extra* fields the server adds that the
 CLI model ignores, or *optional* fields whose defaults mask a semantic change.

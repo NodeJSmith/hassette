@@ -9,10 +9,11 @@ Tests verify:
 
 import heapq
 
+from hassette_wire import ExecutionMode
+
 import hassette.utils.date_utils as date_utils
 from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler.classes import Job
-from hassette.types.enums import ExecutionMode
 
 # Helpers
 

@@ -22,8 +22,9 @@ from collections.abc import Awaitable, Callable
 from logging import getLogger
 from typing import Final
 
-from hassette.types.enums import ExecutionMode, Outcome
-from hassette.types.types import SourceTier
+from hassette_wire import ExecutionMode, SourceTier
+
+from hassette.types.enums import Outcome
 
 LOGGER = getLogger(__name__)
 

@@ -15,11 +15,35 @@ entries are suppressed by (path, attr). Ungoverned cross-layer imports still exi
 Also pins the ``testing-isolation`` rule (#1333): ``hassette.testing`` must never import
 ``tests.support`` at runtime — the one-way dependency that keeps ``hassette.testing`` importable
 from an installed wheel where ``tests/support/`` does not exist.
+
+Also pins nested-module layer scoping (#2381): ``layer_of()`` resolves a file's full path under
+``src/hassette``, not just its top-level package, and ``applies_prefix()``/``applies_outside()``
+let a ``Rule`` target a nested module independently of its siblings while every existing
+top-level rule keeps matching files nested arbitrarily deep under it.
+
+Also pins the ``no-hassette-client`` rule (#2387): no layer may import ``hassette_client`` at
+runtime — its ``applies`` is unconditional (``lambda _: True``), so it governs every layer rather
+than a single one like the rules above.
+
+Also pins the ``model-copy-update`` rule (#2385): ``.model_copy(update=...)`` on a served wire
+model is flagged within ``MODEL_COPY_UPDATE_SCAN_PATHS`` (``web/`` and
+``core/runtime_query_service.py``), not flagged outside that scope (e.g. ``testing/``), and this
+rule is path-scoped by ``rel_path`` rather than by ``layer`` like the import ``Rule``s above.
 """
 
 import textwrap
 
-from check_module_boundaries import PRIVATE_ATTR_MSG_TEMPLATE, check_source
+from check_module_boundaries import (
+    MODEL_COPY_UPDATE_REASON,
+    PRIVATE_ATTR_MSG_TEMPLATE,
+    SRC,
+    Rule,
+    applies_outside,
+    applies_prefix,
+    check_source,
+    in_model_copy_scope,
+    layer_of,
+)
 
 
 def reach_through_msg(attr: str) -> str:
@@ -523,3 +547,170 @@ def test_testing_isolation_not_applied_outside_testing_layer() -> None:
     # tests.support imports are only forbidden inside hassette.testing itself.
     src = "from tests.support.factories import make_scheduled_job\n"
     assert check_source(src, "core") == []
+
+
+def test_hassette_client_import_rejected_from_every_layer() -> None:
+    # no-hassette-client applies to every layer (Rule.applies=lambda _: True) — the CLI plugin
+    # receives the client through hassette.cli's register(app) argument, never an import (#2387).
+    # "hassette_client" is a bare WATCHED_ROOTS entry, so "from hassette_client import X" resolves
+    # like "from hassette import testing" does — the imported name is reassembled onto the root.
+    src = "from hassette_client import HassetteClient\n"
+    expected_msg = (
+        "no-hassette-client: imports hassette_client.HassetteClient — "
+        "no hassette module may import hassette_client; the CLI plugin receives the client "
+        "through the hassette.cli entry point's register(app) argument, never through an "
+        "import (#2387)"
+    )
+    for layer in ("core", "web", "cli", "<root>"):
+        assert check_source(src, layer) == [(1, expected_msg)]
+
+
+def test_hassette_client_submodule_import_rejected() -> None:
+    src = "import hassette_client.plugin\n"
+    assert check_source(src, "cli") == [
+        (
+            1,
+            "no-hassette-client: imports hassette_client.plugin — "
+            "no hassette module may import hassette_client; the CLI plugin receives the client "
+            "through the hassette.cli entry point's register(app) argument, never through an "
+            "import (#2387)",
+        )
+    ]
+
+
+def test_layer_of_top_level_file() -> None:
+    assert layer_of(SRC / "core" / "foo.py") == "core"
+
+
+def test_layer_of_nested_file() -> None:
+    assert layer_of(SRC / "core" / "telemetry" / "foo.py") == "core/telemetry"
+
+
+def test_layer_of_deeply_nested_file() -> None:
+    assert layer_of(SRC / "core" / "telemetry" / "exporters" / "foo.py") == "core/telemetry/exporters"
+
+
+def test_layer_of_root_file() -> None:
+    assert layer_of(SRC / "foo.py") == "<root>"
+
+
+def test_applies_prefix_matches_prefix_and_nested() -> None:
+    pred = applies_prefix("core/telemetry")
+    assert pred("core/telemetry")
+    assert pred("core/telemetry/exporters")
+    assert not pred("core")
+    assert not pred("core/other")
+
+
+def test_applies_prefix_top_level_matches_arbitrary_nesting() -> None:
+    # A top-level prefix must keep matching files nested under it at any depth — this is
+    # what preserves backward compatibility now that layer_of() resolves nested paths instead
+    # of always collapsing to the top-level package name.
+    pred = applies_prefix("bus")
+    assert pred("bus")
+    assert pred("bus/predicates")
+    assert pred("bus/predicates/deep")
+
+
+def test_applies_prefix_does_not_match_similar_name() -> None:
+    # "core_extra" must not be treated as nested under "core" merely because it starts with
+    # the string "core" — applies_prefix() requires a "/" separator, not a bare substring match.
+    pred = applies_prefix("core")
+    assert not pred("core_extra")
+
+
+def test_applies_outside_negates_prefix() -> None:
+    pred = applies_outside("testing")
+    assert not pred("testing")
+    assert not pred("testing/helpers")
+    assert pred("core")
+
+
+def test_nested_rule_scopes_to_prefix_not_siblings() -> None:
+    # Proves a Rule can be scoped to a nested module path independently of sibling files
+    # under the same top-level package, rather than only a whole top-level layer.
+    rule = Rule(
+        name="telemetry-example",
+        applies=applies_prefix("core/telemetry"),
+        forbids=lambda _module: True,
+        reason="example nested-scoped rule (see #2381)",
+    )
+    assert rule.applies("core/telemetry")
+    assert rule.applies("core/telemetry/exporters")
+    assert not rule.applies("core")
+    assert not rule.applies("core/app_lifecycle_service")
+
+
+def test_bus_rule_still_applies_to_nested_bus_file() -> None:
+    # bus-no-core must keep applying to a file nested under bus/ (layer "bus/predicates"),
+    # not just files directly under bus/ — a regression check for the switch from exact-equality
+    # applies to applies_prefix().
+    src = "from hassette.core import Hassette\n"
+    assert check_source(src, "bus/predicates") == [
+        (
+            1,
+            "bus-no-core: imports hassette.core — "
+            "bus must not import core at runtime; core sits above the service layer (#1089)",
+        )
+    ]
+
+
+def test_private_access_in_nested_core_layer_exempt() -> None:
+    # core/telemetry/foo.py resolves to layer "core/telemetry" — still exempt from the
+    # private-attr rule, since the PRIVATE_ATTR_EXEMPT_LAYERS check now uses applies_prefix()
+    # instead of exact equality against layer_of()'s result.
+    assert check_source("x = self.hassette._state_proxy\n", "core/telemetry") == []
+
+
+def test_private_access_flagged_outside_exempt_layers_similar_name() -> None:
+    # "core_extra" must not be exempted just because it starts with the string "core" —
+    # regression check for the applies_prefix() "/" separator requirement.
+    assert check_source("x = self.hassette._state_proxy\n", "core_extra") == [(1, reach_through_msg("_state_proxy"))]
+
+
+def test_model_copy_update_flagged_in_web_layer() -> None:
+    src = "resp = model.model_copy(update={'status': 'ok'})\n"
+    assert check_source(src, "web", rel_path="web/mappers.py") == [
+        (1, f"model-copy-update: {MODEL_COPY_UPDATE_REASON}")
+    ]
+
+
+def test_model_copy_update_flagged_in_runtime_query_service() -> None:
+    src = "resp = model.model_copy(update={'status': 'ok'})\n"
+    assert check_source(src, "core", rel_path="core/runtime_query_service.py") == [
+        (1, f"model-copy-update: {MODEL_COPY_UPDATE_REASON}")
+    ]
+
+
+def test_model_copy_update_not_flagged_outside_scope() -> None:
+    # Same call, but in testing/ (RecordingApi's harness use) — deliberately out of scope.
+    src = "resp = model.model_copy(update={'status': 'ok'})\n"
+    assert check_source(src, "testing", rel_path="testing/recording_api.py") == []
+
+
+def test_model_copy_update_not_flagged_in_sibling_core_file() -> None:
+    # core/runtime_query_service.py is scoped exactly — a sibling core/ file is not swept in.
+    src = "resp = model.model_copy(update={'status': 'ok'})\n"
+    assert check_source(src, "core", rel_path="core/core.py") == []
+
+
+def test_model_copy_without_update_kwarg_not_flagged() -> None:
+    # A bare model_copy() (deep-copy, no field overlay) is not a validation bypass.
+    src = "resp = model.model_copy()\n"
+    assert check_source(src, "web", rel_path="web/mappers.py") == []
+
+
+def test_model_copy_update_requires_rel_path() -> None:
+    # No rel_path supplied (detection-only callers) — model-copy scope can't be evaluated
+    # without a path, same fail-closed-to-unflagged behavior as is_allowlisted()'s "safe
+    # default" doc — but here the safe default is "don't flag without a path to scope against".
+    src = "resp = model.model_copy(update={'status': 'ok'})\n"
+    assert check_source(src, "web") == []
+
+
+def test_in_model_copy_scope_matches_layer_and_exact_file() -> None:
+    assert in_model_copy_scope("web/mappers.py")
+    assert in_model_copy_scope("web/routes/apps.py")
+    assert in_model_copy_scope("core/runtime_query_service.py")
+    assert not in_model_copy_scope("core/core.py")
+    assert not in_model_copy_scope("testing/recording_api.py")

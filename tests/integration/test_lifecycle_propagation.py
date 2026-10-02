@@ -6,10 +6,11 @@ import inspect
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
+from hassette_wire import ResourceStatus
+
 from hassette.core.core import Hassette
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import handle_stop as real_handle_stop
-from hassette.types.enums import ResourceStatus
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness

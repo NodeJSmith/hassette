@@ -9,6 +9,8 @@ import typing
 from collections.abc import Mapping
 from typing import Any, Unpack
 
+from hassette_wire import LogLevel
+
 from hassette.bus.listeners import Subscription
 from hassette.bus.options import Options
 from hassette.bus.sync_events import BusSyncEventShortcuts
@@ -16,16 +18,17 @@ from hassette.const import NOT_PROVIDED
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.types import ComparisonCondition
-from hassette.types.types import LOG_LEVEL_TYPE, IfExistsPolicy, WhereClause
+from hassette.types.types import IfExistsPolicy, WhereClause
 
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from hassette_wire import BackpressurePolicy, ExecutionMode
 
     from hassette import Bus, Hassette
     from hassette.bus.listeners import Listener
     from hassette.events.base import Event
     from hassette.types import ChangeType, HandlerType, Predicate
-    from hassette.types.enums import BackpressurePolicy, ExecutionMode
     from hassette.types.types import BusErrorHandlerType
 
 
@@ -51,7 +54,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
         mark_ready(self, reason="Synchronous Bus facade initialized")
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.bus_service
 
     def add_listener(self, listener: "Listener", *, if_exists: IfExistsPolicy = "error") -> Subscription:

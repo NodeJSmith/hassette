@@ -3,9 +3,9 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ExecutionStatus
 
 from hassette.commands import ExecuteJob, InvokeHandler
-from hassette.types.types import ExecutionStatus
 from hassette.utils.execution import ExecutionResult, track_execution
 
 

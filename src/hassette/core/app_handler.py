@@ -8,6 +8,8 @@ import asyncio
 import typing
 from typing import ClassVar
 
+from hassette_wire import LogLevel
+
 from hassette.bus import Bus
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_change_detector import ChangeSet
@@ -17,7 +19,6 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.types import Topic
-from hassette.types.types import LOG_LEVEL_TYPE
 
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
@@ -58,7 +59,7 @@ class AppHandler(Resource):
         return self.registry.get_snapshot()
 
     @property
-    def config_log_level(self) -> LOG_LEVEL_TYPE:
+    def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.app_handler
 
     def get(self, app_key: str, index: int = 0) -> "App[AppConfig] | None":

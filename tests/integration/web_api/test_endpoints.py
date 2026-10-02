@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.config.classes import AppManifest
 from hassette.core.app_registry import AppRegistry
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
-from hassette.types.enums import ResourceStatus
 from hassette.web.config_view import MASK_SENTINEL
 from tests.integration.conftest import make_manifest_mock
 from tests.support.helpers import create_app_manifest
@@ -187,8 +187,8 @@ class TestAppEndpoints:
     async def test_start_app_returns_conflict_for_blocked_app(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """P2 follow-up finding on PR #1873: a blocked app's start must surface as a rejected
-        request, not a 202 "accepted" the registry silently no-op'd.
+        """A blocked app's start must surface as a rejected request, not a 202 "accepted"
+        the registry silently no-op'd.
         """
         mock_hassette.app_handler.start_app = AsyncMock(
             side_effect=AppBlockedError("App 'my_app' is blocked by the --app filter")
@@ -228,8 +228,8 @@ class TestAppEndpoints:
     async def test_reload_app_returns_conflict_for_blocked_app(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """P2 follow-up finding on PR #1873 (also applies to reload, since reload is
-        stop-then-start): a blocked app's reload must surface as a rejected request.
+        """A blocked app's reload must surface as a rejected request (reload is
+        stop-then-start, so the same block applies).
         """
         mock_hassette.app_handler.reload_app = AsyncMock(
             side_effect=AppBlockedError("App 'my_app' is blocked by the --app filter")
@@ -457,8 +457,8 @@ class TestAppInstanceEndpoints:
     async def test_start_instance_returns_conflict_for_blocked_app(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """P2 follow-up finding on PR #1873: a blocked app's instance start must surface as a
-        rejected request, not a 202 "accepted" the registry silently no-op'd.
+        """A blocked app's instance start must surface as a rejected request, not a 202
+        "accepted" the registry silently no-op'd.
         """
         self._seed_manifest(mock_hassette)
         mock_hassette.app_handler.start_instance = AsyncMock(
@@ -482,8 +482,8 @@ class TestAppInstanceEndpoints:
     async def test_reload_instance_returns_conflict_for_blocked_app(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """P2 follow-up finding on PR #1873 (also applies to reload, since reload is
-        stop-then-start): a blocked app's instance reload must surface as a rejected request.
+        """A blocked app's instance reload must surface as a rejected request (reload is
+        stop-then-start, so the same block applies).
         """
         self._seed_manifest(mock_hassette)
         mock_hassette.app_handler.reload_instance = AsyncMock(

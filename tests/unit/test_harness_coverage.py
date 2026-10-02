@@ -6,12 +6,12 @@ If this test fails, a new ``on_*`` method was added to ``Bus`` without a corresp
 """
 
 import pytest
+from hassette_wire import ResourceStatus
 
 from hassette.bus import Bus
 from hassette.resources.base import Resource
 from hassette.testing import AppTestHarness
 from hassette.testing._simulation import SimulationMixin
-from hassette.types import ResourceStatus
 
 SIMULATION_TIMEOUT_CASES: list[tuple[str, tuple, dict]] = [
     ("simulate_state_change", ("sensor.test",), {"old_value": "off", "new_value": "on"}),

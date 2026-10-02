@@ -26,7 +26,7 @@ teardown, or regress the normal unsealed drain of `_dispatch_pending` futures?
 `src/hassette/core/bus_service.py`, while `mode` gates inside
 `HandlerInvoker.dispatch()` in `src/hassette/bus/listeners.py`. A `DROP_NEWEST`
 listener in `queued` mode has two independent drop paths. Do `backpressure_dropped`
-and `guard.dropped` counters both appear in `src/hassette/web/models.py`'s
+and `guard.dropped` counters both appear in `wire/src/hassette_wire/`'s
 `ListenerWithSummary`, or does one path lose its telemetry?
 
 ## Duration Hold Predicate Consistency

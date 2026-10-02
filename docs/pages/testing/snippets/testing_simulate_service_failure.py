@@ -1,6 +1,6 @@
+from hassette import ResourceStatus
 from hassette.app import App, AppConfig
 from hassette.testing import AppTestHarness
-from hassette.types.enums import ResourceStatus
 
 
 class WatchdogConfig(AppConfig):

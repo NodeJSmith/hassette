@@ -3,11 +3,11 @@
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter
+from hassette_wire import ConfigSchemaResponse
 
 from hassette.config import HassetteConfig
 from hassette.web.config_view import build_config_view, mask_app_config, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep
-from hassette.web.models import ConfigSchemaResponse
 
 if TYPE_CHECKING:
     from hassette import Hassette

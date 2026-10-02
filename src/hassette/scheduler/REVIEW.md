@@ -4,9 +4,10 @@
 Bus and scheduler both use `if_exists` collision policies (`error`/`skip`/
 `replace`). Does `Job.matches()` in `src/hassette/scheduler/classes.py` cover
 every logical constructor/options field for jobs (trigger, group, jitter, args,
-predicate), and does it stay aligned with `Job.diff_fields()`? Likewise, does
-`Listener.config_matches()` in `src/hassette/bus/listeners.py` cover its own
-set and stay aligned with its `diff_fields()`?
+predicate), and does it stay aligned with `Job.diff_fields()`? On the bus side
+both methods derive from `_CONFIG_MATCH_FIELDS` in
+`src/hassette/bus/listeners.py` — does that table list every logical listener
+option, or was a new option added without an entry?
 
 ## EntityTime Registration-to-Listener Gap
 `_add_job_and_watch_entity()` in `src/hassette/scheduler/scheduler.py` registers

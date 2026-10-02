@@ -156,7 +156,7 @@ A dict passed to `where=` matches keys and values in the service data.
 
 ### `P.ServiceDataWhere`
 
-`P.ServiceDataWhere` provides structured access to service data fields. Two forms: the dict form (`P.ServiceDataWhere({"entity_id": "scene.evening"})`) does literal key matching; `P.ServiceDataWhere.from_kwargs` accepts callables and conditions per field.
+`P.ServiceDataWhere` provides structured access to service data fields. Each field takes a literal, a glob string, a callable, or a condition. Pass the fields as a dict (`P.ServiceDataWhere({"entity_id": "scene.evening"})`) or, when every key is a valid Python identifier, as keyword arguments with `P.ServiceDataWhere.from_kwargs(entity_id="scene.evening")`. The two forms behave identically.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/filtering_service_predicates.py"

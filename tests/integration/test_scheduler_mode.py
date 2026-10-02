@@ -26,9 +26,10 @@ import contextlib
 import unittest.mock
 
 import pytest
+from hassette_wire import ExecutionMode
 from whenever import ZonedDateTime
 
-import hassette.core.scheduler_service as scheduler_service_module
+import hassette.core.scheduler_dispatch as scheduler_dispatch_module
 import hassette.utils.date_utils as date_utils
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
@@ -36,7 +37,6 @@ from hassette.execution_mode import ExecutionModeGuard
 from hassette.scheduler import Job, ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
 from hassette.testing import AppTestHarness
-from hassette.types.enums import ExecutionMode
 from tests.support.helpers import noop
 
 # App for one-shot mode tests: verifies mode= is accepted and fires exactly once
@@ -969,7 +969,7 @@ async def test_stall_watchdog_emits_warning_for_non_parallel() -> None:
         # watchdog called warn_stalled_job. A deleted call_later registration would pass the
         # weaker check but fail this spy assertion.
         with (
-            unittest.mock.patch.object(scheduler_service_module, "STALL_THRESHOLD_SECONDS", 0.05),
+            unittest.mock.patch.object(scheduler_dispatch_module, "STALL_THRESHOLD_SECONDS", 0.05),
             unittest.mock.patch.object(scheduler_service, "warn_stalled_job") as mock_warn,
         ):
             harness.freeze_time(job.next_run.add(seconds=1))
@@ -1010,7 +1010,7 @@ async def test_parallel_mode_has_no_stall_watchdog() -> None:
         # Parallel runs inline (no stall watch installed). Spy on warn_stalled_job to assert
         # it is never called even when the invocation outlasts the patched threshold.
         with (
-            unittest.mock.patch.object(scheduler_service_module, "STALL_THRESHOLD_SECONDS", 0.05),
+            unittest.mock.patch.object(scheduler_dispatch_module, "STALL_THRESHOLD_SECONDS", 0.05),
             unittest.mock.patch.object(scheduler_service, "warn_stalled_job") as mock_warn,
         ):
             harness.freeze_time(job.next_run.add(seconds=1))

@@ -8,10 +8,11 @@ the write queue, while app-tier records always pass through.
 
 from unittest.mock import patch
 
+from hassette_wire import ExecutionStatus
+
 from hassette.config.models import DatabaseConfig
 from hassette.core.execution_pipeline import enqueue_record, should_persist_framework_record
 from hassette.core.execution_record import ExecutionRecord
-from hassette.types.types import ExecutionStatus
 
 from .conftest import init_executor, make_invocation
 

@@ -17,7 +17,7 @@ The event bus delivers Home Assistant events (state changes, service calls, comp
 
 [`D`](dependency-injection.md) is `hassette.event_handling.dependencies`, a module of type annotations that tell Hassette what to extract from each event. [`states`][hassette.models.states] is `hassette.models.states`, typed state classes for each Home Assistant domain. `D.StateNew[states.BinarySensorState]` extracts the new state and passes it as a typed [`BinarySensorState`][hassette.models.states.binary_sensor.BinarySensorState]. The handler receives clean, typed data instead of a raw event dictionary. [Dependency Injection](dependency-injection.md) covers the full annotation reference.
 
-`name=` is required on every subscription — it identifies the listener in logs and the monitoring UI. Omitting it raises `ListenerNameRequiredError` at call time.
+`name=` is required on every subscription — it identifies the listener in logs and the monitoring UI. Omitting it raises `TypeError`; passing an empty string raises `ListenerNameRequiredError` at call time.
 
 [Subscription Methods](methods.md) covers each method, its parameters, and compatible DI annotations.
 

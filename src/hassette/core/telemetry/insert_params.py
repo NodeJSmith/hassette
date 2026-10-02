@@ -4,10 +4,11 @@ import sqlite3
 from logging import Logger
 from typing import TYPE_CHECKING, Any
 
+from hassette_wire import ExecutionStatus
+
 from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.types.types import ExecutionStatus
 
 if TYPE_CHECKING:
     import aiosqlite
