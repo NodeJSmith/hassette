@@ -127,8 +127,11 @@ class PendingResponses:
                 code,
             )
 
-    def fail_all(self) -> None:
+    def fail_all(self, close_code: int | None = None) -> None:
         """Fail every awaited future with RetryableConnectionClosedError and clear the table.
+
+        ``close_code`` is the dropped socket's close code, carried onto each failure so the caller's
+        ``ResponseLostError`` reports why the connection closed.
 
         Suppresses exceptions from ``set_exception`` so this never blocks the caller's own
         cleanup, whether that caller is a reconnect-time partial cleanup or a full teardown.
@@ -138,5 +141,7 @@ class PendingResponses:
             # unretrieved exception behind.
             if entry.timed_out_command is None and not entry.future.done():
                 with suppress(Exception):
-                    entry.future.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
+                    entry.future.set_exception(
+                        RetryableConnectionClosedError("WebSocket disconnected", close_code=close_code)
+                    )
         self.entries.clear()

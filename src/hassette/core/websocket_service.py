@@ -498,6 +498,8 @@ class WebsocketService(Service):
         Does NOT close self._session — that is owned by serve()'s async with block.
         Suppresses all exceptions so cleanup never prevents retry.
         """
+        # Read before close() below, which would otherwise stamp our own close code on the socket.
+        close_code = self._ws.close_code if self._ws is not None else None
         self._send_ready_event.clear()
 
         if self._recv_task is not None:
@@ -512,7 +514,7 @@ class WebsocketService(Service):
             with suppress(Exception):
                 await self._ws.close()
 
-        self._pending.fail_all()
+        self._pending.fail_all(close_code)
         self._subscription_ids.clear()
         self._ws = None
         self._recv_task = None
@@ -641,8 +643,9 @@ class WebsocketService(Service):
         """Cleanup resources after the WebSocket connection is closed."""
         self.set_connection_state(ConnectionState.DISCONNECTED)
 
-        # Set exceptions for all pending response futures
-        self._pending.fail_all()
+        # Set exceptions for all pending response futures. The socket isn't closed yet, so its
+        # close code is still the peer's (or None if it's open).
+        self._pending.fail_all(self._ws.close_code if self._ws is not None else None)
 
         # Try to unsubscribe (best-effort; ignore errors if socket is going away). This must run
         # before the send-ready gate closes below — send_json() raises immediately once the gate
