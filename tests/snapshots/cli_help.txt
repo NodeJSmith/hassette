@@ -5,6 +5,7 @@ Hassette — async-first Home Assistant automation framework.
 
 ╭─ Commands ───────────────────────────────────────────────────────────────────────────────────────╮
 │ app                    List and inspect apps.                                                    │
+│ blocking               Show blocking-IO findings: calls that stalled the event loop.             │
 │ config                 Show current configuration.                                               │
 │ dashboard              Show app dashboard grid.                                                  │
 │ execution              Show logs for a specific execution.                                       │
@@ -197,6 +198,29 @@ Stop an app or app instance (POST /api/apps/{key}/stop).
 │ *  KEY --key            [required]                                                               │
 │    INSTANCE --instance  Targets a specific app instance (index or name).                         │
 │    YES --yes            Skip the confirmation prompt. [default: False]                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-file -c              Path to the TOML configuration file.                               │
+│ --env-file --env -e           Path to the .env file.                                             │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette blocking --help
+Usage: hassette blocking [OPTIONS] [ARGS]
+
+Show blocking-IO findings: calls that stalled the event loop.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ APP --app            Filter by app key.                                                          │
+│ INSTANCE --instance  Filter by app instance (integer index or instance name). Requires --app.    │
+│ SINCE --since        Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute         │
+│                      (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use local    │
+│                      time.                                                                       │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-file -c              Path to the TOML configuration file.                               │
