@@ -20,6 +20,12 @@ the file, whose ref is not a full commit SHA: merging deletes the PR branch, so 
 branch-scoped link 404s afterward. Matching the prefix only means the check never has
 to find where a URL ends. Paths (b) and (c) don't depend on body links.
 
+The rejection catches accidental branch links, from the autofix PR-body generator or a pasted
+URL, in the forms that actually occur: ``https://`` links, protocol-relative links, and explicit
+ports, in Markdown or ``<img>``. It is not a defense against deliberate evasion, so rarer URL
+syntax (userinfo, percent-encoded hosts, redirects, and the like) is out of scope. Don't grow
+the pattern for it.
+
 It runs only on ``pull_request`` events — it needs PR metadata — and no-ops
 elsewhere. ``evaluate`` is the pure decision core; ``fetch_pr_metadata`` reads metadata via
 the GitHub CLI so the logic can be tested with synthetic inputs.
