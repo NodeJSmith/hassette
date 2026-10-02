@@ -14,11 +14,11 @@ def _assert_reconcile_identifiers(table: str, history_fk: str) -> None:
         raise ValueError(f"Refusing to build SQL for unknown identifiers: table={table!r}, history_fk={history_fk!r}")
 
 
-def _instance_index_clause(instance_index: int | None) -> tuple[str, dict]:
+def instance_index_clause(instance_index: int | None) -> tuple[str, dict]:
     """Build the ``AND instance_index = :instance_index`` WHERE fragment and its bind param.
 
     Single-sources the instance-scoping fragment so every reconciliation SQL path (the
-    ``_build_delete_query``/``_build_retire_query`` builders and the hand-written ``once=True``
+    ``build_delete_query``/``build_retire_query`` builders and the hand-written ``once=True``
     cleanup block) applies the same clause instead of five independent, driftable copies.
 
     Args:
@@ -32,7 +32,25 @@ def _instance_index_clause(instance_index: int | None) -> tuple[str, dict]:
     return " AND instance_index = :instance_index", {"instance_index": instance_index}
 
 
-def _build_delete_query(
+def not_in_clause(live_ids: list[int]) -> tuple[str, dict]:
+    """Build the ``AND id NOT IN (...)`` WHERE fragment and its bind params.
+
+    Single-sources the live-ID exclusion fragment shared by ``build_delete_query``,
+    ``build_retire_query``, and the hand-written ``once=True`` cleanup block.
+
+    Args:
+        live_ids: IDs to exclude, bound as ``:id_0``, ``:id_1``, ...
+
+    Returns:
+        A ``(clause, params)`` tuple. Both are empty when ``live_ids`` is empty.
+    """
+    if not live_ids:
+        return "", {}
+    placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
+    return f"AND id NOT IN ({placeholders})", {f"id_{i}": v for i, v in enumerate(live_ids)}
+
+
+def build_delete_query(
     table: str,
     app_key: str,
     live_ids: list[int],
@@ -56,20 +74,16 @@ def _build_delete_query(
     """
     _assert_reconcile_identifiers(table, history_fk)
     params: dict[str, Any] = {"app_key": app_key}
-    if live_ids:
-        placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
-        params.update({f"id_{i}": v for i, v in enumerate(live_ids)})
-        not_in_clause = f"AND id NOT IN ({placeholders})"
-    else:
-        not_in_clause = ""
+    live_ids_clause, live_ids_params = not_in_clause(live_ids)
+    params.update(live_ids_params)
 
-    instance_clause, instance_params = _instance_index_clause(instance_index)
+    instance_clause, instance_params = instance_index_clause(instance_index)
     params.update(instance_params)
 
     sql = f"""
         DELETE FROM {table}
         WHERE app_key = :app_key{extra_where}{instance_clause}
-          {not_in_clause}
+          {live_ids_clause}
           AND NOT EXISTS (
               SELECT 1 FROM executions WHERE {history_fk} = {table}.id
           )
@@ -77,7 +91,7 @@ def _build_delete_query(
     return sql, params
 
 
-def _build_retire_query(
+def build_retire_query(
     table: str,
     app_key: str,
     live_ids: list[int],
@@ -103,20 +117,16 @@ def _build_retire_query(
     """
     _assert_reconcile_identifiers(table, history_fk)
     params: dict[str, Any] = {"app_key": app_key, "now": now}
-    if live_ids:
-        placeholders = ", ".join(f":id_{i}" for i in range(len(live_ids)))
-        params.update({f"id_{i}": v for i, v in enumerate(live_ids)})
-        not_in_clause = f"AND id NOT IN ({placeholders})"
-    else:
-        not_in_clause = ""
+    live_ids_clause, live_ids_params = not_in_clause(live_ids)
+    params.update(live_ids_params)
 
-    instance_clause, instance_params = _instance_index_clause(instance_index)
+    instance_clause, instance_params = instance_index_clause(instance_index)
     params.update(instance_params)
 
     sql = f"""
         UPDATE {table} SET retired_at = :now
         WHERE app_key = :app_key{extra_where}{instance_clause}
-          {not_in_clause}
+          {live_ids_clause}
           AND retired_at IS NULL
           AND EXISTS (
               SELECT 1 FROM executions WHERE {history_fk} = {table}.id

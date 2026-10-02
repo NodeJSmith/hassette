@@ -2,8 +2,8 @@
 
 Kept as a single file rather than split by concern: no shorter filename covers all three areas, and
 splitting would trade one imperfect file name for two or three others sharing the same fixtures and
-setup. A reader who searches for `persist_execution_batch`, `_build_delete_query`,
-or `_build_retire_query` and doesn't find them by name should check this file next.
+setup. A reader who searches for `persist_execution_batch`, `build_delete_query`,
+or `build_retire_query` and doesn't find them by name should check this file next.
 """
 
 import time
@@ -12,7 +12,7 @@ import aiosqlite
 import pytest
 
 from hassette.core.execution_record import ExecutionRecord
-from hassette.core.telemetry.reconcile_sql import _build_delete_query, _build_retire_query
+from hassette.core.telemetry.reconcile_sql import build_delete_query, build_retire_query
 from hassette.core.telemetry.repository import TelemetryRepository
 from tests.support.factories import (
     DEFAULT_TEST_APP_KEY,
@@ -202,8 +202,8 @@ async def test_active_views_exist(telemetry_db: aiosqlite.Connection) -> None:
 
 @pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
 def test_build_delete_query_includes_instance_index_clause(table: str, history_fk: str) -> None:
-    """_build_delete_query() with instance_index adds the AND instance_index clause and bind param."""
-    sql, params = _build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, instance_index=2)
+    """build_delete_query() with instance_index adds the AND instance_index clause and bind param."""
+    sql, params = build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, instance_index=2)
 
     assert "AND instance_index = :instance_index" in sql
     assert params["instance_index"] == 2
@@ -211,8 +211,8 @@ def test_build_delete_query_includes_instance_index_clause(table: str, history_f
 
 @pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
 def test_build_delete_query_omits_instance_index_clause_when_none(table: str, history_fk: str) -> None:
-    """_build_delete_query() with instance_index=None (default) adds no clause — backward compatible."""
-    sql, params = _build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk)
+    """build_delete_query() with instance_index=None (default) adds no clause — backward compatible."""
+    sql, params = build_delete_query(table, DEFAULT_TEST_APP_KEY, [], history_fk)
 
     assert "instance_index" not in sql
     assert "instance_index" not in params
@@ -220,8 +220,8 @@ def test_build_delete_query_omits_instance_index_clause_when_none(table: str, hi
 
 @pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
 def test_build_retire_query_includes_instance_index_clause(table: str, history_fk: str) -> None:
-    """_build_retire_query() with instance_index adds the AND instance_index clause and bind param."""
-    sql, params = _build_retire_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time(), instance_index=3)
+    """build_retire_query() with instance_index adds the AND instance_index clause and bind param."""
+    sql, params = build_retire_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time(), instance_index=3)
 
     assert "AND instance_index = :instance_index" in sql
     assert params["instance_index"] == 3
@@ -229,8 +229,8 @@ def test_build_retire_query_includes_instance_index_clause(table: str, history_f
 
 @pytest.mark.parametrize(("table", "history_fk"), [("listeners", "listener_id"), ("scheduled_jobs", "job_id")])
 def test_build_retire_query_omits_instance_index_clause_when_none(table: str, history_fk: str) -> None:
-    """_build_retire_query() with instance_index=None (default) adds no clause — backward compatible."""
-    sql, params = _build_retire_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time())
+    """build_retire_query() with instance_index=None (default) adds no clause — backward compatible."""
+    sql, params = build_retire_query(table, DEFAULT_TEST_APP_KEY, [], history_fk, time.time())
 
     assert "instance_index" not in sql
     assert "instance_index" not in params

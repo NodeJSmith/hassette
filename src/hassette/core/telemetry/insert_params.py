@@ -63,7 +63,7 @@ _EXECUTION_INSERT_COLUMNS = tuple(
     )
 )
 
-_EXECUTION_INSERT_SQL = (
+EXECUTION_INSERT_SQL = (
     f"INSERT INTO executions ({', '.join(_EXECUTION_INSERT_COLUMNS)}) "
     f"VALUES ({', '.join(f':{c}' for c in _EXECUTION_INSERT_COLUMNS)})"
 )
@@ -172,7 +172,7 @@ def manifest_insert_params(manifest: AppManifest) -> dict[str, Any]:
     # dup-ignore-end
 
 
-async def _insert_row_with_fk_fallback(
+async def insert_row_with_fk_fallback(
     db: "aiosqlite.Connection",
     record_params: dict,
     fk_field: str,
@@ -190,7 +190,7 @@ async def _insert_row_with_fk_fallback(
         True if the row was dropped (failed even after nulling FK), False on success.
     """
     try:
-        await db.execute(_EXECUTION_INSERT_SQL, record_params)
+        await db.execute(EXECUTION_INSERT_SQL, record_params)
         return False
     except sqlite3.IntegrityError as exc:
         if not _is_fk_violation(exc):
@@ -208,7 +208,7 @@ async def _insert_row_with_fk_fallback(
         )
         nulled_params = {**record_params, fk_field: None}
         try:
-            await db.execute(_EXECUTION_INSERT_SQL, nulled_params)
+            await db.execute(EXECUTION_INSERT_SQL, nulled_params)
             return False
         except sqlite3.IntegrityError as retry_exc:
             logger.error(

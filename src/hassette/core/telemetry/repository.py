@@ -8,14 +8,19 @@ from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
 from hassette.core.telemetry.insert_params import (
-    _EXECUTION_INSERT_SQL,
-    _insert_row_with_fk_fallback,
+    EXECUTION_INSERT_SQL,
     execution_insert_params,
+    insert_row_with_fk_fallback,
     job_insert_params,
     listener_insert_params,
     manifest_insert_params,
 )
-from hassette.core.telemetry.reconcile_sql import _build_delete_query, _build_retire_query, _instance_index_clause
+from hassette.core.telemetry.reconcile_sql import (
+    build_delete_query,
+    build_retire_query,
+    instance_index_clause,
+    not_in_clause,
+)
 from hassette.schemas.log_models import BlockingEvent
 from hassette.types.types import is_framework_key
 
@@ -317,7 +322,7 @@ class TelemetryRepository:
             # rollback() in the except clause is a no-op.
             await db.execute("BEGIN")
 
-            sql, params = _build_delete_query(
+            sql, params = build_delete_query(
                 "listeners",
                 app_key,
                 live_listener_ids,
@@ -327,7 +332,7 @@ class TelemetryRepository:
             )
             await db.execute(sql, params)
 
-            sql, params = _build_retire_query(
+            sql, params = build_retire_query(
                 "listeners",
                 app_key,
                 live_listener_ids,
@@ -340,20 +345,16 @@ class TelemetryRepository:
 
             if session_id is not None:
                 params_once: dict = {"app_key": app_key, "source_tier": "app", "session_id": session_id}
-                if live_listener_ids:
-                    placeholders = ", ".join(f":id_{i}" for i in range(len(live_listener_ids)))
-                    params_once.update({f"id_{i}": v for i, v in enumerate(live_listener_ids)})
-                    not_in_clause = f"AND id NOT IN ({placeholders})"
-                else:
-                    not_in_clause = ""
-                instance_clause, instance_params = _instance_index_clause(instance_index)
+                live_ids_clause, live_ids_params = not_in_clause(live_listener_ids)
+                params_once.update(live_ids_params)
+                instance_clause, instance_params = instance_index_clause(instance_index)
                 params_once.update(instance_params)
                 await db.execute(
                     f"""
                     DELETE FROM listeners
                     WHERE app_key = :app_key AND once = 1
                       AND source_tier = :source_tier{instance_clause}
-                      {not_in_clause}
+                      {live_ids_clause}
                       AND NOT EXISTS (
                           SELECT 1 FROM executions
                           WHERE listener_id = listeners.id AND session_id = :session_id
@@ -371,7 +372,7 @@ class TelemetryRepository:
                     app_key,
                 )
 
-            sql, params = _build_delete_query(
+            sql, params = build_delete_query(
                 "scheduled_jobs",
                 app_key,
                 live_job_ids,
@@ -380,7 +381,7 @@ class TelemetryRepository:
             )
             await db.execute(sql, params)
 
-            sql, params = _build_retire_query(
+            sql, params = build_retire_query(
                 "scheduled_jobs",
                 app_key,
                 live_job_ids,
@@ -460,7 +461,7 @@ class TelemetryRepository:
         try:
             await db.execute("BEGIN")
             params_list = [execution_insert_params(r) for r in records]
-            await db.executemany(_EXECUTION_INSERT_SQL, params_list)
+            await db.executemany(EXECUTION_INSERT_SQL, params_list)
             await db.commit()
         except Exception:
             await db.rollback()
@@ -491,7 +492,7 @@ class TelemetryRepository:
             for record in records:
                 params = execution_insert_params(record)
                 fk_field = "listener_id" if record.kind == "handler" else "job_id"
-                if await _insert_row_with_fk_fallback(db, params, fk_field, LOGGER):
+                if await insert_row_with_fk_fallback(db, params, fk_field, LOGGER):
                     dropped += 1
 
             await db.commit()
