@@ -11,10 +11,8 @@ import pytest
 
 from tests.unit.conftest import make_api
 
-
-@pytest.fixture(autouse=True)
-def _drain(drain_forgotten_await_handles: None) -> None:
-    """Drain dropped handles after each test (shared fixture in tests/unit/conftest.py)."""
+# Drains dropped handles after each test — see tests/unit/conftest.py.
+pytestmark = pytest.mark.usefixtures("drain_forgotten_await_handles")
 
 
 async def test_fire_event_does_not_retry_on_timeout() -> None:
