@@ -4,10 +4,14 @@ Hassette reads `hassette.toml` from every one of these locations that exists, in
 2. `./hassette.toml` (current working directory)
 3. `./config/hassette.toml`
 
-`.env` files are read the same way:
+When more than one file exists, they merge and a later file replaces any top-level key or whole `[table]` it sets (tables are not merged key by key).
+
+Hassette checks the same three locations for `.env` files:
 
 1. `/config/.env`
 2. `./.env` (current working directory)
 3. `./config/.env`
 
-When more than one file exists, they merge and a later file replaces any top-level key or whole `[table]` it sets (tables are not merged key by key). `--config-file / -c` and `--env-file / -e` replace the search list with a single path.
+Settings resolution reads them in that order too, so a later `.env` file overrides a value an earlier one set. Separately, when `import_dot_env_files` is enabled (the default), every `.env` file that exists is also loaded into `os.environ` at startup — in no guaranteed order, and without overwriting a variable that's already set.
+
+`--config-file / -c` and `--env-file / -e` replace the search list with a single path.
