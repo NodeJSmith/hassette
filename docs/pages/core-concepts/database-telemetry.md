@@ -89,8 +89,8 @@ Three commands and their API equivalents cover telemetry and system health.
 
 | `status` body field | HTTP | Meaning |
 |---|---|---|
-| `ok` | 200 | WebSocket currently connected (per-service health is in the `services` field) |
-| `degraded` | 200 | Was connected at least once; currently disconnected (e.g. HA restarting) |
+| `ok` | 200 | WebSocket currently connected and app bootstrap released (per-service health is in the `services` field) |
+| `degraded` | 200 | Was connected at least once, but either currently disconnected (e.g. HA restarting) or connected with app bootstrap not yet released (e.g. waiting on the initial state snapshot). The `websocket_connected` and `bootstrap_released` fields tell the two apart |
 | `starting` | 200 | Has not finished the initial connection yet |
 
 A fatal crash (a PERMANENT service exhausting its restart budget, or a startup failure) records a `failure` status to the current telemetry session before Hassette exits with a non-zero exit code. A clean operator shutdown (SIGTERM / `docker stop`) exits 0.
