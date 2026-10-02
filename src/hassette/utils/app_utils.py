@@ -180,8 +180,8 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
 
     full_path = (Path(app_dict["app_dir"]) / app_dict["filename"]).resolve()
 
-    config = app_dict.get("config", [])
-    config = config if isinstance(config, list) else [config]
+    app_configs = app_dict.get("config", [])
+    app_configs = app_configs if isinstance(app_configs, list) else [app_configs]
 
     clean_app_dict = AppDict(
         app_key=app_key,
@@ -190,7 +190,7 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
         app_dir=Path(app_dict["app_dir"]),
         enabled=app_dict.get("enabled", True),
         autostart=app_dict.get("autostart", True),
-        config=config,
+        config=app_configs,
         auto_loaded=app_dict.get("auto_loaded", False),
         full_path=full_path,
         cache_key=app_dict.get("cache_key", ""),
