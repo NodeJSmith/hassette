@@ -36,6 +36,7 @@ from hassette.core.block_io_guard import (
 from hassette.core.command_executor import ExecutionMarker
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
+from tests.support.mock_hassette import make_mock_hassette
 
 from .conftest import make_blocking_io_hassette, make_marker_executor
 
@@ -115,15 +116,20 @@ class TestEnablementMatrix:
     def test_enablement(
         self, dev_mode: bool, deep_detection_enabled: bool | None, allow_in_prod: bool, expected: bool
     ) -> None:
-        """Full dev/prod x deep_detection_enabled x allow_deep_detection_in_prod matrix."""
-        run_install(
-            make_blocking_io_hassette(
-                dev_mode=dev_mode,
-                deep_detection_enabled=deep_detection_enabled,
-                allow_deep_detection_in_prod=allow_in_prod,
-            ),
-            expect_installed=expected,
+        """Full dev/prod x deep_detection_enabled x allow_deep_detection_in_prod matrix.
+
+        Uses a real, validated ``HassetteConfig`` so the matrix exercises the actual config
+        model's fields and defaults rather than a hand-built mock.
+        """
+        hassette = make_mock_hassette(
+            set_loop=False,
+            dev_mode=dev_mode,
+            blocking_io={
+                "deep_detection_enabled": deep_detection_enabled,
+                "allow_deep_detection_in_prod": allow_in_prod,
+            },
         )
+        run_install(hassette, expect_installed=expected)
 
 
 class TestIdempotencyAndLeak:
