@@ -498,7 +498,8 @@ class WebsocketService(Service):
         Does NOT close self._session — that is owned by serve()'s async with block.
         Suppresses all exceptions so cleanup never prevents retry.
         """
-        # Read before close() below, which would otherwise stamp our own close code on the socket.
+        # The code from a peer CLOSE frame or a detected abnormal closure (1006, e.g. heartbeat
+        # timeout). Read before close() below, which would stamp hassette's own code on an open socket.
         close_code = self._ws.close_code if self._ws is not None else None
         self._send_ready_event.clear()
 
@@ -643,8 +644,8 @@ class WebsocketService(Service):
         """Cleanup resources after the WebSocket connection is closed."""
         self.set_connection_state(ConnectionState.DISCONNECTED)
 
-        # Set exceptions for all pending response futures. The socket isn't closed yet, so its
-        # close code is still the peer's (or None if it's open).
+        # Set exceptions for all pending response futures, before the close() below can replace
+        # the socket's close code (peer CLOSE frame or detected abnormal closure) with our own.
         self._pending.fail_all(self._ws.close_code if self._ws is not None else None)
 
         # Try to unsubscribe (best-effort; ignore errors if socket is going away). This must run

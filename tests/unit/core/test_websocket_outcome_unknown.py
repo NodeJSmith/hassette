@@ -28,6 +28,12 @@ from hassette.testing._ws_mocks import build_fake_ws
 
 from .conftest import cleanup_disconnected, run_cleanup
 
+# Both paths that fail pending sends when a connection goes away: reconnect and full shutdown.
+TEARDOWNS = [
+    pytest.param(lambda ws: ws.partial_cleanup(), id="reconnect"),
+    pytest.param(run_cleanup, id="shutdown"),
+]
+
 
 def _rendered(call) -> str:
     """The message a mocked logger call would have produced (%-style args applied)."""
@@ -145,13 +151,7 @@ class TestResponseLost:
         assert exc.close_code == 1006
         assert "get_states" in str(exc)
 
-    @pytest.mark.parametrize(
-        "teardown",
-        [
-            pytest.param(lambda ws: ws.partial_cleanup(), id="reconnect"),
-            pytest.param(run_cleanup, id="shutdown"),
-        ],
-    )
+    @pytest.mark.parametrize("teardown", TEARDOWNS)
     async def test_teardown_fails_pending_send_with_peer_close_code(
         self, websocket_service: WebsocketService, teardown
     ) -> None:
@@ -172,6 +172,36 @@ class TestResponseLost:
         with pytest.raises(ResponseLostError) as exc_info:
             await task
         assert exc_info.value.close_code == 4001
+
+    @pytest.mark.parametrize("teardown", TEARDOWNS)
+    async def test_teardown_does_not_report_its_own_close_code(
+        self, websocket_service: WebsocketService, teardown
+    ) -> None:
+        """Closing a still-open socket stamps hassette's own code, which must not be reported as the drop's cause."""
+        sent = asyncio.Event()
+        websocket_service.send_json = AsyncMock(side_effect=lambda **_: sent.set())
+        fake_ws = build_fake_ws(is_closed=False)
+
+        async def close_with_own_code(**_) -> None:
+            fake_ws.closed = True
+            fake_ws.close_code = 1000
+
+        fake_ws.close = AsyncMock(side_effect=close_with_own_code)
+        websocket_service._ws = fake_ws
+        websocket_service._session = None
+        websocket_service._recv_task = None
+
+        task = asyncio.create_task(
+            websocket_service.send_and_wait(type="call_service", domain="counter", retry_on_timeout=False)
+        )
+        await asyncio.wait_for(sent.wait(), timeout=1)
+
+        await teardown(websocket_service)
+
+        fake_ws.close.assert_awaited_once()
+        with pytest.raises(ResponseLostError) as exc_info:
+            await task
+        assert exc_info.value.close_code is None
 
     async def test_disconnect_logs_warning_when_raised(self, websocket_service: WebsocketService) -> None:
         _drop_connection(websocket_service)
