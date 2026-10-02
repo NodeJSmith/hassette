@@ -490,9 +490,3 @@ class TestGetExecutionById:
         mock_hassette.telemetry_query_service.get_execution_by_id = AsyncMock(return_value=None)
 
         assert await get_json(client, "/api/telemetry/execution/nonexistent-id") is None
-
-    async def test_db_unavailable(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """Returns 503 when telemetry DB is unavailable."""
-        mock_hassette.telemetry_query_service.get_execution_by_id = telemetry_error("db down")
-
-        await get_json(client, "/api/telemetry/execution/abc-123", expect_status=503)

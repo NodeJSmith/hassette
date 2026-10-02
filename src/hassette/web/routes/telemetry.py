@@ -214,8 +214,9 @@ async def app_jobs(
 
     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
-    ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
-    functional; logged warning, no 500).
+    ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
+    and a warning is logged. If the telemetry DB can't be read, the route answers
+    ``telemetry_unavailable``.
     """
     db_jobs = list(await telemetry.get_job_summary(app_key=app_key, **filters.query_kwargs))
     return await enrich_jobs_with_live_data(db_jobs, scheduler_service)

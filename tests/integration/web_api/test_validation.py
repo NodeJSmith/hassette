@@ -10,8 +10,8 @@ from .conftest import APP_GRID_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
 
-# Each entry is a storage failure a route must degrade rather than 500 on. The message differs
-# only to document which underlying error the service wrapped before raising.
+# Each entry is a storage failure an optional enrichment query must absorb, keeping the response
+# at 200. The message differs only to document which underlying error the service wrapped.
 WRAPPED_STORAGE_ERRORS = [
     pytest.param("database is locked", id="sqlite-error"),
     pytest.param("disk I/O error", id="oserror"),

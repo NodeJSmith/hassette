@@ -1771,7 +1771,7 @@
           "telemetry"
         ],
         "summary": "App Jobs",
-        "description": "Job summaries for a single app instance, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. On registry failure the DB rows are returned without enrichment (degraded but\nfunctional; logged warning, no 500).",
+        "description": "Job summaries for a single app instance, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. If the live registry can't be read, the DB rows are returned without enrichment\nand a warning is logged. If the telemetry DB can't be read, the route answers\n``telemetry_unavailable``.",
         "operationId": "app_jobs_api_telemetry_app__app_key__jobs_get",
         "parameters": [
           {
@@ -2282,7 +2282,7 @@
           "scheduler"
         ],
         "summary": "All Jobs",
-        "description": "All scheduled jobs across all apps, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. On registry failure the DB rows are returned without enrichment (degraded but\nfunctional; logged warning, no 500).\n\nThe registry snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
+        "description": "All scheduled jobs across all apps, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. If the live registry can't be read, the DB rows are returned without enrichment\nand a warning is logged. If the telemetry DB can't be read, the route answers\n``telemetry_unavailable``.\n\nThe registry snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
         "operationId": "all_jobs_api_scheduler_jobs_get",
         "parameters": [
           {

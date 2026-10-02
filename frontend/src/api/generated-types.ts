@@ -520,8 +520,9 @@ export interface paths {
          *
          *     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
          *     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
-         *     ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
-         *     functional; logged warning, no 500).
+         *     ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
+         *     and a warning is logged. If the telemetry DB can't be read, the route answers
+         *     ``telemetry_unavailable``.
          */
         get: operations["app_jobs_api_telemetry_app__app_key__jobs_get"];
         put?: never;
@@ -657,8 +658,9 @@ export interface paths {
          *
          *     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
          *     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
-         *     ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
-         *     functional; logged warning, no 500).
+         *     ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
+         *     and a warning is logged. If the telemetry DB can't be read, the route answers
+         *     ``telemetry_unavailable``.
          *
          *     The registry snapshot is taken once — not per app — to avoid fan-out overhead.
          */
