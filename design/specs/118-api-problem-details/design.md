@@ -1,7 +1,7 @@
 # Design: RFC 9457 problem details for every web API error response
 
 **Date:** 2026-10-02
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 
 ## Summary
@@ -347,7 +347,7 @@ Behavior and wording:
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 

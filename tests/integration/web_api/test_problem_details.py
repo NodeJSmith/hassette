@@ -8,6 +8,7 @@ validation, unhandled errors) are documented once in the error catalog instead, 
 looked up per operation.
 """
 
+import logging
 from collections.abc import AsyncIterator, Callable
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
@@ -431,6 +432,8 @@ ROUTE_CASES = {
         "validation_failed",
         "Validation failed: query.limit: Input should be greater than or equal to 1",
     ),
+    # The body must stay under MAX_REQUEST_BODY_BYTES (web/body_limit.py), or the body-limit
+    # middleware answers 413 before field validation runs.
     "fastapi-oversized-field": ProblemCase(
         "POST",
         "/api/auth/session",
@@ -438,6 +441,14 @@ ROUTE_CASES = {
         "validation_failed",
         f"Validation failed: body.token: String should have at most {MAX_SESSION_TOKEN_LENGTH} characters",
         request={"json": {"token": TOKEN_SENTINEL * (MAX_SESSION_TOKEN_LENGTH // len(TOKEN_SENTINEL) + 1)}},
+    ),
+    "fastapi-malformed-json": ProblemCase(
+        "PUT",
+        "/api/logs/level",
+        422,
+        "validation_failed",
+        "Validation failed: body.21: JSON decode error",
+        request={"content": b'{"logger": "hassette"', "headers": {"content-type": "application/json"}},
     ),
     "fastapi-undecodable-body": ProblemCase(
         "PUT",
@@ -516,17 +527,34 @@ class TestRoutingErrors:
 
 
 class TestServerErrors:
-    async def test_unhandled_exception_is_internal_error(self, app: FastAPI) -> None:
+    async def test_unhandled_exception_is_internal_error(
+        self, app: FastAPI, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The client gets a constant body; the traceback and request go to hassette's own log.
+
+        Asserts on a captured log record on purpose, an exception to the no-caplog rule in
+        `tests/TESTING.md`: this log record is the documented behavior (D7, and the API error
+        catalog promises it to operators), since uvicorn's own copy never reaches hassette's log.
+        """
+        # Another test may have turned propagation off; caplog only sees propagated records.
+        monkeypatch.setattr(logging.getLogger("hassette"), "propagate", True)
+
         def broken_dependency() -> None:
             raise RuntimeError("secret internals")
 
         app.dependency_overrides[get_runtime] = broken_dependency
         transport = ASGITransport(app=app, raise_app_exceptions=False)
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
-            response = await ac.get("/api/apps")
+        with caplog.at_level(logging.ERROR, logger="hassette.web.errors"):
+            async with AsyncClient(transport=transport, base_url="http://test") as ac:
+                response = await ac.get("/api/apps")
 
         assert_problem(response, status=500, code="internal_error", detail="Internal Server Error")
         assert "secret internals" not in response.text
+        [record] = [r for r in caplog.records if r.name == "hassette.web.errors"]
+        assert record.levelno == logging.ERROR
+        assert record.getMessage() == "Unhandled exception on GET /api/apps"
+        assert record.exc_info is not None
+        assert str(record.exc_info[1]) == "secret internals"
 
     async def test_degraded_payload_stays_a_success_body(self, client: AsyncClient, mock_hassette: MagicMock) -> None:
         """A `db_degrades_to` 503 is data, not an error: unchanged body and content type (D13)."""
