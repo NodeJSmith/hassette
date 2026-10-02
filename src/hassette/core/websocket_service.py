@@ -710,7 +710,7 @@ class WebsocketService(Service):
         """
         caller_id = data.pop("id", None)
         command_type = str(data.get("type"))
-        msg_id: int | None = None  # set by each attempt; read after the last one raises
+        last_attempt_id: int | None = None  # read after the last attempt raises
 
         @retry(
             retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
@@ -720,13 +720,13 @@ class WebsocketService(Service):
             reraise=True,
         )
         async def send_with_retry() -> dict[str, Any]:
-            nonlocal caller_id, msg_id
+            nonlocal caller_id, last_attempt_id
             if caller_id is not None:
                 attempt_id = caller_id
                 caller_id = None
             else:
                 attempt_id = self.get_next_message_id()
-            data["id"] = msg_id = attempt_id
+            data["id"] = last_attempt_id = attempt_id
 
             try:
                 return await self.send_and_await_response(data, attempt_id)
@@ -749,10 +749,8 @@ class WebsocketService(Service):
             return await send_with_retry()
         except OutcomeUnknownError as exc:
             self.logger.warning("%s", exc)
-            if isinstance(exc, ResponseTimeoutError) and not retry_on_timeout and msg_id is not None:
-                self._timed_out_writes[msg_id] = command_type
-                if len(self._timed_out_writes) > TIMED_OUT_WRITE_RECORD_CAP:
-                    self._timed_out_writes.popitem(last=False)
+            if isinstance(exc, ResponseTimeoutError) and not retry_on_timeout and last_attempt_id is not None:
+                self._record_timed_out_write(last_attempt_id, command_type)
             raise
 
     def respond_if_necessary(self, message: dict) -> None:
@@ -787,6 +785,12 @@ class WebsocketService(Service):
                     error_envelope,
                 )
             fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
+
+    def _record_timed_out_write(self, msg_id: int, command_type: str) -> None:
+        """Remember a timed-out non-retried send so a late reply can settle whether it applied."""
+        self._timed_out_writes[msg_id] = command_type
+        if len(self._timed_out_writes) > TIMED_OUT_WRITE_RECORD_CAP:
+            self._timed_out_writes.popitem(last=False)
 
     def _settle_timed_out_write(self, msg_id: int, message: dict) -> None:
         """Log a late reply to a timed-out non-retried send, which settles whether it applied."""

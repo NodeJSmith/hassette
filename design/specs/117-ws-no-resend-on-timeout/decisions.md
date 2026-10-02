@@ -79,9 +79,9 @@ Answers given one at a time. Each row's number refers to the table below. The "N
 - `ResponseTimeoutError.original_data` is a copy of the outgoing payload, including the `id` field `send_and_wait` assigned.
 - `ResponseTimeoutError` keeps the existing `from None`; `ResponseLostError` is chained `from` the `RetryableConnectionClosedError` it replaces.
 - The disconnect conversion catches any `RetryableConnectionClosedError` out of `send_and_await_response`; in practice only the cleanup-failed future raises it there.
-- Each attempt uses a local `attempt_id`, mirrored to an outer `msg_id: int | None` that the post-retry handler reads for the late-reply record.
+- Each attempt uses a local `attempt_id`, mirrored to an outer `last_attempt_id: int | None` that the post-retry handler reads for the late-reply record.
 - The #12a WARNING message is exactly the exception's `str`.
-- Names: `TIMED_OUT_WRITE_RECORD_CAP` (module constant in `websocket_service.py`), `_timed_out_writes`, `_settle_timed_out_write`.
+- Names: `TIMED_OUT_WRITE_RECORD_CAP` (module constant in `websocket_service.py`), `_timed_out_writes`, `_record_timed_out_write`, `_settle_timed_out_write`.
 - The late-reply lookup runs only when no response future exists for the id; a reply whose future is still pending or already done takes the existing paths.
 - The late-failure WARNING includes HA's error `code` but not its error `message`, since the message can echo payload values.
 - Late-reply log wording: INFO `Late reply to timed-out '<type>' (id N): it succeeded, so the command applied after the timeout`; WARNING `... it failed (code '<code>'), so the command did not apply`.

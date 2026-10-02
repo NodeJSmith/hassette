@@ -32,6 +32,17 @@ def _rendered(call) -> str:
     return msg % tuple(args)
 
 
+def _drop_connection(websocket_service: WebsocketService, *, close_code: int | None = None) -> None:
+    """Make every send fail its response future as cleanup() does on a disconnect."""
+
+    async def drop(**data):
+        websocket_service._response_futures[data["id"]].set_exception(
+            RetryableConnectionClosedError("WebSocket disconnected", close_code=close_code)
+        )
+
+    websocket_service.send_json = AsyncMock(side_effect=drop)
+
+
 def _time_out_immediately(websocket_service: WebsocketService) -> None:
     websocket_service.hassette.config.websocket.response_timeout_seconds = 0
     websocket_service.send_json = AsyncMock()
@@ -66,11 +77,15 @@ class TestResponseTimeout:
     ) -> None:
         """Reads keep retrying on timeout; the final attempt raises the same type as a write."""
         _time_out_immediately(websocket_service)
+        attempts = 2
 
-        with patch("hassette.core.websocket_service.MAX_RETRY_ATTEMPTS", 2), pytest.raises(ResponseTimeoutError):
+        with (
+            patch("hassette.core.websocket_service.MAX_RETRY_ATTEMPTS", attempts),
+            pytest.raises(ResponseTimeoutError),
+        ):
             await websocket_service.send_and_wait(type="get_states")
 
-        assert websocket_service.send_json.await_count == 2
+        assert websocket_service.send_json.await_count == attempts
 
     async def test_message_names_type_id_and_timeout_without_payload_values(
         self, websocket_service: WebsocketService
@@ -114,13 +129,7 @@ class TestResponseLost:
         self, websocket_service: WebsocketService
     ) -> None:
         """A disconnect while waiting is outcome-unknown and is not retried, even for a read."""
-
-        async def drop_connection(**data):
-            websocket_service._response_futures[data["id"]].set_exception(
-                RetryableConnectionClosedError("WebSocket disconnected", close_code=1006)
-            )
-
-        websocket_service.send_json = AsyncMock(side_effect=drop_connection)
+        _drop_connection(websocket_service, close_code=1006)
 
         with pytest.raises(ResponseLostError) as exc_info:
             await websocket_service.send_and_wait(type="get_states")
@@ -153,12 +162,7 @@ class TestResponseLost:
             await task
 
     async def test_disconnect_logs_warning_when_raised(self, websocket_service: WebsocketService) -> None:
-        async def drop_connection(**data):
-            websocket_service._response_futures[data["id"]].set_exception(
-                RetryableConnectionClosedError("WebSocket disconnected")
-            )
-
-        websocket_service.send_json = AsyncMock(side_effect=drop_connection)
+        _drop_connection(websocket_service)
         websocket_service.logger = Mock()
 
         with pytest.raises(ResponseLostError):
@@ -207,8 +211,12 @@ class TestLateReplyToTimedOutWrite:
     async def test_retried_read_timeout_is_not_recorded(self, websocket_service: WebsocketService) -> None:
         """A late reply to a read settles nothing, so retried reads are never recorded."""
         _time_out_immediately(websocket_service)
+        single_attempt = 1  # the read goes through the retrying path, which still records nothing
 
-        with patch("hassette.core.websocket_service.MAX_RETRY_ATTEMPTS", 1), pytest.raises(ResponseTimeoutError):
+        with (
+            patch("hassette.core.websocket_service.MAX_RETRY_ATTEMPTS", single_attempt),
+            pytest.raises(ResponseTimeoutError),
+        ):
             await websocket_service.send_and_wait(type="get_states")
 
         assert len(websocket_service._timed_out_writes) == 0
@@ -249,7 +257,11 @@ class TestLateReplyToTimedOutWrite:
     async def test_cap_evicts_oldest_entry(self, websocket_service: WebsocketService) -> None:
         _time_out_immediately(websocket_service)
 
-        with patch.object(websocket_service_module, "TIMED_OUT_WRITE_RECORD_CAP", 2):
-            ids = [await _timed_out_write(websocket_service, type="fire_event", event_type=f"e{i}") for i in range(3)]
+        cap = 2
+
+        with patch.object(websocket_service_module, "TIMED_OUT_WRITE_RECORD_CAP", cap):
+            ids = [
+                await _timed_out_write(websocket_service, type="fire_event", event_type=f"e{i}") for i in range(cap + 1)
+            ]
 
         assert list(websocket_service._timed_out_writes) == ids[1:]
