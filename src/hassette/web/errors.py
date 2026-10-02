@@ -287,7 +287,7 @@ def rewrite_problem_openapi(document: Mapping[str, Any]) -> dict[str, Any]:
     are success models and must stay ``application/json``.
     """
     paths = {
-        path: {method: _rewrite_operation(operation) for method, operation in operations.items()}
+        path: {method: rewrite_operation(operation) for method, operation in operations.items()}
         for path, operations in document.get("paths", {}).items()
     }
     components = dict(document.get("components", {}))
@@ -300,16 +300,16 @@ def rewrite_problem_openapi(document: Mapping[str, Any]) -> dict[str, Any]:
     return {**document, "paths": paths, "components": components}
 
 
-def _rewrite_operation(operation: Any) -> Any:
+def rewrite_operation(operation: Any) -> Any:
     if not isinstance(operation, Mapping) or "responses" not in operation:
         return operation
-    responses = {status: _rewrite_response(response) for status, response in operation["responses"].items()}
+    responses = {status: rewrite_response(response) for status, response in operation["responses"].items()}
     return {**operation, "responses": responses}
 
 
-def _rewrite_response(response: Mapping[str, Any]) -> dict[str, Any]:
+def rewrite_response(response: Mapping[str, Any]) -> dict[str, Any]:
     content: Mapping[str, Any] = response.get("content", {})
-    refs = {_schema_ref(media) for media in content.values()}
+    refs = {schema_ref(media) for media in content.values()}
     if _VALIDATION_ERROR_REF in refs:
         problem_content = {PROBLEM_MEDIA_TYPE: {"schema": {"$ref": _PROBLEM_DETAIL_REF}}}
         return {**response, "content": problem_content}
@@ -319,5 +319,5 @@ def _rewrite_response(response: Mapping[str, Any]) -> dict[str, Any]:
     return dict(response)
 
 
-def _schema_ref(media: Mapping[str, Any]) -> str | None:
+def schema_ref(media: Mapping[str, Any]) -> str | None:
     return media.get("schema", {}).get("$ref")

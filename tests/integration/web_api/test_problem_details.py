@@ -27,7 +27,7 @@ from hassette.web.errors import GLOBAL_CODES, PROBLEM_CODES_KEY
 from tests.integration.conftest import make_manifest_mock
 from tests.support.web_manifest_helpers import make_app_instance_info
 
-from .conftest import telemetry_error
+from .conftest import AUTH_SESSION_PATH, telemetry_error
 
 PROBLEM_CONTENT_TYPE = "application/problem+json"
 
@@ -360,11 +360,11 @@ ROUTE_CASES = {
     # POST /api/auth/session
     "session-invalid-token": ProblemCase(
         "POST",
-        "/api/auth/session",
+        AUTH_SESSION_PATH,
         401,
         "invalid_token",
         "Invalid token",
-        operation="/api/auth/session",
+        operation=AUTH_SESSION_PATH,
         request={"json": {"token": "wrong"}},
     ),
     # POST /api/scheduler/jobs/{job_id}/trigger, both raise sites
@@ -436,7 +436,7 @@ ROUTE_CASES = {
     # middleware answers 413 before field validation runs.
     "fastapi-oversized-field": ProblemCase(
         "POST",
-        "/api/auth/session",
+        AUTH_SESSION_PATH,
         422,
         "validation_failed",
         f"Validation failed: body.token: String should have at most {MAX_SESSION_TOKEN_LENGTH} characters",
@@ -484,7 +484,7 @@ class TestMiddlewareErrors:
         assert_problem(response, status=401, code="not_authenticated", detail="Not authenticated")
 
     async def test_oversized_body_is_body_too_large(self, auth_client: AsyncClient) -> None:
-        response = await auth_client.post("/api/auth/session", content=b"x" * (128 * 1024))
+        response = await auth_client.post(AUTH_SESSION_PATH, content=b"x" * (128 * 1024))
 
         assert_problem(response, status=413, code="body_too_large", detail="Request body too large")
         assert "x-max-body-bytes" in response.headers

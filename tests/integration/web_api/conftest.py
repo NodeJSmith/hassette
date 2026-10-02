@@ -30,6 +30,7 @@ APP_HEALTH_PATH = "/api/telemetry/app/my_app/health"
 APP_GRID_PATH = "/api/telemetry/dashboard/app-grid"
 TELEMETRY_STATUS_PATH = "/api/telemetry/status"
 CONFIG_PATH = "/api/config"
+AUTH_SESSION_PATH = "/api/auth/session"
 
 STUB_SPA_FILES = ("index.html", "assets/index-abc123.js")
 """Files `stub_spa` writes: the SPA shell and one hashed asset."""

@@ -34,7 +34,7 @@ from tests.support.helpers import (
 )
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
-from .conftest import CONFIG_PATH, make_log_record
+from .conftest import AUTH_SESSION_PATH, CONFIG_PATH, make_log_record
 
 _TRUSTED_PEER_IP = "203.0.113.5"
 """Peer address the trusted-proxy tests list in `trusted_proxies` (RFC 5737 doc range)."""
@@ -55,8 +55,6 @@ meaning worth preserving.
 
 _WRONG_TOKEN = "wrong-token"
 """Credential that never matches `WEB_API_TEST_TOKEN`, for every fail-closed assertion."""
-
-AUTH_SESSION_PATH = "/api/auth/session"
 
 
 @pytest.fixture(autouse=True)
