@@ -4,11 +4,13 @@ A response timeout raises ``ResponseTimeoutError`` and a disconnect while waitin
 ``ResponseLostError``. Both mean the command reached (or may have reached) Home Assistant, so it
 may or may not have applied. Non-retried sends go out exactly once; a late reply to a timed-out
 non-retried send is matched against a bounded record and logged so the outcome is settled.
+
+Log assertions mock ``websocket_service.logger`` rather than using caplog: another test in the
+same process can disable propagation on the ``hassette`` logger, which would blind caplog.
 """
 
 import asyncio
-import logging
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -22,6 +24,12 @@ from hassette.exceptions import (
     RetryableConnectionClosedError,
 )
 from hassette.resources.service import Service
+
+
+def _rendered(call) -> str:
+    """The message a mocked logger call would have produced (%-style args applied)."""
+    msg, *args = call.args
+    return msg % tuple(args)
 
 
 def _time_out_immediately(websocket_service: WebsocketService) -> None:
@@ -88,19 +96,17 @@ class TestResponseTimeout:
             "id": msg_id,
         }
 
-    async def test_timeout_logs_warning_when_raised(
-        self, websocket_service: WebsocketService, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    async def test_timeout_logs_warning_when_raised(self, websocket_service: WebsocketService) -> None:
         """Raising an outcome-unknown error leaves a WARNING behind even if the caller swallows it."""
         _time_out_immediately(websocket_service)
+        websocket_service.logger = Mock()
 
-        with caplog.at_level(logging.WARNING):
-            msg_id = await _timed_out_write(websocket_service, type="fire_event", event_type="doorbell")
+        msg_id = await _timed_out_write(websocket_service, type="fire_event", event_type="doorbell")
 
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) == 1
-        assert "fire_event" in warnings[0].getMessage()
-        assert str(msg_id) in warnings[0].getMessage()
+        websocket_service.logger.warning.assert_called_once()
+        rendered = _rendered(websocket_service.logger.warning.call_args)
+        assert "fire_event" in rendered
+        assert str(msg_id) in rendered
 
 
 class TestResponseLost:
@@ -146,55 +152,56 @@ class TestResponseLost:
         with pytest.raises(ResponseLostError):
             await task
 
-    async def test_disconnect_logs_warning_when_raised(
-        self, websocket_service: WebsocketService, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    async def test_disconnect_logs_warning_when_raised(self, websocket_service: WebsocketService) -> None:
         async def drop_connection(**data):
             websocket_service._response_futures[data["id"]].set_exception(
                 RetryableConnectionClosedError("WebSocket disconnected")
             )
 
         websocket_service.send_json = AsyncMock(side_effect=drop_connection)
+        websocket_service.logger = Mock()
 
-        with caplog.at_level(logging.WARNING), pytest.raises(ResponseLostError):
+        with pytest.raises(ResponseLostError):
             await websocket_service.send_and_wait(type="fire_event", event_type="doorbell", retry_on_timeout=False)
 
-        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
-        assert len(warnings) == 1
-        assert "fire_event" in warnings[0].getMessage()
+        websocket_service.logger.warning.assert_called_once()
+        msg_id = websocket_service.send_json.await_args.kwargs["id"]
+        rendered = _rendered(websocket_service.logger.warning.call_args)
+        assert "fire_event" in rendered
+        assert str(msg_id) in rendered
 
 
 class TestLateReplyToTimedOutWrite:
-    async def test_late_success_logs_info_and_drops_entry(
-        self, websocket_service: WebsocketService, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    async def test_late_success_logs_info_and_drops_entry(self, websocket_service: WebsocketService) -> None:
         """A late success settles a timed-out write as applied."""
         _time_out_immediately(websocket_service)
         msg_id = await _timed_out_write(websocket_service, type="fire_event", event_type="doorbell")
+        websocket_service.logger = Mock()
 
-        caplog.clear()
-        with caplog.at_level(logging.INFO):
-            websocket_service.respond_if_necessary({"type": "result", "id": msg_id, "success": True, "result": None})
+        websocket_service.respond_if_necessary({"type": "result", "id": msg_id, "success": True, "result": None})
 
-        late = [r for r in caplog.records if "fire_event" in r.getMessage() and str(msg_id) in r.getMessage()]
-        assert [r.levelno for r in late] == [logging.INFO]
+        websocket_service.logger.warning.assert_not_called()
+        websocket_service.logger.info.assert_called_once()
+        rendered = _rendered(websocket_service.logger.info.call_args)
+        assert "fire_event" in rendered
+        assert str(msg_id) in rendered
         assert msg_id not in websocket_service._timed_out_writes
 
-    async def test_late_failure_logs_warning_and_drops_entry(
-        self, websocket_service: WebsocketService, caplog: pytest.LogCaptureFixture
-    ) -> None:
+    async def test_late_failure_logs_warning_and_drops_entry(self, websocket_service: WebsocketService) -> None:
         """A late failure settles a timed-out write as not applied."""
         _time_out_immediately(websocket_service)
         msg_id = await _timed_out_write(websocket_service, type="counter/delete", counter_id="motion")
+        websocket_service.logger = Mock()
 
-        caplog.clear()
-        with caplog.at_level(logging.INFO):
-            websocket_service.respond_if_necessary(
-                {"type": "result", "id": msg_id, "success": False, "error": {"code": "not_found", "message": "x"}}
-            )
+        websocket_service.respond_if_necessary(
+            {"type": "result", "id": msg_id, "success": False, "error": {"code": "not_found", "message": "x"}}
+        )
 
-        late = [r for r in caplog.records if "counter/delete" in r.getMessage() and str(msg_id) in r.getMessage()]
-        assert [r.levelno for r in late] == [logging.WARNING]
+        websocket_service.logger.info.assert_not_called()
+        websocket_service.logger.warning.assert_called_once()
+        rendered = _rendered(websocket_service.logger.warning.call_args)
+        assert "counter/delete" in rendered
+        assert str(msg_id) in rendered
         assert msg_id not in websocket_service._timed_out_writes
 
     async def test_retried_read_timeout_is_not_recorded(self, websocket_service: WebsocketService) -> None:
@@ -206,13 +213,15 @@ class TestLateReplyToTimedOutWrite:
 
         assert len(websocket_service._timed_out_writes) == 0
 
-    async def test_unrecorded_late_reply_is_silent(
-        self, websocket_service: WebsocketService, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        with caplog.at_level(logging.INFO):
-            websocket_service.respond_if_necessary({"type": "result", "id": 4242, "success": True})
+    async def test_unrecorded_late_reply_is_silent(self, websocket_service: WebsocketService) -> None:
+        websocket_service.logger = Mock()
 
-        assert not [r for r in caplog.records if "4242" in r.getMessage()]
+        websocket_service.respond_if_necessary({"type": "result", "id": 4242, "success": True})
+        websocket_service.respond_if_necessary(
+            {"type": "result", "id": 4243, "success": False, "error": {"code": "not_found", "message": "x"}}
+        )
+
+        assert websocket_service.logger.method_calls == []
 
     async def test_reconnect_clears_record(self, websocket_service: WebsocketService) -> None:
         """Msg ids belong to one connection, so partial_cleanup() drops the record."""
