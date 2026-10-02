@@ -123,6 +123,18 @@ def test_protocol_relative_branch_scoped_url_is_flagged() -> None:
     assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
 
 
+def test_raw_host_inside_another_urls_path_is_not_flagged() -> None:
+    body = f"![after]({SHA_URL})\nSee https://example.com//raw.githubusercontent.com/o/r/main/x.png"
+    assert branch_scoped_raw_prefixes(body) == []
+    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is True
+
+
+def test_branch_scoped_url_with_explicit_port_is_flagged() -> None:
+    body = "![after](https://raw.githubusercontent.com:443/o/r/main/docs/x.png)"
+    assert branch_scoped_raw_prefixes(body) == ["https://raw.githubusercontent.com:443/o/r/main/"]
+    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
+
+
 def test_branch_scoped_non_image_raw_link_is_flagged() -> None:
     body = f"![after]({SHA_URL})\nConfig: {RAW_BASE}/main/mkdocs.yml"
     assert branch_scoped_raw_prefixes(body) == [f"{RAW_BASE}/main/"]
