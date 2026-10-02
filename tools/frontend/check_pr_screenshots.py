@@ -34,19 +34,19 @@ import os
 import re
 import subprocess
 import sys
+from urllib.parse import urlsplit
 
 RENDERING_RE = re.compile(r"^frontend/src/.*\.(tsx|css)$")
 DOCS_IMAGE_RE = re.compile(r"^docs/.*\.png$")
 SCREENSHOT_HEADING_RE = re.compile(r"(?im)^#{1,6}\s*screenshots?\b")
 EMBEDDED_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)|<img\b", re.IGNORECASE)
-# A raw.githubusercontent.com image URL whose ref segment is not a full 40-char commit SHA.
-# The extension ends the match unless a path character continues it, so trailing prose
-# punctuation (``x.png.``, ``x.png,``) still counts as a boundary.
-BRANCH_SCOPED_RAW_URL_RE = re.compile(
-    r"https?://raw\.githubusercontent\.com/[^/\s]+/[^/\s]+/(?![0-9a-f]{40}/)[^\s)\"'<>]+"
-    r"\.(?:png|jpe?g|gif|webp|svg)(?![\w/%-])",
-    re.IGNORECASE,
-)
+# A raw.githubusercontent.com URL, captured whole so its ref and final extension can be checked after
+# trailing prose punctuation is stripped. Matching the extension inside the regex would let it backtrack
+# onto a mid-name ``.png`` (``notes.png.md``).
+RAW_URL_RE = re.compile(r"https?://raw\.githubusercontent\.com/[^/\s]+/[^/\s]+/([^/\s]+)/[^\s()\[\]\"'<>`]+")
+COMMIT_SHA_RE = re.compile(r"[0-9a-f]{40}", re.IGNORECASE)
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")
+TRAILING_PROSE_PUNCTUATION = ".,;:!?*"
 NO_VISUAL_CHANGE_LABEL = "no-visual-change"
 
 
@@ -59,7 +59,13 @@ def is_rendering_file(path: str) -> bool:
 
 def branch_scoped_raw_urls(body: str) -> list[str]:
     """Return raw.githubusercontent.com image URLs in the body that are not pinned to a commit SHA."""
-    return BRANCH_SCOPED_RAW_URL_RE.findall(body)
+    urls = []
+    for match in RAW_URL_RE.finditer(body):
+        url = match.group(0).rstrip(TRAILING_PROSE_PUNCTUATION)
+        path = urlsplit(url).path.lower()
+        if not COMMIT_SHA_RE.fullmatch(match.group(1)) and path.endswith(IMAGE_EXTENSIONS):
+            urls.append(url)
+    return urls
 
 
 def has_visual_evidence(body: str, changed_files: list[str], labels: list[str]) -> bool:
