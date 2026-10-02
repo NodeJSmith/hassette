@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from .conftest import APP_GRID_PATH, APP_HEALTH_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
+from .conftest import APP_GRID_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
@@ -17,37 +17,6 @@ WRAPPED_STORAGE_ERRORS = [
     pytest.param("disk I/O error", id="oserror"),
     pytest.param("Connection is closed", id="closed-connection"),
 ]
-
-
-class TestDbErrorGuards:
-    """Verify TelemetryUnavailableError degradation guards on telemetry endpoints."""
-
-    @pytest.mark.parametrize(
-        ("service_method", "path"),
-        [
-            ("get_listener_summary", "/api/telemetry/app/my_app/listeners"),
-            ("get_job_summary", "/api/telemetry/app/my_app/jobs"),
-            ("get_app_recent_activity", "/api/telemetry/app/my_app/activity"),
-            ("get_executions", "/api/telemetry/listener/1/executions"),
-            ("get_executions", "/api/telemetry/job/1/executions"),
-        ],
-    )
-    async def test_collection_endpoint_db_error_returns_503_with_empty_list(
-        self, client: "AsyncClient", mock_hassette: MagicMock, service_method: str, path: str
-    ) -> None:
-        """TelemetryUnavailableError on a list-returning endpoint yields 503 with an empty list."""
-        setattr(mock_hassette.telemetry_query_service, service_method, telemetry_error())
-
-        assert await get_json(client, path, expect_status=503) == []
-
-    async def test_app_health_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """TelemetryUnavailableError on app_health returns 503 with zero-value response."""
-        mock_hassette.telemetry_query_service.get_app_health_aggregates = telemetry_error()
-
-        data = await get_json(client, APP_HEALTH_PATH, expect_status=503)
-
-        assert data["error_rate"] == 0.0
-        assert data["health_status"] == "excellent"
 
 
 class TestStatusDropCounters:
@@ -146,32 +115,8 @@ class TestTelemetryStatusDropCounterFallback:
         assert data["dropped_filtered"] == 0
 
 
-class TestAppHealthDbErrorFallback:
-    """TelemetryUnavailableError degradation guard on the app_health endpoint.
-
-    The message varies across cases to document which underlying storage error the service
-    wrapped (sqlite3.Error, OSError, a closed-connection ValueError); the guard must degrade
-    identically for all of them.
-    """
-
-    @pytest.mark.parametrize("message", WRAPPED_STORAGE_ERRORS)
-    async def test_telemetry_unavailable_returns_503_with_zeroed_health(
-        self, client: "AsyncClient", mock_hassette: MagicMock, message: str
-    ) -> None:
-        """TelemetryUnavailableError on get_app_health_aggregates returns 503 with zero-value health."""
-        mock_hassette.telemetry_query_service.get_app_health_aggregates = telemetry_error(message)
-
-        data = await get_json(client, APP_HEALTH_PATH, expect_status=503)
-
-        assert data["error_rate"] == 0.0
-        assert data["health_status"] == "excellent"
-        assert data["handler_avg_duration"] == 0.0
-        assert data["job_avg_duration"] == 0.0
-        assert data["last_activity_ts"] is None
-
-
 class TestDashboardAppGridDbErrorFallback:
-    """TelemetryUnavailableError degradation guard on dashboard_app_grid (category-C, silent-200).
+    """TelemetryUnavailableError degradation guard on dashboard_app_grid's optional enrichment query.
 
     The enrichment query failing must leave the response at 200 with zeroed per-app entries --
     the DB spine query succeeds independently, so every manifest entry still appears.

@@ -67,11 +67,12 @@ The `detail` text of `not_found` and `method_not_allowed` comes from the router 
 
 ## Responses that aren't problem bodies
 
-A few `503` responses carry data, not an error, and keep their normal `application/json` body:
+Two health probes answer `503` with their normal `application/json` status body, not a problem body:
 
 - `GET /api/health/ready` returns its readiness body with a `503` while Hassette is starting or degraded. See [Configure Health Checks](health-endpoints.md).
 - `GET /api/telemetry/status` returns its status body with a `503` when the telemetry database is degraded.
-- Endpoints that read history from the telemetry database (logs, executions, listeners, jobs, telemetry) return an empty or partial result with a `503` when that database can't be read.
+
+Endpoints that read history from the telemetry database (logs, executions, listeners, jobs, telemetry, app manifests) answer `telemetry_unavailable` when that database can't be read. A few of them still answer `200` when only an optional part of the response is unavailable, for example the dashboard's per-app statistics, which fall back to zeros.
 
 A rejected CORS preflight (an `OPTIONS` request whose origin, method, or headers fall outside `cors_origins` and the allowed methods and headers) returns a `400` with a `text/plain` body. Browsers report a failed preflight to the calling script as a network error and never expose its body. Non-browser clients don't send preflights.
 

@@ -2,13 +2,13 @@
 
 Every error body is ``application/problem+json`` carrying a :class:`~hassette_wire.ProblemCode`
 in its ``code`` member. Routes raise :class:`WebApiError`; FastAPI's own and Starlette's routing
-``HTTPException``s, request validation errors, and unhandled exceptions are converted by the
-handlers here; the two middleware responses call :func:`problem_response` directly. Nothing else
-in ``hassette.web`` builds an error body, and ``tests/unit/web/test_error_mechanism_guard.py``
-enforces that.
+``HTTPException``s, request validation errors, ``TelemetryUnavailableError``, and unhandled
+exceptions are converted by the handlers here; the two middleware responses call
+:func:`problem_response` directly. Nothing else in ``hassette.web`` builds an error body, and
+``tests/unit/web/test_error_mechanism_guard.py`` enforces that.
 
-Degraded-payload 503s (``db_degrades_to``, ``/api/health/ready``, ``/api/telemetry/status``) are
-success models with an error status, not problem bodies, and nothing here touches them.
+The two probes, ``/api/health/ready`` and ``/api/telemetry/status``, answer 503 with their own
+status models rather than problem bodies, and nothing here touches them.
 
 This module must not import ``hassette.core`` (the ``web-no-core`` boundary).
 """
@@ -24,6 +24,8 @@ from hassette_wire import ProblemCode, ProblemDetail
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+
+from hassette.exceptions import TelemetryUnavailableError
 
 LOGGER = getLogger(__name__)
 
@@ -145,6 +147,9 @@ FALLBACK_TITLE = "Error"
 FALLBACK_CODES: Mapping[int, ProblemCode] = {404: ProblemCode.NOT_FOUND, 405: ProblemCode.METHOD_NOT_ALLOWED}
 """Code for an ``HTTPException`` that isn't a :class:`WebApiError`. Any other status gets ``http_error``."""
 
+TELEMETRY_UNAVAILABLE_DETAIL = "Telemetry store unavailable"
+"""Constant ``detail`` for ``telemetry_unavailable``; storage error text never reaches the client."""
+
 INTERNAL_ERROR_DETAIL = "Internal Server Error"
 """Constant ``detail`` for unhandled exceptions; exception text never reaches the client."""
 
@@ -238,6 +243,24 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     return problem_response(ProblemCode.VALIDATION_FAILED, validation_detail(exc.errors()))
 
 
+async def telemetry_unavailable_handler(request: Request, exc: TelemetryUnavailableError) -> Response:
+    """Convert a telemetry read failure that reached the route boundary to ``telemetry_unavailable``.
+
+    Routes that can still answer without the failed query (partial data at 200, or a probe's own
+    503 status body) catch ``TelemetryUnavailableError`` themselves; anything that escapes means
+    the request can't be served.
+
+    Answers through :func:`http_exception_handler` as a route-raised :class:`WebApiError` rather
+    than calling :func:`problem_response` directly, so the test-time declared-code check that
+    wraps ``http_exception_handler`` (``tests/support/problem_codes.py``) also sees this code and
+    fails any route that lets it escape without declaring it.
+    """
+    LOGGER.warning("Telemetry unavailable on %s %s", request.method, request.url.path, exc_info=exc)
+    return await http_exception_handler(
+        request, WebApiError(ProblemCode.TELEMETRY_UNAVAILABLE, TELEMETRY_UNAVAILABLE_DETAIL)
+    )
+
+
 async def unhandled_exception_handler(request: Request, exc: Exception) -> Response:
     """Log an unhandled exception with its request, then answer with a constant ``internal_error``.
 
@@ -250,13 +273,14 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> Respo
 
 
 def install_problem_handlers(app: FastAPI) -> None:
-    """Register the three handlers that turn every error into a problem body.
+    """Register the handlers that turn every error into a problem body.
 
     Uses the ``exception_handler`` decorator rather than ``add_exception_handler``: the latter's
     signature types every handler's exception parameter as plain ``Exception``.
     """
     app.exception_handler(HTTPException)(http_exception_handler)
     app.exception_handler(RequestValidationError)(validation_exception_handler)
+    app.exception_handler(TelemetryUnavailableError)(telemetry_unavailable_handler)
     app.exception_handler(Exception)(unhandled_exception_handler)
 
 
@@ -283,8 +307,8 @@ def rewrite_problem_openapi(document: Mapping[str, Any]) -> dict[str, Any]:
     - FastAPI's automatic ``HTTPValidationError`` 422 becomes a ``ProblemDetail`` problem response.
     - The ``HTTPValidationError`` and ``ValidationError`` components are removed.
 
-    Matching is on schema references, never on status: the readiness and telemetry-status 503s
-    are success models and must stay ``application/json``.
+    Matching is on schema references, never on status: the readiness and telemetry-status probe
+    503s are status models and must stay ``application/json``.
     """
     paths = {
         path: {method: rewrite_operation(operation) for method, operation in operations.items()}

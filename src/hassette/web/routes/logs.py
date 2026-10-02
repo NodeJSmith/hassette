@@ -5,12 +5,12 @@ from collections.abc import Callable
 from logging import getLogger
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, Query, Request
 from hassette_wire import LogEntryResponse, LogLevelRequest, LogLevelResponse, ProblemCode
 
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
-from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep, db_degrades_to
-from hassette.web.errors import WebApiError
+from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep
+from hassette.web.errors import WebApiError, problem_responses
 
 LOGGER = getLogger(__name__)
 
@@ -48,10 +48,13 @@ def validate_source_tier(source_tier: str | None) -> str | None:
     return _validate_choice(source_tier, VALID_SOURCE_TIERS, "source_tier", str.lower)
 
 
-@router.get("/logs/recent", response_model=list[LogEntryResponse])
+@router.get(
+    "/logs/recent",
+    response_model=list[LogEntryResponse],
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def get_logs(
     telemetry: TelemetryDep,
-    response: Response,
     limit: Annotated[int, Query(ge=1, le=RECENT_LOGS_LIMIT_CAP)] = RECENT_LOGS_DEFAULT_LIMIT,
     app_key: Annotated[str | None, Query()] = None,
     level: Annotated[str | None, Query()] = None,
@@ -69,18 +72,15 @@ async def get_logs(
     """Return recent log records from the database with optional filtering."""
     level = validate_log_level(level)
     source_tier = validate_source_tier(source_tier)
-    records: list[LogEntryResponse] = []
-    with db_degrades_to(response):
-        raw = await telemetry.get_log_records(
-            limit=limit,
-            since=since,
-            app_key=app_key,
-            level=level,
-            execution_id=execution_id,
-            source_tier=source_tier,
-        )
-        records = [LogEntryResponse.model_validate(r) for r in raw]
-    return records
+    raw = await telemetry.get_log_records(
+        limit=limit,
+        since=since,
+        app_key=app_key,
+        level=level,
+        execution_id=execution_id,
+        source_tier=source_tier,
+    )
+    return [LogEntryResponse.model_validate(r) for r in raw]
 
 
 @router.put("/logs/level", response_model=LogLevelResponse)

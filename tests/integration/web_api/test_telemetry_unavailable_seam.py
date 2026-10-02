@@ -2,20 +2,16 @@
 
 Three behaviors:
 
-(a) A storage error translated to TelemetryUnavailableError surfaces correctly: the route
-    still returns its prior 503/200 outcome unchanged.
-(b) Footgun-fixed: a non-DB ValueError raised in a handler body now propagates as HTTP 500,
-    not a swallowed 503 (the cluster's one intended behavior change).
+(a) A storage error translated to TelemetryUnavailableError surfaces as a 503.
+(b) A non-DB ValueError raised in a handler body propagates as HTTP 500, not a 503.
 (c) A forced storage error in get_all_app_summaries still degrades dashboard_app_grid to
     200-partial, not 500.
-(d) A forced storage error in the DB spine query (get_all_app_manifests /
-    get_app_manifest) degrades the grid, manifest list, and per-app manifest endpoints
-    to 503 — the DB-backed spine is Category B, not Category C.
+
+The problem body each data route answers with is pinned per route in ``test_problem_details.py``.
 """
 
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from httpx2 import ASGITransport, AsyncClient
 
 from hassette.web.app import create_fastapi_app
@@ -25,7 +21,7 @@ from .conftest import APP_GRID_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_
 
 
 class TestTranslationSurfaces503:
-    """(a) TelemetryUnavailableError from service → same 503 the route gave before."""
+    """(a) TelemetryUnavailableError from the service surfaces as a 503."""
 
     async def test_storage_error_gives_503_on_logs_endpoint(
         self,
@@ -51,7 +47,7 @@ class TestTranslationSurfaces503:
 
 
 class TestFootgunFixed:
-    """(b) A non-DB ValueError in a handler body now returns HTTP 500, not a swallowed 503."""
+    """(b) A non-DB ValueError in a handler body returns HTTP 500, not a 503."""
 
     async def test_non_db_value_error_in_handler_returns_500(
         self,
@@ -59,10 +55,8 @@ class TestFootgunFixed:
     ) -> None:
         """ValueError raised by application logic (not the DB) must produce HTTP 500.
 
-        Before #1108b, db_degrades_to caught the broad DB_ERRORS tuple including ValueError,
-        so any ValueError inside the 'with' block silently became a 503.
-        After #1108b, db_degrades_to catches only TelemetryUnavailableError, so a
-        non-DB ValueError propagates to FastAPI's default 500 handler.
+        Only TelemetryUnavailableError maps to 503, so a non-DB ValueError reaches the
+        unhandled-exception handler instead.
 
         Uses raise_app_exceptions=False so the 500 is returned as a response rather than
         re-raised in the test process.
@@ -88,8 +82,8 @@ class TestDashboardAppGridDegrades:
     ) -> None:
         """get_all_app_summaries raising TelemetryUnavailableError must not produce a 500.
 
-        This enrichment query is Category C (silent-200): the DB spine query (Category B,
-        get_all_app_manifests + overlay_runtime_state()) succeeds independently, and this
+        This is an optional enrichment query: the required spine query
+        (get_all_app_manifests + overlay_runtime_state()) succeeds independently, and this
         one enrichment failure degrades to zeroed stats while the response stays 200.
         """
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
@@ -99,38 +93,9 @@ class TestDashboardAppGridDegrades:
             "db unavailable during summary fetch"
         )
 
-        # Must be 200 (partial), not 500 (unhandled) — category-C site contract
+        # Must be 200 (partial), not 503 or 500 — an optional query never fails the request
         data = await get_json(client, APP_GRID_PATH)
 
         assert "apps" in data
         assert len(data["apps"]) == 1
         assert data["apps"][0]["total_invocations"] == 0
-
-
-class TestDashboardSpine503:
-    """(d) The DB-backed spine query (Category B) degrades the grid/list/manifest routes to 503."""
-
-    @pytest.mark.parametrize(
-        ("service_method", "path", "empty_collection_key"),
-        [
-            ("get_all_app_manifests", APP_GRID_PATH, "apps"),
-            ("get_all_app_manifests", "/api/apps/manifests", "manifests"),
-            # Per-app manifest degrades to 503 rather than the 404 a missing row would give.
-            ("get_app_manifest", "/api/apps/my_app/manifest", None),
-        ],
-    )
-    async def test_spine_failure_returns_503(
-        self,
-        client: "AsyncClient",
-        mock_hassette: MagicMock,
-        service_method: str,
-        path: str,
-        empty_collection_key: str | None,
-    ) -> None:
-        """A storage error in a spine query yields 503, not 200-partial and not 404."""
-        setattr(mock_hassette.telemetry_query_service, service_method, telemetry_error("db unavailable during spine"))
-
-        data = await get_json(client, path, expect_status=503)
-
-        if empty_collection_key is not None:
-            assert data[empty_collection_key] == []

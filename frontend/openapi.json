@@ -107,7 +107,7 @@
           "apps"
         ],
         "summary": "Get App Manifests",
-        "description": "Return every persisted app manifest, overlaid with live runtime state.\n\nThe app spine is queried from the ``app_manifests`` DB table (Category B \u2014 503 via\n``db_degrades_to`` on failure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but\nno loaded manifest are still included. The ``recent_invocations_1h`` enrichment query\nbelow stays Category C (independently caught, degrading to zero while the response\ncontinues at 200).",
+        "description": "Return every persisted app manifest, overlaid with live runtime state.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but\nno loaded manifest are still included. The ``recent_invocations_1h`` enrichment query\nbelow is caught on its own and degrades to zero while the response continues at 200.",
         "operationId": "get_app_manifests_api_apps_manifests_get",
         "responses": {
           "200": {
@@ -119,6 +119,19 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ]
           }
         }
       }
@@ -129,7 +142,7 @@
           "apps"
         ],
         "summary": "Get App Manifest",
-        "description": "Return the persisted manifest for a single app, overlaid with live runtime state.\n\nQueries the ``app_manifests`` DB table directly instead of the in-memory registry, so an\napp with historical telemetry but no loaded manifest returns 200 instead of 404. A DB\nfailure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that\ndon't fit the single-branch ``db_degrades_to`` shape \u2014 handled inline (Category D, see\n``.claude/rules/web-api.md``).",
+        "description": "Return the persisted manifest for a single app, overlaid with live runtime state.\n\nQueries the ``app_manifests`` DB table directly instead of the in-memory registry, so an\napp with historical telemetry but no loaded manifest returns 200 instead of 404. A DB\nfailure answers ``telemetry_unavailable``; a genuinely unknown ``app_key`` answers\n``app_not_found``.",
         "operationId": "get_app_manifest_api_apps__app_key__manifest_get",
         "parameters": [
           {
@@ -1116,6 +1129,19 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1209,6 +1235,19 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LogsByExecutionResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1311,6 +1350,19 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1352,7 +1404,7 @@
           "telemetry"
         ],
         "summary": "Telemetry Status",
-        "description": "Health check for the telemetry database.\n\nRuns a representative query against the unified ``executions`` table.\nReturns 503 with ``degraded: true`` when the database is\nunavailable; 200 with ``degraded: false`` when healthy.",
+        "description": "Health check for the telemetry database.\n\nRuns a representative query against the unified ``executions`` table.\nReturns 503 with ``degraded: true`` when the database is\nunavailable; 200 with ``degraded: false`` when healthy.\n\nA probe, so a failure answers with this status body rather than a problem body: the CLI\nand container health checks read it as data.",
         "operationId": "telemetry_status_api_telemetry_status_get",
         "responses": {
           "200": {
@@ -1455,6 +1507,19 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1545,6 +1610,19 @@
                     "$ref": "#/components/schemas/ListenerWithSummary"
                   },
                   "title": "Response App Listeners Api Telemetry App  App Key  Listeners Get"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1661,6 +1739,19 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1755,6 +1846,19 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1843,6 +1947,19 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -1914,6 +2031,19 @@
                     "$ref": "#/components/schemas/Execution"
                   },
                   "title": "Response Listener Executions Api Telemetry Listener  Listener Id  Executions Get"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1993,6 +2123,19 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2044,6 +2187,19 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -2063,7 +2219,7 @@
           "telemetry"
         ],
         "summary": "Dashboard App Grid",
-        "description": "Per-app health data for the dashboard grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (Category B \u2014 503 via\n``db_degrades_to`` on failure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below\nstay Category C (independently caught, degrading to empty defaults while the response\ncontinues at 200) \u2014 see ``.claude/rules/web-api.md`` for the categories.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
+        "description": "Per-app health data for the dashboard grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below are\ncaught individually and degrade to empty defaults while the response continues at 200 \u2014\nsee ``.claude/rules/web-api.md``.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
         "operationId": "dashboard_app_grid_api_telemetry_dashboard_app_grid_get",
         "parameters": [
           {
@@ -2090,6 +2246,19 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DashboardAppGridResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -2161,6 +2330,19 @@
                     "$ref": "#/components/schemas/JobSummary"
                   },
                   "title": "Response All Jobs Api Scheduler Jobs Get"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }

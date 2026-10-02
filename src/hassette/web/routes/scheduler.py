@@ -5,12 +5,12 @@ Returns all scheduled jobs across all apps, enriched with live registry data.
 
 from logging import getLogger
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request
 from hassette_wire import JobSummary, JobTriggerResponse, ProblemCode
 
 from hassette.exceptions import JobRemovedError
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
-from hassette.web.dependencies import SchedulerDep, SinceQuery, SourceTierQuery, TelemetryDep, db_degrades_to
+from hassette.web.dependencies import SchedulerDep, SinceQuery, SourceTierQuery, TelemetryDep
 from hassette.web.errors import WebApiError, problem_responses
 from hassette.web.utils import enrich_jobs_with_live_data
 
@@ -19,11 +19,10 @@ LOGGER = getLogger(__name__)
 router = APIRouter(prefix="/scheduler", tags=["scheduler"])
 
 
-@router.get("/jobs", response_model=list[JobSummary])
+@router.get("/jobs", response_model=list[JobSummary], responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE))
 async def all_jobs(
     telemetry: TelemetryDep,
     scheduler_service: SchedulerDep,
-    response: Response,
     since: SinceQuery = None,
     source_tier: SourceTierQuery = "app",
 ) -> list[JobSummary]:
@@ -36,11 +35,8 @@ async def all_jobs(
 
     The registry snapshot is taken once — not per app — to avoid fan-out overhead.
     """
-    jobs: list[JobSummary] = []
-    with db_degrades_to(response):
-        db_jobs = list(await telemetry.get_job_summary(since=since, source_tier=source_tier))
-        jobs = await enrich_jobs_with_live_data(db_jobs, scheduler_service, context="global enrichment")
-    return jobs
+    db_jobs = list(await telemetry.get_job_summary(since=since, source_tier=source_tier))
+    return await enrich_jobs_with_live_data(db_jobs, scheduler_service, context="global enrichment")
 
 
 @router.post(

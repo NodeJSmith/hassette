@@ -359,3 +359,7 @@ Behavior and wording:
 - The test-time code check lives in `tests/support/problem_codes.py` and runs through an autouse fixture in `tests/integration/web_api/conftest.py`, which wraps the `HTTPException` handler before each test builds its app. It covers the web API integration tests, where routes are exercised.
 
 ## Addendum
+
+### 2026-10-02: D13 reversed for data routes (#2483)
+
+D13 kept every degraded-payload 503 as a success model. That now holds only for the two probes, `/api/health/ready` and `/api/telemetry/status`, which keep their status bodies because load balancers, container health checks, and the CLI (`tolerate_503`) read them as data. The data routes that answered 503 with an empty or default success body (every former `db_degrades_to` route and the inline 503 in `routes/executions.py`) now answer with a `telemetry_unavailable` problem body. A success-shaped body with a 5xx status has no precedent, and clients could not tell "store unavailable" from "no data" without checking the status (`design/research/2026-10-02-degraded-503-handling/research.md`). The mechanism is a `TelemetryUnavailableError` exception handler in `errors.py`, and `db_degrades_to` is gone. The D13 row "CLI (`tolerate_503`) contract: broken" never applied to data routes, since the CLI tolerates 503 only on `/api/telemetry/status`.

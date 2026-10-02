@@ -7,8 +7,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import uuid_utils
 
-from hassette.exceptions import TelemetryUnavailableError
-
 from .conftest import get_json, make_log_record
 
 if TYPE_CHECKING:
@@ -120,19 +118,6 @@ class TestGetExecutionLogs:
 
         data = await get_execution_logs(client, mock_hassette, str(uuid.uuid4()))
 
-        assert data["retention_expired"] is False
-
-    async def test_db_error_returns_503(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """TelemetryUnavailableError → 503 with empty response."""
-        execution_id = str(uuid_utils.uuid7())
-        mock_hassette.telemetry_query_service.get_log_records_by_execution = AsyncMock(
-            side_effect=TelemetryUnavailableError("database is locked")
-        )
-
-        data = await get_json(client, EXECUTION_PATH.format(execution_id=execution_id), expect_status=503)
-
-        assert data["records"] == []
-        assert data["truncated"] is False
         assert data["retention_expired"] is False
 
     async def test_invalid_uuid_returns_422(self, client: "AsyncClient") -> None:

@@ -7,7 +7,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal
 
 import tomli_w
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Request
 from hassette_wire import (
     ActionResponse,
     AppConfigResponse,
@@ -25,12 +25,12 @@ from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.schemas.app_snapshots import AppFullSnapshot, tally_manifest_statuses
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
-from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep, db_degrades_to
+from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
 from hassette.web.errors import WebApiError, problem_responses
 from hassette.web.mappers import app_manifest_list_response_from, app_manifest_response_from, app_status_response_from
 
 if TYPE_CHECKING:
-    from hassette.schemas.app_snapshots import AppInstanceInfo, AppManifestInfo
+    from hassette.schemas.app_snapshots import AppInstanceInfo
 
 LOGGER = getLogger(__name__)
 
@@ -269,23 +269,22 @@ async def get_apps(runtime: RuntimeDep) -> AppStatusResponse:
     return app_status_response_from(runtime.get_app_status_snapshot())
 
 
-@router.get("/apps/manifests", response_model=AppManifestListResponse)
-async def get_app_manifests(
-    runtime: RuntimeDep, telemetry: TelemetryDep, response: Response
-) -> AppManifestListResponse:
+@router.get(
+    "/apps/manifests",
+    response_model=AppManifestListResponse,
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
+async def get_app_manifests(runtime: RuntimeDep, telemetry: TelemetryDep) -> AppManifestListResponse:
     """Return every persisted app manifest, overlaid with live runtime state.
 
-    The app spine is queried from the ``app_manifests`` DB table (Category B — 503 via
-    ``db_degrades_to`` on failure) and overlaid with live runtime state via
+    The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
+    failure) and overlaid with live runtime state via
     ``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but
     no loaded manifest are still included. The ``recent_invocations_1h`` enrichment query
-    below stays Category C (independently caught, degrading to zero while the response
-    continues at 200).
+    below is caught on its own and degrades to zero while the response continues at 200.
     """
-    manifest_infos: list[AppManifestInfo] = []
-    with db_degrades_to(response):
-        db_rows = await telemetry.get_all_app_manifests()
-        manifest_infos = runtime.overlay_manifest_rows(db_rows)
+    db_rows = await telemetry.get_all_app_manifests()
+    manifest_infos = runtime.overlay_manifest_rows(db_rows)
 
     invocations_by_key: dict[str, int] = {}
     try:
@@ -312,18 +311,12 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
 
     Queries the ``app_manifests`` DB table directly instead of the in-memory registry, so an
     app with historical telemetry but no loaded manifest returns 200 instead of 404. A DB
-    failure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that
-    don't fit the single-branch ``db_degrades_to`` shape — handled inline (Category D, see
-    ``.claude/rules/web-api.md``).
+    failure answers ``telemetry_unavailable``; a genuinely unknown ``app_key`` answers
+    ``app_not_found``.
     """
     _validate_app_key(app_key)
 
-    try:
-        db_row = await telemetry.get_app_manifest(app_key)
-    except TelemetryUnavailableError as exc:
-        LOGGER.warning("Failed to fetch manifest for app %s", app_key, exc_info=True)
-        raise WebApiError(ProblemCode.TELEMETRY_UNAVAILABLE, "Telemetry store unavailable") from exc
-
+    db_row = await telemetry.get_app_manifest(app_key)
     if db_row is None:
         raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
 
