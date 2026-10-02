@@ -42,8 +42,12 @@ SCREENSHOT_HEADING_RE = re.compile(r"(?im)^#{1,6}\s*screenshots?\b")
 EMBEDDED_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)|<img\b", re.IGNORECASE)
 # A raw.githubusercontent.com URL, captured whole so its ref and final extension can be checked after
 # trailing prose punctuation is stripped. Matching the extension inside the regex would let it backtrack
-# onto a mid-name ``.png`` (``notes.png.md``).
-RAW_URL_RE = re.compile(r"https?://raw\.githubusercontent\.com/[^/\s]+/[^/\s]+/([^/\s]+)/[^\s()\[\]\"'<>`]+")
+# onto a mid-name ``.png`` (``notes.png.md``). The group captures only the first path segment after
+# ``owner/repo``; that's enough because a commit SHA never contains a slash, so a branch like
+# ``autofix/x`` still fails the SHA check on its ``autofix`` segment.
+RAW_URL_RE = re.compile(
+    r"https?://raw\.githubusercontent\.com/[^/\s]+/[^/\s]+/([^/\s]+)/[^\s()\[\]\"'<>`]+", re.IGNORECASE
+)
 COMMIT_SHA_RE = re.compile(r"[0-9a-f]{40}", re.IGNORECASE)
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg")
 TRAILING_PROSE_PUNCTUATION = ".,;:!?*"
@@ -69,7 +73,11 @@ def branch_scoped_raw_urls(body: str) -> list[str]:
 
 
 def has_visual_evidence(body: str, changed_files: list[str], labels: list[str]) -> bool:
-    """Return True if the PR satisfies any of the three visual-evidence paths."""
+    """Return True if the PR satisfies any of the three visual-evidence paths.
+
+    Path (a) fails outright when the body links any branch-scoped raw image URL, even if it also
+    has a Screenshots heading or a SHA-pinned image.
+    """
     if NO_VISUAL_CHANGE_LABEL in labels:
         return True
     if any(DOCS_IMAGE_RE.match(f) for f in changed_files):

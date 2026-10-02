@@ -9,9 +9,10 @@ import pytest
 from check_pr_screenshots import branch_scoped_raw_urls, evaluate, has_visual_evidence, is_rendering_file
 
 SHA = "5257d88b6a9fcdf7a5df250b6fda5f62ade45b3d"
-BRANCH_URL = "https://raw.githubusercontent.com/NodeJSmith/hassette/autofix/issue-2219/docs/pr-evidence/x.png"
-MAIN_URL = "https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/pr-evidence/x.png"
-SHA_URL = f"https://raw.githubusercontent.com/NodeJSmith/hassette/{SHA}/docs/pr-evidence/x.png"
+RAW_BASE = "https://raw.githubusercontent.com/NodeJSmith/hassette"
+BRANCH_URL = f"{RAW_BASE}/autofix/issue-2219/docs/pr-evidence/x.png"
+MAIN_URL = f"{RAW_BASE}/main/docs/pr-evidence/x.png"
+SHA_URL = f"{RAW_BASE}/{SHA}/docs/pr-evidence/x.png"
 
 
 @pytest.mark.parametrize(
@@ -105,7 +106,7 @@ def test_branch_scoped_raw_urls_extracts_only_unpinned() -> None:
 
 
 def test_non_image_branch_raw_link_does_not_block() -> None:
-    body = f"![after]({SHA_URL})\nConfig: https://raw.githubusercontent.com/NodeJSmith/hassette/main/mkdocs.yml"
+    body = f"![after]({SHA_URL})\nConfig: {RAW_BASE}/main/mkdocs.yml"
     assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is True
 
 
@@ -118,9 +119,14 @@ def test_bare_branch_scoped_url_followed_by_punctuation_is_flagged(trailer: str)
 
 @pytest.mark.parametrize("name", ["notes.png.md", "x.png-old.txt", "shot.jpg.bak", "img.svg.zip"])
 def test_branch_raw_link_with_image_extension_mid_name_does_not_block(name: str) -> None:
-    body = f"![after]({SHA_URL})\nSee https://raw.githubusercontent.com/NodeJSmith/hassette/main/{name}"
+    body = f"![after]({SHA_URL})\nSee {RAW_BASE}/main/{name}"
     assert branch_scoped_raw_urls(body) == []
     assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is True
+
+
+def test_uppercase_host_branch_scoped_url_is_flagged() -> None:
+    url = MAIN_URL.replace("raw.githubusercontent.com", "RAW.GitHubUserContent.com")
+    assert branch_scoped_raw_urls(f"![after]({url})") == [url]
 
 
 @pytest.mark.parametrize("suffix", ["?raw=true", "#frag"])
