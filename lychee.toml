@@ -14,10 +14,13 @@ exclude = [
     "docs/reference/",
     # release-please compare URLs reference tags that don't exist until after merge
     "github\\.com/.*/compare/",
+    # Bot protection intermittently answers CI with 403 Forbidden
+    "opensource\\.org",
 ]
 
-# Accept 429 (rate-limited) as non-fatal
-accept = [200, 429]
+# Accept 429 (rate-limited) and 503 (GitHub throttling CI requests for blob pages) as non-fatal.
+# A genuinely missing page answers 404, which still fails.
+accept = [200, 429, 503]
 
 max_concurrency = 4
 timeout = 30
