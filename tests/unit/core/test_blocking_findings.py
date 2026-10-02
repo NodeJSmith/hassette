@@ -117,6 +117,24 @@ class TestCallSiteNotCaptured:
         assert finding.call_site is None
         assert finding.latest_stack == [SSL, GCSA]
 
+    def test_tiers_and_primitives_stay_separate(self) -> None:
+        """Same handler, no call site: Tier 1 and each Tier 2 primitive are separate findings."""
+        rows = [
+            row(stall_duration_ms=300.0, **listener(1, "a")),
+            row(tier="monkeypatch", primitive="time.sleep", stall_duration_ms=None, **listener(1, "a")),
+            row(tier="monkeypatch", primitive="open", stall_duration_ms=None, **listener(1, "a")),
+        ]
+
+        findings = group_findings(rows, classifier_for)
+
+        assert sorted((f.tier, f.primitive, f.event_count) for f in findings) == [
+            ("monkeypatch", "open", 1),
+            ("monkeypatch", "time.sleep", 1),
+            ("watchdog", None, 1),
+        ]
+        [watchdog] = [f for f in findings if f.tier == "watchdog"]
+        assert watchdog.max_stall_ms == 300.0
+
 
 class TestTier2:
     def test_user_call_site_groups_by_primitive_and_location(self) -> None:

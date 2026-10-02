@@ -155,7 +155,7 @@ def _start_finding(
     handler = handler_ref(row)
     handler_key = (handler.kind, handler.id) if handler is not None else None
     return (
-        ("uncaptured", app_key, handler_key),
+        ("uncaptured", tier, app_key, primitive, handler_key),
         _FindingBuilder(**base, call_site=None, call_site_is_user_code=False, detected_in_package=None, callee=None),
     )
 
