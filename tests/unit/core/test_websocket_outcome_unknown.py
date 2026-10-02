@@ -209,6 +209,33 @@ class TestLateReplyToTimedOutWrite:
         assert str(msg_id) in rendered
         assert msg_id not in websocket_service._pending.timed_out_writes
 
+    async def test_reply_racing_the_deadline_is_returned_or_logged(self, websocket_service: WebsocketService) -> None:
+        """A reply queued as the response timeout fires is never silently dropped.
+
+        The reply lands after the deadline but before the sending task resumes. It must either
+        come back as the call's result or be logged as a late reply, leaving nothing recorded.
+        """
+        websocket_service.hassette.config.websocket.response_timeout_seconds = 0
+        websocket_service._pending.logger = Mock()
+        loop = asyncio.get_running_loop()
+
+        async def reply_as_deadline_fires(**data) -> None:
+            reply = {"type": "result", "id": data["id"], "success": True, "result": {"ok": True}}
+            loop.call_soon(websocket_service.respond_if_necessary, reply)
+
+        websocket_service.send_json = AsyncMock(side_effect=reply_as_deadline_fires)
+
+        try:
+            result = await websocket_service.send_and_wait(
+                type="fire_event", event_type="doorbell", retry_on_timeout=False
+            )
+        except ResponseTimeoutError:
+            await asyncio.sleep(0)
+            websocket_service._pending.logger.info.assert_called_once()
+        else:
+            assert result == {"ok": True}
+        assert len(websocket_service._pending.timed_out_writes) == 0
+
     async def test_retried_read_timeout_is_not_recorded(self, websocket_service: WebsocketService) -> None:
         """A late reply to a read settles nothing, so retried reads are never recorded."""
         _time_out_immediately(websocket_service)
