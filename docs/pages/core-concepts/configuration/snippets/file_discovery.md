@@ -12,6 +12,6 @@ Hassette checks the same three locations for `.env` files:
 2. `./.env` (current working directory)
 3. `./config/.env`
 
-Settings resolution reads them in that order too, so a later `.env` file overrides a value an earlier one set. Separately, when `import_dot_env_files` is enabled (the default), every `.env` file that exists is also loaded into `os.environ` at startup — in no guaranteed order, and without overwriting a variable that's already set.
+Settings resolution reads them in that order too, so a later `.env` file overrides a value an earlier one set. When `import_dot_env_files` is enabled (the default), each existing `.env` file is also loaded into `os.environ` at startup. That load has no guaranteed order and never overwrites a variable that's already set.
 
 `--config-file / -c` and `--env-file / -e` replace the search list with a single path.

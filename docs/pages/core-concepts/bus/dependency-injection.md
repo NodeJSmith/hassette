@@ -74,7 +74,7 @@ State extractors accept union types for handlers that cover multiple entity doma
 --8<-- "pages/core-concepts/bus/snippets/dependency-injection/union_types.py"
 ```
 
-Hassette determines the concrete state class from the entity's domain at dispatch time — see [State Conversion](../states/conversion.md) for details.
+Hassette tries each member of the union in order and uses the first one that validates against the entity's domain. See [State Conversion](../states/conversion.md#union-type-support) for details.
 
 ## Custom Keyword Arguments
 
