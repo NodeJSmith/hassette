@@ -1368,6 +1368,179 @@
         }
       }
     },
+    "/api/telemetry/app/{app_key}/blocking": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "App Blocking Findings",
+        "description": "Blocking-IO findings for one app instance: attributed events grouped by app call site.",
+        "operationId": "app_blocking_findings_api_telemetry_app__app_key__blocking_get",
+        "parameters": [
+          {
+            "name": "app_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Use `__hassette__` to query framework-internal actor telemetry.",
+              "title": "App Key"
+            },
+            "description": "Use `__hassette__` to query framework-internal actor telemetry."
+          },
+          {
+            "name": "instance_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
+              "default": 0,
+              "title": "Instance Index"
+            },
+            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockingFindingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/blocking/findings": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "All Blocking Findings",
+        "description": "Blocking-IO findings for every app and instance, in one response.",
+        "operationId": "all_blocking_findings_api_telemetry_blocking_findings_get",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlockingFindingsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/telemetry/blocking/unattributed": {
+      "get": {
+        "tags": [
+          "telemetry"
+        ],
+        "summary": "Unattributed Blocking",
+        "description": "Loop stalls credited to no app (displaced or framework), for the diagnostics page.",
+        "operationId": "unattributed_blocking_api_telemetry_blocking_unattributed_get",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnattributedBlockingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/telemetry/executions": {
       "get": {
         "tags": [
@@ -2366,6 +2539,220 @@
         "title": "BackpressurePolicy",
         "description": "What a listener does when the *global* dispatch semaphore is saturated.\n\nThe semaphore is shared by all listeners across all apps \u2014 saturation means\nthe whole bus is at capacity, not that this listener alone is busy. This is\ndistinct from per-listener rate controls (``debounce``, ``throttle``, ``mode``),\nwhich operate inside the handler invoker after a dispatch slot is acquired."
       },
+      "BlockingFinding": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "watchdog",
+              "monkeypatch"
+            ],
+            "title": "Tier"
+          },
+          "call_site": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlockingFrameRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "call_site_is_user_code": {
+            "type": "boolean",
+            "title": "Call Site Is User Code"
+          },
+          "detected_in_package": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected In Package"
+          },
+          "callee": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlockingFrameRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primitive": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primitive"
+          },
+          "handlers": {
+            "items": {
+              "$ref": "#/components/schemas/BlockingHandlerRef"
+            },
+            "type": "array",
+            "title": "Handlers"
+          },
+          "event_count": {
+            "type": "integer",
+            "title": "Event Count"
+          },
+          "max_stall_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Stall Ms"
+          },
+          "avg_stall_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Stall Ms"
+          },
+          "last_seen_ts": {
+            "type": "number",
+            "title": "Last Seen Ts"
+          },
+          "latest_stack": {
+            "items": {
+              "$ref": "#/components/schemas/StackFrame"
+            },
+            "type": "array",
+            "title": "Latest Stack"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "tier",
+          "call_site",
+          "call_site_is_user_code",
+          "handlers",
+          "event_count",
+          "last_seen_ts",
+          "latest_stack"
+        ],
+        "title": "BlockingFinding",
+        "description": "One thing to fix: every attributed blocking event at the same app call site, grouped.\n\n``call_site`` is ``None`` when no app-code frame was captured for these events (no stack\ncaptured, or the row predates structured frames); such findings are grouped per handler instead."
+      },
+      "BlockingFindingsResponse": {
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/BlockingFinding"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "findings"
+        ],
+        "title": "BlockingFindingsResponse",
+        "description": "Blocking findings for one app, or for every app."
+      },
+      "BlockingFrameRef": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "lineno": {
+            "type": "integer",
+            "title": "Lineno"
+          },
+          "function": {
+            "type": "string",
+            "title": "Function"
+          },
+          "module": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Module"
+          },
+          "display_path": {
+            "type": "string",
+            "title": "Display Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "lineno",
+          "function",
+          "display_path"
+        ],
+        "title": "BlockingFrameRef",
+        "description": "A frame picked out for display, with a short path for summary lines."
+      },
+      "BlockingHandlerRef": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "listener",
+              "job"
+            ],
+            "title": "Kind"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "handler_method": {
+            "type": "string",
+            "title": "Handler Method"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "id",
+          "name",
+          "handler_method"
+        ],
+        "title": "BlockingHandlerRef",
+        "description": "A handler or job whose execution reached a blocking call site."
+      },
       "BootIssueResponse": {
         "properties": {
           "severity": {
@@ -2512,6 +2899,11 @@
             },
             "type": "array",
             "title": "Activity Buckets"
+          },
+          "blocking_event_count": {
+            "type": "integer",
+            "title": "Blocking Event Count",
+            "default": 0
           },
           "last_error_message": {
             "anyOf": [
@@ -3868,6 +4260,41 @@
         "title": "SessionResponse",
         "description": "Response for POST /api/auth/session on a correct token.\n\nThe session cookie itself travels via the ``Set-Cookie`` response header, minted by\n``mint_session_cookie()`` \u2014 this body just confirms success for callers that inspect\nthe JSON payload rather than only the status code."
       },
+      "StackFrame": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "lineno": {
+            "type": "integer",
+            "title": "Lineno"
+          },
+          "function": {
+            "type": "string",
+            "title": "Function"
+          },
+          "module": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Module"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "lineno",
+          "function"
+        ],
+        "title": "StackFrame",
+        "description": "One captured stack frame."
+      },
       "SystemStatusResponse": {
         "properties": {
           "status": {
@@ -3983,6 +4410,126 @@
         ],
         "title": "TelemetryStatusResponse",
         "description": "Health check response for the telemetry database."
+      },
+      "UnattributedBlockingResponse": {
+        "properties": {
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count",
+            "default": 0
+          },
+          "displaced_count": {
+            "type": "integer",
+            "title": "Displaced Count",
+            "default": 0
+          },
+          "framework_count": {
+            "type": "integer",
+            "title": "Framework Count",
+            "default": 0
+          },
+          "max_stall_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Stall Ms"
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/UnattributedStall"
+            },
+            "type": "array",
+            "title": "Recent"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "recent"
+        ],
+        "title": "UnattributedBlockingResponse",
+        "description": "Loop stalls that no app is credited with, for the diagnostics page."
+      },
+      "UnattributedStall": {
+        "properties": {
+          "detected_ts": {
+            "type": "number",
+            "title": "Detected Ts"
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "watchdog",
+              "monkeypatch"
+            ],
+            "title": "Tier"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "displaced",
+              "framework"
+            ],
+            "title": "Reason"
+          },
+          "stall_duration_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stall Duration Ms"
+          },
+          "primitive": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primitive"
+          },
+          "app_frame": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlockingFrameRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stack": {
+            "items": {
+              "$ref": "#/components/schemas/StackFrame"
+            },
+            "type": "array",
+            "title": "Stack"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detected_ts",
+          "tier",
+          "reason",
+          "stack"
+        ],
+        "title": "UnattributedStall",
+        "description": "One blocking event that names no app."
       },
       "ValidationError": {
         "properties": {

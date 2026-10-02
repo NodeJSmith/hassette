@@ -100,6 +100,16 @@ instance_name = "ok"
 instance_name = "crashed"
 crash_on_init = true
 
+# blocking_demo blocks the event loop on purpose, from two jobs through one shared helper, for
+# the blocking-calls docs screenshot (docs/_static/web_ui_blocking_findings.png). autostart=false
+# keeps it from stalling the demo until that entry starts it.
+# Don't remove without updating docs/screenshots.yml and blocking-io-detection.md.
+[hassette.apps.blocking_demo]
+filename = "blocking_demo.py"
+class_name = "BlockingDemo"
+autostart = false
+config = { instance_name = "blocking_demo" }
+
 [hassette.database]
 retention_days = 14
 max_size_mb = 100

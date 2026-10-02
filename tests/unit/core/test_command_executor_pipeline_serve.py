@@ -184,7 +184,7 @@ def test_record_blocking_event_swallows_uninitialized_db() -> None:
 
     event = MonkeypatchEvent(
         primitive="socket.send",
-        source_location="app.py:10",
+        frames=(),
         app_key="test_app",
         instance_name="default",
         instance_index=0,

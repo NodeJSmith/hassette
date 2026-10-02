@@ -27,6 +27,8 @@ type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
+type BlockingFindingsResponse = components["schemas"]["BlockingFindingsResponse"];
+type UnattributedBlockingResponse = components["schemas"]["UnattributedBlockingResponse"];
 
 /** Installs an MSW handler returning the given manifests for the duration of the test. */
 export function withManifests(manifests: components["schemas"]["AppManifestResponse"][], server: SetupServer) {
@@ -103,6 +105,23 @@ export const handlers = [
   // GET /api/telemetry/app/:app_key/activity
   http.get("/api/telemetry/app/:app_key/activity", () => {
     return HttpResponse.json<ActivityFeedEntry[]>([]);
+  }),
+
+  // GET /api/telemetry/app/:app_key/blocking
+  http.get("/api/telemetry/app/:app_key/blocking", () => {
+    return HttpResponse.json<BlockingFindingsResponse>({ findings: [], truncated: false });
+  }),
+
+  // GET /api/telemetry/blocking/unattributed
+  http.get("/api/telemetry/blocking/unattributed", () => {
+    return HttpResponse.json<UnattributedBlockingResponse>({
+      total_count: 0,
+      displaced_count: 0,
+      framework_count: 0,
+      max_stall_ms: null,
+      recent: [],
+      truncated: false,
+    });
   }),
 
   // GET /api/telemetry/listener/:listener_id/executions

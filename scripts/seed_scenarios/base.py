@@ -76,6 +76,7 @@ _BLOCKING_EVENT_COLUMNS = (
     "detected_ts",
     "source_tier",
     "reason",
+    "frames",
 )
 
 
@@ -327,8 +328,12 @@ class SeedContext:
         source_location: str | None = None,
         stall_duration_ms: float | None = None,
         reason: str | None = None,
+        frames: str | None = None,
     ) -> None:
-        """Insert a blocking_events row. ``execution_id`` and ``session_id`` may be None."""
+        """Insert a blocking_events row. ``execution_id`` and ``session_id`` may be None.
+
+        ``frames`` is the column's JSON text (see ``hassette.utils.stack_frames.encode_frames``).
+        """
         params = {
             "session_id": session_id,
             "app_key": app_key,
@@ -342,6 +347,7 @@ class SeedContext:
             "detected_ts": detected_ts,
             "source_tier": source_tier,
             "reason": reason,
+            "frames": frames,
         }
         insert_row(self.cursor, _BLOCKING_EVENT_INSERT_SQL, params)
 

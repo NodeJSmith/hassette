@@ -531,6 +531,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/telemetry/app/{app_key}/blocking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * App Blocking Findings
+         * @description Blocking-IO findings for one app instance: attributed events grouped by app call site.
+         */
+        get: operations["app_blocking_findings_api_telemetry_app__app_key__blocking_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/telemetry/blocking/findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * All Blocking Findings
+         * @description Blocking-IO findings for every app and instance, in one response.
+         */
+        get: operations["all_blocking_findings_api_telemetry_blocking_findings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/telemetry/blocking/unattributed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Unattributed Blocking
+         * @description Loop stalls credited to no app (displaced or framework), for the diagnostics page.
+         */
+        get: operations["unattributed_blocking_api_telemetry_blocking_unattributed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/telemetry/executions": {
         parameters: {
             query?: never;
@@ -938,6 +998,88 @@ export interface components {
          */
         BackpressurePolicy: "block" | "drop_newest";
         /**
+         * BlockingFinding
+         * @description One thing to fix: every attributed blocking event at the same app call site, grouped.
+         *
+         *     ``call_site`` is ``None`` when no app-code frame was captured for these events (no stack
+         *     captured, or the row predates structured frames); such findings are grouped per handler instead.
+         */
+        BlockingFinding: {
+            /** App Key */
+            app_key: string;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "watchdog" | "monkeypatch";
+            call_site: components["schemas"]["BlockingFrameRef"] | null;
+            /** Call Site Is User Code */
+            call_site_is_user_code: boolean;
+            /** Detected In Package */
+            detected_in_package?: string | null;
+            callee?: components["schemas"]["BlockingFrameRef"] | null;
+            /** Primitive */
+            primitive?: string | null;
+            /** Handlers */
+            handlers: components["schemas"]["BlockingHandlerRef"][];
+            /** Event Count */
+            event_count: number;
+            /** Max Stall Ms */
+            max_stall_ms?: number | null;
+            /** Avg Stall Ms */
+            avg_stall_ms?: number | null;
+            /** Last Seen Ts */
+            last_seen_ts: number;
+            /** Latest Stack */
+            latest_stack: components["schemas"]["StackFrame"][];
+        };
+        /**
+         * BlockingFindingsResponse
+         * @description Blocking findings for one app, or for every app.
+         */
+        BlockingFindingsResponse: {
+            /** Findings */
+            findings: components["schemas"]["BlockingFinding"][];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /**
+         * BlockingFrameRef
+         * @description A frame picked out for display, with a short path for summary lines.
+         */
+        BlockingFrameRef: {
+            /** Filename */
+            filename: string;
+            /** Lineno */
+            lineno: number;
+            /** Function */
+            function: string;
+            /** Module */
+            module?: string | null;
+            /** Display Path */
+            display_path: string;
+        };
+        /**
+         * BlockingHandlerRef
+         * @description A handler or job whose execution reached a blocking call site.
+         */
+        BlockingHandlerRef: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "listener" | "job";
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Handler Method */
+            handler_method: string;
+        };
+        /**
          * BootIssueResponse
          * @description A boot-time issue entry in the system status response.
          */
@@ -1027,6 +1169,11 @@ export interface components {
             error_rate_class: "good" | "warn" | "bad";
             /** Activity Buckets */
             activity_buckets?: components["schemas"]["ActivityBucket"][];
+            /**
+             * Blocking Event Count
+             * @default 0
+             */
+            blocking_event_count: number;
             /** Last Error Message */
             last_error_message?: string | null;
             /** Last Error Type */
@@ -1599,6 +1746,20 @@ export interface components {
              */
             status: "ok";
         };
+        /**
+         * StackFrame
+         * @description One captured stack frame.
+         */
+        StackFrame: {
+            /** Filename */
+            filename: string;
+            /** Lineno */
+            lineno: number;
+            /** Function */
+            function: string;
+            /** Module */
+            module?: string | null;
+        };
         /** SystemStatusResponse */
         SystemStatusResponse: {
             /**
@@ -1673,6 +1834,61 @@ export interface components {
              * @default 0
              */
             error_handler_failures: number;
+        };
+        /**
+         * UnattributedBlockingResponse
+         * @description Loop stalls that no app is credited with, for the diagnostics page.
+         */
+        UnattributedBlockingResponse: {
+            /**
+             * Total Count
+             * @default 0
+             */
+            total_count: number;
+            /**
+             * Displaced Count
+             * @default 0
+             */
+            displaced_count: number;
+            /**
+             * Framework Count
+             * @default 0
+             */
+            framework_count: number;
+            /** Max Stall Ms */
+            max_stall_ms?: number | null;
+            /** Recent */
+            recent: components["schemas"]["UnattributedStall"][];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /**
+         * UnattributedStall
+         * @description One blocking event that names no app.
+         */
+        UnattributedStall: {
+            /** Detected Ts */
+            detected_ts: number;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "watchdog" | "monkeypatch";
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "displaced" | "framework";
+            /** Stall Duration Ms */
+            stall_duration_ms?: number | null;
+            /** Primitive */
+            primitive?: string | null;
+            app_frame?: components["schemas"]["BlockingFrameRef"] | null;
+            /** Stack */
+            stack: components["schemas"]["StackFrame"][];
         };
         /** ValidationError */
         ValidationError: {
@@ -2504,6 +2720,104 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    app_blocking_findings_api_telemetry_app__app_key__blocking_get: {
+        parameters: {
+            query?: {
+                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
+                instance_index?: number;
+                since?: number | null;
+            };
+            header?: never;
+            path: {
+                /** @description Use `__hassette__` to query framework-internal actor telemetry. */
+                app_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockingFindingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    all_blocking_findings_api_telemetry_blocking_findings_get: {
+        parameters: {
+            query?: {
+                since?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockingFindingsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unattributed_blocking_api_telemetry_blocking_unattributed_get: {
+        parameters: {
+            query?: {
+                since?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnattributedBlockingResponse"];
                 };
             };
             /** @description Validation Error */

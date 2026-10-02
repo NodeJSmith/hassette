@@ -22,6 +22,11 @@ export const queryKeys = {
     base: (appKey: string, idx: number) => ["app-jobs", appKey, idx] as const,
     prefix: (appKey: string) => ["app-jobs", appKey] as const,
   },
+  appBlocking: {
+    base: (appKey: string, idx: number) => ["app-blocking", appKey, idx] as const,
+    prefix: (appKey: string) => ["app-blocking", appKey] as const,
+  },
+  unattributedBlocking: () => ["unattributed-blocking"] as const,
   appActivity: {
     base: (appKey: string, idx: number) => ["app-activity", appKey, idx] as const,
     prefix: (appKey: string) => ["app-activity", appKey] as const,

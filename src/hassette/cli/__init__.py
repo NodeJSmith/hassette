@@ -16,6 +16,7 @@ from hassette.cli.commands.app import (
     cmd_app_start,
     cmd_app_stop,
 )
+from hassette.cli.commands.blocking import cmd_blocking
 from hassette.cli.commands.job import cmd_job
 from hassette.cli.commands.listener import cmd_listener
 from hassette.cli.commands.log import cmd_execution, cmd_log
@@ -87,6 +88,9 @@ app.command(log_app)
 execution_app = App(name="execution", help="Show logs for a specific execution.")
 app.command(execution_app)
 
+blocking_app = App(name="blocking", help="Show blocking-IO findings: calls that stalled the event loop.")
+app.command(blocking_app)
+
 config_app = App(name="config", help="Show current configuration.")
 app.command(config_app)
 
@@ -116,6 +120,7 @@ job_app.default(cmd_job)
 
 log_app.default(cmd_log)
 execution_app.default(cmd_execution)
+blocking_app.default(cmd_blocking)
 
 # Meta app — global options that apply to all commands
 

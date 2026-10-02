@@ -725,6 +725,7 @@ class CommandExecutor(Service):
                 detected_ts=event.detected_at,
                 source_tier="app" if event.app_key is not None else "framework",
                 reason=event.reason,
+                frames=list(event.frames) or None,
             )
         else:
             blocking_event = BlockingEvent(
@@ -740,6 +741,7 @@ class CommandExecutor(Service):
                 detected_ts=event.detected_at,
                 source_tier="app" if event.app_key is not None else "framework",
                 reason=event.reason,
+                frames=list(event.frames) or None,
             )
 
         # Fire-and-forget telemetry: enqueue() drops on a full write queue (and logs the

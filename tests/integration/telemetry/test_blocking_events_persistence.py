@@ -15,13 +15,18 @@ from collections.abc import AsyncIterator
 from unittest.mock import MagicMock
 
 import pytest
+from hassette_wire import StackFrame
 
 from hassette.core.block_io_guard import MonkeypatchEvent
 from hassette.core.command_executor import CommandExecutor
 from hassette.core.database_service import DatabaseService
 from hassette.core.loop_watchdog import WatchdogEvent
+from hassette.utils.stack_frames import decode_frames
 
 from .helpers import DbFixture, drain_db_writes, fetch_blocking_events, running_command_executor
+
+APP_FRAME = StackFrame(filename="/apps/my_app.py", lineno=42, function="on_event", module="my_app")
+CALLER_FRAME = StackFrame(filename="/apps/my_app.py", lineno=99, function="poll", module="my_app")
 
 
 @pytest.fixture
@@ -44,7 +49,7 @@ def _make_watchdog_event(*, app_key: str | None = "my_app", stall_ms: float = 25
         execution_id="exec-uuid-watchdog" if app_key else None,
         stall_duration_ms=stall_ms,
         tier="watchdog",
-        stack_text='  File "my_app.py", line 42, in on_event (my_app)',
+        frames=(APP_FRAME,),
         detected_at=time.time(),
         reason="attributed" if app_key else "framework",
     )
@@ -53,7 +58,7 @@ def _make_watchdog_event(*, app_key: str | None = "my_app", stall_ms: float = 25
 def _make_monkeypatch_event(*, app_key: str | None = "my_app") -> MonkeypatchEvent:
     return MonkeypatchEvent(
         primitive="time.sleep",
-        source_location="my_app.py:99",
+        frames=(CALLER_FRAME,),
         app_key=app_key,
         instance_name="my_app_instance" if app_key else None,
         instance_index=0 if app_key else None,
@@ -92,10 +97,10 @@ class TestTier1Persistence:
         assert row["execution_id"] == "exec-uuid-watchdog"
         assert row["reason"] == "attributed"
 
-    async def test_watchdog_stack_stored_in_source_location(self, executor: CommandExecutor, db: DbFixture) -> None:
-        """Tier 1 stack text is stored in source_location column."""
+    async def test_watchdog_stack_stored_as_text_and_frames(self, executor: CommandExecutor, db: DbFixture) -> None:
+        """Tier 1 stack is stored as text in source_location and as structured frames."""
         db_svc, _ = db
-        stack = '  File "my_app.py", line 42, in on_event (my_app)'
+        inner = StackFrame(filename="/usr/lib/python3.13/ssl.py", lineno=1, function="read", module="ssl")
         event = WatchdogEvent(
             app_key="my_app",
             instance_name=None,
@@ -103,17 +108,21 @@ class TestTier1Persistence:
             execution_id="exec-1",
             stall_duration_ms=150.0,
             tier="watchdog",
-            stack_text=stack,
+            frames=(inner, APP_FRAME),
             detected_at=time.time(),
             reason="attributed",
         )
 
         rows = await _record_and_fetch(executor, db_svc, event)
         assert len(rows) == 1
-        assert rows[0]["source_location"] == stack
+        assert rows[0]["source_location"] == (
+            '  File "/usr/lib/python3.13/ssl.py", line 1, in read (ssl)\n'
+            '  File "/apps/my_app.py", line 42, in on_event (my_app)'
+        )
+        assert decode_frames(rows[0]["frames"]) == [inner, APP_FRAME]
 
     async def test_watchdog_no_stack_source_location_is_null(self, executor: CommandExecutor, db: DbFixture) -> None:
-        """Tier 1 with no stack → source_location is NULL."""
+        """Tier 1 with no stack → source_location and frames are NULL."""
         db_svc, _ = db
         event = WatchdogEvent(
             app_key="my_app",
@@ -122,13 +131,14 @@ class TestTier1Persistence:
             execution_id="exec-1",
             stall_duration_ms=150.0,
             tier="watchdog",
-            stack_text=None,
+            frames=(),
             detected_at=time.time(),
             reason="attributed",
         )
 
         rows = await _record_and_fetch(executor, db_svc, event)
         assert rows[0]["source_location"] is None
+        assert rows[0]["frames"] is None
 
 
 class TestTier2Persistence:
@@ -144,7 +154,8 @@ class TestTier2Persistence:
         assert row["tier"] == "monkeypatch"
         assert row["app_key"] == "my_app"
         assert row["primitive"] == "time.sleep"
-        assert row["source_location"] == "my_app.py:99"
+        assert row["source_location"] == "/apps/my_app.py:99"
+        assert decode_frames(row["frames"]) == [CALLER_FRAME]
         assert row["stall_duration_ms"] is None  # Tier 2 has no stall duration
         assert row["source_tier"] == "app"
         assert row["session_id"] == session_id

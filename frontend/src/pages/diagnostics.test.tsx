@@ -3,7 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { queryKeys } from "../lib/query-keys";
 import type { ServiceStatusEntry } from "../state/store";
-import { createServiceInfo, createServiceStatusEntry, createSystemStatus } from "../test/factories";
+import {
+  createFrameRef,
+  createServiceInfo,
+  createServiceStatusEntry,
+  createSystemStatus,
+  createUnattributedStall,
+} from "../test/factories";
 import { createTestQueryClient } from "../test/query-test-utils";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
@@ -328,5 +334,54 @@ describe("DiagnosticsPage", () => {
     await findByTestId("diag-service-row-bus");
     expect(queryByTestId("diag-service-status-bus")).toBeNull();
     expect(queryByTestId("diag-service-phase-bus")).toBeNull();
+  });
+  describe("loop stalls", () => {
+    function stallsCell(strip: HTMLElement): HTMLElement | undefined {
+      return Array.from(strip.querySelectorAll<HTMLElement>("[data-testid='stats-strip-cell']")).find((c) =>
+        c.textContent?.includes("loop stalls"),
+      );
+    }
+
+    it("shows a zero cell and no panel when there are no unattributed stalls", async () => {
+      const { findByTestId, queryByTestId } = renderWithAppState(<DiagnosticsPage />, {
+        storeOverrides: { uptimeSeconds: 120 },
+      });
+      const strip = await findByTestId("diag-stats-strip");
+      expect(stallsCell(strip)?.textContent).toContain("0");
+      expect(queryByTestId("diag-loop-stalls-panel")).toBeNull();
+    });
+
+    it("shows the count with warn tone and lists recent stalls with app code as evidence", async () => {
+      server.use(
+        http.get("/api/telemetry/blocking/unattributed", () =>
+          HttpResponse.json({
+            total_count: 2,
+            displaced_count: 1,
+            framework_count: 1,
+            max_stall_ms: 5000,
+            recent: [
+              createUnattributedStall({
+                app_frame: createFrameRef({ display_path: "helper.py", lineno: 3, function: "go" }),
+              }),
+              createUnattributedStall({ reason: "framework", stall_duration_ms: 120 }),
+            ],
+            truncated: false,
+          }),
+        ),
+      );
+      const { findByTestId, getByTestId } = renderWithAppState(<DiagnosticsPage />, {
+        storeOverrides: { uptimeSeconds: 120 },
+      });
+
+      const panel = await findByTestId("diag-loop-stalls-panel");
+      expect(getByTestId("diag-loop-stalls-summary").textContent).toBe(
+        "2 stalls: 1 displaced · 1 framework · longest 5.0s",
+      );
+      expect(getByTestId("diag-stall-0").textContent).toContain("app code in stack: helper.py:3 in go");
+      expect(getByTestId("diag-stall-1").textContent).toContain("framework");
+      expect(panel).toBeDefined();
+      const cell = stallsCell(getByTestId("diag-stats-strip"));
+      expect(cell?.querySelector("[data-tone='warn']")).not.toBeNull();
+    });
   });
 });

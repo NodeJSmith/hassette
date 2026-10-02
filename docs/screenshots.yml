@@ -424,6 +424,32 @@
     })()
 
 # ===========================================================================
+# Blocking-call findings on the app overview
+# blocking_demo has autostart=false: two jobs (every 5s / 7s) call one helper
+# that blocks the loop with time.sleep. JS starts the app via the API, waits
+# until the one finding lists both jobs (each completion refetches it), then
+# expands the stack. Started apps persist for the rest of the run, so
+# this sits after every entry whose shot would show the stalls or the apps-list
+# badge, and before degraded_banner (a banner crop the stalls don't affect).
+# ===========================================================================
+- url: "http://localhost:{port}/apps/blocking_demo/overview"
+  output: docs/_static/web_ui_blocking_findings.png
+  selector: "[data-testid='overview-blocking-findings']"
+  width: 1400
+  height: 900
+  wait: 1000
+  wait_for: "document.querySelector('[data-testid=\"overview-blocking-finding-0-stack\"]')"
+  javascript: >-
+    (async()=>{
+    const poll=(sel,ms=40000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout: '+sel)),ms);(function c(){const e=document.querySelector(sel);if(e){clearTimeout(t);res(e)}else{requestAnimationFrame(c)}})()});
+    const both=(ms=40000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout: both jobs')),ms);(function c(){const e=document.querySelector('[data-testid="overview-blocking-finding-0"]');if(e&&e.textContent.includes('sync_calendar')&&e.textContent.includes('refresh_dashboard')){clearTimeout(t);res(e)}else{requestAnimationFrame(c)}})()});
+    await fetch('/api/apps/blocking_demo/start',{method:'POST'});
+    await both();
+    const toggle=await poll('[data-testid="overview-blocking-finding-0-stack-toggle"]');
+    toggle.click();
+    })()
+
+# ===========================================================================
 # Degraded app in the failure banner
 # degraded_demo has autostart=false and two instances: one starts normally,
 # the other is configured (crash_on_init=true) to raise during on_initialize()

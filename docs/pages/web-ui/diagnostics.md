@@ -8,7 +8,7 @@ pipeline health — the layer below your apps.
 
 ## Stats strip
 
-The strip at the top summarizes the page in four numbers:
+The strip at the top summarizes the page:
 
 | Cell | Meaning |
 |------|---------|
@@ -16,6 +16,7 @@ The strip at the top summarizes the page in four numbers:
 | running | Services currently in the `running` state — green when all are running, amber otherwise |
 | boot issues | Problems detected during startup — red when non-zero |
 | drops | Telemetry records dropped across all categories — amber when non-zero |
+| loop stalls | Event-loop stalls not credited to any app, in the selected time window — amber when non-zero |
 
 ## Services
 
@@ -44,6 +45,17 @@ The telemetry panel appears when the telemetry pipeline is degraded or has dropp
 records. Drop counters are broken out by cause: buffer overflow, failed writes, drops
 during shutdown, and error-handler failures. A degraded banner means writes may be
 failing or the database is unavailable — some historical data may be missing.
+
+## Loop stalls
+
+The loop stalls panel appears when [blocking-IO detection](../core-concepts/blocking-io-detection.md) recorded stalls in the selected time window that it couldn't credit to an app. Hassette blames an app only when that app's code was the task holding the loop, so these stalls fall into two groups:
+
+- **displaced**: an app execution was in flight, but a different task held the loop, so Hassette withheld the blame rather than guess.
+- **framework**: no app execution was responsible, for example a library callback or Hassette's own work.
+
+The panel shows the count of each and the longest stall, then lists the most recent stalls with their duration and a **show stack** toggle. When a stall's stack contains app code, the row names that line as evidence. It isn't added to the app's own findings, because an app directory can hold helpers that several apps share.
+
+Stalls that Hassette did credit to an app appear on that app's overview instead.
 
 ## Related pages
 

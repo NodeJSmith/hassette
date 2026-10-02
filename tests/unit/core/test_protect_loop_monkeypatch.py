@@ -464,7 +464,7 @@ class TestMonkeypatchEvent:
         """MonkeypatchEvent is a frozen dataclass — direct attribute assignment raises."""
         event = MonkeypatchEvent(
             primitive="time.sleep",
-            source_location="app.py:42",
+            frames=(),
             app_key="my_app",
             instance_name=None,
             instance_index=0,
@@ -480,7 +480,7 @@ class TestMonkeypatchEvent:
         """MonkeypatchEvent has all the fields needed for blocking event persistence."""
         field_names = {f.name for f in fields(MonkeypatchEvent)}
         assert "primitive" in field_names
-        assert "source_location" in field_names
+        assert "frames" in field_names
         assert "app_key" in field_names
         assert "instance_name" in field_names
         assert "instance_index" in field_names
@@ -493,7 +493,7 @@ class TestMonkeypatchEvent:
         """MonkeypatchEvent tier is always 'monkeypatch' for Tier 2 events."""
         event = MonkeypatchEvent(
             primitive="os.listdir",
-            source_location="app.py:10",
+            frames=(),
             app_key=None,
             instance_name=None,
             instance_index=None,
@@ -526,6 +526,23 @@ class TestMonkeypatchEvent:
 
         assert msgs
         assert "<framework>" in msgs[0]
+
+    def test_event_stores_the_full_caller_frame(self) -> None:
+        """The recorded frame names the calling function and module, not just file:line."""
+        h = make_blocking_io_hassette()
+        ex = make_marker_executor(app_key="my_app")
+        ex.record_blocking_event = MagicMock()
+        install_on_loop_thread(h, ex)
+
+        def sleepy_helper() -> None:
+            time.sleep(0)
+
+        capture_blocking_io_warnings(sleepy_helper)
+
+        event = ex.record_blocking_event.call_args[0][0]
+        [caller] = event.frames
+        assert (caller.function, caller.filename, caller.module) == ("sleepy_helper", __file__, __name__)
+        assert event.source_location == f"{__file__}:{caller.lineno}"
 
 
 class TestTier2TaskIdentityAttribution:

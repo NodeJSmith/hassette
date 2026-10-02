@@ -31,6 +31,11 @@ export type SystemConfig = Omit<components["schemas"]["ConfigSchemaResponse"], "
 };
 export type SystemStatus = components["schemas"]["SystemStatusResponse"];
 export type BootIssue = components["schemas"]["BootIssueResponse"];
+export type BlockingFindingsData = components["schemas"]["BlockingFindingsResponse"];
+export type BlockingFinding = components["schemas"]["BlockingFinding"];
+export type StackFrame = components["schemas"]["StackFrame"];
+export type UnattributedBlockingData = components["schemas"]["UnattributedBlockingResponse"];
+export type UnattributedStall = components["schemas"]["UnattributedStall"];
 
 export const WS_PATH = "/api/ws";
 
@@ -75,6 +80,20 @@ export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | n
     buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/jobs`, { instance_index: instanceIndex, since }),
     { signal },
   );
+
+export const getAppBlockingFindings = (
+  appKey: string,
+  instanceIndex = 0,
+  since?: number | null,
+  signal?: AbortSignal,
+) =>
+  apiFetch<BlockingFindingsData>(
+    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/blocking`, { instance_index: instanceIndex, since }),
+    { signal },
+  );
+
+export const getUnattributedBlocking = (since?: number | null, signal?: AbortSignal) =>
+  apiFetch<UnattributedBlockingData>(buildUrl("/telemetry/blocking/unattributed", { since }), { signal });
 
 export const getAppActivity = (
   appKey: string,

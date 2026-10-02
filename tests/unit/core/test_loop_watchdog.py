@@ -358,7 +358,7 @@ def test_watchdog_event_fields() -> None:
         execution_id="exec-abc",
         stall_duration_ms=350.0,
         tier="watchdog",
-        stack_text=None,
+        frames=(),
         detected_at=time.time(),
         reason="attributed",
     )
@@ -367,6 +367,7 @@ def test_watchdog_event_fields() -> None:
     assert event.stall_duration_ms == 350.0
     assert event.instance_name == "office"
     assert event.instance_index == 0
+    assert event.frames == ()
     assert event.stack_text is None
     assert event.reason == "attributed"
 
@@ -442,6 +443,33 @@ async def test_displaced_block_not_attributed_to_innocent_app() -> None:
     assert captured[0].app_key is None
     assert captured[0].execution_id is None
     assert captured[0].reason == "displaced"
+
+
+@pytest.mark.asyncio(loop_scope="function")
+async def test_stall_captures_structured_frames_of_the_frozen_code() -> None:
+    """With stack capture on, the event carries the frozen code's frames, innermost first."""
+    loop = asyncio.get_running_loop()
+    executor = make_marker_executor(app_key="kitchen_lights", stamp_task_id=True)
+    captured: list[WatchdogEvent] = []
+
+    with pytest.warns(HassetteBlockingIOWarning):
+        watchdog = LoopWatchdog(
+            make_blocking_io_hassette(capture_stack_on_block=True),
+            loop=loop,
+            loop_thread_id=threading.get_ident(),
+            executor=executor,
+            on_stall=captured.append,
+        )
+        async with running_watchdog(watchdog):
+            await freeze_loop_and_recover(executor, clear_marker_before_recovery=True)
+
+    assert captured
+    innermost = captured[0].frames[0]
+    assert (innermost.function, innermost.filename, innermost.module) == ("freeze_loop_and_recover", __file__, __name__)
+    assert captured[0].stack_text is not None
+    assert captured[0].stack_text.splitlines()[0] == (
+        f'  File "{__file__}", line {innermost.lineno}, in freeze_loop_and_recover ({__name__})'
+    )
 
 
 @pytest.mark.asyncio(loop_scope="function")

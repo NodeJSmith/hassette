@@ -7,6 +7,8 @@ import inspect
 from pathlib import Path
 from typing import Any
 
+from hassette_wire import StackFrame
+
 # Capture the original open before block_io_guard monkeypatches builtins.open.
 # Source capture reads Python files for AST analysis during handler/job registration;
 # these reads are small, LRU-cached, and happen only at initialization — not the kind
@@ -89,40 +91,56 @@ def find_caller_frame(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FR
     Returns ``("<unknown>", 0)`` when stack walking fails entirely.
     """
     try:
-        # Always walk with context=0 (zero source lines per frame) — cheapest possible.
-        # inspect.stack's only parameter is `context` (source lines per frame), not a
-        # frame-count limit; slicing here gives the real frame-count bound.
+        # context=0 (zero source lines per frame) is the cheapest walk. Called here, not in
+        # pick_caller_frame, so the skipped own-frame is this function's.
         raw_stack = inspect.stack(context=0)
     except Exception:
         return ("<unknown>", 0)
+    chosen = pick_caller_frame(raw_stack[1 + frames_to_skip :], limit)
+    if chosen is None:
+        return ("<unknown>", 0)
+    filename = getattr(chosen, "filename", "<unknown>") or "<unknown>"
+    lineno: int = getattr(chosen, "lineno", 0) or 0
+    return (filename, lineno)
 
-    # Skip our own frame plus any caller-requested frames FIRST, then bound the
-    # window. Applying the limit before the skip would let internal frames consume
-    # the whole window and silently misattribute to a hassette frame.
-    frames = raw_stack[1 + frames_to_skip :]
+
+def find_caller_stack_frame(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FRAME_LIMIT) -> StackFrame | None:
+    """Same walk as ``find_caller_frame``, keeping the frame's function and module.
+
+    Returns ``None`` when stack walking fails entirely.
+    """
+    try:
+        raw_stack = inspect.stack(context=0)
+    except Exception:
+        return None
+    chosen = pick_caller_frame(raw_stack[1 + frames_to_skip :], limit)
+    if chosen is None:
+        return None
+    f_globals = getattr(getattr(chosen, "frame", chosen), "f_globals", None)
+    return StackFrame(
+        filename=getattr(chosen, "filename", "<unknown>") or "<unknown>",
+        lineno=getattr(chosen, "lineno", 0) or 0,
+        function=getattr(chosen, "function", "<unknown>") or "<unknown>",
+        module=f_globals.get("__name__") if isinstance(f_globals, dict) else None,
+    )
+
+
+def pick_caller_frame(frames: list[Any], limit: int | None) -> Any:
+    """Return the first non-hassette ``FrameInfo`` in ``frames`` (already past any skipped frames).
+
+    ``limit`` bounds the window AFTER the skip: applying it before would let internal frames
+    consume the whole window and silently misattribute to a hassette frame. Falls back to the
+    window's last frame when every frame in it is internal, and ``None`` for an empty window.
+    """
     if limit is not None:
         frames = frames[:limit]
-
-    # Look for the first non-internal frame
-    chosen: Any = None
     for frame_info in frames:
         # FrameInfo from inspect.stack() has a .frame attribute with f_globals.
         # In tests we also pass SimpleNamespace objects directly — handle both.
         raw_frame = getattr(frame_info, "frame", frame_info)
         if not is_internal_frame(raw_frame):
-            chosen = frame_info
-            break
-
-    # Fall back to the last frame if everything is internal (unlikely but safe)
-    if chosen is None and frames:
-        chosen = frames[-1]
-
-    if chosen is None:
-        return ("<unknown>", 0)
-
-    filename = getattr(chosen, "filename", "<unknown>") or "<unknown>"
-    lineno: int = getattr(chosen, "lineno", 0) or 0
-    return (filename, lineno)
+            return frame_info
+    return frames[-1] if frames else None
 
 
 def capture_source_location(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FRAME_LIMIT) -> str:

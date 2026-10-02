@@ -14,6 +14,7 @@ from hassette_wire import (
     ActivityBucket,
     ActivityFeedEntry,
     AppHealthResponse,
+    BlockingFindingsResponse,
     DashboardAppGridEntry,
     DashboardAppGridResponse,
     Execution,
@@ -21,6 +22,7 @@ from hassette_wire import (
     JobSummary,
     ListenerWithSummary,
     TelemetryStatusResponse,
+    UnattributedBlockingResponse,
 )
 
 from hassette.exceptions import TelemetryUnavailableError
@@ -29,6 +31,7 @@ from hassette.schemas.summary_models import AppHealthSummary
 from hassette.web.dependencies import (
     AppKeyPath,
     HassetteDep,
+    InstanceIndexQuery,
     LimitQuery,
     RuntimeDep,
     SchedulerDep,
@@ -217,6 +220,47 @@ async def app_jobs(
     return jobs
 
 
+@router.get("/app/{app_key}/blocking", response_model=BlockingFindingsResponse)
+async def app_blocking_findings(
+    app_key: AppKeyPath,
+    telemetry: TelemetryDep,
+    response: Response,
+    instance_index: InstanceIndexQuery = 0,
+    since: SinceQuery = None,
+) -> BlockingFindingsResponse:
+    """Blocking-IO findings for one app instance: attributed events grouped by app call site."""
+    result = BlockingFindingsResponse(findings=[])
+    with db_degrades_to(response):
+        result = await telemetry.get_blocking_findings(app_key=app_key, instance_index=instance_index, since=since)
+    return result
+
+
+@router.get("/blocking/findings", response_model=BlockingFindingsResponse)
+async def all_blocking_findings(
+    telemetry: TelemetryDep,
+    response: Response,
+    since: SinceQuery = None,
+) -> BlockingFindingsResponse:
+    """Blocking-IO findings for every app and instance, in one response."""
+    result = BlockingFindingsResponse(findings=[])
+    with db_degrades_to(response):
+        result = await telemetry.get_blocking_findings(app_key=None, instance_index=None, since=since)
+    return result
+
+
+@router.get("/blocking/unattributed", response_model=UnattributedBlockingResponse)
+async def unattributed_blocking(
+    telemetry: TelemetryDep,
+    response: Response,
+    since: SinceQuery = None,
+) -> UnattributedBlockingResponse:
+    """Loop stalls credited to no app (displaced or framework), for the diagnostics page."""
+    result = UnattributedBlockingResponse(recent=[])
+    with db_degrades_to(response):
+        result = await telemetry.get_unattributed_blocking(since=since)
+    return result
+
+
 @router.get("/executions", response_model=list[Execution])
 async def list_executions(
     telemetry: TelemetryDep,
@@ -326,6 +370,13 @@ async def dashboard_app_grid(
         except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app last errors", exc_info=True)
 
+    # Category C: a failure here reads as zero blocking events rather than failing the grid.
+    try:
+        blocking_counts = await telemetry.get_blocking_event_counts(since=since)
+    except TelemetryUnavailableError:
+        LOGGER.warning("Failed to fetch per-app blocking-event counts", exc_info=True)
+        blocking_counts = {}
+
     empty = AppHealthSummary(
         handler_count=0,
         job_count=0,
@@ -365,6 +416,7 @@ async def dashboard_app_grid(
                 last_error_type=err_info.error_type if err_info else None,
                 last_error_ts=err_info.timestamp if err_info else None,
                 activity_buckets=[ActivityBucket(ok=ok, err=err) for ok, err in buckets],
+                blocking_event_count=blocking_counts.get(manifest.app_key, 0),
             )
         )
 

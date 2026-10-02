@@ -26,6 +26,36 @@ The warning integrates with standard Python filter machinery: `filterwarnings("e
 
 Tier 2 emits this warning *before* the blocking call runs. On its own the call still proceeds — the warning is informational. Escalating the warning to an error turns Tier 2 into an interceptor: with `filterwarnings("error", category=HassetteBlockingIOWarning)` active, the emit raises, and the blocking call never runs. Adding that filter to a pytest config or to application startup is the recommended way to make blocking I/O fail fast during development and CI. Tier 1 never raises — it reports a stall after the fact, regardless of the filter.
 
+## Finding Blocking Calls
+
+Every detection is also recorded in the telemetry database. The web UI and CLI read those records back, so a blocking call stays findable long after its warning scrolled out of the logs.
+
+**On the app's overview.** When an app blocked the loop in the selected time window, its Overview tab shows a **blocking calls** section with one entry per line of app code to fix:
+
+![Blocking calls on an app's overview](../../_static/web_ui_blocking_findings.png)
+
+Each entry shows:
+
+- **The call site**: the innermost line of app code on the stack, such as `calendar_service.py:98 in get_calendar_events`, with the path relative to the app directory.
+- **What it calls**: the library function it called into, such as `gcsa/_services/events_service.py get_events`, or for Tier 2, the intercepted primitive such as `time.sleep`.
+- **Every handler and job that reached it**, linked to its detail page. Two handlers that call the same blocking helper produce one entry, because there's one line to fix.
+- **How often and how badly**: the event count, the longest and average stall, and when it last happened.
+- **A show stack toggle** that expands the most recent event's full stack, with absolute paths.
+
+Two other labels can appear in place of a call site. "Detected inside `<package>`" means Tier 2 caught the call inside a library, so the library line isn't presented as the place to fix. The handler that called into the library is further up the stack. "Call site not captured" means no stack was recorded for those events, because `capture_stack_on_block` is off or the events were recorded by an older Hassette version that didn't store stacks in this form. Those events are grouped per handler instead.
+
+**On the apps list.** An app that blocked the loop shows an amber **N blocking** badge next to its status. The badge links to the app's overview.
+
+**On the diagnostics page.** Stalls that Hassette couldn't pin on an app appear in a [loop stalls panel](../web-ui/diagnostics.md#loop-stalls). These are never credited to an app, even when the stack contains app code.
+
+**From the CLI.** [`hassette blocking`](../cli/commands.md#hassette-blocking) lists the same findings for every app, plus the unattributed stalls. `--app` narrows it to one app.
+
+### What an empty list means
+
+Detection is best-effort. A row can be dropped when the database write queue is full, and the default time window starts at the last restart. So no listed blocking calls doesn't certify an app clean.
+
+The entry's last-seen time is the check for a fix: if it stops advancing while the handler keeps running, the fix worked. Reloading an app in place doesn't reset the time window; a restart does.
+
 ## Fixing a Detected Call
 
 Move the blocking work off the loop thread. `asyncio.to_thread` is the standard path for CPU-bound or I/O-bound synchronous helpers:

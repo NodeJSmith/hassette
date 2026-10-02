@@ -11,7 +11,7 @@ See ``schemas/__init__.py`` for the domain-file map.
 
 from typing import Literal
 
-from hassette_wire import LogLevel, SourceTier
+from hassette_wire import LogLevel, SourceTier, StackFrame
 from pydantic import BaseModel
 
 from hassette.types.types import BlockingAttributionReason
@@ -89,3 +89,7 @@ class BlockingEvent(BaseModel):
     ``'displaced'`` — an execution was bound but a *different* task was frozen on the loop, so
     ``app_key`` was withheld (NULL) rather than blaming the wrong app. ``None`` for rows written
     before migration 007."""
+
+    frames: list[StackFrame] | None = None
+    """Captured stack frames, innermost first (Tier 1: the loop-thread stack; Tier 2: the caller
+    frame). ``None`` when no stack was captured or the row predates migration 013."""

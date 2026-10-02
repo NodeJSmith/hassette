@@ -10,6 +10,7 @@ import { EmptyState } from "../shared/empty-state";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
 import { TableCard } from "../shared/table-card";
 import { TableFooter } from "../shared/table-footer";
+import { BlockingFindingsSection } from "./blocking-findings";
 import { ErrorSpotlight } from "./error-spotlight";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { buildItems } from "./handler-list";
@@ -99,6 +100,8 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
       {failingItems.length > 0 && (
         <ErrorSpotlight failingItems={failingItems} appKey={appKey} instanceQs={instanceQs} />
       )}
+
+      <BlockingFindingsSection appKey={appKey} resolvedInstanceIndex={resolvedInstanceIndex} instanceQs={instanceQs} />
 
       <HandlerHealthGrid items={allItems} appKey={appKey} instanceQs={instanceQs} />
 

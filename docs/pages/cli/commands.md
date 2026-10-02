@@ -327,6 +327,43 @@ The table shows timestamp, level, function name, line number, and message for ea
 
 **API endpoint:** `GET /api/executions/{execution_id}`
 
+## `hassette blocking`
+
+Blocking calls that stalled the event loop, grouped by the line of app code to fix. Without `--app`, it lists findings for every app, then the recent stalls that no app is credited with. [Blocking-IO Detection](../core-concepts/blocking-io-detection.md#finding-blocking-calls) explains what each column means.
+
+```console
+$ hassette blocking --since 7d
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┓
+┃ App              ┃ Call site                         ┃ Calls into                        ┃ Count ┃ Max   ┃ Last seen ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━━━━━┩
+│ car_climate      │ calendar_service.py:98 in         │ gcsa/_services/events_service.py  │ 9     │ 534ms │ 2h ago    │
+│                  │ get_calendar_events               │ get_events                        │       │       │           │
+│ garage_proximity │ call site not captured            │                                   │ 1     │ 212ms │ 2d ago    │
+│                  │ (on_phone_arrive)                 │                                   │       │       │           │
+└──────────────────┴───────────────────────────────────┴───────────────────────────────────┴───────┴───────┴───────────┘
+
+Loop stalls credited to no app: 2 (1 displaced, 1 framework)
+┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ When    ┃ Reason    ┃ Stall ┃ App code in stack         ┃
+┡━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ 30m ago │ displaced │ 5.0s  │ presence.py:44 in refresh │
+│ 5h ago  │ framework │ 140ms │                           │
+└─────────┴───────────┴───────┴───────────────────────────┘
+```
+
+With `--app`, only that app's findings are shown, for instance 0 unless `--instance` names another. `--instance` without `--app` exits with a usage error. When a window holds more events than the server reads in one request, a note on stderr says the counts are partial; narrow `--since` to get full counts.
+
+### Flags
+
+| Flag                   | Description                                         |
+| ---------------------- | --------------------------------------------------- |
+| `--app <key>`          | Shows only this app's findings.                     |
+| `--instance <name\|n>` | With `--app`, selects the instance.                 |
+| `--since <duration>`   | Time window filter. Without it, covers all retained events. |
+| `--json`               | Outputs as JSON. Without `--app`, one document with `findings` and `unattributed` keys. |
+
+**API endpoints:** `GET /api/telemetry/blocking/findings` and `GET /api/telemetry/blocking/unattributed`; with `--app`, `GET /api/telemetry/app/{app_key}/blocking`
+
 ## `hassette dashboard`
 
 Per-app health status, invocation counts, error counts, average duration, and last activity. Mirrors the dashboard grid in the web UI.
