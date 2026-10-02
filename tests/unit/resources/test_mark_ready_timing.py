@@ -1,13 +1,12 @@
 """Pin which hook each production resource calls ``mark_ready()`` from.
 
-The table mirrors the one in ``.claude/rules/resource-lifecycle.md``. Resources with no background loop
-mark ready in an init hook; ``Service`` subclasses with a ``serve()`` loop mark ready once that loop is
-running. The exceptions are documented in the rule file.
+``MARK_READY_HOOKS`` is the canonical per-class list; ``.claude/rules/resource-lifecycle.md`` states the rule
+and why each exception deviates from it. Resources with no background loop mark ready in an init hook;
+``Service`` subclasses with a ``serve()`` loop mark ready once that loop is running.
 """
 
 import importlib
 import pkgutil
-import re
 from pathlib import Path
 
 import pytest
@@ -51,10 +50,6 @@ from hassette.task_bucket.task_bucket import TaskBucket
 from hassette.testing._harness import _TestableHassette
 from hassette.testing.recording_api import RecordingApi
 from tests.support.ready_timing import assert_marks_ready_in, find_mark_ready_classes
-
-RULE_FILE = Path(__file__).parents[3] / ".claude" / "rules" / "resource-lifecycle.md"
-TABLE_ROW = re.compile(r"^\| (`\w+\(\)`.*?) \| (`.+) \|$", re.MULTILINE)
-DEVIATION_BULLET = re.compile(r"^- \*\*`(\w+)`\*\*", re.MULTILINE)
 
 MARK_READY_HOOKS: dict[type, tuple[str, ...]] = {
     # No background loop: ready in an init hook.
@@ -116,7 +111,7 @@ def test_resource_marks_ready_in_expected_hook(resource_cls: type, hooks: tuple[
 
 
 def test_table_covers_every_resource_that_marks_itself_ready() -> None:
-    """A new resource calling mark_ready(self) must be added to the table (and the rule file)."""
+    """A new resource calling mark_ready(self) must be added to MARK_READY_HOOKS."""
     source_root = Path(hassette.__file__).parent
     assert find_mark_ready_classes(source_root) == {cls.__name__ for cls in MARK_READY_HOOKS}
 
@@ -137,6 +132,10 @@ def all_resource_subclasses() -> set[type]:
 
 def test_every_resource_has_a_readiness_source() -> None:
     """A new Resource subclass must mark itself ready, inherit a class that does, or be listed in NOT_SELF_MARKED."""
+    # Best-effort static pin: issubclass() credits a subclass with its parent's hook even when it overrides that
+    # hook and drops the mark_ready() call. A service that never becomes ready is caught at real startup instead:
+    # Hassette.run_forever() waits on each startup wave for lifecycle.startup_timeout_seconds, then fails startup
+    # fatally, naming the resources that did not start (the system suite drives real run_forever() startups).
     unaccounted = {
         cls.__qualname__
         for cls in all_resource_subclasses()
@@ -145,17 +144,3 @@ def test_every_resource_has_a_readiness_source() -> None:
     assert not unaccounted, (
         f"Resource subclasses with no mark_ready(self) call and no NOT_SELF_MARKED entry: {unaccounted}"
     )
-
-
-def test_rule_file_table_matches_hook_table() -> None:
-    """The table in resource-lifecycle.md lists the same classes and hooks as MARK_READY_HOOKS."""
-    text = RULE_FILE.read_text(encoding="utf-8")
-    documented: dict[str, frozenset[str]] = {}
-    for hook_cell, names_cell in TABLE_ROW.findall(text):
-        hooks = frozenset(re.findall(r"`(\w+)\(\)`", hook_cell))
-        for name in re.findall(r"`(\w+)`", names_cell):
-            documented[name] = hooks
-    expected = {cls.__name__: frozenset(hooks) for cls, hooks in MARK_READY_HOOKS.items()}
-
-    assert documented == expected
-    assert set(DEVIATION_BULLET.findall(text)) <= set(documented), "every deviation bullet names a class in the table"
