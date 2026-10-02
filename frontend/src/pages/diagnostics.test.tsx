@@ -365,7 +365,6 @@ describe("DiagnosticsPage", () => {
               }),
               createUnattributedStall({ reason: "framework", stall_duration_ms: 120 }),
             ],
-            truncated: false,
           }),
         ),
       );

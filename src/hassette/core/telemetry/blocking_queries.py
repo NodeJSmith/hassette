@@ -1,5 +1,6 @@
 """Blocking-event read queries, mixed into TelemetryQueryService."""
 
+import asyncio
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Any
 
@@ -16,23 +17,52 @@ if TYPE_CHECKING:
 
     from hassette import Hassette
 
-# Rows read per request, most recent first. Retention bounds the table, and a window holding more
-# events than this reports truncated=True rather than reading without limit.
-BLOCKING_ROW_LIMIT = 1000
+# Distinct (stack, handler) groups read per findings request, most recently seen first. Each group
+# carries exact aggregates over all its events, so the cap can only drop the least recently seen
+# call sites, and a response that hit it reports truncated=True.
+BLOCKING_GROUP_LIMIT = 1000
+# Most recent unattributed stalls listed individually on the diagnostics page.
+RECENT_UNATTRIBUTED_LIMIT = 20
 
-_ROWS_QUERY = """
-    SELECT be.id, be.app_key, be.instance_index, be.tier, be.primitive, be.stall_duration_ms,
-           be.detected_ts, be.reason, be.frames,
+# One row per distinct stack and handler. Grouping runs in SQL so counts and stall stats are exact;
+# Python then classifies each distinct stack once and merges groups that share a call site. The
+# GROUP BY lists every non-aggregated SELECT column; keep the two in step.
+_FINDING_GROUPS_QUERY = """
+    SELECT be.app_key, be.tier, be.primitive, be.frames,
            e.listener_id, e.job_id,
            l.name AS listener_name, l.handler_method AS listener_method,
-           sj.job_name, sj.handler_method AS job_method
+           sj.job_name, sj.handler_method AS job_method,
+           COUNT(*) AS event_count,
+           MAX(be.stall_duration_ms) AS max_stall_ms,
+           SUM(be.stall_duration_ms) AS stall_sum_ms,
+           COUNT(be.stall_duration_ms) AS stall_count,
+           MAX(be.detected_ts) AS last_seen_ts
     FROM blocking_events be
     LEFT JOIN executions e ON e.execution_id = be.execution_id
     LEFT JOIN listeners l ON l.id = e.listener_id
     LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id
-    WHERE be.source_tier = :source_tier
+    WHERE be.source_tier = 'app'
     {filters}
-    ORDER BY be.detected_ts DESC, be.id DESC
+    GROUP BY be.app_key, be.tier, be.primitive, be.frames,
+             e.listener_id, e.job_id, l.name, l.handler_method, sj.job_name, sj.handler_method
+    -- MAX(be.id) breaks last-seen ties so the order, and so each finding's latest stack, is stable.
+    ORDER BY last_seen_ts DESC, MAX(be.id) DESC
+    LIMIT :limit
+"""
+
+_UNATTRIBUTED_TOTALS_QUERY = """
+    SELECT COUNT(*) AS total_count,
+           COALESCE(SUM(reason = 'displaced'), 0) AS displaced_count,
+           MAX(stall_duration_ms) AS max_stall_ms
+    FROM blocking_events
+    WHERE source_tier = 'framework' {since}
+"""
+
+_UNATTRIBUTED_RECENT_QUERY = """
+    SELECT tier, primitive, stall_duration_ms, detected_ts, reason, frames
+    FROM blocking_events
+    WHERE source_tier = 'framework' {since}
+    ORDER BY detected_ts DESC, id DESC
     LIMIT :limit
 """
 
@@ -63,15 +93,33 @@ class BlockingQueriesMixin:
         if instance_index is not None:
             filters += " AND be.instance_index = :instance_index"
             params["instance_index"] = instance_index
-        rows, truncated = await self._fetch_blocking_rows("app", filters, params, since)
-        findings = group_findings(rows, classifier_for_apps(self._app_dirs()))
-        return BlockingFindingsResponse(findings=findings, truncated=truncated)
+        since_sql, since_params = since_clause(since, "be.detected_ts")
+        groups = await fetch_all_as_dicts(
+            self.execute(
+                _FINDING_GROUPS_QUERY.format(filters=f"{filters} {since_sql}"),
+                {**params, **since_params, "limit": BLOCKING_GROUP_LIMIT + 1},
+            )
+        )
+        # Classifying stacks is pure-Python CPU work that grows with the number of distinct stacks; a
+        # worker thread keeps it off the event loop the watchdog is measuring.
+        findings = await asyncio.to_thread(
+            group_findings, groups[:BLOCKING_GROUP_LIMIT], classifier_for_apps(self._app_dirs())
+        )
+        return BlockingFindingsResponse(findings=findings, truncated=len(groups) > BLOCKING_GROUP_LIMIT)
 
     async def get_unattributed_blocking(self, *, since: float | None) -> UnattributedBlockingResponse:
         """Blocking events credited to no app (displaced or framework), for the diagnostics page."""
-        rows, truncated = await self._fetch_blocking_rows("framework", "", {}, since)
+        since_sql, params = since_clause(since, "detected_ts")
+        # An aggregate with no GROUP BY always returns exactly one row. The totals and the recent rows are
+        # separate reads, so a stall recorded between them can show in one and not the other.
+        [totals] = await fetch_all_as_dicts(self.execute(_UNATTRIBUTED_TOTALS_QUERY.format(since=since_sql), params))
+        recent = await fetch_all_as_dicts(
+            self.execute(
+                _UNATTRIBUTED_RECENT_QUERY.format(since=since_sql), {**params, "limit": RECENT_UNATTRIBUTED_LIMIT}
+            )
+        )
         classifier = classifier_for_apps(self._app_dirs())(None)
-        return summarize_unattributed(rows, classifier, truncated=truncated)
+        return summarize_unattributed(totals, recent, classifier)
 
     async def get_blocking_event_counts(self, *, since: float | None) -> dict[str, int]:
         """Attributed blocking-event count per app key in the window. Apps with none are absent."""
@@ -87,17 +135,6 @@ class BlockingQueriesMixin:
             )
         )
         return {row["app_key"]: row["n"] for row in rows}
-
-    async def _fetch_blocking_rows(
-        self, source_tier: str, filters: str, params: dict[str, Any], since: float | None
-    ) -> tuple[list[dict[str, Any]], bool]:
-        """Fetch up to ``BLOCKING_ROW_LIMIT`` rows newest first, and whether more existed."""
-        since_sql, since_params = since_clause(since, "be.detected_ts")
-        query = _ROWS_QUERY.format(filters=f"{filters} {since_sql}")
-        rows = await fetch_all_as_dicts(
-            self.execute(query, {**params, **since_params, "source_tier": source_tier, "limit": BLOCKING_ROW_LIMIT + 1})
-        )
-        return rows[:BLOCKING_ROW_LIMIT], len(rows) > BLOCKING_ROW_LIMIT
 
     def _app_dirs(self) -> dict[str, PurePath]:
         """Each configured app's resolved directory, read fresh so config reloads apply."""

@@ -351,7 +351,7 @@ Loop stalls credited to no app: 2 (1 displaced, 1 framework)
 └─────────┴───────────┴───────┴───────────────────────────┘
 ```
 
-With `--app`, only that app's findings are shown, for instance 0 unless `--instance` names another. `--instance` without `--app` exits with a usage error. When a window holds more events than the server reads in one request, a note on stderr says the counts are partial; narrow `--since` to get full counts.
+With `--app`, only that app's findings are shown, for instance 0 unless `--instance` names another. `--instance` without `--app` exits with a usage error. Counts are exact. When a window holds more distinct stacks than the server reads in one request, a note on stderr says the least recently seen call sites may be missing; narrow `--since` to see them.
 
 ### Flags
 

@@ -120,7 +120,6 @@ export const handlers = [
       framework_count: 0,
       max_stall_ms: null,
       recent: [],
-      truncated: false,
     });
   }),
 

@@ -11,7 +11,9 @@ from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, SinceArg
 
-TRUNCATED_NOTE = "Showing only the most recent events: counts are partial. Narrow --since for full counts."
+TRUNCATED_NOTE = (
+    "Showing only the most recently seen call sites: older ones may be missing. Narrow --since to see them."
+)
 
 
 def fmt_call_site(finding: BlockingFinding) -> str:
@@ -103,5 +105,5 @@ def cmd_blocking(
             highlight=False,
         )
         render_table(unattributed.recent, UNATTRIBUTED_COLUMNS, json_mode=False)  # pyright: ignore[reportArgumentType]
-    if findings.truncated or unattributed.truncated:
+    if findings.truncated:
         cli_output.stderr_console.print(TRUNCATED_NOTE, highlight=False)

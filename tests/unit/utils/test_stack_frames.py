@@ -70,6 +70,18 @@ class TestFindCallSite:
         assert CONTAINER.find_call_site([]) is None
 
 
+class TestMemoizedClassification:
+    def test_repeat_answers_match_and_leave_equality_unchanged(self) -> None:
+        fresh = FrameClassifier(app_dirs=CONTAINER.app_dirs, excluded_dirs=CONTAINER.excluded_dirs)
+        paths = ["/apps/src/hautomate/car.py", "/app/.venv/lib/python3.13/site-packages/x.py", "/srv/helper.py"]
+
+        first = [(fresh.app_dir_for(p), fresh.is_fallback_user_code(p)) for p in paths]
+        second = [(fresh.app_dir_for(p), fresh.is_fallback_user_code(p)) for p in paths]
+
+        assert first == second == [(PurePath("/apps/src/hautomate"), True), (None, False), (None, True)]
+        assert fresh == CONTAINER
+
+
 class TestDisplayPath:
     @pytest.mark.parametrize(
         ("filename", "expected"),

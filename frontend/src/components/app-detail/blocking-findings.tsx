@@ -141,7 +141,8 @@ export function BlockingFindingsSection({ appKey, resolvedInstanceIndex, instanc
       ))}
       {data?.truncated && (
         <p className={META_CLASS} data-testid="overview-blocking-truncated">
-          showing only the most recent events — counts are partial. narrow the time window for full counts.
+          showing only the most recently seen call sites — older ones may be missing. narrow the time window to see
+          them.
         </p>
       )}
     </section>

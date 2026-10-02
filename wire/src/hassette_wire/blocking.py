@@ -85,7 +85,7 @@ class BlockingFindingsResponse(BaseModel):
     findings: list[BlockingFinding]
     """Ordered by most recently seen first."""
     truncated: bool = False
-    """``True`` when the row cap was hit: counts cover only the most recent events."""
+    """``True`` when the cap on distinct stacks was hit: the least recently seen call sites may be missing."""
 
 
 class UnattributedStall(BaseModel):
@@ -111,5 +111,3 @@ class UnattributedBlockingResponse(BaseModel):
     max_stall_ms: float | None = None
     recent: list[UnattributedStall]
     """The most recent stalls, newest first."""
-    truncated: bool = False
-    """``True`` when the row cap was hit: counts cover only the most recent events."""

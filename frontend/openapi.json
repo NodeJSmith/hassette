@@ -4445,11 +4445,6 @@
             },
             "type": "array",
             "title": "Recent"
-          },
-          "truncated": {
-            "type": "boolean",
-            "title": "Truncated",
-            "default": false
           }
         },
         "type": "object",

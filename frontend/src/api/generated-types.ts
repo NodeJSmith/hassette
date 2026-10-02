@@ -1859,11 +1859,6 @@ export interface components {
             max_stall_ms?: number | null;
             /** Recent */
             recent: components["schemas"]["UnattributedStall"][];
-            /**
-             * Truncated
-             * @default false
-             */
-            truncated: boolean;
         };
         /**
          * UnattributedStall

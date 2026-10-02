@@ -9,7 +9,7 @@ interpreter's install prefixes, neither of which belongs in a stored row.
 import re
 import sys
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import PurePath
 from typing import Any
@@ -97,6 +97,11 @@ class FrameClassifier:
 
     app_dirs: tuple[PurePath, ...]
     excluded_dirs: tuple[PurePath, ...]
+    # Per-filename answers, so each distinct path is tested against the prefixes once. They assume a
+    # classifier serves one request on one thread, which ``classifier_for_apps`` callers guarantee by
+    # building fresh classifiers per request; a long-lived classifier would grow them without bound.
+    _app_dir_cache: dict[str, PurePath | None] = field(default_factory=dict, init=False, compare=False, repr=False)
+    _fallback_cache: dict[str, bool] = field(default_factory=dict, init=False, compare=False, repr=False)
 
     @classmethod
     def for_current_interpreter(cls, app_dirs: Iterable[PurePath]) -> "FrameClassifier":
@@ -105,20 +110,25 @@ class FrameClassifier:
 
     def app_dir_for(self, filename: str) -> PurePath | None:
         """Return the app directory containing ``filename``, or ``None``."""
-        path = PurePath(filename)
-        for app_dir in self.app_dirs:
-            if path.is_relative_to(app_dir):
-                return app_dir
-        return None
+        if filename not in self._app_dir_cache:
+            path = PurePath(filename)
+            self._app_dir_cache[filename] = next((d for d in self.app_dirs if path.is_relative_to(d)), None)
+        return self._app_dir_cache[filename]
 
     def is_fallback_user_code(self, filename: str) -> bool:
         """True when ``filename`` is outside the interpreter and every installed-library directory."""
+        cached = self._fallback_cache.get(filename)
+        if cached is not None:
+            return cached
         if filename.startswith("<"):
-            return False  # <frozen ...>, <string>, <stdin>: no real source file
-        path = PurePath(filename)
-        if LIBRARY_DIR_NAMES.intersection(path.parts):
-            return False
-        return not any(path.is_relative_to(excluded) for excluded in self.excluded_dirs)
+            result = False  # <frozen ...>, <string>, <stdin>: no real source file
+        else:
+            path = PurePath(filename)
+            result = not LIBRARY_DIR_NAMES.intersection(path.parts) and not any(
+                path.is_relative_to(excluded) for excluded in self.excluded_dirs
+            )
+        self._fallback_cache[filename] = result
+        return result
 
     def is_user_code(self, filename: str) -> bool:
         return self.app_dir_for(filename) is not None or self.is_fallback_user_code(filename)

@@ -18,6 +18,7 @@ from .helpers import DbFixture, insert_execution, insert_invocation, insert_job,
 APP_DIR = "/srv/apps"
 CALL_SITE = StackFrame(filename=f"{APP_DIR}/helper.py", lineno=98, function="fetch", module="helper")
 HANDLER = StackFrame(filename=f"{APP_DIR}/my_app.py", lineno=10, function="on_event", module="my_app")
+OTHER_SITE = StackFrame(filename=f"{APP_DIR}/other.py", lineno=7, function="load", module="other")
 
 
 @pytest.fixture(autouse=True)
@@ -126,19 +127,39 @@ class TestBlockingFindings:
 
         assert result.findings == []
 
-    async def test_truncates_at_the_row_cap(
+    async def test_chronic_call_site_does_not_hide_older_ones(
+        self, query_service: TelemetryQueryService, db: DbFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The cap bounds distinct stacks, not events: many recent events at one site keep older sites listed."""
+        db_svc, _ = db
+        monkeypatch.setattr(blocking_queries, "BLOCKING_GROUP_LIMIT", 2)
+        for ts in (2000.0, 3000.0, 4000.0):
+            await insert_event(db_svc, detected_ts=ts, stall_duration_ms=ts / 10)
+        await insert_event(db_svc, frames=[OTHER_SITE, HANDLER], detected_ts=1000.0)
+
+        result = await query_service.get_blocking_findings(app_key="my_app", instance_index=0, since=None)
+
+        assert not result.truncated
+        assert [(f.call_site.lineno if f.call_site else None, f.event_count) for f in result.findings] == [
+            (98, 3),
+            (7, 1),
+        ]
+        newest = result.findings[0]
+        assert (newest.last_seen_ts, newest.max_stall_ms, newest.avg_stall_ms) == (4000.0, 400.0, 300.0)
+
+    async def test_truncates_at_the_group_cap_dropping_the_oldest(
         self, query_service: TelemetryQueryService, db: DbFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         db_svc, _ = db
-        monkeypatch.setattr(blocking_queries, "BLOCKING_ROW_LIMIT", 2)
-        for ts in (1000.0, 2000.0, 3000.0):
-            await insert_event(db_svc, detected_ts=ts)
+        monkeypatch.setattr(blocking_queries, "BLOCKING_GROUP_LIMIT", 1)
+        await insert_event(db_svc, detected_ts=2000.0)
+        await insert_event(db_svc, frames=[OTHER_SITE, HANDLER], detected_ts=1000.0)
 
         result = await query_service.get_blocking_findings(app_key="my_app", instance_index=0, since=None)
 
         assert result.truncated
         [finding] = result.findings
-        assert (finding.event_count, finding.last_seen_ts) == (2, 3000.0)
+        assert finding.last_seen_ts == 2000.0
 
 
 class TestUnattributedBlocking:
@@ -154,6 +175,22 @@ class TestUnattributedBlocking:
         assert result.max_stall_ms == pytest.approx(5000.0)
         app_frames = [s.app_frame.display_path if s.app_frame else None for s in result.recent]
         assert sorted(app_frames, key=str) == [None, "helper.py"]
+
+    async def test_counts_are_exact_beyond_the_recent_list(
+        self, query_service: TelemetryQueryService, db: DbFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        db_svc, _ = db
+        monkeypatch.setattr(blocking_queries, "RECENT_UNATTRIBUTED_LIMIT", 2)
+        for ts, stall in ((1000.0, 9000.0), (2000.0, 100.0), (3000.0, 200.0)):
+            await insert_event(
+                db_svc, app_key=None, instance_index=None, reason="framework", detected_ts=ts, stall_duration_ms=stall
+            )
+
+        result = await query_service.get_unattributed_blocking(since=None)
+
+        assert (result.total_count, result.framework_count) == (3, 3)
+        assert result.max_stall_ms == pytest.approx(9000.0)
+        assert [s.detected_ts for s in result.recent] == [3000.0, 2000.0]
 
 
 class TestBlockingEventCounts:

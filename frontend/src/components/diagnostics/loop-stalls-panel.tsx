@@ -64,7 +64,6 @@ export function LoopStallsPanel({ data }: Props) {
           <StallRow key={`${stall.detected_ts}-${i}`} stall={stall} index={i} />
         ))}
       </ul>
-      {data.truncated && <p className={META_CLASS}>showing only the most recent stalls — counts are partial.</p>}
     </Panel>
   );
 }

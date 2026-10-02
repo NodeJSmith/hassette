@@ -102,7 +102,7 @@ describe("BlockingFindingsSection", () => {
     expect(text).not.toContain("up to");
   });
 
-  it("notes partial counts when the server truncated", async () => {
+  it("warns that older call sites may be missing when the server truncated", async () => {
     serveFindings([createBlockingFinding()], true);
     const { findByTestId } = renderSection();
     expect(await findByTestId("overview-blocking-truncated")).toBeDefined();
