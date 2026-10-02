@@ -107,7 +107,7 @@ class TestAppFactoryIntegration:
         """
         manifest = make_manifest("my_app", "my_app.py", "MyApp")
 
-        app_class = contextvars.Context().run(lambda: app_factory.load_class("my_app", manifest, force_reload=True))
+        app_class = contextvars.Context().run(app_factory.load_class, "my_app", manifest, force_reload=True)
 
         assert app_class is not None
         assert app_class.__name__ == "MyApp"

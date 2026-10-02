@@ -86,8 +86,7 @@ def create_fastapi_app(
         allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
     )
 
-    # Added last so it is outermost (outside CORS too): every middleware above and every route
-    # runs inside the restored Hassette context. See hassette/web/request_context.py for why.
+    # Added last so it is outermost; see hassette/web/request_context.py.
     app.add_middleware(HassetteContextMiddleware, hassette=hassette)
 
     # API routes

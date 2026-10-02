@@ -29,5 +29,8 @@ class HassetteContextMiddleware:
         self.hassette = hassette
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        with context.use(context.HASSETTE_INSTANCE, self.hassette), context.use_hassette_config(self.hassette.config):
+        with (
+            context.use(context.HASSETTE_INSTANCE, self.hassette),
+            context.use_hassette_config(self.hassette.config),
+        ):
             await self.app(scope, receive, send)
