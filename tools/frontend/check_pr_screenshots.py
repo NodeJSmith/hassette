@@ -40,9 +40,11 @@ DOCS_IMAGE_RE = re.compile(r"^docs/.*\.png$")
 SCREENSHOT_HEADING_RE = re.compile(r"(?im)^#{1,6}\s*screenshots?\b")
 EMBEDDED_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)|<img\b", re.IGNORECASE)
 # A raw.githubusercontent.com image URL whose ref segment is not a full 40-char commit SHA.
+# The extension ends the match unless a path character continues it, so trailing prose
+# punctuation (``x.png.``, ``x.png,``) still counts as a boundary.
 BRANCH_SCOPED_RAW_URL_RE = re.compile(
     r"https?://raw\.githubusercontent\.com/[^/\s]+/[^/\s]+/(?![0-9a-f]{40}/)[^\s)\"'<>]+"
-    r"\.(?:png|jpe?g|gif|webp|svg)(?=[\s)\"'<>?#]|$)",
+    r"\.(?:png|jpe?g|gif|webp|svg)(?![\w/%-])",
     re.IGNORECASE,
 )
 NO_VISUAL_CHANGE_LABEL = "no-visual-change"
