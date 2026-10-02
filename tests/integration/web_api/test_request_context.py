@@ -16,6 +16,7 @@ from fastapi.routing import APIRoute
 
 from hassette import context
 from hassette.exceptions import HassetteNotInitializedError
+from hassette.web.request_context import HassetteContextMiddleware
 from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 
 ASYNC_PROBE_PATH = "/api/test-probe/context-async"
@@ -63,6 +64,11 @@ def live_server_url(app: FastAPI, mock_hassette: MagicMock) -> Iterator[str]:
         yield f"http://127.0.0.1:{port}"
     finally:
         stop_uvicorn_server(server, thread)
+
+
+def test_context_middleware_is_outermost(app: FastAPI) -> None:
+    """Guards against a later ``add_middleware`` call wrapping it; Starlette puts the last-added first."""
+    assert app.user_middleware[0].cls is HassetteContextMiddleware
 
 
 @pytest.mark.parametrize("path", [ASYNC_PROBE_PATH, SYNC_PROBE_PATH], ids=["async-route", "sync-route"])

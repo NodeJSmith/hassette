@@ -278,7 +278,7 @@ class TestAppFactoryCreateInstances:
         factory.create_instances("test_app", mock_manifest, force_reload=True)
 
         # When force_reload=True, should call load_app_class_from_manifest even if already loaded
-        mock_load_class.assert_called_once_with(mock_manifest, force_reload=True)
+        mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=True)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_force_reload_ignored_when_instance_already_running(
@@ -303,7 +303,7 @@ class TestAppFactoryCreateInstances:
         factory.create_instances("test_app", mock_manifest, force_reload=True)
 
         # load_class() must be called with force_reload downgraded to False.
-        mock_load_class.assert_called_once_with(mock_manifest, force_reload=False)
+        mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=False)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_force_reload_ignored_when_all_indices_occupied(
@@ -321,7 +321,7 @@ class TestAppFactoryCreateInstances:
 
         created = factory.create_instances("test_app", mock_manifest, force_reload=True)
 
-        mock_load_class.assert_called_once_with(mock_manifest, force_reload=False)
+        mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=False)
         assert created == set()
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
@@ -343,7 +343,7 @@ class TestAppFactoryCreateInstances:
 
         factory.create_instances("test_app", mock_manifest, force_reload=True)
 
-        mock_load_class.assert_called_once_with(mock_manifest, force_reload=False)
+        mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=False)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_create_instances_skips_already_running_indices(
@@ -471,7 +471,7 @@ class TestAppFactoryLoadClass:
         result = factory.load_class("test_app", mock_manifest, force_reload=True)
 
         assert result is mock_app_class
-        mock_load_class.assert_called_once_with(mock_manifest, force_reload=True)
+        mock_load_class.assert_called_once_with(mock_manifest, config=factory.hassette.config, force_reload=True)
 
     @patch("hassette.core.app_factory.load_app_class_from_manifest")
     def test_load_class_logs_error_on_failure(self, mock_load_class, factory: AppFactory, mock_manifest):
