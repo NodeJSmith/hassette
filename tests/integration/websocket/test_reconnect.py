@@ -131,14 +131,14 @@ async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: Web
 
     # Seed a pending future
     fut = websocket_service.hassette.loop.create_future()
-    websocket_service._pending.futures[99] = fut
+    websocket_service._pending.register(99, fut)
 
     await websocket_service.partial_cleanup()
 
     assert websocket_service._ws is None
     assert websocket_service._recv_task is None
     assert websocket_service._subscription_ids == set()
-    assert websocket_service._pending.futures == {}
+    assert websocket_service._pending.entries == {}
     assert fut.done()
     assert isinstance(fut.exception(), RetryableConnectionClosedError)
 

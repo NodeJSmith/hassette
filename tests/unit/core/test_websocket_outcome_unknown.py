@@ -2,8 +2,8 @@
 
 A response timeout raises ``ResponseTimeoutError`` and a disconnect while waiting raises
 ``ResponseLostError``. Both mean the command reached (or may have reached) Home Assistant, so it
-may or may not have applied. Non-retried sends go out exactly once; a late reply to a timed-out
-non-retried send is matched against a bounded record and logged so the outcome is settled.
+may or may not have applied. Non-retried sends go out exactly once; a timed-out non-retried send
+stays in the pending-responses table, marked timed out, so a late reply is logged and settles it.
 
 Log assertions mock ``websocket_service.logger`` (or ``_pending.logger`` for late replies, which
 ``PendingResponses`` logs) rather than using caplog: another test in the same process can disable
@@ -37,7 +37,7 @@ def _drop_connection(websocket_service: WebsocketService, *, close_code: int | N
     """Make every send fail its response future as cleanup() does on a disconnect."""
 
     async def drop(**data):
-        websocket_service._pending.futures[data["id"]].set_exception(
+        websocket_service._pending.entries[data["id"]].future.set_exception(
             RetryableConnectionClosedError("WebSocket disconnected", close_code=close_code)
         )
 
@@ -190,7 +190,7 @@ class TestLateReplyToTimedOutWrite:
         rendered = _rendered(websocket_service._pending.logger.info.call_args)
         assert "fire_event" in rendered
         assert str(msg_id) in rendered
-        assert msg_id not in websocket_service._pending.timed_out_writes
+        assert msg_id not in websocket_service._pending.entries
 
     async def test_late_failure_logs_warning_and_drops_entry(self, websocket_service: WebsocketService) -> None:
         """A late failure reports HA's error for a timed-out write, not that it failed to apply."""
@@ -207,7 +207,7 @@ class TestLateReplyToTimedOutWrite:
         rendered = _rendered(websocket_service._pending.logger.warning.call_args)
         assert "counter/delete" in rendered
         assert str(msg_id) in rendered
-        assert msg_id not in websocket_service._pending.timed_out_writes
+        assert msg_id not in websocket_service._pending.entries
 
     async def test_reply_racing_the_deadline_is_returned_or_logged(self, websocket_service: WebsocketService) -> None:
         """A reply queued as the response timeout fires is never silently dropped.
@@ -234,7 +234,26 @@ class TestLateReplyToTimedOutWrite:
             websocket_service._pending.logger.info.assert_called_once()
         else:
             assert result == {"ok": True}
-        assert len(websocket_service._pending.timed_out_writes) == 0
+        assert websocket_service._pending.entries == {}
+
+    async def test_cancelled_send_is_not_recorded(self, websocket_service: WebsocketService) -> None:
+        """A caller that cancels has stopped caring about the outcome, so a late reply stays silent."""
+        sent = asyncio.Event()
+        websocket_service.send_json = AsyncMock(side_effect=lambda **_: sent.set())
+        websocket_service._pending.logger = Mock()
+        task = asyncio.create_task(
+            websocket_service.send_and_wait(type="fire_event", event_type="doorbell", retry_on_timeout=False)
+        )
+        await asyncio.wait_for(sent.wait(), timeout=1)
+        msg_id = websocket_service.send_json.await_args.kwargs["id"]
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        websocket_service.respond_if_necessary({"type": "result", "id": msg_id, "success": True, "result": None})
+
+        assert websocket_service._pending.entries == {}
+        assert websocket_service._pending.logger.method_calls == []
 
     async def test_retried_read_timeout_is_not_recorded(self, websocket_service: WebsocketService) -> None:
         """A late reply to a read settles nothing, so retried reads are never recorded."""
@@ -247,7 +266,7 @@ class TestLateReplyToTimedOutWrite:
         ):
             await websocket_service.send_and_wait(type="get_states")
 
-        assert len(websocket_service._pending.timed_out_writes) == 0
+        assert websocket_service._pending.entries == {}
 
     async def test_unrecorded_late_reply_is_silent(self, websocket_service: WebsocketService) -> None:
         websocket_service._pending.logger = Mock()
@@ -268,7 +287,7 @@ class TestLateReplyToTimedOutWrite:
 
         await websocket_service.partial_cleanup()
 
-        assert len(websocket_service._pending.timed_out_writes) == 0
+        assert websocket_service._pending.entries == {}
 
     async def test_cleanup_clears_record(self, websocket_service: WebsocketService) -> None:
         _time_out_immediately(websocket_service)
@@ -280,7 +299,7 @@ class TestLateReplyToTimedOutWrite:
         with patch.object(Service, "cleanup", new=AsyncMock()):
             await websocket_service.cleanup()
 
-        assert len(websocket_service._pending.timed_out_writes) == 0
+        assert websocket_service._pending.entries == {}
 
     async def test_cap_evicts_oldest_entry(self, websocket_service: WebsocketService) -> None:
         _time_out_immediately(websocket_service)
@@ -292,4 +311,4 @@ class TestLateReplyToTimedOutWrite:
                 await _timed_out_write(websocket_service, type="fire_event", event_type=f"e{i}") for i in range(cap + 1)
             ]
 
-        assert list(websocket_service._pending.timed_out_writes) == ids[1:]
+        assert list(websocket_service._pending.entries) == ids[1:]

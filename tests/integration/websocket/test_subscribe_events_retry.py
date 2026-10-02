@@ -20,7 +20,7 @@ def _make_subscribe_side_effect(ws: WebsocketService, *, succeed_on_call: int = 
         if data.get("type") == "subscribe_events" and call_count >= succeed_on_call:
             ws.hassette.config.websocket.response_timeout_seconds = 5
             msg_id = data["id"]
-            fut = ws._pending.futures[msg_id]
+            fut = ws._pending.entries[msg_id].future
             fut.set_result(None)
 
     return side_effect
@@ -96,4 +96,4 @@ class TestSubscribeEventsRetry:
 
         await websocket_service.subscribe_events()
 
-        assert websocket_service._pending.futures == {}, "All futures should be cleaned up"
+        assert websocket_service._pending.entries == {}, "All futures should be cleaned up"

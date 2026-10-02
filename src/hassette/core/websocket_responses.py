@@ -1,14 +1,15 @@
 """Correlates outgoing WebSocket requests with their result replies.
 
 Extracted from :mod:`hassette.core.websocket_service` to keep that file within the size
-guideline. Owns the pending response futures for one connection and the bounded record of
-timed-out non-retried sends, so a late reply to one of those can still be logged.
+guideline. Owns one table of sent requests per connection. Each entry is either awaiting its
+reply or, for a non-retried write whose caller stopped waiting at the timeout, awaiting a late
+reply that only gets logged.
 """
 
 import logging
 import typing
-from collections import OrderedDict
 from contextlib import suppress
+from dataclasses import dataclass, replace
 from typing import Any
 
 from hassette.exceptions import FailedMessageError, RetryableConnectionClosedError
@@ -16,35 +17,56 @@ from hassette.exceptions import FailedMessageError, RetryableConnectionClosedErr
 if typing.TYPE_CHECKING:
     import asyncio
 
-# Most timed-out non-retried sends remembered at once, so a late reply can report whether the
-# write later succeeded or whether Home Assistant reported failure. Oldest entries are evicted
-# first; a reply arriving after eviction stays silent.
+# Most timed-out non-retried writes kept awaiting a late reply at once, so the reply can report
+# whether the write later succeeded or whether Home Assistant reported failure. Oldest entries
+# are evicted first; a reply arriving after eviction stays silent.
 TIMED_OUT_WRITE_RECORD_CAP = 100
+
+
+@dataclass(frozen=True)
+class PendingReply:
+    """One sent request's entry in the correlation table."""
+
+    future: "asyncio.Future[Any]"
+    timed_out_command: str | None = None
+    """Command type of a non-retried write whose caller gave up at the timeout; None while awaited."""
 
 
 class PendingResponses:
     """Correlates outgoing WebSocket requests with their replies for one connection.
 
-    Message ids are scoped to a single connection: both the pending-future mapping and the
-    timed-out-write record are tied to the connection that issued them, and both are cleared
-    whenever that connection is cleaned up or torn down.
+    Message ids are scoped to a single connection, so the table is cleared whenever that
+    connection is cleaned up or torn down. A request moves from awaited to timed out in one
+    synchronous step (``mark_timed_out``), so no reply can arrive between the two states.
     """
 
     def __init__(self, logger: logging.Logger) -> None:
         self.logger = logger
-        self.futures: dict[int, asyncio.Future[Any]] = {}
-        self.timed_out_writes: OrderedDict[int, str] = OrderedDict()
+        self.entries: dict[int, PendingReply] = {}
 
     def register(self, msg_id: int, fut: "asyncio.Future[Any]") -> None:
         """Track ``fut`` as the response future for ``msg_id`` until it is discarded."""
-        self.futures[msg_id] = fut
+        self.entries[msg_id] = PendingReply(fut)
 
     def discard(self, msg_id: int) -> None:
-        """Stop tracking the response future for ``msg_id``, if any."""
-        self.futures.pop(msg_id, None)
+        """Stop tracking ``msg_id`` unless it was marked timed out to await a late reply."""
+        entry = self.entries.get(msg_id)
+        if entry is not None and entry.timed_out_command is None:
+            del self.entries[msg_id]
+
+    def mark_timed_out(self, msg_id: int, command_type: str) -> None:
+        """Keep a timed-out non-retried write in the table so a late reply can report its outcome."""
+        # Re-inserting moves the entry to the end, so timed-out entries sit in timeout order.
+        entry = self.entries.pop(msg_id)
+        self.entries[msg_id] = replace(entry, timed_out_command=command_type)
+        # The table only ever holds in-flight requests plus at most the cap's worth of timed-out
+        # writes, so scanning all of it is cheap.
+        timed_out = [i for i, e in self.entries.items() if e.timed_out_command is not None]
+        for evicted in timed_out[:-TIMED_OUT_WRITE_RECORD_CAP]:
+            del self.entries[evicted]
 
     def respond_if_necessary(self, message: dict) -> None:
-        """Resolve the future (or settle the timed-out-write record) for a 'result' message."""
+        """Resolve the awaited future, or log the late reply to a timed-out write, for a 'result' message."""
         if message.get("type") != "result":
             return
 
@@ -54,10 +76,14 @@ class PendingResponses:
             self.logger.warning("Received result message without ID: %s", message)
             return
 
-        fut = self.futures.get(msg_id)
-        if fut is None:
-            self.settle_timed_out_write(msg_id, message)
+        entry = self.entries.get(msg_id)
+        if entry is None:
             return
+        if entry.timed_out_command is not None:
+            del self.entries[msg_id]
+            self.log_late_reply(msg_id, entry.timed_out_command, message)
+            return
+        fut = entry.future
         if fut.done():
             return
 
@@ -77,23 +103,14 @@ class PendingResponses:
                 )
             fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
 
-    def record_timed_out_write(self, msg_id: int, command_type: str) -> None:
-        """Remember a timed-out non-retried send so a late reply can report its outcome."""
-        self.timed_out_writes[msg_id] = command_type
-        if len(self.timed_out_writes) > TIMED_OUT_WRITE_RECORD_CAP:
-            self.timed_out_writes.popitem(last=False)
-
-    def settle_timed_out_write(self, msg_id: int, message: dict) -> None:
-        """Log a late reply to a timed-out non-retried send and drop its record.
+    def log_late_reply(self, msg_id: int, command_type: str, message: dict) -> None:
+        """Log a late reply to a timed-out non-retried write.
 
         A late success proves the write applied. A late failure only reports that Home
         Assistant returned an error for it -- a call_service write (a script, a custom
         service) can partly apply before failing, so a failure reply does not prove the
         command had no effect.
         """
-        command_type = self.timed_out_writes.pop(msg_id, None)
-        if command_type is None:
-            return
         if message.get("success"):
             self.logger.info(
                 "Late reply to timed-out %r (id %s): it succeeded, so the command applied after the timeout",
@@ -111,14 +128,15 @@ class PendingResponses:
             )
 
     def fail_all(self) -> None:
-        """Fail every pending future with RetryableConnectionClosedError and clear all state.
+        """Fail every awaited future with RetryableConnectionClosedError and clear the table.
 
         Suppresses exceptions from ``set_exception`` so this never blocks the caller's own
         cleanup, whether that caller is a reconnect-time partial cleanup or a full teardown.
         """
-        for fut in list(self.futures.values()):
-            if not fut.done():
+        for entry in list(self.entries.values()):
+            # A timed-out entry's future has no awaiter left; failing it would only leave an
+            # unretrieved exception behind.
+            if entry.timed_out_command is None and not entry.future.done():
                 with suppress(Exception):
-                    fut.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
-        self.futures.clear()
-        self.timed_out_writes.clear()
+                    entry.future.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
+        self.entries.clear()

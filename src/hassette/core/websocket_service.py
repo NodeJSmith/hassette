@@ -547,18 +547,25 @@ class WebsocketService(Service):
             await self.raw_recv()
 
     async def send_and_await_response(
-        self, payload: dict[str, Any], msg_id: int, *, allow_pre_ready: bool = False
+        self,
+        payload: dict[str, Any],
+        msg_id: int,
+        *,
+        allow_pre_ready: bool = False,
+        late_reply_command: str | None = None,
     ) -> Any:
         """Register a response future for msg_id, send payload, and await the reply.
 
         Registers the future before sending so a fast reply arriving before ``send_json``
-        returns is never dropped. Always pops the future from the pending-responses mapping
-        on exit — success, timeout, or any other exception.
+        returns is never dropped. On exit the entry leaves the pending-responses table, except
+        that a timeout with ``late_reply_command`` set keeps it there, marked timed out.
 
         Args:
             payload: The JSON payload to send. Must already include ``"id": msg_id``.
             msg_id: The message id used to correlate the response future.
             allow_pre_ready: Whether to use the private pre-readiness send path for setup traffic.
+            late_reply_command: Command type to log a late reply under if this times out. Only
+                for a non-retried write; None drops the entry on timeout like any other exit.
 
         Returns:
             The response payload once ``respond_if_necessary`` resolves the future.
@@ -573,8 +580,17 @@ class WebsocketService(Service):
                 await self._send_json_when_socket_live(**payload)
             else:
                 await self.send_json(**payload)
-            return await asyncio.wait_for(fut, timeout=self.resp_timeout_seconds)
+            # asyncio.wait, unlike wait_for, never cancels fut. A reply landing after the deadline
+            # but before this task resumes still resolves it and is returned below, and the
+            # check-and-mark that follows has no await in it for a reply to slip into.
+            await asyncio.wait({fut}, timeout=self.resp_timeout_seconds)
+            if fut.done():
+                return fut.result()
+            if late_reply_command is not None:
+                self._pending.mark_timed_out(msg_id, late_reply_command)
+            raise TimeoutError
         finally:
+            # A no-op for an entry just marked timed out: that one stays to await its late reply.
             self._pending.discard(msg_id)
 
     async def subscribe_events(self, event_type: str | None = None) -> int:
@@ -693,7 +709,7 @@ class WebsocketService(Service):
         """
         caller_id = data.pop("id", None)
         command_type = str(data.get("type"))
-        last_attempt_id: int | None = None  # read after the last attempt raises
+        late_reply_command = None if retry_on_timeout else command_type
 
         @retry(
             retry=retry_if_exception(lambda e: isinstance(e, FailedMessageError) and e.code is None),
@@ -703,16 +719,16 @@ class WebsocketService(Service):
             reraise=True,
         )
         async def send_with_retry() -> dict[str, Any]:
-            nonlocal caller_id, last_attempt_id
+            nonlocal caller_id
             if caller_id is not None:
                 attempt_id = caller_id
                 caller_id = None
             else:
                 attempt_id = self.get_next_message_id()
-            data["id"] = last_attempt_id = attempt_id
+            data["id"] = attempt_id
 
             try:
-                return await self.send_and_await_response(data, attempt_id)
+                return await self.send_and_await_response(data, attempt_id, late_reply_command=late_reply_command)
             # Messages name only the command type and id: payload values may be sensitive
             # (e.g. input_text.initial on a password-mode helper) and these messages reach logs.
             except TimeoutError:
@@ -732,12 +748,10 @@ class WebsocketService(Service):
             return await send_with_retry()
         except OutcomeUnknownError as exc:
             self.logger.warning("%s", exc)
-            if isinstance(exc, ResponseTimeoutError) and not retry_on_timeout and last_attempt_id is not None:
-                self._pending.record_timed_out_write(last_attempt_id, command_type)
             raise
 
     def respond_if_necessary(self, message: dict) -> None:
-        """Resolve a pending response future (or settle a timed-out-write record) for ``message``."""
+        """Resolve a pending response future (or log a late reply to a timed-out write) for ``message``."""
         self._pending.respond_if_necessary(message)
 
     async def _send_json_when_socket_live(self, **data: Any) -> None:
