@@ -553,11 +553,11 @@ For HA endpoints without a typed method — the device registry, area registry, 
 !!! warning "`ws_send_and_wait` re-sends on timeout by default"
     When Home Assistant's response never arrives, `ws_send_and_wait` re-sends the command under a
     fresh message id. That suits a read, but a write Home Assistant already applied before the
-    response was lost gets applied a second time. Pass `retry_on_timeout=False` for any command
-    that must not run twice (creating a registry entry, a custom integration's write). It then
-    raises [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] on the first timeout
-    instead of duplicating the effect. Don't respond by re-sending the write blindly: check state
-    first.
+    response was lost gets applied a second time. A command that must not run twice — creating a
+    registry entry, a custom integration's write — carries `retry_on_timeout=False` instead. With
+    that flag set, `ws_send_and_wait` raises
+    [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] on the first timeout rather
+    than duplicating the effect. A safe recovery checks state before re-sending anything.
 
 `retry_on_timeout` is the one keyword this escape hatch reads itself rather than forwarding, so it
 cannot double as a raw payload field name.
@@ -566,11 +566,11 @@ The typed writes never re-send: `call_service` when it waits, `fire_event`, and 
 `create`/`update`/`delete`. A command that was sent but never answered raises a subclass of
 [`OutcomeUnknownError`][hassette.exceptions.OutcomeUnknownError]: `ResponseTimeoutError` when no
 response arrived in time, or [`ResponseLostError`][hassette.exceptions.ResponseLostError] when the
-connection dropped while waiting. Catch `OutcomeUnknownError` to handle both. Either way the
+connection dropped while waiting. One `except OutcomeUnknownError` handles both. Either way, the
 command may or may not have applied. `fire_event` and `call_service` can't confirm their side
-effect for you (a service response reports only what Home Assistant chose to return), so check
-the effect directly, for example by reading the target entity's state. For helpers,
-[Managing Helpers](managing-helpers.md#common-pitfalls) shows how to check with `helpers.list`.
+effect (a service response reports only what Home Assistant chose to return), so confirming the
+effect means reading state directly — for example, the target entity's state. For helpers, [Managing
+Helpers](managing-helpers.md#common-pitfalls) shows how to check with `helpers.list`.
 
 ---
 
