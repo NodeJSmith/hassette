@@ -12,7 +12,6 @@ def build_scheduler_jobs() -> list[SimpleNamespace]:
     return [
         make_job(trigger_detail="PT30S", app_key=APP_KEY_MY_APP, instance_index=0),
         make_job(
-            job_id="job-2",
             name="morning_routine",
             next_run="2024-01-01T07:00:00",
             trigger_type="cron",
