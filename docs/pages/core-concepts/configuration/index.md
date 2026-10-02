@@ -164,7 +164,7 @@ The [`StateManager`](../states/index.md) — the local entity-state cache apps a
 
 - **`capture_stack_on_block`** (bool): Whether to capture a loop-thread stack snapshot when a Tier 1 stall is detected. Disable on memory-constrained systems. Default: `true`.
 
-- **`deep_detection_enabled`** (bool or `null`): Whether to enable Tier 2 call-site interception. `null` (default) follows `dev_mode` — on in development, off in production. Set explicitly to override.
+- **`deep_detection_enabled`** (bool or `null`): Whether to enable Tier 2 call-site interception. `null` (default) follows `dev_mode` — on in development, off in production unless `allow_deep_detection_in_prod` is set. Set explicitly to override.
 
 - **`allow_deep_detection_in_prod`** (bool): Enable Tier 2 in production even when `dev_mode` is `false`, without also setting `deep_detection_enabled`. An explicit `deep_detection_enabled = false` still wins. Mirrors `allow_reload_in_prod` semantics. Default: `false`.
 

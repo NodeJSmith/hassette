@@ -172,6 +172,7 @@ def _should_install(hassette: "Hassette") -> bool:
         return False  # explicit opt-out always wins
     if cfg.dev_mode:
         return True  # dev: on unless explicitly disabled
+    # enabled is None or True here; False already returned above.
     return enabled is True or cfg.blocking_io.allow_deep_detection_in_prod
 
 

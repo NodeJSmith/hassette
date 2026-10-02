@@ -700,8 +700,9 @@ class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
     deep_detection_enabled: bool | None = Field(default=None)
     """Whether to enable Tier 2 call-site interception (monkeypatching of blocking primitives).
 
-    When ``None`` (default), follows ``dev_mode``: enabled in dev, disabled in production.
-    Set explicitly to ``True`` or ``False`` to override the dev_mode default."""
+    When ``None`` (default), follows ``dev_mode``: enabled in dev, disabled in production unless
+    ``allow_deep_detection_in_prod`` is set. Set explicitly to ``True`` or ``False`` to override
+    the dev_mode default."""
 
     allow_deep_detection_in_prod: bool = Field(default=False)
     """Whether to enable Tier 2 deep detection in production mode.

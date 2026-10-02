@@ -469,7 +469,7 @@
             }
           ],
           "default": null,
-          "description": "Whether to enable Tier 2 call-site interception (monkeypatching of blocking primitives).\n\nWhen ``None`` (default), follows ``dev_mode``: enabled in dev, disabled in production.\nSet explicitly to ``True`` or ``False`` to override the dev_mode default.",
+          "description": "Whether to enable Tier 2 call-site interception (monkeypatching of blocking primitives).\n\nWhen ``None`` (default), follows ``dev_mode``: enabled in dev, disabled in production unless\n``allow_deep_detection_in_prod`` is set. Set explicitly to ``True`` or ``False`` to override\nthe dev_mode default.",
           "title": "Deep Detection Enabled"
         },
         "allow_deep_detection_in_prod": {

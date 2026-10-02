@@ -3,7 +3,7 @@
 Covers:
     - each patched primitive responds per behavior before the call proceeds
     - off-loop calls pass through unflagged
-    - enablement matrix: dev→ON, prod default→OFF, prod+flag→ON
+    - enablement matrix: dev x deep_detection_enabled x allow_deep_detection_in_prod
     - idempotent install; uninstall restores originals; re-install is clean
     - dev_mode + filterwarnings("error") causes loop-thread time.sleep to RAISE
       BEFORE sleeping (the sleep never happens); prod without flag → no patch
@@ -93,7 +93,7 @@ def capture_blocking_io_warnings(action: Callable[[], None] | None = None) -> li
 
 class TestEnablementMatrix:
     @pytest.mark.parametrize(
-        ("dev_mode", "deep_detection_enabled", "allow_in_prod", "expected"),
+        ("dev_mode", "deep_detection_enabled", "allow_deep_detection_in_prod", "expected"),
         [
             # dev: on unless explicitly disabled; allow_deep_detection_in_prod is irrelevant
             (True, None, False, True),
@@ -114,19 +114,19 @@ class TestEnablementMatrix:
         ],
     )
     def test_enablement(
-        self, dev_mode: bool, deep_detection_enabled: bool | None, allow_in_prod: bool, expected: bool
+        self, dev_mode: bool, deep_detection_enabled: bool | None, allow_deep_detection_in_prod: bool, expected: bool
     ) -> None:
         """Full dev/prod x deep_detection_enabled x allow_deep_detection_in_prod matrix.
 
-        Uses a real, validated ``HassetteConfig`` so the matrix exercises the actual config
-        model's fields and defaults rather than a hand-built mock.
+        Unlike the rest of this file, builds a real, validated ``HassetteConfig`` (via
+        ``make_mock_hassette``) because the config fields themselves are what's under test here.
         """
         hassette = make_mock_hassette(
             set_loop=False,
             dev_mode=dev_mode,
             blocking_io={
                 "deep_detection_enabled": deep_detection_enabled,
-                "allow_deep_detection_in_prod": allow_in_prod,
+                "allow_deep_detection_in_prod": allow_deep_detection_in_prod,
             },
         )
         run_install(hassette, expect_installed=expected)
