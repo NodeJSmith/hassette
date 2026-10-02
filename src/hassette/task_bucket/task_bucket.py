@@ -141,35 +141,35 @@ class TaskBucket(Resource):
         if self._sealed:
             task.cancel()
 
-            def _consume_rejected(t: asyncio.Task[Any]) -> None:
+            def _consume_rejected(done_task: asyncio.Task[Any]) -> None:
                 with contextlib.suppress(BaseException):
-                    t.exception()
+                    done_task.exception()
 
             task.add_done_callback(_consume_rejected)
             raise self._sealed_rejection(task.get_name())
 
         self._tasks.add(task)
 
-        def _done(t: asyncio.Task[Any]) -> None:
+        def _done(done_task: asyncio.Task[Any]) -> None:
             try:
-                exc = t.exception()
+                exc = done_task.exception()
             except asyncio.CancelledError:  # noqa: ASYNC103 — cancelled task is expected, not an error
                 return  # noqa: ASYNC104
             except Exception:
                 return
             if exc:
-                self.logger.error("[%s] task %s crashed", self.unique_name, t.get_name(), exc_info=exc)
+                self.logger.error("[%s] task %s crashed", self.unique_name, done_task.get_name(), exc_info=exc)
                 for recorder in list(self._exception_recorders):
                     try:
-                        recorder(t, exc)
+                        recorder(done_task, exc)
                     except Exception:
                         self.logger.exception(
                             "[%s] exception recorder failed for task %s",
                             self.unique_name,
-                            t.get_name(),
+                            done_task.get_name(),
                         )
 
-        task.add_done_callback(lambda t: self._tasks.discard(t))
+        task.add_done_callback(lambda done_task: self._tasks.discard(done_task))
         task.add_done_callback(_done)
 
     def install_exception_recorder(self, recorder: "ExceptionRecorderT") -> None:

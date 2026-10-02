@@ -150,22 +150,22 @@ async def test_exhausted_transitions_valid():
     hassette = make_mock_hassette(strict_lifecycle=True, sealed=False)
 
     # FAILED → EXHAUSTED_COOLING
-    r1 = ConcreteResource(hassette)
-    r1._status = ResourceStatus.FAILED
-    r1.status = ResourceStatus.EXHAUSTED_COOLING
-    assert r1.status == ResourceStatus.EXHAUSTED_COOLING
+    resource1 = ConcreteResource(hassette)
+    resource1._status = ResourceStatus.FAILED
+    resource1.status = ResourceStatus.EXHAUSTED_COOLING
+    assert resource1.status == ResourceStatus.EXHAUSTED_COOLING
 
     # EXHAUSTED_COOLING → STARTING
-    r2 = ConcreteResource(hassette)
-    r2._status = ResourceStatus.EXHAUSTED_COOLING
-    r2.status = ResourceStatus.STARTING
-    assert r2.status == ResourceStatus.STARTING
+    resource2 = ConcreteResource(hassette)
+    resource2._status = ResourceStatus.EXHAUSTED_COOLING
+    resource2.status = ResourceStatus.STARTING
+    assert resource2.status == ResourceStatus.STARTING
 
     # EXHAUSTED_COOLING → EXHAUSTED_DEAD
-    r3 = ConcreteResource(hassette)
-    r3._status = ResourceStatus.EXHAUSTED_COOLING
-    r3.status = ResourceStatus.EXHAUSTED_DEAD
-    assert r3.status == ResourceStatus.EXHAUSTED_DEAD
+    resource3 = ConcreteResource(hassette)
+    resource3._status = ResourceStatus.EXHAUSTED_COOLING
+    resource3.status = ResourceStatus.EXHAUSTED_DEAD
+    assert resource3.status == ResourceStatus.EXHAUSTED_DEAD
 
 
 async def test_terminal_state_rejects_transitions():

@@ -195,7 +195,7 @@ Builds an `AppFullSnapshot` from a list of manifests with auto-computed status c
 
 ### `make_job(**kwargs)` — `tests/support/web_job_helpers.py`
 
-Builds a `SimpleNamespace` scheduler job with sensible defaults (job_id, name, owner, next_run, repeat, trigger).
+Builds a `SimpleNamespace` scheduler job with sensible defaults (name, owner_id, next_run, trigger, app_key, instance_index).
 
 ### `make_real_job(**kwargs)` — `tests/support/web_job_helpers.py`
 
