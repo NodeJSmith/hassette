@@ -17,7 +17,7 @@ from whenever import Instant
 from hassette.core.database_service import LOG_RECORD_COLUMNS
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
-from hassette.core.telemetry.repository import execution_insert_params, job_insert_params, listener_insert_params
+from hassette.core.telemetry.insert_params import execution_insert_params, job_insert_params, listener_insert_params
 from tests.support.factories import make_execution_record, make_job_registration, make_listener_registration
 
 REFERENCE_INSTANT = Instant.from_utc(2026, 1, 15, 12, 0)

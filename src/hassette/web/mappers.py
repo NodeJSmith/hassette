@@ -72,7 +72,7 @@ def manifest_response_fields(manifest: AppManifestInfo) -> dict[str, Any]:
     the two call sites (here and ``dashboard_app_grid``) can't drift apart as the fields evolve.
     """
     # dup-ignore-start: API-response layer output. Shares field names with
-    # hassette.core.telemetry.repository.manifest_insert_params() (DB-params layer, asserted
+    # hassette.core.telemetry.insert_params.manifest_insert_params() (DB-params layer, asserted
     # against verbatim by tests/unit/core/test_manifest_repository.py) by coincidence — same
     # source model, different consumer/field subset; coupling the two layers to satisfy the
     # checker would be the wrong direction.

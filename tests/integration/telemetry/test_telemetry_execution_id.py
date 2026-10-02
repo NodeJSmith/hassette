@@ -8,8 +8,9 @@ import time
 import pytest
 
 from hassette.core.execution_record import ExecutionRecord
+from hassette.core.telemetry.insert_params import execution_insert_params
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.core.telemetry.repository import TelemetryRepository, execution_insert_params
+from hassette.core.telemetry.repository import TelemetryRepository
 
 from .helpers import (
     DbFixture,

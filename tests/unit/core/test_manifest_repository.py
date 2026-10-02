@@ -9,8 +9,9 @@ from unittest.mock import MagicMock
 
 import aiosqlite
 
+from hassette.core.telemetry.insert_params import manifest_insert_params
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.core.telemetry.repository import TelemetryRepository, manifest_insert_params
+from hassette.core.telemetry.repository import TelemetryRepository
 from tests.support.helpers import create_app_manifest
 
 
