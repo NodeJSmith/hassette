@@ -19,6 +19,24 @@ Lifecycle state transitions (`handle_starting`, `handle_running`, `handle_stop`,
 
 New `Resource` subclasses must call `mark_ready()` explicitly — `handle_running()` sets status but does not mark readiness.
 
+## When to call `mark_ready()`
+
+Readiness is what `depends_on` auto-wait and the startup waves block on, so mark ready at the point dependents can actually use the resource:
+
+- **No background loop** (plain `Resource`, or a `Service` whose `serve()` only hosts something already usable): call it at the end of `on_initialize()`, or `after_initialize()` when readiness depends on work that finishes after `on_initialize()` returns (children started, bootstrap wired).
+- **`Service` with a `serve()` loop**: call it inside `serve()`, once the loop's prerequisites are open and just before it starts consuming work. `_serve_wrapper()` in `service.py` runs `serve()` after `initialize()` completes, so marking ready in `on_initialize()` would unblock dependents before anything is draining their work.
+- A `serve()` that returns goes through `handle_stop()`, which calls `mark_not_ready()`. A service that is disabled by config but must stay ready marks ready in `on_initialize()` and parks `serve()` on `self.shutdown_event.wait()` instead of returning.
+
+`MARK_READY_HOOKS` in `tests/unit/resources/test_mark_ready_timing.py` is the canonical per-class list of which hook each resource marks ready from, enforced via `assert_marks_ready_in()` in `tests/support/ready_timing.py`. The test fails when a new class calls `mark_ready(self)` without being listed, or when a new `Resource` subclass has no readiness source at all (its `NOT_SELF_MARKED` map covers classes marked ready by something else). Add new resources there, not here.
+
+Resources that deviate from these rules, and why:
+
+- **`TaskBucket`** — `__init__()`. It defines no `on_initialize()` and has no setup work, so it is usable as soon as it is constructed. Marking ready at construction means nothing that waits on it blocks on a hook it never runs.
+- **`WebApiService`** — `on_initialize()`, after auth and trusted proxies resolve. Readiness does not wait for uvicorn to bind the port in `serve()`. When the web API is disabled it marks ready early and parks `serve()`.
+- **`WebsocketService`** — `on_initialize()` marks lifecycle-ready unconditionally so an unreachable HA doesn't time out its startup wave and fatally block later waves; `start_recv_and_subscribe()` (reached from `serve()`) re-marks ready after each successful connect, since a dropped connection calls `mark_not_ready()`. Use the connected signal, not `is_ready()`, to mean "HA connected".
+- **`WebUiWatcherService`** — `on_initialize()` when hot reload is disabled (then parks `serve()`), `serve()` when enabled.
+- **`FileWatcherService`** — `serve()` returns without ever marking ready when `watch_files` is disabled.
+
 ## Teardown reports
 
 Every successful `Resource`/`Service` shutdown attempt returns an immutable `TeardownReport` (`teardown.py`), and `resource.teardown_report` exposes the current unconsumed one. When the coordinator itself raises outside the shutdown body (observing a pending initializer, requesting shutdown), it stores that report before re-raising instead of returning it — `await resource.shutdown()` raises in that case, so read `resource.teardown_report` after catching the exception to see the same evidence a normal completion would have returned.
