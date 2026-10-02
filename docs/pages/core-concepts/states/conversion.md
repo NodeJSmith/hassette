@@ -126,8 +126,8 @@ fallback. A successful constructor call does not register the pair — each miss
     in the tuple is returned unchanged. Only otherwise are the types tried in order, first
     success winning. Every value from Home Assistant arrives as a string, so a tuple that
     includes `str` — in any position — never converts anything: `(int, float, str)` and
-    `(str, int, float)` both leave `"42"` as the string `"42"`. Leave `str` out of a tuple
-    whose other types should be coerced.
+    `(str, int, float)` both leave `"42"` as the string `"42"`. A tuple whose other types
+    should be coerced excludes `str`.
 
 ### Built-in Converters
 
@@ -241,7 +241,7 @@ available at module import time.
 #### `InvalidDataForStateConversionError`
 
 Raised when the input is an event envelope (a dict with an `event` key) instead of a
-state dict. Extract the state from `event.payload.data.new_state` or `old_state` first.
+state dict. The state dict to convert lives at `event.payload.data.new_state` or `old_state`.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/error_invalid_data.py"

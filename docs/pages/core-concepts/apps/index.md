@@ -15,7 +15,7 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `A
 !!! info "What's `D.StateNew[states.LightState]`?"
     That annotation is [dependency injection](../bus/dependency-injection.md). The handler declares what data it needs, and Hassette extracts and types it from the event automatically. The [Writing Handlers](../bus/handlers.md) page covers how it works. For now, just notice the pattern.
 
-Two more things to notice in the example. Every method is `async def`, and the registration call is awaited — that pattern holds for all bus, scheduler, and API calls, and a missing `await` means the call never runs (see [Call Services](#call-services) below) — [Async Basics](../../migration/async-basics.md) explains why. The `name=` parameter is required on every subscription; it labels the listener in logs and the [web UI](../../web-ui/index.md).
+The example defines every method with `async def` and awaits the registration call. All bus, scheduler, and API calls follow this pattern; without `await`, a call never runs (see [Call Services](#call-services) below) — [Async Basics](../../migration/async-basics.md) explains why. Every subscription requires `name=`, which labels the listener in logs and the [web UI](../../web-ui/index.md).
 
 ## Configuration
 
@@ -141,7 +141,7 @@ See the [States](../states/index.md) page for typed domain access and custom sta
 ```
 
 !!! warning "Forgetting `await` on API calls"
-    Every `self.api.*` method is a coroutine. It must be awaited. Writing `self.api.call_service(...)` without `await` returns a coroutine object and no service is called. No error is raised at the call site; Hassette emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] when the coroutine is garbage-collected (subject to [configuration](../../troubleshooting.md#forgotten-await)), which is easy to miss. If an API call seems to have no effect, check that `await` is present.
+    Every `self.api.*` method is a coroutine. It must be awaited. Writing `self.api.call_service(...)` without `await` returns a coroutine object and no service is called. No error is raised at the call site; Hassette emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] when the coroutine is garbage-collected (subject to [configuration](../../troubleshooting.md#forgotten-await)), which is easy to miss. An API call that appears to have no effect may be missing `await`.
 
 See the [API](../api/index.md) page for state access, entity management, and more.
 

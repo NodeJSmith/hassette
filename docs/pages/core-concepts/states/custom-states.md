@@ -66,7 +66,7 @@ When no built-in base class fits, a class can inherit from `BaseState[T]` direct
 --8<-- "pages/core-concepts/states/snippets/custom-states/define_your_own.py"
 ```
 
-When the state can be unset (`unknown` or `unavailable`), parameterize the base class with `| None`, as in `BaseState[MyValueType | None]`, and include `type(None)` in `value_type`. The generic parameter is what Pydantic validates `value` against; without `| None`, an unavailable entity fails conversion.
+A state that can be unset (`unknown` or `unavailable`) parameterizes the base class with `| None`, as in `BaseState[MyValueType | None]`, and includes `type(None)` in `value_type`. The generic parameter is what Pydantic validates `value` against; without `| None`, an unavailable entity fails conversion.
 
 ## Adding Typed Attributes
 
