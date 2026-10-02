@@ -14,6 +14,7 @@ from hassette.web.auth.trusted_proxies import EMPTY_TRUSTED_PROXY_SET, TrustedPr
 from hassette.web.body_limit import RequestBodySizeLimitMiddleware
 from hassette.web.errors import WebApiError, install_problem_handlers, install_problem_openapi
 from hassette.web.middleware import DefaultDenyMiddleware
+from hassette.web.request_context import HassetteContextMiddleware
 from hassette.web.routes.apps import router as apps_router
 from hassette.web.routes.auth import router as auth_router
 from hassette.web.routes.bus import router as bus_router
@@ -90,8 +91,8 @@ def create_fastapi_app(
 
     # Registration order matters: Starlette wraps middleware so the LAST one added ends up
     # OUTERMOST (it sees the request first, the response last). DefaultDenyMiddleware is
-    # registered first (innermost relative to CORS) so CORSMiddleware — added after — is
-    # outermost and can short-circuit a genuine preflight OPTIONS request with a proper CORS
+    # registered first (innermost relative to CORS) so CORSMiddleware — added after — sits
+    # outside it and can short-circuit a genuine preflight OPTIONS request with a proper CORS
     # response before DefaultDenyMiddleware ever gets a chance to reject it with an opaque 401.
     # Verified empirically by test_cors_preflight_gets_cors_response_not_opaque_401 in
     # tests/integration/web_api/test_auth.py — see design.md's Open Questions for the ordering
@@ -112,6 +113,9 @@ def create_fastapi_app(
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
     )
+
+    # Added last so it is outermost; see hassette/web/request_context.py.
+    app.add_middleware(HassetteContextMiddleware, hassette=hassette)
 
     # API routes
     app.include_router(health_router, prefix="/api")

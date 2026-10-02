@@ -1,5 +1,6 @@
 """Integration tests for AppFactory and AppLifecycleService."""
 
+import contextvars
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -97,6 +98,19 @@ class TestAppFactoryIntegration:
         assert "my_app" in app_registry
         app_instance = get_app(app_registry, "my_app", 0)
         assert app_instance.__class__.__name__ == "MyApp"
+
+    def test_load_class_from_empty_context(self, app_factory: AppFactory):
+        """A forced class load succeeds without the Hassette contextvars set (#2478).
+
+        uvicorn runs each request in an empty ``contextvars.Context``, so a web-triggered reload
+        reaches the loader with no ambient Hassette instance or config.
+        """
+        manifest = make_manifest("my_app", "my_app.py", "MyApp")
+
+        app_class = contextvars.Context().run(app_factory.load_class, "my_app", manifest, force_reload=True)
+
+        assert app_class is not None
+        assert app_class.__name__ == "MyApp"
 
     def test_factory_creates_real_app_instance(self, app_factory: AppFactory, app_registry: AppRegistry):
         """Verify created instance is actual App subclass with working methods."""

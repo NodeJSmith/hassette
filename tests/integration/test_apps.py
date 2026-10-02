@@ -97,7 +97,7 @@ class TestApps:
         assert app is not None, "App instance should be found"
         assert app.app_manifest is not None, "Factory-created app should carry its manifest"
 
-        my_app_class = load_app_class_from_manifest(app.app_manifest)
+        my_app_class = load_app_class_from_manifest(app.app_manifest, config=app.hassette.config)
 
         assert isinstance(app, my_app_class), "App instance should be of type MyApp"
 

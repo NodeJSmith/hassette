@@ -8,7 +8,6 @@ import typing
 from logging import getLogger
 from pathlib import Path
 
-from hassette import context
 from hassette.app.utils import validate_app
 from hassette.exceptions import (
     AppPrecheckFailedError,
@@ -142,7 +141,7 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
             continue
 
         try:
-            load_app_class_from_manifest(app_manifest=app_manifest)
+            load_app_class_from_manifest(app_manifest=app_manifest, config=config)
 
         except CannotOverrideFinalError as exc:
             LOGGER.error("App %s: %s", app_manifest.display_name, exc)
@@ -181,8 +180,8 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
 
     full_path = (Path(app_dict["app_dir"]) / app_dict["filename"]).resolve()
 
-    config = app_dict.get("config", [])
-    config = config if isinstance(config, list) else [config]
+    app_configs = app_dict.get("config", [])
+    app_configs = app_configs if isinstance(app_configs, list) else [app_configs]
 
     clean_app_dict = AppDict(
         app_key=app_key,
@@ -191,7 +190,7 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
         app_dir=Path(app_dict["app_dir"]),
         enabled=app_dict.get("enabled", True),
         autostart=app_dict.get("autostart", True),
-        config=config,
+        config=app_configs,
         auto_loaded=app_dict.get("auto_loaded", False),
         full_path=full_path,
         cache_key=app_dict.get("cache_key", ""),
@@ -268,11 +267,14 @@ def autodetect_apps(app_dir: Path, known_paths: set[Path], exclude_dirs: set[str
     return app_manifests
 
 
-def load_app_class_from_manifest(app_manifest: "AppManifest", force_reload: bool = False) -> "type[App[AppConfig]]":
+def load_app_class_from_manifest(
+    app_manifest: "AppManifest", *, config: "HassetteConfig", force_reload: bool = False
+) -> "type[App[AppConfig]]":
     """Load the app class specified by the given manifest.
 
     Args:
         app_manifest: The app manifest.
+        config: The Hassette configuration, which names the apps package.
         force_reload: Whether to force reloading the module if already loaded.
 
     Returns:
@@ -282,6 +284,7 @@ def load_app_class_from_manifest(app_manifest: "AppManifest", force_reload: bool
         app_dir=app_manifest.app_dir,
         module_path=app_manifest.full_path,
         class_name=app_manifest.class_name,
+        config=config,
         display_name=app_manifest.display_name,
         force_reload=force_reload,
     )
@@ -353,6 +356,8 @@ def load_app_class(
     app_dir: Path,
     module_path: Path,
     class_name: str,
+    *,
+    config: "HassetteConfig",
     display_name: str | None = None,
     force_reload: bool = False,
 ) -> "type[App[AppConfig]]":
@@ -362,6 +367,9 @@ def load_app_class(
         app_dir: The root directory containing apps.
         module_path: The full path to the app module file.
         class_name: The name of the app class to load.
+        config: The Hassette configuration, which names the apps package. Passed in rather than
+            read from context because callers reach the loader from tasks that may not carry the
+            Hassette contextvars, such as a web request or the startup pre-check.
         display_name: Optional display name for logging.
         force_reload: Whether to force reloading the module if already loaded.
 
@@ -394,8 +402,6 @@ def load_app_class(
 
     if not module_path or not class_name:
         raise ValueError(f"App {display_name} is missing filename or class_name")
-
-    config = context.get_hassette_config()
 
     # exceptions are caught below to cache failures, but are re-raised so the caller still receives them
     try:

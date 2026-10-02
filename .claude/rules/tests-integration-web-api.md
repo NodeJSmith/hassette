@@ -39,6 +39,7 @@ second file drives the same endpoint.
 - `test_telemetry_route.py` — `make_live_job(db_id, name, **kw)`, `get_enriched_job_row(...)`
 - `test_trigger_job.py` — `post_trigger(...)`, `make_registered_job(...)`
 - `test_ws_endpoint.py` — `subscribed_ws(client, **subscribe_data)`, `put_message(...)`, `expect_message(ws, type)`
+- `test_request_context.py` — `read_context(hassette)`, `add_probe_routes(app, hassette)`, `live_server_url` fixture, `ASYNC_PROBE_PATH`/`SYNC_PROBE_PATH` — probes that report what the ambient Hassette context resolves to inside a real-uvicorn request
 
 ## Key conventions
 
