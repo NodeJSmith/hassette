@@ -313,7 +313,7 @@ class AppLifecycleService(Resource):
         """
         if instance_index is not None:
             structlog.contextvars.bind_contextvars(
-                app_key=inst.app_config.app_key or None,
+                app_key=inst.app_key,
                 instance_name=inst.app_config.instance_name,
                 instance_index=instance_index,
             )

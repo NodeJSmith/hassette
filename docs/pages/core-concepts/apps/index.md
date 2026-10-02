@@ -39,11 +39,12 @@ With `env_prefix="MYAPP_"`, the field `api_key` reads from `MYAPP_API_KEY`. Fiel
 
 ### Base Fields
 
-Every `AppConfig` includes three built-in fields:
+Every `AppConfig` includes two built-in fields:
 
 - `instance_name`: a string that uniquely identifies one running instance of the app. Defaults to an empty string; Hassette derives a display name from the class name when it is not set.
 - `log_level`: controls the logging verbosity for this app's logger. Defaults to `"INFO"` when not set; it does not inherit the global `logging.apps` level.
-- `app_key`: reserved. The framework does not populate it, and framework-reserved values are rejected with a validation error. The app's key from `hassette.toml` is available at runtime as `self.app_key` on the app — useful for logging or cross-app messaging.
+
+The app's key from `hassette.toml` is not an `AppConfig` field. Hassette exposes it at runtime as `self.app_key`.
 
 `AppConfig` allows arbitrary extra fields by default. A subclass can tighten this by setting `extra="forbid"` in its own `model_config`.
 
