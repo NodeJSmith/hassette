@@ -10,3 +10,6 @@ different concern (see that module's own constant and comment).
 
 MAX_RETRY_ATTEMPTS = 5
 """Standard retry budget for one HA request/reply exchange, over REST or the WebSocket."""
+
+SINGLE_ATTEMPT = 1
+"""Attempt budget for an exchange that must not be retried (e.g. a non-idempotent WebSocket command)."""
