@@ -93,18 +93,19 @@ available as a top-level import for direct access outside an app:
 
 ### Union Type Support
 
-A handler can accept multiple entity types at once with a union annotation. `StateRegistry`
-resolves the union by matching each type's domain against the incoming entity's domain.
+A handler can accept multiple entity types at once with a union annotation. The union
+converts to the first member type that successfully validates the raw state.
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/union_type_support.py"
 ```
 
-For `D.StateNew[states.SensorState | states.BinarySensorState]`, the DI system extracts
-the domain from the entity ID, checks each type in the union, and selects the one whose
-`Literal` domain matches. There is no `BaseState` fallback: when no type matches, the
-dependency cannot be resolved and the handler is not called (see
-[Dependency Injection](../bus/dependency-injection.md)).
+For `D.StateNew[states.SensorState | states.BinarySensorState]`, dependency injection
+extracts the raw `new_state` dict and tries each union member in order — `SensorState`
+first, then `BinarySensorState`. Each model validates its own `Literal` domain (derived
+from `entity_id`), so the wrong type fails validation and the next member is tried. There
+is no `BaseState` fallback: when no member matches, dependency resolution fails before the
+handler is called (see [Dependency Injection](../bus/dependency-injection.md)).
 
 ## Value Conversion
 
