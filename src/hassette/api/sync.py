@@ -219,9 +219,8 @@ class ApiSyncFacade(Resource):
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
 
         Raises:
-            ResponseTimeoutError: If ``return_response`` or ``wait_for_ack`` is set and no response
-                arrived in time. The call is never re-sent, because Home Assistant may already
-                have applied it, so the outcome is unknown rather than skipped.
+            ResponseTimeoutError: If ``return_response`` or ``wait_for_ack`` is set and times out.
+                Never re-sent, since Home Assistant may already have applied it.
         """
         return self.task_bucket.run_sync(
             self._api.call_service(domain, service, target, return_response, wait_for_ack=wait_for_ack, **data)

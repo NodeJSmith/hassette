@@ -257,20 +257,15 @@ async def _ws_helper_call(  # pyright: ignore[reportUnusedFunction]
     so callers can inspect them via ``except FailedMessageError as e: e.code``.
     Chains through ``raise ... from e`` so the original traceback is retained.
 
-    ``retry_on_timeout`` is forwarded to ``ws_send_and_wait``: the writes (create, update,
-    delete) pass False so a lost response can't apply them twice; ``list`` keeps the default.
-
-    Note: a WebSocket disconnect during the call raises ``ResponseLostError`` (a
-    ``RetryableConnectionClosedError``), and a response timeout raises
-    ``ResponseTimeoutError``. Both propagate through this wrapper unwrapped — their
-    messages already omit payload values. Catch ``OutcomeUnknownError`` to handle both.
+    ``retry_on_timeout`` forwards to ``ws_send_and_wait``: writes pass False so a lost
+    response can't apply them twice; ``list`` keeps the default. A disconnect raises
+    ``ResponseLostError`` and a timeout raises ``ResponseTimeoutError``, both unwrapped
+    with payload-free messages — catch ``OutcomeUnknownError`` for either.
     """
     try:
         return await api.ws_send_and_wait(type=f"{domain}/{operation}", retry_on_timeout=retry_on_timeout, **data)
     except OutcomeUnknownError:
-        # ResponseTimeoutError is also a FailedMessageError; catch it first so the rewrap
-        # below doesn't erase its outcome-unknown type.
-        raise
+        raise  # also a FailedMessageError; caught first so the rewrap below keeps its type
     except FailedMessageError as exc:
         # Include only field names in the error message — values may contain
         # sensitive data (e.g., `input_text.initial` on a password-mode helper)
@@ -522,8 +517,7 @@ class Api(Resource):
         if not event_data:
             data.pop("event_data")
 
-        # Sent once: a re-send after a lost response would fire the event twice.
-        return await self.ws_send_and_wait(retry_on_timeout=False, **data)
+        return await self.ws_send_and_wait(retry_on_timeout=False, **data)  # sent once; re-send would refire it
 
     # Overload order is load-bearing — Pyright matches top-to-bottom, first hit wins.
     # The None-returning (return_response not True) overload MUST come first so a call
@@ -598,9 +592,8 @@ class Api(Resource):
             ServiceResponse | None: The response from Home Assistant if return_response is True. Otherwise None.
 
         Raises:
-            ResponseTimeoutError: If ``return_response`` or ``wait_for_ack`` is set and no response
-                arrived in time. The call is never re-sent, because Home Assistant may already
-                have applied it, so the outcome is unknown rather than skipped.
+            ResponseTimeoutError: If ``return_response`` or ``wait_for_ack`` is set and times out.
+                Never re-sent, since Home Assistant may already have applied it.
         """
         # Cheap path — see fire_event (same rationale for all api methods)
         source_location = capture_source_location()
@@ -640,11 +633,9 @@ class Api(Resource):
             self.logger.debug("Adding extra data to service call: %s", data)
             payload["service_data"] = data
 
-        # Neither waiting path re-sends on timeout. A retry re-sends the payload under a fresh
-        # message id, and a lost response envelope does not mean HA skipped the call — so
-        # re-sending would apply it twice (counter.increment would count twice). A service that
-        # returns a response can still act (conversation.process, scripts), and the framework
-        # can't tell which kind it is calling.
+        # Neither waiting path re-sends on timeout — a lost response doesn't mean HA skipped
+        # the call, so a retry could apply it twice (counter.increment would count twice), and
+        # a response-returning service can still act (conversation.process, scripts).
         if return_response:
             resp = await self.ws_send_and_wait(retry_on_timeout=False, **payload)
             return ServiceResponse(**resp)
