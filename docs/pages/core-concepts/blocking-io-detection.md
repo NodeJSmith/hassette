@@ -42,7 +42,7 @@ Each entry shows:
 - **How often and how badly**: the event count, the longest and average stall, and when it last happened.
 - **A show stack toggle** that expands the most recent event's full stack, with absolute paths.
 
-Two other labels can appear in place of a call site. "Detected inside `<package>`" means Tier 2 caught the call inside a library, so the library line isn't presented as the place to fix. The handler that called into the library is further up the stack. "Call site not captured" means no stack was recorded for those events, because `capture_stack_on_block` is off or the events were recorded by an older Hassette version that didn't store stacks in this form. Those events are grouped per handler instead.
+Two other labels can appear in place of a call site. "Detected inside `<package>`" means Tier 2 caught the call inside a library, so the library line isn't presented as the place to fix. The handler that called into the library is further up the stack. "Call site not captured" means no line of app code was found for those events: `capture_stack_on_block` is off, the recorded stack holds no frame from the app's directory, or the events were recorded by an older Hassette version that didn't store stacks in this form. Those events are grouped per handler instead.
 
 **On the apps list.** An app that blocked the loop shows an amber **N blocking** badge next to its status. The badge links to the app's overview.
 
@@ -52,7 +52,7 @@ Two other labels can appear in place of a call site. "Detected inside `<package>
 
 ### What an empty list means
 
-Detection is best-effort. A row can be dropped when the database write queue is full, and the default time window starts at the last restart. So no listed blocking calls doesn't certify an app clean.
+An empty list doesn't certify an app clean. Detection is best-effort: a row can be dropped when the database write queue is full. The web UI's default time window also starts at the last restart, so older events stay hidden until a wider window is picked. `hassette blocking` without `--since` covers every retained event.
 
 The entry's last-seen time is the check for a fix: if it stops advancing while the handler keeps running, the fix worked. Reloading an app in place doesn't reset the time window; a restart does.
 

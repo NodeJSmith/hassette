@@ -15,8 +15,10 @@ The strip at the top summarizes the page:
 | services | Total internal services registered |
 | running | Services currently in the `running` state — green when all are running, amber otherwise |
 | boot issues | Problems detected during startup — red when non-zero |
-| drops | Telemetry records dropped across all categories — amber when non-zero |
-| loop stalls | Event-loop stalls not credited to any app, in the selected time window — amber when non-zero |
+| telemetry drops | Telemetry records dropped across all causes — amber when non-zero |
+| log queue drops | Log records dropped because the log queue was full — amber when non-zero |
+| DB write drops | Log records not persisted because the database write queue was full or unavailable — amber when non-zero |
+| loop stalls | Event-loop stalls not credited to any app, in the selected time window — amber when non-zero. See [Loop stalls](#loop-stalls) |
 
 ## Services
 
@@ -53,7 +55,7 @@ The loop stalls panel appears when [blocking-IO detection](../core-concepts/bloc
 - **displaced**: an app execution was in flight, but a different task held the loop, so Hassette withheld the blame rather than guess.
 - **framework**: no app execution was responsible, for example a library callback or Hassette's own work.
 
-The panel shows the count of each and the longest stall, then lists the most recent stalls with their duration and a **show stack** toggle. When a stall's stack contains app code, the row names that line as evidence. It isn't added to the app's own findings, because an app directory can hold helpers that several apps share.
+The panel shows the count of each and the longest stall, then lists the most recent stalls with their duration and a **show stack** toggle. When a stall's stack contains app code, the row names that line as a lead to investigate. The stall still isn't credited to that app, because a helper in one app's directory can be called by several apps.
 
 Stalls that Hassette did credit to an app appear on that app's overview instead.
 

@@ -329,7 +329,7 @@ The table shows timestamp, level, function name, line number, and message for ea
 
 ## `hassette blocking`
 
-Blocking calls that stalled the event loop, grouped by the line of app code to fix. Without `--app`, it lists findings for every app, then the recent stalls that no app is credited with. [Blocking-IO Detection](../core-concepts/blocking-io-detection.md#finding-blocking-calls) explains what each column means.
+Blocking calls that stalled the event loop, grouped by the line of app code to fix. Without `--app`, it lists findings for every app, then the recent stalls that no app is credited with. Those are split by reason: `displaced` means an app execution was in flight but another task held the loop, and `framework` means no app execution was running. [Blocking-IO Detection](../core-concepts/blocking-io-detection.md#finding-blocking-calls) explains what each column means.
 
 ```console
 $ hassette blocking --since 7d
@@ -418,9 +418,9 @@ These flags appear across multiple commands.
 
 | Flag                   | Format                       | Commands                                                     | Description                                                                                                                                 |
 | ---------------------- | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--app <key>`          | string                       | `listener`, `job`, `log`                                     | Filters results to a specific app key.                                                                                                      |
-| `--instance <n>`       | int or string                | `listener`, `job`, `app health`, `app activity`, `app start`, `app stop`, `app reload` | Filters to (read commands) or targets (action commands) a specific app instance (index or name). Requires `--app` for `listener`/`job`; requires the positional `<key>` for all `app` subcommands.         |
-| `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `app health`, `app activity`       | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
+| `--app <key>`          | string                       | `listener`, `job`, `log`, `blocking`                         | Filters results to a specific app key.                                                                                                      |
+| `--instance <n>`       | int or string                | `listener`, `job`, `blocking`, `app health`, `app activity`, `app start`, `app stop`, `app reload` | Filters to (read commands) or targets (action commands) a specific app instance (index or name). Requires `--app` for `listener`/`job`/`blocking`; requires the positional `<key>` for all `app` subcommands.         |
+| `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `blocking`, `app health`, `app activity` | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
 | `--limit <n>`          | integer                      | `log`, `execution`, `app activity`, per-ID commands          | Maximum number of records to return.                                                                                                        |
 | `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `log`, `app health`                       | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
 | `--json`               | n/a                          | all commands                                                 | Outputs as JSON. See [Output Modes](configuration.md#output-modes).                                                                         |

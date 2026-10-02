@@ -287,7 +287,7 @@ Collapsed decision. Include it: `hassette blocking` is a thin command over the t
 ## Build
 
 - [x] Implementation and tests committed
-- [ ] Docs
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
