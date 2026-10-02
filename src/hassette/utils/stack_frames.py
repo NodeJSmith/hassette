@@ -34,18 +34,17 @@ def frame_from_raw(frame: Any) -> StackFrame:
     return StackFrame(filename=code.co_filename, lineno=frame.f_lineno, function=code.co_name, module=module)
 
 
-def capture_frames(frame: Any, *, max_depth: int) -> tuple[StackFrame, ...]:
-    """Walk ``frame`` outward and return its non-hassette frames, innermost first.
+def capture_frames(frame: Any, *, max_frames: int) -> tuple[StackFrame, ...]:
+    """Capture up to ``max_frames`` non-hassette frames, walking outward from ``frame`` (innermost first).
 
-    At most ``max_depth`` frames are inspected, counting the hassette frames that get skipped.
+    Skipped hassette frames don't count toward the limit, so framework layers between a library
+    call and the app code that made it can't use up the budget before the app frame is reached.
     """
     frames: list[StackFrame] = []
-    depth = 0
-    while frame is not None and depth < max_depth:
+    while frame is not None and len(frames) < max_frames:
         if not is_internal_frame(frame):
             frames.append(frame_from_raw(frame))
         frame = frame.f_back
-        depth += 1
     return tuple(frames)
 
 

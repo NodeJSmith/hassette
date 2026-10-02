@@ -61,7 +61,10 @@ if TYPE_CHECKING:
 # The daemon polls several times per watchdog interval so it notices a stall promptly
 # without the in-loop tick and the poll aliasing into a missed detection.
 _POLL_SUBDIVISIONS = 3
-_MAX_STACK_DEPTH = 30
+# Frames kept per stalled stack. Deep library stacks (an HTTP client through urllib3, http.client
+# and ssl) can run past 30 frames below the app code that called them, which would leave the app
+# frame uncaptured; the walk runs on the watchdog thread, so a deeper limit costs the loop nothing.
+_MAX_STACK_FRAMES = 60
 
 
 @dataclass(frozen=True)
@@ -348,7 +351,7 @@ class LoopWatchdog:
         frame = frames.get(self._loop_thread_id)
         if frame is None:
             return ()
-        return capture_frames(frame, max_depth=_MAX_STACK_DEPTH)
+        return capture_frames(frame, max_frames=_MAX_STACK_FRAMES)
 
     def _emit_stall(
         self,

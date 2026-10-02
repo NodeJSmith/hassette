@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import PurePath
+from types import SimpleNamespace
 
 import pytest
 from hassette_wire import StackFrame
@@ -146,12 +147,34 @@ class TestStorage:
         assert decode_frames('[{"filename": 1}]') is None
 
 
+class FakeFrame:
+    """The attributes ``capture_frames`` reads from a live frame."""
+
+    def __init__(self, filename: str, function: str, module: str, *, back: "FakeFrame | None") -> None:
+        self.f_code = SimpleNamespace(co_filename=filename, co_name=function)
+        self.f_lineno = 1
+        self.f_globals = {"__name__": module}
+        self.f_back = back
+
+
 class TestCapture:
     def test_captures_this_frame_innermost_first(self) -> None:
-        frames = capture_frames(sys._getframe(), max_depth=5)
+        frames = capture_frames(sys._getframe(), max_frames=5)
         assert frames[0].function == "test_captures_this_frame_innermost_first"
         assert frames[0].filename == __file__
         assert frames[0].module == __name__
+
+    def test_skipped_hassette_frames_do_not_use_up_the_limit(self) -> None:
+        """An app frame below many framework frames is still captured."""
+        app = FakeFrame("/apps/presence.py", "refresh", "presence", back=None)
+        outer = app
+        for _ in range(50):
+            outer = FakeFrame("/site/hassette/core/x.py", "dispatch", "hassette.core.x", back=outer)
+        library = FakeFrame("/site/requests/api.py", "get", "requests.api", back=outer)
+
+        frames = capture_frames(library, max_frames=2)
+
+        assert [f.function for f in frames] == ["get", "refresh"]
 
     def test_text_form_matches_stored_source_location_format(self) -> None:
         frames = [frame("/a.py", lineno=3, function="g", module="a"), frame("/b.py", lineno=9, function="h")]
