@@ -4,7 +4,6 @@ import logging
 import time
 import traceback
 import typing
-from collections import OrderedDict
 from contextlib import AsyncExitStack, suppress
 from itertools import count
 from typing import Any, ClassVar, cast
@@ -32,6 +31,7 @@ from hassette.core.early_drop_policy import (
 )
 from hassette.core.observer_list import ObserverList
 from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS
+from hassette.core.websocket_responses import PendingResponses
 from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import (
@@ -87,10 +87,6 @@ RETRYABLE = (
 # full call stack down into asyncio internals.
 INVALID_TRANSITION_TRACE_LIMIT = 3
 
-# Most timed-out non-retried sends remembered at once, so a late reply can settle whether the
-# write applied. Oldest entries are evicted first; a reply arriving after eviction stays silent.
-TIMED_OUT_WRITE_RECORD_CAP = 100
-
 
 class WebsocketService(Service):
     restart_spec: ClassVar[RestartSpec] = RestartSpec(
@@ -112,11 +108,8 @@ class WebsocketService(Service):
     _ws: aiohttp.ClientWebSocketResponse | None
     """WebSocket connection."""
 
-    _response_futures: dict[int, asyncio.Future[Any]]
-    """Mapping of message IDs to futures for awaiting responses."""
-
-    _timed_out_writes: OrderedDict[int, str]
-    """Message id -> command type of each non-retried send that timed out on this connection."""
+    _pending: PendingResponses
+    """Owns response-future correlation and timed-out-write tracking for this connection."""
 
     _seq: typing.Iterator[int]
     """Iterator for generating unique message IDs."""
@@ -145,8 +138,7 @@ class WebsocketService(Service):
         self._stack = AsyncExitStack()
         self._session = None
         self._ws = None
-        self._response_futures = {}
-        self._timed_out_writes = OrderedDict()
+        self._pending = PendingResponses(self.logger)
         self._seq = count(1)
         self._recv_task = None
         self._subscription_ids = set()
@@ -520,12 +512,7 @@ class WebsocketService(Service):
             with suppress(Exception):
                 await self._ws.close()
 
-        for fut in list(self._response_futures.values()):
-            if not fut.done():
-                with suppress(Exception):
-                    fut.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
-        self._response_futures.clear()
-        self._timed_out_writes.clear()
+        self._pending.fail_all()
         self._subscription_ids.clear()
         self._ws = None
         self._recv_task = None
@@ -565,8 +552,8 @@ class WebsocketService(Service):
         """Register a response future for msg_id, send payload, and await the reply.
 
         Registers the future before sending so a fast reply arriving before ``send_json``
-        returns is never dropped. Always pops the future from ``_response_futures`` on
-        exit — success, timeout, or any other exception.
+        returns is never dropped. Always pops the future from the pending-responses mapping
+        on exit — success, timeout, or any other exception.
 
         Args:
             payload: The JSON payload to send. Must already include ``"id": msg_id``.
@@ -580,7 +567,7 @@ class WebsocketService(Service):
             TimeoutError: If no response arrives within ``resp_timeout_seconds``.
         """
         fut = self.hassette.loop.create_future()
-        self._response_futures[msg_id] = fut
+        self._pending.register(msg_id, fut)
         try:
             if allow_pre_ready:
                 await self._send_json_when_socket_live(**payload)
@@ -588,7 +575,7 @@ class WebsocketService(Service):
                 await self.send_json(**payload)
             return await asyncio.wait_for(fut, timeout=self.resp_timeout_seconds)
         finally:
-            self._response_futures.pop(msg_id, None)
+            self._pending.discard(msg_id)
 
     async def subscribe_events(self, event_type: str | None = None) -> int:
         """Subscribe to HA events; returns the subscription ID HA confirmed.
@@ -639,11 +626,7 @@ class WebsocketService(Service):
         self.set_connection_state(ConnectionState.DISCONNECTED)
 
         # Set exceptions for all pending response futures
-        for fut in list(self._response_futures.values()):
-            if not fut.done():
-                fut.set_exception(RetryableConnectionClosedError("WebSocket disconnected"))
-        self._response_futures.clear()
-        self._timed_out_writes.clear()
+        self._pending.fail_all()
 
         # Try to unsubscribe (best-effort; ignore errors if socket is going away). This must run
         # before the send-ready gate closes below — send_json() raises immediately once the gate
@@ -750,67 +733,12 @@ class WebsocketService(Service):
         except OutcomeUnknownError as exc:
             self.logger.warning("%s", exc)
             if isinstance(exc, ResponseTimeoutError) and not retry_on_timeout and last_attempt_id is not None:
-                self._record_timed_out_write(last_attempt_id, command_type)
+                self._pending.record_timed_out_write(last_attempt_id, command_type)
             raise
 
     def respond_if_necessary(self, message: dict) -> None:
-        if message.get("type") != "result":
-            return
-
-        msg_id = message.get("id")
-
-        if not msg_id:
-            self.logger.warning("Received result message without ID: %s", message)
-            return
-
-        fut = self._response_futures.get(msg_id)
-        if fut is None:
-            self._settle_timed_out_write(msg_id, message)
-            return
-        if fut.done():
-            return
-
-        if message.get("success"):
-            fut.set_result(message.get("result"))
-        else:
-            # HA error envelope shape (see design/specs/2037-helper-crud-api/design.md):
-            #   {"type": "result", "success": false, "error": {"code": "<code>", "message": "<msg>"}}
-            error_envelope = message.get("error") or {}
-            err = error_envelope.get("message", "Unknown error")
-            code = error_envelope.get("code")
-            if code is None and error_envelope:
-                self.logger.debug(
-                    "HA error envelope has no 'code' field (raw envelope: %r). "
-                    "e.code will be None — caller code-guards will fall through.",
-                    error_envelope,
-                )
-            fut.set_exception(FailedMessageError.from_error_response(err, code=code, original_data=message))
-
-    def _record_timed_out_write(self, msg_id: int, command_type: str) -> None:
-        """Remember a timed-out non-retried send so a late reply can settle whether it applied."""
-        self._timed_out_writes[msg_id] = command_type
-        if len(self._timed_out_writes) > TIMED_OUT_WRITE_RECORD_CAP:
-            self._timed_out_writes.popitem(last=False)
-
-    def _settle_timed_out_write(self, msg_id: int, message: dict) -> None:
-        """Log a late reply to a timed-out non-retried send, which settles whether it applied."""
-        command_type = self._timed_out_writes.pop(msg_id, None)
-        if command_type is None:
-            return
-        if message.get("success"):
-            self.logger.info(
-                "Late reply to timed-out %r (id %s): it succeeded, so the command applied after the timeout",
-                command_type,
-                msg_id,
-            )
-        else:
-            code = (message.get("error") or {}).get("code")
-            self.logger.warning(
-                "Late reply to timed-out %r (id %s): it failed (code %r), so the command did not apply",
-                command_type,
-                msg_id,
-                code,
-            )
+        """Resolve a pending response future (or settle a timed-out-write record) for ``message``."""
+        self._pending.respond_if_necessary(message)
 
     async def _send_json_when_socket_live(self, **data: Any) -> None:
         self.logger.debug("Sending WebSocket message: %s", data)

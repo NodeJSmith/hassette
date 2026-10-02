@@ -134,7 +134,7 @@ async def test_send_and_wait_returns_response(websocket_service: WebsocketServic
 
     async def send_side_effect(**data: object) -> None:
         msg_id = data["id"]
-        response_future = websocket_service._response_futures[msg_id]
+        response_future = websocket_service._pending.futures[msg_id]
         response_future.set_result({"ok": True})
 
     websocket_service.send_json = AsyncMock(side_effect=send_side_effect)
@@ -142,7 +142,7 @@ async def test_send_and_wait_returns_response(websocket_service: WebsocketServic
     result = await websocket_service.send_and_wait(type="example")
 
     assert result == {"ok": True}, "Expected response to bubble up from the future"
-    assert websocket_service._response_futures == {}, "Expected future mapping to be cleaned up"
+    assert websocket_service._pending.futures == {}, "Expected future mapping to be cleaned up"
 
 
 async def test_send_and_wait_times_out(websocket_service: WebsocketService, monkeypatch) -> None:
@@ -155,7 +155,7 @@ async def test_send_and_wait_times_out(websocket_service: WebsocketService, monk
     with pytest.raises(FailedMessageError):
         await websocket_service.send_and_wait(type="no_response")
 
-    assert websocket_service._response_futures == {}, "Expected future mapping to be cleared after timeout"
+    assert websocket_service._pending.futures == {}, "Expected future mapping to be cleared after timeout"
 
 
 async def test_send_and_wait_retries_on_timeout(websocket_service: WebsocketService) -> None:
@@ -169,7 +169,7 @@ async def test_send_and_wait_retries_on_timeout(websocket_service: WebsocketServ
         if call_count >= 2:
             websocket_service.hassette.config.websocket.response_timeout_seconds = 5
             msg_id = data["id"]
-            fut = websocket_service._response_futures[msg_id]
+            fut = websocket_service._pending.futures[msg_id]
             fut.set_result({"ok": True})
 
     websocket_service.send_json = AsyncMock(side_effect=send_side_effect)
@@ -185,7 +185,7 @@ async def test_send_and_wait_no_retry_on_ha_error(websocket_service: WebsocketSe
 
     async def send_side_effect(**data: object) -> None:
         msg_id = data["id"]
-        fut = websocket_service._response_futures[msg_id]
+        fut = websocket_service._pending.futures[msg_id]
         fut.set_exception(FailedMessageError("not found", code="not_found"))
 
     websocket_service.send_json = AsyncMock(side_effect=send_side_effect)
@@ -199,7 +199,7 @@ async def test_send_and_wait_no_retry_on_ha_error(websocket_service: WebsocketSe
 async def test_respond_if_necessary_sets_result(websocket_service: WebsocketService) -> None:
     """Fulfill waiting futures when result payloads indicate success."""
     pending_future = websocket_service.hassette.loop.create_future()
-    websocket_service._response_futures[5] = pending_future
+    websocket_service._pending.futures[5] = pending_future
 
     websocket_service.respond_if_necessary({"type": "result", "id": 5, "success": True, "result": {"value": 7}})
 
@@ -216,7 +216,7 @@ async def test_respond_if_necessary_sets_exception(websocket_service: WebsocketS
     so callers can do `except FailedMessageError as e: if e.code == "...": ...`.
     """
     pending_future = websocket_service.hassette.loop.create_future()
-    websocket_service._response_futures[9] = pending_future
+    websocket_service._pending.futures[9] = pending_future
 
     original_message = {
         "type": "result",
