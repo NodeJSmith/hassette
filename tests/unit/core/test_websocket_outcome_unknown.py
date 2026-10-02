@@ -24,7 +24,8 @@ from hassette.exceptions import (
     ResponseTimeoutError,
     RetryableConnectionClosedError,
 )
-from hassette.resources.service import Service
+
+from .conftest import cleanup_disconnected
 
 
 def _rendered(call) -> str:
@@ -292,12 +293,7 @@ class TestLateReplyToTimedOutWrite:
     async def test_cleanup_clears_record(self, websocket_service: WebsocketService) -> None:
         _time_out_immediately(websocket_service)
         await _timed_out_write(websocket_service, type="fire_event", event_type="doorbell")
-        websocket_service._ws = None
-        websocket_service._session = None
-        websocket_service._recv_task = None
-
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await cleanup_disconnected(websocket_service)
 
         assert websocket_service._pending.entries == {}
 

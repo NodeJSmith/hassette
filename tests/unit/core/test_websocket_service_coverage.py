@@ -18,11 +18,12 @@ from aiohttp.client_exceptions import ClientConnectorError
 
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
-from hassette.resources.service import Service
 from hassette.testing import EventCapture
 from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
+
+from .conftest import cleanup_disconnected, run_cleanup
 
 
 class TestTimeoutAndLogLevelProperties:
@@ -219,12 +220,7 @@ class TestCleanup:
         """cleanup() resolves every pending response future with RetryableConnectionClosedError."""
         fut = websocket_service.hassette.loop.create_future()
         websocket_service._pending.register(7, fut)
-        websocket_service._ws = None
-        websocket_service._session = None
-        websocket_service._recv_task = None
-
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await cleanup_disconnected(websocket_service)
 
         assert fut.done()
         assert isinstance(fut.exception(), RetryableConnectionClosedError)
@@ -242,8 +238,7 @@ class TestCleanup:
         send_json_mock = AsyncMock()
         websocket_service.send_json = send_json_mock
 
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await run_cleanup(websocket_service)
 
         assert send_json_mock.await_count == 2
         called_subscriptions = {call.kwargs["subscription"] for call in send_json_mock.await_args_list}
@@ -262,8 +257,7 @@ class TestCleanup:
         send_json_mock = AsyncMock()
         websocket_service.send_json = send_json_mock
 
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await run_cleanup(websocket_service)
 
         send_json_mock.assert_not_awaited()
         assert websocket_service._subscription_ids == {1}, "skipped branch must not clear subscription_ids"
@@ -281,8 +275,7 @@ class TestCleanup:
         fake_session.close = AsyncMock()
         websocket_service._session = fake_session
 
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await run_cleanup(websocket_service)
 
         assert websocket_service._recv_task is None
         assert recv_task.cancelled()
@@ -311,8 +304,7 @@ class TestCleanup:
         # Simulate a live, connected socket — the gate a real cleanup() call would see.
         websocket_service._send_ready_event.set()
 
-        with patch.object(Service, "cleanup", new=AsyncMock()):
-            await websocket_service.cleanup()
+        await run_cleanup(websocket_service)
 
         assert fake_ws.send_json.await_count == 2, (
             "expected send_json to actually reach the websocket for each subscription, not be "
