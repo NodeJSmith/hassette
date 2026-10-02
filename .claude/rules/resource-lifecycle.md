@@ -29,8 +29,9 @@ Readiness is what `depends_on` auto-wait and the startup waves block on, so mark
 
 `MARK_READY_HOOKS` in `tests/unit/resources/test_mark_ready_timing.py` is the canonical per-class list of which hook each resource marks ready from, enforced via `assert_marks_ready_in()` in `tests/support/ready_timing.py`. The test fails when a new class calls `mark_ready(self)` without being listed, or when a new `Resource` subclass has no readiness source at all (its `NOT_SELF_MARKED` map covers classes marked ready by something else). Add new resources there, not here.
 
-Services that deviate from the `serve()` rule, and why:
+Resources that deviate from these rules, and why:
 
+- **`TaskBucket`** — `__init__()`. It defines no `on_initialize()` and has no setup work, so it is usable as soon as it is constructed. Marking ready at construction means nothing that waits on it blocks on a hook it never runs.
 - **`WebApiService`** — `on_initialize()`, after auth and trusted proxies resolve. Readiness does not wait for uvicorn to bind the port in `serve()`. When the web API is disabled it marks ready early and parks `serve()`.
 - **`WebsocketService`** — `on_initialize()` marks lifecycle-ready unconditionally so an unreachable HA doesn't time out its startup wave and fatally block later waves; `start_recv_and_subscribe()` (reached from `serve()`) re-marks ready after each successful connect, since a dropped connection calls `mark_not_ready()`. Use the connected signal, not `is_ready()`, to mean "HA connected".
 - **`WebUiWatcherService`** — `on_initialize()` when hot reload is disabled (then parks `serve()`), `serve()` when enabled.
