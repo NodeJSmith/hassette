@@ -130,6 +130,9 @@ nav:
   - Changelog: CHANGELOG.md  # symlinked from repo root
   - API Reference: reference/
 
+hooks:
+  - tools/docs/inventories.py
+
 plugins:
   - search
   - glightbox
@@ -152,11 +155,7 @@ plugins:
             show_signature_annotations: true
             preload_modules:
               - hassette_wire
-          inventories:
-            - https://docs.python.org/3/objects.inv
-            - https://docs.pydantic.dev/latest/objects.inv
-            - https://docs.aiohttp.org/en/stable/objects.inv
-            - https://whenever.readthedocs.io/en/latest/objects.inv
+          # inventories: set by the tools/docs/inventories.py hook from committed copies, not fetched at build time.
 
 markdown_extensions:
   - admonition

@@ -1,2 +1,4 @@
 # Treat binary font files as binary to prevent line-ending corruption
 *.woff2 binary
+# Sphinx objects.inv inventories are zlib-compressed (tools/docs/inventories/)
+*.inv binary
