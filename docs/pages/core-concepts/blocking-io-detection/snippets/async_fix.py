@@ -4,7 +4,6 @@ from hassette import App, AppConfig
 
 
 class SensorAppConfig(AppConfig):
-    app_key: str = "sensor_app"
     data_file: str = "/data/readings.txt"
 
 
