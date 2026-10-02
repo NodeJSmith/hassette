@@ -76,7 +76,7 @@ Registration is synchronous with the database. `sub.listener.db_id` is a valid i
 
 `RateLimiter.debounced_call()` cancels any pending debounce task before spawning a replacement. Each replacement captures the current event in its closure. Only the most recent event fires after the quiet window elapses. The previous task's closure is discarded entirely.
 
-`RateLimiter.throttled_call()` records the current time on each call and drops the handler if fewer than `throttle` seconds have elapsed since the last invocation. The check-and-set is atomic under asyncio's single-threaded event loop. The clock defaults to `time.monotonic` but accepts an injectable `clock` callable, letting tests advance time deterministically instead of sleeping past the throttle window.
+`RateLimiter.throttled_call()` drops the handler if fewer than `throttle` seconds have elapsed since the last call it let through, and records the time only when it lets a call through. The check-and-set is atomic under asyncio's single-threaded event loop. The clock defaults to `time.monotonic` but accepts an injectable `clock` callable, letting tests advance time deterministically instead of sleeping past the throttle window.
 
 ### Listener Behavior Options
 
@@ -204,21 +204,21 @@ flowchart TD
 
 First, `subscribe_to_events()` registers a bus subscription on `Topic.HASS_EVENT_STATE_CHANGED` at priority 100. Priority 100 means `StateProxy`'s handler updates the cache before any user handler sees the event. App handlers always observe current state.
 
-Second, `load_cache()` bulk-fetches all entity states via `get_states_raw()` and populates the `states` dict. Unless `disable_state_proxy_polling` is set, a periodic `run_every` job re-runs `load_cache()` at `state_proxy_poll_interval_seconds` intervals to recover from any missed events.
+Second, a background bootstrap task waits for the first WebSocket connection, then runs a synchronization pass: it fetches all entity states via `get_states_raw()` and merges them into the `states` dict, replaying any `state_changed` events that arrived during the fetch so they are not overwritten by older data. Unless `disable_state_proxy_polling` is set, a periodic `run_every` job calls `load_cache()` at `state_proxy_poll_interval_seconds` intervals, which requests the same synchronization to recover from any missed events.
 
 ### Lock-Free Reads
 
 `StateProxy.get_state()` reads from `self.states` without acquiring a lock. CPython dict reads are safe without locking because dict assignment replaces whole objects atomically. Writers use a `FairAsyncRLock` when updating the dict to prevent concurrent write corruption. Readers never contend with each other.
 
-### Type Conversion and `context_id` Caching
+### Type Conversion and Model Caching
 
-[`DomainStates`][hassette.state_manager.state_manager.DomainStates] wraps a `StateProxy` and a model class. On each entity access, `DomainStates._validate_or_return_from_cache()` extracts the `context_id` from the raw state dict (a UUID from Home Assistant's event context). If the `context_id` matches the cached `CacheValue`, the previously validated Pydantic model is returned without re-running validation. If there is no useful `context_id`, the cache can also be reused when the deep-frozen raw state is unchanged. A new context or changed raw state triggers a full validation pass and replaces the cached entry.
+[`DomainStates`][hassette.state_manager.state_manager.DomainStates] wraps a `StateProxy` and a model class. On each entity access, `DomainStates._validate_or_return_from_cache()` compares the raw state's `last_updated` timestamp with the cached `CacheValue`. If it matches, the previously validated Pydantic model is returned without re-running validation. Otherwise the deep-frozen raw state is compared, and the cached model is still reused if the content is unchanged. Only changed content triggers a full validation pass and replaces the cached entry. The `context_id` is not used: Home Assistant attaches one context to every state with the same cause, so several different states can share it.
 
 `StateManager.__getattr__` caches `DomainStates` instances by model class in `_domain_states_cache`. Accessing `self.states.light` multiple times returns the same `DomainStates` object.
 
 ### Disconnect and Reconnect
 
-On WebSocket disconnect, `StateProxy` cancels the state-change subscription, calls `mark_not_ready()`, and intentionally retains `self.states`. State reads continue returning stale cached data while disconnected; [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] is reserved for cold-start reads when the proxy is not ready and the cache is empty. On reconnect, `load_cache()` bulk-reloads all states, then `subscribe_to_events()` re-registers the bus subscription. `mark_ready()` then unblocks any waiters.
+On WebSocket disconnect, `StateProxy` cancels any in-flight synchronization and marks the cache **stale** (or **unavailable** if the first synchronization never completed). It keeps `self.states` and its state-change subscription. State reads continue returning stale cached data while disconnected; [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] is reserved for reads while the cache is unavailable. On reconnect, `StateProxy` runs a full synchronization pass for the new connection. The subscription was never cancelled, so nothing is re-registered.
 
 ## Api Internals
 
@@ -275,7 +275,7 @@ flowchart TD
 
 ### Connection Management
 
-`ApiResource` holds a single `aiohttp.ClientSession`. `WebsocketService` manages the WebSocket connection with tenacity retry logic (default 5 attempts with exponential jitter, configurable via `connect_retry_max_attempts`). On reconnect, `StateProxy` bulk-reloads state and re-registers its subscription. Per-app `Api` instances share the same underlying connections. There is no per-app connection pool.
+`ApiResource` holds a single `aiohttp.ClientSession`. `WebsocketService` manages the WebSocket connection with tenacity retry logic (default 5 attempts with exponential jitter, configurable via `connect_retry_max_attempts`). On reconnect, `StateProxy` runs a full state synchronization; its subscription stays registered across the disconnect. Per-app `Api` instances share the same underlying connections. There is no per-app connection pool.
 
 ## Database Internals
 
@@ -324,7 +324,7 @@ A dedicated read connection (`_read_db`) runs with `PRAGMA query_only = ON` and 
 
 ### Synchronous Registration
 
-`BusService` and `SchedulerService` declare `depends_on: [DatabaseService, SyncExecutorService]` (and `AppHandler` also declares `SyncExecutorService`). The database is ready before any listener or job registration runs, and the dedicated sync-handler executor outlives Bus, Scheduler, and the App lifecycle hooks so it is torn down only after them at shutdown. Each `bus.on_*()` call awaits the `DatabaseService.submit()` call inline, so `sub.listener.db_id` is a valid integer when the awaited registration returns. `Scheduler` methods behave identically.
+`BusService` and `SchedulerService` declare `depends_on: [DatabaseService, SyncExecutorService]` (and `AppHandler` depends on it through `AppBootstrapCoordinator`). The database is ready before any listener or job registration runs, and the dedicated sync-handler executor outlives Bus, Scheduler, and the App lifecycle hooks so it is torn down only after them at shutdown. Each `bus.on_*()` call awaits the `DatabaseService.submit()` call inline, so `sub.listener.db_id` is a valid integer when the awaited registration returns. `Scheduler` methods behave identically.
 
 ### Retention
 
