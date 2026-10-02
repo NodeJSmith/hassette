@@ -114,3 +114,17 @@ def test_bare_branch_scoped_url_followed_by_punctuation_is_flagged(trailer: str)
     body = f"## Screenshots\n\nSee {MAIN_URL}{trailer}"
     assert branch_scoped_raw_urls(body) == [MAIN_URL]
     assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
+
+
+@pytest.mark.parametrize("name", ["notes.png.md", "x.png-old.txt", "shot.jpg.bak", "img.svg.zip"])
+def test_branch_raw_link_with_image_extension_mid_name_does_not_block(name: str) -> None:
+    body = f"![after]({SHA_URL})\nSee https://raw.githubusercontent.com/NodeJSmith/hassette/main/{name}"
+    assert branch_scoped_raw_urls(body) == []
+    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is True
+
+
+@pytest.mark.parametrize("suffix", ["?raw=true", "#frag"])
+def test_branch_scoped_image_url_with_query_or_fragment_is_flagged(suffix: str) -> None:
+    body = f"## Screenshots\n\n![after]({MAIN_URL}{suffix})"
+    assert branch_scoped_raw_urls(body) == [f"{MAIN_URL}{suffix}"]
+    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
