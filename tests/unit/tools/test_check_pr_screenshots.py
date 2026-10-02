@@ -2,11 +2,11 @@
 
 Pin the decision logic with synthetic inputs: when the guard triggers, and which
 of the three evidence paths satisfy it, including rejection of branch-scoped
-raw.githubusercontent.com image links that rot once the PR branch is deleted.
+raw.githubusercontent.com links that rot once the PR branch is deleted.
 """
 
 import pytest
-from check_pr_screenshots import branch_scoped_raw_urls, evaluate, has_visual_evidence, is_rendering_file
+from check_pr_screenshots import branch_scoped_raw_prefixes, evaluate, has_visual_evidence, is_rendering_file
 
 SHA = "5257d88b6a9fcdf7a5df250b6fda5f62ade45b3d"
 RAW_BASE = "https://raw.githubusercontent.com/NodeJSmith/hassette"
@@ -100,37 +100,29 @@ def test_branch_scoped_url_ignored_with_label() -> None:
     assert evaluate(["frontend/src/App.tsx"], f"![after]({BRANCH_URL})", ["no-visual-change"]) == (True, True)
 
 
-def test_branch_scoped_raw_urls_extracts_only_unpinned() -> None:
-    body = f'![a]({SHA_URL}) ![b]({BRANCH_URL}) <img src="{MAIN_URL}">'
-    assert branch_scoped_raw_urls(body) == [BRANCH_URL, MAIN_URL]
+def test_branch_scoped_raw_prefixes_reports_only_unpinned_once_each() -> None:
+    body = f'![a]({SHA_URL}) ![b]({BRANCH_URL}) <img src="{MAIN_URL}"> ![c]({MAIN_URL})'
+    assert branch_scoped_raw_prefixes(body) == [f"{RAW_BASE}/autofix/", f"{RAW_BASE}/main/"]
 
 
-def test_non_image_branch_raw_link_does_not_block() -> None:
-    body = f"![after]({SHA_URL})\nConfig: {RAW_BASE}/main/mkdocs.yml"
-    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is True
-
-
-@pytest.mark.parametrize("trailer", [".", ",", ";", ":", "!", "*", "`", "]"])
-def test_bare_branch_scoped_url_followed_by_punctuation_is_flagged(trailer: str) -> None:
-    body = f"## Screenshots\n\nSee {MAIN_URL}{trailer}"
-    assert branch_scoped_raw_urls(body) == [MAIN_URL]
+def test_refs_heads_raw_url_is_flagged() -> None:
+    body = f"![after]({RAW_BASE}/refs/heads/autofix/issue-2219/docs/pr-evidence/x.png)"
+    assert branch_scoped_raw_prefixes(body) == [f"{RAW_BASE}/refs/"]
     assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
 
 
-@pytest.mark.parametrize("name", ["notes.png.md", "x.png-old.txt", "shot.jpg.bak", "img.svg.zip"])
-def test_branch_raw_link_with_image_extension_mid_name_does_not_block(name: str) -> None:
-    body = f"![after]({SHA_URL})\nSee {RAW_BASE}/main/{name}"
-    assert branch_scoped_raw_urls(body) == []
-    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is True
+def test_branch_scoped_filename_with_parentheses_is_flagged() -> None:
+    body = f'## Screenshots\n\n<img src="{RAW_BASE}/main/docs/shot(1).png">'
+    assert branch_scoped_raw_prefixes(body) == [f"{RAW_BASE}/main/"]
+    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
+
+
+def test_branch_scoped_non_image_raw_link_is_flagged() -> None:
+    body = f"![after]({SHA_URL})\nConfig: {RAW_BASE}/main/mkdocs.yml"
+    assert branch_scoped_raw_prefixes(body) == [f"{RAW_BASE}/main/"]
+    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
 
 
 def test_uppercase_host_branch_scoped_url_is_flagged() -> None:
     url = MAIN_URL.replace("raw.githubusercontent.com", "RAW.GitHubUserContent.com")
-    assert branch_scoped_raw_urls(f"![after]({url})") == [url]
-
-
-@pytest.mark.parametrize("suffix", ["?raw=true", "#frag"])
-def test_branch_scoped_image_url_with_query_or_fragment_is_flagged(suffix: str) -> None:
-    body = f"## Screenshots\n\n![after]({MAIN_URL}{suffix})"
-    assert branch_scoped_raw_urls(body) == [f"{MAIN_URL}{suffix}"]
-    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
+    assert branch_scoped_raw_prefixes(f"![after]({url})") == [url.removesuffix("docs/pr-evidence/x.png")]
