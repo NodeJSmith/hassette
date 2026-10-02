@@ -19,7 +19,7 @@ Every error response from the web API (paths under `/api`) is an [RFC 9457](http
 | `type` | Always `about:blank`. `code` carries the specific meaning. |
 | `title` | The HTTP reason phrase for `status`, such as `Not Found` or `Unprocessable Content`. |
 | `status` | The HTTP status code, repeated from the response. |
-| `detail` | A human-readable explanation of this failure. Show it to people; don't parse it. |
+| `detail` | A human-readable explanation of this failure. Clients display it and don't parse it. |
 | `code` | The machine-readable reason. One of the codes below. |
 
 A body carries these five members and no others. Headers such as `Allow` on a `405` and `X-Max-Body-Bytes` on a `413` still arrive on the response.
@@ -63,7 +63,7 @@ A `validation_failed` body summarizes each failure as `location: message`, joine
 
 An `internal_error` body always carries the same `detail`, `Internal Server Error`. The traceback goes to Hassette's log with the request's method and path, and never into the response.
 
-The `detail` text of `not_found` and `method_not_allowed` comes from the router and is not stable. Match on `code` instead.
+The `detail` text of `not_found` and `method_not_allowed` comes from the router and is not stable. Clients match on `code` instead.
 
 ## Responses that aren't problem bodies
 
@@ -72,6 +72,8 @@ A few `503` responses carry data, not an error, and keep their normal `applicati
 - `GET /api/health/ready` returns its readiness body with a `503` while Hassette is starting or degraded. See [Configure Health Checks](health-endpoints.md).
 - `GET /api/telemetry/status` returns its status body with a `503` when the telemetry database is degraded.
 - Endpoints that read history from the telemetry database (logs, executions, listeners, jobs, telemetry) return an empty or partial result with a `503` when that database can't be read.
+
+A rejected CORS preflight (an `OPTIONS` request whose origin, method, or headers fall outside `cors_origins` and the allowed methods and headers) returns a `400` with a `text/plain` body. Browsers report a failed preflight to the calling script as a network error and never expose its body. Non-browser clients don't send preflights.
 
 The WebSocket at `/api/ws` reports problems with close codes, not problem bodies.
 
