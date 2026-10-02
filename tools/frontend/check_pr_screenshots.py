@@ -40,8 +40,9 @@ DOCS_IMAGE_RE = re.compile(r"^docs/.*\.png$")
 SCREENSHOT_HEADING_RE = re.compile(r"(?im)^#{1,6}\s*screenshots?\b")
 EMBEDDED_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)|<img\b", re.IGNORECASE)
 # A raw URL's prefix through its ref segment (group 1). A SHA never contains a slash, so ``autofix/x`` and
-# ``refs/heads/main`` fail the SHA check on their first segment.
-RAW_URL_PREFIX_RE = re.compile(r"https?://raw\.githubusercontent\.com/[\w.-]+/[\w.-]+/([^/\s]+)/", re.IGNORECASE)
+# ``refs/heads/main`` fail the SHA check on their first segment. The scheme is optional because browsers resolve
+# a protocol-relative ``//raw.githubusercontent.com/...`` link to the same URL.
+RAW_URL_PREFIX_RE = re.compile(r"(?:https?:)?//raw\.githubusercontent\.com/[\w.-]+/[\w.-]+/([^/\s]+)/", re.IGNORECASE)
 COMMIT_SHA_RE = re.compile(r"[0-9a-f]{40}", re.IGNORECASE)
 NO_VISUAL_CHANGE_LABEL = "no-visual-change"
 
