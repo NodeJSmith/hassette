@@ -5,11 +5,12 @@ from collections.abc import Callable
 from logging import getLogger
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response
-from hassette_wire import LogEntryResponse, LogLevelRequest, LogLevelResponse
+from fastapi import APIRouter, Query, Request, Response
+from hassette_wire import LogEntryResponse, LogLevelRequest, LogLevelResponse, ProblemCode
 
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep, db_degrades_to
+from hassette.web.errors import WebApiError
 
 LOGGER = getLogger(__name__)
 
@@ -30,9 +31,9 @@ def _validate_choice(
         return None
     value = transform(value)
     if value not in valid:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid {param_name} {value!r}. Must be one of: {', '.join(sorted(valid))}",
+        raise WebApiError(
+            ProblemCode.VALIDATION_FAILED,
+            f"Invalid {param_name} {value!r}. Must be one of: {', '.join(sorted(valid))}",
         )
     return value
 
@@ -92,12 +93,12 @@ async def set_log_level(
     The change takes effect immediately for both structlog and stdlib callers on that logger.
     """
     if not body.logger:
-        raise HTTPException(status_code=422, detail="logger name must not be empty")
+        raise WebApiError(ProblemCode.VALIDATION_FAILED, "logger name must not be empty")
     level_upper = body.level.upper()
     if level_upper not in VALID_LOG_LEVEL_NAMES:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Invalid log level {body.level!r}. Must be one of: {', '.join(sorted(VALID_LOG_LEVEL_NAMES))}",
+        raise WebApiError(
+            ProblemCode.VALIDATION_FAILED,
+            f"Invalid log level {body.level!r}. Must be one of: {', '.join(sorted(VALID_LOG_LEVEL_NAMES))}",
         )
     target_logger = logging.getLogger(body.logger)
     target_logger.setLevel(level_upper)

@@ -15,14 +15,12 @@ route is counted, not just the middleware's own reject branch) -- the login hand
 
 import logging
 import time
-from pathlib import Path
 from typing import Literal
 from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx2 import ASGITransport, AsyncClient, Response
 
-import hassette.web.app as web_app  # module alias so `stub_spa` can monkeypatch `_SPA_DIR`
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie, verify_session_cookie
@@ -36,9 +34,8 @@ from tests.support.helpers import (
 )
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
-from .conftest import CONFIG_PATH, make_log_record
+from .conftest import AUTH_SESSION_PATH, CONFIG_PATH, make_log_record
 
-_STUB_SPA_FILES = ("index.html", "assets/index-abc123.js")
 _TRUSTED_PEER_IP = "203.0.113.5"
 """Peer address the trusted-proxy tests list in `trusted_proxies` (RFC 5737 doc range)."""
 
@@ -59,8 +56,6 @@ meaning worth preserving.
 _WRONG_TOKEN = "wrong-token"
 """Credential that never matches `WEB_API_TEST_TOKEN`, for every fail-closed assertion."""
 
-AUTH_SESSION_PATH = "/api/auth/session"
-
 
 @pytest.fixture(autouse=True)
 def _propagate_hassette_logger() -> None:
@@ -76,32 +71,6 @@ def _propagate_hassette_logger() -> None:
     web-api module to serve a single caller.
     """
     logging.getLogger("hassette").propagate = True
-
-
-@pytest.fixture
-def stub_spa(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Create minimal stub SPA files in a private tmp directory and point `_SPA_DIR` at it.
-
-    `create_fastapi_app()` only mounts `/assets` and registers the SPA catch-all when
-    `_SPA_DIR.exists()` is True at call time -- this dev checkout has no built frontend, so
-    without this fixture `GET /` and `GET /assets/*` would 404 (no route at all) rather than
-    exercising the actual SPA-serving code path.
-
-    Uses `tmp_path` (unique per test, and therefore per pytest-xdist worker) and monkeypatches
-    `hassette.web.app._SPA_DIR` rather than writing to the real, shared `src/hassette/web/
-    static/spa/` directory `web/app.py` normally reads -- writing to that shared path raced
-    against `tests/integration/test_packaging.py`'s own `stub_spa` fixture under parallel test
-    runs (#1629). `_SPA_DIR` is read fresh from the module on every `create_fastapi_app()` call,
-    so patching it here is sufficient without touching production code.
-    """
-    spa_dir = tmp_path / "spa"
-    (spa_dir / "assets").mkdir(parents=True)
-    for relative in _STUB_SPA_FILES:
-        f = spa_dir / relative
-        f.write_text("<!-- stub -->" if relative.endswith(".html") else "/* stub */")
-
-    monkeypatch.setattr(web_app, "_SPA_DIR", spa_dir)
-    return spa_dir
 
 
 async def _mint_cookie_at(token: str, seconds_ago: int) -> str:

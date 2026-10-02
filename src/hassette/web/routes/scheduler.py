@@ -5,12 +5,13 @@ Returns all scheduled jobs across all apps, enriched with live registry data.
 
 from logging import getLogger
 
-from fastapi import APIRouter, HTTPException, Request, Response
-from hassette_wire import JobSummary, JobTriggerResponse
+from fastapi import APIRouter, Request, Response
+from hassette_wire import JobSummary, JobTriggerResponse, ProblemCode
 
 from hassette.exceptions import JobRemovedError
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.dependencies import SchedulerDep, SinceQuery, SourceTierQuery, TelemetryDep, db_degrades_to
+from hassette.web.errors import WebApiError, problem_responses
 from hassette.web.utils import enrich_jobs_with_live_data
 
 LOGGER = getLogger(__name__)
@@ -46,7 +47,7 @@ async def all_jobs(
     "/jobs/{job_id}/trigger",
     status_code=202,
     response_model=JobTriggerResponse,
-    responses={409: {"description": "Job is not currently registered (no live registration)"}},
+    responses=problem_responses(ProblemCode.JOB_NOT_REGISTERED),
 )
 async def trigger_job(job_id: int, scheduler_service: SchedulerDep, request: Request) -> JobTriggerResponse:
     """Manually submit a job for immediate execution.
@@ -68,12 +69,12 @@ async def trigger_job(job_id: int, scheduler_service: SchedulerDep, request: Req
     try:
         job = await scheduler_service.trigger_job(job_id)
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise WebApiError(ProblemCode.JOB_NOT_REGISTERED, str(exc)) from exc
 
     try:
         scheduler_service.submit_job(job)
     except JobRemovedError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise WebApiError(ProblemCode.JOB_NOT_REGISTERED, str(exc)) from exc
 
     LOGGER.info("Triggered job %s (%s) (source=%s)", job_id, job.name, peer_address_or_unknown(request))
     return JobTriggerResponse(status="accepted", job_id=job_id, job_name=job.name)

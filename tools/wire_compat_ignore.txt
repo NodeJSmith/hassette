@@ -15,3 +15,130 @@
 # This file intentionally starts empty (comment lines only; oasdiff's
 # --err-ignore parser treats any non-matching line as inert, so the header
 # above is safe to keep).
+
+# #2382: every /api error moves to application/problem+json; FastAPI 422 detail becomes a string.
+GET /api/apps/{app_key}/config removed the required property `code` from the response with the `422` status
+GET /api/apps/{app_key}/config removed the required property `status` from the response with the `422` status
+GET /api/apps/{app_key}/config removed the required property `title` from the response with the `422` status
+GET /api/apps/{app_key}/config the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/apps/{app_key}/config the response property `detail` became optional for the status `422`
+GET /api/apps/{app_key}/manifest removed the required property `code` from the response with the `422` status
+GET /api/apps/{app_key}/manifest removed the required property `status` from the response with the `422` status
+GET /api/apps/{app_key}/manifest removed the required property `title` from the response with the `422` status
+GET /api/apps/{app_key}/manifest the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/apps/{app_key}/manifest the response property `detail` became optional for the status `422`
+GET /api/apps/{app_key}/source removed the required property `code` from the response with the `422` status
+GET /api/apps/{app_key}/source removed the required property `status` from the response with the `422` status
+GET /api/apps/{app_key}/source removed the required property `title` from the response with the `422` status
+GET /api/apps/{app_key}/source the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/apps/{app_key}/source the response property `detail` became optional for the status `422`
+GET /api/bus/listeners removed the required property `code` from the response with the `422` status
+GET /api/bus/listeners removed the required property `status` from the response with the `422` status
+GET /api/bus/listeners removed the required property `title` from the response with the `422` status
+GET /api/bus/listeners the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/bus/listeners the response property `detail` became optional for the status `422`
+GET /api/executions/{execution_id} removed the required property `code` from the response with the `422` status
+GET /api/executions/{execution_id} removed the required property `status` from the response with the `422` status
+GET /api/executions/{execution_id} removed the required property `title` from the response with the `422` status
+GET /api/executions/{execution_id} the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/executions/{execution_id} the response property `detail` became optional for the status `422`
+GET /api/logs/recent removed the required property `code` from the response with the `422` status
+GET /api/logs/recent removed the required property `status` from the response with the `422` status
+GET /api/logs/recent removed the required property `title` from the response with the `422` status
+GET /api/logs/recent the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/logs/recent the response property `detail` became optional for the status `422`
+GET /api/scheduler/jobs removed the required property `code` from the response with the `422` status
+GET /api/scheduler/jobs removed the required property `status` from the response with the `422` status
+GET /api/scheduler/jobs removed the required property `title` from the response with the `422` status
+GET /api/scheduler/jobs the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/scheduler/jobs the response property `detail` became optional for the status `422`
+GET /api/telemetry/app/{app_key}/activity removed the required property `code` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/activity removed the required property `status` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/activity removed the required property `title` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/activity the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/telemetry/app/{app_key}/activity the response property `detail` became optional for the status `422`
+GET /api/telemetry/app/{app_key}/health removed the required property `code` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/health removed the required property `status` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/health removed the required property `title` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/health the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/telemetry/app/{app_key}/health the response property `detail` became optional for the status `422`
+GET /api/telemetry/app/{app_key}/jobs removed the required property `code` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/jobs removed the required property `status` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/jobs removed the required property `title` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/jobs the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/telemetry/app/{app_key}/jobs the response property `detail` became optional for the status `422`
+GET /api/telemetry/app/{app_key}/listeners removed the required property `code` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/listeners removed the required property `status` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/listeners removed the required property `title` from the response with the `422` status
+GET /api/telemetry/app/{app_key}/listeners the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/telemetry/app/{app_key}/listeners the response property `detail` became optional for the status `422`
+GET /api/telemetry/dashboard/app-grid removed the required property `code` from the response with the `422` status
+GET /api/telemetry/dashboard/app-grid removed the required property `status` from the response with the `422` status
+GET /api/telemetry/dashboard/app-grid removed the required property `title` from the response with the `422` status
+GET /api/telemetry/dashboard/app-grid the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/telemetry/dashboard/app-grid the response property `detail` became optional for the status `422`
+GET /api/telemetry/execution/{execution_id} removed the required property `code` from the response with the `422` status
+GET /api/telemetry/execution/{execution_id} removed the required property `status` from the response with the `422` status
+GET /api/telemetry/execution/{execution_id} removed the required property `title` from the response with the `422` status
+GET /api/telemetry/execution/{execution_id} the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/telemetry/execution/{execution_id} the response property `detail` became optional for the status `422`
+GET /api/telemetry/executions removed the required property `code` from the response with the `422` status
+GET /api/telemetry/executions removed the required property `status` from the response with the `422` status
+GET /api/telemetry/executions removed the required property `title` from the response with the `422` status
+GET /api/telemetry/executions the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/telemetry/executions the response property `detail` became optional for the status `422`
+GET /api/telemetry/job/{job_id}/executions removed the required property `code` from the response with the `422` status
+GET /api/telemetry/job/{job_id}/executions removed the required property `status` from the response with the `422` status
+GET /api/telemetry/job/{job_id}/executions removed the required property `title` from the response with the `422` status
+GET /api/telemetry/job/{job_id}/executions the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/telemetry/job/{job_id}/executions the response property `detail` became optional for the status `422`
+GET /api/telemetry/listener/{listener_id}/executions removed the required property `code` from the response with the `422` status
+GET /api/telemetry/listener/{listener_id}/executions removed the required property `status` from the response with the `422` status
+GET /api/telemetry/listener/{listener_id}/executions removed the required property `title` from the response with the `422` status
+GET /api/telemetry/listener/{listener_id}/executions the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+GET /api/telemetry/listener/{listener_id}/executions the response property `detail` became optional for the status `422`
+POST /api/apps/{app_key}/instances/{index}/reload removed the required property `code` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/reload removed the required property `status` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/reload removed the required property `title` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/reload the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+POST /api/apps/{app_key}/instances/{index}/reload the response property `detail` became optional for the status `422`
+POST /api/apps/{app_key}/instances/{index}/start removed the required property `code` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/start removed the required property `status` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/start removed the required property `title` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/start the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+POST /api/apps/{app_key}/instances/{index}/start the response property `detail` became optional for the status `422`
+POST /api/apps/{app_key}/instances/{index}/stop removed the required property `code` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/stop removed the required property `status` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/stop removed the required property `title` from the response with the `422` status
+POST /api/apps/{app_key}/instances/{index}/stop the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+POST /api/apps/{app_key}/instances/{index}/stop the response property `detail` became optional for the status `422`
+POST /api/apps/{app_key}/reload removed the required property `code` from the response with the `422` status
+POST /api/apps/{app_key}/reload removed the required property `status` from the response with the `422` status
+POST /api/apps/{app_key}/reload removed the required property `title` from the response with the `422` status
+POST /api/apps/{app_key}/reload the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+POST /api/apps/{app_key}/reload the response property `detail` became optional for the status `422`
+POST /api/apps/{app_key}/start removed the required property `code` from the response with the `422` status
+POST /api/apps/{app_key}/start removed the required property `status` from the response with the `422` status
+POST /api/apps/{app_key}/start removed the required property `title` from the response with the `422` status
+POST /api/apps/{app_key}/start the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+POST /api/apps/{app_key}/start the response property `detail` became optional for the status `422`
+POST /api/apps/{app_key}/stop removed the required property `code` from the response with the `422` status
+POST /api/apps/{app_key}/stop removed the required property `status` from the response with the `422` status
+POST /api/apps/{app_key}/stop removed the required property `title` from the response with the `422` status
+POST /api/apps/{app_key}/stop the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+POST /api/apps/{app_key}/stop the response property `detail` became optional for the status `422`
+POST /api/auth/session removed the required property `code` from the response with the `422` status
+POST /api/auth/session removed the required property `status` from the response with the `422` status
+POST /api/auth/session removed the required property `title` from the response with the `422` status
+POST /api/auth/session the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+POST /api/auth/session the response property `detail` became optional for the status `422`
+POST /api/scheduler/jobs/{job_id}/trigger removed the required property `code` from the response with the `422` status
+POST /api/scheduler/jobs/{job_id}/trigger removed the required property `status` from the response with the `422` status
+POST /api/scheduler/jobs/{job_id}/trigger removed the required property `title` from the response with the `422` status
+POST /api/scheduler/jobs/{job_id}/trigger the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+POST /api/scheduler/jobs/{job_id}/trigger the response property `detail` became optional for the status `422`
+PUT /api/logs/level removed the required property `code` from the response with the `422` status
+PUT /api/logs/level removed the required property `status` from the response with the `422` status
+PUT /api/logs/level removed the required property `title` from the response with the `422` status
+PUT /api/logs/level the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
+PUT /api/logs/level the response property `detail` became optional for the status `422`

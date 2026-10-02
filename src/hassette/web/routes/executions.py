@@ -5,12 +5,13 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Annotated
 
 import uuid_utils
-from fastapi import APIRouter, HTTPException, Query, Response
-from hassette_wire import LogEntryResponse, LogsByExecutionResponse
+from fastapi import APIRouter, Query, Response
+from hassette_wire import LogEntryResponse, LogsByExecutionResponse, ProblemCode
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.web.dependencies import HassetteDep, TelemetryDep
+from hassette.web.errors import WebApiError
 
 if TYPE_CHECKING:
     from hassette.core.telemetry.query_service import TelemetryQueryService
@@ -64,8 +65,8 @@ async def get_execution_logs(
     try:
         uuid_utils.UUID(execution_id)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=422, detail=f"Invalid execution_id: {execution_id!r} is not a valid UUID"
+        raise WebApiError(
+            ProblemCode.VALIDATION_FAILED, f"Invalid execution_id: {execution_id!r} is not a valid UUID"
         ) from exc
 
     try:

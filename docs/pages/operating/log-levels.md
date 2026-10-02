@@ -104,7 +104,7 @@ curl -X PUT http://127.0.0.1:8126/api/logs/level \
   -d '{"logger": "hassette.scheduler", "level": "DEBUG"}'
 ```
 
-The response reports the logger's new effective level: `{"logger": "hassette.scheduler", "effective_level": "DEBUG"}`. Unknown levels and empty logger names return `422`.
+The response reports the logger's new effective level: `{"logger": "hassette.scheduler", "effective_level": "DEBUG"}`. Unknown levels and empty logger names return `422` with code `validation_failed` (see [API Error Responses](../web-ui/api-errors.md)).
 
 The change lives in process memory only — a restart reverts to the configured levels. Use it to capture debug output from a live issue, then turn the level back down the same way.
 

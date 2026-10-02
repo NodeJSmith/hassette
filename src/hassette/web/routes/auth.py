@@ -1,7 +1,7 @@
 """Login exchange endpoint for the Hassette Web API."""
 
-from fastapi import APIRouter, HTTPException, Request, Response
-from hassette_wire import SessionRequest, SessionResponse
+from fastapi import APIRouter, Request, Response
+from hassette_wire import ProblemCode, SessionRequest, SessionResponse
 
 from hassette.web.auth.session import (
     SESSION_COOKIE_NAME,
@@ -11,11 +11,12 @@ from hassette.web.auth.session import (
 )
 from hassette.web.auth.trusted_proxies import get_trusted_proxies, peer_address
 from hassette.web.dependencies import AuthDep, HassetteDep
+from hassette.web.errors import WebApiError, problem_responses
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/session", response_model=SessionResponse, responses={401: {"description": "Invalid token"}})
+@router.post("/session", response_model=SessionResponse, responses=problem_responses(ProblemCode.INVALID_TOKEN))
 async def create_session(
     body: SessionRequest,
     request: Request,
@@ -32,7 +33,7 @@ async def create_session(
     the Edge Case "POST /api/auth/session with a correct token but no existing cookie").
     """
     if resolved_token is None or not check_bearer_token(body.token, resolved_token):
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise WebApiError(ProblemCode.INVALID_TOKEN, "Invalid token")
 
     trusted_proxies = get_trusted_proxies(request.app.state)
     client_address = peer_address(request)

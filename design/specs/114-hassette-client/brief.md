@@ -152,8 +152,8 @@ changes are acceptable when they buy a better design.
   explicit per-request timeouts, and typed methods for every endpoint the CLI uses today (19
   endpoint patterns, 23 routes once the action variants are expanded; see Codebase Context).
   Being 0.x and moving in lockstep with the server, typed methods don't freeze anything. The
-  `code` discriminator applies only to the app action routes (issue 1). Other endpoints'
-  400/404/409 responses stay `detail`-string only until #2369 extends problem details repo-wide.
+  `code` discriminator (issue 1) covers every `/api` error response, so the exception hierarchy
+  can branch on `code` for any endpoint.
 - **Client requirements the HA integration (epic unit C) relies on:**
   - The token is optional. Without one, the client sends no `Authorization` header at all, so a
     hassette server that lists HA's address in `web_api.trusted_proxies` admits it by peer
@@ -217,7 +217,7 @@ is standalone housekeeping, not linked to the epic.
 | # | Issue | Depends on | Notes |
 |---|---|---|---|
 | 0 (#2381) | Teach `check_module_boundaries.py` to scope rules by nested module path | — | Rules can target `core/telemetry/` separately from the rest of `core/`, not just top-level layers. Should land before 3b. |
-| 1 (#2382) | Return RFC 9457 problem details from the app action routes | — | Stable `code` values (`invalid_app_key`, `app_not_found`, `instance_not_found`, `bootstrap_not_released`, `app_blocked`, `action_failed`). These are wire codes; C maps them to its own translation keys (`bootstrap_not_released` → `not_bootstrapped`, `app_blocked` → `blocked_by_filter`, `app_not_found` → `not_found`, `action_failed` → `action_failed`). First slice of #2369. Independent of #2368 (epic unit A): either can land first, and A's 500 goes out as `action_failed` once both have. |
+| 1 (#2382) | Return RFC 9457 problem details from every `/api` error response | — | A closed `ProblemCode` set in `hassette_wire` (catalog: `docs/pages/web-ui/api-errors.md`). The app action routes carry `invalid_app_key`, `app_not_found`, `instance_not_found`, `bootstrap_not_released`, `app_blocked`, `action_failed`. These are wire codes; C maps them to its own translation keys (`bootstrap_not_released` → `not_bootstrapped`, `app_blocked` → `blocked_by_filter`, `app_not_found` → `not_found`, `action_failed` → `action_failed`). Independent of #2368 (epic unit A): either can land first, and A's 500 goes out as `action_failed` once both have. |
 | 2 (#2383) | Re-anchor the stale zizmor `artipacked` ignore | — | `.github/zizmor.yml:13` points at `release-please.yml:49`, which is now `timeout-minutes`. |
 | 3a (#2384) | Convert the repo to a uv workspace with empty `hassette-wire` and `hassette-client` packages, released in lockstep | — | Packaging only: workspace members, Dockerfile metadata lines (like `codegen`'s, for `uv lock --check`), CI path filters, nox sessions, release-please `extra-files`, and the wire → client → hassette publish order. Done when the Docker build is green and a release-please dry-run shows one PR bumping all three versions. |
 | 3b (#2385) | Move the wire models and wire enums into `hassette-wire` | 3a (and 0, or its stopgap) | Behavior-preserving, pinned by the OpenAPI schema and the existing route tests. Domain objects (`app_snapshots`) and `hassette.types.enums` stay in hassette. `SystemStatus.version` becomes server-set. Adds both boundary rules to `check_module_boundaries.py`. |
@@ -250,7 +250,7 @@ is standalone housekeeping, not linked to the epic.
 
 - **In:** the issues above.
 - **Out:** WebSocket push and subscriptions (the epic's v0.2), per-client or scoped tokens,
-  problem details beyond the app action routes (#2369), min/max schema-version negotiation (the
+  min/max schema-version negotiation (the
   zwave-js-server-python pattern; revisit if the floor-plus-warning approach proves
   insufficient), and any change to the frontend's API layer.
 
@@ -289,4 +289,4 @@ is standalone housekeeping, not linked to the epic.
   lines for `uv lock --check`).
 - **Single console script today:** `hassette = "hassette.__main__:entrypoint"` (`pyproject.toml:124`).
 - **Related issues:** #2368 (start/reload failures return 500; epic unit A), #2369 (problem
-  details repo-wide), #45 (epic tracker).
+  details repo-wide; closed as not planned, since #2382 now covers its scope), #45 (epic tracker).

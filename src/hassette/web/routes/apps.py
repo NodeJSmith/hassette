@@ -7,7 +7,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal
 
 import tomli_w
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Request, Response
 from hassette_wire import (
     ActionResponse,
     AppConfigResponse,
@@ -15,6 +15,7 @@ from hassette_wire import (
     AppManifestResponse,
     AppSourceResponse,
     AppStatusResponse,
+    ProblemCode,
 )
 
 from hassette.app.app_config import AppConfig
@@ -25,6 +26,7 @@ from hassette.schemas.app_snapshots import AppFullSnapshot, tally_manifest_statu
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep, db_degrades_to
+from hassette.web.errors import WebApiError, problem_responses
 from hassette.web.mappers import app_manifest_list_response_from, app_manifest_response_from, app_status_response_from
 
 if TYPE_CHECKING:
@@ -60,6 +62,26 @@ _MANIFEST_FIELD_SCHEMAS: dict[str, dict[str, Any]] = {
 _FRAMEWORK_FIELDS: list[str] = sorted(set(AppConfig.model_fields.keys()) | set(_MANIFEST_FIELD_SCHEMAS.keys()))
 
 
+# Operation-specific problem codes each shared helper below can raise. Routes compose their
+# ``problem_responses(...)`` from these, so a helper that starts raising a new code changes one
+# tuple here; the test-time check in tests/support/problem_codes.py catches a missed one.
+APP_KEY_CODES = (ProblemCode.INVALID_APP_KEY,)
+"""Codes ``_validate_app_key`` raises."""
+
+KNOWN_APP_CODES = (ProblemCode.APP_NOT_FOUND,)
+"""Codes ``_require_known_app`` raises."""
+
+INSTANCE_INDEX_CODES = (*APP_KEY_CODES, *KNOWN_APP_CODES, ProblemCode.INSTANCE_NOT_FOUND)
+"""Codes ``_require_valid_instance_index`` raises."""
+
+STOP_ACTION_CODES = (*APP_KEY_CODES, *KNOWN_APP_CODES, ProblemCode.ACTION_FAILED)
+"""Codes ``_run_app_action`` raises for ``stop``, which never awaits bootstrap release or checks the
+``--app`` filter."""
+
+ACTION_CODES = (*STOP_ACTION_CODES, ProblemCode.BOOTSTRAP_NOT_RELEASED, ProblemCode.APP_BLOCKED)
+"""Codes ``_run_app_action`` raises for ``start`` and ``reload``."""
+
+
 router = APIRouter(tags=["apps"])
 
 
@@ -73,7 +95,7 @@ def _generic_action_failure_detail(action: AppAction, app_key: str) -> str:
 
 def _validate_app_key(app_key: str) -> None:
     if not _VALID_APP_KEY.match(app_key):
-        raise HTTPException(status_code=400, detail=f"Invalid app_key: {app_key!r}")
+        raise WebApiError(ProblemCode.INVALID_APP_KEY, f"Invalid app_key: {app_key!r}")
 
 
 def _orphan_app_permitted(app_key: str, hassette: HassetteDep, action: AppAction) -> bool:
@@ -108,7 +130,7 @@ def _require_known_app(app_key: str, hassette: HassetteDep, action: AppAction) -
         return
     if _orphan_app_permitted(app_key, hassette, action):
         return
-    raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+    raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
 
 
 def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDep, action: AppAction) -> None:
@@ -130,12 +152,12 @@ def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDe
     if manifest is None:
         if _orphan_app_permitted(app_key, hassette, action):
             return
-        raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+        raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
     valid_index_count = len(normalize_app_config(manifest.app_config))
     if index < 0 or index >= valid_index_count:
         if _orphan_instance_permitted(app_key, index, hassette, action):
             return
-        raise HTTPException(status_code=404, detail=f"Instance {index} not found for app {app_key!r}")
+        raise WebApiError(ProblemCode.INSTANCE_NOT_FOUND, f"Instance {index} not found for app {app_key!r}")
 
 
 def _failed_target_instances(
@@ -210,14 +232,14 @@ async def _run_app_action(
     try:
         await operation()
     except AppBootstrapNotReleasedError as exc:
-        raise HTTPException(
-            status_code=409, detail="App bootstrap prerequisites are not ready yet; retry later"
+        raise WebApiError(
+            ProblemCode.BOOTSTRAP_NOT_RELEASED, "App bootstrap prerequisites are not ready yet; retry later"
         ) from exc
     except AppBlockedError as exc:
-        raise HTTPException(status_code=409, detail=f"App {app_key!r} is blocked by the --app filter") from exc
+        raise WebApiError(ProblemCode.APP_BLOCKED, f"App {app_key!r} is blocked by the --app filter") from exc
     except (ValueError, RuntimeError) as exc:
         LOGGER.warning("Failed to %s app %s", action, app_key, exc_info=True)
-        raise HTTPException(status_code=500, detail=_generic_action_failure_detail(action, app_key)) from exc
+        raise WebApiError(ProblemCode.ACTION_FAILED, _generic_action_failure_detail(action, app_key)) from exc
 
     failed = _failed_target_instances(hassette, app_key, instance_index)
     if failed:
@@ -236,7 +258,7 @@ async def _run_app_action(
             )
         else:
             LOGGER.warning("Failed to %s app %s (instance %s): %s", action, app_key, first_index, detail)
-        raise HTTPException(status_code=500, detail=detail)
+        raise WebApiError(ProblemCode.ACTION_FAILED, detail)
 
     LOGGER.info("%s app %s (source=%s)", _ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))
     return ActionResponse(status="accepted", app_key=app_key, action=action, instance_index=instance_index)
@@ -280,7 +302,11 @@ async def get_app_manifests(
     return app_manifest_list_response_from(full_snapshot, invocations_by_key)
 
 
-@router.get("/apps/{app_key}/manifest", response_model=AppManifestResponse)
+@router.get(
+    "/apps/{app_key}/manifest",
+    response_model=AppManifestResponse,
+    responses=problem_responses(*APP_KEY_CODES, ProblemCode.TELEMETRY_UNAVAILABLE, ProblemCode.APP_NOT_FOUND),
+)
 async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: TelemetryDep) -> AppManifestResponse:
     """Return the persisted manifest for a single app, overlaid with live runtime state.
 
@@ -296,10 +322,10 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
         db_row = await telemetry.get_app_manifest(app_key)
     except TelemetryUnavailableError as exc:
         LOGGER.warning("Failed to fetch manifest for app %s", app_key, exc_info=True)
-        raise HTTPException(status_code=503, detail="Telemetry store unavailable") from exc
+        raise WebApiError(ProblemCode.TELEMETRY_UNAVAILABLE, "Telemetry store unavailable") from exc
 
     if db_row is None:
-        raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+        raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
 
     manifest_info = runtime.overlay_manifest_rows([db_row])[0]
 
@@ -317,18 +343,18 @@ async def get_app_manifest(app_key: str, runtime: RuntimeDep, telemetry: Telemet
     "/apps/{app_key}/start",
     status_code=202,
     response_model=ActionResponse,
-    responses={
-        409: {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), "
-            "or the app is blocked by the --app filter (not retryable)"
-        }
-    },
+    responses=problem_responses(*ACTION_CODES),
 )
 async def start_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
     return await _run_app_action("start", app_key, hassette, request, lambda: hassette.app_handler.start_app(app_key))
 
 
-@router.post("/apps/{app_key}/stop", status_code=202, response_model=ActionResponse)
+@router.post(
+    "/apps/{app_key}/stop",
+    status_code=202,
+    response_model=ActionResponse,
+    responses=problem_responses(*STOP_ACTION_CODES),
+)
 async def stop_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
     return await _run_app_action("stop", app_key, hassette, request, lambda: hassette.app_handler.stop_app(app_key))
 
@@ -337,12 +363,7 @@ async def stop_app(app_key: str, hassette: HassetteDep, request: Request) -> Act
     "/apps/{app_key}/reload",
     status_code=202,
     response_model=ActionResponse,
-    responses={
-        409: {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), "
-            "or the app is blocked by the --app filter (not retryable)"
-        }
-    },
+    responses=problem_responses(*ACTION_CODES),
 )
 async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> ActionResponse:
     # Always re-import from disk so a previously-failed app recovers once its
@@ -356,13 +377,7 @@ async def reload_app(app_key: str, hassette: HassetteDep, request: Request) -> A
     "/apps/{app_key}/instances/{index}/start",
     status_code=202,
     response_model=ActionResponse,
-    responses={
-        404: {"description": "App is unknown, or instance index is out of range for the app's current config"},
-        409: {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), "
-            "or the app is blocked by the --app filter (not retryable)"
-        },
-    },
+    responses=problem_responses(*INSTANCE_INDEX_CODES, *ACTION_CODES),
 )
 async def start_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
     _require_valid_instance_index(app_key, index, hassette, "start")
@@ -380,7 +395,7 @@ async def start_instance(app_key: str, index: int, hassette: HassetteDep, reques
     "/apps/{app_key}/instances/{index}/stop",
     status_code=202,
     response_model=ActionResponse,
-    responses={404: {"description": "App is unknown, or instance index is out of range for the app's current config"}},
+    responses=problem_responses(*INSTANCE_INDEX_CODES, *STOP_ACTION_CODES),
 )
 async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
     _require_valid_instance_index(app_key, index, hassette, "stop")
@@ -398,13 +413,7 @@ async def stop_instance(app_key: str, index: int, hassette: HassetteDep, request
     "/apps/{app_key}/instances/{index}/reload",
     status_code=202,
     response_model=ActionResponse,
-    responses={
-        404: {"description": "App is unknown, or instance index is out of range for the app's current config"},
-        409: {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), "
-            "or the app is blocked by the --app filter (not retryable)"
-        },
-    },
+    responses=problem_responses(*INSTANCE_INDEX_CODES, *ACTION_CODES),
 )
 async def reload_instance(app_key: str, index: int, hassette: HassetteDep, request: Request) -> ActionResponse:
     _require_valid_instance_index(app_key, index, hassette, "reload")
@@ -420,7 +429,11 @@ async def reload_instance(app_key: str, index: int, hassette: HassetteDep, reque
     )
 
 
-@router.get("/apps/{app_key}/config", response_model=AppConfigResponse)
+@router.get(
+    "/apps/{app_key}/config",
+    response_model=AppConfigResponse,
+    responses=problem_responses(*APP_KEY_CODES, ProblemCode.APP_NOT_FOUND),
+)
 async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigResponse:
     """Return the app configuration with schema-driven masking for the given app key.
 
@@ -437,7 +450,7 @@ async def get_app_config(app_key: str, hassette: HassetteDep) -> AppConfigRespon
     _validate_app_key(app_key)
     manifest = hassette.app_handler.registry.get_manifest(app_key)
     if manifest is None:
-        raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+        raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
 
     app_config_cls = resolve_app_config_cls(hassette, app_key, manifest)
     if app_config_cls is not None:
@@ -504,13 +517,23 @@ def _build_app_config_view(
     return enriched_schema, mask_values(config_props, app_config)
 
 
-@router.get("/apps/{app_key}/source", response_model=AppSourceResponse)
+@router.get(
+    "/apps/{app_key}/source",
+    response_model=AppSourceResponse,
+    responses=problem_responses(
+        *APP_KEY_CODES,
+        ProblemCode.APP_NOT_FOUND,
+        ProblemCode.SOURCE_UNAVAILABLE,
+        ProblemCode.PATH_TRAVERSAL,
+        ProblemCode.SOURCE_NOT_FOUND,
+    ),
+)
 async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSourceResponse:
     """Return the source code of the app file for the given app key."""
     _validate_app_key(app_key)
     manifest = hassette.app_handler.registry.get_manifest(app_key)
     if manifest is None:
-        raise HTTPException(status_code=404, detail=f"App {app_key!r} not found")
+        raise WebApiError(ProblemCode.APP_NOT_FOUND, f"App {app_key!r} not found")
 
     # Path traversal protection: full_path must resolve within the manifest's app_dir
     try:
@@ -518,7 +541,7 @@ async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSourceRespon
         app_dir_resolved = manifest.app_dir.resolve()
     except Exception as exc:
         LOGGER.warning("Failed to resolve paths for app %s", app_key, exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to resolve app path") from exc
+        raise WebApiError(ProblemCode.SOURCE_UNAVAILABLE, "Failed to resolve app path") from exc
 
     if not resolved.is_relative_to(app_dir_resolved):
         LOGGER.warning(
@@ -527,18 +550,18 @@ async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSourceRespon
             resolved,
             app_dir_resolved,
         )
-        raise HTTPException(status_code=403, detail="Path traversal not allowed")
+        raise WebApiError(ProblemCode.PATH_TRAVERSAL, "Path traversal not allowed")
 
     if not resolved.exists():
-        raise HTTPException(status_code=404, detail=f"Source file not found for app {app_key!r}")
+        raise WebApiError(ProblemCode.SOURCE_NOT_FOUND, f"Source file not found for app {app_key!r}")
 
     try:
         content = await asyncio.to_thread(resolved.read_text, encoding="utf-8")
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"Source file not found for app {app_key!r}") from exc
+        raise WebApiError(ProblemCode.SOURCE_NOT_FOUND, f"Source file not found for app {app_key!r}") from exc
     except (OSError, UnicodeDecodeError) as exc:
         LOGGER.warning("Failed to read source for app %s", app_key, exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to read app source") from exc
+        raise WebApiError(ProblemCode.SOURCE_UNAVAILABLE, "Failed to read app source") from exc
 
     return AppSourceResponse(
         app_key=app_key,

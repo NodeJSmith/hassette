@@ -1,15 +1,20 @@
 """Shared fixtures and helpers for web API integration tests."""
 
+from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx2 import ASGITransport, AsyncClient
 
+import hassette.web.app as web_app  # module alias so `stub_spa` can monkeypatch `_SPA_DIR`
+import hassette.web.errors as web_errors  # module alias so the code check can wrap the handler
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
+from tests.support.problem_codes import checking_handler
 from tests.support.web_manifest_helpers import make_app_instance_info
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
@@ -25,6 +30,27 @@ APP_HEALTH_PATH = "/api/telemetry/app/my_app/health"
 APP_GRID_PATH = "/api/telemetry/dashboard/app-grid"
 TELEMETRY_STATUS_PATH = "/api/telemetry/status"
 CONFIG_PATH = "/api/config"
+AUTH_SESSION_PATH = "/api/auth/session"
+
+STUB_SPA_FILES = ("index.html", "assets/index-abc123.js")
+"""Files `stub_spa` writes: the SPA shell and one hashed asset."""
+
+
+@pytest.fixture(autouse=True)
+def problem_code_violations(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[str]]:
+    """Fail any test in which a route raises an operation-specific problem code it doesn't declare.
+
+    Wraps the ``HTTPException`` handler, which ``create_fastapi_app()`` registers by looking it up at
+    call time, so the wrapper must be in place before any app is built. ``app`` and ``auth_app``
+    request this fixture explicitly to guarantee that; apps a test builds inline come after every
+    fixture. See ``tests/support/problem_codes.py``.
+    """
+    violations: list[str] = []
+    wrapped = checking_handler(web_errors.http_exception_handler, violations)
+    monkeypatch.setattr(web_errors, "http_exception_handler", wrapped)
+    yield violations
+    if violations:
+        pytest.fail("Undeclared problem codes:\n" + "\n".join(violations))
 
 
 @pytest.fixture
@@ -61,7 +87,7 @@ def runtime_query_service(mock_hassette):
 
 
 @pytest.fixture
-def app(mock_hassette, runtime_query_service):  # noqa: ARG001
+def app(mock_hassette, runtime_query_service, problem_code_violations):  # noqa: ARG001
     """Create a FastAPI app with mocked dependencies."""
     return create_fastapi_app(mock_hassette)
 
@@ -89,7 +115,7 @@ def auth_hassette():
 
 
 @pytest.fixture
-def auth_app(auth_hassette):
+def auth_app(auth_hassette, problem_code_violations):  # noqa: ARG001
     """FastAPI app built with a known token, so bearer/cookie assertions have a concrete value."""
     return create_fastapi_app(auth_hassette, auth_token=WEB_API_TEST_TOKEN)
 
@@ -99,6 +125,32 @@ async def auth_client(auth_app):
     transport = ASGITransport(app=auth_app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+
+
+@pytest.fixture
+def stub_spa(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Create minimal stub SPA files in a private tmp directory and point `_SPA_DIR` at it.
+
+    `create_fastapi_app()` only mounts `/assets` and registers the SPA catch-all when
+    `_SPA_DIR.exists()` is True at call time -- this dev checkout has no built frontend, so
+    without this fixture `GET /` and `GET /assets/*` would 404 (no route at all) rather than
+    exercising the actual SPA-serving code path.
+
+    Uses `tmp_path` (unique per test, and therefore per pytest-xdist worker) and monkeypatches
+    `hassette.web.app._SPA_DIR` rather than writing to the real, shared `src/hassette/web/
+    static/spa/` directory `web/app.py` normally reads -- writing to that shared path raced
+    against `tests/integration/test_packaging.py`'s own `stub_spa` fixture under parallel test
+    runs (#1629). `_SPA_DIR` is read fresh from the module on every `create_fastapi_app()` call,
+    so patching it here is sufficient without touching production code.
+    """
+    spa_dir = tmp_path / "spa"
+    (spa_dir / "assets").mkdir(parents=True)
+    for relative in STUB_SPA_FILES:
+        f = spa_dir / relative
+        f.write_text("<!-- stub -->" if relative.endswith(".html") else "/* stub */")
+
+    monkeypatch.setattr(web_app, "_SPA_DIR", spa_dir)
+    return spa_dir
 
 
 async def get_json(client: AsyncClient, url: str, *, expect_status: int = 200) -> Any:

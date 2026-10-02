@@ -21,8 +21,11 @@ the OpenAPI schema for no one's benefit.
 from collections import deque
 from logging import getLogger
 
+from hassette_wire import ProblemCode
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from hassette.web.errors import problem_response
 
 LOGGER = getLogger(__name__)
 
@@ -53,22 +56,13 @@ def _declared_content_length(headers: Headers) -> int | None:
         return None
 
 
-async def _send_413(send: Send, max_bytes: int) -> None:
-    body = b'{"detail":"Request body too large"}'
-    await send(
-        {
-            "type": "http.response.start",
-            "status": 413,
-            "headers": [
-                (b"content-type", b"application/json"),
-                (b"content-length", str(len(body)).encode()),
-                # Advertise the ceiling so a client gets an actionable answer rather than
-                # having to bisect payload sizes against an opaque 413.
-                (b"x-max-body-bytes", str(max_bytes).encode()),
-            ],
-        }
+async def _send_413(scope: Scope, receive: Receive, send: Send, max_bytes: int) -> None:
+    # Advertise the ceiling so a client gets an actionable answer rather than having to bisect
+    # payload sizes against an opaque 413.
+    response = problem_response(
+        ProblemCode.BODY_TOO_LARGE, "Request body too large", headers={"x-max-body-bytes": str(max_bytes)}
     )
-    await send({"type": "http.response.body", "body": body})
+    await response(scope, receive, send)
 
 
 class RequestBodySizeLimitMiddleware:
@@ -103,12 +97,12 @@ class RequestBodySizeLimitMiddleware:
                 declared,
                 self.max_bytes,
             )
-            await _send_413(send, self.max_bytes)
+            await _send_413(scope, receive, send, self.max_bytes)
             return
 
         buffered, oversized = await self._buffer_body(receive, scope)
         if oversized:
-            await _send_413(send, self.max_bytes)
+            await _send_413(scope, receive, send, self.max_bytes)
             return
 
         await self.app(scope, _replay_receive(buffered, receive), send)

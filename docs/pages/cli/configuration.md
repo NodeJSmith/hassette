@@ -274,16 +274,18 @@ Human mode prints the request method, URL, and response body below the error mes
 ```
 Error 500: Internal Server Error
   URL:    GET http://127.0.0.1:8126/api/health
-  Body:   {"detail":"Internal Server Error","traceback":"..."}
+  Body:   {"type":"about:blank","title":"Internal Server Error","status":500,"detail":"Internal Server Error","code":"internal_error"}
 ```
 
 JSON mode adds a `debug` key to the error object:
 
 ```json
-{"error": true, "status": 500, "detail": "Internal Server Error", "debug": {"url": "http://127.0.0.1:8126/api/health", "method": "GET", "body": "{\"detail\":\"Internal Server Error\"}"}}
+{"error": true, "status": 500, "detail": "Internal Server Error", "debug": {"url": "http://127.0.0.1:8126/api/health", "method": "GET", "body": "{\"type\":\"about:blank\",\"title\":\"Internal Server Error\",\"status\":500,\"detail\":\"Internal Server Error\",\"code\":\"internal_error\"}"}}
 ```
 
 Network errors always include the target address in the default output. `--debug` does not change their format.
+
+The body is the server's problem details response. [API Error Responses](../web-ui/api-errors.md) lists every `code` it can carry.
 
 ## Related Pages
 

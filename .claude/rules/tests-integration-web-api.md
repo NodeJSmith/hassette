@@ -12,13 +12,15 @@ paths:
 - `app` — FastAPI app via `create_fastapi_app(mock_hassette)`
 - `client` — httpx2 `AsyncClient` wrapping `app` via `ASGITransport`
 - `auth_hassette`, `auth_app`, `auth_client` — the same chain with `auth_enabled=True`, a real `session_ttl`, and a known auth token, for bearer/cookie/session tests
+- `stub_spa` — writes a stub SPA build to `tmp_path` and points `hassette.web.app._SPA_DIR` at it, so an app built with `run_ui = True` registers the SPA routes
+- `problem_code_violations` (autouse) — fails any test in which a route raises an operation-specific `ProblemCode` its `problem_responses(...)` doesn't declare (check in `tests/support/problem_codes.py`)
 
 ## Shared helpers (this directory's conftest.py)
 
 - `get_json(client, url, *, expect_status=200)` — GET, assert the status, return the decoded body. Replaces the `response = await client.get(...)` / `assert response.status_code == ...` / `data = response.json()` triple. Tests needing the `Response` itself (headers, `.text`, cookies) still call `client.get` directly.
 - `telemetry_error(message=DB_LOCKED_MSG)` — an `AsyncMock` raising `TelemetryUnavailableError`; assign it onto the query-service method under test so the method name stays greppable at the call site.
 - `DB_LOCKED_MSG` — the stand-in storage failure message DB-degradation tests raise.
-- `HEALTH_PATH`, `APP_HEALTH_PATH`, `APP_GRID_PATH`, `TELEMETRY_STATUS_PATH`, `CONFIG_PATH` — route paths hit by tests in more than one file; import these rather than redefining the literal locally.
+- `HEALTH_PATH`, `APP_HEALTH_PATH`, `APP_GRID_PATH`, `TELEMETRY_STATUS_PATH`, `CONFIG_PATH`, `AUTH_SESSION_PATH` — route paths hit by tests in more than one file; import these rather than redefining the literal locally.
 - `set_websocket_state(mock_hassette, *, connected, ever_connected)` / `set_app_status_snapshot(mock_hassette, *, running, failed)` — drive the health/system-status inputs.
 - `make_log_record(seq, **kw)` (local, deliberately — see `# factory-local:` annotation) — builds a raw log record dict for log-endpoint tests; derives `timestamp` from `seq` so ordering tests get distinct, predictable timestamps. Shadows `tests.support.factories.make_log_record`, which uses a fixed `timestamp=0.0` default and does not fit this file's ordering tests.
 
@@ -31,6 +33,7 @@ second file drives the same endpoint.
 - `test_api_app_source.py` — `get_app_source(client, mock_hassette, *, app_dir, full_path)`
 - `test_execution_endpoint.py` — `get_execution_logs(...)`
 - `test_logs_endpoint.py` — `LOGS_RECENT_PATH`, `LOGS_LEVEL_PATH`
+- `test_problem_details.py` — `ProblemCase`, `assert_problem(...)`, `declared_codes(...)`, and the `ROUTE_CASES` table (one case per error-coverage row and code)
 - `test_dashboard_api.py` — `get_health_with_status(client, mock_hassette, **status_fields)`
 - `test_telemetry.py` — `assert_forwarded_to_service(...)`, `LISTENER_DEFAULTS`
 - `test_telemetry_route.py` — `make_live_job(db_id, name, **kw)`, `get_enriched_job_row(...)`

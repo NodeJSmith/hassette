@@ -4,13 +4,15 @@ import typing
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.exceptions import HTTPException
 from fastapi.staticfiles import StaticFiles
+from hassette_wire import ProblemCode
+from starlette.convertors import Convertor, register_url_convertor
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import FileResponse
 
 from hassette.web.auth.trusted_proxies import EMPTY_TRUSTED_PROXY_SET, TrustedProxySet
 from hassette.web.body_limit import RequestBodySizeLimitMiddleware
+from hassette.web.errors import WebApiError, install_problem_handlers, install_problem_openapi
 from hassette.web.middleware import DefaultDenyMiddleware
 from hassette.web.routes.apps import router as apps_router
 from hassette.web.routes.auth import router as auth_router
@@ -45,6 +47,30 @@ _STATIC_EXTENSIONS = frozenset(
     }
 )
 
+SPA_PATH_CONVERTOR = "hassette_spa_path"
+"""Path convertor for the SPA catch-all: any path except ``/api`` and ``/api/...``."""
+
+
+class SpaPathConvertor(Convertor[str]):
+    """Matches every path except the API prefix, so unknown ``/api`` paths get the router's own
+    404 (and real 405s survive) whether or not the SPA is served.
+    """
+
+    regex = r"(?!api(?:/|$)).*"
+
+    def convert(self, value: str) -> str:
+        return value
+
+    def to_string(self, value: str) -> str:
+        return value
+
+
+# Starlette keeps convertors in one module-level registry shared by every app in the process, with
+# no per-app scope. So this registers once at import (not per create_fastapi_app() call) under a
+# hassette-specific key; re-registration would be idempotent, and only routes that name the key
+# are affected.
+register_url_convertor(SPA_PATH_CONVERTOR, SpaPathConvertor())
+
 
 def create_fastapi_app(
     hassette: "Hassette",
@@ -56,6 +82,8 @@ def create_fastapi_app(
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
     )
+    install_problem_handlers(app)
+    install_problem_openapi(app)
     app.state.hassette = hassette
     app.state.auth_token = auth_token
     app.state.trusted_proxies = trusted_proxies or EMPTY_TRUSTED_PROXY_SET
@@ -103,12 +131,14 @@ def create_fastapi_app(
         if (_SPA_DIR / "fonts").exists():
             app.mount("/fonts", StaticFiles(directory=str(_SPA_DIR / "fonts")), name="spa-fonts")
 
-        @app.get("/{path:path}")
+        # Out of the schema: an HTML route, and the OpenAPI document must not depend on run_ui.
+        @app.get(f"/{{path:{SPA_PATH_CONVERTOR}}}", include_in_schema=False)
         async def spa_catch_all(path: str) -> FileResponse:  # pyright: ignore[reportUnusedFunction]
             """Serve index.html for SPA client-side routing.
 
             Static files in the SPA build output (e.g., hassette-logo.png) are
-            served directly.  Other static-looking paths and API paths get a 404.
+            served directly.  Other static-looking paths get a 404. API paths never
+            reach this route (see ``SpaPathConvertor``).
             """
             # Serve root-level SPA static files (logo, favicon, etc.)
             candidate = _SPA_DIR / path
@@ -117,8 +147,8 @@ def create_fastapi_app(
 
             last_segment = path.rsplit("/", 1)[-1]
             is_static = any(last_segment.endswith(ext) for ext in _STATIC_EXTENSIONS)
-            if path.startswith("api/") or is_static:
-                raise HTTPException(status_code=404, detail=f"/{path} not found")
+            if is_static:
+                raise WebApiError(ProblemCode.NOT_FOUND, f"/{path} not found")
             return FileResponse(str(_SPA_DIR / "index.html"))
 
     return app
