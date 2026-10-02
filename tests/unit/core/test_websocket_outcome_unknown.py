@@ -24,8 +24,9 @@ from hassette.exceptions import (
     ResponseTimeoutError,
     RetryableConnectionClosedError,
 )
+from hassette.testing._ws_mocks import build_fake_ws
 
-from .conftest import cleanup_disconnected
+from .conftest import cleanup_disconnected, run_cleanup
 
 
 def _rendered(call) -> str:
@@ -144,13 +145,21 @@ class TestResponseLost:
         assert exc.close_code == 1006
         assert "get_states" in str(exc)
 
-    async def test_reconnect_cleanup_fails_pending_send_as_response_lost(
-        self, websocket_service: WebsocketService
+    @pytest.mark.parametrize(
+        "teardown",
+        [
+            pytest.param(lambda ws: ws.partial_cleanup(), id="reconnect"),
+            pytest.param(run_cleanup, id="shutdown"),
+        ],
+    )
+    async def test_teardown_fails_pending_send_with_peer_close_code(
+        self, websocket_service: WebsocketService, teardown
     ) -> None:
-        """partial_cleanup() (reconnect) fails a waiting send, which surfaces as ResponseLostError."""
+        """Teardown after a peer close fails a waiting send as ResponseLostError carrying the peer's close code."""
         sent = asyncio.Event()
         websocket_service.send_json = AsyncMock(side_effect=lambda **_: sent.set())
-        websocket_service._ws = None
+        websocket_service._ws = build_fake_ws(is_closed=True, close_code=4001)
+        websocket_service._session = None
         websocket_service._recv_task = None
 
         task = asyncio.create_task(
@@ -158,10 +167,11 @@ class TestResponseLost:
         )
         await asyncio.wait_for(sent.wait(), timeout=1)
 
-        await websocket_service.partial_cleanup()
+        await teardown(websocket_service)
 
-        with pytest.raises(ResponseLostError):
+        with pytest.raises(ResponseLostError) as exc_info:
             await task
+        assert exc_info.value.close_code == 4001
 
     async def test_disconnect_logs_warning_when_raised(self, websocket_service: WebsocketService) -> None:
         _drop_connection(websocket_service)
