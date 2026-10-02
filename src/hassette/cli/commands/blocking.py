@@ -81,7 +81,7 @@ def cmd_blocking(
     if app is not None:
         params = query_params(instance_index=client.resolve_instance_or_none(app, instance), since=since)
         findings = client.get(f"/api/telemetry/app/{app}/blocking", BlockingFindingsResponse, params=params)
-        render_table(findings.findings, FINDING_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
+        render_table(findings.findings, FINDING_COLUMNS, json_mode=ctx.json_mode)
         if findings.truncated and not ctx.json_mode:
             cli_output.stderr_console.print(TRUNCATED_NOTE, highlight=False)
         return
@@ -102,13 +102,13 @@ def cmd_blocking(
         sys.stdout.flush()
         return
 
-    render_table(findings.findings, FINDING_COLUMNS, json_mode=False)  # pyright: ignore[reportArgumentType]
+    render_table(findings.findings, FINDING_COLUMNS, json_mode=False)
     if unattributed.total_count:
         cli_output.stdout_console.print(
             f"\nLoop stalls credited to no app: {unattributed.total_count} "
             f"({unattributed.displaced_count} displaced, {unattributed.framework_count} framework)",
             highlight=False,
         )
-        render_table(unattributed.recent, UNATTRIBUTED_COLUMNS, json_mode=False)  # pyright: ignore[reportArgumentType]
+        render_table(unattributed.recent, UNATTRIBUTED_COLUMNS, json_mode=False)
     if findings.truncated:
         cli_output.stderr_console.print(TRUNCATED_NOTE, highlight=False)

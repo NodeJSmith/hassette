@@ -6,7 +6,12 @@ from typing import TYPE_CHECKING, Any
 
 from hassette_wire import BlockingFindingsResponse, UnattributedBlockingResponse
 
-from hassette.core.telemetry.blocking_findings import classifier_for_apps, group_findings, summarize_unattributed
+from hassette.core.telemetry.blocking_findings import (
+    all_apps_classifier,
+    classifier_for_apps,
+    group_findings,
+    summarize_unattributed,
+)
 from hassette.core.telemetry.helpers import fetch_all_as_dicts, since_clause
 
 if TYPE_CHECKING:
@@ -68,6 +73,12 @@ _UNATTRIBUTED_RECENT_QUERY = """
     LIMIT :limit
 """
 
+_BLOCKING_COUNTS_QUERY = """
+    SELECT app_key, COUNT(*) AS n FROM blocking_events
+    WHERE source_tier = 'app' {since}
+    GROUP BY app_key
+"""
+
 
 class BlockingQueriesMixin:
     """Blocking-event findings and counts, mixed into TelemetryQueryService."""
@@ -121,22 +132,12 @@ class BlockingQueriesMixin:
                 _UNATTRIBUTED_RECENT_QUERY.format(since=since_sql), {**params, "limit": RECENT_UNATTRIBUTED_LIMIT}
             )
         )
-        classifier = classifier_for_apps(self._app_dirs())(None)
-        return summarize_unattributed(totals, recent, classifier)
+        return summarize_unattributed(totals, recent, all_apps_classifier(self._app_dirs()))
 
     async def get_blocking_event_counts(self, *, since: float | None) -> dict[str, int]:
         """Attributed blocking-event count per app key in the window. Apps with none are absent."""
         since_sql, params = since_clause(since, "detected_ts")
-        rows = await fetch_all_as_dicts(
-            self.execute(
-                f"""
-                SELECT app_key, COUNT(*) AS n FROM blocking_events
-                WHERE source_tier = 'app' {since_sql}
-                GROUP BY app_key
-                """,
-                params,
-            )
-        )
+        rows = await fetch_all_as_dicts(self.execute(_BLOCKING_COUNTS_QUERY.format(since=since_sql), params))
         return {row["app_key"]: row["n"] for row in rows}
 
     def _app_dirs(self) -> dict[str, PurePath]:

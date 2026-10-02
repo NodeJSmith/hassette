@@ -34,8 +34,14 @@ def load_report(block_seconds: float) -> str:
     return "report"
 
 
+async def load_report_in_task(block_seconds: float) -> None:
+    load_report(block_seconds)
+
+
 class BlockingDemo(App[BlockingDemoConfig]):
-    """Two jobs reach the same blocking helper, so detection reports one call site to fix."""
+    """Two jobs reach the same blocking helper, so detection reports one call site to fix; a third
+    blocks from code no job runs directly, so those stalls go uncredited.
+    """
 
     async def on_initialize(self) -> None:
         await self.scheduler.run_every(self.refresh_dashboard, seconds=5, name="refresh_dashboard")
@@ -60,7 +66,3 @@ class BlockingDemo(App[BlockingDemoConfig]):
         task = asyncio.create_task(load_report_in_task(self.app_config.block_seconds))
         await asyncio.sleep(0.5)
         await task
-
-
-async def load_report_in_task(block_seconds: float) -> None:
-    load_report(block_seconds)

@@ -9,10 +9,11 @@ import { queryKeys } from "../../lib/query-keys";
 import { useAppStore } from "../../state/store";
 import { handlerPath } from "../../utils/app-routes";
 import { formatDuration, formatRelativeTime, pluralize } from "../../utils/format";
+import { META_CLASS, MONO_META_CLASS, MONO_STRONG_CLASS } from "../shared/blocking-styles";
 import { frameLabel, StackDisclosure } from "../shared/stack-frames";
 import { OVERVIEW_SECTION_CLASS, SECTION_LABEL_CLASS } from "./overview-section";
 
-const META_CLASS = "text-sm text-foreground-secondary";
+const FINDING_CARD_CLASS = "flex flex-col gap-1.5 rounded-md border border-[var(--warn)] bg-[var(--warn-bg)] p-3";
 
 /**
  * Which findings a section shows. `app` is the multi-instance parent overview: every instance, each
@@ -75,24 +76,11 @@ function FindingEntry({ finding, appKey, scope, testId }: FindingProps) {
   const libraryLocation = finding.call_site && !finding.call_site_is_user_code ? frameLabel(finding.call_site) : null;
 
   return (
-    <div
-      className="flex flex-col gap-1.5 rounded-md border border-[var(--warn)] bg-[var(--warn-bg)] p-3"
-      data-testid={testId}
-    >
+    <div className={FINDING_CARD_CLASS} data-testid={testId}>
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="font-mono text-[length:var(--text-mono-sm)] font-medium text-foreground">
-          {callSiteText(finding)}
-        </span>
-        {callsInto && (
-          <span className="font-mono text-[length:var(--text-mono-sm)] text-foreground-secondary">
-            calls {callsInto}
-          </span>
-        )}
-        {libraryLocation && (
-          <span className="font-mono text-[length:var(--text-mono-sm)] text-foreground-secondary">
-            at {libraryLocation}
-          </span>
-        )}
+        <span className={MONO_STRONG_CLASS}>{callSiteText(finding)}</span>
+        {callsInto && <span className={MONO_META_CLASS}>calls {callsInto}</span>}
+        {libraryLocation && <span className={MONO_META_CLASS}>at {libraryLocation}</span>}
       </div>
       {finding.handlers.length > 0 && (
         <div className={META_CLASS}>

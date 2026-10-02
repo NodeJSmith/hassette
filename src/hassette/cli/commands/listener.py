@@ -55,7 +55,7 @@ def cmd_listener(
             params=query_params(since=since, limit=limit),
         )
         invocations = [Execution.model_validate(e) for e in raw]
-        render_table(invocations, LISTENER_INVOCATION_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
+        render_table(invocations, LISTENER_INVOCATION_COLUMNS, json_mode=ctx.json_mode)
         return
 
     raw = client.get_with_app_routing(
@@ -67,4 +67,4 @@ def cmd_listener(
         extra_params=query_params(since=since, source_tier=source_tier),
     )
     listeners = [ListenerWithSummary.model_validate(e) for e in raw]
-    render_table(listeners, LISTENER_LIST_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(listeners, LISTENER_LIST_COLUMNS, json_mode=ctx.json_mode)

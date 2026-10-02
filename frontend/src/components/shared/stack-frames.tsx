@@ -2,17 +2,14 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
-import type { StackFrame } from "../../api/endpoints";
+import type { BlockingFrameRef, StackFrame } from "../../api/endpoints";
 import { TracebackLines } from "./traceback-viewer";
 
-interface FrameRef {
-  display_path: string;
-  lineno: number;
-  function: string;
-}
+const STACK_PRE_CLASS =
+  "overflow-x-auto rounded-sm bg-muted px-3 py-2 font-mono text-[length:var(--text-mono-sm)] leading-relaxed";
 
 /** `calendar_service.py:98 in get_calendar_events` — a frame's short summary form. */
-export function frameLabel(frame: FrameRef): string {
+export function frameLabel(frame: BlockingFrameRef): string {
   return `${frame.display_path}:${frame.lineno} in ${frame.function}`;
 }
 
@@ -50,10 +47,7 @@ export function StackDisclosure({ frames, testId }: Props) {
         {open ? "hide stack" : "show stack"}
       </Button>
       {open && (
-        <pre
-          className="overflow-x-auto rounded-sm bg-muted px-3 py-2 font-mono text-[length:var(--text-mono-sm)] leading-relaxed"
-          data-testid={testId}
-        >
+        <pre className={STACK_PRE_CLASS} data-testid={testId}>
           <TracebackLines traceback={framesAsTraceback(frames)} />
         </pre>
       )}

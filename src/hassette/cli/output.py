@@ -13,7 +13,7 @@ import json
 import re
 import sys
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from typing import Any
@@ -216,7 +216,7 @@ def _cell_text(value: Any, col: Column, fallback_meta: CliFormat | None = None) 
 
 
 def render_table(
-    items: list[BaseModel],
+    items: Sequence[BaseModel],
     columns: list[Column],
     json_mode: bool,
 ) -> None:
@@ -228,7 +228,7 @@ def render_table(
     takes precedence over model metadata.
 
     Args:
-        items: List of Pydantic models to render.
+        items: Pydantic models to render.
         columns: Column definitions for human-mode table output.
         json_mode: When ``True``, serialize to JSON on stdout. When ``False``,
             render a Rich table on stdout.

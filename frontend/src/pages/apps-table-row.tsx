@@ -15,13 +15,13 @@ import type { AppStatusEntry } from "../state/store";
 import { appLiveStatus, type AppRow, instanceLiveError, instanceLiveStatus } from "../utils/app-data";
 import { appDetailPath } from "../utils/app-routes";
 import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "../utils/constants";
-import { formatTimestamp } from "../utils/format";
+import { formatTimestamp, pluralize } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";
 import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "../utils/status";
 
 /** Links to the app's overview, where its blocking findings are listed. */
 function BlockingBadge({ appKey, count }: { appKey: string; count: number }) {
-  const label = `${count} blocking ${count === 1 ? "event" : "events"} stalled the event loop in this time window`;
+  const label = `${pluralize(count, "blocking event")} stalled the event loop in this time window`;
   return (
     <Badge asChild variant="warning" size="sm" className="ml-1">
       <Link href={appDetailPath(appKey, "overview")} title={label} aria-label={label} data-testid="blocking-badge">

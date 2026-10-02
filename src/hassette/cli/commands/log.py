@@ -50,7 +50,7 @@ def cmd_log(
         params=query_params(app_key=app, since=since, limit=limit, source_tier=source_tier),
     )
     entries = [LogEntryResponse.model_validate(e) for e in raw]
-    render_table(entries, LOG_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(entries, LOG_COLUMNS, json_mode=ctx.json_mode)
 
 
 # dup-ignore-start: cyclopts derives each command's flags from its signature, so a shared
@@ -70,4 +70,4 @@ def cmd_execution(
         LogsByExecutionResponse,
         params=query_params(limit=limit),
     )
-    render_table(response.records, EXECUTION_LOG_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(response.records, EXECUTION_LOG_COLUMNS, json_mode=ctx.json_mode)

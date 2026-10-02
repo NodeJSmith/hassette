@@ -98,7 +98,7 @@ class FrameClassifier:
     app_dirs: tuple[PurePath, ...]
     excluded_dirs: tuple[PurePath, ...]
     # Per-filename answers, so each distinct path is tested against the prefixes once. They assume a
-    # classifier serves one request on one thread, which ``classifier_for_apps`` callers guarantee by
+    # classifier serves one request on one thread, which the ``blocking_findings`` builders guarantee by
     # building fresh classifiers per request; a long-lived classifier would grow them without bound.
     _app_dir_cache: dict[str, PurePath | None] = field(default_factory=dict, init=False, compare=False, repr=False)
     _fallback_cache: dict[str, bool] = field(default_factory=dict, init=False, compare=False, repr=False)

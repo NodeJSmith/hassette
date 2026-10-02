@@ -2,14 +2,11 @@ import { fireEvent, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
-import type { components } from "../../api/generated-types";
+import type { BlockingFinding, BlockingFindingsData } from "../../api/endpoints";
 import { createBlockingFinding, createFrameRef } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
 import { BlockingFindingsSection, type BlockingScope } from "./blocking-findings";
-
-type BlockingFindingsResponse = components["schemas"]["BlockingFindingsResponse"];
-type BlockingFinding = components["schemas"]["BlockingFinding"];
 
 const APP_KEY = "car_climate";
 
@@ -18,7 +15,7 @@ function serveFindings(findings: BlockingFinding[], truncated = false) {
   server.use(
     http.get("/api/telemetry/app/:app_key/blocking", ({ request }) => {
       seen.push(new URL(request.url));
-      return HttpResponse.json<BlockingFindingsResponse>({ findings, truncated });
+      return HttpResponse.json<BlockingFindingsData>({ findings, truncated });
     }),
   );
   return seen;
@@ -44,9 +41,15 @@ describe("BlockingFindingsSection", () => {
   });
 
   it("renders nothing when the fetch fails", async () => {
-    server.use(http.get("/api/telemetry/app/:app_key/blocking", () => HttpResponse.json(null, { status: 503 })));
+    let requests = 0;
+    server.use(
+      http.get("/api/telemetry/app/:app_key/blocking", () => {
+        requests += 1;
+        return HttpResponse.json(null, { status: 503 });
+      }),
+    );
     const { queryByTestId } = renderSection();
-    await new Promise((r) => setTimeout(r, 50));
+    await waitFor(() => expect(requests).toBeGreaterThan(0));
     expect(queryByTestId("overview-blocking-findings")).toBeNull();
   });
 

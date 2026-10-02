@@ -48,7 +48,8 @@ interface DiagnosticsData {
   logPersistenceInactive: boolean;
   telemetry: TelemetryHealth;
   telemetryDrops: number;
-  /** Undefined while loading or when the fetch failed; the panel and cell then show nothing. */
+  loopStallCount: number;
+  /** Undefined while loading, on a failed fetch, and when there are no stalls; the panel then renders nothing. */
   loopStalls: UnattributedBlockingData | undefined;
   // Derived visibility — a healthy subsystem renders no panel at all
   showLogging: boolean;
@@ -75,7 +76,7 @@ function useDiagnosticsData(): DiagnosticsData {
   });
   const effectiveSystemStatus = loadError ? undefined : systemStatus;
   // Loop stalls follow the global time window like every other telemetry view.
-  const { data: loopStalls } = useScopedQuery(queryKeys.unattributedBlocking(), (since, signal) =>
+  const { data: unattributed } = useScopedQuery(queryKeys.unattributedBlocking(), (since, signal) =>
     getUnattributedBlocking(since, signal),
   );
 
@@ -83,6 +84,7 @@ function useDiagnosticsData(): DiagnosticsData {
   const dbWriteQueueDrops = effectiveSystemStatus?.db_write_queue_drops ?? 0;
   const logPersistenceInactive = effectiveSystemStatus?.log_persistence_active === false;
   const telemetryDrops = droppedOverflow + droppedExhausted + droppedShutdown + errorHandlerFailures;
+  const loopStallCount = unattributed?.total_count ?? 0;
 
   return {
     loading,
@@ -96,7 +98,8 @@ function useDiagnosticsData(): DiagnosticsData {
     showLogging: logQueueDrops > 0 || dbWriteQueueDrops > 0 || logPersistenceInactive,
     telemetry: { droppedOverflow, droppedExhausted, droppedShutdown, errorHandlerFailures, telemetryDegraded },
     telemetryDrops,
-    loopStalls,
+    loopStallCount,
+    loopStalls: loopStallCount > 0 ? unattributed : undefined,
     showTelemetry: telemetryDegraded || telemetryDrops > 0,
   };
 }
@@ -132,7 +135,7 @@ export function DiagnosticsPage() {
               diag.telemetryDrops,
               diag.logQueueDrops,
               diag.dbWriteQueueDrops,
-              diag.loopStalls?.total_count ?? 0,
+              diag.loopStallCount,
             )}
             data-testid="diag-stats-strip"
           />
@@ -155,7 +158,7 @@ export function DiagnosticsPage() {
           when the HTTP load failed. Logging health only renders from an available HTTP seed. */}
       {diag.showTelemetry && <TelemetryPanel {...diag.telemetry} />}
 
-      {diag.loopStalls && diag.loopStalls.total_count > 0 && <LoopStallsPanel data={diag.loopStalls} />}
+      {diag.loopStalls && <LoopStallsPanel data={diag.loopStalls} />}
     </div>
   );
 }

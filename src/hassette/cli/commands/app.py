@@ -75,7 +75,7 @@ def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """List all apps (GET /api/apps/manifests)."""
     client = make_client(ctx)
     result = client.get("/api/apps/manifests", AppManifestListResponse)
-    render_table(result.manifests, APP_LIST_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(result.manifests, APP_LIST_COLUMNS, json_mode=ctx.json_mode)
 
 
 def cmd_app_health(
@@ -117,7 +117,7 @@ def cmd_app_activity(
     )
     raw: list[Any] = client.get(f"/api/telemetry/app/{key}/activity", list, params=params)
     entries = [ActivityFeedEntry.model_validate(e) for e in raw]
-    render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=ctx.json_mode)
 
 
 def cmd_app_config(

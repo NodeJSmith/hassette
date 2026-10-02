@@ -7,6 +7,7 @@ import pytest
 from hassette_wire import StackFrame
 
 from hassette.core.telemetry.blocking_findings import (
+    all_apps_classifier,
     classifier_for_apps,
     decode_stacks,
     group_findings,
@@ -242,4 +243,7 @@ class TestClassifierForApps:
         lookup = classifier_for_apps({"a": PurePath("/apps/a"), "b": PurePath("/apps/b")})
         assert lookup("a").app_dirs == (PurePath("/apps/a"),)
         assert set(lookup("removed_app").app_dirs) == {PurePath("/apps/a"), PurePath("/apps/b")}
-        assert set(lookup(None).app_dirs) == {PurePath("/apps/a"), PurePath("/apps/b")}
+        assert set(all_apps_classifier({"a": PurePath("/apps/a"), "b": PurePath("/apps/b")}).app_dirs) == {
+            PurePath("/apps/a"),
+            PurePath("/apps/b"),
+        }

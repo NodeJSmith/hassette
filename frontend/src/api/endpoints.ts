@@ -34,6 +34,7 @@ export type BootIssue = components["schemas"]["BootIssueResponse"];
 export type BlockingFindingsData = components["schemas"]["BlockingFindingsResponse"];
 export type BlockingFinding = components["schemas"]["BlockingFinding"];
 export type StackFrame = components["schemas"]["StackFrame"];
+export type BlockingFrameRef = components["schemas"]["BlockingFrameRef"];
 export type UnattributedBlockingData = components["schemas"]["UnattributedBlockingResponse"];
 export type UnattributedStall = components["schemas"]["UnattributedStall"];
 

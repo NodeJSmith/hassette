@@ -104,19 +104,28 @@ def handler_ref(row: Mapping[str, Any]) -> BlockingHandlerRef | None:
     return None
 
 
-def classifier_for_apps(app_dirs: Mapping[str, PurePath]) -> Callable[[str | None], FrameClassifier]:
+def all_apps_classifier(app_dirs: Mapping[str, PurePath]) -> FrameClassifier:
+    """A classifier treating every configured app directory as user code, for stacks no app owns."""
+    return FrameClassifier.for_current_interpreter(sorted(set(app_dirs.values())))
+
+
+def classifier_for_apps(app_dirs: Mapping[str, PurePath]) -> Callable[[str], FrameClassifier]:
     """Build a lookup from app key to that app's classifier.
 
-    An app missing from the current config (removed since its rows were written), and the
-    unattributed case (``None``), get a classifier over every configured app directory.
+    An app missing from the current config (removed since its rows were written) gets
+    ``all_apps_classifier``.
     """
-    union = FrameClassifier.for_current_interpreter(sorted(set(app_dirs.values())))
-    per_app = {key: FrameClassifier.for_current_interpreter([d]) for key, d in app_dirs.items()}
-    return lambda app_key: per_app.get(app_key, union) if app_key is not None else union
+    fallback = all_apps_classifier(app_dirs)
+    per_app = {key: FrameClassifier.for_current_interpreter([app_dir]) for key, app_dir in app_dirs.items()}
+
+    def classifier_for(app_key: str) -> FrameClassifier:
+        return per_app.get(app_key, fallback)
+
+    return classifier_for
 
 
 def group_findings(
-    groups: Iterable[Mapping[str, Any]], classifier_for: Callable[[str | None], FrameClassifier]
+    groups: Iterable[Mapping[str, Any]], classifier_for: Callable[[str], FrameClassifier]
 ) -> list[BlockingFinding]:
     """Merge per-stack event groups (most recently seen first) into findings, most recently seen first.
 
