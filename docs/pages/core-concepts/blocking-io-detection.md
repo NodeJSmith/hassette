@@ -30,7 +30,7 @@ Tier 2 emits this warning *before* the blocking call runs. On its own the call s
 
 Every detection is also recorded in the telemetry database. The web UI and CLI read those records back, so a blocking call stays findable long after its warning scrolled out of the logs.
 
-**On the app's overview.** When an app blocked the loop in the selected time window, its Overview tab shows a **blocking calls** section with one entry per line of app code to fix:
+**On the app's overview.** When an app blocked the loop in the selected time window, its Overview tab shows a **blocking calls** section with one entry per line of app code to fix. For a multi-instance app, the app-wide overview lists call sites from every instance and names the instances that hit each one. Each instance's own overview counts only that instance's events.
 
 ![Blocking calls on an app's overview](../../_static/web_ui_blocking_findings.png)
 

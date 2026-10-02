@@ -24,11 +24,11 @@ BLOCKING_GROUP_LIMIT = 1000
 # Most recent unattributed stalls listed individually on the diagnostics page.
 RECENT_UNATTRIBUTED_LIMIT = 20
 
-# One row per distinct stack and handler. Grouping runs in SQL so counts and stall stats are exact;
+# One row per distinct stack, handler, and instance. Grouping runs in SQL so counts and stall stats are exact;
 # Python then classifies each distinct stack once and merges groups that share a call site. The
 # GROUP BY lists every non-aggregated SELECT column; keep the two in step.
 _FINDING_GROUPS_QUERY = """
-    SELECT be.app_key, be.tier, be.primitive, be.frames,
+    SELECT be.app_key, be.instance_index, be.instance_name, be.tier, be.primitive, be.frames,
            e.listener_id, e.job_id,
            l.name AS listener_name, l.handler_method AS listener_method,
            sj.job_name, sj.handler_method AS job_method,
@@ -43,7 +43,7 @@ _FINDING_GROUPS_QUERY = """
     LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id
     WHERE be.source_tier = 'app'
     {filters}
-    GROUP BY be.app_key, be.tier, be.primitive, be.frames,
+    GROUP BY be.app_key, be.instance_index, be.instance_name, be.tier, be.primitive, be.frames,
              e.listener_id, e.job_id, l.name, l.handler_method, sj.job_name, sj.handler_method
     -- MAX(be.id) breaks last-seen ties so the order, and so each finding's latest stack, is stable.
     ORDER BY last_seen_ts DESC, MAX(be.id) DESC
@@ -82,7 +82,8 @@ class BlockingQueriesMixin:
 
         Args:
             app_key: Restrict to this app, or ``None`` for every app.
-            instance_index: Restrict to this instance, or ``None`` for every instance.
+            instance_index: Restrict to this instance, or ``None`` for every instance (one finding per
+                call site, listing the instances it came from).
             since: Only events detected at or after this Unix epoch time; ``None`` for all time.
         """
         filters = ""

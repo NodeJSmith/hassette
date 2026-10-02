@@ -81,9 +81,10 @@ export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | n
     { signal },
   );
 
+/** Omit `instanceIndex` for findings across every instance (the multi-instance parent overview). */
 export const getAppBlockingFindings = (
   appKey: string,
-  instanceIndex = 0,
+  instanceIndex: number | undefined,
   since?: number | null,
   signal?: AbortSignal,
 ) =>

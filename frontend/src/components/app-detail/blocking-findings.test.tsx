@@ -6,7 +6,7 @@ import type { components } from "../../api/generated-types";
 import { createBlockingFinding, createFrameRef } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
-import { BlockingFindingsSection } from "./blocking-findings";
+import { BlockingFindingsSection, type BlockingScope } from "./blocking-findings";
 
 type BlockingFindingsResponse = components["schemas"]["BlockingFindingsResponse"];
 type BlockingFinding = components["schemas"]["BlockingFinding"];
@@ -24,11 +24,15 @@ function serveFindings(findings: BlockingFinding[], truncated = false) {
   return seen;
 }
 
-function renderSection(instanceQs = "") {
-  return renderWithAppState(
-    <BlockingFindingsSection appKey={APP_KEY} resolvedInstanceIndex={2} instanceQs={instanceQs} />,
-    { storeOverrides: { uptimeSeconds: 120 } },
-  );
+/** Renders instance 2's section, linking with `linkInstance`, unless `acrossInstances` is set. */
+function renderSection({
+  linkInstance,
+  acrossInstances = false,
+}: { linkInstance?: number; acrossInstances?: boolean } = {}) {
+  const scope: BlockingScope = acrossInstances ? { kind: "app" } : { kind: "instance", index: 2, linkInstance };
+  return renderWithAppState(<BlockingFindingsSection appKey={APP_KEY} scope={scope} />, {
+    storeOverrides: { uptimeSeconds: 120 },
+  });
 }
 
 describe("BlockingFindingsSection", () => {
@@ -54,7 +58,7 @@ describe("BlockingFindingsSection", () => {
 
   it("shows the call site, what it calls into, the handlers, and the stats", async () => {
     serveFindings([createBlockingFinding({ app_key: APP_KEY })]);
-    const { findByTestId, getByRole } = renderSection("?instance=2");
+    const { findByTestId, getByRole } = renderSection({ linkInstance: 2 });
     const entry = await findByTestId("overview-blocking-finding-0");
 
     expect(entry.textContent).toContain("calendar_service.py:98 in get_calendar_events");
@@ -100,6 +104,37 @@ describe("BlockingFindingsSection", () => {
     expect(text).toContain("calls socket.connect");
     expect(text).toContain("at requests/api.py:10 in get");
     expect(text).not.toContain("up to");
+  });
+
+  it("across instances, requests every instance and names each finding's instances", async () => {
+    const seen = serveFindings([
+      createBlockingFinding({
+        handlers: [
+          { kind: "listener", id: 3, name: "refresh", handler_method: "refresh", instance_index: 0 },
+          { kind: "listener", id: 8, name: "refresh", handler_method: "refresh", instance_index: 1 },
+        ],
+        instances: [
+          { index: 0, name: "bedroom" },
+          { index: 1, name: "office" },
+        ],
+      }),
+    ]);
+    const { findByTestId, getByTestId, getAllByRole } = renderSection({ acrossInstances: true });
+    const entry = await findByTestId("overview-blocking-finding-0");
+
+    expect(seen[0]?.searchParams.has("instance_index")).toBe(false);
+    expect(getByTestId("overview-blocking-findings").textContent).toContain("blocking calls · all instances");
+    expect(getByTestId("overview-blocking-finding-0-instances").textContent).toBe("on bedroom, office");
+    expect(entry.textContent).toContain("refresh (bedroom), refresh (office)");
+    const links = getAllByRole("link", { name: "refresh" }) as HTMLAnchorElement[];
+    expect(links.map((a) => new URL(a.href).search)).toEqual(["?instance=0", "?instance=1"]);
+  });
+
+  it("on one instance's page, doesn't tag instances", async () => {
+    serveFindings([createBlockingFinding()]);
+    const { findByTestId, queryByTestId } = renderSection({ linkInstance: 2 });
+    await findByTestId("overview-blocking-finding-0");
+    expect(queryByTestId("overview-blocking-finding-0-instances")).toBeNull();
   });
 
   it("warns that older call sites may be missing when the server truncated", async () => {

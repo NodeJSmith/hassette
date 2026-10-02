@@ -540,7 +540,10 @@ export interface paths {
         };
         /**
          * App Blocking Findings
-         * @description Blocking-IO findings for one app instance: attributed events grouped by app call site.
+         * @description Blocking-IO findings for one app: attributed events grouped by app call site.
+         *
+         *     Without ``instance_index``, findings cover every instance, which is what the multi-instance
+         *     parent overview shows; with it, only that instance's events are counted.
          */
         get: operations["app_blocking_findings_api_telemetry_app__app_key__blocking_get"];
         put?: never;
@@ -1022,6 +1025,8 @@ export interface components {
             primitive?: string | null;
             /** Handlers */
             handlers: components["schemas"]["BlockingHandlerRef"][];
+            /** Instances */
+            instances: components["schemas"]["BlockingInstanceRef"][];
             /** Event Count */
             event_count: number;
             /** Max Stall Ms */
@@ -1078,6 +1083,18 @@ export interface components {
             name: string;
             /** Handler Method */
             handler_method: string;
+            /** Instance Index */
+            instance_index: number;
+        };
+        /**
+         * BlockingInstanceRef
+         * @description An app instance whose events are part of a finding.
+         */
+        BlockingInstanceRef: {
+            /** Index */
+            index: number;
+            /** Name */
+            name?: string | null;
         };
         /**
          * BootIssueResponse
@@ -2731,8 +2748,8 @@ export interface operations {
     app_blocking_findings_api_telemetry_app__app_key__blocking_get: {
         parameters: {
             query?: {
-                /** @description App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1. */
-                instance_index?: number;
+                /** @description App instance index. Omit for every instance of the app. */
+                instance_index?: number | null;
                 since?: number | null;
             };
             header?: never;

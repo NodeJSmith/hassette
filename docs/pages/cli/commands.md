@@ -333,14 +333,15 @@ Blocking calls that stalled the event loop, grouped by the line of app code to f
 
 ```console
 $ hassette blocking --since 7d
-┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┓
-┃ App              ┃ Call site                         ┃ Calls into                        ┃ Count ┃ Max   ┃ Last seen ┃
-┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━━━━━┩
-│ car_climate      │ calendar_service.py:98 in         │ gcsa/_services/events_service.py  │ 9     │ 534ms │ 2h ago    │
-│                  │ get_calendar_events               │ get_events                        │       │       │           │
-│ garage_proximity │ call site not captured            │                                   │ 1     │ 212ms │ 2d ago    │
-│                  │ (on_phone_arrive)                 │                                   │       │       │           │
-└──────────────────┴───────────────────────────────────┴───────────────────────────────────┴───────┴───────┴───────────┘
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┓
+┃ App              ┃ Instances         ┃ Call site                    ┃ Calls into                   ┃ Count ┃ Max   ┃ Last seen ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━━━━━┩
+│ presence         │ bedroom, office   │ presence.py:44 in refresh    │ requests/api.py get          │ 4     │ 5.0s  │ 30m ago   │
+│ car_climate      │ CarClimate.0      │ calendar_service.py:98 in    │ gcsa/_services/events_servi… │ 9     │ 534ms │ 2h ago    │
+│                  │                   │ get_calendar_events          │ get_events                   │       │       │           │
+│ garage_proximity │ GarageProximity.0 │ call site not captured       │                              │ 1     │ 212ms │ 2d ago    │
+│                  │                   │ (on_phone_arrive)            │                              │       │       │           │
+└──────────────────┴───────────────────┴──────────────────────────────┴──────────────────────────────┴───────┴───────┴───────────┘
 
 Loop stalls credited to no app: 2 (1 displaced, 1 framework)
 ┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -351,7 +352,7 @@ Loop stalls credited to no app: 2 (1 displaced, 1 framework)
 └─────────┴───────────┴───────┴───────────────────────────┘
 ```
 
-With `--app`, only that app's findings are shown, for instance 0 unless `--instance` names another. `--instance` without `--app` exits with a usage error. Counts are exact. When a window holds more distinct stacks than the server reads in one request, a note on stderr says the least recently seen call sites may be missing; narrow `--since` to see them.
+With `--app`, only that app's findings are shown, across all its instances unless `--instance` names one. A call site that several instances hit is one row, and the Instances column names them. `--instance` without `--app` exits with a usage error. Counts are exact. When a window holds more distinct stacks than the server reads in one request, a note on stderr says the least recently seen call sites may be missing; narrow `--since` to see them.
 
 ### Flags
 

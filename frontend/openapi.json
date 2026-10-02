@@ -1374,7 +1374,7 @@
           "telemetry"
         ],
         "summary": "App Blocking Findings",
-        "description": "Blocking-IO findings for one app instance: attributed events grouped by app call site.",
+        "description": "Blocking-IO findings for one app: attributed events grouped by app call site.\n\nWithout ``instance_index``, findings cover every instance, which is what the multi-instance\nparent overview shows; with it, only that instance's events are counted.",
         "operationId": "app_blocking_findings_api_telemetry_app__app_key__blocking_get",
         "parameters": [
           {
@@ -1393,12 +1393,18 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "integer",
-              "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.",
-              "default": 0,
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "App instance index. Omit for every instance of the app.",
               "title": "Instance Index"
             },
-            "description": "App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1."
+            "description": "App instance index. Omit for every instance of the app."
           },
           {
             "name": "since",
@@ -2606,6 +2612,13 @@
             "type": "array",
             "title": "Handlers"
           },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/BlockingInstanceRef"
+            },
+            "type": "array",
+            "title": "Instances"
+          },
           "event_count": {
             "type": "integer",
             "title": "Event Count"
@@ -2651,6 +2664,7 @@
           "call_site",
           "call_site_is_user_code",
           "handlers",
+          "instances",
           "event_count",
           "last_seen_ts",
           "latest_stack"
@@ -2741,6 +2755,10 @@
           "handler_method": {
             "type": "string",
             "title": "Handler Method"
+          },
+          "instance_index": {
+            "type": "integer",
+            "title": "Instance Index"
           }
         },
         "type": "object",
@@ -2748,10 +2766,36 @@
           "kind",
           "id",
           "name",
-          "handler_method"
+          "handler_method",
+          "instance_index"
         ],
         "title": "BlockingHandlerRef",
         "description": "A handler or job whose execution reached a blocking call site."
+      },
+      "BlockingInstanceRef": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index"
+        ],
+        "title": "BlockingInstanceRef",
+        "description": "An app instance whose events are part of a finding."
       },
       "BootIssueResponse": {
         "properties": {

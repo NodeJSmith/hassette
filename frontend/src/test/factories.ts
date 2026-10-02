@@ -61,7 +61,10 @@ export function createBlockingFinding(overrides: Partial<BlockingFinding> = {}):
       display_path: "gcsa/events.py",
     }),
     primitive: null,
-    handlers: [{ kind: "job", id: 7, name: "scan_and_schedule", handler_method: "scan_and_schedule" }],
+    handlers: [
+      { kind: "job", id: 7, name: "scan_and_schedule", handler_method: "scan_and_schedule", instance_index: 0 },
+    ],
+    instances: [{ index: 0, name: "CarClimate.0" }],
     event_count: 9,
     max_stall_ms: 534,
     avg_stall_ms: 300,

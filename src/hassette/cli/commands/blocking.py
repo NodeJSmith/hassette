@@ -37,6 +37,10 @@ def fmt_calls_into(finding: BlockingFinding) -> str:
     return ""
 
 
+def fmt_instances(finding: BlockingFinding) -> str:
+    return ", ".join(inst.name or f"instance {inst.index}" for inst in finding.instances)
+
+
 def fmt_app_frame(stall: UnattributedStall) -> str:
     frame = stall.app_frame
     return f"{frame.display_path}:{frame.lineno} in {frame.function}" if frame is not None else ""
@@ -44,6 +48,7 @@ def fmt_app_frame(stall: UnattributedStall) -> str:
 
 FINDING_COLUMNS: list[Column] = [
     Column("app_key", "App"),
+    Column("instances", "Instances", max_width=24, row_formatter=fmt_instances),
     Column("call_site", "Call site", max_width=44, row_formatter=fmt_call_site),
     Column("callee", "Calls into", max_width=36, row_formatter=fmt_calls_into),
     Column("event_count", "Count"),

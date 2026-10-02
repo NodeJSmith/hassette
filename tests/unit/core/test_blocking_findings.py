@@ -31,6 +31,8 @@ def event(**overrides: Any) -> dict[str, Any]:
     """One ``blocking_events`` row with its handler columns; ``stack`` is encoded into ``frames``."""
     base: dict[str, Any] = {
         "app_key": "car_climate",
+        "instance_index": 0,
+        "instance_name": "CarClimate.0",
         "tier": "watchdog",
         "primitive": None,
         "stall_duration_ms": 100.0,

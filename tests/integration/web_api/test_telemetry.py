@@ -257,7 +257,7 @@ class TestTelemetryBlocking:
     @pytest.mark.parametrize(
         ("path", "expected"),
         [
-            ("/api/telemetry/app/my_app/blocking", {"app_key": "my_app", "instance_index": 0, "since": None}),
+            ("/api/telemetry/app/my_app/blocking", {"app_key": "my_app", "instance_index": None, "since": None}),
             (
                 "/api/telemetry/app/my_app/blocking?instance_index=2&since=1700000000.0",
                 {"app_key": "my_app", "instance_index": 2, "since": pytest.approx(1700000000.0)},

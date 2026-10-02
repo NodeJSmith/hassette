@@ -23,7 +23,8 @@ export const queryKeys = {
     prefix: (appKey: string) => ["app-jobs", appKey] as const,
   },
   appBlocking: {
-    base: (appKey: string, idx: number) => ["app-blocking", appKey, idx] as const,
+    // `undefined` is every instance (the multi-instance parent overview), keyed apart from any index.
+    base: (appKey: string, idx: number | undefined) => ["app-blocking", appKey, idx ?? "all"] as const,
     prefix: (appKey: string) => ["app-blocking", appKey] as const,
   },
   unattributedBlocking: () => ["unattributed-blocking"] as const,

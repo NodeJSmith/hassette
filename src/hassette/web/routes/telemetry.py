@@ -31,8 +31,8 @@ from hassette.schemas.summary_models import AppHealthSummary
 from hassette.web.dependencies import (
     AppKeyPath,
     HassetteDep,
-    InstanceIndexQuery,
     LimitQuery,
+    OptionalInstanceIndexQuery,
     RuntimeDep,
     SchedulerDep,
     SinceQuery,
@@ -225,10 +225,14 @@ async def app_blocking_findings(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
     response: Response,
-    instance_index: InstanceIndexQuery = 0,
+    instance_index: OptionalInstanceIndexQuery = None,
     since: SinceQuery = None,
 ) -> BlockingFindingsResponse:
-    """Blocking-IO findings for one app instance: attributed events grouped by app call site."""
+    """Blocking-IO findings for one app: attributed events grouped by app call site.
+
+    Without ``instance_index``, findings cover every instance, which is what the multi-instance
+    parent overview shows; with it, only that instance's events are counted.
+    """
     result = BlockingFindingsResponse(findings=[])
     with db_degrades_to(response):
         result = await telemetry.get_blocking_findings(app_key=app_key, instance_index=instance_index, since=since)

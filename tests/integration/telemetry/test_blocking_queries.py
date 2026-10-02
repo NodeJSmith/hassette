@@ -104,6 +104,25 @@ class TestBlockingFindings:
 
         assert [(f.app_key, f.event_count) for f in result.findings] == [("my_app", 1)]
 
+    async def test_every_instance_merges_one_call_site_and_names_the_instances(
+        self, query_service: TelemetryQueryService, db: DbFixture
+    ) -> None:
+        """The multi-instance parent overview: one finding per call site, listing each instance it came from."""
+        db_svc, session_id = db
+        listener_id = await insert_listener(db_svc, app_key="my_app", name="refresh", handler_method="refresh")
+        await tag_execution(db_svc, await insert_invocation(db_svc, listener_id, session_id), "exec-1")
+        await insert_event(db_svc, instance_index=1, instance_name="office", execution_id="exec-1", detected_ts=2000.0)
+        await insert_event(db_svc, instance_index=0, instance_name="bedroom", detected_ts=1000.0)
+
+        merged = await query_service.get_blocking_findings(app_key="my_app", instance_index=None, since=None)
+        one = await query_service.get_blocking_findings(app_key="my_app", instance_index=0, since=None)
+
+        [finding] = merged.findings
+        assert finding.event_count == 2
+        assert [(i.index, i.name) for i in finding.instances] == [(0, "bedroom"), (1, "office")]
+        assert [(h.id, h.instance_index) for h in finding.handlers] == [(listener_id, 1)]
+        assert [(f.event_count, [i.index for i in f.instances]) for f in one.findings] == [(1, [0])]
+
     async def test_all_apps_query_spans_apps_and_instances(
         self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:

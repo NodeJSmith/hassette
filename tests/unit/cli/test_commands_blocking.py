@@ -7,6 +7,7 @@ from hassette_wire import (
     BlockingFinding,
     BlockingFrameRef,
     BlockingHandlerRef,
+    BlockingInstanceRef,
     UnattributedBlockingResponse,
     UnattributedStall,
 )
@@ -40,7 +41,10 @@ def finding(**overrides: Any) -> dict[str, Any]:
         call_site=frame_ref("calendar_service.py", 98, "get_calendar_events"),
         call_site_is_user_code=True,
         callee=frame_ref("gcsa/events.py", 5, "get_events"),
-        handlers=[BlockingHandlerRef(kind="job", id=7, name="scan_and_schedule", handler_method="scan")],
+        handlers=[
+            BlockingHandlerRef(kind="job", id=7, name="scan_and_schedule", handler_method="scan", instance_index=0)
+        ],
+        instances=[BlockingInstanceRef(index=0, name="CarClimate.0")],
         event_count=9,
         max_stall_ms=534.0,
         avg_stall_ms=300.0,
@@ -76,6 +80,12 @@ class TestPerApp:
         assert "gcsa/events.py get_events" in output
         assert "534ms" in output
         assert "2m ago" in output
+        assert "CarClimate.0" in output
+
+    def test_without_instance_requests_every_instance(self, client: HassetteCLIClient) -> None:
+        spy = runner.spy(client, cmd_blocking, app="car_climate")
+
+        assert "instance_index" not in spy.params_for("car_climate/blocking")
 
     def test_json_mode_outputs_findings_array(self, cli_client_factory: CLIClientFactory) -> None:
         client = cli_client_factory.build_with_routes(

@@ -39,6 +39,8 @@ Click any app row to open the App Detail view. The detail view shows health indi
 
 Apps with multiple instances show a parent row with a chevron and an instance count badge (e.g., "2 instances"). Click the chevron to expand into individual instance rows. Each instance row shows its own status dot, badge, last error, and action buttons — Start, Stop, and Reload here target just that instance, not the whole app. Click an instance name to open that instance's detail view, where the header's action buttons target the same single instance.
 
+Clicking the app's own name opens its app-wide overview instead: a card per instance with its status, plus anything that spans instances, such as [blocking calls](../core-concepts/blocking-io-detection.md#finding-blocking-calls) from every instance. Click a card to open that instance's detail view.
+
 ![An expanded instance row with its own action buttons](../../_static/web_ui_instance_action_buttons.png)
 
 The REST API exposes the per-instance start, stop, and reload endpoints backing these buttons (see [Start, Stop, and Reload](#start-stop-and-reload) below) — a sibling instance keeps running untouched when one instance restarts. A config change to just one instance in `hassette.toml` already triggers a selective reload automatically: Hassette restarts only the instance whose config changed, not the whole app. Adding or removing an instance falls back to a full app restart, since the instance list itself changed. See [Passing Configuration](../core-concepts/apps/configuration.md#multiple-instances) for the config side of this behavior.

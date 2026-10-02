@@ -21,7 +21,7 @@ import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "../utils/statu
 
 /** Links to the app's overview, where its blocking findings are listed. */
 function BlockingBadge({ appKey, count }: { appKey: string; count: number }) {
-  const label = `${count} blocking ${count === 1 ? "call" : "calls"} stalled the event loop in this time window`;
+  const label = `${count} blocking ${count === 1 ? "event" : "events"} stalled the event loop in this time window`;
   return (
     <Badge asChild variant="warning" size="sm" className="ml-1">
       <Link href={appDetailPath(appKey, "overview")} title={label} aria-label={label} data-testid="blocking-badge">

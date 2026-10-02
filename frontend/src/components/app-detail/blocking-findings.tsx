@@ -7,12 +7,23 @@ import { isExecutionDefined, useAppExecution } from "../../hooks/use-scoped-exec
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { useAppStore } from "../../state/store";
-import { handlerPath, parseInstanceParam } from "../../utils/app-routes";
+import { handlerPath } from "../../utils/app-routes";
 import { formatDuration, formatRelativeTime, pluralize } from "../../utils/format";
 import { frameLabel, StackDisclosure } from "../shared/stack-frames";
 import { OVERVIEW_SECTION_CLASS, SECTION_LABEL_CLASS } from "./overview-section";
 
 const META_CLASS = "text-sm text-foreground-secondary";
+
+/**
+ * Which findings a section shows. `app` is the multi-instance parent overview: every instance, each
+ * finding naming its instances. `instance` is one instance's overview; `linkInstance` is the page's
+ * `?instance=` value carried onto handler links (absent on a single-instance app's page).
+ */
+export type BlockingScope = { kind: "app" } | { kind: "instance"; index: number; linkInstance: number | undefined };
+
+function instanceLabel(inst: BlockingFinding["instances"][number]): string {
+  return inst.name ?? `instance ${inst.index}`;
+}
 
 /** The headline: where to look. A library call site names its package rather than posing as the fix. */
 function callSiteText(finding: BlockingFinding): string {
@@ -29,7 +40,10 @@ function callsIntoText(finding: BlockingFinding): string | null {
   return null;
 }
 
-/** React key for a finding: unique within one app's findings, built from the fields that separate them. */
+/**
+ * React key for a finding: unique within one response. Instance is not part of it because the
+ * server merges each call site across instances, and handler ids are already per instance.
+ */
 function findingKey(finding: BlockingFinding): string {
   const site = finding.call_site;
   const where = site ? `${site.filename}:${site.lineno}` : finding.handlers.map((h) => `${h.kind}-${h.id}`).join(",");
@@ -47,11 +61,16 @@ function statsText(finding: BlockingFinding): string {
 interface FindingProps {
   finding: BlockingFinding;
   appKey: string;
-  instanceIndex: number | undefined;
+  scope: BlockingScope;
   testId: string;
 }
 
-function FindingEntry({ finding, appKey, instanceIndex, testId }: FindingProps) {
+function FindingEntry({ finding, appKey, scope, testId }: FindingProps) {
+  const acrossInstances = scope.kind === "app";
+  const instanceName = (index: number) => {
+    const inst = finding.instances.find((i) => i.index === index);
+    return inst ? instanceLabel(inst) : `instance ${index}`;
+  };
   const callsInto = callsIntoText(finding);
   const libraryLocation = finding.call_site && !finding.call_site_is_user_code ? frameLabel(finding.call_site) : null;
 
@@ -82,13 +101,21 @@ function FindingEntry({ finding, appKey, instanceIndex, testId }: FindingProps) 
             <span key={`${h.kind}-${h.id}`}>
               {i > 0 && ", "}
               <Link
-                href={handlerPath(appKey, h.kind, h.id, { instance: instanceIndex })}
+                href={handlerPath(appKey, h.kind, h.id, {
+                  instance: scope.kind === "app" ? h.instance_index : scope.linkInstance,
+                })}
                 className="font-mono text-primary hover:underline"
               >
                 {h.name}
               </Link>
+              {acrossInstances && ` (${instanceName(h.instance_index)})`}
             </span>
           ))}
+        </div>
+      )}
+      {acrossInstances && (
+        <div className={META_CLASS} data-testid={`${testId}-instances`}>
+          on {finding.instances.map(instanceLabel).join(", ")}
         </div>
       )}
       <div className={META_CLASS}>{statsText(finding)}</div>
@@ -99,8 +126,7 @@ function FindingEntry({ finding, appKey, instanceIndex, testId }: FindingProps) 
 
 interface Props {
   appKey: string;
-  resolvedInstanceIndex: number;
-  instanceQs: string;
+  scope: BlockingScope;
 }
 
 /**
@@ -109,10 +135,10 @@ interface Props {
  * Renders nothing while loading, on a failed fetch, and when there are no findings: an empty
  * result claims nothing, since detection is best-effort.
  */
-export function BlockingFindingsSection({ appKey, resolvedInstanceIndex, instanceQs }: Props) {
-  const instanceIndex = parseInstanceParam(new URLSearchParams(instanceQs).get("instance"));
-  const { data } = useScopedQuery(queryKeys.appBlocking.base(appKey, resolvedInstanceIndex), (since, signal) =>
-    getAppBlockingFindings(appKey, resolvedInstanceIndex, since, signal),
+export function BlockingFindingsSection({ appKey, scope }: Props) {
+  const instanceIndex = scope.kind === "instance" ? scope.index : undefined;
+  const { data } = useScopedQuery(queryKeys.appBlocking.base(appKey, instanceIndex), (since, signal) =>
+    getAppBlockingFindings(appKey, instanceIndex, since, signal),
   );
   // A blocking event is always produced by an execution, so refetch when one completes.
   const execution = useAppExecution(appKey);
@@ -125,7 +151,7 @@ export function BlockingFindingsSection({ appKey, resolvedInstanceIndex, instanc
 
   return (
     <section className={OVERVIEW_SECTION_CLASS} data-testid="overview-blocking-findings">
-      <h3 className={SECTION_LABEL_CLASS}>blocking calls</h3>
+      <h3 className={SECTION_LABEL_CLASS}>blocking calls{scope.kind === "app" && " · all instances"}</h3>
       <p className={META_CLASS}>
         these calls froze the event loop, delaying every other handler and timer. move them off the loop with{" "}
         <code className="font-mono">asyncio.to_thread</code>.
@@ -135,7 +161,7 @@ export function BlockingFindingsSection({ appKey, resolvedInstanceIndex, instanc
           key={findingKey(finding)}
           finding={finding}
           appKey={appKey}
-          instanceIndex={instanceIndex}
+          scope={scope}
           testId={`overview-blocking-finding-${i}`}
         />
       ))}

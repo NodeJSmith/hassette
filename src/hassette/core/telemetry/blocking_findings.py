@@ -16,6 +16,7 @@ from hassette_wire import (
     BlockingFinding,
     BlockingFrameRef,
     BlockingHandlerRef,
+    BlockingInstanceRef,
     BlockingTier,
     StackFrame,
     UnattributedBlockingResponse,
@@ -39,6 +40,7 @@ class _FindingBuilder:
     last_seen_ts: float
     latest_stack: list[StackFrame]
     handlers: dict[tuple[str, int], BlockingHandlerRef] = field(default_factory=dict)
+    instances: dict[int, BlockingInstanceRef] = field(default_factory=dict)
     event_count: int = 0
     max_stall_ms: float | None = None
     stall_sum_ms: float = 0.0
@@ -56,6 +58,8 @@ class _FindingBuilder:
         handler = handler_ref(group)
         if handler is not None:
             self.handlers.setdefault((handler.kind, handler.id), handler)
+        index = group["instance_index"]
+        self.instances.setdefault(index, BlockingInstanceRef(index=index, name=group["instance_name"]))
 
     def build(self) -> BlockingFinding:
         return BlockingFinding(
@@ -67,6 +71,7 @@ class _FindingBuilder:
             callee=self.callee,
             primitive=self.primitive,
             handlers=list(self.handlers.values()),
+            instances=sorted(self.instances.values(), key=lambda inst: inst.index),
             event_count=self.event_count,
             max_stall_ms=self.max_stall_ms,
             avg_stall_ms=self.stall_sum_ms / self.stall_count if self.stall_count else None,
@@ -79,10 +84,20 @@ def handler_ref(row: Mapping[str, Any]) -> BlockingHandlerRef | None:
     """The listener or job whose execution produced ``row``, or ``None`` when it didn't resolve."""
     if row["listener_id"] is not None and row["listener_name"] is not None:
         return BlockingHandlerRef(
-            kind="listener", id=row["listener_id"], name=row["listener_name"], handler_method=row["listener_method"]
+            kind="listener",
+            id=row["listener_id"],
+            name=row["listener_name"],
+            handler_method=row["listener_method"],
+            instance_index=row["instance_index"],
         )
     if row["job_id"] is not None and row["job_name"] is not None:
-        return BlockingHandlerRef(kind="job", id=row["job_id"], name=row["job_name"], handler_method=row["job_method"])
+        return BlockingHandlerRef(
+            kind="job",
+            id=row["job_id"],
+            name=row["job_name"],
+            handler_method=row["job_method"],
+            instance_index=row["instance_index"],
+        )
     return None
 
 

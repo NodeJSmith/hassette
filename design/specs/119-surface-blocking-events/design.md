@@ -75,7 +75,7 @@ The classifier lives with the frame model (D14), not in `app_utils.py`. It does 
 | New wire surface | 2 routes + 1 grid field | 1 route + `app_dir` on the manifest (not exposed today; `wire/src/hassette_wire/apps.py` has only `filename`) |
 
 **Recommendation:** A, because it's one implementation shared with the CLI, and D2's classifier depends on server interpreter state. Shape:
-- `GET /api/telemetry/app/{app_key}/blocking` → `list[BlockingFinding]`, taking `TelemetryFiltersDep` (instance_index, since). Category A `db_degrades_to`.
+- `GET /api/telemetry/app/{app_key}/blocking` → `list[BlockingFinding]`, taking `TelemetryFiltersDep` (instance_index, since). Category A `db_degrades_to`. (Changed during the build; see the Build section: optional `instance_index`, omitted = every instance.)
 - `GET /api/telemetry/blocking/unattributed` → the diagnostics payload (D8), taking `since`. Category A.
 - `GET /api/telemetry/blocking/findings` → findings for every app, taking `since`; used by the CLI without `--app` (D11). Category A.
 - `DashboardAppGridEntry` gains a `blocking_event_count` field, filled by a new enrichment query in `dashboard_app_grid` as a category-C site (failure → 0, response stays 200). This is a known blind spot under D13: a full DB outage still surfaces, because the manifest fetch 503s (`src/hassette/web/routes/telemetry.py:301`), but a failure of only this query reads as zero.
@@ -302,7 +302,7 @@ Collapsed decision. Include it: `hassette blocking` is a thin command over the t
 - Stdlib display matches any versioned `pythonX.Y` directory under an interpreter prefix: rows recorded by an older image still read as `stdlib/...`.
 - Seed scenarios' `_BLOCKING_EVENT_COLUMNS`/`add_blocking_event` gained a `frames` column (default NULL): the schema-parity test requires it; no scenario data changed.
 - New wire list fields have no defaults: defaulted lists generate optional TS fields, and these are always populated.
-- `hassette blocking --app X` without `--instance` uses the route's default instance 0, consistent with `hassette app health`.
+- `hassette blocking --app X` without `--instance` covers every instance. A multi-instance app's page with no instance selected is an app-wide overview (`MultiInstanceOverview`), not instance 0, so the per-app route's `instance_index` is optional: omitted, findings merge each call site across instances and list them in `instances`; given, only that instance's events count. Handler refs carry their own `instance_index` so links from the merged view land on the right instance.
 - Expanded stacks render outermost-first via the existing `TracebackLines`, matching Python traceback order elsewhere in the UI. Diagnostics lists the 20 most recent stalls (`RECENT_UNATTRIBUTED_LIMIT`).
 - The demo app uses two scheduled jobs (no HA entities needed) calling a `time.sleep` helper, so in dev mode both tiers record it.
 

@@ -103,7 +103,7 @@ describe("AppTableRow", () => {
     const badge = getByTestId("blocking-badge");
     expect(badge.textContent).toBe("9 blocking");
     expect((badge as HTMLAnchorElement).href).toContain("/apps/car_climate/overview");
-    expect(badge.getAttribute("aria-label")).toBe("9 blocking calls stalled the event loop in this time window");
+    expect(badge.getAttribute("aria-label")).toBe("9 blocking events stalled the event loop in this time window");
   });
 
   it("shows no blocking badge for an app with no blocking events", () => {
