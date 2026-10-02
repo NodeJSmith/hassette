@@ -117,6 +117,12 @@ def test_branch_scoped_filename_with_parentheses_is_flagged() -> None:
     assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
 
 
+def test_protocol_relative_branch_scoped_url_is_flagged() -> None:
+    body = '## Screenshots\n\n<img src="//raw.githubusercontent.com/o/r/main/docs/x.png">'
+    assert branch_scoped_raw_prefixes(body) == ["//raw.githubusercontent.com/o/r/main/"]
+    assert has_visual_evidence(body, ["frontend/src/App.tsx"], []) is False
+
+
 def test_branch_scoped_non_image_raw_link_is_flagged() -> None:
     body = f"![after]({SHA_URL})\nConfig: {RAW_BASE}/main/mkdocs.yml"
     assert branch_scoped_raw_prefixes(body) == [f"{RAW_BASE}/main/"]
