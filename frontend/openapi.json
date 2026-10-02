@@ -153,12 +153,51 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -195,15 +234,65 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
+            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "x-problem-codes": [
+              "bootstrap_not_released",
+              "app_blocked"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -240,12 +329,51 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -282,15 +410,65 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
+            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "x-problem-codes": [
+              "bootstrap_not_released",
+              "app_blocked"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -336,18 +514,66 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "App is unknown, or instance index is out of range for the app's current config"
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
+            "x-problem-codes": [
+              "app_not_found",
+              "instance_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
+            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "x-problem-codes": [
+              "bootstrap_not_released",
+              "app_blocked"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -393,15 +619,52 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "App is unknown, or instance index is out of range for the app's current config"
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
+            "x-problem-codes": [
+              "app_not_found",
+              "instance_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -447,18 +710,66 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "App is unknown, or instance index is out of range for the app's current config"
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
+            "x-problem-codes": [
+              "app_not_found",
+              "instance_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
+            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "x-problem-codes": [
+              "bootstrap_not_released",
+              "app_blocked"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -496,12 +807,38 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -539,12 +876,65 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`path_traversal`: the app's source path resolves outside its app directory",
+            "x-problem-codes": [
+              "path_traversal"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured; `source_not_found`: the app's source file does not exist",
+            "x-problem-codes": [
+              "app_not_found",
+              "source_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`source_unavailable`: the app's source file could not be read",
+            "x-problem-codes": [
+              "source_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -582,14 +972,24 @@
             }
           },
           "401": {
-            "description": "Invalid token"
+            "description": "`invalid_token`: the token is wrong",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "x-problem-codes": [
+              "invalid_token"
+            ]
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -719,9 +1119,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -761,9 +1161,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -816,9 +1216,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -914,9 +1314,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1058,9 +1458,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1152,9 +1552,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1264,9 +1664,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1358,9 +1758,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1446,9 +1846,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1521,9 +1921,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1596,9 +1996,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1647,9 +2047,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1697,9 +2097,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1768,9 +2168,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1809,14 +2209,24 @@
             }
           },
           "409": {
-            "description": "Job is not currently registered (no live registration)"
+            "description": "`job_not_registered`: the job has no live registration",
+            "x-problem-codes": [
+              "job_not_registered"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -2845,19 +3255,6 @@
         "title": "ExecutionStatus",
         "description": "Status values for handler invocations and job executions.\n\nMust stay in sync with the ``executions.status`` CHECK constraint."
       },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
-      },
       "JobSummary": {
         "properties": {
           "job_id": {
@@ -3755,6 +4152,70 @@
         "title": "ManifestStatus",
         "description": "Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``)."
       },
+      "ProblemCode": {
+        "type": "string",
+        "enum": [
+          "invalid_app_key",
+          "app_not_found",
+          "instance_not_found",
+          "bootstrap_not_released",
+          "app_blocked",
+          "action_failed",
+          "telemetry_unavailable",
+          "source_not_found",
+          "path_traversal",
+          "source_unavailable",
+          "invalid_token",
+          "not_authenticated",
+          "job_not_registered",
+          "validation_failed",
+          "body_too_large",
+          "not_found",
+          "method_not_allowed",
+          "http_error",
+          "internal_error"
+        ],
+        "title": "ProblemCode",
+        "description": "Machine-readable reason carried in the ``code`` member of every web API error body.\n\nEach code maps to exactly one HTTP status, except ``http_error``, which carries whatever\nstatus the underlying error had. Before 1.0, renaming or removing a code, or changing its\nstatus, is a breaking change and is flagged as one; adding a code is not."
+      },
+      "ProblemDetail": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Problem type URI. Always ``about:blank``: ``code`` carries the specific meaning.",
+            "default": "about:blank"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "The HTTP reason phrase for ``status``."
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status",
+            "description": "The HTTP status code of the response."
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "Human-readable explanation of this occurrence."
+          },
+          "code": {
+            "$ref": "#/components/schemas/ProblemCode",
+            "description": "Machine-readable reason for the error."
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "status",
+          "detail",
+          "code"
+        ],
+        "title": "ProblemDetail",
+        "description": "RFC 9457 problem details body returned, as ``application/problem+json``, for every web API error."
+      },
       "ReadinessResponse": {
         "properties": {
           "status": {
@@ -3983,46 +4444,6 @@
         ],
         "title": "TelemetryStatusResponse",
         "description": "Health check response for the telemetry database."
-      },
-      "ValidationError": {
-        "properties": {
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Location"
-          },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
-          }
-        },
-        "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError"
       }
     }
   }

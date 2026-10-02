@@ -93,6 +93,7 @@ nav:
       - Inspect Configuration and Code: pages/web-ui/inspect-config-code.md
       - Check Framework Health: pages/web-ui/diagnostics.md
       - Configure Health Checks: pages/web-ui/health-endpoints.md
+      - API Error Responses: pages/web-ui/api-errors.md
   - CLI:
       - Overview: pages/cli/index.md
       - Command Reference: pages/cli/commands.md

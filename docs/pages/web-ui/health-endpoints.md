@@ -48,7 +48,7 @@ The readiness endpoint returns HTTP 200 when the WebSocket connection is active 
 | `degraded` | 503 | `false` |
 | `starting` | 503 | `false` |
 
-Response body: `{"status": "<status>", "ready": <bool>}`.
+Response body: `{"status": "<status>", "ready": <bool>}`. The 503 carries this same body as `application/json`. It is a status report, not an [error response](api-errors.md), so probes read `ready` the same way on both statuses.
 
 This endpoint serves load-balancer traffic routing, holding traffic until the WebSocket connection is live. It is not suitable for restart automation. It returns 503 during any HA outage, which triggers a restart loop.
 

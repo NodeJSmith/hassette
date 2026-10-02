@@ -47,7 +47,14 @@ class TestBodyCeilingInProcess:
         response = await auth_client.post("/api/auth/session", json={"token": _oversized_token()})
 
         assert response.status_code == 413
-        assert response.json() == {"detail": "Request body too large"}
+        assert response.headers["content-type"] == "application/problem+json"
+        assert response.json() == {
+            "type": "about:blank",
+            "title": "Content Too Large",
+            "status": 413,
+            "detail": "Request body too large",
+            "code": "body_too_large",
+        }
 
     async def test_413_advertises_the_ceiling(self, auth_client: AsyncClient) -> None:
         """A rejected client gets the limit back, rather than having to bisect payload sizes."""
