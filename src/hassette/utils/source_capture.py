@@ -90,26 +90,21 @@ def find_caller_frame(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FR
 
     Returns ``("<unknown>", 0)`` when stack walking fails entirely.
     """
-    try:
-        # context=0 (zero source lines per frame) is the cheapest walk. Called here, not in
-        # pick_caller_frame, so the skipped own-frame is this function's.
-        raw_stack = inspect.stack(context=0)
-    except Exception:
+    # +1 skips this function's own frame on top of find_caller_stack_frame's.
+    frame = find_caller_stack_frame(frames_to_skip=frames_to_skip + 1, limit=limit)
+    if frame is None:
         return ("<unknown>", 0)
-    chosen = pick_caller_frame(raw_stack[1 + frames_to_skip :], limit)
-    if chosen is None:
-        return ("<unknown>", 0)
-    filename = getattr(chosen, "filename", "<unknown>") or "<unknown>"
-    lineno: int = getattr(chosen, "lineno", 0) or 0
-    return (filename, lineno)
+    return (frame.filename, frame.lineno)
 
 
 def find_caller_stack_frame(*, frames_to_skip: int = 0, limit: int | None = DEFAULT_FRAME_LIMIT) -> StackFrame | None:
-    """Same walk as ``find_caller_frame``, keeping the frame's function and module.
+    """Walk the stack and return the first non-hassette frame with its function and module.
 
     Returns ``None`` when stack walking fails entirely.
     """
     try:
+        # context=0 (zero source lines per frame) is the cheapest walk. Called here, not in
+        # pick_caller_frame, so the skipped own-frame is this function's.
         raw_stack = inspect.stack(context=0)
     except Exception:
         return None

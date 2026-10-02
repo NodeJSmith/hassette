@@ -360,13 +360,15 @@ def test_source_capture_is_internal_frame_module_name():
 
 
 def _fake_stack_frames():
-    """A 4-frame fake stack: own frame, two hassette internals, then user code."""
+    """A fake stack: the two source_capture walker frames, two hassette internals, then user code."""
+    own_frame = types.SimpleNamespace(
+        filename="<self>",
+        lineno=0,
+        frame=types.SimpleNamespace(f_globals={"__name__": "hassette.utils.source_capture"}),
+    )
     return [
-        types.SimpleNamespace(
-            filename="<self>",
-            lineno=0,
-            frame=types.SimpleNamespace(f_globals={"__name__": "hassette.utils.source_capture"}),
-        ),
+        own_frame,  # find_caller_stack_frame
+        own_frame,  # find_caller_frame
         types.SimpleNamespace(
             filename="/site-packages/hassette/bus/bus.py",
             lineno=350,
@@ -423,7 +425,7 @@ def test_source_capture_limit_applied_after_skip(monkeypatch):
     """
     monkeypatch.setattr(inspect, "stack", lambda *_args, **_kw: _fake_stack_frames())
 
-    # 3 frames remain after the own-frame skip: [bus, await_guard, user].
+    # 3 frames remain after the own-frame skips: [bus, await_guard, user].
     # limit=3 must keep the user frame in the window (a pre-skip slice would drop it).
     source_location, _ = capture_registration_source(limit=3)
     assert source_location == "/home/user/apps/my_automation.py:77"
