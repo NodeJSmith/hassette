@@ -429,7 +429,7 @@ These resolve the Open Questions above. They were made with the user after the b
 
 1. **Enum representation: L1.** Each wire StrEnum gets an `UNKNOWN` member that validates only under the client's lenient context. Mitigations:
    - exclude it from the JSON schema;
-   - reject it at the user-input constructors (`execution_mode.py:61`, `bus/listeners.py:128`);
+   - reject it at every `ExecutionMode` and `BackpressurePolicy` input boundary, whether it arrives as a string or as an enum member. Each enum gets one shared coercion helper that rejects `UNKNOWN`, and every registration path calls it: `resolve_execution_mode` (`execution_mode.py:58`, which also serves the scheduler), `ListenerOptions.__post_init__` (`bus/listeners.py:125-138`), and the backpressure coercion in `bus/bus.py:655-662` (which duplicates the one in `listeners.py`). Today those sites return early on an enum instance. An `UNKNOWN` that got through would fall back silently: `ExecutionModeGuard` treats it as `queued`, and `bus_service.py:454` treats it as `BLOCK`;
    - add a changelog entry for the public-enum change.
 2. **Open Literals on response paths are converted to StrEnums**, so one leniency mechanism covers everything. This needs an addendum to spec 116 §"Literal wire fields".
 3. **Degraded 503s follow convention**, per `design/research/2026-10-02-degraded-503-handling/research.md`.
