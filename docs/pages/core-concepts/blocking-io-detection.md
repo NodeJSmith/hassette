@@ -44,6 +44,8 @@ Each entry shows:
 
 Two other labels can appear in place of a call site. "Detected inside `<package>`" means Tier 2 caught the call inside a library, so the library line isn't presented as the place to fix. The handler that called into the library is further up the stack. "Call site not captured" means no line of app code was found for those events: `capture_stack_on_block` is off, the recorded stack holds no frame from the app's directory, or the events were recorded by an older Hassette version that didn't store stacks in this form. Those events are grouped per handler instead.
 
+With both tiers on (Tier 2 runs by default in `dev_mode`), one blocking call usually produces two entries: a Tier 1 stall at the app line and a Tier 2 entry naming the intercepted primitive. Both point at the same line to fix. The apps-list badge counts events from both tiers, so it also counts that call twice.
+
 **On the apps list.** An app that blocked the loop shows an amber **N blocking** badge next to its status. The badge links to the app's overview.
 
 **On the diagnostics page.** Stalls that Hassette couldn't pin on an app appear in a [loop stalls panel](../web-ui/diagnostics.md#loop-stalls). These are never credited to an app, even when the stack contains app code.
