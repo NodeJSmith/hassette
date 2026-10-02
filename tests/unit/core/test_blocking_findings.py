@@ -30,6 +30,7 @@ def classifier_for(_: str | None) -> FrameClassifier:
 def event(**overrides: Any) -> dict[str, Any]:
     """One ``blocking_events`` row with its handler columns; ``stack`` is encoded into ``frames``."""
     base: dict[str, Any] = {
+        "id": 1,
         "app_key": "car_climate",
         "instance_index": 0,
         "instance_name": "CarClimate.0",
@@ -63,6 +64,7 @@ def group(*, events: int = 1, **overrides: Any) -> dict[str, Any]:
         "stall_sum_ms": None if stall is None else stall * events,
         "stall_count": 0 if stall is None else events,
         "last_seen_ts": row["detected_ts"],
+        "latest_event_id": row["id"],
     }
 
 
@@ -153,6 +155,10 @@ class TestCallSiteNotCaptured:
             ([("job", 2)], 1),
             ([], 1),
         ]
+
+    def test_unreadable_frames_read_as_not_captured(self) -> None:
+        [finding] = group_findings([group(frames="not json", **listener(1, "a"))], classifier_for)
+        assert (finding.call_site, finding.latest_stack) == (None, [])
 
     def test_stack_with_no_user_frame_is_not_captured(self) -> None:
         [finding] = group_findings([group(stack=[SSL, GCSA], **listener(1, "a"))], classifier_for)

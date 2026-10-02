@@ -10,7 +10,6 @@ import re
 import sys
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from logging import getLogger
 from pathlib import PurePath
 from typing import Any
 
@@ -18,8 +17,6 @@ from hassette_wire import BlockingFrameRef, StackFrame
 from pydantic import TypeAdapter, ValidationError
 
 from hassette.utils.source_capture import is_internal_frame
-
-LOGGER = getLogger(__name__)
 
 LIBRARY_DIR_NAMES = frozenset({"site-packages", "dist-packages"})
 # The installed or source-checkout ``hassette`` package directory (this file is hassette/utils/...).
@@ -71,15 +68,17 @@ def encode_frames(frames: Sequence[StackFrame] | None) -> str | None:
     return _FRAMES_ADAPTER.dump_json(list(frames)).decode()
 
 
-def decode_frames(raw: str | None) -> list[StackFrame]:
-    """Parse a ``blocking_events.frames`` value. NULL or an unreadable value yields no frames."""
+def decode_frames(raw: str | None) -> list[StackFrame] | None:
+    """Parse a ``blocking_events.frames`` value: NULL yields no frames, an unreadable value ``None``.
+
+    Callers treat ``None`` as no frames and report the count once per read, not once per row.
+    """
     if raw is None:
         return []
     try:
         return _FRAMES_ADAPTER.validate_json(raw)
     except ValidationError:
-        LOGGER.warning("Unreadable blocking_events.frames value; treating the row as having no frames", exc_info=True)
-        return []
+        return None
 
 
 @dataclass(frozen=True)

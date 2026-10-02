@@ -121,6 +121,18 @@ class TestTopLevelPackage:
 
 
 class TestStorage:
+    def test_decodes_frames_as_stored_by_migration_013(self) -> None:
+        """Literal JSON as rows store it. Failing here means existing rows would no longer decode."""
+        stored = (
+            '[{"filename":"/apps/presence.py","lineno":44,"function":"refresh","module":"presence"},'
+            '{"filename":"<frozen runpy>","lineno":88,"function":"_run_code","module":null}]'
+        )
+
+        assert decode_frames(stored) == [
+            StackFrame(filename="/apps/presence.py", lineno=44, function="refresh", module="presence"),
+            StackFrame(filename="<frozen runpy>", lineno=88, function="_run_code", module=None),
+        ]
+
     def test_round_trip(self) -> None:
         frames = [frame("/a.py", lineno=3, function="g", module="a"), frame("/b.py")]
         assert decode_frames(encode_frames(frames)) == frames
@@ -129,9 +141,9 @@ class TestStorage:
         assert encode_frames(None) is None
         assert decode_frames(None) == []
 
-    def test_unreadable_value_means_no_frames(self) -> None:
-        assert decode_frames("not json") == []
-        assert decode_frames('[{"filename": 1}]') == []
+    def test_unreadable_value_decodes_to_none(self) -> None:
+        assert decode_frames("not json") is None
+        assert decode_frames('[{"filename": 1}]') is None
 
 
 class TestCapture:

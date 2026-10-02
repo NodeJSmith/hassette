@@ -36,7 +36,8 @@ _FINDING_GROUPS_QUERY = """
            MAX(be.stall_duration_ms) AS max_stall_ms,
            SUM(be.stall_duration_ms) AS stall_sum_ms,
            COUNT(be.stall_duration_ms) AS stall_count,
-           MAX(be.detected_ts) AS last_seen_ts
+           MAX(be.detected_ts) AS last_seen_ts,
+           MAX(be.id) AS latest_event_id
     FROM blocking_events be
     LEFT JOIN executions e ON e.execution_id = be.execution_id
     LEFT JOIN listeners l ON l.id = e.listener_id
@@ -45,8 +46,8 @@ _FINDING_GROUPS_QUERY = """
     {filters}
     GROUP BY be.app_key, be.instance_index, be.instance_name, be.tier, be.primitive, be.frames,
              e.listener_id, e.job_id, l.name, l.handler_method, sj.job_name, sj.handler_method
-    -- MAX(be.id) breaks last-seen ties so the order, and so each finding's latest stack, is stable.
-    ORDER BY last_seen_ts DESC, MAX(be.id) DESC
+    -- latest_event_id breaks last-seen ties so the order, and so each finding's latest stack, is stable.
+    ORDER BY last_seen_ts DESC, latest_event_id DESC
     LIMIT :limit
 """
 
@@ -59,7 +60,7 @@ _UNATTRIBUTED_TOTALS_QUERY = """
 """
 
 _UNATTRIBUTED_RECENT_QUERY = """
-    SELECT tier, primitive, stall_duration_ms, detected_ts, reason, frames
+    SELECT id, tier, primitive, stall_duration_ms, detected_ts, reason, frames
     FROM blocking_events
     WHERE source_tier = 'framework' {since}
     ORDER BY detected_ts DESC, id DESC

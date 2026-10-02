@@ -9,6 +9,7 @@ events are summarized for the diagnostics page without crediting any app.
 
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from logging import getLogger
 from pathlib import PurePath
 from typing import Any
 
@@ -24,6 +25,8 @@ from hassette_wire import (
 )
 
 from hassette.utils.stack_frames import FrameClassifier, decode_frames
+
+LOGGER = getLogger(__name__)
 
 
 @dataclass
@@ -121,13 +124,28 @@ def group_findings(
     (``event_count``, ``max_stall_ms``, ``stall_sum_ms``, ``stall_count``, ``last_seen_ts``).
     """
     builders: dict[Hashable, _FindingBuilder] = {}
+    unreadable: list[int] = []
     for group in groups:
         app_key: str = group["app_key"]
         frames = decode_frames(group["frames"])
+        if frames is None:
+            unreadable.append(group["latest_event_id"])
+            frames = []
         key, builder = _start_finding(group, app_key, frames, classifier_for(app_key))
         builders.setdefault(key, builder).add(group)
+    log_unreadable_frames(unreadable)
     # Dicts keep insertion order and groups arrive most recently seen first, so this is last-seen order.
     return [b.build() for b in builders.values()]
+
+
+def log_unreadable_frames(event_ids: Sequence[int]) -> None:
+    """Report undecodable ``frames`` values once per read, naming one row to inspect."""
+    if event_ids:
+        LOGGER.warning(
+            "blocking_events.frames could not be decoded for %d stack(s); they show as 'call site not captured'",
+            len(event_ids),
+            extra={"unreadable_count": len(event_ids), "sample_event_id": event_ids[0]},
+        )
 
 
 def _start_finding(
@@ -192,8 +210,12 @@ def summarize_unattributed(
     individual rows, listed with their stacks.
     """
     recent: list[UnattributedStall] = []
+    unreadable: list[int] = []
     for row in recent_rows:
         frames = decode_frames(row["frames"])
+        if frames is None:
+            unreadable.append(row["id"])
+            frames = []
         idx = classifier.find_call_site(frames)
         recent.append(
             UnattributedStall(
@@ -207,6 +229,7 @@ def summarize_unattributed(
                 stack=frames,
             )
         )
+    log_unreadable_frames(unreadable)
     return UnattributedBlockingResponse(
         total_count=totals["total_count"],
         displaced_count=totals["displaced_count"],
