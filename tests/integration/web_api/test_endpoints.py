@@ -645,14 +645,6 @@ class TestAppManifestListEndpoint:
         assert orphan["status"] == "stopped"
         assert orphan["in_current_config"] is False
 
-    async def test_get_manifests_returns_503_on_spine_failure(self, client: "AsyncClient", mock_hassette) -> None:
-        """A storage error on the DB spine query yields 503."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = telemetry_error(message="db down")
-
-        response = await client.get(APP_MANIFESTS_PATH)
-        assert response.status_code == 503
-        assert response.json()["manifests"] == []
-
     async def test_get_manifests_shows_degraded_status_for_mixed_running_and_failed_instances(
         self, client: "AsyncClient", mock_hassette, tmp_path: Path
     ) -> None:

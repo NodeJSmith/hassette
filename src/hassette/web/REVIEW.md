@@ -13,11 +13,13 @@ concrete server-message model (those with a literal `type` field) defined in
 the package? A new concrete variant not added to the union will be absent
 from the schema and unreachable by the frontend.
 
-## Telemetry Degradation Category
-When a new telemetry route is added in `src/hassette/web/routes/telemetry.py`,
-does it use `db_degrades_to()` or an inline `try/except TelemetryUnavailableError`?
-An unguarded DB query that raises through to a 500 instead of degrading to 503
-violates the web layer's DB-failure contract (see `.claude/rules/web-api.md`).
+## Telemetry Failure Handling
+When a route queries telemetry, does it declare `ProblemCode.TELEMETRY_UNAVAILABLE`
+in `responses=problem_responses(...)` for every query it lets propagate? And does
+every inline `try/except TelemetryUnavailableError` guard a query the route can
+genuinely answer without (enrichment at 200, or a probe)? Catching a required
+query to return an empty or default body hides an outage from the caller (see
+`.claude/rules/web-api.md`).
 
 ## Mapper Layer Coverage
 `src/hassette/web/mappers.py` has explicit mapper functions for domain-to-response

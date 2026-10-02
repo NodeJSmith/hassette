@@ -218,12 +218,6 @@ class TestTelemetryDashboard:
         assert orphan["in_current_config"] is False
         assert orphan["instance_count"] == 0
 
-    async def test_app_grid_returns_503_on_spine_failure(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """A storage error on the DB spine query yields 503."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = telemetry_error("db down")
-
-        assert await get_json(client, APP_GRID_PATH, expect_status=503) == {"apps": []}
-
 
 class TestTelemetryExecutions:
     async def test_list_executions_returns_all(self, client: "AsyncClient", mock_hassette) -> None:
@@ -496,9 +490,3 @@ class TestGetExecutionById:
         mock_hassette.telemetry_query_service.get_execution_by_id = AsyncMock(return_value=None)
 
         assert await get_json(client, "/api/telemetry/execution/nonexistent-id") is None
-
-    async def test_db_unavailable(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """Returns 503 when telemetry DB is unavailable."""
-        mock_hassette.telemetry_query_service.get_execution_by_id = telemetry_error("db down")
-
-        await get_json(client, "/api/telemetry/execution/abc-123", expect_status=503)

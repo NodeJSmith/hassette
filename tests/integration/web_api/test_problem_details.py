@@ -12,7 +12,7 @@ import logging
 from collections.abc import AsyncIterator, Callable
 from dataclasses import KW_ONLY, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -52,6 +52,64 @@ TOKEN_SENTINEL = "SENTINEL-TOKEN-VALUE"
 
 BLOCKED = AppBlockedError("App 'my_app' is blocked by the --app filter")
 NOT_RELEASED = AppBootstrapNotReleasedError("not released")
+
+EXECUTION_UUID = "01890000-0000-7000-8000-000000000000"
+
+
+class TelemetryRoute(NamedTuple):
+    query: str
+    """The telemetry service method made to fail."""
+    path: str
+    """The request path. Any well-formed path parameter works: the query fails first."""
+    operation: str
+    """The OpenAPI path template whose `x-problem-codes` must list `telemetry_unavailable`."""
+
+
+TELEMETRY_DATA_ROUTES = {
+    "app-health": TelemetryRoute(
+        "get_app_health_aggregates",
+        "/api/telemetry/app/my_app/health",
+        "/api/telemetry/app/{app_key}/health",
+    ),
+    "app-listeners": TelemetryRoute(
+        "get_listener_summary",
+        "/api/telemetry/app/my_app/listeners",
+        "/api/telemetry/app/{app_key}/listeners",
+    ),
+    "app-activity": TelemetryRoute(
+        "get_app_recent_activity",
+        "/api/telemetry/app/my_app/activity",
+        "/api/telemetry/app/{app_key}/activity",
+    ),
+    "app-jobs": TelemetryRoute(
+        "get_job_summary", "/api/telemetry/app/my_app/jobs", "/api/telemetry/app/{app_key}/jobs"
+    ),
+    "executions": TelemetryRoute("get_executions", "/api/telemetry/executions", "/api/telemetry/executions"),
+    "listener-executions": TelemetryRoute(
+        "get_executions",
+        "/api/telemetry/listener/1/executions",
+        "/api/telemetry/listener/{listener_id}/executions",
+    ),
+    "job-executions": TelemetryRoute(
+        "get_executions", "/api/telemetry/job/1/executions", "/api/telemetry/job/{job_id}/executions"
+    ),
+    "execution": TelemetryRoute(
+        "get_execution_by_id", "/api/telemetry/execution/abc", "/api/telemetry/execution/{execution_id}"
+    ),
+    "app-grid": TelemetryRoute(
+        "get_all_app_manifests", "/api/telemetry/dashboard/app-grid", "/api/telemetry/dashboard/app-grid"
+    ),
+    "manifests": TelemetryRoute("get_all_app_manifests", "/api/apps/manifests", "/api/apps/manifests"),
+    "bus-listeners": TelemetryRoute("get_listener_summary", "/api/bus/listeners", "/api/bus/listeners"),
+    "logs-recent": TelemetryRoute("get_log_records", "/api/logs/recent", "/api/logs/recent"),
+    "scheduler-jobs": TelemetryRoute("get_job_summary", "/api/scheduler/jobs", "/api/scheduler/jobs"),
+    "execution-logs": TelemetryRoute(
+        "get_log_records_by_execution",
+        f"/api/executions/{EXECUTION_UUID}",
+        "/api/executions/{execution_id}",
+    ),
+}
+"""Every data route that can't answer without the telemetry store."""
 
 Arrange = Callable[[MagicMock, Path], None]
 
@@ -147,6 +205,15 @@ def job_removed_before_submit(mock_hassette: MagicMock, _: Path) -> None:
     job.name = "nightly"
     mock_hassette.scheduler_service.trigger_job = AsyncMock(return_value=job)
     mock_hassette.scheduler_service.submit_job = MagicMock(side_effect=JobRemovedError("nightly", 7))
+
+
+def failing_query(service_method: str) -> Arrange:
+    """Build an arrange step that makes ``service_method`` raise ``TelemetryUnavailableError``."""
+
+    def arrange(mock_hassette: MagicMock, _: Path) -> None:
+        setattr(mock_hassette.telemetry_query_service, service_method, telemetry_error())
+
+    return arrange
 
 
 ROUTE_CASES = {
@@ -458,6 +525,17 @@ ROUTE_CASES = {
         "There was an error parsing the body",
         request={"content": b'{"logger": "\xff"}', "headers": {"content-type": "application/json"}},
     ),
+} | {
+    f"{name}-telemetry-unavailable": ProblemCase(
+        "GET",
+        route.path,
+        503,
+        "telemetry_unavailable",
+        "Telemetry store unavailable",
+        operation=route.operation,
+        arrange=failing_query(route.query),
+    )
+    for name, route in TELEMETRY_DATA_ROUTES.items()
 }
 
 
@@ -556,12 +634,12 @@ class TestServerErrors:
         assert record.exc_info is not None
         assert str(record.exc_info[1]) == "secret internals"
 
-    async def test_degraded_payload_stays_a_success_body(self, client: AsyncClient, mock_hassette: MagicMock) -> None:
-        """A `db_degrades_to` 503 is data, not an error: unchanged body and content type (D13)."""
-        mock_hassette.telemetry_query_service.get_log_records = telemetry_error()
+    async def test_telemetry_probe_stays_a_status_body(self, client: AsyncClient, mock_hassette: MagicMock) -> None:
+        """The telemetry-status probe's 503 is data, not an error: its own body and content type."""
+        mock_hassette.telemetry_query_service.check_health = telemetry_error()
 
-        response = await client.get("/api/logs/recent")
+        response = await client.get("/api/telemetry/status")
 
         assert response.status_code == 503
         assert response.headers["content-type"] == "application/json"
-        assert response.json() == []
+        assert response.json()["degraded"] is True

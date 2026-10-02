@@ -55,7 +55,7 @@ Every error under `/api` is an RFC 9457 `application/problem+json` body with a `
 - **401 is reserved for authentication.** `DefaultDenyMiddleware` counts every outgoing 401 as a failed login, so only `invalid_token` and `not_authenticated` map to 401. A unit test pins this.
 - **Never put the rejected value in `detail`.** The 422 summary uses only `loc` and `msg`; hassette's own request-model validators must not interpolate the validated value into their error message either, because it reaches `detail`.
 - **Stability:** codes follow the wire contract's pre-1.0 policy. Renaming or removing a code, or changing its status, is a breaking change (`feat!:`, `BREAKING CHANGE:` footer, `tools/wire_compat_ignore.txt` if flagged). Adding one is not. The `detail` of routing errors (`not_found`, `method_not_allowed`) is not stable.
-- **Not problem bodies:** `db_degrades_to` 503s, the inline 503 in `routes/executions.py`, `/api/health/ready`, and `/api/telemetry/status` return success models with a 503. They are data, not errors, and the CLI (`tolerate_503`) and load balancers read them as data. The OpenAPI rewrite matches on schema references, not status, so it leaves them alone.
+- **Not problem bodies:** the two probes, `/api/health/ready` and `/api/telemetry/status`, return their status models with a 503. They are data, not errors, and the CLI (`tolerate_503`) and load balancers read them as data. The OpenAPI rewrite matches on schema references, not status, so it leaves them alone. No other route answers an error status with a success model.
 
 ## Telemetry Error Handling Pattern
 
@@ -65,40 +65,26 @@ Storage exceptions (`sqlite3.Error`, `OSError`, `ValueError`, `TimeoutError`) ar
 - `get_all_app_summaries` in `summary_queries.py` has its own manual transaction that bypasses `execute()` — it carries the same translation wrapper.
 - A non-DB `ValueError` raised inside a handler body (e.g. from `model_validate`, a key error, application logic) **is not** `TelemetryUnavailableError` and will propagate as HTTP 500.  This is the intended behavior.
 
-### `db_degrades_to` — the preferred shape
+### Required queries: let the error propagate
 
-Use `db_degrades_to(response)` for category-A and category-B sites instead of inlining `try/except`.  The CM catches `TelemetryUnavailableError`, logs a warning with `exc_info`, and sets `response.status_code = 503`.  It does **not** force a return — callers pre-initialize the result to the failure default and return at the tail:
-
-```python
-from hassette.web.dependencies import db_degrades_to
-
-# Category A — query is the whole handler
-rows: list[Foo] = []
-with db_degrades_to(response):
-    rows = await telemetry.get_foo(...)
-return rows
-```
+When a route can't answer without a telemetry query, don't catch `TelemetryUnavailableError`. `telemetry_unavailable_handler` in `errors.py` turns it into a `telemetry_unavailable` problem (503) and logs a warning with the request path. The route declares the code with `responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE)` (composed with its other codes, if any). The handler answers through `http_exception_handler` as a `WebApiError`, so the autouse `problem_code_violations` fixture in `tests/integration/web_api/conftest.py` fails a route that lets it escape undeclared.
 
 ```python
-# Category B — post-query work must be skipped on failure; move it inside the with block
-result: SomeResponse = SomeResponse(degraded=True)
-with db_degrades_to(response):
-    agg = await telemetry.get_aggregates(...)
-    error_rate = compute_error_rate(agg)       # depends on agg — skipped on failure
-    result = SomeResponse(degraded=False, error_rate=error_rate)
-return result
+@router.get("/foo", response_model=list[Foo], responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE))
+async def foo(telemetry: TelemetryDep) -> list[Foo]:
+    return await telemetry.get_foo(...)
 ```
 
-**Warning:** any code between the `with` block and the tail `return` runs on **both** the success path and the failure path (against the pre-initialized default).  If that code would behave incorrectly against the default, move it inside the `with` block (category B shape).
+No fallback value, no `response.status_code`, no `try`. Post-query work (`live_execution_counts()`, `enrich_jobs_with_live_data`) runs only on success because the exception skips it.
 
-### Category-C and category-D sites — intentional exceptions
+### Optional queries and probes: catch inline
 
-These sites do **not** use `db_degrades_to`.  They catch `TelemetryUnavailableError` inline and return HTTP 200 with partial data — wrapping them in `db_degrades_to` would change their status to 503 and break the frontend contract.
+Catch `TelemetryUnavailableError` yourself only when the route still has a useful answer without the query:
 
-- **Category C (silent-200 partial degradation):** DB failure sets a safe default and the handler continues with non-DB data (e.g. `dashboard_app_grid`'s `get_all_app_summaries` enrichment query).  Status stays 200.  Do not apply `db_degrades_to` to these sites.
-- **Category D (multi-failure-mode):** The handler has two independent failure semantics that cannot be expressed by a single CM (e.g. `get_app_manifest`: 503 when the DB is unavailable vs. 404 for a genuinely unknown `app_key`).  Handle each failure mode inline.
+- **Enrichment (partial data at 200):** the route answers from other data and a failed enrichment query degrades to a safe default (e.g. `dashboard_app_grid`'s `get_all_app_summaries`, `get_app_manifests`' `recent_invocations_1h`, the execution-logs route's UUIDv4 retention check). Log a warning with `exc_info` and keep going.
+- **Probes:** `/api/telemetry/status` catches the health-check failure and answers its own `TelemetryStatusResponse(degraded=True)` with a 503 (see "Not problem bodies" above). Don't add another probe-shaped route without the same reason.
 
-**A vs. B:** ask "does any code after the query need to be skipped when the query fails?"  Post-query calls such as `live_execution_counts()` or `enrich_jobs_with_live_data`, and success-path response construction that reads the query result, must move inside the `with` block (category B) — a tail-return CM would otherwise run them against the pre-initialized default.  To find every site, grep `src/hassette/web/` for `db_degrades_to` and `TelemetryUnavailableError`.
+To find every inline site, grep `src/hassette/web/` for `TelemetryUnavailableError`.
 
 ## Route Registration Pattern
 

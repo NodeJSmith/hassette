@@ -89,12 +89,11 @@ export interface paths {
          * Get App Manifests
          * @description Return every persisted app manifest, overlaid with live runtime state.
          *
-         *     The app spine is queried from the ``app_manifests`` DB table (Category B — 503 via
-         *     ``db_degrades_to`` on failure) and overlaid with live runtime state via
+         *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
+         *     failure) and overlaid with live runtime state via
          *     ``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but
          *     no loaded manifest are still included. The ``recent_invocations_1h`` enrichment query
-         *     below stays Category C (independently caught, degrading to zero while the response
-         *     continues at 200).
+         *     below is caught on its own and degrades to zero while the response continues at 200.
          */
         get: operations["get_app_manifests_api_apps_manifests_get"];
         put?: never;
@@ -118,9 +117,8 @@ export interface paths {
          *
          *     Queries the ``app_manifests`` DB table directly instead of the in-memory registry, so an
          *     app with historical telemetry but no loaded manifest returns 200 instead of 404. A DB
-         *     failure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that
-         *     don't fit the single-branch ``db_degrades_to`` shape — handled inline (Category D, see
-         *     ``.claude/rules/web-api.md``).
+         *     failure answers ``telemetry_unavailable``; a genuinely unknown ``app_key`` answers
+         *     ``app_not_found``.
          */
         get: operations["get_app_manifest_api_apps__app_key__manifest_get"];
         put?: never;
@@ -436,6 +434,9 @@ export interface paths {
          *     Runs a representative query against the unified ``executions`` table.
          *     Returns 503 with ``degraded: true`` when the database is
          *     unavailable; 200 with ``degraded: false`` when healthy.
+         *
+         *     A probe, so a failure answers with this status body rather than a problem body: the CLI
+         *     and container health checks read it as data.
          */
         get: operations["telemetry_status_api_telemetry_status_get"];
         put?: never;
@@ -519,8 +520,9 @@ export interface paths {
          *
          *     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
          *     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
-         *     ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
-         *     functional; logged warning, no 500).
+         *     ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
+         *     and a warning is logged. If the telemetry DB can't be read, the route answers
+         *     ``telemetry_unavailable``.
          */
         get: operations["app_jobs_api_telemetry_app__app_key__jobs_get"];
         put?: never;
@@ -625,11 +627,11 @@ export interface paths {
          * Dashboard App Grid
          * @description Per-app health data for the dashboard grid.
          *
-         *     The app spine is queried from the ``app_manifests`` DB table (Category B — 503 via
-         *     ``db_degrades_to`` on failure) and overlaid with live runtime state via
-         *     ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below
-         *     stay Category C (independently caught, degrading to empty defaults while the response
-         *     continues at 200) — see ``.claude/rules/web-api.md`` for the categories.
+         *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
+         *     failure) and overlaid with live runtime state via
+         *     ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below are
+         *     caught individually and degrade to empty defaults while the response continues at 200 —
+         *     see ``.claude/rules/web-api.md``.
          *
          *     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
          *     not the manifest-driven app grid.
@@ -656,8 +658,9 @@ export interface paths {
          *
          *     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
          *     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
-         *     ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
-         *     functional; logged warning, no 500).
+         *     ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
+         *     and a warning is logged. If the telemetry DB can't be read, the route answers
+         *     ``telemetry_unavailable``.
          *
          *     The registry snapshot is taken once — not per app — to avoid fan-out overhead.
          */
@@ -1824,6 +1827,15 @@ export interface operations {
                     "application/json": components["schemas"]["AppManifestListResponse"];
                 };
             };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     get_app_manifest_api_apps__app_key__manifest_get: {
@@ -2464,6 +2476,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     set_log_level_api_logs_level_put: {
@@ -2530,6 +2551,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     get_listener_metrics_api_bus_listeners_get: {
@@ -2559,6 +2589,15 @@ export interface operations {
             };
             /** @description Validation Error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2653,6 +2692,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     app_listeners_api_telemetry_app__app_key__listeners_get: {
@@ -2684,6 +2732,15 @@ export interface operations {
             };
             /** @description Validation Error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2730,6 +2787,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     app_jobs_api_telemetry_app__app_key__jobs_get: {
@@ -2761,6 +2827,15 @@ export interface operations {
             };
             /** @description Validation Error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2802,6 +2877,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     listener_executions_api_telemetry_listener__listener_id__executions_get: {
@@ -2829,6 +2913,15 @@ export interface operations {
             };
             /** @description Validation Error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2870,6 +2963,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     get_execution_api_telemetry_execution__execution_id__get: {
@@ -2894,6 +2996,15 @@ export interface operations {
             };
             /** @description Validation Error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2932,6 +3043,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     all_jobs_api_scheduler_jobs_get: {
@@ -2958,6 +3078,15 @@ export interface operations {
             };
             /** @description Validation Error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
