@@ -1,7 +1,7 @@
 # Design: Surface blocking-IO events in the web UI
 
 **Date:** 2026-10-02
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 
 ## Summary
@@ -288,7 +288,7 @@ Collapsed decision. Include it: `hassette blocking` is a thin command over the t
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - `StackFrame` lives in `hassette_wire.blocking` and the classifier in `hassette.utils.stack_frames`: the frame is served on the wire, so the wire model is the single definition; the classifier needs server interpreter state, so it stays server-side next to capture/encode.
