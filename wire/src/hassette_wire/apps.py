@@ -2,7 +2,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from hassette_wire.enums import ManifestStatus, ResourceStatus
+from hassette_wire.enums import OpenManifestStatus, OpenResourceStatus
 
 
 class AppInstanceResponse(BaseModel):
@@ -10,7 +10,7 @@ class AppInstanceResponse(BaseModel):
     index: int
     instance_name: str
     class_name: str
-    status: ResourceStatus
+    status: OpenResourceStatus
     error_message: str | None = None
     error_traceback: str | None = None
     owner_id: str | None = None
@@ -32,7 +32,7 @@ class AppManifestResponse(BaseModel):
     enabled: bool
     auto_loaded: bool
     autostart: bool = True
-    status: ManifestStatus
+    status: OpenManifestStatus
     block_reason: str | None = None
     instance_count: int = Field(
         default=0,

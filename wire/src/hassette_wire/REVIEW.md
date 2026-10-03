@@ -27,6 +27,13 @@ client should see, or a server-internal state that needs its own enum in
 `src/hassette/migrations_sql/` that list these values (`status`, `mode`,
 `source_tier`) still match?
 
+## Closed Vocabularies
+`SourceTier` and `LogLevel` stay strict on response models, so an older
+client can't parse a value added to either. `tools/check_wire_compat.py`
+allows added response enum values, so it won't flag this. Does the diff add a
+value to either one? If so, it's a breaking change and needs a
+`BREAKING CHANGE:` footer.
+
 ## Duplicated Defaults
 This package cannot import `hassette`, so `JobSummary.mode`,
 `ListenerWithSummary.mode`, and `ListenerWithSummary.backpressure` spell their

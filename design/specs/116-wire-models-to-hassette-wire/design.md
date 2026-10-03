@@ -444,3 +444,9 @@ Shared / cross-cutting first:
 - **Future:** from the first release carrying this change, `hassette_wire`'s root `__all__` is a public contract, and hassette's enums are part of it.
 
 ## Open Questions
+
+## Addendum
+
+### 2026-10-03: `SourceTier` and `LOG_LEVEL_TYPE` are closed vocabularies; open-set handling uses `Open<TypeName>` aliases
+
+§"Literal wire fields" listed `SourceTier` and `LOG_LEVEL_TYPE` among the open-valued Literal aliases. Spec 121 (`design/specs/121-wire-lenient-unknown-enums/design.md`, D14) declares both closed: their response fields stay strict, and adding a value to either is a breaking wire change that needs manual review. The other aliases and enums stay `Literal`/`StrEnum` as this spec chose. Spec 121 makes their response fields open through `Open<TypeName>` aliases that accept an `UnknownValue` under the client's `LENIENT_CONTEXT`. No `Literal` is converted to a `StrEnum`, and `openapi.json` stays byte-identical.

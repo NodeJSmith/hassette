@@ -4,8 +4,21 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.apps import AppInstanceResponse
 from hassette_wire.cli_format import CliFormat
-from hassette_wire.enums import BackpressurePolicy, ExecutionMode, ExecutionStatus, ManifestStatus
-from hassette_wire.literals import ErrorRateClass, HealthStatus, ListenerKind, SourceTier
+from hassette_wire.enums import (
+    BackpressurePolicy,
+    ExecutionMode,
+    OpenBackpressurePolicy,
+    OpenExecutionMode,
+    OpenExecutionStatus,
+    OpenManifestStatus,
+)
+from hassette_wire.literals import (
+    OpenErrorRateClass,
+    OpenExecutionKind,
+    OpenHealthStatus,
+    OpenListenerKind,
+    SourceTier,
+)
 
 
 class Execution(BaseModel):
@@ -17,7 +30,7 @@ class Execution(BaseModel):
     ``None`` for job executions.
     """
 
-    kind: Literal["handler", "job"]
+    kind: OpenExecutionKind
     """Discriminator: 'handler' for bus invocations, 'job' for scheduled-job executions."""
 
     listener_id: int | None = None
@@ -27,7 +40,7 @@ class Execution(BaseModel):
 
     execution_start_ts: float
     duration_ms: float
-    status: ExecutionStatus
+    status: OpenExecutionStatus
     source_tier: SourceTier = "app"
     error_type: str | None
     error_message: str | None
@@ -71,7 +84,7 @@ class ActivityFeedEntry(BaseModel):
     prefixing the SQLite rowid. The type is always ``str``.
     """
 
-    status: ExecutionStatus
+    status: OpenExecutionStatus
     """Handler or job execution status."""
 
     timestamp: float
@@ -84,7 +97,7 @@ class ActivityFeedEntry(BaseModel):
     handler_name: str
     duration_ms: float | None = None
     error_type: str | None = None
-    kind: Literal["handler", "job"]
+    kind: OpenExecutionKind
     """Whether this is a handler invocation or a job execution."""
 
 
@@ -163,7 +176,7 @@ class JobSummary(BaseModel):
     """Minimum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
     max_duration_ms: float | None = None
     """Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
-    mode: ExecutionMode = ExecutionMode.SINGLE
+    mode: OpenExecutionMode = ExecutionMode.SINGLE
     """Resolved overlap mode for this job. Persisted at registration."""
     suppressed_count: int = 0
     """Live count of re-fires suppressed by the guard (``single`` mode). Not persisted by design — read
@@ -177,11 +190,11 @@ class AppHealthResponse(BaseModel):
     """Health metrics for a single app instance."""
 
     error_rate: float
-    error_rate_class: ErrorRateClass
+    error_rate_class: OpenErrorRateClass
     handler_avg_duration: Annotated[float, CliFormat("duration_ms")]
     job_avg_duration: Annotated[float, CliFormat("duration_ms")]
     last_activity_ts: Annotated[float | None, CliFormat("relative_time")]
-    health_status: HealthStatus
+    health_status: OpenHealthStatus
 
 
 class ListenerWithSummary(BaseModel):
@@ -193,7 +206,7 @@ class ListenerWithSummary(BaseModel):
     app_key: str
     instance_index: int = 0
     topic: str
-    listener_kind: ListenerKind = "event"
+    listener_kind: OpenListenerKind = "event"
     handler_method: str
     total_invocations: int
     successful: int
@@ -224,11 +237,11 @@ class ListenerWithSummary(BaseModel):
     duration: float | None = None
     target: str | None = None
     """What the listener is watching: an HA entity ID, or the topic's last segment for event listeners."""
-    mode: ExecutionMode = ExecutionMode.SINGLE
+    mode: OpenExecutionMode = ExecutionMode.SINGLE
     suppressed_count: int = 0
     dropped_count: int = 0
     backpressure_dropped_count: int = 0
-    backpressure: BackpressurePolicy = BackpressurePolicy.BLOCK
+    backpressure: OpenBackpressurePolicy = BackpressurePolicy.BLOCK
 
 
 class ActivityBucket(BaseModel):
@@ -245,7 +258,7 @@ class DashboardAppGridEntry(BaseModel):
     """Per-app health entry for the dashboard grid."""
 
     app_key: str
-    status: ManifestStatus
+    status: OpenManifestStatus
     display_name: str
     instance_count: int = Field(
         default=0,
@@ -262,9 +275,9 @@ class DashboardAppGridEntry(BaseModel):
     total_job_timed_out: int = 0
     avg_duration_ms: float
     last_activity_ts: float | None
-    health_status: HealthStatus
+    health_status: OpenHealthStatus
     error_rate: float
-    error_rate_class: ErrorRateClass
+    error_rate_class: OpenErrorRateClass
     activity_buckets: list[ActivityBucket] = Field(default_factory=list)
     """Per-app sparkline buckets (ok/err counts per time window)."""
     blocking_event_count: int = 0

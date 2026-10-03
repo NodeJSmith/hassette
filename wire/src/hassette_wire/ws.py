@@ -2,7 +2,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-from hassette_wire.enums import ExecutionStatus, ResourceStatus
+from hassette_wire.enums import OpenExecutionStatus, OpenResourceStatus
+from hassette_wire.literals import OpenExecutionKind
 
 
 class AppStatusChangedData(BaseModel):
@@ -13,8 +14,8 @@ class AppStatusChangedData(BaseModel):
 
     app_key: str
     index: int
-    status: ResourceStatus
-    previous_status: ResourceStatus | None = None
+    status: OpenResourceStatus
+    previous_status: OpenResourceStatus | None = None
     instance_name: str | None = None
     class_name: str | None = None
     exception: str | None = None
@@ -45,8 +46,8 @@ class ServiceStatusData(BaseModel):
 
     resource_name: str
     role: str
-    status: ResourceStatus
-    previous_status: ResourceStatus | None = None
+    status: OpenResourceStatus
+    previous_status: OpenResourceStatus | None = None
     exception: str | None = None
     exception_type: str | None = None
     exception_traceback: str | None = None
@@ -112,10 +113,10 @@ class ExecutionCompletedData(BaseModel):
     ``listener_id`` is set when ``kind='handler'``; ``job_id`` when ``kind='job'``.
     """
 
-    kind: Literal["handler", "job"]
+    kind: OpenExecutionKind
     app_key: str
     instance_index: int
-    status: ExecutionStatus
+    status: OpenExecutionStatus
     duration_ms: float
     error_type: str | None = None
     listener_id: int | None = None

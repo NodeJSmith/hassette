@@ -451,3 +451,9 @@ Revised PR order:
 #2387 (the CLI port) can follow PR 4.
 
 Items 1 and 2 still need the pydantic spike: does the validation context reach nested models and `TypeAdapter(list[...])`, and does `openapi.json` stay byte-identical?
+
+## Addendum
+
+### 2026-10-03: Decisions 1 and 2 superseded by spec 121 (L2 instead of L1)
+
+Spec 121 (`design/specs/121-wire-lenient-unknown-enums/design.md`) implements wire leniency with this brief's option L2, not L1. Response fields are typed `X | UnknownValue` through `Open<TypeName>` aliases. `UnknownValue` is a `str` subclass that keeps the raw value, and it's produced only under `LENIENT_CONTEXT`. So no wire `StrEnum` gains an `UNKNOWN` member, no input boundary needs to reject one, and open `Literal`s stay `Literal`s (Decision 2 is dropped). Spec 121 D1 records why: L2 keeps the raw value and leaves the public enums unchanged, and the server-side narrowing cost cited against it in Q2 measured zero. Spec 121 D14 also declares `SourceTier` and `LogLevel` closed. Item 2 of the revised PR order now reads "wire leniency (`UnknownValue` and the `Open<TypeName>` aliases)". The client parse entry point stays with #2386.

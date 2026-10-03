@@ -60,16 +60,41 @@ def dev(session: "Session"):
     )
 
 
+def run_member_tests(session: "Session", member: str) -> None:
+    """Run a workspace member's tests on the locked dependencies, then on its declared floors.
+
+    The floor run resolves direct dependencies to the lowest versions the workspace's
+    ``pyproject.toml`` files allow, in a throwaway environment, so ``uv.lock`` stays untouched. It
+    pins the oldest Python in ``requires-python``, because old pydantic-core releases have no wheels
+    for the newest Pythons.
+    """
+    session.run("uv", "run", "--directory", member, "pytest", "-q", external=True)
+    session.run(
+        "uv",
+        "run",
+        "--isolated",
+        "--resolution",
+        "lowest-direct",
+        "--python",
+        "3.11",
+        "--directory",
+        member,
+        "pytest",
+        "-q",
+        external=True,
+    )
+
+
 @nox.session(python=False)
 def wire(session: "Session"):
-    """Run the hassette-wire workspace member's own tests."""
-    session.run("uv", "run", "--directory", "wire", "pytest", "-q", external=True)
+    """Run the hassette-wire workspace member's own tests, on locked and floor dependencies."""
+    run_member_tests(session, "wire")
 
 
 @nox.session(python=False)
 def client(session: "Session"):
-    """Run the hassette-client workspace member's own tests."""
-    session.run("uv", "run", "--directory", "client", "pytest", "-q", external=True)
+    """Run the hassette-client workspace member's own tests, on locked and floor dependencies."""
+    run_member_tests(session, "client")
 
 
 @nox.session(python="3.11")

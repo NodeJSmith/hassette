@@ -1,4 +1,7 @@
 from enum import StrEnum
+from typing import Annotated
+
+from hassette_wire.lenient import LenientValue, UnknownValue
 
 
 class ExecutionMode(StrEnum):
@@ -15,6 +18,9 @@ class ExecutionMode(StrEnum):
 
     PARALLEL = "parallel"
     """Run invocations concurrently with no overlap guard (today's behavior)."""
+
+
+OpenExecutionMode = Annotated[ExecutionMode | UnknownValue, LenientValue("ExecutionMode")]
 
 
 class BackpressurePolicy(StrEnum):
@@ -45,6 +51,9 @@ class BackpressurePolicy(StrEnum):
     period — every event it receives while the bus is full is dropped. Use ``BLOCK``
     for handlers that must run at least once, even under load.
     """
+
+
+OpenBackpressurePolicy = Annotated[BackpressurePolicy | UnknownValue, LenientValue("BackpressurePolicy")]
 
 
 class ResourceStatus(StrEnum):
@@ -78,6 +87,9 @@ class ResourceStatus(StrEnum):
     """The service's restart budget is exhausted and a long cooldown is in progress."""
 
 
+OpenResourceStatus = Annotated[ResourceStatus | UnknownValue, LenientValue("ResourceStatus")]
+
+
 class ManifestStatus(StrEnum):
     """Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``)."""
 
@@ -100,6 +112,9 @@ class ManifestStatus(StrEnum):
     """The app has no tracked instances (not started, or intentionally stopped)."""
 
 
+OpenManifestStatus = Annotated[ManifestStatus | UnknownValue, LenientValue("ManifestStatus")]
+
+
 class ExecutionStatus(StrEnum):
     """Status values for handler invocations and job executions.
 
@@ -111,3 +126,6 @@ class ExecutionStatus(StrEnum):
     CANCELLED = "cancelled"
     TIMED_OUT = "timed_out"
     SKIPPED = "skipped"
+
+
+OpenExecutionStatus = Annotated[ExecutionStatus | UnknownValue, LenientValue("ExecutionStatus")]

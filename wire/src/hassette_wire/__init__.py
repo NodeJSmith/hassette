@@ -11,7 +11,10 @@ default, so a client built against a newer release — one that already expects 
 still parse a response from a server still running the older release that hasn't added it yet.
 Adding a new enum member or a new value to an open-set Literal is a version-skew change in the
 opposite direction: an older client parsing a newer server's response needs to tolerate a value
-it doesn't recognize. The client package's lenient parsing is what makes that direction safe.
+it doesn't recognize. Response fields typed with an enum or open-set Literal accept such a value as
+an ``UnknownValue`` when validated with ``context=LENIENT_CONTEXT``, which the client passes, and
+reject it otherwise. ``SourceTier`` and ``LogLevel`` are closed: adding a value to either is a
+breaking change.
 
 The automated wire-compatibility check enforces these rules for the HTTP contract only. WS
 payloads follow the same rules by convention, but nothing currently verifies a WS change against
@@ -51,6 +54,7 @@ from hassette_wire.health import (
     ServiceInfoResponse,
     SystemStatusResponse,
 )
+from hassette_wire.lenient import LENIENT_CONTEXT, UnknownValue
 from hassette_wire.literals import (
     ErrorRateClass,
     HealthStatus,
@@ -92,6 +96,7 @@ from hassette_wire.ws import (
 )
 
 __all__ = [
+    "LENIENT_CONTEXT",
     "MAX_SESSION_TOKEN_LENGTH",
     "ActionResponse",
     "ActivityBucket",
@@ -161,5 +166,6 @@ __all__ = [
     "UnattributedBlockingResponse",
     "UnattributedReason",
     "UnattributedStall",
+    "UnknownValue",
     "WsServerMessage",
 ]
