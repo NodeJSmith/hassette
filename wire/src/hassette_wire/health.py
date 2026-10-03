@@ -3,14 +3,14 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from hassette_wire.cli_format import CliFormat
-from hassette_wire.enums import ResourceStatus
-from hassette_wire.literals import SystemHealthStatus
+from hassette_wire.enums import OpenResourceStatus
+from hassette_wire.literals import OpenBootIssueSeverity, OpenSystemHealthStatus
 
 
 class BootIssueResponse(BaseModel):
     """A boot-time issue entry in the system status response."""
 
-    severity: Literal["err", "warn"]
+    severity: OpenBootIssueSeverity
     label: str
     detail: str
 
@@ -19,7 +19,7 @@ class ServiceInfoResponse(BaseModel):
     """Structured info for one internal service."""
 
     name: str
-    status: ResourceStatus
+    status: OpenResourceStatus
     role: str = ""
     """Role of the service (e.g. 'service', 'resource'). Empty string when not available."""
     ready_phase: str | None = None
@@ -29,7 +29,7 @@ class ServiceInfoResponse(BaseModel):
 
 
 class SystemStatusResponse(BaseModel):
-    status: SystemHealthStatus
+    status: OpenSystemHealthStatus
     websocket_connected: bool
     bootstrap_released: bool
     uptime_seconds: Annotated[float, CliFormat("uptime")]
@@ -57,5 +57,5 @@ class LivenessResponse(BaseModel):
 class ReadinessResponse(BaseModel):
     """Response model for GET /api/health/ready."""
 
-    status: SystemHealthStatus
+    status: OpenSystemHealthStatus
     ready: bool

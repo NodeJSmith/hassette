@@ -31,6 +31,11 @@ _SPA_INDEX = Path("src/hassette/web/static/spa/index.html")
 # until someone updates this line. Re-check against a CI run's ``created: N/N workers`` line.
 XDIST_WORKERS = "4"
 
+# Oldest Python allowed by requires-python in pyproject.toml, wire/pyproject.toml and client/pyproject.toml;
+# SUPPORTED_PYTHONS is the full range the test sessions cover.
+FLOOR_PYTHON = "3.11"
+SUPPORTED_PYTHONS = [FLOOR_PYTHON, "3.12", "3.13", "3.14"]
+
 
 @nox.session(python=False)
 def frontend(session: "Session"):
@@ -60,19 +65,42 @@ def dev(session: "Session"):
     )
 
 
+def run_member_tests(session: "Session", member: str) -> None:
+    """Run a workspace member's tests on the locked dependencies, then on its declared floors.
+
+    The floor run resolves direct dependencies to the lowest versions the workspace's
+    ``pyproject.toml`` files allow, in a throwaway environment, so ``uv.lock`` stays untouched. It
+    pins the oldest Python in ``requires-python``, because old pydantic-core releases have no wheels
+    for the newest Pythons.
+    """
+    member_pytest = ("--directory", member, "pytest", "-q")
+    session.run("uv", "run", *member_pytest, external=True)
+    session.run(
+        "uv",
+        "run",
+        "--isolated",
+        "--resolution",
+        "lowest-direct",
+        "--python",
+        FLOOR_PYTHON,
+        *member_pytest,
+        external=True,
+    )
+
+
 @nox.session(python=False)
 def wire(session: "Session"):
-    """Run the hassette-wire workspace member's own tests."""
-    session.run("uv", "run", "--directory", "wire", "pytest", "-q", external=True)
+    """Run the hassette-wire workspace member's own tests, on locked and floor dependencies."""
+    run_member_tests(session, "wire")
 
 
 @nox.session(python=False)
 def client(session: "Session"):
-    """Run the hassette-client workspace member's own tests."""
-    session.run("uv", "run", "--directory", "client", "pytest", "-q", external=True)
+    """Run the hassette-client workspace member's own tests, on locked and floor dependencies."""
+    run_member_tests(session, "client")
 
 
-@nox.session(python="3.11")
+@nox.session(python=FLOOR_PYTHON)
 def wheel_smoke(session: "Session"):
     """Build the wheels and verify the hassette.testing / hassette.test_utils boundary.
 
@@ -111,7 +139,7 @@ def wheel_smoke(session: "Session"):
     )
 
 
-@nox.session(python=["3.11", "3.12", "3.13", "3.14"])
+@nox.session(python=SUPPORTED_PYTHONS)
 def tests(session: "Session"):
     session.run(
         "uv",
@@ -138,7 +166,7 @@ def tests(session: "Session"):
     )
 
 
-@nox.session(python=["3.11", "3.12", "3.13", "3.14"])
+@nox.session(python=SUPPORTED_PYTHONS)
 def e2e(session: "Session"):
     # Build frontend if not already built
     if not _SPA_INDEX.exists():
@@ -176,7 +204,7 @@ def e2e(session: "Session"):
     )
 
 
-@nox.session(python=["3.11", "3.12", "3.13", "3.14"])
+@nox.session(python=SUPPORTED_PYTHONS)
 def system(session: "Session"):
     """System tests against a real HA Docker container.
 
@@ -194,7 +222,7 @@ def screenshots(session: "Session"):
     session.run("uv", "run", "python", "scripts/capture_screenshots.py", external=True)
 
 
-@nox.session(python=["3.11", "3.12", "3.13", "3.14"])
+@nox.session(python=SUPPORTED_PYTHONS)
 def system_with_coverage(session: "Session"):
     """System tests with coverage collection for Codecov."""
     session.env["COVERAGE_FILE"] = f".coverage.system.{session.python}"
@@ -293,7 +321,7 @@ def _run_system_tests(session: "Session", *, marker: str, extra_args: list[str] 
     )
 
 
-@nox.session(python=["3.11", "3.12", "3.13", "3.14"], tags=["coverage"])
+@nox.session(python=SUPPORTED_PYTHONS, tags=["coverage"])
 def tests_with_coverage(session: "Session"):
     # Uses COVERAGE_PROCESS_START + a .pth file instead of pytest --cov.
     # pytest-cov starts tracing in pytest_configure — after conftest.py has already

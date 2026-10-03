@@ -6,6 +6,16 @@ import sys
 from pathlib import Path
 
 import hassette_wire
+from open_alias_helpers import is_open_alias
+
+# Defined in a submodule but deliberately not exported: Open<TypeName> field aliases and the Literals
+# named only to back one are field-typing detail, not public vocabulary, and lenient.py's internals stay
+# private. The aliases themselves are recognized by their LenientValue marker.
+NOT_EXPORTED_NAMES = {"BootIssueSeverity", "ExecutionKind", "HandlerKind", "LenientValue", "LOGGER"}
+
+
+def is_exported_by_design(name: str, obj: object) -> bool:
+    return name not in NOT_EXPORTED_NAMES and not is_open_alias(obj)
 
 
 def test_package_imports() -> None:
@@ -58,6 +68,7 @@ def test_every_public_definition_is_exported_from_root() -> None:
 
     missing_from_all: list[str] = []
     identity_mismatches: list[str] = []
+    all_defined: set[str] = set()
 
     for module_info in pkgutil.iter_modules([str(package_dir)]):
         if module_info.name == "__init__":
@@ -68,8 +79,12 @@ def test_every_public_definition_is_exported_from_root() -> None:
 
         submodule = importlib.import_module(f"hassette_wire.{module_info.name}")
         defined_names = _defined_names_in_module(module_file)
+        all_defined |= defined_names
 
         for name in defined_names:
+            if not is_exported_by_design(name, getattr(submodule, name)):
+                assert name not in hassette_wire.__all__, f"{module_info.name}.{name} is exported but shouldn't be"
+                continue
             if name not in hassette_wire.__all__:
                 missing_from_all.append(f"{module_info.name}.{name}")
                 continue
@@ -79,5 +94,6 @@ def test_every_public_definition_is_exported_from_root() -> None:
             if root_obj is not submodule_obj:
                 identity_mismatches.append(f"{module_info.name}.{name}")
 
+    assert all_defined >= NOT_EXPORTED_NAMES, f"Stale exemptions: {NOT_EXPORTED_NAMES - all_defined}"
     assert not missing_from_all, f"Defined but not exported in __all__: {missing_from_all}"
     assert not identity_mismatches, f"Root export is not the same object: {identity_mismatches}"

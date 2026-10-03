@@ -5,16 +5,23 @@
 Whether a frame is user code is decided by the server at read time, never stored.
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict
+
+from hassette_wire.lenient import LenientValue, UnknownValue
+from hassette_wire.literals import OpenHandlerKind
 
 BlockingTier = Literal["watchdog", "monkeypatch"]
 """``"watchdog"`` for Tier 1 (loop-stall) events, ``"monkeypatch"`` for Tier 2 (call-site) events."""
 
+OpenBlockingTier = Annotated[BlockingTier | UnknownValue, LenientValue("BlockingTier")]
+
 UnattributedReason = Literal["displaced", "framework"]
 """Why a stall names no app: ``"displaced"`` — an execution was bound but a different task held the
 loop, so attribution was withheld; ``"framework"`` — no app execution was responsible."""
+
+OpenUnattributedReason = Annotated[UnattributedReason | UnknownValue, LenientValue("UnattributedReason")]
 
 
 # blocking_events.frames rows written by every earlier release are decoded with this model, so a
@@ -45,7 +52,7 @@ class BlockingFrameRef(StackFrame):
 class BlockingHandlerRef(BaseModel):
     """A handler or job whose execution reached a blocking call site."""
 
-    kind: Literal["listener", "job"]
+    kind: OpenHandlerKind
     id: int
     """Listener or scheduled-job row id."""
     name: str
@@ -70,7 +77,7 @@ class BlockingFinding(BaseModel):
     """
 
     app_key: str
-    tier: BlockingTier
+    tier: OpenBlockingTier
     call_site: BlockingFrameRef | None
     """Innermost app-code frame (Tier 1) or the intercepted call's caller frame (Tier 2)."""
     call_site_is_user_code: bool
@@ -108,8 +115,8 @@ class UnattributedStall(BaseModel):
     """One blocking event that names no app."""
 
     detected_ts: float
-    tier: BlockingTier
-    reason: UnattributedReason
+    tier: OpenBlockingTier
+    reason: OpenUnattributedReason
     stall_duration_ms: float | None = None
     primitive: str | None = None
     app_frame: BlockingFrameRef | None = None

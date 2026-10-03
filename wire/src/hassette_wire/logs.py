@@ -1,8 +1,6 @@
-from typing import Literal
-
 from pydantic import BaseModel
 
-from hassette_wire.literals import LogLevel, SourceTier
+from hassette_wire.literals import LogLevel, OpenExecutionKind, SourceTier
 
 
 class LogEntryResponse(BaseModel):
@@ -20,7 +18,7 @@ class LogEntryResponse(BaseModel):
     instance_name: str | None = None
     instance_index: int | None = None
     source_tier: SourceTier | None = None
-    execution_kind: Literal["handler", "job"] | None = None
+    execution_kind: OpenExecutionKind | None = None
     listener_id: int | None = None
     job_id: int | None = None
 

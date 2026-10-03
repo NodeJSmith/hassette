@@ -1,6 +1,9 @@
 from enum import StrEnum
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict
+
+from hassette_wire.lenient import LenientValue, UnknownValue
 
 
 class ProblemCode(StrEnum):
@@ -69,6 +72,9 @@ class ProblemCode(StrEnum):
     """500: an unexpected server error."""
 
 
+OpenProblemCode = Annotated[ProblemCode | UnknownValue, LenientValue("ProblemCode")]
+
+
 class ProblemDetail(BaseModel):
     """RFC 9457 problem details body returned, as ``application/problem+json``, for every web API error."""
 
@@ -86,5 +92,5 @@ class ProblemDetail(BaseModel):
     detail: str
     """Human-readable explanation of this occurrence."""
 
-    code: ProblemCode
+    code: OpenProblemCode
     """Machine-readable reason for the error."""
