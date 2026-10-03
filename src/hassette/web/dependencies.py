@@ -1,16 +1,12 @@
 """FastAPI dependency injection helpers for the Hassette Web API."""
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import dataclass
-from logging import CRITICAL, DEBUG, ERROR, INFO, WARNING, getLogger
+from logging import CRITICAL, DEBUG, ERROR, INFO, WARNING
 from typing import TYPE_CHECKING, Annotated, TypedDict
 
 from fastapi import Depends, Path, Query, Request
 from hassette_wire import QuerySourceTier
-from starlette.responses import Response
 
-from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.query_constants import MAX_QUERY_LIMIT
 
 if TYPE_CHECKING:
@@ -21,7 +17,6 @@ if TYPE_CHECKING:
     from hassette.core.telemetry.query_service import TelemetryQueryService
 
 
-LOGGER = getLogger(__name__)
 LOG_LEVELS: dict[str, int] = {
     "DEBUG": DEBUG,
     "INFO": INFO,
@@ -123,19 +118,3 @@ class TelemetryFilters:
 
 
 TelemetryFiltersDep = Annotated[TelemetryFilters, Depends()]
-
-
-@contextmanager
-def db_degrades_to(response: Response) -> Iterator[None]:
-    """Context manager that degrades a response to 503 on telemetry unavailability.
-
-    Catches ``TelemetryUnavailableError``, logs a warning with full traceback, and sets
-    ``response.status_code = 503``.  All other exceptions propagate unchanged.
-    Callers pre-initialize their result to the failure default and return at the
-    tail so the default is used when the CM suppresses the error.
-    """
-    try:
-        yield
-    except TelemetryUnavailableError:
-        LOGGER.warning("DB query failed; degrading to 503", exc_info=True)
-        response.status_code = 503

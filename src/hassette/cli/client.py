@@ -328,7 +328,7 @@ class HassetteCLIClient:
     def _try_fetch_instances(self, app_key: str) -> list[AppInstanceResponse] | None:
         """Best-effort variant of :meth:`_fetch_instances` that never exits the process.
 
-        ``/api/apps/manifests`` is a Category B endpoint that returns 503 when the
+        ``/api/apps/manifests`` returns a 503 ``telemetry_unavailable`` problem when the
         telemetry DB is unavailable. Resolving a numeric ``--instance`` selector to its
         canonical name is a purely cosmetic lookup — the mutating start/stop/reload
         action it supports has no telemetry dependency of its own — so a telemetry

@@ -33,7 +33,8 @@ The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `
     reaching the API — the token does that regardless of bind address.
 
     Hassette caps every HTTP request body at 64 KiB. Oversized requests
-    receive HTTP `413` before route handling, while health checks and the
+    receive HTTP `413` (code `body_too_large`, see
+    [API Error Responses](api-errors.md)) before route handling, while health checks and the
     WebSocket connection are unaffected. The cap matters most on
     `POST /api/auth/session`, the one route reachable with no credential:
     without it, an unauthenticated peer could make Hassette buffer an
@@ -62,7 +63,8 @@ The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `
 
     Peer trust covers only requests that send no `Authorization` header. A
     request carrying that header is always validated against the token,
-    even from a trusted peer, and a wrong or malformed header gets a 401 rather
+    even from a trusted peer, and a wrong or malformed header gets a 401
+    (code `not_authenticated`, see [API Error Responses](api-errors.md)) rather
     than falling back to the peer match. Both mechanisms therefore work on the
     same host: a browser arrives through the gateway with no `Authorization`
     header and is admitted by the peer match, while the CLI presents its bearer

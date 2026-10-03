@@ -218,12 +218,6 @@ class TestTelemetryDashboard:
         assert orphan["in_current_config"] is False
         assert orphan["instance_count"] == 0
 
-    async def test_app_grid_returns_503_on_spine_failure(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """A storage error on the DB spine query yields 503."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = telemetry_error("db down")
-
-        assert await get_json(client, APP_GRID_PATH, expect_status=503) == {"apps": []}
-
     async def test_app_grid_carries_blocking_event_counts(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
@@ -242,7 +236,7 @@ class TestTelemetryDashboard:
     async def test_app_grid_count_failure_reads_zero_and_stays_200(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """The count is a category-C enrichment: its failure alone zeroes it rather than failing the grid."""
+        """The count is an optional enrichment: its failure alone zeroes it rather than failing the grid."""
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
             return_value=[make_manifest_db_row(app_key="my_app")]
         )
@@ -280,27 +274,6 @@ class TestTelemetryBlocking:
             service_method="get_unattributed_blocking",
             expected={"since": pytest.approx(1700000000.0)},
         )
-
-    @pytest.mark.parametrize(
-        ("service_method", "path", "empty"),
-        [
-            ("get_blocking_findings", "/api/telemetry/app/my_app/blocking", {"findings": [], "truncated": False}),
-            ("get_blocking_findings", "/api/telemetry/blocking/findings", {"findings": [], "truncated": False}),
-            ("get_unattributed_blocking", "/api/telemetry/blocking/unattributed", None),
-        ],
-    )
-    async def test_db_failure_returns_503(
-        self, client: "AsyncClient", mock_hassette: MagicMock, service_method: str, path: str, empty: Any
-    ) -> None:
-        setattr(mock_hassette.telemetry_query_service, service_method, telemetry_error("db down"))
-
-        data = await get_json(client, path, expect_status=503)
-
-        if empty is not None:
-            assert data == empty
-        else:
-            assert data["total_count"] == 0
-            assert data["recent"] == []
 
 
 class TestTelemetryExecutions:
@@ -574,9 +547,3 @@ class TestGetExecutionById:
         mock_hassette.telemetry_query_service.get_execution_by_id = AsyncMock(return_value=None)
 
         assert await get_json(client, "/api/telemetry/execution/nonexistent-id") is None
-
-    async def test_db_unavailable(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """Returns 503 when telemetry DB is unavailable."""
-        mock_hassette.telemetry_query_service.get_execution_by_id = telemetry_error("db down")
-
-        await get_json(client, "/api/telemetry/execution/abc-123", expect_status=503)

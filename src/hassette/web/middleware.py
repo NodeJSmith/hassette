@@ -24,6 +24,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from logging import getLogger
 
+from hassette_wire import ProblemCode
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -37,6 +38,7 @@ from hassette.web.auth.session import (
     should_set_secure_cookie_flag,
 )
 from hassette.web.auth.trusted_proxies import get_trusted_proxies, peer_address, peer_address_or_unknown
+from hassette.web.errors import problem_response
 
 LOGGER = getLogger(__name__)
 
@@ -204,7 +206,7 @@ class _FailedAuthTracker:
 
 
 def _unauthorized_response() -> JSONResponse:
-    return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+    return problem_response(ProblemCode.NOT_AUTHENTICATED, "Not authenticated")
 
 
 def _source_key(request: Request) -> str:

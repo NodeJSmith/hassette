@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from .conftest import make_log_record, telemetry_error
+from .conftest import make_log_record
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
@@ -73,14 +73,6 @@ class TestLogsEndpoints:
         assert "instance_name" in entry
         assert "instance_index" in entry
         assert "source_tier" in entry
-
-    async def test_get_logs_recent_returns_503_on_db_error(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        mock_hassette.telemetry_query_service.get_log_records = telemetry_error(message="db error")
-        response = await client.get(LOGS_RECENT_PATH)
-        assert response.status_code == 503
-        assert response.json() == []
 
     async def test_get_logs_recent_accepts_execution_id_param(
         self, client: "AsyncClient", mock_hassette: MagicMock

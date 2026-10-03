@@ -5,12 +5,13 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Annotated
 
 import uuid_utils
-from fastapi import APIRouter, HTTPException, Query, Response
-from hassette_wire import LogEntryResponse, LogsByExecutionResponse
+from fastapi import APIRouter, Query
+from hassette_wire import LogEntryResponse, LogsByExecutionResponse, ProblemCode
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.web.dependencies import HassetteDep, TelemetryDep
+from hassette.web.errors import WebApiError, problem_responses
 
 if TYPE_CHECKING:
     from hassette.core.telemetry.query_service import TelemetryQueryService
@@ -36,7 +37,11 @@ def extract_uuidv7_timestamp_s(execution_id: str) -> float | None:
 
 
 async def check_retention_expired_uuid4(telemetry: "TelemetryQueryService", execution_id: str, cutoff: float) -> bool:
-    """Fall back to DB query for non-UUIDv7 execution IDs (historical UUIDv4 IDs)."""
+    """Fall back to DB query for non-UUIDv7 execution IDs (historical UUIDv4 IDs).
+
+    Optional enrichment: the records are already in hand, so a telemetry failure here degrades
+    to "not expired" instead of failing the request.
+    """
     try:
         return await telemetry.check_execution_predates_retention_cutoff(execution_id, cutoff)
     except TelemetryUnavailableError:
@@ -44,12 +49,15 @@ async def check_retention_expired_uuid4(telemetry: "TelemetryQueryService", exec
         return False
 
 
-@router.get("/{execution_id}", response_model=LogsByExecutionResponse)
+@router.get(
+    "/{execution_id}",
+    response_model=LogsByExecutionResponse,
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def get_execution_logs(
     execution_id: str,
     hassette: HassetteDep,
     telemetry: TelemetryDep,
-    response: Response,
     limit: Annotated[int, Query(ge=1, le=5000)] = 500,
 ) -> LogsByExecutionResponse:
     """Return all log records for a single execution, with retention-expired detection.
@@ -64,19 +72,11 @@ async def get_execution_logs(
     try:
         uuid_utils.UUID(execution_id)
     except ValueError as exc:
-        raise HTTPException(
-            status_code=422, detail=f"Invalid execution_id: {execution_id!r} is not a valid UUID"
+        raise WebApiError(
+            ProblemCode.VALIDATION_FAILED, f"Invalid execution_id: {execution_id!r} is not a valid UUID"
         ) from exc
 
-    try:
-        records, truncated = await telemetry.get_log_records_by_execution(
-            execution_id,
-            limit=limit,
-        )
-    except TelemetryUnavailableError:
-        LOGGER.warning("Failed to fetch log records for execution %s", execution_id, exc_info=True)
-        response.status_code = 503
-        return LogsByExecutionResponse(records=[], truncated=False, retention_expired=False)
+    records, truncated = await telemetry.get_log_records_by_execution(execution_id, limit=limit)
 
     retention_expired = False
     if not records:

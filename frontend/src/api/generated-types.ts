@@ -89,12 +89,11 @@ export interface paths {
          * Get App Manifests
          * @description Return every persisted app manifest, overlaid with live runtime state.
          *
-         *     The app spine is queried from the ``app_manifests`` DB table (Category B — 503 via
-         *     ``db_degrades_to`` on failure) and overlaid with live runtime state via
+         *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
+         *     failure) and overlaid with live runtime state via
          *     ``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but
          *     no loaded manifest are still included. The ``recent_invocations_1h`` enrichment query
-         *     below stays Category C (independently caught, degrading to zero while the response
-         *     continues at 200).
+         *     below is caught on its own and degrades to zero while the response continues at 200.
          */
         get: operations["get_app_manifests_api_apps_manifests_get"];
         put?: never;
@@ -118,9 +117,8 @@ export interface paths {
          *
          *     Queries the ``app_manifests`` DB table directly instead of the in-memory registry, so an
          *     app with historical telemetry but no loaded manifest returns 200 instead of 404. A DB
-         *     failure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that
-         *     don't fit the single-branch ``db_degrades_to`` shape — handled inline (Category D, see
-         *     ``.claude/rules/web-api.md``).
+         *     failure answers ``telemetry_unavailable``; a genuinely unknown ``app_key`` answers
+         *     ``app_not_found``.
          */
         get: operations["get_app_manifest_api_apps__app_key__manifest_get"];
         put?: never;
@@ -436,6 +434,9 @@ export interface paths {
          *     Runs a representative query against the unified ``executions`` table.
          *     Returns 503 with ``degraded: true`` when the database is
          *     unavailable; 200 with ``degraded: false`` when healthy.
+         *
+         *     A probe, so a failure answers with this status body rather than a problem body: the CLI
+         *     and container health checks read it as data.
          */
         get: operations["telemetry_status_api_telemetry_status_get"];
         put?: never;
@@ -519,8 +520,9 @@ export interface paths {
          *
          *     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
          *     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
-         *     ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
-         *     functional; logged warning, no 500).
+         *     ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
+         *     and a warning is logged. If the telemetry DB can't be read, the route answers
+         *     ``telemetry_unavailable``.
          */
         get: operations["app_jobs_api_telemetry_app__app_key__jobs_get"];
         put?: never;
@@ -688,11 +690,11 @@ export interface paths {
          * Dashboard App Grid
          * @description Per-app health data for the dashboard grid.
          *
-         *     The app spine is queried from the ``app_manifests`` DB table (Category B — 503 via
-         *     ``db_degrades_to`` on failure) and overlaid with live runtime state via
-         *     ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below
-         *     stay Category C (independently caught, degrading to empty defaults while the response
-         *     continues at 200) — see ``.claude/rules/web-api.md`` for the categories.
+         *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
+         *     failure) and overlaid with live runtime state via
+         *     ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below are
+         *     caught individually and degrade to empty defaults while the response continues at 200 —
+         *     see ``.claude/rules/web-api.md``.
          *
          *     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
          *     not the manifest-driven app grid.
@@ -719,8 +721,9 @@ export interface paths {
          *
          *     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
          *     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
-         *     ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
-         *     functional; logged warning, no 500).
+         *     ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
+         *     and a warning is logged. If the telemetry DB can't be read, the route answers
+         *     ``telemetry_unavailable``.
          *
          *     The registry snapshot is taken once — not per app — to avoid fan-out overhead.
          */
@@ -1329,11 +1332,6 @@ export interface components {
          * @enum {string}
          */
         ExecutionStatus: "success" | "error" | "cancelled" | "timed_out" | "skipped";
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
         /**
          * JobSummary
          * @description Per-job summary returned by ``get_job_summary()``.
@@ -1699,6 +1697,45 @@ export interface components {
          */
         ManifestStatus: "disabled" | "blocked" | "degraded" | "running" | "failed" | "stopped";
         /**
+         * ProblemCode
+         * @description Machine-readable reason carried in the ``code`` member of every web API error body.
+         *
+         *     Each code maps to exactly one HTTP status, except ``http_error``, which carries whatever
+         *     status the underlying error had. Before 1.0, renaming or removing a code, or changing its
+         *     status, is a breaking change and is flagged as one; adding a code is not.
+         * @enum {string}
+         */
+        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_failed" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
+        /**
+         * ProblemDetail
+         * @description RFC 9457 problem details body returned, as ``application/problem+json``, for every web API error.
+         */
+        ProblemDetail: {
+            /**
+             * Type
+             * @description Problem type URI. Always ``about:blank``: ``code`` carries the specific meaning.
+             * @default about:blank
+             */
+            type: string;
+            /**
+             * Title
+             * @description The HTTP reason phrase for ``status``.
+             */
+            title: string;
+            /**
+             * Status
+             * @description The HTTP status code of the response.
+             */
+            status: number;
+            /**
+             * Detail
+             * @description Human-readable explanation of this occurrence.
+             */
+            detail: string;
+            /** @description Machine-readable reason for the error. */
+            code: components["schemas"]["ProblemCode"];
+        };
+        /**
          * ReadinessResponse
          * @description Response model for GET /api/health/ready.
          */
@@ -1902,19 +1939,6 @@ export interface components {
             /** Stack */
             stack: components["schemas"]["StackFrame"][];
         };
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-            /** Input */
-            input?: unknown;
-            /** Context */
-            ctx?: Record<string, never>;
-        };
     };
     responses: never;
     parameters: never;
@@ -2031,6 +2055,15 @@ export interface operations {
                     "application/json": components["schemas"]["AppManifestListResponse"];
                 };
             };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
         };
     };
     get_app_manifest_api_apps__app_key__manifest_get: {
@@ -2053,13 +2086,40 @@ export interface operations {
                     "application/json": components["schemas"]["AppManifestResponse"];
                 };
             };
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2084,12 +2144,32 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
-            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -2097,7 +2177,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2122,13 +2211,40 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2153,12 +2269,32 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
-            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -2166,7 +2302,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2192,19 +2337,32 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
-            /** @description App is unknown, or instance index is out of range for the app's current config */
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
             };
-            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
+            /** @description `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -2212,7 +2370,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2238,12 +2405,23 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
-            /** @description App is unknown, or instance index is out of range for the app's current config */
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -2251,7 +2429,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2277,19 +2464,32 @@ export interface operations {
                     "application/json": components["schemas"]["ActionResponse"];
                 };
             };
-            /** @description App is unknown, or instance index is out of range for the app's current config */
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config */
             404: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
             };
-            /** @description App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable) */
+            /** @description `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -2297,7 +2497,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `action_failed`: the action ran but failed, or left a targeted instance failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2322,13 +2531,31 @@ export interface operations {
                     "application/json": components["schemas"]["AppConfigResponse"];
                 };
             };
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2353,13 +2580,49 @@ export interface operations {
                     "application/json": components["schemas"]["AppSourceResponse"];
                 };
             };
+            /** @description `invalid_app_key`: the app key is not a valid app key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `path_traversal`: the app's source path resolves outside its app directory */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `app_not_found`: no app with this key is configured; `source_not_found`: the app's source file does not exist */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `source_unavailable`: the app's source file could not be read */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2386,12 +2649,14 @@ export interface operations {
                     "application/json": components["schemas"]["SessionResponse"];
                 };
             };
-            /** @description Invalid token */
+            /** @description `invalid_token`: the token is wrong */
             401: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -2399,7 +2664,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2436,7 +2701,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2469,7 +2743,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2502,7 +2776,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2538,7 +2821,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2625,7 +2917,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2663,7 +2964,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2702,7 +3012,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2740,7 +3059,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2776,7 +3104,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2807,7 +3144,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2838,7 +3184,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2872,7 +3227,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2906,7 +3270,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2940,7 +3313,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -2971,7 +3353,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -3002,7 +3393,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -3035,7 +3435,16 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description `telemetry_unavailable`: the telemetry store could not be read */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -3060,12 +3469,14 @@ export interface operations {
                     "application/json": components["schemas"]["JobTriggerResponse"];
                 };
             };
-            /** @description Job is not currently registered (no live registration) */
+            /** @description `job_not_registered`: the job has no live registration */
             409: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -3073,7 +3484,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };

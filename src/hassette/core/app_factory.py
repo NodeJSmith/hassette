@@ -171,7 +171,7 @@ class AppFactory:
 
         if force_reload or (not already_loaded and not already_failed):
             try:
-                return load_app_class_from_manifest(manifest, force_reload=force_reload)
+                return load_app_class_from_manifest(manifest, config=self.hassette.config, force_reload=force_reload)
             except Exception:
                 self.logger.error(
                     "Failed to load app class for '%s':\n%s",

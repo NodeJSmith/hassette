@@ -3,6 +3,11 @@
 Time-window filtering is client-driven: endpoints accept an optional ``since``
 query parameter (Unix epoch float).  Pass a ``since`` value to restrict results
 to records with ``execution_start_ts >= since``, or omit it for all-time aggregates.
+
+Required telemetry queries are deliberately not wrapped in ``try``: a ``TelemetryUnavailableError``
+propagates to ``telemetry_unavailable_handler`` in ``hassette.web.errors``, which answers the
+``telemetry_unavailable`` problem each route declares. Only queries a route can answer without
+(enrichment, and the ``/status`` probe) catch it inline.
 """
 
 import time
@@ -21,6 +26,7 @@ from hassette_wire import (
     HealthStatus,
     JobSummary,
     ListenerWithSummary,
+    ProblemCode,
     TelemetryStatusResponse,
     UnattributedBlockingResponse,
 )
@@ -39,8 +45,8 @@ from hassette.web.dependencies import (
     SourceTierQuery,
     TelemetryDep,
     TelemetryFiltersDep,
-    db_degrades_to,
 )
+from hassette.web.errors import problem_responses
 from hassette.web.mappers import manifest_response_fields, to_listener_with_summary
 from hassette.web.telemetry_helpers import (
     classify_error_rate,
@@ -51,7 +57,6 @@ from hassette.web.telemetry_helpers import (
 from hassette.web.utils import enrich_jobs_with_live_data
 
 if TYPE_CHECKING:
-    from hassette.schemas.app_snapshots import AppManifestInfo
     from hassette.schemas.execution_models import AppLastError
 
 LOGGER = getLogger(__name__)
@@ -74,31 +79,37 @@ async def telemetry_status(
     Runs a representative query against the unified ``executions`` table.
     Returns 503 with ``degraded: true`` when the database is
     unavailable; 200 with ``degraded: false`` when healthy.
+
+    A probe, so a failure answers with this status body rather than a problem body: the CLI
+    and container health checks read it as data.
     """
-    result: TelemetryStatusResponse = TelemetryStatusResponse(degraded=True)
-    with db_degrades_to(response):
+    try:
         await telemetry.check_health()
-        try:
-            overflow, exhausted, shutdown = hassette.get_drop_counters()
-        except (AttributeError, RuntimeError):
-            overflow, exhausted, shutdown = 0, 0, 0
-        try:
-            filtered = hassette.command_executor.get_filtered_count()
-        except (AttributeError, RuntimeError):
-            filtered = 0
-        try:
-            error_handler_failures = hassette.get_error_handler_failures()
-        except (AttributeError, RuntimeError):
-            error_handler_failures = 0
-        result = TelemetryStatusResponse(
-            degraded=False,
-            dropped_overflow=overflow,
-            dropped_exhausted=exhausted,
-            dropped_shutdown=shutdown,
-            dropped_filtered=filtered,
-            error_handler_failures=error_handler_failures,
-        )
-    return result
+    except TelemetryUnavailableError:
+        LOGGER.warning("Telemetry health check failed", exc_info=True)
+        response.status_code = 503
+        return TelemetryStatusResponse(degraded=True)
+
+    try:
+        overflow, exhausted, shutdown = hassette.get_drop_counters()
+    except (AttributeError, RuntimeError):
+        overflow, exhausted, shutdown = 0, 0, 0
+    try:
+        filtered = hassette.command_executor.get_filtered_count()
+    except (AttributeError, RuntimeError):
+        filtered = 0
+    try:
+        error_handler_failures = hassette.get_error_handler_failures()
+    except (AttributeError, RuntimeError):
+        error_handler_failures = 0
+    return TelemetryStatusResponse(
+        degraded=False,
+        dropped_overflow=overflow,
+        dropped_exhausted=exhausted,
+        dropped_shutdown=shutdown,
+        dropped_filtered=filtered,
+        error_handler_failures=error_handler_failures,
+    )
 
 
 def error_rate_from_summary(summary: AppHealthSummary) -> float:
@@ -121,63 +132,59 @@ def health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
     return classify_health_bar(success_rate)
 
 
-@router.get("/app/{app_key}/health", response_model=AppHealthResponse)
+@router.get(
+    "/app/{app_key}/health",
+    response_model=AppHealthResponse,
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def app_health(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
-    response: Response,
     filters: TelemetryFiltersDep,
 ) -> AppHealthResponse:
     """Health strip metrics for a single app instance."""
-    result: AppHealthResponse = AppHealthResponse(
-        error_rate=0.0,
-        error_rate_class=classify_error_rate(0.0),
-        handler_avg_duration=0.0,
-        job_avg_duration=0.0,
-        last_activity_ts=None,
-        health_status=classify_health_bar(100.0),
+    agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs)
+    error_rate = compute_error_rate(
+        total_invocations=agg.total_invocations,
+        total_executions=agg.total_executions,
+        handler_errors=agg.handler_errors + agg.handler_timed_out,
+        job_errors=agg.job_errors + agg.job_timed_out,
     )
-    with db_degrades_to(response):
-        agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs)
-        error_rate = compute_error_rate(
-            total_invocations=agg.total_invocations,
-            total_executions=agg.total_executions,
-            handler_errors=agg.handler_errors + agg.handler_timed_out,
-            job_errors=agg.job_errors + agg.job_timed_out,
-        )
-        result = AppHealthResponse(
-            error_rate=error_rate,
-            error_rate_class=classify_error_rate(error_rate),
-            handler_avg_duration=agg.handler_avg_duration_ms,
-            job_avg_duration=agg.job_avg_duration_ms,
-            last_activity_ts=agg.last_activity_ts,
-            health_status=classify_health_bar(compute_success_rate(error_rate)),
-        )
-    return result
+    return AppHealthResponse(
+        error_rate=error_rate,
+        error_rate_class=classify_error_rate(error_rate),
+        handler_avg_duration=agg.handler_avg_duration_ms,
+        job_avg_duration=agg.job_avg_duration_ms,
+        last_activity_ts=agg.last_activity_ts,
+        health_status=classify_health_bar(compute_success_rate(error_rate)),
+    )
 
 
-@router.get("/app/{app_key}/listeners", response_model=list[ListenerWithSummary])
+@router.get(
+    "/app/{app_key}/listeners",
+    response_model=list[ListenerWithSummary],
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def app_listeners(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
     hassette: HassetteDep,
-    response: Response,
     filters: TelemetryFiltersDep,
 ) -> list[ListenerWithSummary]:
     """Listener metrics with human-readable handler summaries."""
-    rows: list[ListenerWithSummary] = []
-    with db_degrades_to(response):
-        listeners = await telemetry.get_listener_summary(app_key=app_key, **filters.query_kwargs)
-        live_counts = hassette.bus_service.live_execution_counts()
-        rows = [to_listener_with_summary(ls, live_counts) for ls in listeners]
-    return rows
+    listeners = await telemetry.get_listener_summary(app_key=app_key, **filters.query_kwargs)
+    live_counts = hassette.bus_service.live_execution_counts()
+    return [to_listener_with_summary(ls, live_counts) for ls in listeners]
 
 
-@router.get("/app/{app_key}/activity", response_model=list[ActivityFeedEntry])
+@router.get(
+    "/app/{app_key}/activity",
+    response_model=list[ActivityFeedEntry],
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def app_activity(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
-    response: Response,
     instance_index: Annotated[
         int | None, Query(description="App instance index. None returns activity across all instances.")
     ] = None,
@@ -186,45 +193,46 @@ async def app_activity(
     source_tier: SourceTierQuery = "app",
 ) -> list[ActivityFeedEntry]:
     """Recent handler invocations and job executions for a single app, merged and sorted by time."""
-    activity: list[ActivityFeedEntry] = []
-    with db_degrades_to(response):
-        activity = await telemetry.get_app_recent_activity(
-            app_key=app_key,
-            instance_index=instance_index,
-            limit=limit,
-            since=since,
-            source_tier=source_tier,
-        )
-    return activity
+    return await telemetry.get_app_recent_activity(
+        app_key=app_key,
+        instance_index=instance_index,
+        limit=limit,
+        since=since,
+        source_tier=source_tier,
+    )
 
 
-@router.get("/app/{app_key}/jobs", response_model=list[JobSummary])
+@router.get(
+    "/app/{app_key}/jobs",
+    response_model=list[JobSummary],
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def app_jobs(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
     scheduler_service: SchedulerDep,
-    response: Response,
     filters: TelemetryFiltersDep,
 ) -> list[JobSummary]:
     """Job summaries for a single app instance, enriched with live registry data.
 
     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
-    ``db_id``. On registry failure the DB rows are returned without enrichment (degraded but
-    functional; logged warning, no 500).
+    ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
+    and a warning is logged. If the telemetry DB can't be read, the route answers
+    ``telemetry_unavailable``.
     """
-    jobs: list[JobSummary] = []
-    with db_degrades_to(response):
-        db_jobs = list(await telemetry.get_job_summary(app_key=app_key, **filters.query_kwargs))
-        jobs = await enrich_jobs_with_live_data(db_jobs, scheduler_service)
-    return jobs
+    db_jobs = list(await telemetry.get_job_summary(app_key=app_key, **filters.query_kwargs))
+    return await enrich_jobs_with_live_data(db_jobs, scheduler_service)
 
 
-@router.get("/app/{app_key}/blocking", response_model=BlockingFindingsResponse)
+@router.get(
+    "/app/{app_key}/blocking",
+    response_model=BlockingFindingsResponse,
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def app_blocking_findings(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
-    response: Response,
     instance_index: OptionalInstanceIndexQuery = None,
     since: SinceQuery = None,
 ) -> BlockingFindingsResponse:
@@ -233,42 +241,34 @@ async def app_blocking_findings(
     Without ``instance_index``, findings cover every instance, which is what the multi-instance
     parent overview shows; with it, only that instance's events are counted.
     """
-    result = BlockingFindingsResponse(findings=[])
-    with db_degrades_to(response):
-        result = await telemetry.get_blocking_findings(app_key=app_key, instance_index=instance_index, since=since)
-    return result
+    return await telemetry.get_blocking_findings(app_key=app_key, instance_index=instance_index, since=since)
 
 
-@router.get("/blocking/findings", response_model=BlockingFindingsResponse)
-async def all_blocking_findings(
-    telemetry: TelemetryDep,
-    response: Response,
-    since: SinceQuery = None,
-) -> BlockingFindingsResponse:
+@router.get(
+    "/blocking/findings",
+    response_model=BlockingFindingsResponse,
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
+async def all_blocking_findings(telemetry: TelemetryDep, since: SinceQuery = None) -> BlockingFindingsResponse:
     """Blocking-IO findings for every app and instance, in one response."""
-    result = BlockingFindingsResponse(findings=[])
-    with db_degrades_to(response):
-        result = await telemetry.get_blocking_findings(app_key=None, instance_index=None, since=since)
-    return result
+    return await telemetry.get_blocking_findings(app_key=None, instance_index=None, since=since)
 
 
-@router.get("/blocking/unattributed", response_model=UnattributedBlockingResponse)
-async def unattributed_blocking(
-    telemetry: TelemetryDep,
-    response: Response,
-    since: SinceQuery = None,
-) -> UnattributedBlockingResponse:
+@router.get(
+    "/blocking/unattributed",
+    response_model=UnattributedBlockingResponse,
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
+async def unattributed_blocking(telemetry: TelemetryDep, since: SinceQuery = None) -> UnattributedBlockingResponse:
     """Loop stalls credited to no app (displaced or framework), for the diagnostics page."""
-    result = UnattributedBlockingResponse(recent=[])
-    with db_degrades_to(response):
-        result = await telemetry.get_unattributed_blocking(since=since)
-    return result
+    return await telemetry.get_unattributed_blocking(since=since)
 
 
-@router.get("/executions", response_model=list[Execution])
+@router.get(
+    "/executions", response_model=list[Execution], responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE)
+)
 async def list_executions(
     telemetry: TelemetryDep,
-    response: Response,
     kind: Annotated[Literal["handler", "job"] | None, Query(description="Filter by kind: 'handler' or 'job'.")] = None,
     limit: LimitQuery = DEFAULT_QUERY_LIMIT,
     since: SinceQuery = None,
@@ -278,77 +278,75 @@ async def list_executions(
     Filter by ``kind=handler`` or ``kind=job`` to restrict to one type.
     Each record includes a ``kind`` field that discriminates the execution type.
     """
-    executions: list[Execution] = []
-    with db_degrades_to(response):
-        executions = await telemetry.get_executions(kind=kind, limit=limit, since=since)
-    return executions
+    return await telemetry.get_executions(kind=kind, limit=limit, since=since)
 
 
-@router.get("/listener/{listener_id}/executions", response_model=list[Execution])
+@router.get(
+    "/listener/{listener_id}/executions",
+    response_model=list[Execution],
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def listener_executions(
     listener_id: int,
     telemetry: TelemetryDep,
-    response: Response,
     limit: LimitQuery = DEFAULT_QUERY_LIMIT,
     since: SinceQuery = None,
 ) -> list[Execution]:
     """Execution history for a specific listener (handler invocations)."""
-    executions: list[Execution] = []
-    with db_degrades_to(response):
-        executions = await telemetry.get_executions(listener_id=listener_id, limit=limit, since=since)
-    return executions
+    return await telemetry.get_executions(listener_id=listener_id, limit=limit, since=since)
 
 
-@router.get("/job/{job_id}/executions", response_model=list[Execution])
+@router.get(
+    "/job/{job_id}/executions",
+    response_model=list[Execution],
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def job_executions(
     job_id: int,
     telemetry: TelemetryDep,
-    response: Response,
     limit: LimitQuery = DEFAULT_QUERY_LIMIT,
     since: SinceQuery = None,
 ) -> list[Execution]:
     """Execution history for a specific job."""
-    executions: list[Execution] = []
-    with db_degrades_to(response):
-        executions = await telemetry.get_executions(job_id=job_id, limit=limit, since=since)
-    return executions
+    return await telemetry.get_executions(job_id=job_id, limit=limit, since=since)
 
 
-@router.get("/execution/{execution_id}", response_model=Execution | None)
+@router.get(
+    "/execution/{execution_id}",
+    response_model=Execution | None,
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def get_execution(
     execution_id: str,
     telemetry: TelemetryDep,
-    response: Response,
 ) -> Execution | None:
     """Return a single execution record by its UUID."""
-    result: Execution | None = None
-    with db_degrades_to(response):
-        result = await telemetry.get_execution_by_id(execution_id)
-    return result
+    return await telemetry.get_execution_by_id(execution_id)
 
 
-@router.get("/dashboard/app-grid", response_model=DashboardAppGridResponse)
+@router.get(
+    "/dashboard/app-grid",
+    response_model=DashboardAppGridResponse,
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
 async def dashboard_app_grid(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
-    response: Response,
     since: SinceQuery = None,
 ) -> DashboardAppGridResponse:
     """Per-app health data for the dashboard grid.
 
-    The app spine is queried from the ``app_manifests`` DB table (Category B — 503 via
-    ``db_degrades_to`` on failure) and overlaid with live runtime state via
-    ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below
-    stay Category C (independently caught, degrading to empty defaults while the response
-    continues at 200) — see ``.claude/rules/web-api.md`` for the categories.
+    The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
+    failure) and overlaid with live runtime state via
+    ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below are
+    caught individually and degrade to empty defaults while the response continues at 200 —
+    see ``.claude/rules/web-api.md``.
 
     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
     not the manifest-driven app grid.
     """
-    manifest_infos: list[AppManifestInfo] = []
-    with db_degrades_to(response):
-        db_rows = await telemetry.get_all_app_manifests()
-        manifest_infos = runtime.overlay_manifest_rows(db_rows)
+    db_rows = await telemetry.get_all_app_manifests()
+    manifest_infos = runtime.overlay_manifest_rows(db_rows)
 
     try:
         summaries = await telemetry.get_all_app_summaries(since=since, source_tier="app")
@@ -374,7 +372,7 @@ async def dashboard_app_grid(
         except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app last errors", exc_info=True)
 
-    # Category C: a failure here reads as zero blocking events rather than failing the grid.
+    # Optional enrichment: a failure here reads as zero blocking events rather than failing the grid.
     try:
         blocking_counts = await telemetry.get_blocking_event_counts(since=since)
     except TelemetryUnavailableError:

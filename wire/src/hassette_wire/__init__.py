@@ -61,6 +61,7 @@ from hassette_wire.literals import (
     SystemHealthStatus,
 )
 from hassette_wire.logs import LogEntryResponse, LogLevelRequest, LogLevelResponse, LogsByExecutionResponse
+from hassette_wire.problems import ProblemCode, ProblemDetail
 from hassette_wire.telemetry import (
     ActivityBucket,
     ActivityFeedEntry,
@@ -142,6 +143,8 @@ __all__ = [
     "LogLevelResponse",
     "LogsByExecutionResponse",
     "ManifestStatus",
+    "ProblemCode",
+    "ProblemDetail",
     "QuerySourceTier",
     "ReadinessResponse",
     "ResourceStatus",

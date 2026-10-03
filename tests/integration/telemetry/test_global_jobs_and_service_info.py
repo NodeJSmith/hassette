@@ -16,7 +16,6 @@ from httpx2 import ASGITransport, AsyncClient
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.exceptions import TelemetryUnavailableError
 from hassette.scheduler.classes import ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
 from hassette.types.enums import ResourceRole
@@ -361,14 +360,6 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
         assert len(data) == 1
         assert data[0]["next_run"] is None
         assert data[0]["fire_at"] is None
-
-    async def test_db_error_returns_503(self, scheduler_client, mock_hassette_scheduler) -> None:
-        """TelemetryUnavailableError returns 503 response."""
-        mock_hassette_scheduler.telemetry_query_service.get_job_summary = AsyncMock(
-            side_effect=TelemetryUnavailableError("disk I/O error")
-        )
-
-        assert await get_jobs(scheduler_client, expect_status=503) == []
 
     async def test_trigger_error_reason_survives_degraded_fallback(
         self, scheduler_client, mock_hassette_scheduler

@@ -107,7 +107,7 @@
           "apps"
         ],
         "summary": "Get App Manifests",
-        "description": "Return every persisted app manifest, overlaid with live runtime state.\n\nThe app spine is queried from the ``app_manifests`` DB table (Category B \u2014 503 via\n``db_degrades_to`` on failure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but\nno loaded manifest are still included. The ``recent_invocations_1h`` enrichment query\nbelow stays Category C (independently caught, degrading to zero while the response\ncontinues at 200).",
+        "description": "Return every persisted app manifest, overlaid with live runtime state.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but\nno loaded manifest are still included. The ``recent_invocations_1h`` enrichment query\nbelow is caught on its own and degrades to zero while the response continues at 200.",
         "operationId": "get_app_manifests_api_apps_manifests_get",
         "responses": {
           "200": {
@@ -119,6 +119,19 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ]
           }
         }
       }
@@ -129,7 +142,7 @@
           "apps"
         ],
         "summary": "Get App Manifest",
-        "description": "Return the persisted manifest for a single app, overlaid with live runtime state.\n\nQueries the ``app_manifests`` DB table directly instead of the in-memory registry, so an\napp with historical telemetry but no loaded manifest returns 200 instead of 404. A DB\nfailure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that\ndon't fit the single-branch ``db_degrades_to`` shape \u2014 handled inline (Category D, see\n``.claude/rules/web-api.md``).",
+        "description": "Return the persisted manifest for a single app, overlaid with live runtime state.\n\nQueries the ``app_manifests`` DB table directly instead of the in-memory registry, so an\napp with historical telemetry but no loaded manifest returns 200 instead of 404. A DB\nfailure answers ``telemetry_unavailable``; a genuinely unknown ``app_key`` answers\n``app_not_found``.",
         "operationId": "get_app_manifest_api_apps__app_key__manifest_get",
         "parameters": [
           {
@@ -153,12 +166,51 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -195,15 +247,65 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
+            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "x-problem-codes": [
+              "bootstrap_not_released",
+              "app_blocked"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -240,12 +342,51 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -282,15 +423,65 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
+            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "x-problem-codes": [
+              "bootstrap_not_released",
+              "app_blocked"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -336,18 +527,66 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "App is unknown, or instance index is out of range for the app's current config"
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
+            "x-problem-codes": [
+              "app_not_found",
+              "instance_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
+            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "x-problem-codes": [
+              "bootstrap_not_released",
+              "app_blocked"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -393,15 +632,52 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "App is unknown, or instance index is out of range for the app's current config"
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
+            "x-problem-codes": [
+              "app_not_found",
+              "instance_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -447,18 +723,66 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "App is unknown, or instance index is out of range for the app's current config"
+            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
+            "x-problem-codes": [
+              "app_not_found",
+              "instance_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "409": {
-            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
+            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "x-problem-codes": [
+              "bootstrap_not_released",
+              "app_blocked"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
+            "x-problem-codes": [
+              "action_failed"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -496,12 +820,38 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured",
+            "x-problem-codes": [
+              "app_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -539,12 +889,65 @@
               }
             }
           },
+          "400": {
+            "description": "`invalid_app_key`: the app key is not a valid app key",
+            "x-problem-codes": [
+              "invalid_app_key"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`path_traversal`: the app's source path resolves outside its app directory",
+            "x-problem-codes": [
+              "path_traversal"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`app_not_found`: no app with this key is configured; `source_not_found`: the app's source file does not exist",
+            "x-problem-codes": [
+              "app_not_found",
+              "source_not_found"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`source_unavailable`: the app's source file could not be read",
+            "x-problem-codes": [
+              "source_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -582,14 +985,24 @@
             }
           },
           "401": {
-            "description": "Invalid token"
+            "description": "`invalid_token`: the token is wrong",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "x-problem-codes": [
+              "invalid_token"
+            ]
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -716,12 +1129,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -761,9 +1187,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -813,12 +1239,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -911,12 +1350,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -952,7 +1404,7 @@
           "telemetry"
         ],
         "summary": "Telemetry Status",
-        "description": "Health check for the telemetry database.\n\nRuns a representative query against the unified ``executions`` table.\nReturns 503 with ``degraded: true`` when the database is\nunavailable; 200 with ``degraded: false`` when healthy.",
+        "description": "Health check for the telemetry database.\n\nRuns a representative query against the unified ``executions`` table.\nReturns 503 with ``degraded: true`` when the database is\nunavailable; 200 with ``degraded: false`` when healthy.\n\nA probe, so a failure answers with this status body rather than a problem body: the CLI\nand container health checks read it as data.",
         "operationId": "telemetry_status_api_telemetry_status_get",
         "responses": {
           "200": {
@@ -1055,12 +1507,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1149,12 +1614,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1261,12 +1739,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1280,7 +1771,7 @@
           "telemetry"
         ],
         "summary": "App Jobs",
-        "description": "Job summaries for a single app instance, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. On registry failure the DB rows are returned without enrichment (degraded but\nfunctional; logged warning, no 500).",
+        "description": "Job summaries for a single app instance, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. If the live registry can't be read, the DB rows are returned without enrichment\nand a warning is logged. If the telemetry DB can't be read, the route answers\n``telemetry_unavailable``.",
         "operationId": "app_jobs_api_telemetry_app__app_key__jobs_get",
         "parameters": [
           {
@@ -1355,12 +1846,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1434,12 +1938,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1484,12 +2001,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1534,12 +2064,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1622,12 +2165,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1697,12 +2253,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1772,12 +2341,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1823,12 +2405,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1842,7 +2437,7 @@
           "telemetry"
         ],
         "summary": "Dashboard App Grid",
-        "description": "Per-app health data for the dashboard grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (Category B \u2014 503 via\n``db_degrades_to`` on failure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below\nstay Category C (independently caught, degrading to empty defaults while the response\ncontinues at 200) \u2014 see ``.claude/rules/web-api.md`` for the categories.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
+        "description": "Per-app health data for the dashboard grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below are\ncaught individually and degrade to empty defaults while the response continues at 200 \u2014\nsee ``.claude/rules/web-api.md``.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
         "operationId": "dashboard_app_grid_api_telemetry_dashboard_app_grid_get",
         "parameters": [
           {
@@ -1873,12 +2468,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1892,7 +2500,7 @@
           "scheduler"
         ],
         "summary": "All Jobs",
-        "description": "All scheduled jobs across all apps, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. On registry failure the DB rows are returned without enrichment (degraded but\nfunctional; logged warning, no 500).\n\nThe registry snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
+        "description": "All scheduled jobs across all apps, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. If the live registry can't be read, the DB rows are returned without enrichment\nand a warning is logged. If the telemetry DB can't be read, the route answers\n``telemetry_unavailable``.\n\nThe registry snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
         "operationId": "all_jobs_api_scheduler_jobs_get",
         "parameters": [
           {
@@ -1944,12 +2552,25 @@
               }
             }
           },
+          "503": {
+            "description": "`telemetry_unavailable`: the telemetry store could not be read",
+            "x-problem-codes": [
+              "telemetry_unavailable"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1988,14 +2609,24 @@
             }
           },
           "409": {
-            "description": "Job is not currently registered (no live registration)"
+            "description": "`job_not_registered`: the job has no live registration",
+            "x-problem-codes": [
+              "job_not_registered"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/json": {
+              "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -3281,19 +3912,6 @@
         "title": "ExecutionStatus",
         "description": "Status values for handler invocations and job executions.\n\nMust stay in sync with the ``executions.status`` CHECK constraint."
       },
-      "HTTPValidationError": {
-        "properties": {
-          "detail": {
-            "items": {
-              "$ref": "#/components/schemas/ValidationError"
-            },
-            "type": "array",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "title": "HTTPValidationError"
-      },
       "JobSummary": {
         "properties": {
           "job_id": {
@@ -4191,6 +4809,70 @@
         "title": "ManifestStatus",
         "description": "Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``)."
       },
+      "ProblemCode": {
+        "type": "string",
+        "enum": [
+          "invalid_app_key",
+          "app_not_found",
+          "instance_not_found",
+          "bootstrap_not_released",
+          "app_blocked",
+          "action_failed",
+          "telemetry_unavailable",
+          "source_not_found",
+          "path_traversal",
+          "source_unavailable",
+          "invalid_token",
+          "not_authenticated",
+          "job_not_registered",
+          "validation_failed",
+          "body_too_large",
+          "not_found",
+          "method_not_allowed",
+          "http_error",
+          "internal_error"
+        ],
+        "title": "ProblemCode",
+        "description": "Machine-readable reason carried in the ``code`` member of every web API error body.\n\nEach code maps to exactly one HTTP status, except ``http_error``, which carries whatever\nstatus the underlying error had. Before 1.0, renaming or removing a code, or changing its\nstatus, is a breaking change and is flagged as one; adding a code is not."
+      },
+      "ProblemDetail": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Problem type URI. Always ``about:blank``: ``code`` carries the specific meaning.",
+            "default": "about:blank"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "The HTTP reason phrase for ``status``."
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status",
+            "description": "The HTTP status code of the response."
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "Human-readable explanation of this occurrence."
+          },
+          "code": {
+            "$ref": "#/components/schemas/ProblemCode",
+            "description": "Machine-readable reason for the error."
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "status",
+          "detail",
+          "code"
+        ],
+        "title": "ProblemDetail",
+        "description": "RFC 9457 problem details body returned, as ``application/problem+json``, for every web API error."
+      },
       "ReadinessResponse": {
         "properties": {
           "status": {
@@ -4569,46 +5251,6 @@
         ],
         "title": "UnattributedStall",
         "description": "One blocking event that names no app."
-      },
-      "ValidationError": {
-        "properties": {
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Location"
-          },
-          "msg": {
-            "type": "string",
-            "title": "Message"
-          },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
-          },
-          "input": {
-            "title": "Input"
-          },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
-          }
-        },
-        "type": "object",
-        "required": [
-          "loc",
-          "msg",
-          "type"
-        ],
-        "title": "ValidationError"
       }
     }
   }
