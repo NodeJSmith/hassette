@@ -93,7 +93,7 @@ def cmd_job(
             params=query_params(since=since, limit=limit),
         )
         executions = [Execution.model_validate(e) for e in raw]
-        render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
+        render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=ctx.json_mode)
         return
 
     raw = client.get_with_app_routing(
@@ -105,4 +105,4 @@ def cmd_job(
         extra_params=query_params(since=since, source_tier=source_tier),
     )
     jobs = [JobSummary.model_validate(e) for e in raw]
-    render_table(jobs, JOB_LIST_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(jobs, JOB_LIST_COLUMNS, json_mode=ctx.json_mode)

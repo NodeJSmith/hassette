@@ -424,6 +424,58 @@
     })()
 
 # ===========================================================================
+# Blocking calls: app-wide findings, apps-list badge, diagnostics loop stalls
+# blocking_demo has autostart=false and two instances (office, kitchen). Two jobs
+# (every 5s / 7s) call one helper that blocks the loop with time.sleep; a third
+# (every 11s) hands it to a loop callback and a separate task, which records
+# framework and displaced stalls no app is credited with. The first entry starts
+# the app via the API, waits until the app-wide finding lists both jobs and both
+# instances, and until the unattributed API reports both stall reasons, so the
+# next two entries load pages that already have data (neither refetches on its
+# own). Started apps persist for the rest of the run, so these sit after every
+# entry whose shot would show the stalls or the apps-list badge, and before
+# degraded_banner (a banner crop the stalls don't affect).
+# ===========================================================================
+- url: "http://localhost:{port}/apps/blocking_demo/overview"
+  output: docs/_static/web_ui_blocking_findings.png
+  selector: "[data-testid='overview-blocking-findings']"
+  width: 1400
+  height: 900
+  wait: 1000
+  wait_for: "document.querySelector('[data-testid=\"overview-blocking-finding-0-stack\"]')"
+  javascript: >-
+    (async()=>{
+    const until=(label,check,ms=60000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout: '+label)),ms);(async function c(){let v;try{v=await check()}catch(e){v=null}if(v){clearTimeout(t);res(v)}else{setTimeout(c,250)}})()});
+    const text=(sel)=>document.querySelector(sel)?.textContent??'';
+    await fetch('/api/apps/blocking_demo/start',{method:'POST'});
+    await until('both jobs and instances',()=>{const f=text('[data-testid="overview-blocking-finding-0"]');return f.includes('sync_calendar')&&f.includes('refresh_dashboard')&&f.includes('office')&&f.includes('kitchen')});
+    await until('both stall reasons',async()=>{const r=await (await fetch('/api/telemetry/blocking/unattributed')).json();return r.displaced_count>0&&r.framework_count>0});
+    const toggle=await until('stack toggle',()=>document.querySelector('[data-testid="overview-blocking-finding-0-stack-toggle"]'));
+    toggle.click();
+    })()
+
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_apps_blocking_badge.png
+  selector: "[data-testid='app-row-blocking_demo']"
+  width: 1400
+  height: 900
+  wait: 1000
+  wait_for: "document.querySelector('[data-testid=\"app-row-blocking_demo\"] [data-testid=\"blocking-badge\"]')"
+
+- url: "http://localhost:{port}/diagnostics"
+  output: docs/_static/web_ui_diagnostics_loop_stalls.png
+  selector: "[data-testid='diag-loop-stalls-panel']"
+  width: 1400
+  height: 900
+  wait: 1000
+  wait_for: "document.querySelector('[data-testid=\"diag-stall-0-stack\"]')"
+  javascript: >-
+    (async()=>{
+    const poll=(sel,ms=30000)=>new Promise((res,rej)=>{const t=setTimeout(()=>rej(new Error('timeout: '+sel)),ms);(function c(){const e=document.querySelector(sel);if(e){clearTimeout(t);res(e)}else{requestAnimationFrame(c)}})()});
+    (await poll('[data-testid="diag-stall-0-stack-toggle"]')).click();
+    })()
+
+# ===========================================================================
 # Degraded app in the failure banner
 # degraded_demo has autostart=false and two instances: one starts normally,
 # the other is configured (crash_on_init=true) to raise during on_initialize()

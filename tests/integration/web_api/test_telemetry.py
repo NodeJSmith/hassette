@@ -218,6 +218,63 @@ class TestTelemetryDashboard:
         assert orphan["in_current_config"] is False
         assert orphan["instance_count"] == 0
 
+    async def test_app_grid_carries_blocking_event_counts(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """Each entry gets its app's blocking-event count for the requested window; absent apps read 0."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            return_value=[make_manifest_db_row(app_key="my_app"), make_manifest_db_row(app_key="clean_app")]
+        )
+        mock_hassette.telemetry_query_service.get_blocking_event_counts = AsyncMock(return_value={"my_app": 9})
+
+        data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
+
+        assert {e["app_key"]: e["blocking_event_count"] for e in data["apps"]} == {"my_app": 9, "clean_app": 0}
+        call = mock_hassette.telemetry_query_service.get_blocking_event_counts.call_args
+        assert call.kwargs == {"since": pytest.approx(1700000000.0)}
+
+    async def test_app_grid_count_failure_reads_zero_and_stays_200(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """The count is an optional enrichment: its failure alone zeroes it rather than failing the grid."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            return_value=[make_manifest_db_row(app_key="my_app")]
+        )
+        mock_hassette.telemetry_query_service.get_blocking_event_counts = telemetry_error("count failed")
+
+        data = await get_json(client, APP_GRID_PATH)
+
+        assert data["apps"][0]["blocking_event_count"] == 0
+
+
+class TestTelemetryBlocking:
+    @pytest.mark.parametrize(
+        ("path", "expected"),
+        [
+            ("/api/telemetry/app/my_app/blocking", {"app_key": "my_app", "instance_index": None, "since": None}),
+            (
+                "/api/telemetry/app/my_app/blocking?instance_index=2&since=1700000000.0",
+                {"app_key": "my_app", "instance_index": 2, "since": pytest.approx(1700000000.0)},
+            ),
+            ("/api/telemetry/blocking/findings", {"app_key": None, "instance_index": None, "since": None}),
+        ],
+    )
+    async def test_findings_routes_forward_filters(
+        self, client: "AsyncClient", mock_hassette: MagicMock, path: str, expected: dict[str, Any]
+    ) -> None:
+        await assert_forwarded_to_service(
+            client, mock_hassette, path=path, service_method="get_blocking_findings", expected=expected
+        )
+
+    async def test_unattributed_route_forwards_window(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        await assert_forwarded_to_service(
+            client,
+            mock_hassette,
+            path="/api/telemetry/blocking/unattributed?since=1700000000.0",
+            service_method="get_unattributed_blocking",
+            expected={"since": pytest.approx(1700000000.0)},
+        )
+
 
 class TestTelemetryExecutions:
     async def test_list_executions_returns_all(self, client: "AsyncClient", mock_hassette) -> None:

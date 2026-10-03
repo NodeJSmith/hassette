@@ -35,4 +35,4 @@ def cmd_dashboard(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """Show app dashboard grid (GET /api/telemetry/dashboard/app-grid)."""
     client = make_client(ctx)
     result = client.get("/api/telemetry/dashboard/app-grid", DashboardAppGridResponse)
-    render_table(result.apps, DASHBOARD_COLUMNS, json_mode=ctx.json_mode)  # pyright: ignore[reportArgumentType]
+    render_table(result.apps, DASHBOARD_COLUMNS, json_mode=ctx.json_mode)

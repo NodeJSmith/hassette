@@ -15,7 +15,7 @@ Below the strip, the app table shows one row per app with the following columns:
 | Column | What it shows |
 |--------|--------------|
 | **APP** | Status dot, app key, and class name. An **auto** chip appears for apps discovered by directory scan rather than an explicit `hassette.toml` entry. |
-| **STATUS** | Lifecycle state badge: `RUNNING`, `STOPPED`, `FAILED`, `DEGRADED`, `DISABLED`, or `BLOCKED`. |
+| **STATUS** | Lifecycle state badge: `RUNNING`, `STOPPED`, `FAILED`, `DEGRADED`, `DISABLED`, or `BLOCKED`. An amber **N blocking** badge follows it when the app [blocked the event loop](../core-concepts/blocking-io-detection.md#finding-blocking-calls) in the selected time window. Click it to see the call sites on the app's overview. The badge is unrelated to the `BLOCKED` status, which comes from `hassette run --app`. |
 | **LAST ERROR** | Most recent error message, truncated. Click to expand the full message. Shows `—` when the app is healthy. |
 | **RUNS** | An activity sparkline showing invocation frequency over the selected time window, plus the total run count. |
 | **LAST FIRED** | Relative timestamp of the most recent handler or job execution, for example "3 min ago". Shows `—` if the app has never fired. |
@@ -38,6 +38,8 @@ Click any app row to open the App Detail view. The detail view shows health indi
 ### Multi-instance apps
 
 Apps with multiple instances show a parent row with a chevron and an instance count badge (e.g., "2 instances"). Click the chevron to expand into individual instance rows. Each instance row shows its own status dot, badge, last error, and action buttons — Start, Stop, and Reload here target just that instance, not the whole app. Click an instance name to open that instance's detail view, where the header's action buttons target the same single instance.
+
+Clicking the app's own name opens its app-wide overview instead: a card per instance with its status, plus anything that spans instances, such as [blocking calls](../core-concepts/blocking-io-detection.md#finding-blocking-calls) from every instance. Click a card to open that instance's detail view.
 
 ![An expanded instance row with its own action buttons](../../_static/web_ui_instance_action_buttons.png)
 

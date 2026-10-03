@@ -132,6 +132,7 @@ EXPECTED_TABLES = {
         "detected_ts",
         "source_tier",
         "reason",
+        "frames",
     },
     "app_manifests": {
         "id",

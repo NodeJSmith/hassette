@@ -18,7 +18,7 @@ import re
 import threading
 import time
 import warnings
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import cast
 from unittest.mock import MagicMock
 
@@ -42,6 +42,7 @@ def make_watchdog(
     executor: MagicMock,
     *,
     hassette: MagicMock | None = None,
+    on_stall: Callable[[WatchdogEvent], object] | None = None,
 ) -> LoopWatchdog:
     if hassette is None:
         hassette = make_blocking_io_hassette()
@@ -50,6 +51,7 @@ def make_watchdog(
         loop=loop,
         loop_thread_id=threading.get_ident(),
         executor=executor,
+        on_stall=on_stall,
     )
 
 
@@ -297,13 +299,7 @@ async def test_on_stall_fires_before_warning_and_survives_escalation() -> None:
 
     with warnings.catch_warnings():
         warnings.filterwarnings("error", category=HassetteBlockingIOWarning)
-        watchdog = LoopWatchdog(
-            hassette,
-            loop=loop,
-            loop_thread_id=threading.get_ident(),
-            executor=executor,
-            on_stall=on_stall,
-        )
+        watchdog = make_watchdog(loop, executor, hassette=hassette, on_stall=on_stall)
         watchdog.start()
         try:
             # Handler done — clear the marker so a CPU-starvation tick lag during recovery opens
@@ -358,7 +354,7 @@ def test_watchdog_event_fields() -> None:
         execution_id="exec-abc",
         stall_duration_ms=350.0,
         tier="watchdog",
-        stack_text=None,
+        frames=(),
         detected_at=time.time(),
         reason="attributed",
     )
@@ -367,6 +363,7 @@ def test_watchdog_event_fields() -> None:
     assert event.stall_duration_ms == 350.0
     assert event.instance_name == "office"
     assert event.instance_index == 0
+    assert event.frames == ()
     assert event.stack_text is None
     assert event.reason == "attributed"
 
@@ -422,18 +419,9 @@ async def test_displaced_block_not_attributed_to_innocent_app() -> None:
     captured: list[WatchdogEvent] = []
 
     with pytest.warns(HassetteBlockingIOWarning) as record:
-        watchdog = LoopWatchdog(
-            make_blocking_io_hassette(),
-            loop=loop,
-            loop_thread_id=threading.get_ident(),
-            executor=executor,
-            on_stall=captured.append,
-        )
-        watchdog.start()
-        try:
+        watchdog = make_watchdog(loop, executor, on_stall=captured.append)
+        async with running_watchdog(watchdog):
             await freeze_loop_and_recover(executor, clear_marker_before_recovery=True)
-        finally:
-            watchdog.stop()
 
     msg = str(record[0].message)
     assert "innocent_app" not in msg
@@ -445,6 +433,29 @@ async def test_displaced_block_not_attributed_to_innocent_app() -> None:
 
 
 @pytest.mark.asyncio(loop_scope="function")
+async def test_stall_captures_structured_frames_of_the_frozen_code() -> None:
+    """With stack capture on, the event carries the frozen code's frames, innermost first."""
+    loop = asyncio.get_running_loop()
+    executor = make_marker_executor(app_key="kitchen_lights", stamp_task_id=True)
+    captured: list[WatchdogEvent] = []
+
+    with pytest.warns(HassetteBlockingIOWarning):
+        watchdog = make_watchdog(
+            loop, executor, hassette=make_blocking_io_hassette(capture_stack_on_block=True), on_stall=captured.append
+        )
+        async with running_watchdog(watchdog):
+            await freeze_loop_and_recover(executor, clear_marker_before_recovery=True)
+
+    assert captured
+    innermost = captured[0].frames[0]
+    assert (innermost.function, innermost.filename, innermost.module) == ("freeze_loop_and_recover", __file__, __name__)
+    assert captured[0].stack_text is not None
+    assert captured[0].stack_text.splitlines()[0] == (
+        f'  File "{__file__}", line {innermost.lineno}, in freeze_loop_and_recover ({__name__})'
+    )
+
+
+@pytest.mark.asyncio(loop_scope="function")
 async def test_attributed_block_records_reason_attributed() -> None:
     """A freeze whose marker matches the frozen task is attributed to its app, reason='attributed'."""
     loop = asyncio.get_running_loop()
@@ -452,18 +463,9 @@ async def test_attributed_block_records_reason_attributed() -> None:
     captured: list[WatchdogEvent] = []
 
     with pytest.warns(HassetteBlockingIOWarning):
-        watchdog = LoopWatchdog(
-            make_blocking_io_hassette(),
-            loop=loop,
-            loop_thread_id=threading.get_ident(),
-            executor=executor,
-            on_stall=captured.append,
-        )
-        watchdog.start()
-        try:
+        watchdog = make_watchdog(loop, executor, on_stall=captured.append)
+        async with running_watchdog(watchdog):
             await freeze_loop_and_recover(executor, clear_marker_before_recovery=True)
-        finally:
-            watchdog.stop()
 
     assert captured
     assert captured[0].app_key == "kitchen_lights"

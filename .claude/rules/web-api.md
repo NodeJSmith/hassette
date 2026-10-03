@@ -44,6 +44,12 @@ async def app_health(app_key: AppKeyPath, telemetry: TelemetryDep, filters: Tele
 FastAPI flattens a dependency's parameters into the operation, so the OpenAPI schema is identical
 to declaring all three inline.
 
+`TelemetryFiltersDep` defaults `instance_index` to 0, which fits views of one instance. A
+multi-instance app's page with no `?instance=` is an app-wide overview (`MultiInstanceOverview`),
+not instance 0. A route that feeds that view takes `OptionalInstanceIndexQuery` instead, where an
+omitted index means every instance; `/app/{key}/blocking` is the example. Such a route declares
+its filters inline, since the dependency's 0 default and its `source_tier` don't apply.
+
 ## Error Responses
 
 Every error under `/api` is an RFC 9457 `application/problem+json` body with a `ProblemCode` in `code` (`hassette_wire/problems.py`). `src/hassette/web/errors.py` owns the whole mechanism: the code-to-status table, the handlers, the body builder, and the OpenAPI rewrite. The user-facing catalog is `docs/pages/web-ui/api-errors.md`.

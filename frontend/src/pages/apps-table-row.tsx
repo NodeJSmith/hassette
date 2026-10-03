@@ -1,5 +1,6 @@
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useState } from "react";
+import { Link } from "wouter";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -12,10 +13,23 @@ import { StatusShape } from "../components/shared/status-shape";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import type { AppStatusEntry } from "../state/store";
 import { appLiveStatus, type AppRow, instanceLiveError, instanceLiveStatus } from "../utils/app-data";
+import { appDetailPath } from "../utils/app-routes";
 import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "../utils/constants";
-import { formatTimestamp } from "../utils/format";
+import { formatTimestamp, pluralize } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";
 import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "../utils/status";
+
+/** Links to the app's overview, where its blocking findings are listed. */
+function BlockingBadge({ appKey, count }: { appKey: string; count: number }) {
+  const label = `${pluralize(count, "blocking event")} stalled the event loop in this time window`;
+  return (
+    <Badge asChild variant="warning" size="sm" className="ml-1">
+      <Link href={appDetailPath(appKey, "overview")} title={label} aria-label={label} data-testid="blocking-badge">
+        {count} blocking
+      </Link>
+    </Badge>
+  );
+}
 
 export function AppTableRow({
   app,
@@ -104,6 +118,7 @@ export function AppTableRow({
           <Badge variant={statusToVariant(status)} size="sm" data-testid="status-pill">
             {status}
           </Badge>
+          {app.blocking_event_count > 0 && <BlockingBadge appKey={app.app_key} count={app.blocking_event_count} />}
           {isMulti && (
             <span
               className={cn("ml-1 font-mono text-xs text-muted-foreground max-sidebar:hidden", compact && "hidden")}

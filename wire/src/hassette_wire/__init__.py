@@ -29,6 +29,18 @@ from hassette_wire.apps import (
     AppStatusResponse,
 )
 from hassette_wire.auth import MAX_SESSION_TOKEN_LENGTH, SessionRequest, SessionResponse
+from hassette_wire.blocking import (
+    BlockingFinding,
+    BlockingFindingsResponse,
+    BlockingFrameRef,
+    BlockingHandlerRef,
+    BlockingInstanceRef,
+    BlockingTier,
+    StackFrame,
+    UnattributedBlockingResponse,
+    UnattributedReason,
+    UnattributedStall,
+)
 from hassette_wire.cli_format import CliFormat, CliFormatStyle
 from hassette_wire.config import ConfigSchemaResponse
 from hassette_wire.enums import BackpressurePolicy, ExecutionMode, ExecutionStatus, ManifestStatus, ResourceStatus
@@ -96,6 +108,12 @@ __all__ = [
     "AppStatusChangedWsMessage",
     "AppStatusResponse",
     "BackpressurePolicy",
+    "BlockingFinding",
+    "BlockingFindingsResponse",
+    "BlockingFrameRef",
+    "BlockingHandlerRef",
+    "BlockingInstanceRef",
+    "BlockingTier",
     "BootIssueResponse",
     "CliFormat",
     "CliFormatStyle",
@@ -136,8 +154,12 @@ __all__ = [
     "SessionRequest",
     "SessionResponse",
     "SourceTier",
+    "StackFrame",
     "SystemHealthStatus",
     "SystemStatusResponse",
     "TelemetryStatusResponse",
+    "UnattributedBlockingResponse",
+    "UnattributedReason",
+    "UnattributedStall",
     "WsServerMessage",
 ]

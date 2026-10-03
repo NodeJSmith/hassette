@@ -42,11 +42,13 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING
 
+from hassette_wire import StackFrame
+
 from hassette.core.block_io_guard import resolve_blocking_io_behavior
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import BlockingAttributionReason
-from hassette.utils.source_capture import is_internal_frame
+from hassette.utils.stack_frames import capture_frames, format_stack_text
 
 LOGGER = getLogger(__name__)
 
@@ -59,7 +61,11 @@ if TYPE_CHECKING:
 # The daemon polls several times per watchdog interval so it notices a stall promptly
 # without the in-loop tick and the poll aliasing into a missed detection.
 _POLL_SUBDIVISIONS = 3
-_MAX_STACK_DEPTH = 30
+# Non-hassette frames kept per stalled stack. Deep library stacks (an HTTP client through urllib3,
+# http.client and ssl) can sit many frames below the app code that called them, and a small limit
+# would cut the stack before reaching the app frame; the walk runs on the watchdog thread, so a
+# deeper limit costs the loop nothing.
+_MAX_STACK_FRAMES = 60
 
 
 @dataclass(frozen=True)
@@ -91,8 +97,9 @@ class WatchdogEvent:
     tier: str
     """Always ``"watchdog"`` for Tier 1 events."""
 
-    stack_text: str | None
-    """Loop-thread stack snapshot taken *during* the freeze (non-framework frames), or ``None``."""
+    frames: tuple[StackFrame, ...]
+    """Loop-thread stack snapshot taken *during* the freeze (non-framework frames, innermost first).
+    Empty when no stack was captured."""
 
     detected_at: float
     """``time.time()`` wall-clock timestamp when the stall was detected."""
@@ -101,6 +108,11 @@ class WatchdogEvent:
     """Attribution outcome: ``"attributed"`` (``app_key`` names the frozen task), ``"displaced"``
     (a different task was frozen — ``app_key`` withheld), or ``"framework"`` (no task was running,
     e.g. the loop was idle in ``select()`` — ``app_key`` withheld)."""
+
+    @property
+    def stack_text(self) -> str | None:
+        """``frames`` rendered as text for the warning message and the ``source_location`` column."""
+        return format_stack_text(self.frames)
 
 
 class LoopWatchdog:
@@ -174,7 +186,7 @@ class LoopWatchdog:
         # and the single warning is emitted.
         self._stall_marker: ExecutionMarker | None = None
         self._stall_frozen_since: float = 0.0
-        self._stall_stack: str | None = None
+        self._stall_frames: tuple[StackFrame, ...] = ()
         # Attribution outcome for the open episode, decided when the freeze is first captured.
         # Default to "displaced" so a half-set episode never blames an app.
         self._stall_reason: BlockingAttributionReason = "displaced"
@@ -229,7 +241,7 @@ class LoopWatchdog:
                 self._emit_stall(
                     self._stall_marker,
                     time.monotonic() - self._stall_frozen_since,
-                    self._stall_stack,
+                    self._stall_frames,
                     self._stall_reason,
                 )
             except Exception as exc:
@@ -273,13 +285,13 @@ class LoopWatchdog:
                             # the freeze is live — a displaced or framework freeze must not blame
                             # the most-recently-bound app.
                             self._stall_reason = self._classify_attribution(marker)
-                            self._stall_stack = self._capture_loop_stack() if self._capture_stack else None
+                            self._stall_frames = self._capture_loop_stack() if self._capture_stack else ()
                     continue
                 # Loop is responsive. If an episode is open, it just recovered — report it now
                 # with the full stall duration (the span the tick was starved), then close it.
                 if self._stall_marker is not None:
                     duration = self._last_tick - self._stall_frozen_since
-                    self._emit_stall(self._stall_marker, duration, self._stall_stack, self._stall_reason)
+                    self._emit_stall(self._stall_marker, duration, self._stall_frames, self._stall_reason)
                     self._close_episode()
             except Exception:
                 # Defensive: drop the open episode so a poisoned marker can't wedge detection.
@@ -298,7 +310,7 @@ class LoopWatchdog:
         rather than blaming an app — the same defensive default as ``__init__``.
         """
         self._stall_marker = None
-        self._stall_stack = None
+        self._stall_frames = ()
         self._stall_reason = "displaced"
 
     def _classify_attribution(self, marker: "ExecutionMarker") -> BlockingAttributionReason:
@@ -328,39 +340,25 @@ class LoopWatchdog:
         # both are "not confirmably this app", recorded as displaced rather than blaming it.
         return "displaced"
 
-    def _capture_loop_stack(self) -> str | None:
-        """Capture and filter the loop thread's current stack frames.
+    def _capture_loop_stack(self) -> tuple[StackFrame, ...]:
+        """Capture the loop thread's current non-internal stack frames, innermost first.
 
-        Returns a formatted string of non-internal frames, or ``None`` when
-        no frame is available or readable.
+        Returns an empty tuple when no frame is available or readable.
         """
         try:
             frames = sys._current_frames()
         except Exception:
-            return None
+            return ()
         frame = frames.get(self._loop_thread_id)
         if frame is None:
-            return None
-        # Walk the frame chain and collect non-internal frames.
-        lines: list[str] = []
-        f = frame
-        depth = 0
-        while f is not None and depth < _MAX_STACK_DEPTH:
-            if not is_internal_frame(f):
-                name = f.f_globals.get("__name__", "<unknown>")
-                co = f.f_code
-                lines.append(f'  File "{co.co_filename}", line {f.f_lineno}, in {co.co_name} ({name})')
-            f = f.f_back
-            depth += 1
-        if not lines:
-            return None
-        return "\n".join(lines)
+            return ()
+        return capture_frames(frame, max_frames=_MAX_STACK_FRAMES)
 
     def _emit_stall(
         self,
         marker: "ExecutionMarker",
         stall_seconds: float,
-        stack_text: str | None,
+        frames: tuple[StackFrame, ...],
         reason: BlockingAttributionReason,
     ) -> None:
         """Build a WatchdogEvent for a recovered stall and emit the warning.
@@ -377,7 +375,7 @@ class LoopWatchdog:
             execution_id=marker.execution_id if is_attributed else None,
             stall_duration_ms=stall_seconds * 1000.0,
             tier="watchdog",
-            stack_text=stack_text,
+            frames=frames,
             detected_at=time.time(),
             reason=reason,
         )

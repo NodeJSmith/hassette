@@ -35,6 +35,7 @@ class TestSubcommandRouting:
             pytest.param(["execution", "some-uuid"], "cmd_execution", id="execution"),
             pytest.param(["job"], "cmd_job", id="job"),
             pytest.param(["listener"], "cmd_listener", id="listener"),
+            pytest.param(["blocking"], "cmd_blocking", id="blocking"),
             pytest.param(["log"], "cmd_log", id="log"),
             pytest.param(["run"], "cmd_run", id="run"),
             pytest.param(["status"], "cmd_status", id="status"),
@@ -51,6 +52,7 @@ class TestSinceConverterWiring:
         ("argv", "expected_seconds_ago"),
         [
             pytest.param(["log", "--since", "7d"], 7 * SECONDS_PER_DAY, id="log-7d"),
+            pytest.param(["blocking", "--since", "7d"], 7 * SECONDS_PER_DAY, id="blocking-7d"),
             pytest.param(["listener", "--since", "1h"], SECONDS_PER_HOUR, id="listener-1h"),
             pytest.param(["job", "--since", "30m"], 30 * SECONDS_PER_MINUTE, id="job-30m"),
             pytest.param(["app", "health", "test-app", "--since", "2w"], 14 * SECONDS_PER_DAY, id="app-health-2w"),
@@ -85,6 +87,12 @@ class TestFlagCombinations:
         assert bound.arguments["app"] == "my-app"
         assert bound.arguments["since"] == pytest.approx(NOW_EPOCH - SECONDS_PER_HOUR, abs=1)
         assert bound.arguments["limit"] == 50
+
+    def test_blocking_app_instance(self) -> None:
+        _cmd, bound, _ = app.parse_args(["blocking", "--app", "car_climate", "--instance", "1"])
+
+        assert bound.arguments["app"] == "car_climate"
+        assert bound.arguments["instance"] == "1"
 
     def test_job_app_source_tier(self) -> None:
         _cmd, bound, _ = app.parse_args(["job", "--app", "my-app", "--source-tier", "framework"])

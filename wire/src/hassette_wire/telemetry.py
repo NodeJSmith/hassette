@@ -267,6 +267,9 @@ class DashboardAppGridEntry(BaseModel):
     error_rate_class: ErrorRateClass
     activity_buckets: list[ActivityBucket] = Field(default_factory=list)
     """Per-app sparkline buckets (ok/err counts per time window)."""
+    blocking_event_count: int = 0
+    """Attributed blocking-IO events for this app in the requested window. Best-effort: reads 0
+    when only this count's query fails, so a zero is not proof the app never blocked."""
     last_error_message: str | None = None
     last_error_type: str | None = None
     last_error_ts: float | None = None

@@ -7,6 +7,7 @@ import { instanceLiveError, instanceLiveStatus } from "../../utils/app-data";
 import { BADGE_STATUS_SHAPE_SIZE, STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
 import { StatusShape } from "../shared/status-shape";
+import { BlockingFindingsSection } from "./blocking-findings";
 
 export function InstanceSwitcher({
   appKey,
@@ -133,6 +134,9 @@ export function MultiInstanceOverview({
             onNavigate={onNavigate}
           />
         ))}
+      </div>
+      <div className="mt-6 empty:hidden">
+        <BlockingFindingsSection appKey={appKey} scope={{ kind: "app" }} />
       </div>
     </div>
   );

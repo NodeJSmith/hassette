@@ -1,17 +1,25 @@
 import { useQuery } from "@tanstack/react-query";
 
-import type { BootIssue } from "../api/endpoints";
-import { getSystemStatus } from "../api/endpoints";
+import type { BootIssue, UnattributedBlockingData } from "../api/endpoints";
+import { getSystemStatus, getUnattributedBlocking } from "../api/endpoints";
 import { BootIssuesPanel } from "../components/diagnostics/boot-issues-panel";
 import { LoggingPanel } from "../components/diagnostics/logging-panel";
+import { LoopStallsPanel } from "../components/diagnostics/loop-stalls-panel";
 import { type MergedService, mergeServices } from "../components/diagnostics/merge-services";
 import { ServicesPanel } from "../components/diagnostics/services-panel";
 import { TelemetryPanel } from "../components/diagnostics/telemetry-panel";
 import { Spinner } from "../components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
 import { useDocumentTitle } from "../hooks/use-document-title";
+import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
 import { type TelemetryHealth, useAppStore } from "../state/store";
+
+/**
+ * Cadence for refreshing loop stalls. Displaced and framework stalls aren't tied to any
+ * execution, so the execution-completion invalidation other blocking views rely on never fires for them.
+ */
+export const LOOP_STALLS_REFETCH_MS = 10_000;
 
 function buildDiagCells(
   services: MergedService[],
@@ -19,6 +27,7 @@ function buildDiagCells(
   telemetryDrops: number,
   logQueueDrops: number,
   dbWriteQueueDrops: number,
+  loopStalls: number,
 ): StatsStripCell[] {
   const running = services.filter((s) => s.status === "running").length;
   return [
@@ -28,6 +37,7 @@ function buildDiagCells(
     { label: "telemetry drops", value: telemetryDrops, tone: telemetryDrops > 0 ? "warn" : undefined },
     { label: "log queue drops", value: logQueueDrops, tone: logQueueDrops > 0 ? "warn" : undefined },
     { label: "DB write drops", value: dbWriteQueueDrops, tone: dbWriteQueueDrops > 0 ? "warn" : undefined },
+    { label: "loop stalls", value: loopStalls, tone: loopStalls > 0 ? "warn" : undefined },
   ];
 }
 
@@ -44,6 +54,9 @@ interface DiagnosticsData {
   logPersistenceInactive: boolean;
   telemetry: TelemetryHealth;
   telemetryDrops: number;
+  loopStallCount: number;
+  /** Undefined while loading, on a failed fetch, and when there are no stalls; the panel then renders nothing. */
+  loopStalls: UnattributedBlockingData | undefined;
   // Derived visibility — a healthy subsystem renders no panel at all
   showLogging: boolean;
   showTelemetry: boolean;
@@ -68,11 +81,18 @@ function useDiagnosticsData(): DiagnosticsData {
     queryFn: ({ signal }) => getSystemStatus(signal),
   });
   const effectiveSystemStatus = loadError ? undefined : systemStatus;
+  // Loop stalls follow the global time window like every other telemetry view.
+  const { data: unattributed } = useScopedQuery(
+    queryKeys.unattributedBlocking(),
+    (since, signal) => getUnattributedBlocking(since, signal),
+    { refetchInterval: LOOP_STALLS_REFETCH_MS },
+  );
 
   const logQueueDrops = effectiveSystemStatus?.log_queue_drops ?? 0;
   const dbWriteQueueDrops = effectiveSystemStatus?.db_write_queue_drops ?? 0;
   const logPersistenceInactive = effectiveSystemStatus?.log_persistence_active === false;
   const telemetryDrops = droppedOverflow + droppedExhausted + droppedShutdown + errorHandlerFailures;
+  const loopStallCount = unattributed?.total_count ?? 0;
 
   return {
     loading,
@@ -86,6 +106,8 @@ function useDiagnosticsData(): DiagnosticsData {
     showLogging: logQueueDrops > 0 || dbWriteQueueDrops > 0 || logPersistenceInactive,
     telemetry: { droppedOverflow, droppedExhausted, droppedShutdown, errorHandlerFailures, telemetryDegraded },
     telemetryDrops,
+    loopStallCount,
+    loopStalls: loopStallCount > 0 ? unattributed : undefined,
     showTelemetry: telemetryDegraded || telemetryDrops > 0,
   };
 }
@@ -121,6 +143,7 @@ export function DiagnosticsPage() {
               diag.telemetryDrops,
               diag.logQueueDrops,
               diag.dbWriteQueueDrops,
+              diag.loopStallCount,
             )}
             data-testid="diag-stats-strip"
           />
@@ -142,6 +165,8 @@ export function DiagnosticsPage() {
       {/* Telemetry counters come from the WS stream, not the HTTP seed, so they render even
           when the HTTP load failed. Logging health only renders from an available HTTP seed. */}
       {diag.showTelemetry && <TelemetryPanel {...diag.telemetry} />}
+
+      {diag.loopStalls && <LoopStallsPanel data={diag.loopStalls} />}
     </div>
   );
 }

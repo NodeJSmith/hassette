@@ -5,11 +5,13 @@ import { cn } from "@/lib/utils";
 import type { JobData, ListenerData } from "../../api/endpoints";
 import type { components } from "../../api/generated-types";
 import { useAppStore } from "../../state/store";
+import { parseInstanceParam } from "../../utils/app-routes";
 import { INACTIVE_STATUSES } from "../../utils/status";
 import { EmptyState } from "../shared/empty-state";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
 import { TableCard } from "../shared/table-card";
 import { TableFooter } from "../shared/table-footer";
+import { BlockingFindingsSection } from "./blocking-findings";
 import { ErrorSpotlight } from "./error-spotlight";
 import { HandlerHealthGrid } from "./handler-health-grid";
 import { buildItems } from "./handler-list";
@@ -99,6 +101,15 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
       {failingItems.length > 0 && (
         <ErrorSpotlight failingItems={failingItems} appKey={appKey} instanceQs={instanceQs} />
       )}
+
+      <BlockingFindingsSection
+        appKey={appKey}
+        scope={{
+          kind: "instance",
+          index: resolvedInstanceIndex,
+          linkInstance: parseInstanceParam(new URLSearchParams(instanceQs).get("instance")),
+        }}
+      />
 
       <HandlerHealthGrid items={allItems} appKey={appKey} instanceQs={instanceQs} />
 

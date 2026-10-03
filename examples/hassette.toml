@@ -100,6 +100,22 @@ instance_name = "ok"
 instance_name = "crashed"
 crash_on_init = true
 
+# blocking_demo blocks the event loop on purpose for the blocking-calls docs screenshots
+# (docs/_static/web_ui_blocking_findings.png, web_ui_apps_blocking_badge.png and
+# web_ui_diagnostics_loop_stalls.png). Two instances so the app-wide overview lists both.
+# autostart=false keeps it from stalling the demo until the first of those entries starts it.
+# Don't remove without updating docs/screenshots.yml, blocking-io-detection.md and diagnostics.md.
+[hassette.apps.blocking_demo]
+filename = "blocking_demo.py"
+class_name = "BlockingDemo"
+autostart = false
+
+[[hassette.apps.blocking_demo.config]]
+instance_name = "office"
+
+[[hassette.apps.blocking_demo.config]]
+instance_name = "kitchen"
+
 [hassette.database]
 retention_days = 14
 max_size_mb = 100

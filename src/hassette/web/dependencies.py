@@ -33,6 +33,10 @@ AppKeyPath = Annotated[str, Path(description="Use `__hassette__` to query framew
 InstanceIndexQuery = Annotated[
     int, Query(description="App instance index. Defaults to 0. Multi-instance apps have indices 0..N-1.")
 ]
+# For routes that serve the multi-instance parent overview, where omitting the index means every instance.
+OptionalInstanceIndexQuery = Annotated[
+    int | None, Query(description="App instance index. Omit for every instance of the app.")
+]
 SinceQuery = Annotated[float | None, Query()]
 SourceTierQuery = Annotated[
     QuerySourceTier,

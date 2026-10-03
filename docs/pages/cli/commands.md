@@ -327,6 +327,47 @@ The table shows timestamp, level, function name, line number, and message for ea
 
 **API endpoint:** `GET /api/executions/{execution_id}`
 
+## `hassette blocking`
+
+Blocking calls that stalled the event loop, grouped by the line of app code to fix. Without `--app`, it lists findings for every app, then the recent stalls that no app is credited with. Those are split by reason: `displaced` means an app execution was in flight but another task held the loop, and `framework` means no app execution was running. [Blocking-IO Detection](../core-concepts/blocking-io-detection.md#finding-blocking-calls) explains what each column means.
+
+```console
+$ hassette blocking --since 7d
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━━━━━┓
+┃ App              ┃ Instances         ┃ Call site                    ┃ Calls into                   ┃ Count ┃ Max   ┃ Last seen ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━━━━━┩
+│ presence         │ bedroom, office   │ presence.py:44 in refresh    │ requests/api.py get          │ 4     │ 5.0s  │ 30m ago   │
+│ car_climate      │ CarClimate.0      │ calendar_service.py:98 in    │ gcsa/_services/events_servi… │ 9     │ 534ms │ 2h ago    │
+│                  │                   │ get_calendar_events          │ get_events                   │       │       │           │
+│ garage_proximity │ GarageProximity.0 │ call site not captured       │                              │ 1     │ 212ms │ 2d ago    │
+│                  │                   │ (on_phone_arrive)            │                              │       │       │           │
+└──────────────────┴───────────────────┴──────────────────────────────┴──────────────────────────────┴───────┴───────┴───────────┘
+
+Loop stalls credited to no app: 3 (1 displaced, 2 framework)
+┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ When    ┃ Reason    ┃ Stall      ┃ App code in stack         ┃
+┡━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ 30m ago │ displaced │ 5.0s       │ presence.py:44 in refresh │
+│ 5h ago  │ framework │ 140ms      │                           │
+│ 2d ago  │ framework │ time.sleep │                           │
+└─────────┴───────────┴────────────┴───────────────────────────┘
+```
+
+With `--app`, only that app's findings are shown, across all its instances unless `--instance` names one. A call site that several instances hit is one row, and the Instances column names them. `--instance` without `--app` exits with a usage error. Counts are exact. When a window holds more call sites than one response returns, a note on stderr says the least recently seen call sites are omitted; narrow `--since` to see them.
+
+The Stall column shows how long the loop was held. A [Tier 2](../core-concepts/blocking-io-detection.md) row records no duration, so it names the intercepted call instead, such as `time.sleep`.
+
+### Flags
+
+| Flag                   | Description                                         |
+| ---------------------- | --------------------------------------------------- |
+| `--app <key>`          | Shows only this app's findings.                     |
+| `--instance <name\|n>` | With `--app`, selects the instance.                 |
+| `--since <duration>`   | Time window filter. Without it, covers all retained events. |
+| `--json`               | Outputs as JSON. Without `--app`, one document with `findings` and `unattributed` keys. With `--app`, the findings response: a `findings` array and a `truncated` flag. |
+
+**API endpoints:** `GET /api/telemetry/blocking/findings` and `GET /api/telemetry/blocking/unattributed`; with `--app`, `GET /api/telemetry/app/{app_key}/blocking`
+
 ## `hassette dashboard`
 
 Per-app health status, invocation counts, error counts, average duration, and last activity. Mirrors the dashboard grid in the web UI.
@@ -381,9 +422,9 @@ These flags appear across multiple commands.
 
 | Flag                   | Format                       | Commands                                                     | Description                                                                                                                                 |
 | ---------------------- | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--app <key>`          | string                       | `listener`, `job`, `log`                                     | Filters results to a specific app key.                                                                                                      |
-| `--instance <n>`       | int or string                | `listener`, `job`, `app health`, `app activity`, `app start`, `app stop`, `app reload` | Filters to (read commands) or targets (action commands) a specific app instance (index or name). Requires `--app` for `listener`/`job`; requires the positional `<key>` for all `app` subcommands.         |
-| `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `app health`, `app activity`       | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
+| `--app <key>`          | string                       | `listener`, `job`, `log`, `blocking`                         | Filters results to a specific app key.                                                                                                      |
+| `--instance <n>`       | int or string                | `listener`, `job`, `blocking`, `app health`, `app activity`, `app start`, `app stop`, `app reload` | Filters to (read commands) or targets (action commands) a specific app instance (index or name). Requires `--app` for `listener`/`job`/`blocking`; requires the positional `<key>` for all `app` subcommands.         |
+| `--since <duration>`   | relative or absolute         | `listener`, `job`, `log`, `blocking`, `app health`, `app activity` | Time window for filtering. See [`--since` format](#--since-format).                                                                         |
 | `--limit <n>`          | integer                      | `log`, `execution`, `app activity`, per-ID commands          | Maximum number of records to return.                                                                                                        |
 | `--source-tier <tier>` | `app`, `framework`, or `all` | `listener`, `job`, `log`, `app health`                       | Filters by source tier. `app` returns user automation records. `framework` returns internal Hassette component records. `all` returns both. |
 | `--json`               | n/a                          | all commands                                                 | Outputs as JSON. See [Output Modes](configuration.md#output-modes).                                                                         |

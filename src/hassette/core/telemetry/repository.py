@@ -23,6 +23,7 @@ from hassette.core.telemetry.reconcile_sql import (
 )
 from hassette.schemas.log_models import BlockingEvent
 from hassette.types.types import is_framework_key
+from hassette.utils.stack_frames import encode_frames
 
 LOGGER = getLogger(__name__)
 
@@ -415,11 +416,11 @@ class TelemetryRepository:
                 INSERT INTO blocking_events (
                     session_id, app_key, instance_name, instance_index,
                     execution_id, tier, primitive, source_location,
-                    stall_duration_ms, detected_ts, source_tier, reason
+                    stall_duration_ms, detected_ts, source_tier, reason, frames
                 ) VALUES (
                     :session_id, :app_key, :instance_name, :instance_index,
                     :execution_id, :tier, :primitive, :source_location,
-                    :stall_duration_ms, :detected_ts, :source_tier, :reason
+                    :stall_duration_ms, :detected_ts, :source_tier, :reason, :frames
                 )
                 """,
                 {
@@ -435,6 +436,7 @@ class TelemetryRepository:
                     "detected_ts": event.detected_ts,
                     "source_tier": event.source_tier,
                     "reason": event.reason,
+                    "frames": encode_frames(event.frames),
                 },
             )
             await db.commit()

@@ -161,6 +161,89 @@
       }
     ]
   },
+  "blocking": {
+    "FINDING_COLUMNS": [
+      {
+        "field": "app_key",
+        "formatter": null,
+        "header": "App",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "instances",
+        "formatter": null,
+        "header": "Instances",
+        "max_width": 24,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "call_site",
+        "formatter": null,
+        "header": "Call site",
+        "max_width": 44,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "callee",
+        "formatter": null,
+        "header": "Calls into",
+        "max_width": 36,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "event_count",
+        "formatter": null,
+        "header": "Count",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "max_stall_ms",
+        "formatter": "fmt_duration_ms",
+        "header": "Max",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "last_seen_ts",
+        "formatter": "fmt_relative_time",
+        "header": "Last seen",
+        "max_width": null,
+        "overflow": "ellipsis"
+      }
+    ],
+    "UNATTRIBUTED_COLUMNS": [
+      {
+        "field": "detected_ts",
+        "formatter": "fmt_relative_time",
+        "header": "When",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "reason",
+        "formatter": null,
+        "header": "Reason",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "stall_duration_ms",
+        "formatter": null,
+        "header": "Stall",
+        "max_width": null,
+        "overflow": "ellipsis"
+      },
+      {
+        "field": "app_frame",
+        "formatter": null,
+        "header": "App code in stack",
+        "max_width": null,
+        "overflow": "ellipsis"
+      }
+    ]
+  },
   "job": {
     "JOB_EXECUTION_COLUMNS": [
       {

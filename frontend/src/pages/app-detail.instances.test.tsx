@@ -1,10 +1,12 @@
 import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { appStatusKey, type AppStore } from "../state/store";
-import { createInstance, createManifest } from "../test/factories";
+import { createBlockingFinding, createInstance, createManifest } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
+import { server } from "../test/server";
 import type { AppDetailTab } from "../utils/app-routes";
 import { AppDetailPage } from "./app-detail";
 import { setupApi, setupMultiInstanceParent } from "./app-detail.test-helpers";
@@ -75,6 +77,21 @@ describe("AppDetailPage instances", () => {
     setupApi(manifest);
     const { findByTestId } = renderPage({ key: "test_app" });
     expect(await findByTestId("instance-grid")).toBeDefined();
+  });
+
+  it("parent overview lists blocking findings across every instance", async () => {
+    setupMultiInstanceParent();
+    const seen: URL[] = [];
+    server.use(
+      http.get("/api/telemetry/app/:app_key/blocking", ({ request }) => {
+        seen.push(new URL(request.url));
+        return HttpResponse.json({ findings: [createBlockingFinding()], truncated: false });
+      }),
+    );
+    const { findByTestId } = renderPage({ key: "test_app" });
+
+    expect((await findByTestId("overview-blocking-findings")).textContent).toContain("all instances");
+    expect(seen[0]?.searchParams.has("instance_index")).toBe(false);
   });
 
   it("renders instance grid cards with instance names", async () => {

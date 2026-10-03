@@ -9,6 +9,7 @@ import aiosqlite
 from hassette_wire import LogLevel
 
 from hassette.core.database_service import DatabaseService
+from hassette.core.telemetry.blocking_queries import BlockingQueriesMixin
 from hassette.core.telemetry.execution_queries import ExecutionQueriesMixin
 from hassette.core.telemetry.helpers import STORAGE_ERRORS, fetch_all_as_dicts, row_to_dict
 from hassette.core.telemetry.helpers import AppHealthAggregates as AppHealthAggregates  # re-exported
@@ -22,10 +23,12 @@ if TYPE_CHECKING:
     from hassette import Hassette
 
 
-class TelemetryQueryService(ExecutionQueriesMixin, RegistrationQueriesMixin, SummaryQueriesMixin, Resource):
+class TelemetryQueryService(
+    BlockingQueriesMixin, ExecutionQueriesMixin, RegistrationQueriesMixin, SummaryQueriesMixin, Resource
+):
     """Serves historical telemetry data from the SQLite database.
 
-    The query methods come from the three query mixins and execute real SQL against
+    The query methods come from the four query mixins and execute real SQL against
     the dedicated read connection. All methods are async and must be awaited.
     """
 

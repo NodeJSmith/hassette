@@ -99,6 +99,15 @@ TELEMETRY_DATA_ROUTES = {
     "app-grid": TelemetryRoute(
         "get_all_app_manifests", "/api/telemetry/dashboard/app-grid", "/api/telemetry/dashboard/app-grid"
     ),
+    "app-blocking": TelemetryRoute(
+        "get_blocking_findings", "/api/telemetry/app/my_app/blocking", "/api/telemetry/app/{app_key}/blocking"
+    ),
+    "blocking-findings": TelemetryRoute(
+        "get_blocking_findings", "/api/telemetry/blocking/findings", "/api/telemetry/blocking/findings"
+    ),
+    "blocking-unattributed": TelemetryRoute(
+        "get_unattributed_blocking", "/api/telemetry/blocking/unattributed", "/api/telemetry/blocking/unattributed"
+    ),
     "manifests": TelemetryRoute("get_all_app_manifests", "/api/apps/manifests", "/api/apps/manifests"),
     "bus-listeners": TelemetryRoute("get_listener_summary", "/api/bus/listeners", "/api/bus/listeners"),
     "logs-recent": TelemetryRoute("get_log_records", "/api/logs/recent", "/api/logs/recent"),

@@ -19,10 +19,12 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple
 
+from hassette_wire import StackFrame
+
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import BlockingAttributionReason
-from hassette.utils.source_capture import capture_source_location
+from hassette.utils.source_capture import find_caller_stack_frame
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -129,8 +131,8 @@ class MonkeypatchEvent:
     primitive: str
     """Name of the blocking primitive that was intercepted (e.g. ``"time.sleep"``)."""
 
-    source_location: str
-    """``"<file>:<lineno>"`` of the first non-hassette caller frame."""
+    frames: tuple[StackFrame, ...]
+    """The first non-hassette caller frame, as a one-element tuple. Empty when the stack walk failed."""
 
     app_key: str | None
     """App key whose execution triggered the call, or ``None`` for framework/unattributed."""
@@ -154,6 +156,13 @@ class MonkeypatchEvent:
     """Attribution outcome: ``"attributed"`` (the marker's task made this call), ``"displaced"``
     (a marker was bound but a different task — or no task — made the call, so ``app_key`` was
     withheld), or ``"framework"`` (no execution was bound: a genuine framework/library call)."""
+
+    @property
+    def source_location(self) -> str:
+        """``"<file>:<lineno>"`` of the caller frame, or ``"<unknown>:0"`` when none was captured."""
+        if not self.frames:
+            return "<unknown>:0"
+        return f"{self.frames[0].filename}:{self.frames[0].lineno}"
 
 
 # Enablement logic
@@ -196,11 +205,12 @@ def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecuto
     if behavior is BlockingIOBehavior.IGNORE:
         return
 
+    # frames_to_skip=0 is correct: the walk strips all hassette frames (this module and the
+    # wrapper included) by module name, landing on the app call site.
+    caller = find_caller_stack_frame(frames_to_skip=0)
     event = MonkeypatchEvent(
         primitive=primitive_name,
-        # frames_to_skip=0 is correct: find_caller_frame strips all hassette frames (this
-        # module and the wrapper included) by module name, landing on the app call site.
-        source_location=capture_source_location(frames_to_skip=0),
+        frames=(caller,) if caller is not None else (),
         app_key=app_key,
         instance_name=instance_name,
         instance_index=instance_index,

@@ -56,6 +56,7 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
     last_error_message: null,
     last_error_type: null,
     last_error_ts: null,
+    blocking_event_count: 0,
     ...overrides,
   };
 }
@@ -95,6 +96,19 @@ describe("AppTableRow", () => {
   it("shows status badge with the status text", () => {
     const { getByTestId } = renderRow({ app: createAppRow({ status: "running" }) });
     expect(getByTestId("status-pill").textContent).toBe("running");
+  });
+
+  it("shows a blocking badge linking to the app overview when the app blocked the loop", () => {
+    const { getByTestId } = renderRow({ app: createAppRow({ app_key: "car_climate", blocking_event_count: 9 }) });
+    const badge = getByTestId("blocking-badge");
+    expect(badge.textContent).toBe("9 blocking");
+    expect((badge as HTMLAnchorElement).href).toContain("/apps/car_climate/overview");
+    expect(badge.getAttribute("aria-label")).toBe("9 blocking events stalled the event loop in this time window");
+  });
+
+  it("shows no blocking badge for an app with no blocking events", () => {
+    const { queryByTestId } = renderRow({ app: createAppRow({ blocking_event_count: 0 }) });
+    expect(queryByTestId("blocking-badge")).toBeNull();
   });
 
   it("shows 'auto' chip when auto_loaded is true", () => {

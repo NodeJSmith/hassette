@@ -35,6 +35,7 @@ export interface AppRow {
   last_error_message: string | null;
   last_error_type: string | null;
   last_error_ts: number | null;
+  blocking_event_count: number;
 }
 
 /**
@@ -72,6 +73,7 @@ export function toAppRow(entry: DashboardAppGridEntry): AppRow {
     last_error_message: entry.last_error_message ?? null,
     last_error_type: entry.last_error_type ?? null,
     last_error_ts: entry.last_error_ts ?? null,
+    blocking_event_count: entry.blocking_event_count,
   };
 }
 
