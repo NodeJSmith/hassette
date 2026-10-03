@@ -1,5 +1,6 @@
 """Tests for structured stack frames: capture, text form, storage, and user-code classification."""
 
+import asyncio
 import sys
 from pathlib import PurePath
 from types import SimpleNamespace
@@ -163,6 +164,33 @@ class TestCapture:
         assert frames[0].function == "test_captures_this_frame_innermost_first"
         assert frames[0].filename == __file__
         assert frames[0].module == __name__
+
+    def test_stops_before_the_event_loop_callback_dispatcher(self) -> None:
+        """Inside a loop callback, capture returns the callback's frames and nothing from the loop above it."""
+
+        def blocking_callback() -> tuple[StackFrame, ...]:
+            # Far deeper than the callback's own frames, so only the dispatcher can end the walk.
+            return capture_frames(sys._getframe(), max_frames=60)
+
+        async def capture_in_callback() -> tuple[StackFrame, ...]:
+            loop = asyncio.get_running_loop()
+            future: asyncio.Future[tuple[StackFrame, ...]] = loop.create_future()
+            # The lambda is the callback the loop dispatches; blocking_callback is its callee.
+            loop.call_soon(lambda: future.set_result(blocking_callback()))
+            return await future
+
+        frames = asyncio.run(capture_in_callback())
+
+        assert [f.function for f in frames] == ["blocking_callback", "<lambda>"]
+
+    def test_walks_to_the_outermost_frame_outside_a_loop_callback(self) -> None:
+        outermost = sys._getframe()
+        while outermost.f_back is not None:
+            outermost = outermost.f_back
+
+        frames = capture_frames(sys._getframe(), max_frames=1000)
+
+        assert frames[-1].function == outermost.f_code.co_name
 
     def test_skipped_hassette_frames_do_not_use_up_the_limit(self) -> None:
         """An app frame below many framework frames is still captured."""

@@ -40,7 +40,7 @@ Each entry shows:
 - **What it calls**: the library function it called into, such as `gcsa/_services/events_service.py get_events`, or for Tier 2, the intercepted primitive such as `time.sleep`.
 - **Every handler and job that reached it**, linked to its detail page. Two handlers that call the same blocking helper produce one entry, because there's one line to fix.
 - **How often and how badly**: the event count, the longest and average stall, and when it last happened.
-- **A show stack toggle** that expands the most recent event's full stack, with absolute paths.
+- **A show stack toggle** that expands the most recent event's stack with absolute paths, from the event loop callback that was running down to the blocking call. A stall outside any callback shows the whole stack.
 
 Two other labels can appear in place of a call site. "Detected inside `<package>`" means Tier 2 caught the call inside a library, so the library line isn't presented as the place to fix. The handler that called into the library is further up the stack. "Call site not captured" means no line of app code was found for those events: `capture_stack_on_block` is off, the recorded stack holds no frame from the app's directory, or the events were recorded by an older Hassette version that didn't store stacks in this form. Those events are grouped per handler instead.
 

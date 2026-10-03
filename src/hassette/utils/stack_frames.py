@@ -6,6 +6,7 @@ Frames are captured innermost-first as ``StackFrame`` objects and stored as JSON
 interpreter's install prefixes, neither of which belongs in a stored row.
 """
 
+import asyncio.events
 import re
 import sys
 from collections.abc import Iterable, Sequence
@@ -25,6 +26,11 @@ HASSETTE_PACKAGE_DIR = PurePath(__file__).parents[1]
 # row recorded under an older image's interpreter still reads as stdlib after an upgrade.
 _STDLIB_DIR_PATTERN = re.compile(r"^python\d+\.\d+t?$")
 _FRAMES_ADAPTER = TypeAdapter(list[StackFrame])
+# asyncio runs every callback and task step through ``Handle._run``. Frames outside it are the
+# event loop and the process entry point (runpy, the CLI, ``asyncio.run``), the same on every stall.
+# ``Handle._run`` is a private CPython detail: a loop that doesn't dispatch through it (uvloop
+# dispatches from compiled code) never matches, and the walk goes to the outermost frame as before.
+_LOOP_DISPATCH_CODE = asyncio.events.Handle._run.__code__
 
 
 def frame_from_raw(frame: Any) -> StackFrame:
@@ -39,10 +45,14 @@ def capture_frames(frame: Any, *, max_frames: int) -> tuple[StackFrame, ...]:
 
     Skipped hassette frames don't count toward the limit, so framework layers between a library
     call and the app code that made it can't use up the budget before the app frame is reached.
-    The walk itself is bounded only by the stack's depth.
+    The walk stops before the event loop's callback dispatcher, which isn't captured. A stack not
+    running inside an asyncio callback, or on a loop that doesn't dispatch through it, is walked to
+    its outermost frame.
     """
     frames: list[StackFrame] = []
     while frame is not None and len(frames) < max_frames:
+        if frame.f_code is _LOOP_DISPATCH_CODE:
+            break
         if not is_internal_frame(frame):
             frames.append(frame_from_raw(frame))
         frame = frame.f_back
@@ -90,9 +100,11 @@ class FrameClassifier:
     treats a frame as user code if it lies outside every ``excluded_dirs`` entry and has no
     ``site-packages``/``dist-packages`` path segment. ``excluded_dirs`` holds the interpreter's
     install prefixes plus the hassette package directory: a source run (``python -m hassette``)
-    leaves ``hassette/__main__.py`` on every stack under module name ``__main__``, which the
-    capture-time module filter can't recognize. Prefix matching assumes the frames were recorded
-    by this same interpreter, which holds because the server classifies its own rows.
+    leaves ``hassette/__main__.py`` under module name ``__main__``, which the capture-time module
+    filter can't recognize, on stacks walked to their outermost frame (rows recorded before capture
+    stopped at the loop's callback dispatcher, and stalls outside a callback). Prefix matching
+    assumes the frames were recorded by this same interpreter, which holds because the server
+    classifies its own rows.
     """
 
     app_dirs: tuple[PurePath, ...]

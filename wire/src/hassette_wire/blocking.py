@@ -92,7 +92,7 @@ class BlockingFinding(BaseModel):
     avg_stall_ms: float | None = None
     last_seen_ts: float
     latest_stack: list[StackFrame]
-    """The most recent event's full captured stack, innermost first. Empty when none was stored."""
+    """The most recent event's captured stack, innermost first. Empty when none was stored."""
 
 
 class BlockingFindingsResponse(BaseModel):

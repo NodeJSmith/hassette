@@ -132,7 +132,7 @@ Fetch rows (DB I/O only) inside `execute()`, then classify and group in plain Py
 - the callee hint: the frame immediately below the app frame (for Tier 2, the `primitive`)
 - the handlers/jobs that reached it, linking to their handler-detail pages
 - event count, max and average stall in ms, last-seen relative time
-- a disclosure that expands the most recent row's full stack
+- a disclosure that expands the most recent row's stack
 
 A Tier 2 finding labels the primitive (e.g. `time.sleep`) rather than a callee.
 
@@ -298,11 +298,12 @@ Collapsed decision. Include it: `hassette blocking` is a thin command over the t
 - Rows for an app missing from the current config, and unattributed rows, classify against the union of every configured `app_dir`: the row's own app has no manifest to read.
 - Tier 1 and Tier 2 events at the same line stay separate findings: D1's keys differ by construction (Tier 2's includes the primitive).
 - Findings aggregate in SQL per distinct (stack, handler) before Python classifies anything, and the cap bounds those groups instead of events: a newest-1000-events cap let one chronic call site push older ones out and made counts approximate. Each distinct stack is classified once, filename answers are memoized per request, and grouping runs in `asyncio.to_thread` because it is pure-Python CPU work on the loop the watchdog measures. Diagnostics totals are SQL aggregates, so `UnattributedBlockingResponse` dropped `truncated`. Prior art: `design/research/2026-10-02-grouping-stack-events-into-findings/research.md`.
-- D2's fallback also excludes the hassette package directory, not just interpreter prefixes: the live demo stack showed a source run (`python -m hassette`) leaves `hassette/__main__.py` (module `__main__`, so not dropped by `is_internal_frame`, and outside every prefix) on every stack, which the fallback would otherwise report as user code. This refines D2's "exclude the launcher frame" intent rather than changing it.
+- D2's fallback also excludes the hassette package directory, not just interpreter prefixes: the live demo stack showed a source run (`python -m hassette`) leaves `hassette/__main__.py` (module `__main__`, so not dropped by `is_internal_frame`, and outside every prefix) on every stack, which the fallback would otherwise report as user code. Capture now stops at the loop's callback dispatcher (below), so this covers older rows and stalls outside a callback. This refines D2's "exclude the launcher frame" intent rather than changing it.
 - Stdlib display matches any versioned `pythonX.Y` directory under an interpreter prefix: rows recorded by an older image still read as `stdlib/...`.
 - Seed scenarios' `_BLOCKING_EVENT_COLUMNS`/`add_blocking_event` gained a `frames` column (default NULL): the schema-parity test requires it; no scenario data changed.
 - New wire list fields have no defaults: defaulted lists generate optional TS fields, and these are always populated.
 - The watchdog keeps up to 60 non-hassette frames per stack (`_MAX_STACK_FRAMES`), and skipped hassette frames no longer count toward the limit: the 30-frame walk noted under Assumed could end inside a deep library stack before reaching the app frame, which read as "call site not captured".
+- The watchdog stops each stack walk at asyncio's callback dispatcher (`Handle._run`): frames outside it are the loop and the process entry point (runpy, the CLI, `asyncio.run`), identical on every stall, and included hassette's own `__main__.py` under a module name the capture filter can't recognize.
 - `hassette blocking --app X` without `--instance` covers every instance. A multi-instance app's page with no instance selected is an app-wide overview (`MultiInstanceOverview`), not instance 0, so the per-app route's `instance_index` is optional: omitted, findings merge each call site across instances and list them in `instances`; given, only that instance's events count. Handler refs carry their own `instance_index` so links from the merged view land on the right instance.
 - Expanded stacks render outermost-first via the existing `TracebackLines`, matching Python traceback order elsewhere in the UI. Diagnostics lists the 20 most recent stalls (`RECENT_UNATTRIBUTED_LIMIT`).
 - The demo app uses two scheduled jobs (no HA entities needed) calling a `time.sleep` helper, so in dev mode both tiers record it.
