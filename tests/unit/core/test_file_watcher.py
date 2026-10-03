@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from hassette.core.file_watcher import FileWatcherService
+from tests.support.factories import make_bypassed_service
 from tests.support.mock_hassette import make_mock_hassette
 
 
@@ -16,16 +17,7 @@ def mock_hassette() -> MagicMock:
 
 @pytest.fixture
 def watcher(mock_hassette: MagicMock) -> FileWatcherService:
-    svc = FileWatcherService.__new__(FileWatcherService)
-    svc.hassette = mock_hassette
-    svc.shutdown_event = asyncio.Event()
-    svc.logger = MagicMock()
-    svc._unique_name = "FileWatcherService.test"
-    # Real Event so the module-level mark_ready() (called by on_initialize()/serve())
-    # can operate on this bypassed instance.
-    svc.ready_event = asyncio.Event()
-    svc._ready_reason = None
-    return svc
+    return make_bypassed_service(FileWatcherService, mock_hassette)
 
 
 async def test_on_initialize_marks_ready_when_disabled(watcher: FileWatcherService) -> None:
