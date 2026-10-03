@@ -1,5 +1,6 @@
+import { act } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { queryKeys } from "../lib/query-keys";
 import type { ServiceStatusEntry } from "../state/store";
@@ -13,7 +14,7 @@ import {
 import { createTestQueryClient } from "../test/query-test-utils";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
-import { DiagnosticsPage } from "./diagnostics";
+import { DiagnosticsPage, LOOP_STALLS_REFETCH_MS } from "./diagnostics";
 
 vi.mock("../components/shared/spinner", () => ({
   Spinner: () => <div data-testid="spinner" />,
@@ -381,6 +382,41 @@ describe("DiagnosticsPage", () => {
       expect(panel).toBeDefined();
       const cell = stallsCell(getByTestId("diag-stats-strip"));
       expect(cell?.querySelector("[data-tone='warn']")).not.toBeNull();
+    });
+
+    describe("periodic refresh", () => {
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it("picks up stalls recorded after the initial fetch", async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        let totalCount = 0;
+        server.use(
+          http.get("/api/telemetry/blocking/unattributed", () =>
+            HttpResponse.json({
+              total_count: totalCount,
+              displaced_count: totalCount,
+              framework_count: 0,
+              max_stall_ms: 0,
+              recent: totalCount > 0 ? [createUnattributedStall()] : [],
+            }),
+          ),
+        );
+        const { findByTestId } = renderWithAppState(<DiagnosticsPage />, {
+          storeOverrides: { uptimeSeconds: 120 },
+        });
+        const strip = await findByTestId("diag-stats-strip");
+        expect(stallsCell(strip)?.textContent).toContain("0");
+
+        totalCount = 1;
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(LOOP_STALLS_REFETCH_MS + 1000);
+        });
+
+        await vi.waitFor(() => expect(stallsCell(strip)?.textContent).toContain("1"));
+        await findByTestId("diag-loop-stalls-panel");
+      });
     });
   });
 });

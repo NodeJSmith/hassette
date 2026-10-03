@@ -15,6 +15,12 @@ import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
 import { type TelemetryHealth, useAppStore } from "../state/store";
 
+/**
+ * Cadence for refreshing loop stalls. Displaced and framework stalls aren't tied to any
+ * execution, so the execution-completion invalidation other blocking views rely on never fires for them.
+ */
+export const LOOP_STALLS_REFETCH_MS = 10_000;
+
 function buildDiagCells(
   services: MergedService[],
   bootIssueCount: number,
@@ -76,8 +82,10 @@ function useDiagnosticsData(): DiagnosticsData {
   });
   const effectiveSystemStatus = loadError ? undefined : systemStatus;
   // Loop stalls follow the global time window like every other telemetry view.
-  const { data: unattributed } = useScopedQuery(queryKeys.unattributedBlocking(), (since, signal) =>
-    getUnattributedBlocking(since, signal),
+  const { data: unattributed } = useScopedQuery(
+    queryKeys.unattributedBlocking(),
+    (since, signal) => getUnattributedBlocking(since, signal),
+    { refetchInterval: LOOP_STALLS_REFETCH_MS },
   );
 
   const logQueueDrops = effectiveSystemStatus?.log_queue_drops ?? 0;
