@@ -1,8 +1,5 @@
 """Blocking-IO findings CLI command."""
 
-import json
-import sys
-
 from hassette_wire import BlockingFinding, BlockingFindingsResponse, UnattributedBlockingResponse, UnattributedStall
 
 import hassette.cli.output as cli_output
@@ -11,9 +8,7 @@ from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, SinceArg
 
-TRUNCATED_NOTE = (
-    "Showing only the most recently seen call sites: older ones may be missing. Narrow --since to see them."
-)
+TRUNCATED_NOTE = "Showing only the most recently seen call sites: older ones are omitted. Narrow --since to see them."
 
 
 def fmt_call_site(finding: BlockingFinding) -> str:
@@ -81,8 +76,11 @@ def cmd_blocking(
     if app is not None:
         params = query_params(instance_index=client.resolve_instance_or_none(app, instance), since=since)
         findings = client.get(f"/api/telemetry/app/{app}/blocking", BlockingFindingsResponse, params=params)
-        render_table(findings.findings, FINDING_COLUMNS, json_mode=ctx.json_mode)
-        if findings.truncated and not ctx.json_mode:
+        if ctx.json_mode:
+            cli_output.render_detail(findings, json_mode=True)
+            return
+        render_table(findings.findings, FINDING_COLUMNS, json_mode=False)
+        if findings.truncated:
             cli_output.stderr_console.print(TRUNCATED_NOTE, highlight=False)
         return
 
@@ -98,8 +96,7 @@ def cmd_blocking(
             "findings": findings.model_dump(mode="json"),
             "unattributed": unattributed.model_dump(mode="json"),
         }
-        sys.stdout.write(json.dumps(document, indent=2) + "\n")
-        sys.stdout.flush()
+        cli_output.render_detail_dict(document, "Blocking", json_mode=True)
         return
 
     render_table(findings.findings, FINDING_COLUMNS, json_mode=False)

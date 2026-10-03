@@ -352,7 +352,7 @@ Loop stalls credited to no app: 2 (1 displaced, 1 framework)
 └─────────┴───────────┴───────┴───────────────────────────┘
 ```
 
-With `--app`, only that app's findings are shown, across all its instances unless `--instance` names one. A call site that several instances hit is one row, and the Instances column names them. `--instance` without `--app` exits with a usage error. Counts are exact. When a window holds more distinct stacks than the server reads in one request, a note on stderr says the least recently seen call sites may be missing; narrow `--since` to see them.
+With `--app`, only that app's findings are shown, across all its instances unless `--instance` names one. A call site that several instances hit is one row, and the Instances column names them. `--instance` without `--app` exits with a usage error. Counts are exact. When a window holds more call sites than one response returns, a note on stderr says the least recently seen call sites are omitted; narrow `--since` to see them.
 
 ### Flags
 
@@ -361,7 +361,7 @@ With `--app`, only that app's findings are shown, across all its instances unles
 | `--app <key>`          | Shows only this app's findings.                     |
 | `--instance <name\|n>` | With `--app`, selects the instance.                 |
 | `--since <duration>`   | Time window filter. Without it, covers all retained events. |
-| `--json`               | Outputs as JSON. Without `--app`, one document with `findings` and `unattributed` keys. |
+| `--json`               | Outputs as JSON. Without `--app`, one document with `findings` and `unattributed` keys. With `--app`, the findings response: a `findings` array and a `truncated` flag. |
 
 **API endpoints:** `GET /api/telemetry/blocking/findings` and `GET /api/telemetry/blocking/unattributed`; with `--app`, `GET /api/telemetry/app/{app_key}/blocking`
 

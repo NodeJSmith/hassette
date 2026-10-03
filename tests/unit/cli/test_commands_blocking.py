@@ -87,14 +87,16 @@ class TestPerApp:
 
         assert "instance_index" not in spy.params_for("car_climate/blocking")
 
-    def test_json_mode_outputs_findings_array(self, cli_client_factory: CLIClientFactory) -> None:
+    @pytest.mark.parametrize("truncated", [False, True])
+    def test_json_mode_outputs_findings_envelope(self, cli_client_factory: CLIClientFactory, truncated: bool) -> None:
         client = cli_client_factory.build_with_routes(
-            [("GET", APP_PATH, 200, findings_body(finding()))], json_mode=True
+            [("GET", APP_PATH, 200, findings_body(finding(), truncated=truncated))], json_mode=True
         )
 
         data = runner.json_output(client, cmd_blocking, app="car_climate")
 
-        assert [f["app_key"] for f in data] == ["car_climate"]
+        assert data["truncated"] is truncated
+        assert [f["app_key"] for f in data["findings"]] == ["car_climate"]
 
     def test_truncation_is_reported(self, cli_client_factory: CLIClientFactory) -> None:
         client = cli_client_factory.build_with_routes(
