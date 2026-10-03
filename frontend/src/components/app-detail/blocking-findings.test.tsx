@@ -140,7 +140,7 @@ describe("BlockingFindingsSection", () => {
     expect(queryByTestId("overview-blocking-finding-0-instances")).toBeNull();
   });
 
-  it("warns that older call sites may be missing when the server truncated", async () => {
+  it("warns that older call sites are omitted when the server truncated", async () => {
     serveFindings([createBlockingFinding()], true);
     const { findByTestId } = renderSection();
     expect(await findByTestId("overview-blocking-truncated")).toBeDefined();

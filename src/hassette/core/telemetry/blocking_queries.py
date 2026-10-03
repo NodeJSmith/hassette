@@ -22,10 +22,11 @@ if TYPE_CHECKING:
 
     from hassette import Hassette
 
-# Distinct (stack, handler) groups read per findings request, most recently seen first. Each group
-# carries exact aggregates over all its events, so the cap can only drop the least recently seen
-# call sites, and a response that hit it reports truncated=True.
-BLOCKING_GROUP_LIMIT = 1000
+# Findings (merged call sites) returned per request, most recently seen first. Every distinct stack in
+# the window is read and merged before the cap applies, so a retained finding always carries complete
+# aggregates and the cap drops only whole, least recently seen call sites. A response that hit it
+# reports truncated=True.
+BLOCKING_FINDING_LIMIT = 1000
 # Most recent unattributed stalls listed individually on the diagnostics page.
 RECENT_UNATTRIBUTED_LIMIT = 20
 
@@ -54,7 +55,6 @@ _FINDING_GROUPS_QUERY = """
     -- latest_event_id breaks last-seen ties so the order, and so each finding's latest stack, is stable.
     -- It also names a row to inspect when a group's frames can't be decoded.
     ORDER BY last_seen_ts DESC, latest_event_id DESC
-    LIMIT :limit
 """
 
 _UNATTRIBUTED_TOTALS_QUERY = """
@@ -111,15 +111,16 @@ class BlockingQueriesMixin:
         groups = await fetch_all_as_dicts(
             self.execute(
                 _FINDING_GROUPS_QUERY.format(filters=f"{filters} {since_sql}"),
-                {**params, **since_params, "limit": BLOCKING_GROUP_LIMIT + 1},
+                {**params, **since_params},
             )
         )
         # Classifying stacks is pure-Python CPU work that grows with the number of distinct stacks; a
         # worker thread keeps it off the event loop the watchdog is measuring.
-        findings = await asyncio.to_thread(
-            group_findings, groups[:BLOCKING_GROUP_LIMIT], classifier_for_apps(self._app_dirs())
+        findings = await asyncio.to_thread(group_findings, groups, classifier_for_apps(self._app_dirs()))
+        # group_findings orders findings by their newest stack, so the slice drops the least recently seen.
+        return BlockingFindingsResponse(
+            findings=findings[:BLOCKING_FINDING_LIMIT], truncated=len(findings) > BLOCKING_FINDING_LIMIT
         )
-        return BlockingFindingsResponse(findings=findings, truncated=len(groups) > BLOCKING_GROUP_LIMIT)
 
     async def get_unattributed_blocking(self, *, since: float | None) -> UnattributedBlockingResponse:
         """Blocking events credited to no app (displaced or framework), for the diagnostics page."""

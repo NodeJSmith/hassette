@@ -101,7 +101,7 @@ class BlockingFindingsResponse(BaseModel):
     findings: list[BlockingFinding]
     """Ordered by most recently seen first."""
     truncated: bool = False
-    """``True`` when the cap on distinct stacks was hit: the least recently seen call sites may be missing."""
+    """``True`` when the cap on findings was hit: the least recently seen call sites are omitted."""
 
 
 class UnattributedStall(BaseModel):

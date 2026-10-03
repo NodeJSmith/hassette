@@ -149,9 +149,9 @@ class TestBlockingFindings:
     async def test_chronic_call_site_does_not_hide_older_ones(
         self, query_service: TelemetryQueryService, db: DbFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """The cap bounds distinct stacks, not events: many recent events at one site keep older sites listed."""
+        """The cap bounds call sites, not events: many recent events at one site keep older sites listed."""
         db_svc, _ = db
-        monkeypatch.setattr(blocking_queries, "BLOCKING_GROUP_LIMIT", 2)
+        monkeypatch.setattr(blocking_queries, "BLOCKING_FINDING_LIMIT", 2)
         for ts in (2000.0, 3000.0, 4000.0):
             await insert_event(db_svc, detected_ts=ts, stall_duration_ms=ts / 10)
         await insert_event(db_svc, frames=[OTHER_SITE, HANDLER], detected_ts=1000.0)
@@ -166,11 +166,32 @@ class TestBlockingFindings:
         newest = result.findings[0]
         assert (newest.last_seen_ts, newest.max_stall_ms, newest.avg_stall_ms) == (4000.0, 400.0, 300.0)
 
-    async def test_truncates_at_the_group_cap_dropping_the_oldest(
+    async def test_call_site_spread_over_many_stacks_keeps_complete_aggregates(
+        self, query_service: TelemetryQueryService, db: DbFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The cap counts merged call sites, so a site whose stacks outnumber it is neither cut nor truncated."""
+        db_svc, _ = db
+        monkeypatch.setattr(blocking_queries, "BLOCKING_FINDING_LIMIT", 2)
+        for i in range(4):
+            library_frame = StackFrame(filename="/lib/http.py", lineno=i + 1, function="send", module="http")
+            await insert_event(
+                db_svc,
+                frames=[library_frame, CALL_SITE, HANDLER],
+                detected_ts=1000.0 + i,
+                stall_duration_ms=100.0 * (i + 1),
+            )
+
+        result = await query_service.get_blocking_findings(app_key="my_app", instance_index=0, since=None)
+
+        assert not result.truncated
+        [finding] = result.findings
+        assert (finding.event_count, finding.max_stall_ms, finding.avg_stall_ms) == (4, 400.0, 250.0)
+
+    async def test_truncates_at_the_finding_cap_dropping_the_oldest(
         self, query_service: TelemetryQueryService, db: DbFixture, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         db_svc, _ = db
-        monkeypatch.setattr(blocking_queries, "BLOCKING_GROUP_LIMIT", 1)
+        monkeypatch.setattr(blocking_queries, "BLOCKING_FINDING_LIMIT", 1)
         await insert_event(db_svc, detected_ts=2000.0)
         await insert_event(db_svc, frames=[OTHER_SITE, HANDLER], detected_ts=1000.0)
 

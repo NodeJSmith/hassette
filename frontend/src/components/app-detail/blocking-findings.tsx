@@ -155,8 +155,7 @@ export function BlockingFindingsSection({ appKey, scope }: Props) {
       ))}
       {data?.truncated && (
         <p className={META_CLASS} data-testid="overview-blocking-truncated">
-          showing only the most recently seen call sites — older ones may be missing. narrow the time window to see
-          them.
+          showing only the most recently seen call sites — older ones are omitted. narrow the time window to see them.
         </p>
       )}
     </section>
