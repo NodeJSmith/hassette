@@ -205,6 +205,7 @@ def autodetect_apps(app_dir: Path, known_paths: set[Path], exclude_dirs: set[str
     Args:
         app_dir: Directory to search for app manifests.
         known_paths: Set of paths that are already known/configured.
+        exclude_dirs: Directory names to skip; any file whose path contains one of these is ignored.
 
     Returns:
         Detected app manifests, keyed by app key.
@@ -521,7 +522,7 @@ def _module_name_for(app_dir: Path, full_path: Path, pkg_name: str) -> str:
 
     rel = full_path.relative_to(app_dir).with_suffix("")  # drop .py
     parts = list(rel.parts)
-    if pkg_name == "":
+    if not pkg_name:
         return ".".join(parts)
     return ".".join([pkg_name, *parts])
 
