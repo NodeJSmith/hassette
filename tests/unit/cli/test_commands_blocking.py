@@ -173,6 +173,25 @@ class TestAllApps:
         assert "helper.py:3 in go" in output
         assert "5.0s" in output
 
+    def test_unattributed_tier2_row_names_the_intercepted_primitive(self, cli_client_factory: CLIClientFactory) -> None:
+        """A Tier 2 row records no duration, so the Stall column shows what was intercepted instead."""
+        stall = UnattributedStall(
+            detected_ts=NOW_EPOCH - 60,
+            tier="monkeypatch",
+            reason="framework",
+            primitive="time.sleep",
+            stall_duration_ms=None,
+            stack=[],
+        )
+        body = unattributed_body(total_count=1, framework_count=1, recent=[stall])
+        client = cli_client_factory.build_with_routes(
+            [("GET", ALL_PATH, 200, findings_body()), ("GET", UNATTRIBUTED_PATH, 200, body)]
+        )
+
+        output = runner.stdout(client, cmd_blocking)
+
+        assert "time.sleep" in output
+
     def test_json_mode_outputs_one_document(self, cli_client_factory: CLIClientFactory) -> None:
         client = cli_client_factory.build_with_routes(
             [("GET", ALL_PATH, 200, findings_body(finding())), ("GET", UNATTRIBUTED_PATH, 200, unattributed_body())],

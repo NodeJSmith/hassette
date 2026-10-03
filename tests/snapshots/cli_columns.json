@@ -230,7 +230,7 @@
       },
       {
         "field": "stall_duration_ms",
-        "formatter": "fmt_duration_ms",
+        "formatter": null,
         "header": "Stall",
         "max_width": null,
         "overflow": "ellipsis"

@@ -36,6 +36,13 @@ def fmt_instances(finding: BlockingFinding) -> str:
     return ", ".join(inst.name or f"instance {inst.index}" for inst in finding.instances)
 
 
+def fmt_stall(stall: UnattributedStall) -> str:
+    """The intercepted primitive for a Tier 2 row, which records no duration; otherwise the stall length."""
+    if stall.primitive is not None:
+        return stall.primitive
+    return fmt_duration_ms(stall.stall_duration_ms)
+
+
 def fmt_app_frame(stall: UnattributedStall) -> str:
     frame = stall.app_frame
     return f"{frame.display_path}:{frame.lineno} in {frame.function}" if frame is not None else ""
@@ -54,7 +61,7 @@ FINDING_COLUMNS: list[Column] = [
 UNATTRIBUTED_COLUMNS: list[Column] = [
     Column("detected_ts", "When", formatter=fmt_relative_time),
     Column("reason", "Reason"),
-    Column("stall_duration_ms", "Stall", formatter=fmt_duration_ms),
+    Column("stall_duration_ms", "Stall", row_formatter=fmt_stall),
     Column("app_frame", "App code in stack", row_formatter=fmt_app_frame),
 ]
 

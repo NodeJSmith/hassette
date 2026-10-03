@@ -343,16 +343,19 @@ $ hassette blocking --since 7d
 │                  │                   │ (on_phone_arrive)            │                              │       │       │           │
 └──────────────────┴───────────────────┴──────────────────────────────┴──────────────────────────────┴───────┴───────┴───────────┘
 
-Loop stalls credited to no app: 2 (1 displaced, 1 framework)
-┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ When    ┃ Reason    ┃ Stall ┃ App code in stack         ┃
-┡━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ 30m ago │ displaced │ 5.0s  │ presence.py:44 in refresh │
-│ 5h ago  │ framework │ 140ms │                           │
-└─────────┴───────────┴───────┴───────────────────────────┘
+Loop stalls credited to no app: 3 (1 displaced, 2 framework)
+┏━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ When    ┃ Reason    ┃ Stall      ┃ App code in stack         ┃
+┡━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ 30m ago │ displaced │ 5.0s       │ presence.py:44 in refresh │
+│ 5h ago  │ framework │ 140ms      │                           │
+│ 2d ago  │ framework │ time.sleep │                           │
+└─────────┴───────────┴────────────┴───────────────────────────┘
 ```
 
 With `--app`, only that app's findings are shown, across all its instances unless `--instance` names one. A call site that several instances hit is one row, and the Instances column names them. `--instance` without `--app` exits with a usage error. Counts are exact. When a window holds more call sites than one response returns, a note on stderr says the least recently seen call sites are omitted; narrow `--since` to see them.
+
+The Stall column shows how long the loop was held. A [Tier 2](../core-concepts/blocking-io-detection.md) row records no duration, so it names the intercepted call instead, such as `time.sleep`.
 
 ### Flags
 
