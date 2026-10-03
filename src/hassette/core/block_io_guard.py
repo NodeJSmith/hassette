@@ -55,6 +55,9 @@ _owner_id: int | None = None
 _in_wrapper = threading.local()
 
 
+# Curated primitive table, seeded from Home Assistant's block_async_io.py. Two patch styles:
+# module-level attributes (_PRIMITIVE_TABLE) and socket.socket methods (_SOCKET_METHOD_TABLE),
+# whose wrappers must receive ``self``.
 _PRIMITIVE_TABLE: list[tuple[str, Any, str]] = [
     # (primitive_label, target_object, attr_name)
     ("builtins.open", builtins, "open"),
@@ -338,6 +341,17 @@ def resolve_owner(hassette: "Hassette", app_key: str | None, instance_index: int
     return hassette
 
 
+def format_attribution_label(app_key: str | None, instance_name: str | None, execution_id: str | None) -> str:
+    """Format the ``app: ..., execution: ...`` attribution fragment shared by both tiers' warnings.
+
+    An unattributed event labels its app ``<framework>`` and its execution ``<unattributed>``.
+    """
+    app_label = app_key or "<framework>"
+    inst_label = f" ({instance_name})" if instance_name else ""
+    exec_label = execution_id or "<unattributed>"
+    return f"app: {app_label}{inst_label}, execution: {exec_label}"
+
+
 def _emit(event: MonkeypatchEvent) -> None:
     """Emit the warning for a detected blocking call.
 
@@ -349,23 +363,12 @@ def _emit(event: MonkeypatchEvent) -> None:
     msg = (
         f"Blocking I/O detected on the event loop (Tier 2 — call-site interception) — "
         f"primitive: {event.primitive}, "
-        f"{format_owner_label(event.app_key, event.instance_name, event.execution_id)}, "
+        f"{format_attribution_label(event.app_key, event.instance_name, event.execution_id)}, "
         f"call site: {event.source_location}"
     )
     # stacklevel=1: the real call site is captured in source_location; the frame
     # that would be named by stacklevel is the wrapper itself (unhelpful).
     warnings.warn(msg, HassetteBlockingIOWarning, stacklevel=1)
-
-
-def format_owner_label(app_key: str | None, instance_name: str | None, execution_id: str | None) -> str:
-    """Format the ``app: ..., execution: ...`` attribution fragment shared by both tiers' warnings.
-
-    An unattributed event labels its app ``<framework>`` and its execution ``<unattributed>``.
-    """
-    app_label = app_key or "<framework>"
-    inst_label = f" ({instance_name})" if instance_name else ""
-    exec_label = execution_id or "<unattributed>"
-    return f"app: {app_label}{inst_label}, execution: {exec_label}"
 
 
 def install(hassette: "Hassette", *, loop_thread_id: int, executor: "CommandExecutor") -> bool:

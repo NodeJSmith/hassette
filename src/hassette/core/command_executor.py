@@ -711,9 +711,14 @@ class CommandExecutor(Service):
 
         if isinstance(event, WatchdogEvent):
             # Tier 1 has no call-site location; the captured stack is the closest equivalent.
-            primitive, source_location, stall_duration_ms = None, event.stack_text, event.stall_duration_ms
+            primitive = None
+            source_location = event.stack_text
+            stall_duration_ms = event.stall_duration_ms
         else:
-            primitive, source_location, stall_duration_ms = event.primitive, event.source_location, None
+            # Tier 2 fires before the call runs, so there is no stall to measure.
+            primitive = event.primitive
+            source_location = event.source_location
+            stall_duration_ms = None
 
         blocking_event = BlockingEvent(
             session_id=session_id,

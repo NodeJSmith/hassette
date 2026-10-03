@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING
 
 from hassette_wire import BlockingTier, StackFrame
 
-from hassette.core.block_io_guard import format_owner_label, resolve_blocking_io_behavior, resolve_owner
+from hassette.core.block_io_guard import format_attribution_label, resolve_blocking_io_behavior, resolve_owner
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import BlockingAttributionReason
@@ -406,7 +406,7 @@ class LoopWatchdog:
 
         msg = (
             f"Blocking I/O detected on the event loop — "
-            f"{format_owner_label(event.app_key, event.instance_name, event.execution_id)}, "
+            f"{format_attribution_label(event.app_key, event.instance_name, event.execution_id)}, "
             f"stall: {event.stall_duration_ms:.0f}ms"
         )
         if event.stack_text:

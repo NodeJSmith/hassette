@@ -1,5 +1,5 @@
 """Unit tests for BlockingIOBehavior, HassetteBlockingIOWarning, BlockingIODetectionConfig,
-and resolve_blocking_io_behavior.
+resolve_blocking_io_behavior, and the attribution helpers shared by both detection tiers.
 
 Covers:
     - per-app value wins over global; global wins over hardcoded default; default is WARN
@@ -15,7 +15,12 @@ import pytest
 
 from hassette.app.app_config import AppConfig
 from hassette.config.models import BlockingIODetectionConfig
-from hassette.core.block_io_guard import DEFAULT_BLOCKING_IO_BEHAVIOR, resolve_blocking_io_behavior
+from hassette.core.block_io_guard import (
+    DEFAULT_BLOCKING_IO_BEHAVIOR,
+    format_attribution_label,
+    resolve_blocking_io_behavior,
+    resolve_owner,
+)
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.testing import make_test_config
 from hassette.types.enums import BlockingIOBehavior
@@ -209,3 +214,52 @@ def test_resolve_uses_global_blocking_io_config(tmp_path: Path) -> None:
 
     result = resolve_blocking_io_behavior(MockOwner())
     assert result is BlockingIOBehavior.ERROR
+
+
+def make_owner_hassette(apps: dict[tuple[str, int], object]) -> types.SimpleNamespace:
+    """Build a hassette stand-in whose ``app_handler.get(key, index)`` looks up ``apps``."""
+
+    def get(app_key: str, index: int) -> object | None:
+        return apps.get((app_key, index))
+
+    return types.SimpleNamespace(app_handler=types.SimpleNamespace(get=get))
+
+
+def test_resolve_owner_none_app_key_returns_hassette() -> None:
+    """An unattributed (displaced/framework) call resolves to hassette, never an app."""
+    hassette = make_owner_hassette({("lights", 0): object()})
+    assert resolve_owner(hassette, None, 0) is hassette  # pyright: ignore[reportArgumentType]
+
+
+def test_resolve_owner_returns_app_instance() -> None:
+    """An attributed call resolves to the matching app instance, defaulting the index to 0."""
+    app = object()
+    hassette = make_owner_hassette({("lights", 0): app})
+    assert resolve_owner(hassette, "lights", None) is app  # pyright: ignore[reportArgumentType]
+
+
+def test_resolve_owner_unknown_app_falls_back_to_hassette() -> None:
+    """An app_key with no live instance falls back to hassette."""
+    hassette = make_owner_hassette({})
+    assert resolve_owner(hassette, "gone", 1) is hassette  # pyright: ignore[reportArgumentType]
+
+
+def test_resolve_owner_lookup_error_falls_back_to_hassette() -> None:
+    """A failing app_handler lookup falls back to hassette instead of propagating."""
+
+    def boom(*_args: object) -> object:
+        raise RuntimeError("app handler not ready")
+
+    hassette = types.SimpleNamespace(app_handler=types.SimpleNamespace(get=boom))
+    assert resolve_owner(hassette, "lights", 0) is hassette  # pyright: ignore[reportArgumentType]
+
+
+def test_format_attribution_label_attributed() -> None:
+    """An attributed event names the app, instance, and execution."""
+    label = format_attribution_label("lights", "kitchen", "exec-1")
+    assert label == "app: lights (kitchen), execution: exec-1"
+
+
+def test_format_attribution_label_unattributed() -> None:
+    """An unattributed event uses the <framework> and <unattributed> placeholders."""
+    assert format_attribution_label(None, None, None) == "app: <framework>, execution: <unattributed>"
