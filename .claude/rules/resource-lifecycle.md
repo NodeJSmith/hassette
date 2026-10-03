@@ -35,7 +35,7 @@ Resources that deviate from these rules, and why:
 - **`WebApiService`** — `on_initialize()`, after auth and trusted proxies resolve. Readiness does not wait for uvicorn to bind the port in `serve()`. When the web API is disabled it marks ready early and parks `serve()`.
 - **`WebsocketService`** — `on_initialize()` marks lifecycle-ready unconditionally so an unreachable HA doesn't time out its startup wave and fatally block later waves; `start_recv_and_subscribe()` (reached from `serve()`) re-marks ready after each successful connect, since a dropped connection calls `mark_not_ready()`. Use the connected signal, not `is_ready()`, to mean "HA connected".
 - **`WebUiWatcherService`** — `on_initialize()` when hot reload is disabled (then parks `serve()`), `serve()` when enabled.
-- **`FileWatcherService`** — `serve()` returns without ever marking ready when `watch_files` is disabled.
+- **`FileWatcherService`** — `on_initialize()` when `watch_files` is disabled (then parks `serve()` on `shutdown_event`), `serve()` when enabled.
 
 ## Teardown reports
 

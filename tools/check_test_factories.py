@@ -65,6 +65,7 @@ SHARED_FACTORIES = {
     "make_scheduler": "tests.support.factories",
     "make_closing_task_bucket": "tests.support.factories",
     "make_bus_service_with_mock_executor": "tests.support.factories",
+    "make_bypassed_service": "tests.support.factories",
     "make_scheduler_service_with_mock_executor": "tests.support.factories",
     "make_execution_record": "tests.support.factories",
     "wire_dependent_resource": "tests.support.factories",

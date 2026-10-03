@@ -743,3 +743,20 @@ def wire_dependent_resource(
     deps: list[Resource] = [dep_cls(hassette=hassette) for dep_cls in dep_classes]
     hassette.children = deps
     return dependent_cls(hassette=hassette), deps
+
+
+def make_bypassed_service(cls: type[ResourceT], hassette: Any) -> ResourceT:
+    """Build a service instance without running its ``__init__``.
+
+    Sets the fields that module-level ``mark_ready()`` and the shutdown paths read, so a
+    unit test can drive a service's lifecycle methods directly.
+    """
+    svc = cls.__new__(cls)
+    svc.hassette = hassette
+    svc.shutdown_event = asyncio.Event()
+    svc.logger = MagicMock()
+    svc._unique_name = f"{cls.__name__}.test"
+    # Real Event so the module-level mark_ready() can operate on this bypassed instance.
+    svc.ready_event = asyncio.Event()
+    svc._ready_reason = None
+    return svc
