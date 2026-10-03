@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.56.0](https://github.com/NodeJSmith/hassette/compare/v0.55.0...v0.56.0) (2026-10-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* API data routes (telemetry, logs, executions, bus listeners, scheduler jobs, app manifests) now return a 503 `application/problem+json` body with code `telemetry_unavailable` when the telemetry database is unavailable, instead of a 503 with an empty or default JSON body. `/api/health/ready` and `/api/telemetry/status` are unchanged.
+* error responses under /api are served as application/problem+json instead of application/json; FastAPI validation 422s carry a string `detail` summary instead of a list of error objects; and with the SPA served, a non-GET request to an unknown /api path returns 404 instead of 405.
+* `AppConfig.app_key` is removed. An `app_key` set under an app's config in `hassette.toml` is now an ignored extra field rather than a validated, reserved one. Read the app's key at runtime via `self.app_key`.
+* `hassette.types.enums.ResourceStatus` / `hassette.types.ResourceStatus` no longer resolve — import `from hassette import ResourceStatus` instead. `hassette.types.types.ExecutionStatus` no longer resolves — import `from hassette import ExecutionStatus` instead.
+
+### Features
+
+* return RFC 9457 problem details for every web API error ([#2480](https://github.com/NodeJSmith/hassette/issues/2480)) ([fae8aa1](https://github.com/NodeJSmith/hassette/commit/fae8aa17ca71f93bdef4b9c1ab8e2a9d45537f29))
+* return telemetry_unavailable problem bodies from data routes ([#2491](https://github.com/NodeJSmith/hassette/issues/2491)) ([8f90053](https://github.com/NodeJSmith/hassette/commit/8f900538e7b6e472d0f1414b680ee65773d15c62))
+* scope module-boundary rules to nested layers ([#2425](https://github.com/NodeJSmith/hassette/issues/2425)) ([7d7cb5f](https://github.com/NodeJSmith/hassette/commit/7d7cb5f1acbbca3464896774849be1e0cc6a2c37))
+* surface blocking-IO findings in the web UI and CLI ([#2495](https://github.com/NodeJSmith/hassette/issues/2495)) ([35dbfe8](https://github.com/NodeJSmith/hassette/commit/35dbfe8694373872c74c0055af3f482d69ab88e6))
+
+
+### Bug Fixes
+
+* keep app reload and start working from the web API and CLI ([#2490](https://github.com/NodeJSmith/hassette/issues/2490)) ([323ab92](https://github.com/NodeJSmith/hassette/commit/323ab92f177076d016b8597cc09be5a9717ed6e5))
+* let allow_deep_detection_in_prod enable Tier 2 blocking-IO detection on its own ([#2472](https://github.com/NodeJSmith/hassette/issues/2472)) ([4919b74](https://github.com/NodeJSmith/hassette/commit/4919b742b8529d2a706c1a9289635dbe30c07fd8)), closes [#2460](https://github.com/NodeJSmith/hassette/issues/2460)
+* remove dead AppConfig.app_key and log the real app key on shutdown ([#2470](https://github.com/NodeJSmith/hassette/issues/2470)) ([a7d1bcf](https://github.com/NodeJSmith/hassette/commit/a7d1bcfe0f27d06ae2021fbb8371a82676b52fae))
+* stop re-sending WebSocket writes after a response timeout ([#2468](https://github.com/NodeJSmith/hassette/issues/2468)) ([abbfea4](https://github.com/NodeJSmith/hassette/commit/abbfea43d428f81e8a6544e0e2ee66e919433c4c))
+
+
+### Refactoring
+
+* align naming drift across config, web API, task bucket, and tests ([#2451](https://github.com/NodeJSmith/hassette/issues/2451)) ([75e758b](https://github.com/NodeJSmith/hassette/commit/75e758b31d68cb846aded751ead207f074624ba9))
+* move wire contract models into hassette-wire ([#2449](https://github.com/NodeJSmith/hassette/issues/2449)) ([5825036](https://github.com/NodeJSmith/hassette/commit/58250367f8defecfcd1c2057e0e2af2218a5c564))
+* name the single-attempt retry budget in WebSocket send_and_wait ([#2469](https://github.com/NodeJSmith/hassette/issues/2469)) ([09a41f0](https://github.com/NodeJSmith/hassette/commit/09a41f09391cc781a2cd48071d17ad28bb53eaf4)), closes [#2467](https://github.com/NodeJSmith/hassette/issues/2467)
+* share owner resolution and warning labels across blocking-IO detection tiers ([#2497](https://github.com/NodeJSmith/hassette/issues/2497)) ([a456c91](https://github.com/NodeJSmith/hassette/commit/a456c9155d012712fcbca4a3e85094817cf408c9)), closes [#2494](https://github.com/NodeJSmith/hassette/issues/2494)
+* split scheduler_service.py into a job-queue module and a dispatch mixin ([#2452](https://github.com/NodeJSmith/hassette/issues/2452)) ([4afa619](https://github.com/NodeJSmith/hassette/commit/4afa61953cb056d70fa3f7a397f2388e032db24c)), closes [#2357](https://github.com/NodeJSmith/hassette/issues/2357)
+* split telemetry repository into insert-params and reconcile-sql modules ([#2430](https://github.com/NodeJSmith/hassette/issues/2430)) ([198c930](https://github.com/NodeJSmith/hassette/commit/198c930332a868f5d5946b0e17162d63ff2aed90))
+* tidy naming and structure in use-column-visibility hook ([#2429](https://github.com/NodeJSmith/hassette/issues/2429)) ([22d5ac9](https://github.com/NodeJSmith/hassette/commit/22d5ac940d9fa702ffc2bdbfc5a72887d3e094d6)), closes [#2380](https://github.com/NodeJSmith/hassette/issues/2380)
+
+
+### Documentation
+
+* clarify that /api/health ok requires app bootstrap release ([#2471](https://github.com/NodeJSmith/hassette/issues/2471)) ([cd22e8d](https://github.com/NodeJSmith/hassette/commit/cd22e8da1d6c546aa3c8a4ef8a1cfe3b790551e2)), closes [#2264](https://github.com/NodeJSmith/hassette/issues/2264)
+* clarify that HelperClient update/delete take the storage id, not entity_id ([#2450](https://github.com/NodeJSmith/hassette/issues/2450)) ([26f069c](https://github.com/NodeJSmith/hassette/commit/26f069c64d93cf5088979b61f6bdb8d938eef232)), closes [#1857](https://github.com/NodeJSmith/hassette/issues/1857)
+* correct the error raised for a missing name= and the on_error method list on the bus methods page ([#2441](https://github.com/NodeJSmith/hassette/issues/2441)) ([59bf579](https://github.com/NodeJSmith/hassette/commit/59bf579a1b2ec6cadcb8592ba8322c01661d18bb)), closes [#2358](https://github.com/NodeJSmith/hassette/issues/2358)
+* fix A.get_path example path in predicate reference ([#2435](https://github.com/NodeJSmith/hassette/issues/2435)) ([7a1d603](https://github.com/NodeJSmith/hassette/commit/7a1d6038b455631db586d1db911d8d942b0ceb22)), closes [#2375](https://github.com/NodeJSmith/hassette/issues/2375)
+* fix inaccurate claims across core-concepts and testing docs ([#2465](https://github.com/NodeJSmith/hassette/issues/2465)) ([6f191d2](https://github.com/NodeJSmith/hassette/commit/6f191d26596a1e986d60f0e13c1fbd3f99beef77))
+* make the lifecycle internals page followable for readers who land on it directly ([#2436](https://github.com/NodeJSmith/hassette/issues/2436)) ([f979c58](https://github.com/NodeJSmith/hassette/commit/f979c586031ffc2efefd85dad6c0c9cf5ecfbbcd)), closes [#1781](https://github.com/NodeJSmith/hassette/issues/1781)
+
 ## [0.55.0](https://github.com/NodeJSmith/hassette/compare/v0.54.0...v0.55.0) (2026-09-28)
 
 ### Breaking Changes
