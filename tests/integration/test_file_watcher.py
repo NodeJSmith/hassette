@@ -9,7 +9,30 @@ from hassette.events.hassette import Event
 from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from hassette import HassetteConfig
     from hassette.testing import HassetteHarness
+
+
+async def test_harness_starts_with_file_watcher_disabled(
+    hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
+    test_config_class: "type[HassetteConfig]",
+    unused_tcp_port_factory,
+) -> None:
+    """Regression test for #2500.
+
+    FileWatcherService.serve()'s disabled branch used to return without ever calling
+    mark_ready(), so the startup coordinator waited the full startup timeout for a
+    service that would never become ready, then failed startup entirely.
+    """
+    config = test_config_class(
+        web_api={"port": unused_tcp_port_factory()},
+        file_watcher={"watch_files": False},
+    )
+
+    async with hassette_harness(config).with_bus().with_file_watcher().with_api_mock() as harness:
+        assert harness.file_watcher.is_ready()
 
 
 async def test_event_emitted_on_file_change(hassette_with_file_watcher: "HassetteHarness"):
