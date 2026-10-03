@@ -1,10 +1,11 @@
 """Turn fetched ``blocking_events`` aggregates into findings: pure grouping, no DB access.
 
 SQL groups attributed events by distinct stored stack and handler; this module classifies each
-group's stack and merges groups into one ``BlockingFinding`` per app call site, so each finding is
-one thing to fix. Groups with no app-code frame (no stack captured, or written before structured
-frames existed) merge per handler instead, marked as having no captured call site. Unattributed
-events are summarized for the diagnostics page without crediting any app.
+group's stack and merges groups into one ``BlockingFinding`` per app call site (file, line, and
+function), so each finding is one thing to fix. Groups with no app-code frame (no stack captured,
+or written before structured frames existed) merge per handler instead, marked as having no
+captured call site. Unattributed events are summarized for the diagnostics page without crediting
+any app.
 """
 
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
@@ -187,7 +188,7 @@ def _start_finding(
             site = frames[idx]
             callee = classifier.ref(frames[idx - 1]) if idx > 0 else None
             return (
-                ("site", tier, app_key, site.filename, site.lineno),
+                ("site", tier, app_key, site.filename, site.lineno, site.function),
                 _FindingBuilder(
                     **base,
                     call_site=classifier.ref(site),
@@ -200,7 +201,7 @@ def _start_finding(
         site = frames[0]
         is_user = classifier.is_user_code(site.filename)
         return (
-            ("site", tier, app_key, primitive, site.filename, site.lineno),
+            ("site", tier, app_key, primitive, site.filename, site.lineno, site.function),
             _FindingBuilder(
                 **base,
                 call_site=classifier.ref(site),

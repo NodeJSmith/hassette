@@ -144,6 +144,27 @@ class TestGrouping:
         assert finding.avg_stall_ms == pytest.approx(80.0)
 
 
+class TestSameLocationDifferentFunction:
+    """After code moves and the app reloads, one filename:lineno can hold different functions."""
+
+    @pytest.mark.parametrize("tier", ["watchdog", "monkeypatch"])
+    def test_same_file_and_line_in_different_functions_are_separate_findings(self, tier: str) -> None:
+        old = StackFrame(filename="/apps/calendar_service.py", lineno=98, function="old_fetch", module="cal")
+        new = StackFrame(filename="/apps/calendar_service.py", lineno=98, function="new_fetch", module="cal")
+        overrides: dict[str, Any] = {"tier": tier}
+        if tier == "monkeypatch":
+            overrides |= {"primitive": "time.sleep", "stall_duration_ms": None}
+        rows = [
+            group(stack=[new], detected_ts=2000.0, **overrides),
+            group(stack=[old], detected_ts=1000.0, **overrides),
+        ]
+
+        findings = group_findings(rows, classifier_for)
+
+        assert [f.call_site.function for f in findings if f.call_site] == ["new_fetch", "old_fetch"]
+        assert [f.event_count for f in findings] == [1, 1]
+
+
 class TestCallSiteNotCaptured:
     def test_rows_without_frames_group_per_handler(self) -> None:
         """No stack (or a pre-structured-frames row) → one finding per handler, call_site None."""

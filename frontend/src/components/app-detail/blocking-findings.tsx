@@ -47,7 +47,9 @@ function callsIntoText(finding: BlockingFinding): string | null {
  */
 function findingKey(finding: BlockingFinding): string {
   const site = finding.call_site;
-  const where = site ? `${site.filename}:${site.lineno}` : finding.handlers.map((h) => `${h.kind}-${h.id}`).join(",");
+  const where = site
+    ? `${site.filename}:${site.lineno}:${site.function}`
+    : finding.handlers.map((h) => `${h.kind}-${h.id}`).join(",");
   return `${finding.tier}|${finding.primitive ?? ""}|${where}`;
 }
 

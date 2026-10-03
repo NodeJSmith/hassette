@@ -1,6 +1,6 @@
 import { fireEvent, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { BlockingFinding, BlockingFindingsData } from "../../api/endpoints";
 import { createBlockingFinding, createFrameRef } from "../../test/factories";
@@ -138,6 +138,22 @@ describe("BlockingFindingsSection", () => {
     const { findByTestId, queryByTestId } = renderSection({ linkInstance: 2 });
     await findByTestId("overview-blocking-finding-0");
     expect(queryByTestId("overview-blocking-finding-0-instances")).toBeNull();
+  });
+
+  it("lists both call sites when two functions share one file and line", async () => {
+    const at = (fn: string) => createFrameRef({ filename: "/apps/calendar_service.py", lineno: 98, function: fn });
+    serveFindings([
+      createBlockingFinding({ call_site: at("new_fetch") }),
+      createBlockingFinding({ call_site: at("old_fetch") }),
+    ]);
+    // React still renders rows that share a key, so the duplicate-key warning is the observable failure.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { findByTestId } = renderSection();
+
+    expect((await findByTestId("overview-blocking-finding-0")).textContent).toContain("in new_fetch");
+    expect((await findByTestId("overview-blocking-finding-1")).textContent).toContain("in old_fetch");
+    expect(errorSpy.mock.calls.flat().join(" ")).not.toContain("same key");
+    errorSpy.mockRestore();
   });
 
   it("warns that older call sites are omitted when the server truncated", async () => {
