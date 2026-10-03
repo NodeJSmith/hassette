@@ -4,7 +4,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from hassette_wire import StackFrame
+from hassette_wire import BlockingFindingsResponse, StackFrame
 
 from hassette.config.classes import AppManifest
 from hassette.core.database_service import DatabaseService
@@ -35,6 +35,17 @@ def configured_app(db_hassette: MagicMock) -> None:
             }
         )
     }
+
+
+@pytest.fixture
+def db_svc(db: DbFixture) -> DatabaseService:
+    """The ``DatabaseService`` half of ``db``, for tests that don't need the session id."""
+    return db[0]
+
+
+async def instance_zero_findings(query_service: TelemetryQueryService) -> BlockingFindingsResponse:
+    """``my_app`` instance 0's findings over all time."""
+    return await query_service.get_blocking_findings(app_key="my_app", instance_index=0, since=None)
 
 
 async def insert_event(db_svc: DatabaseService, **overrides: Any) -> None:
@@ -77,7 +88,7 @@ class TestBlockingFindings:
         await insert_event(db_svc, execution_id="exec-l", detected_ts=2000.0, stall_duration_ms=500.0)
         await insert_event(db_svc, execution_id="exec-j", detected_ts=1000.0)
 
-        result = await query_service.get_blocking_findings(app_key="my_app", instance_index=0, since=None)
+        result = await instance_zero_findings(query_service)
 
         [finding] = result.findings
         assert not result.truncated
@@ -92,9 +103,8 @@ class TestBlockingFindings:
         assert finding.latest_stack == [CALL_SITE, HANDLER]
 
     async def test_filters_by_app_instance_and_window(
-        self, query_service: TelemetryQueryService, db: DbFixture
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService
     ) -> None:
-        db_svc, _ = db
         await insert_event(db_svc, detected_ts=2000.0)
         await insert_event(db_svc, detected_ts=500.0)  # before the window
         await insert_event(db_svc, instance_index=1, detected_ts=2000.0)
@@ -115,7 +125,7 @@ class TestBlockingFindings:
         await insert_event(db_svc, instance_index=0, instance_name="bedroom", detected_ts=1000.0)
 
         merged = await query_service.get_blocking_findings(app_key="my_app", instance_index=None, since=None)
-        one = await query_service.get_blocking_findings(app_key="my_app", instance_index=0, since=None)
+        one = await instance_zero_findings(query_service)
 
         [finding] = merged.findings
         assert finding.event_count == 2
@@ -124,9 +134,8 @@ class TestBlockingFindings:
         assert [(f.event_count, [i.index for i in f.instances]) for f in one.findings] == [(1, [0])]
 
     async def test_all_apps_query_spans_apps_and_instances(
-        self, query_service: TelemetryQueryService, db: DbFixture
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService
     ) -> None:
-        db_svc, _ = db
         await insert_event(db_svc)
         await insert_event(db_svc, instance_index=1)
         await insert_event(db_svc, app_key="other_app")
@@ -136,10 +145,9 @@ class TestBlockingFindings:
         assert sorted((f.app_key, f.event_count) for f in result.findings) == [("my_app", 2), ("other_app", 1)]
 
     async def test_unattributed_rows_are_never_credited_to_an_app(
-        self, query_service: TelemetryQueryService, db: DbFixture
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService
     ) -> None:
         """A displaced row stays off the app's findings even when its stack holds the app's code."""
-        db_svc, _ = db
         await insert_event(db_svc, app_key=None, instance_index=None, reason="displaced")
 
         result = await query_service.get_blocking_findings(app_key=None, instance_index=None, since=None)
@@ -147,16 +155,15 @@ class TestBlockingFindings:
         assert result.findings == []
 
     async def test_chronic_call_site_does_not_hide_older_ones(
-        self, query_service: TelemetryQueryService, db: DbFixture, monkeypatch: pytest.MonkeyPatch
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The cap bounds call sites, not events: many recent events at one site keep older sites listed."""
-        db_svc, _ = db
         monkeypatch.setattr(blocking_queries, "BLOCKING_FINDING_LIMIT", 2)
         for ts in (2000.0, 3000.0, 4000.0):
             await insert_event(db_svc, detected_ts=ts, stall_duration_ms=ts / 10)
         await insert_event(db_svc, frames=[OTHER_SITE, HANDLER], detected_ts=1000.0)
 
-        result = await query_service.get_blocking_findings(app_key="my_app", instance_index=0, since=None)
+        result = await instance_zero_findings(query_service)
 
         assert not result.truncated
         assert [(f.call_site.lineno if f.call_site else None, f.event_count) for f in result.findings] == [
@@ -167,10 +174,9 @@ class TestBlockingFindings:
         assert (newest.last_seen_ts, newest.max_stall_ms, newest.avg_stall_ms) == (4000.0, 400.0, 300.0)
 
     async def test_call_site_spread_over_many_stacks_keeps_complete_aggregates(
-        self, query_service: TelemetryQueryService, db: DbFixture, monkeypatch: pytest.MonkeyPatch
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """The cap counts merged call sites, so a site whose stacks outnumber it is neither cut nor truncated."""
-        db_svc, _ = db
         monkeypatch.setattr(blocking_queries, "BLOCKING_FINDING_LIMIT", 2)
         for i in range(4):
             library_frame = StackFrame(filename="/lib/http.py", lineno=i + 1, function="send", module="http")
@@ -181,21 +187,20 @@ class TestBlockingFindings:
                 stall_duration_ms=100.0 * (i + 1),
             )
 
-        result = await query_service.get_blocking_findings(app_key="my_app", instance_index=0, since=None)
+        result = await instance_zero_findings(query_service)
 
         assert not result.truncated
         [finding] = result.findings
         assert (finding.event_count, finding.max_stall_ms, finding.avg_stall_ms) == (4, 400.0, 250.0)
 
     async def test_truncates_at_the_finding_cap_dropping_the_oldest(
-        self, query_service: TelemetryQueryService, db: DbFixture, monkeypatch: pytest.MonkeyPatch
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        db_svc, _ = db
         monkeypatch.setattr(blocking_queries, "BLOCKING_FINDING_LIMIT", 1)
         await insert_event(db_svc, detected_ts=2000.0)
         await insert_event(db_svc, frames=[OTHER_SITE, HANDLER], detected_ts=1000.0)
 
-        result = await query_service.get_blocking_findings(app_key="my_app", instance_index=0, since=None)
+        result = await instance_zero_findings(query_service)
 
         assert result.truncated
         [finding] = result.findings
@@ -203,8 +208,9 @@ class TestBlockingFindings:
 
 
 class TestUnattributedBlocking:
-    async def test_summarizes_only_unattributed_rows(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
-        db_svc, _ = db
+    async def test_summarizes_only_unattributed_rows(
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService
+    ) -> None:
         await insert_event(db_svc, app_key=None, instance_index=None, reason="displaced", stall_duration_ms=5000.0)
         await insert_event(db_svc, app_key=None, instance_index=None, reason="framework", frames=None)
         await insert_event(db_svc)  # attributed: not part of the diagnostics view
@@ -217,9 +223,8 @@ class TestUnattributedBlocking:
         assert sorted(app_frames, key=str) == [None, "helper.py"]
 
     async def test_counts_are_exact_beyond_the_recent_list(
-        self, query_service: TelemetryQueryService, db: DbFixture, monkeypatch: pytest.MonkeyPatch
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        db_svc, _ = db
         monkeypatch.setattr(blocking_queries, "RECENT_UNATTRIBUTED_LIMIT", 2)
         for ts, stall in ((1000.0, 9000.0), (2000.0, 100.0), (3000.0, 200.0)):
             await insert_event(
@@ -235,9 +240,8 @@ class TestUnattributedBlocking:
 
 class TestBlockingEventCounts:
     async def test_counts_attributed_rows_per_app_in_window(
-        self, query_service: TelemetryQueryService, db: DbFixture
+        self, query_service: TelemetryQueryService, db_svc: DatabaseService
     ) -> None:
-        db_svc, _ = db
         await insert_event(db_svc, detected_ts=2000.0)
         await insert_event(db_svc, detected_ts=2000.0, instance_index=1)
         await insert_event(db_svc, detected_ts=500.0)
