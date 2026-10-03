@@ -47,10 +47,16 @@ export function LoopStallsPanel({ data }: Props) {
       <p className={META_CLASS} data-testid="diag-loop-stalls-summary">
         {summaryText(data)}
       </p>
-      <p className={META_CLASS}>
-        none of these are credited to an app. <strong>displaced</strong> — an app was running, but a different task held
-        the loop, so blame was withheld. <strong>framework</strong> — no app execution was responsible.
-      </p>
+      <div className={`${META_CLASS} flex flex-col gap-1`}>
+        <p>none of these are credited to an app.</p>
+        <p>
+          <strong>displaced</strong> — an app was running, but a different task held the loop, so the stall isn&apos;t
+          attributed to it.
+        </p>
+        <p>
+          <strong>framework</strong> — no app execution was responsible.
+        </p>
+      </div>
       <ul className="flex list-none flex-col gap-3 p-0" aria-label="Recent loop stalls">
         {data.recent.map((stall, i) => (
           <StallRow key={`${stall.detected_ts}-${i}`} stall={stall} index={i} />

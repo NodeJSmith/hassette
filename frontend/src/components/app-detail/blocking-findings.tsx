@@ -141,8 +141,8 @@ export function BlockingFindingsSection({ appKey, scope }: Props) {
     <section className={OVERVIEW_SECTION_CLASS} data-testid="overview-blocking-findings">
       <h3 className={SECTION_LABEL_CLASS}>blocking calls{scope.kind === "app" && " · all instances"}</h3>
       <p className={META_CLASS}>
-        these calls froze the event loop, delaying every other handler and timer. move them off the loop with{" "}
-        <code className="font-mono">asyncio.to_thread</code>.
+        these calls ran synchronously on the event loop, so other handlers and timers waited until they returned.{" "}
+        <code className="font-mono">asyncio.to_thread</code> runs a call like this off the loop.
       </p>
       {findings.map((finding, i) => (
         <FindingEntry
