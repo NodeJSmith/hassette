@@ -1,10 +1,10 @@
+import copy
 import importlib
 import json
-import logging
+import pickle
 import pkgutil
-import uuid
 import warnings
-from enum import StrEnum
+from enum import Enum, StrEnum
 from typing import Annotated, Any, Literal, get_args, get_origin
 
 import hassette_wire
@@ -12,24 +12,37 @@ import pytest
 from hassette_wire import (
     LENIENT_CONTEXT,
     AppManifestResponse,
+    AppStatusChangedData,
     BlockingHandlerRef,
     ExecutionMode,
     ListenerWithSummary,
     LogLevel,
+    LogLevelRequest,
     ManifestStatus,
     ProblemCode,
     ProblemDetail,
     ResourceStatus,
+    ServiceInfoResponse,
+    SessionRequest,
     SourceTier,
     SystemStatusResponse,
     UnknownValue,
     WsServerMessage,
 )
-from hassette_wire.lenient import LenientValue
+from hassette_wire.lenient import LenientValue, vocabulary_of
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 # Vocabularies declared closed (D14): growing either is a breaking wire change, not version skew.
 CLOSED_VOCABULARIES = (SourceTier, LogLevel)
+
+# Request models stay strict (they carry no vocabulary fields today); a new one must be added here.
+REQUEST_MODELS = {LogLevelRequest, SessionRequest}
+
+
+def plain_type(alias: Any) -> Any:
+    """The enum or Literal behind an Open<TypeName> alias: Annotated[X | UnknownValue, ...] -> X."""
+    union = get_args(alias)[0]
+    return next(arm for arm in get_args(union) if arm is not UnknownValue)
 
 
 def is_open_alias(obj: Any) -> bool:
@@ -63,17 +76,14 @@ def manifest(status: str, instance_status: str = "running") -> dict[str, Any]:
     }
 
 
-def new_value() -> str:
-    """A value no vocabulary contains, unique so the once-per-value warning fires for each test."""
-    return f"new-{uuid.uuid4().hex[:8]}"
-
-
 def test_unknown_problem_code_parses_leniently_and_keeps_raw_value() -> None:
     detail = ProblemDetail.model_validate(problem("rate_limited"), context=LENIENT_CONTEXT)
 
     assert isinstance(detail.code, UnknownValue)
     assert detail.code == "rate_limited"
     assert repr(detail.code) == "UnknownValue('rate_limited')"
+    assert detail.code.value == "rate_limited"
+    assert type(detail.code.value) is str
 
 
 def test_known_value_still_parses_to_enum_member_under_lenient_context() -> None:
@@ -91,6 +101,17 @@ def test_unknown_values_in_list_json_and_nested_models() -> None:
     assert isinstance(parsed[0].instances[0].status, UnknownValue)
     assert parsed[1].status is ManifestStatus.RUNNING
     assert parsed[1].instances[0].status is ResourceStatus.RUNNING
+
+
+def test_unknown_value_in_optional_open_field() -> None:
+    data = {"app_key": "a", "index": 0, "status": "running", "previous_status": "hibernating"}
+
+    parsed = AppStatusChangedData.model_validate(data, context=LENIENT_CONTEXT)
+
+    assert parsed.previous_status == UnknownValue("hibernating")
+    assert isinstance(parsed.previous_status, UnknownValue)
+    absent = AppStatusChangedData.model_validate({**data, "previous_status": None}, context=LENIENT_CONTEXT)
+    assert absent.previous_status is None
 
 
 def test_unknown_values_in_ws_payload() -> None:
@@ -122,6 +143,13 @@ def test_anything_but_the_exact_context_flag_is_strict(context: Any) -> None:
         ProblemDetail.model_validate(problem("rate_limited"), context=context)
 
     assert exc_info.value.errors()[0]["type"] == "enum"
+
+
+def test_lenient_context_survives_deepcopy_and_pickle() -> None:
+    for context in (copy.deepcopy(LENIENT_CONTEXT), pickle.loads(pickle.dumps(LENIENT_CONTEXT))):  # noqa: S301
+        detail = ProblemDetail.model_validate(problem("rate_limited"), context=context)
+
+        assert isinstance(detail.code, UnknownValue)
 
 
 def test_lenient_context_merges_with_other_keys() -> None:
@@ -169,6 +197,31 @@ def test_unknown_value_that_a_newer_vocabulary_knows_revalidates_to_the_member()
     assert detail.code is ProblemCode.APP_BLOCKED
 
 
+@pytest.mark.parametrize("alias", list(open_aliases().values()), ids=list(open_aliases()))
+@pytest.mark.parametrize("context", [None, LENIENT_CONTEXT], ids=["strict", "lenient"])
+def test_in_vocabulary_str_subclasses_validate_to_the_known_value(alias: Any, context: Any) -> None:
+    known = sorted(vocabulary_of(plain_type(alias)))[0]  # any known value works; sorted for stable ids
+    foreign_member = StrEnum("Foreign", {"VALUE": known}).VALUE
+    adapter = TypeAdapter(alias)
+
+    for value in (UnknownValue(known), foreign_member):
+        parsed = adapter.validate_python(value, context=context)
+
+        assert parsed == known
+        assert not isinstance(parsed, UnknownValue)
+        assert type(parsed) is not type(value)
+
+
+def test_str_mixin_enum_member_validates_by_value() -> None:
+    mixin = Enum("Mixin", {"RUNNING": "running", "PAUSED": "paused"}, type=str)
+
+    known = AppManifestResponse.model_validate(manifest(mixin.RUNNING), context=LENIENT_CONTEXT)
+    unknown = AppManifestResponse.model_validate(manifest(mixin.PAUSED), context=LENIENT_CONTEXT)
+
+    assert known.status is ManifestStatus.RUNNING
+    assert unknown.status == UnknownValue("paused")
+
+
 def test_member_of_another_enum_validates_by_value() -> None:
     known = AppManifestResponse.model_validate(manifest(ResourceStatus.RUNNING), context=LENIENT_CONTEXT)
     unknown = AppManifestResponse.model_validate(manifest(ResourceStatus.CRASHED), context=LENIENT_CONTEXT)
@@ -202,6 +255,14 @@ def test_python_dump_returns_values_unchanged_without_warnings() -> None:
 
     assert type(dumped["status"]) is UnknownValue
     assert dumped["instances"][0]["status"] is ResourceStatus.RUNNING
+
+
+@pytest.mark.parametrize("mode", ["json", "python"])
+def test_dumping_an_out_of_vocabulary_str_that_bypassed_validation_still_warns(mode: str) -> None:
+    bypassed = ServiceInfoResponse.model_construct(name="svc", status="bogus")
+
+    with pytest.warns(UserWarning, match="Expected `enum`"):
+        bypassed.model_dump(mode=mode)
 
 
 def test_strict_python_dump_keeps_enum_members() -> None:
@@ -239,20 +300,6 @@ def test_lenient_instances_pass_into_strict_models_unrevalidated() -> None:
     assert copied.status == "other"
 
 
-def test_unknown_value_warns_once_per_type_and_value(caplog: pytest.LogCaptureFixture) -> None:
-    value = new_value()
-
-    with caplog.at_level(logging.WARNING, logger="hassette_wire.lenient"):
-        for _ in range(3):
-            ProblemDetail.model_validate(problem(value), context=LENIENT_CONTEXT)
-        AppManifestResponse.model_validate(manifest(value), context=LENIENT_CONTEXT)
-
-    messages = [r.getMessage() for r in caplog.records if value in r.getMessage()]
-    assert len(messages) == 2
-    assert "ProblemCode" in messages[0]
-    assert "ManifestStatus" in messages[1]
-
-
 @pytest.mark.parametrize(
     "source",
     [
@@ -271,7 +318,7 @@ def test_misshaped_alias_fails_at_schema_build(source: Any) -> None:
 @pytest.mark.parametrize("alias", list(open_aliases().values()), ids=list(open_aliases()))
 @pytest.mark.parametrize("mode", ["validation", "serialization"])
 def test_open_alias_keeps_the_plain_types_json_schema(alias: Any, mode: Any) -> None:
-    plain = next(arm for arm in get_args(get_args(alias)[0]) if arm is not UnknownValue)
+    plain = plain_type(alias)
 
     assert TypeAdapter(alias).json_schema(mode=mode) == TypeAdapter(plain).json_schema(mode=mode)
 
@@ -297,7 +344,7 @@ def test_every_response_vocabulary_field_is_open() -> None:
     models = [
         obj
         for obj in (getattr(hassette_wire, name) for name in hassette_wire.__all__)
-        if isinstance(obj, type) and issubclass(obj, BaseModel) and not obj.__name__.endswith("Request")
+        if isinstance(obj, type) and issubclass(obj, BaseModel) and obj not in REQUEST_MODELS
     ]
     strict_fields = [
         f"{model.__name__}.{field_name}: {found}"

@@ -1,7 +1,7 @@
 # Design: Lenient parsing of unknown enum values in hassette-wire
 
 **Date:** 2026-10-03
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 
 ## Summary
@@ -28,7 +28,7 @@ input side changes), and no client code in this PR (D9).
 
 In scope:
 - A new module `wire/src/hassette_wire/lenient.py` holding `UnknownValue` (D3), the `LenientValue`
-  marker (D4), the unknown-value warning log (D6) and `LENIENT_CONTEXT` (D8).
+  marker (D4), the unknown-value DEBUG log (D6) and `LENIENT_CONTEXT` (D8).
 - The `Open<TypeName>` aliases (D4) in `enums.py`, `problems.py`, `literals.py` and `blocking.py`, and
   widening the affected response fields (D5) in `apps.py`, `blocking.py`, `health.py`, `logs.py`,
   `problems.py`, `telemetry.py` and `ws.py`.
@@ -106,7 +106,7 @@ The pin for this change: `tools/check_schemas_fresh.py` passes with `frontend/op
 
 Behavior to pin:
 - JSON-mode dumps write the raw string back.
-- Python-mode dumps return the object unchanged: an enum member stays a member and an `UnknownValue` stays an `UnknownValue`. The serializer is `when_used="always"`, takes `info`, and returns the value unchanged in python mode and `.value`/`str(v)` in json mode. A json-only serializer lets python-mode dumps reach the enum serializer, which emits pydantic's "Expected `enum`" warning on both 2.7.0 and 2.12.3 (verified 2026-10-03). Dumps of lenient-parsed models emit no warnings at all, which matters because `wire/pyproject.toml` doesn't escalate warnings to errors.
+- Python-mode dumps return the object unchanged: an enum member stays a member and an `UnknownValue` stays an `UnknownValue`. The serializer is `when_used="always"`, takes `info`, and returns the value unchanged in python mode and `.value`/`str(v)` in json mode. A json-only serializer lets python-mode dumps reach the enum serializer, which emits pydantic's "Expected `enum`" warning on both 2.7.0 and 2.12.3 (verified 2026-10-03). Dumps of lenient-parsed models emit no warnings at all, which matters because `wire/pyproject.toml` doesn't escalate warnings to errors. (Built as a wrap serializer instead; see Build.)
 - A lenient re-parse of a lenient dump is lossless.
 - Every input, including an `UnknownValue`, goes through the enum/`Literal` validation first, and the fallback applies only on failure. So a lenient re-validation of `UnknownValue("running")` by a client whose vocabulary now includes `"running"` yields the enum member.
 - A member of a different `StrEnum` whose value is in the field's vocabulary validates to the field's member, not to `UnknownValue` (`ResourceStatus.RUNNING` into a `ManifestStatus` field gives `ManifestStatus.RUNNING`). One whose value isn't becomes `UnknownValue`.
@@ -164,19 +164,23 @@ Behavior to pin: any response-model field typed with a wire `StrEnum` or a multi
 
 **Deciding factor:** skew is visible to whoever can act on it (upgrade the client), without flooding logs.
 
-| | A: One `WARNING` per distinct `(type_name, raw value)` per process, through `logging.getLogger(__name__)` in `lenient.py` | B: No logging: the caller has the `UnknownValue` and decides | C: `DEBUG` only |
+| | A: One `WARNING` per distinct `(type_name, raw value)` per process, through `logging.getLogger(__name__)` in `lenient.py` | B: No logging: the caller has the `UnknownValue` and decides | C: `DEBUG` on every occurrence, no state; the consumer owns the user-facing warning |
 |---|---|---|---|
-| A HACS user sees "update your integration" signals | Yes | Only if the integration logs it | No |
+| A HACS user sees "update your integration" signals | Yes | Only if the integration logs it | Only if the integration reports it (#2386) |
+| Message accuracy | Claims a cause (skew) a validator can't verify: a server bug, a client newer than its server, or a foreign peer look the same | n/a | States only what is known: type, raw value, field |
 | Noise | One line per new value per process | None | None at default levels |
-| State | A module-level set of logged pairs. The server is trusted, so the set is bounded by its finite vocabulary growth | None | Same as A |
+| State | A module-level set of logged pairs, growing with every distinct string the peer sends | None | None |
+| Spurious line when a later field fails the parse | At `WARNING`, and the dedupe slot is spent | n/a | At `DEBUG` only |
 | Library logging rule | `getLogger` only, no configuration | n/a | `getLogger` only |
 
 `type_name` is the open type's name given to `LenientValue` (D4). The message names the type, the raw value, and the field name when pydantic's validation info provides one.
 
-**Recommendation:** A, because a version mismatch is worth surfacing once even if the integration ignores the value.
-**Pick B instead if** the consumer (#2386's integration) should own all user-facing messaging. **Pick C instead if** you consider skew routine.
+Under C, #2386 owns the user-facing skew message: its transport knows the client and server versions and the response media type, and finds unknowns with `isinstance(v, UnknownValue)`. The `LENIENT_CONTEXT` docstring states this.
+
+**Recommendation:** C, because a validator lacks the facts an accurate skew diagnosis needs, and C keeps a stateless trail for debugging.
+**Pick A instead if** a HACS user must see skew even when the integration ignores the value. **Pick B instead if** wire should emit no logs at all.
 **Reversibility:** easy
-**Ratified:** Chose A over B and C, so a version mismatch surfaces once per new value even when the consumer ignores it, accepting a module-level dedupe set and library-emitted warnings.
+**Ratified:** Chose C over A and B (reopened at the ship-time challenge, which found A's message misdiagnoses causes, its dedupe set grows unbounded, and it can fire for parses that later fail), so wire keeps a stateless DEBUG trail and the consumer that knows the versions owns the user-facing message, accepting that skew stays invisible to users until #2386 reports it.
 
 ### D7: How is the strict-path overhead checked?
 
@@ -317,26 +321,17 @@ This reverses spec 116's "Literal wire fields" note (`design/specs/116-wire-mode
 ## Build
 
 - [x] Implementation and tests committed
-- [x] Strict-path timing recorded (D7)
+- [x] Strict-path timing checked (D7)
 - [x] Docs (spec 116 and research-brief addenda; no `docs/pages/` per D12)
-- [ ] Ship-time challenge
-
-**Strict-path timing (D7):** `ListenerWithSummary` over 5,000 DB-row-shaped dicts (all 3 open fields
-set), best of 30, pydantic 2.12.3 / Python 3.14.5, two runs each. The baseline is `origin/main`'s
-`hassette_wire` extracted with `git archive`.
-
-| | Before | After | Ratio |
-|---|---|---|---|
-| `model_validate` (list comprehension) | 18.7–19.6 ms | 19.9–21.5 ms | 1.06–1.10x |
-| `TypeAdapter(list[...]).dump_json` | 14.8–15.3 ms | 22.6–22.7 ms | 1.48–1.54x |
-
-Both are under the 2x budget.
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - `wire/tests/test_import.py` exempts `Open*` names, the three new Literal names, `LenientValue` and `LOGGER` from its "every definition is exported" rule, and asserts they stay out of `__all__`: D4 keeps them unexported, and the old test would have failed on them. A stale-exemption check keeps the list honest.
-- The D6 warning omits the field name on pydantic 2.7.0, whose `ValidationInfo.field_name` is `None` for this validator; 2.12.3 provides it. The test asserts the type name and raw value only. D6 already allows this ("when pydantic's validation info provides one").
-- `_typos.toml` allows `ser`, which appears in pydantic-core's `plain_serializer_function_ser_schema`.
-- The `LENIENT_CONTEXT` key is `"hassette_wire.lenient"`, and `LENIENT_CONTEXT` is a `MappingProxyType`, so callers can't mutate the shared constant.
+- The D6 log line reads `field None` on pydantic 2.7.0, whose `ValidationInfo.field_name` is `None` for this validator; 2.12.3 provides it. D6 already allows this ("when pydantic's validation info provides one"). No test asserts log output.
+- `_typos.toml` allows `ser`, which appears in pydantic-core's `wrap_serializer_function_ser_schema`.
+- The `LENIENT_CONTEXT` key is `"hassette_wire.lenient"`. `LENIENT_CONTEXT` is a plain `dict` annotated `Mapping[str, Any]`, so pyright discourages mutating it while it still deep-copies and pickles. A `MappingProxyType` blocked mutation but broke `copy.deepcopy` and `pickle`, a failure that would surface far from leniency in retry wrappers or executors.
 - The fallback to `UnknownValue` also requires the string to be outside the field's vocabulary, not just rejected by it. Under `strict=True` Python validation the arm rejects a known `str` like `"running"`, and D2's "fails validation" alone would have mislabelled it as unknown. Such a value now raises as it would on a plain field.
-- In JSON mode the serializer stringifies only `str` values (enum members, `UnknownValue`, `Literal` strings). Anything else is handed back to pydantic unchanged, so a value that bypassed validation isn't silently stringified.
+- An in-vocabulary `str` subclass (`UnknownValue`, a foreign `StrEnum` member) that the arm rejects is retried as its plain value instead of raising. pydantic-core 2.7's `Literal` validator rejects `str` subclasses, so D3's re-validation pins failed on the floor for all 9 open `Literal` types. A test over every open alias, in both contexts, pins the result. An exact `str` rejected under `strict=True` still raises.
+- `UnknownValue` has a `.value` property returning the raw value as a plain `str`. The common `x.status.value` enum idiom would otherwise raise `AttributeError` at exactly the moment of skew.
+- The D3 serializer is a *wrap* serializer over the arm's own schema, not the plain one D3 describes. It handles an `UnknownValue` itself (unchanged in python mode, the raw string in JSON mode) and passes everything else to the arm's serializer. A plain serializer replaced the arm's serializer outright, which silenced pydantic's "Expected `enum`" warning for a `str` that bypassed validation (`model_construct`, assignment). Under the root `filterwarnings = ["error"]` that warning fails server tests, which is how D13 keeps server bugs loud for enum-typed fields. Pydantic never warns for a bypassed `str` in a `Literal` field, so open `Literal` fields behave as plain ones did. A test pins the enum warning in both modes. D3's other dump pins are unchanged.
 - `LenientValue`'s shape guard rejects `X | UnknownValue | None`. Optional fields wrap the alias (`OpenResourceStatus | None`) instead, which every optional open field already does.

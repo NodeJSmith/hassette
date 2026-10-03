@@ -32,7 +32,7 @@ optionss = "optionss"
 # Unicode category names (regex character classes)
 Nd = "Nd"
 
-# pydantic-core's abbreviation for "serialization" in its API names (plain_serializer_function_ser_schema)
+# pydantic-core's abbreviation for "serialization" in its API names (wrap_serializer_function_ser_schema)
 ser = "ser"
 
 # Fragment of "WARNINGs" — typos splits on case boundary

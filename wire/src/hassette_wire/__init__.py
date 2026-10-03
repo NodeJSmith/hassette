@@ -12,9 +12,10 @@ still parse a response from a server still running the older release that hasn't
 Adding a new enum member or a new value to an open-set Literal is a version-skew change in the
 opposite direction: an older client parsing a newer server's response needs to tolerate a value
 it doesn't recognize. Response fields typed with an enum or open-set Literal accept such a value as
-an ``UnknownValue`` when validated with ``context=LENIENT_CONTEXT``, which the client passes, and
-reject it otherwise. ``SourceTier`` and ``LogLevel`` are closed: adding a value to either is a
-breaking change.
+an ``UnknownValue`` when validated with ``context=LENIENT_CONTEXT`` and reject it otherwise, so a
+client opts in by passing it. The published JSON schemas describe what the server emits, so they
+list these fields as closed sets even though a lenient client accepts more. ``SourceTier`` and
+``LogLevel`` are closed: adding a value to either is a breaking change.
 
 The automated wire-compatibility check enforces these rules for the HTTP contract only. WS
 payloads follow the same rules by convention, but nothing currently verifies a WS change against
