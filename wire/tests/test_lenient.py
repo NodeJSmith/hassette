@@ -1,8 +1,6 @@
 import copy
-import importlib
 import json
 import pickle
-import pkgutil
 import warnings
 from enum import Enum, StrEnum
 from typing import Annotated, Any, Literal, get_args, get_origin
@@ -29,41 +27,25 @@ from hassette_wire import (
     UnknownValue,
     WsServerMessage,
 )
-from hassette_wire.lenient import LenientValue, vocabulary_of
+from hassette_wire.lenient import _LENIENT_KEY, LenientValue, vocabulary_of
+from open_alias_helpers import is_open_alias, open_aliases, plain_type
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-# Vocabularies declared closed (D14): growing either is a breaking wire change, not version skew.
+# Closed vocabularies stay strict on response models: adding a value to either is a breaking wire
+# change, not version skew.
 CLOSED_VOCABULARIES = (SourceTier, LogLevel)
 
 # Request models stay strict (they carry no vocabulary fields today); a new one must be added here.
 REQUEST_MODELS = {LogLevelRequest, SessionRequest}
 
-
-def plain_type(alias: Any) -> Any:
-    """The enum or Literal behind an Open<TypeName> alias: Annotated[X | UnknownValue, ...] -> X."""
-    union = get_args(alias)[0]
-    return next(arm for arm in get_args(union) if arm is not UnknownValue)
+OPEN_ALIASES = open_aliases()
 
 
-def is_open_alias(obj: Any) -> bool:
-    return get_origin(obj) is Annotated and any(isinstance(m, LenientValue) for m in obj.__metadata__)
-
-
-def open_aliases() -> dict[str, Any]:
-    """Every Open<TypeName> alias in any hassette_wire submodule, by name."""
-    return {
-        name: obj
-        for module_info in pkgutil.iter_modules(hassette_wire.__path__)
-        for name, obj in vars(importlib.import_module(f"hassette_wire.{module_info.name}")).items()
-        if is_open_alias(obj)
-    }
-
-
-def problem(code: Any) -> dict[str, Any]:
+def problem_body(code: Any) -> dict[str, Any]:
     return {"title": "Conflict", "status": 409, "detail": "d", "code": code}
 
 
-def manifest(status: str, instance_status: str = "running") -> dict[str, Any]:
+def manifest_body(status: str, instance_status: str = "running") -> dict[str, Any]:
     return {
         "app_key": "a",
         "class_name": "A",
@@ -77,7 +59,7 @@ def manifest(status: str, instance_status: str = "running") -> dict[str, Any]:
 
 
 def test_unknown_problem_code_parses_leniently_and_keeps_raw_value() -> None:
-    detail = ProblemDetail.model_validate(problem("rate_limited"), context=LENIENT_CONTEXT)
+    detail = ProblemDetail.model_validate(problem_body("rate_limited"), context=LENIENT_CONTEXT)
 
     assert isinstance(detail.code, UnknownValue)
     assert detail.code == "rate_limited"
@@ -87,13 +69,13 @@ def test_unknown_problem_code_parses_leniently_and_keeps_raw_value() -> None:
 
 
 def test_known_value_still_parses_to_enum_member_under_lenient_context() -> None:
-    detail = ProblemDetail.model_validate(problem("app_blocked"), context=LENIENT_CONTEXT)
+    detail = ProblemDetail.model_validate(problem_body("app_blocked"), context=LENIENT_CONTEXT)
 
     assert detail.code is ProblemCode.APP_BLOCKED
 
 
 def test_unknown_values_in_list_json_and_nested_models() -> None:
-    body = json.dumps([manifest("paused", instance_status="hibernating"), manifest("running")])
+    body = json.dumps([manifest_body("paused", instance_status="hibernating"), manifest_body("running")])
 
     parsed = TypeAdapter(list[AppManifestResponse]).validate_json(body, context=LENIENT_CONTEXT)
 
@@ -137,30 +119,30 @@ def test_unknown_literal_value_parses_leniently() -> None:
     assert isinstance(parsed.status, UnknownValue)
 
 
-@pytest.mark.parametrize("context", [None, {}, ["hassette_wire.lenient"], {"hassette_wire.lenient": 1}])
+@pytest.mark.parametrize("context", [None, {}, [_LENIENT_KEY], {_LENIENT_KEY: 1}])
 def test_anything_but_the_exact_context_flag_is_strict(context: Any) -> None:
     with pytest.raises(ValidationError) as exc_info:
-        ProblemDetail.model_validate(problem("rate_limited"), context=context)
+        ProblemDetail.model_validate(problem_body("rate_limited"), context=context)
 
     assert exc_info.value.errors()[0]["type"] == "enum"
 
 
 def test_lenient_context_survives_deepcopy_and_pickle() -> None:
     for context in (copy.deepcopy(LENIENT_CONTEXT), pickle.loads(pickle.dumps(LENIENT_CONTEXT))):  # noqa: S301
-        detail = ProblemDetail.model_validate(problem("rate_limited"), context=context)
+        detail = ProblemDetail.model_validate(problem_body("rate_limited"), context=context)
 
         assert isinstance(detail.code, UnknownValue)
 
 
 def test_lenient_context_merges_with_other_keys() -> None:
-    detail = ProblemDetail.model_validate(problem("rate_limited"), context={**LENIENT_CONTEXT, "other": 1})
+    detail = ProblemDetail.model_validate(problem_body("rate_limited"), context={**LENIENT_CONTEXT, "other": 1})
 
     assert isinstance(detail.code, UnknownValue)
 
 
 def test_strict_errors_are_pydantics_native_ones() -> None:
     with pytest.raises(ValidationError) as enum_exc:
-        ProblemDetail.model_validate(problem("rate_limited"))
+        ProblemDetail.model_validate(problem_body("rate_limited"))
     with pytest.raises(ValidationError) as literal_exc:
         BlockingHandlerRef.model_validate(
             {"kind": "task", "id": 1, "name": "n", "handler_method": "m", "instance_index": 0}
@@ -173,7 +155,7 @@ def test_strict_errors_are_pydantics_native_ones() -> None:
 
 def test_strict_validation_rejects_an_unknown_value_outside_the_vocabulary() -> None:
     with pytest.raises(ValidationError) as exc_info:
-        ProblemDetail.model_validate(problem(UnknownValue("rate_limited")))
+        ProblemDetail.model_validate(problem_body(UnknownValue("rate_limited")))
 
     assert exc_info.value.errors()[0]["type"] == "enum"
 
@@ -181,23 +163,23 @@ def test_strict_validation_rejects_an_unknown_value_outside_the_vocabulary() -> 
 @pytest.mark.parametrize("value", [5, {"code": "x"}, ["x"], None])
 def test_non_string_input_still_raises_under_lenient_context(value: Any) -> None:
     with pytest.raises(ValidationError):
-        ProblemDetail.model_validate(problem(value), context=LENIENT_CONTEXT)
+        ProblemDetail.model_validate(problem_body(value), context=LENIENT_CONTEXT)
 
 
 def test_known_value_rejected_by_strict_mode_is_not_unknown() -> None:
     adapter = TypeAdapter(ProblemDetail)
 
     with pytest.raises(ValidationError):
-        adapter.validate_python(problem("app_blocked"), strict=True, context=LENIENT_CONTEXT)
+        adapter.validate_python(problem_body("app_blocked"), strict=True, context=LENIENT_CONTEXT)
 
 
 def test_unknown_value_that_a_newer_vocabulary_knows_revalidates_to_the_member() -> None:
-    detail = ProblemDetail.model_validate(problem(UnknownValue("app_blocked")), context=LENIENT_CONTEXT)
+    detail = ProblemDetail.model_validate(problem_body(UnknownValue("app_blocked")), context=LENIENT_CONTEXT)
 
     assert detail.code is ProblemCode.APP_BLOCKED
 
 
-@pytest.mark.parametrize("alias", list(open_aliases().values()), ids=list(open_aliases()))
+@pytest.mark.parametrize("alias", list(OPEN_ALIASES.values()), ids=list(OPEN_ALIASES))
 @pytest.mark.parametrize("context", [None, LENIENT_CONTEXT], ids=["strict", "lenient"])
 def test_in_vocabulary_str_subclasses_validate_to_the_known_value(alias: Any, context: Any) -> None:
     known = sorted(vocabulary_of(plain_type(alias)))[0]  # any known value works; sorted for stable ids
@@ -215,26 +197,26 @@ def test_in_vocabulary_str_subclasses_validate_to_the_known_value(alias: Any, co
 def test_str_mixin_enum_member_validates_by_value() -> None:
     mixin = Enum("Mixin", {"RUNNING": "running", "PAUSED": "paused"}, type=str)
 
-    known = AppManifestResponse.model_validate(manifest(mixin.RUNNING), context=LENIENT_CONTEXT)
-    unknown = AppManifestResponse.model_validate(manifest(mixin.PAUSED), context=LENIENT_CONTEXT)
+    known = AppManifestResponse.model_validate(manifest_body(mixin.RUNNING), context=LENIENT_CONTEXT)
+    unknown = AppManifestResponse.model_validate(manifest_body(mixin.PAUSED), context=LENIENT_CONTEXT)
 
     assert known.status is ManifestStatus.RUNNING
     assert unknown.status == UnknownValue("paused")
 
 
 def test_member_of_another_enum_validates_by_value() -> None:
-    known = AppManifestResponse.model_validate(manifest(ResourceStatus.RUNNING), context=LENIENT_CONTEXT)
-    unknown = AppManifestResponse.model_validate(manifest(ResourceStatus.CRASHED), context=LENIENT_CONTEXT)
+    known = AppManifestResponse.model_validate(manifest_body(ResourceStatus.RUNNING), context=LENIENT_CONTEXT)
+    unknown = AppManifestResponse.model_validate(manifest_body(ResourceStatus.CRASHED), context=LENIENT_CONTEXT)
 
     assert known.status is ManifestStatus.RUNNING
     assert type(unknown.status) is UnknownValue
     assert unknown.status == "crashed"
     with pytest.raises(ValidationError):
-        AppManifestResponse.model_validate(manifest(ResourceStatus.CRASHED))
+        AppManifestResponse.model_validate(manifest_body(ResourceStatus.CRASHED))
 
 
 def test_json_dump_writes_raw_value_and_lenient_reparse_is_lossless() -> None:
-    parsed = AppManifestResponse.model_validate(manifest("paused", "running"), context=LENIENT_CONTEXT)
+    parsed = AppManifestResponse.model_validate(manifest_body("paused", "running"), context=LENIENT_CONTEXT)
 
     dumped = parsed.model_dump_json()
     reparsed = AppManifestResponse.model_validate_json(dumped, context=LENIENT_CONTEXT)
@@ -246,7 +228,7 @@ def test_json_dump_writes_raw_value_and_lenient_reparse_is_lossless() -> None:
 
 
 def test_python_dump_returns_values_unchanged_without_warnings() -> None:
-    parsed = AppManifestResponse.model_validate(manifest("paused", "running"), context=LENIENT_CONTEXT)
+    parsed = AppManifestResponse.model_validate(manifest_body("paused", "running"), context=LENIENT_CONTEXT)
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -291,7 +273,7 @@ def test_lenient_instances_pass_into_strict_models_unrevalidated() -> None:
     class Holder(BaseModel):
         manifest: AppManifestResponse
 
-    lenient = AppManifestResponse.model_validate(manifest("paused"), context=LENIENT_CONTEXT)
+    lenient = AppManifestResponse.model_validate(manifest_body("paused"), context=LENIENT_CONTEXT)
 
     held = Holder(manifest=lenient)
     copied = lenient.model_copy(update={"status": UnknownValue("other")})
@@ -315,7 +297,7 @@ def test_misshaped_alias_fails_at_schema_build(source: Any) -> None:
         TypeAdapter(Annotated[source, LenientValue("Bad")])
 
 
-@pytest.mark.parametrize("alias", list(open_aliases().values()), ids=list(open_aliases()))
+@pytest.mark.parametrize("alias", list(OPEN_ALIASES.values()), ids=list(OPEN_ALIASES))
 @pytest.mark.parametrize("mode", ["validation", "serialization"])
 def test_open_alias_keeps_the_plain_types_json_schema(alias: Any, mode: Any) -> None:
     plain = plain_type(alias)
@@ -323,20 +305,28 @@ def test_open_alias_keeps_the_plain_types_json_schema(alias: Any, mode: Any) -> 
     assert TypeAdapter(alias).json_schema(mode=mode) == TypeAdapter(plain).json_schema(mode=mode)
 
 
-def strict_vocabularies(tp: Any) -> list[Any]:
-    """Wire StrEnums and multi-value Literals reachable in ``tp`` without passing through an open alias.
+@pytest.mark.parametrize("name", sorted(OPEN_ALIASES))
+def test_open_alias_marker_names_its_own_type(name: str) -> None:
+    marker = next(meta for meta in OPEN_ALIASES[name].__metadata__ if isinstance(meta, LenientValue))
+
+    assert f"Open{marker.type_name}" == name
+
+
+def strict_vocabularies(annotation: Any) -> list[Any]:
+    """Wire StrEnums and multi-value Literals reachable in ``annotation`` without passing through an open alias.
 
     Single-value Literals (WS ``type`` discriminators, ``"accepted"``) are constants, not vocabularies.
     """
-    if is_open_alias(tp):
+    if is_open_alias(annotation):
         return []
-    if isinstance(tp, type) and issubclass(tp, StrEnum):
-        return [tp]
-    if get_origin(tp) is Literal:
-        is_closed = any(tp == closed for closed in CLOSED_VOCABULARIES)
-        return [tp] if len(get_args(tp)) > 1 and not is_closed else []
+    if isinstance(annotation, type) and issubclass(annotation, StrEnum):
+        return [annotation]
+    if get_origin(annotation) is Literal:
+        is_closed = any(annotation == closed for closed in CLOSED_VOCABULARIES)
+        is_multi_valued = len(get_args(annotation)) > 1
+        return [annotation] if is_multi_valued and not is_closed else []
     # Unions, list[...], dict[...] and plain Annotated: check every argument.
-    return [found for arg in get_args(tp) for found in strict_vocabularies(arg)]
+    return [found for arg in get_args(annotation) for found in strict_vocabularies(arg)]
 
 
 def test_every_response_vocabulary_field_is_open() -> None:
@@ -351,9 +341,11 @@ def test_every_response_vocabulary_field_is_open() -> None:
         for model in models
         for field_name, field in model.model_fields.items()
         # A bare Open<TypeName> field arrives with its Annotated unwrapped into field.metadata.
-        if not any(isinstance(m, LenientValue) for m in field.metadata)
+        if not any(isinstance(meta, LenientValue) for meta in field.metadata)
         for found in strict_vocabularies(field.annotation)
     ]
 
-    assert len(models) > 40, "model discovery found too few response models"
+    # Sanity floor well under today's count, so a broken discovery filter fails instead of passing vacuously.
+    assert len(models) >= 40, f"model discovery through __all__ found only {len(models)} response models"
+    assert ProblemDetail in models
     assert not strict_fields, f"Response fields typed with a strict vocabulary: {strict_fields}"

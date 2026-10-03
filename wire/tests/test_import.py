@@ -4,20 +4,18 @@ import pkgutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated, get_args, get_origin
 
 import hassette_wire
-from hassette_wire.lenient import LenientValue
+from open_alias_helpers import is_open_alias
 
-# Defined in a submodule but deliberately not exported (spec 121 D4): the Literals named only to back
-# an Open<TypeName> alias, and lenient-parsing internals. The aliases themselves are recognized by
-# their LenientValue marker.
+# Defined in a submodule but deliberately not exported: Open<TypeName> field aliases and the Literals
+# named only to back one are field-typing detail, not public vocabulary, and lenient.py's internals stay
+# private. The aliases themselves are recognized by their LenientValue marker.
 NOT_EXPORTED_NAMES = {"BootIssueSeverity", "ExecutionKind", "HandlerKind", "LenientValue", "LOGGER"}
 
 
 def is_exported_by_design(name: str, obj: object) -> bool:
-    is_open_alias = get_origin(obj) is Annotated and any(isinstance(m, LenientValue) for m in get_args(obj)[1:])
-    return name not in NOT_EXPORTED_NAMES and not is_open_alias
+    return name not in NOT_EXPORTED_NAMES and not is_open_alias(obj)
 
 
 def test_package_imports() -> None:

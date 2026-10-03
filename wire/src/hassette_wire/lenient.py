@@ -91,8 +91,10 @@ class LenientValue:
 
 
 def known_arm(source: Any, type_name: str) -> Any:
-    """Return the enum or ``Literal`` arm of ``source``, raising ``TypeError`` unless ``source`` is exactly
-    ``<StrEnum subclass or all-str Literal> | UnknownValue``.
+    """Check that ``source`` is ``<StrEnum or str Literal> | UnknownValue`` and return that arm.
+
+    Raises:
+        TypeError: ``source`` has any other shape.
     """
     shape_error = TypeError(
         f"LenientValue({type_name!r}) must annotate '<StrEnum subclass or str Literal> | UnknownValue', got {source!r}"
