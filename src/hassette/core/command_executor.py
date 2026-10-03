@@ -710,39 +710,31 @@ class CommandExecutor(Service):
         session_id = self.hassette.try_session_id()
 
         if isinstance(event, WatchdogEvent):
-            blocking_event = BlockingEvent(
-                session_id=session_id,
-                app_key=event.app_key,
-                instance_name=event.instance_name,
-                instance_index=event.instance_index,
-                execution_id=event.execution_id,
-                tier="watchdog",
-                primitive=None,
-                # Store the stack text in source_location (Tier 1 has no call-site location,
-                # but the captured stack is the closest equivalent).
-                source_location=event.stack_text,
-                stall_duration_ms=event.stall_duration_ms,
-                detected_ts=event.detected_at,
-                source_tier="app" if event.app_key is not None else "framework",
-                reason=event.reason,
-                frames=list(event.frames) or None,
-            )
+            # Tier 1 has no call-site location; the captured stack is the closest equivalent.
+            primitive = None
+            source_location = event.stack_text
+            stall_duration_ms = event.stall_duration_ms
         else:
-            blocking_event = BlockingEvent(
-                session_id=session_id,
-                app_key=event.app_key,
-                instance_name=event.instance_name,
-                instance_index=event.instance_index,
-                execution_id=event.execution_id,
-                tier="monkeypatch",
-                primitive=event.primitive,
-                source_location=event.source_location,
-                stall_duration_ms=None,
-                detected_ts=event.detected_at,
-                source_tier="app" if event.app_key is not None else "framework",
-                reason=event.reason,
-                frames=list(event.frames) or None,
-            )
+            # Tier 2 fires before the call runs, so there is no stall to measure.
+            primitive = event.primitive
+            source_location = event.source_location
+            stall_duration_ms = None
+
+        blocking_event = BlockingEvent(
+            session_id=session_id,
+            app_key=event.app_key,
+            instance_name=event.instance_name,
+            instance_index=event.instance_index,
+            execution_id=event.execution_id,
+            tier=event.tier,
+            primitive=primitive,
+            source_location=source_location,
+            stall_duration_ms=stall_duration_ms,
+            detected_ts=event.detected_at,
+            source_tier="app" if event.app_key is not None else "framework",
+            reason=event.reason,
+            frames=list(event.frames) or None,
+        )
 
         # Fire-and-forget telemetry: enqueue() drops on a full write queue (and logs the
         # drop) rather than suspending an unbounded number of spawned tasks under a Tier 2
