@@ -1,12 +1,12 @@
 """Unit tests for WebUiWatcherService."""
 
-import asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from hassette.core.web_ui_watcher import _WATCH_DIRS, _WEB_DIR, WebUiWatcherService, _change_kind
+from tests.support.factories import make_bypassed_service
 from tests.support.mock_hassette import make_mock_hassette
 
 
@@ -48,16 +48,7 @@ def mock_hassette() -> MagicMock:
 
 @pytest.fixture
 def watcher(mock_hassette: MagicMock) -> WebUiWatcherService:
-    svc = WebUiWatcherService.__new__(WebUiWatcherService)
-    svc.hassette = mock_hassette
-    svc.shutdown_event = asyncio.Event()
-    svc.logger = MagicMock()
-    svc._unique_name = "WebUiWatcherService.test"
-    # Real Event so the module-level mark_ready() (called by on_initialize()/serve())
-    # can operate on this bypassed instance.
-    svc.ready_event = asyncio.Event()
-    svc._ready_reason = None
-    return svc
+    return make_bypassed_service(WebUiWatcherService, mock_hassette)
 
 
 async def test_on_initialize_marks_ready_when_disabled(watcher: WebUiWatcherService) -> None:
