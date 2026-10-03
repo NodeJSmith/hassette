@@ -5,6 +5,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hassette.schemas.query_constants import MAX_QUERY_LIMIT
+from hassette.web.routes.logs import RECENT_LOGS_LIMIT_CAP
+
 from .conftest import APP_GRID_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
 
 if TYPE_CHECKING:
@@ -147,7 +150,8 @@ class TestAppKeyValidation:
     """Verify that invalid app_key values are rejected with 400 on management routes.
 
     The validation is performed by _validate_app_key() in apps.py using the regex
-    ``^[a-zA-Z_][a-zA-Z0-9_.]{0,127}$``. It raises HTTPException(400), not 422.
+    ``^[a-zA-Z_][a-zA-Z0-9_.]{0,127}$``. It raises ``WebApiError(ProblemCode.INVALID_APP_KEY)``, which
+    answers a 400 problem+json body with code ``invalid_app_key`` rather than a 422 validation error.
     """
 
     @pytest.mark.parametrize(
@@ -196,11 +200,11 @@ class TestLimitParameterValidation:
         ("path", "limit"),
         [
             ("/api/logs/recent", 0),
-            ("/api/logs/recent", 2001),
+            ("/api/logs/recent", RECENT_LOGS_LIMIT_CAP + 1),
             ("/api/telemetry/listener/1/executions", 0),
-            ("/api/telemetry/listener/1/executions", 501),
+            ("/api/telemetry/listener/1/executions", MAX_QUERY_LIMIT + 1),
             ("/api/telemetry/job/1/executions", 0),
-            ("/api/telemetry/job/1/executions", 501),
+            ("/api/telemetry/job/1/executions", MAX_QUERY_LIMIT + 1),
         ],
     )
     async def test_out_of_range_limit_returns_422(self, client: "AsyncClient", path: str, limit: int) -> None:
@@ -210,9 +214,9 @@ class TestLimitParameterValidation:
     @pytest.mark.parametrize(
         ("path", "limit"),
         [
-            ("/api/logs/recent", 2000),
-            ("/api/telemetry/listener/1/executions", 500),
-            ("/api/telemetry/job/1/executions", 500),
+            ("/api/logs/recent", RECENT_LOGS_LIMIT_CAP),
+            ("/api/telemetry/listener/1/executions", MAX_QUERY_LIMIT),
+            ("/api/telemetry/job/1/executions", MAX_QUERY_LIMIT),
         ],
     )
     async def test_limit_at_max_accepted(

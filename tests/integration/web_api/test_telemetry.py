@@ -336,14 +336,6 @@ class TestTelemetryStatus:
 
         assert data["degraded"] is False
 
-    async def test_telemetry_status_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
-        """/api/telemetry/status returns 503 with degraded=true when the query raises TelemetryUnavailableError."""
-        mock_hassette.telemetry_query_service.check_health = telemetry_error()
-
-        data = await get_json(client, TELEMETRY_STATUS_PATH, expect_status=503)
-
-        assert data["degraded"] is True
-
 
 class TestQueryParamForwarding:
     """Every telemetry route forwards its query params verbatim to the query service.
