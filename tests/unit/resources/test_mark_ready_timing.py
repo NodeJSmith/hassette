@@ -80,10 +80,10 @@ MARK_READY_HOOKS: dict[type, tuple[str, ...]] = {
     BusService: ("serve",),
     CommandExecutor: ("serve",),
     DatabaseService: ("serve",),
-    FileWatcherService: ("serve",),
     SchedulerService: ("serve",),
     SyncExecutorService: ("serve",),
     # Services that deviate from the serve() rule (see resource-lifecycle.md).
+    FileWatcherService: ("on_initialize", "serve"),
     WebApiService: ("on_initialize",),
     WebUiWatcherService: ("on_initialize", "serve"),
     WebsocketService: ("on_initialize", "start_recv_and_subscribe"),
