@@ -22,7 +22,8 @@ from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, JobRemovedError
 from hassette.web.app import create_fastapi_app
-from hassette.web.dependencies import get_runtime
+from hassette.web.body_limit import MAX_REQUEST_BODY_BYTES
+from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, get_runtime
 from hassette.web.errors import GLOBAL_CODES, PROBLEM_CODES_KEY
 from tests.integration.conftest import make_manifest_mock
 from tests.support.web_manifest_helpers import make_app_instance_info
@@ -45,7 +46,7 @@ TITLES = {
 }
 """Expected `title` per status, spelled out so the pinned RFC 9110 phrases are checked, not copied."""
 
-LOG_LEVELS = "CRITICAL, DEBUG, ERROR, INFO, WARNING"
+LOG_LEVELS = ", ".join(sorted(VALID_LOG_LEVEL_NAMES))
 
 TOKEN_SENTINEL = "SENTINEL-TOKEN-VALUE"
 """Planted in a rejected field to prove a validation `detail` never echoes the input."""
@@ -571,7 +572,7 @@ class TestMiddlewareErrors:
         assert_problem(response, status=401, code="not_authenticated", detail="Not authenticated")
 
     async def test_oversized_body_is_body_too_large(self, auth_client: AsyncClient) -> None:
-        response = await auth_client.post(AUTH_SESSION_PATH, content=b"x" * (128 * 1024))
+        response = await auth_client.post(AUTH_SESSION_PATH, content=b"x" * (MAX_REQUEST_BODY_BYTES + 1))
 
         assert_problem(response, status=413, code="body_too_large", detail="Request body too large")
         assert "x-max-body-bytes" in response.headers
