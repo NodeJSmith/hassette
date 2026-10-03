@@ -3,7 +3,8 @@
 Detects event-loop stalls caused by blocking code on the loop thread and emits a
 ``HassetteBlockingIOWarning`` naming the offending app.
 
-**Mechanism: Candidate B (off-loop daemon thread)**
+**Mechanism: an off-loop daemon thread** paired with an in-loop tick. A check that runs on the
+loop itself cannot observe a freeze while it is happening, so detection lives on a separate thread.
 
 Two cooperating parts:
 
@@ -42,9 +43,9 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING
 
-from hassette_wire import StackFrame
+from hassette_wire import BlockingTier, StackFrame
 
-from hassette.core.block_io_guard import resolve_blocking_io_behavior
+from hassette.core.block_io_guard import format_owner_label, resolve_blocking_io_behavior, resolve_owner
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
 from hassette.types.types import BlockingAttributionReason
@@ -94,7 +95,7 @@ class WatchdogEvent:
     stall_duration_ms: float
     """Stall duration in milliseconds — the span the in-loop tick was starved (≈ the block length)."""
 
-    tier: str
+    tier: BlockingTier
     """Always ``"watchdog"`` for Tier 1 events."""
 
     frames: tuple[StackFrame, ...]
@@ -396,28 +397,16 @@ class LoopWatchdog:
         A displaced/framework stall has no ``app_key``, so behavior resolves from global config
         rather than the (innocent) most-recently-bound app's per-app setting.
         """
-        # Resolve the owner App instance for per-app behavior resolution. event.app_key is None
-        # for displaced/framework stalls, so those fall through to global behavior.
-        owner: object = self._hassette
-        if event.app_key is not None:
-            with contextlib.suppress(Exception):
-                app_inst = self._hassette.app_handler.get(event.app_key, event.instance_index or 0)
-                if app_inst is not None:
-                    owner = app_inst
-
+        owner = resolve_owner(self._hassette, event.app_key, event.instance_index)
         behavior = resolve_blocking_io_behavior(owner)
         if behavior is BlockingIOBehavior.IGNORE:
             # IGNORE returns BEFORE persistence: an ignored stall leaves no audit trail by design.
             # The persist-before-warn rule below applies only to WARN/ERROR.
             return
 
-        app_label = event.app_key or "<framework>"
-        inst_label = f" ({event.instance_name})" if event.instance_name else ""
-        exec_label = event.execution_id or "<unattributed>"
         msg = (
             f"Blocking I/O detected on the event loop — "
-            f"app: {app_label}{inst_label}, "
-            f"execution: {exec_label}, "
+            f"{format_owner_label(event.app_key, event.instance_name, event.execution_id)}, "
             f"stall: {event.stall_duration_ms:.0f}ms"
         )
         if event.stack_text:
@@ -437,7 +426,7 @@ class LoopWatchdog:
 
         # Emit on the daemon thread. WARN and ERROR both go through warnings.warn; if the user's
         # filter escalates it to an error, warnings.warn raises — swallow it so the escalation
-        # cannot kill the watchdog thread. Tier 1 is warn-after and never propagates a raise
-        # call-site interception is Tier 2's job.
+        # cannot kill the watchdog thread. Tier 1 reports after the stall has ended, so there is
+        # no blocking call left to intercept; raising before the call is Tier 2's responsibility.
         with contextlib.suppress(HassetteBlockingIOWarning):
             warnings.warn(msg, HassetteBlockingIOWarning, stacklevel=1)

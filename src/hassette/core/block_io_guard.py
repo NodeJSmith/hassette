@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from hassette_wire import StackFrame
+from hassette_wire import BlockingTier, StackFrame
 
 from hassette.exceptions import HassetteBlockingIOWarning
 from hassette.types.enums import BlockingIOBehavior
@@ -115,9 +115,6 @@ def resolve_blocking_io_behavior(owner: object) -> BlockingIOBehavior:
     return behavior
 
 
-# Tier 2 event structure (consumed by the DB persistence layer)
-
-
 @dataclass(frozen=True)
 class MonkeypatchEvent:
     """Detected blocking call event — structured for DB persistence.
@@ -146,7 +143,7 @@ class MonkeypatchEvent:
     execution_id: str | None
     """UUIDv7 string of the execution that made the call, or ``None`` when no marker."""
 
-    tier: str
+    tier: BlockingTier
     """Always ``"monkeypatch"`` for Tier 2 events."""
 
     detected_at: float
@@ -163,9 +160,6 @@ class MonkeypatchEvent:
         if not self.frames:
             return "<unknown>:0"
         return f"{self.frames[0].filename}:{self.frames[0].lineno}"
-
-
-# Enablement logic
 
 
 def _should_install(hassette: "Hassette") -> bool:
@@ -185,9 +179,6 @@ def _should_install(hassette: "Hassette") -> bool:
     return enabled is True or cfg.blocking_io.allow_deep_detection_in_prod
 
 
-# Wrapper factory
-
-
 def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecutor") -> None:
     """Resolve attribution for a loop-thread blocking call, build the event, and emit.
 
@@ -200,7 +191,7 @@ def _detect(primitive_name: str, hassette: "Hassette", executor: "CommandExecuto
     app_key, instance_name, instance_index, execution_id, reason = _confirm_attribution(marker)
     # Resolve the owner App from the *confirmed* app_key (None for displaced/framework), so a
     # displaced call resolves behavior from global config, not the innocent marker app's setting.
-    owner = _resolve_owner(hassette, app_key, instance_index)
+    owner = resolve_owner(hassette, app_key, instance_index)
     behavior = resolve_blocking_io_behavior(owner)
     if behavior is BlockingIOBehavior.IGNORE:
         return
@@ -293,9 +284,6 @@ def _make_method_wrapper(
     return wrapper
 
 
-# Attribution helper
-
-
 class _Attribution(NamedTuple):
     """Resolved attribution for one detected blocking call. The first four fields are ``None``
     unless ``reason == "attributed"`` (a displaced/framework call carries no owner).
@@ -335,8 +323,12 @@ def _confirm_attribution(marker: "ExecutionMarker | None") -> _Attribution:
     return _Attribution(marker.app_key, marker.instance_name, marker.instance_index, marker.execution_id, "attributed")
 
 
-def _resolve_owner(hassette: "Hassette", app_key: str | None, instance_index: int | None) -> object:
-    """Resolve the owning App instance for behavior resolution, or ``hassette`` when unattributed."""
+def resolve_owner(hassette: "Hassette", app_key: str | None, instance_index: int | None) -> object:
+    """Resolve the owning App instance for behavior resolution, or ``hassette`` when unattributed.
+
+    Shared by both tiers. A ``None`` ``app_key`` (a displaced or framework call) resolves to
+    ``hassette`` so behavior comes from global config rather than an innocent app's setting.
+    """
     if app_key is None:
         return hassette
     with contextlib.suppress(Exception):
@@ -344,9 +336,6 @@ def _resolve_owner(hassette: "Hassette", app_key: str | None, instance_index: in
         if app_inst is not None:
             return app_inst
     return hassette
-
-
-# Warning emission
 
 
 def _emit(event: MonkeypatchEvent) -> None:
@@ -357,30 +346,26 @@ def _emit(event: MonkeypatchEvent) -> None:
     user's ``filterwarnings`` config (dev_mode installs ``filterwarnings("error")``); the guard
     never raises unconditionally. Mirrors the Tier 1 watchdog's ``_emit`` method.
     """
-    app_label = event.app_key or "<framework>"
-    inst_label = f" ({event.instance_name})" if event.instance_name else ""
     msg = (
         f"Blocking I/O detected on the event loop (Tier 2 — call-site interception) — "
         f"primitive: {event.primitive}, "
-        f"app: {app_label}{inst_label}, "
+        f"{format_owner_label(event.app_key, event.instance_name, event.execution_id)}, "
         f"call site: {event.source_location}"
     )
-    if event.execution_id:
-        msg += f", execution: {event.execution_id}"
     # stacklevel=1: the real call site is captured in source_location; the frame
     # that would be named by stacklevel is the wrapper itself (unhelpful).
     warnings.warn(msg, HassetteBlockingIOWarning, stacklevel=1)
 
 
-# Curated primitive table
-# Two patch styles:
-#   - module-level: (module_obj, attr_name, original_callable)
-#   - method: (class_obj, attr_name, original_callable)  — wrapper needs self
-#
-# Seeded from HA's block_async_io.py.
+def format_owner_label(app_key: str | None, instance_name: str | None, execution_id: str | None) -> str:
+    """Format the ``app: ..., execution: ...`` attribution fragment shared by both tiers' warnings.
 
-
-# Install / uninstall (idempotent, reversible, leak-proof)
+    An unattributed event labels its app ``<framework>`` and its execution ``<unattributed>``.
+    """
+    app_label = app_key or "<framework>"
+    inst_label = f" ({instance_name})" if instance_name else ""
+    exec_label = execution_id or "<unattributed>"
+    return f"app: {app_label}{inst_label}, execution: {exec_label}"
 
 
 def install(hassette: "Hassette", *, loop_thread_id: int, executor: "CommandExecutor") -> bool:

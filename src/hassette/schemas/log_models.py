@@ -9,14 +9,10 @@ system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
 See ``schemas/__init__.py`` for the domain-file map.
 """
 
-from typing import Literal
-
-from hassette_wire import LogLevel, SourceTier, StackFrame
+from hassette_wire import BlockingTier, LogLevel, SourceTier, StackFrame
 from pydantic import BaseModel
 
 from hassette.types.types import BlockingAttributionReason
-
-_BlockingTier = Literal["watchdog", "monkeypatch"]
 
 
 class LogRecord(BaseModel):
@@ -62,7 +58,7 @@ class BlockingEvent(BaseModel):
     execution_id: str | None
     """UUIDv7 execution that froze the loop. None when no marker was live (Tier 2 off-handler)."""
 
-    tier: _BlockingTier
+    tier: BlockingTier
     """``'watchdog'`` for Tier 1 events; ``'monkeypatch'`` for Tier 2 events."""
 
     primitive: str | None
