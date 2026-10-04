@@ -102,20 +102,8 @@ class SummaryQueriesMixin:
         async with self.execute(query, params) as cursor:
             row = await cursor.fetchone()
 
-        if row is None:
-            return AppHealthAggregates(
-                total_invocations=0,
-                handler_errors=0,
-                handler_timed_out=0,
-                handler_avg_duration_ms=None,
-                total_executions=0,
-                job_errors=0,
-                job_timed_out=0,
-                job_avg_duration_ms=None,
-                last_activity_ts=None,
-            )
-
-        row_dict = row_to_dict(row)
+        # SUMs over no rows are NULL, hence the `or 0` below.
+        row_dict = row_to_dict(row)  # pyright: ignore[reportArgumentType] — aggregates without GROUP BY yield one row
         return AppHealthAggregates(
             total_invocations=row_dict["total_invocations"] or 0,
             handler_errors=row_dict["handler_errors"] or 0,

@@ -26,14 +26,13 @@ export function OverviewHealthStrip({ appKey, resolvedInstanceIndex, handlerCoun
   useQueryInvalidator(execution, isExecutionDefined, queryKeys.appHealth.prefix(appKey));
 
   const roundedErrorRate = health ? Math.round(health.error_rate) : null;
-  // A failed request reads "unavailable", so a telemetry outage never passes for an idle app.
-  const errorRateValue = isError ? "unavailable" : roundedErrorRate === null ? "—" : `${roundedErrorRate}%`;
+  const showErrorTone = isError || (roundedErrorRate ?? 0) > 0;
   const cells: StatsStripCell[] = [
     { label: "Handlers", value: handlerCount },
     {
       label: "Error Rate",
-      value: errorRateValue,
-      tone: isError || (roundedErrorRate !== null && roundedErrorRate > 0) ? "err" : undefined,
+      value: formatErrorRate(isError, roundedErrorRate),
+      tone: showErrorTone ? "err" : undefined,
     },
     { label: "Handler Avg", value: formatDurationOrDash(health?.handler_avg_duration_ms ?? null) },
   ];
@@ -43,4 +42,11 @@ export function OverviewHealthStrip({ appKey, resolvedInstanceIndex, handlerCoun
   }
 
   return <StatsStrip cells={cells} cols={cells.length} data-testid="overview-health-strip" />;
+}
+
+function formatErrorRate(isError: boolean, roundedErrorRate: number | null): string {
+  // A failed request reads "unavailable", so a telemetry outage never passes for an idle app.
+  if (isError) return "unavailable";
+  if (roundedErrorRate === null) return "—";
+  return `${roundedErrorRate}%`;
 }

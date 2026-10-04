@@ -340,21 +340,7 @@ async def dashboard_app_grid(
         LOGGER.warning("Failed to fetch per-app blocking-event counts", exc_info=True)
         blocking_counts = {}
 
-    empty = AppHealthSummary(
-        handler_count=0,
-        job_count=0,
-        aggregates=AppHealthAggregates(
-            total_invocations=0,
-            handler_errors=0,
-            handler_timed_out=0,
-            handler_avg_duration_ms=None,
-            total_executions=0,
-            job_errors=0,
-            job_timed_out=0,
-            job_avg_duration_ms=None,
-            last_activity_ts=None,
-        ),
-    )
+    empty = AppHealthSummary(handler_count=0, job_count=0, aggregates=AppHealthAggregates.empty())
 
     entries: list[DashboardAppGridEntry] = []
     for manifest in manifest_infos:

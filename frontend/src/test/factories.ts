@@ -162,14 +162,11 @@ export function createAppGridEntry(overrides: Partial<DashboardAppGridEntry> = {
     total_executions: 5,
     total_job_errors: 0,
     total_job_timed_out: 0,
-    health: {
-      error_rate: 0,
-      error_rate_class: "good",
+    health: createAppHealth({
       health_status: "good",
       last_activity_ts: FIXED_TEST_TIMESTAMP,
       handler_avg_duration_ms: 50,
-      job_avg_duration_ms: null,
-    },
+    }),
     activity_buckets: [],
     blocking_event_count: 0,
     last_error_message: null,

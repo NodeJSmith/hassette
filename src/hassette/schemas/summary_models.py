@@ -9,6 +9,8 @@ system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
 See ``schemas/__init__.py`` for the domain-file map.
 """
 
+from typing import Self
+
 from pydantic import BaseModel, ConfigDict
 
 from hassette.schemas.job_models import JobGlobalStats
@@ -36,6 +38,21 @@ class AppHealthAggregates(BaseModel):
     job_timed_out: int
     job_avg_duration_ms: float | None
     last_activity_ts: float | None
+
+    @classmethod
+    def empty(cls) -> Self:
+        """Aggregates for a window in which nothing ran: zero counts, no averages."""
+        return cls(
+            total_invocations=0,
+            handler_errors=0,
+            handler_timed_out=0,
+            handler_avg_duration_ms=None,
+            total_executions=0,
+            job_errors=0,
+            job_timed_out=0,
+            job_avg_duration_ms=None,
+            last_activity_ts=None,
+        )
 
 
 class AppHealthSummary(BaseModel):

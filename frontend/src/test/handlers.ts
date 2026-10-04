@@ -32,6 +32,7 @@ type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
+type AppHealth = components["schemas"]["AppHealth"];
 type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 type BlockingFindingsResponse = components["schemas"]["BlockingFindingsResponse"];
 type UnattributedBlockingResponse = components["schemas"]["UnattributedBlockingResponse"];
@@ -110,7 +111,7 @@ export const handlers = [
 
   // GET /api/telemetry/app/:app_key/health
   http.get("/api/telemetry/app/:app_key/health", () => {
-    return HttpResponse.json(createAppHealth());
+    return HttpResponse.json<AppHealth>(createAppHealth());
   }),
 
   // GET /api/telemetry/app/:app_key/activity

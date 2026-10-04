@@ -2,7 +2,8 @@
 
 Covers:
 - get_app_health_aggregates() returns correct totals matching per-item sums
-- get_app_health_aggregates() returns zero-values for apps with no invocations
+- get_app_health_aggregates() returns zero counts and no averages for apps with no invocations
+- get_app_health_aggregates() counts executions of removed handlers and jobs
 - get_app_health_aggregates() respects the ``since`` parameter
 - get_listener_summary() returns all listeners across multiple apps/instances
 - get_listener_summary() last-error row coherence (ROW_NUMBER CTE)
@@ -93,7 +94,7 @@ class TestGetAppHealthAggregates:
         assert agg.job_errors == 1
         assert agg.job_avg_duration_ms == pytest.approx(40.0)
 
-    async def test_zero_invocations_returns_zero_values(
+    async def test_zero_invocations_returns_zero_counts_and_no_averages(
         self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
         """App with no invocations or executions returns zero counts and None averages and last_activity_ts."""

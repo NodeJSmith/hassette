@@ -191,7 +191,7 @@ class TestGetAllAppSummaries:
         assert j.job_count == 1
         # total_executions sums across ALL instances: 2 + 3 + 1 = 6
         assert j.aggregates.total_executions == 6
-        # total_job_errors sums across ALL instances: 1 + 1 = 2
+        # job_errors sums across ALL instances: 1 + 1 = 2
         assert j.aggregates.job_errors == 2
 
     async def test_get_all_app_summaries_single_instance_equivalence(
@@ -284,9 +284,9 @@ class TestAppHealthAcrossScopes:
     ) -> None:
         """When only one instance ran, both scopes build the same AppHealth over the same window.
 
-        The data covers every rule the two queries used to disagree on: a removed handler's
-        error, a removed job's execution, a skipped job run (excluded from the job average),
-        a timed-out run, and an execution before the window.
+        The data covers each rule both scopes must apply identically: a removed handler's error
+        counts, a removed job's execution counts, a skipped job run is excluded from the job
+        average, a timed-out run is a failure, and an execution before the window is excluded.
         """
         db_svc, session_id = db
         since_ts = BASE_TS + 5.0

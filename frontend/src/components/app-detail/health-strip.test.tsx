@@ -13,6 +13,7 @@ import { OverviewHealthStrip } from "./health-strip";
 const CELL_SELECTOR = "[data-testid='stats-strip-cell']";
 const ERR_TONE_SELECTOR = "[data-tone='err']";
 const STRIP_TESTID = "overview-health-strip";
+const HEALTH_ROUTE = "/api/telemetry/app/:app_key/health";
 
 const COL_HANDLERS = 0;
 const COL_ERROR_RATE = 1;
@@ -22,7 +23,7 @@ const COL_JOB_AVG = 3;
 function serveHealth(health: AppHealthData) {
   const requests: URL[] = [];
   server.use(
-    http.get("/api/telemetry/app/:app_key/health", ({ request }) => {
+    http.get(HEALTH_ROUTE, ({ request }) => {
       requests.push(new URL(request.url));
       return HttpResponse.json(health);
     }),
@@ -73,7 +74,7 @@ describe("OverviewHealthStrip", () => {
   });
 
   it("shows the error rate as unavailable when the health request fails", async () => {
-    server.use(http.get("/api/telemetry/app/:app_key/health", () => HttpResponse.json(null, { status: 503 })));
+    server.use(http.get(HEALTH_ROUTE, () => HttpResponse.json(null, { status: 503 })));
     const { cards } = renderStrip();
     await waitFor(() => expect(cards()[COL_ERROR_RATE].textContent).toContain("unavailable"));
     expect(cards()[COL_ERROR_RATE].querySelector(ERR_TONE_SELECTOR)).not.toBeNull();
