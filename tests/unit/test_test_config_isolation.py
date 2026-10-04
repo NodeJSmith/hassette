@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from hassette import HassetteConfig
-from tests.conftest import scratch_data_dir
+from tests.conftest import drop_data_dir_env_vars, scratch_data_dir
 
 
 @pytest.mark.parametrize("fixture_name", ["test_config", "test_config_with_apps", "test_config_with_temp_path"])
@@ -23,3 +23,17 @@ def test_config_class_default_data_dir_is_scratch_data_dir(test_config_class: ty
     data_dir = Path(test_config_class().data_dir).resolve()
 
     assert data_dir == scratch_data_dir().resolve()
+
+
+def test_drop_data_dir_env_vars_removes_every_case_variant():
+    environ = {
+        "HASSETTE__DATA_DIR": "/a",
+        "hassette__data_dir": "/b",
+        "Hassette_Data_Dir": "/c",
+        "HASSETTE__CONFIG_DIR": "/keep",
+        "PATH": "/usr/bin",
+    }
+
+    drop_data_dir_env_vars(environ)
+
+    assert environ == {"HASSETTE__CONFIG_DIR": "/keep", "PATH": "/usr/bin"}

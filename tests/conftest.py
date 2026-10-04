@@ -8,7 +8,7 @@ import tempfile
 import threading
 import time
 import tracemalloc
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, MutableMapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -52,15 +52,26 @@ ENV_FILE = TEST_CONFIG_PATH / ".env"
 TEST_TOML_FILE = TEST_CONFIG_PATH / "hassette.toml"
 APPS_TOML_TEMPLATE = TEST_CONFIG_PATH / "hassette_apps.toml"
 
+# Env var names (lowercased) that can set data_dir. pydantic-settings matches env names
+# case-insensitively, so every case variant must be dropped, not just the uppercase spelling.
+DATA_DIR_ENV_VARS = frozenset({"hassette__data_dir", "hassette_data_dir"})
+
 # Per-process scratch data dir shared by every TestConfig instance. Created lazily (one per xdist
 # worker) so the suite never touches the platform user data dir a local `hassette run` uses.
 _scratch_data_dir: Path | None = None
 
-# An exported data-dir env var outranks TestConfig's scratch default in pydantic-settings source
-# precedence, and is also read by `default_data_dir()`. Drop both spellings for this process so
-# no test config can resolve data_dir to a developer's real directory.
-for _data_dir_var in ("HASSETTE__DATA_DIR", "HASSETTE_DATA_DIR"):
-    os.environ.pop(_data_dir_var, None)
+
+def drop_data_dir_env_vars(environ: MutableMapping[str, str]) -> None:
+    """Remove every case variant of the data-dir env vars from ``environ``.
+
+    An exported data-dir env var outranks TestConfig's scratch default in pydantic-settings source
+    precedence, and is also read by `default_data_dir()`, so no test config may see one.
+    """
+    for key in [k for k in environ if k.lower() in DATA_DIR_ENV_VARS]:
+        del environ[key]
+
+
+drop_data_dir_env_vars(os.environ)
 
 assert ENV_FILE.exists(), f"Environment file {ENV_FILE} does not exist"
 assert TEST_TOML_FILE.exists(), f"Test TOML file {TEST_TOML_FILE} does not exist"
