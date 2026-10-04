@@ -49,7 +49,9 @@ function formatErrorRate(isError: boolean, errorRate: number | null): string {
   if (isError) return "unavailable";
   if (errorRate === null) return "—";
   const rounded = Math.round(errorRate);
-  // Any failure stays visible: a rate that rounds to zero reads "<1%", never "0%".
+  // Rounding never hides the difference from the extremes: a rate that rounds to 0 reads "<1%"
+  // (some runs failed), and one that rounds to 100 reads ">99%" (some runs succeeded).
   if (errorRate > 0 && rounded === 0) return "<1%";
+  if (errorRate < 100 && rounded === 100) return ">99%";
   return `${rounded}%`;
 }
