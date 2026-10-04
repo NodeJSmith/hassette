@@ -64,6 +64,20 @@ describe("OverviewHealthStrip", () => {
     expect(cards()[COL_ERROR_RATE].querySelector(ERR_TONE_SELECTOR)).not.toBeNull();
   });
 
+  it("shows a positive error rate below 1% as <1% with the err tone", async () => {
+    serveHealth(createAppHealth({ error_rate: 0.3 }));
+    const { cards } = renderStrip();
+    await waitFor(() => expect(cards()[COL_ERROR_RATE].textContent).toContain("<1%"));
+    expect(cards()[COL_ERROR_RATE].querySelector(ERR_TONE_SELECTOR)).not.toBeNull();
+  });
+
+  it("shows a recorded zero average as a duration, not a dash", async () => {
+    serveHealth(createAppHealth({ handler_avg_duration_ms: 0, job_avg_duration_ms: 0 }));
+    const { cards } = renderStrip();
+    await waitFor(() => expect(cards()[COL_HANDLER_AVG].textContent).toContain("<1ms"));
+    expect(cards()[COL_JOB_AVG].textContent).toContain("<1ms");
+  });
+
   it("shows no tone and dashes for averages when nothing ran", async () => {
     serveHealth(createAppHealth());
     const { cards } = renderStrip();

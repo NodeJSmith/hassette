@@ -4,7 +4,7 @@ import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { isExecutionDefined, useAppExecution } from "../../hooks/use-scoped-execution";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
-import { formatDurationOrDash } from "../../utils/format";
+import { formatOptionalDuration } from "../../utils/format";
 import { StatsStrip, type StatsStripCell } from "../shared/stats-strip";
 
 interface OverviewHealthStripProps {
@@ -25,28 +25,31 @@ export function OverviewHealthStrip({ appKey, resolvedInstanceIndex, handlerCoun
   const execution = useAppExecution(appKey);
   useQueryInvalidator(execution, isExecutionDefined, queryKeys.appHealth.prefix(appKey));
 
-  const roundedErrorRate = health ? Math.round(health.error_rate) : null;
-  const showErrorTone = isError || (roundedErrorRate ?? 0) > 0;
+  const errorRate = health?.error_rate ?? null;
+  const showErrorTone = isError || (errorRate ?? 0) > 0;
   const cells: StatsStripCell[] = [
     { label: "Handlers", value: handlerCount },
     {
       label: "Error Rate",
-      value: formatErrorRate(isError, roundedErrorRate),
+      value: formatErrorRate(isError, errorRate),
       tone: showErrorTone ? "err" : undefined,
     },
-    { label: "Handler Avg", value: formatDurationOrDash(health?.handler_avg_duration_ms ?? null) },
+    { label: "Handler Avg", value: formatOptionalDuration(health?.handler_avg_duration_ms) },
   ];
 
   if (!isSmallMobile) {
-    cells.push({ label: "Job Avg", value: formatDurationOrDash(health?.job_avg_duration_ms ?? null) });
+    cells.push({ label: "Job Avg", value: formatOptionalDuration(health?.job_avg_duration_ms) });
   }
 
   return <StatsStrip cells={cells} cols={cells.length} data-testid="overview-health-strip" />;
 }
 
-function formatErrorRate(isError: boolean, roundedErrorRate: number | null): string {
+function formatErrorRate(isError: boolean, errorRate: number | null): string {
   // A failed request reads "unavailable", so a telemetry outage never passes for an idle app.
   if (isError) return "unavailable";
-  if (roundedErrorRate === null) return "—";
-  return `${roundedErrorRate}%`;
+  if (errorRate === null) return "—";
+  const rounded = Math.round(errorRate);
+  // Any failure stays visible: a rate that rounds to zero reads "<1%", never "0%".
+  if (errorRate > 0 && rounded === 0) return "<1%";
+  return `${rounded}%`;
 }
