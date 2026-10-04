@@ -867,7 +867,7 @@ export interface components {
          * AppHealth
          * @description Health of an app over a time window: one app instance, or all instances of an app.
          *
-         *     Counts every execution in the window, including those of handlers and jobs removed since.
+         *     Computed over every execution in the window, including those of handlers and jobs removed since.
          */
         AppHealth: {
             /**
@@ -897,7 +897,7 @@ export interface components {
             handler_avg_duration_ms: number | null;
             /**
              * Job Avg Duration Ms
-             * @description Mean job execution duration excluding skipped runs, or null when no job ran.
+             * @description Mean job execution duration excluding skipped runs; null when no job ran or every job run was skipped.
              */
             job_avg_duration_ms: number | null;
         };

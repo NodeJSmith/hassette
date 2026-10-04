@@ -136,7 +136,7 @@ hassette app reload my-app --instance office --yes
 
 ### `hassette app health <key>`
 
-Reports health metrics for an app: error rate, overall health status, last activity, and average handler and job duration. An average shows `—` when nothing of that kind ran in the window. The job average leaves out skipped runs.
+Reports health metrics for an app: error rate, overall health status, last activity, and average handler and job duration. An average shows `—` when nothing of that kind ran in the window. The job average leaves out skipped runs, so it also shows `—` when every job run was skipped.
 
 ```console
 $ hassette app health bus_handler_app
@@ -150,7 +150,7 @@ $ hassette app health bus_handler_app
 ╰──────────────────────────────────────╯
 ```
 
-Health counts every execution in the window, including those of handlers and jobs removed since. The same rule applies to `hassette dashboard`, so for a single-instance app the two agree.
+Health counts every execution in the window that's still stored, including those of handlers and jobs removed since. Retention deletes old executions, and a restart deletes the previous session's `once=True` listeners along with their executions. The same rule applies to `hassette dashboard`, which covers all of an app's instances, so the two agree whenever only one instance ran in the window.
 
 `--instance` and `--since` scope the metrics window:
 

@@ -1,12 +1,12 @@
 # Design: Unify app health computation
 
 **Date:** 2026-10-04
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 
 ## Summary
 
-Issue #2508. The per-instance health endpoint (`GET /api/telemetry/app/{app_key}/health`, `AppHealthResponse`) and the Apps grid (`GET /api/telemetry/dashboard/app-grid`, `DashboardAppGridEntry`) compute app health separately. Two discrepancies are not explained by scope (D13), and the two queries treat executions of removed handlers and jobs differently (D14). This change gives app health one model (`AppHealth`) and one computation in `src/hassette/core/telemetry/`, before #2386 pins the shape.
+Issue #2508. The per-instance health endpoint (`GET /api/telemetry/app/{app_key}/health`, `AppHealthResponse`) and the Apps grid (`GET /api/telemetry/dashboard/app-grid`, `DashboardAppGridEntry`) compute app health separately. Two discrepancies are not explained by scope (D13), and the two queries treat executions of removed handlers and jobs differently (D14). This change gives app health one model (`AppHealth`) and one computation (the aggregation in `src/hassette/core/telemetry/`, built into `AppHealth` by `build_app_health` in `src/hassette/web/telemetry_helpers.py`), before #2386 pins the shape.
 
 The generated artifacts are regenerated with `uv run python scripts/export_schemas.py --types` (writes `frontend/openapi.json`, `frontend/ws-schema.json` and the generated TS under `frontend/src/api/`), and frontend code naming a changed schema is updated to match.
 
@@ -16,7 +16,7 @@ The generated artifacts are regenerated with `uv run python scripts/export_schem
 
 Related: #1022 asked to exclude removed registrations' executions from the all-apps rollup. D14 supersedes it (count in both scopes); this PR closes #1022 with that reasoning. #2040 (one frontend error-rate definition) is adjacent but frontend-only and stays separate.
 
-Out of scope: the grid's `{app, activity}` nesting, path and degradation marker (spec 125); naming of other wire classes (spec 126).
+Out of scope: the grid's `{app, activity}` nesting, path and degradation marker (spec 125); naming of other wire classes (spec 126). Until spec 125's degradation marker lands, a failed summaries query gives every grid row the same `AppHealth` as an app with no executions (`excellent`, null averages); that marker is what distinguishes the two, and it must land before #2386.
 
 ## Decisions
 
@@ -45,7 +45,7 @@ Scope is the only legitimate difference (one instance vs. all instances of an ap
 | Debt left | None | Two known inconsistencies in the pinned contract |
 
 Behavior to pin:
-- For the same app, instance set and window, the per-instance and per-app health agree when the app has one instance.
+- For the same app and window, the per-instance and per-app health agree when only that one instance ran in the window.
 - An average with no executions in the window is `None`.
 - The job average excludes `skipped` executions in both scopes.
 
@@ -84,12 +84,14 @@ Behavior to pin: an error execution of a handler removed later in the window cou
 - Grid rows replace `avg_duration_ms` (handler-only), `error_rate`, `error_rate_class`, `health_status` and `last_activity_ts` with `health: AppHealth` (D13)
 - Per-instance health starts counting executions of removed handlers and jobs (D14)
 - The `hassette app health` and `hassette dashboard` duration columns change to the handler/job averages (D13)
+- `hassette_wire.AppHealthResponse` is removed from the published package; `AppHealth` replaces it (D13)
+- `hassette dashboard --json` rows move `error_rate`, `error_rate_class`, `health_status` and `last_activity_ts` under `health` and drop `avg_duration_ms`; `hassette app health --json` renames `handler_avg_duration`/`job_avg_duration` to `*_ms` (D13)
 
 Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the header of `tools/wire_compat_ignore.txt` pairs them with `!` plus a footer.
 
 **Recommendation:** `feat!` with exactly one `BREAKING CHANGE:` footer at the end of the PR body, naming every item above.
 **Reversibility:** easy until merge.
-**Ratified:** Chose `feat!` with one footer over `refactor:`, to report the health shape, field and semantics changes.
+**Ratified:** Chose `feat!` with one footer over `refactor:`, to report the health shape, field and semantics changes, including the removed `hassette_wire` export and the CLI JSON reshaping (re-ratified at the ship-time challenge).
 
 ## Assumed
 
@@ -103,12 +105,16 @@ Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 - `AppHealthAggregates` moved from `core/telemetry/helpers.py` to `schemas/summary_models.py` as a pydantic model, and `AppHealthSummary` composes it as `aggregates` next to `handler_count`/`job_count`: both scopes then feed the one builder the same input type, and `summary_models` can't import from `core/telemetry` (`helpers.py` already imports `summary_models`).
 - `build_app_health` lives in `src/hassette/web/telemetry_helpers.py`, beside the `compute_error_rate`/`classify_*` functions it composes. The aggregation itself (counts, averages, the removed-registration rule) stays in `core/telemetry/summary_queries.py`.
 - The Apps page has no duration cell, so the frontend consumer is `toAppRow()` reading `health.last_activity_ts`; `AppRow.error_rate` had no reader and was dropped.
+- The app-detail health strip (`frontend/src/components/app-detail/health-strip.tsx`) now reads `AppHealth` from `GET /api/telemetry/app/{app_key}/health` instead of summing the active-only handler lists, and shows Handlers · Error Rate · Handler Avg · Job Avg. Per-handler and per-job views stay registration-only while health also counts runs of removed registrations, a rule `docs/pages/web-ui/manage-apps.md` now states (ship-time challenge Finding 1; the lifecycle and visibility model, including the retired-job view asymmetry, is #2512).
+- The per-app activity queries select executions by the execution's own `source_tier` with inner joins, matching `get_app_health_aggregates`, so the two scopes agree after a registration's tier changes (ship-time challenge Finding 8).
 - The grid-entry vocabulary tests in `tests/unit/test_model_types.py` were removed: the grid row no longer has its own `health_status`/`error_rate_class`, and `AppHealth`'s tests cover both.
 
 ## Addendum
+
+- 2026-10-04 (ship-time challenge): D14's "a window's health reflects what actually ran" holds for executions still in the database. Retention deletes old executions, and startup cleanup deletes a previous session's stale `once=True` listeners together with their executions (`src/hassette/core/session_manager.py`), so those runs drop out of health in both scopes.

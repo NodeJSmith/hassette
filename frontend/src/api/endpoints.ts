@@ -23,6 +23,7 @@ export type AppConfigData = Omit<components["schemas"]["AppConfigResponse"], "co
 };
 export type AppSourceData = components["schemas"]["AppSourceResponse"];
 export type ActivityFeedEntryData = components["schemas"]["ActivityFeedEntry"];
+export type AppHealthData = components["schemas"]["AppHealth"];
 export type ActionResponse = components["schemas"]["ActionResponse"];
 export type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 export type SystemConfig = Omit<components["schemas"]["ConfigSchemaResponse"], "config_schema" | "config_values"> & {
@@ -106,6 +107,12 @@ export const getAppActivity = (
 ) =>
   apiFetch<ActivityFeedEntryData[]>(
     buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/activity`, { instance_index: instanceIndex, limit, since }),
+    { signal },
+  );
+
+export const getAppHealth = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
+  apiFetch<AppHealthData>(
+    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/health`, { instance_index: instanceIndex, since }),
     { signal },
   );
 

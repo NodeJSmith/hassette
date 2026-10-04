@@ -282,7 +282,7 @@ class TestAppHealthAcrossScopes:
     async def test_single_instance_app_health_agrees_across_scopes(
         self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
-        """For a one-instance app, both scopes build the same AppHealth over the same window.
+        """When only one instance ran, both scopes build the same AppHealth over the same window.
 
         The data covers every rule the two queries used to disagree on: a removed handler's
         error, a removed job's execution, a skipped job run (excluded from the job average),
@@ -348,6 +348,38 @@ class TestAppHealthAcrossScopes:
         assert summary.handler_count == 1
         assert summary.aggregates.total_invocations == 2
         assert summary.aggregates.handler_errors == 1
+
+    async def test_scopes_agree_after_a_registration_changes_tier(
+        self, query_service: TelemetryQueryService, db: DbFixture
+    ) -> None:
+        """Both scopes select executions by the execution's tier, not the registration's current tier."""
+        db_svc, session_id = db
+        listener = await insert_listener(db_svc, app_key="app_tier")
+        await insert_invocation(db_svc, listener, session_id, status="error", source_tier="app")
+        await db_svc.db.execute("UPDATE listeners SET source_tier = 'framework' WHERE id = ?", (listener,))
+        await db_svc.db.commit()
+
+        per_instance = await query_service.get_app_health_aggregates(app_key="app_tier", instance_index=0)
+        per_app = (await query_service.get_all_app_summaries())["app_tier"].aggregates
+
+        assert per_app == per_instance
+        assert per_app.handler_errors == 1
+
+    async def test_job_average_is_none_when_every_job_run_was_skipped(
+        self, query_service: TelemetryQueryService, db: DbFixture
+    ) -> None:
+        """Skipped runs count as executions but not toward the job average, in both scopes."""
+        db_svc, session_id = db
+        job = await insert_job(db_svc, app_key="app_skip")
+        await insert_execution(db_svc, job, session_id, status="skipped", duration_ms=0.0)
+        await insert_execution(db_svc, job, session_id, status="skipped", duration_ms=0.0)
+
+        per_instance = await query_service.get_app_health_aggregates(app_key="app_skip", instance_index=0)
+        per_app = (await query_service.get_all_app_summaries())["app_skip"].aggregates
+
+        for agg in (per_instance, per_app):
+            assert agg.total_executions == 2
+            assert agg.job_avg_duration_ms is None
 
     async def test_averages_are_none_when_nothing_ran(
         self, query_service: TelemetryQueryService, db: DbFixture

@@ -35,6 +35,8 @@ Click any app row to open the App Detail view. The detail view shows health indi
 
 ![App detail overview](../../_static/web_ui_app_detail_overview.png)
 
+The strip at the top of the overview shows the instance's health over the selected time window: error rate, average handler duration, and average job duration (skipped job runs aren't included). It reads the same numbers as `hassette app health` for that instance, and matches the Apps table when only that one instance ran in the window. **Handlers** counts the handlers and jobs registered now. Health counts every run in the window, including runs of handlers and jobs that have since been removed, such as a `once=True` listener after it fires, a finished `wait_for`, a cancelled subscription, or a removed job. The handler list doesn't show removed registrations, so an error from one appears in the health numbers and the Apps table's last error, but not as a failing row.
+
 ### Multi-instance apps
 
 Apps with multiple instances show a parent row with a chevron and an instance count badge (e.g., "2 instances"). Click the chevron to expand into individual instance rows. Each instance row shows its own status dot, badge, last error, and action buttons — Start, Stop, and Reload here target just that instance, not the whole app. Click an instance name to open that instance's detail view, where the header's action buttons target the same single instance.

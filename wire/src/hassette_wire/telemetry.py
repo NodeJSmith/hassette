@@ -203,7 +203,7 @@ class AppHealth(BaseModel):
     handler_avg_duration_ms: Annotated[float | None, CliFormat("duration_ms")]
     """Mean handler execution duration, or null when no handler ran."""
     job_avg_duration_ms: Annotated[float | None, CliFormat("duration_ms")]
-    """Mean job execution duration excluding skipped runs, or null when no job ran."""
+    """Mean job execution duration excluding skipped runs; null when no job ran or every job run was skipped."""
 
 
 class ListenerWithSummary(BaseModel):

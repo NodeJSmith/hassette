@@ -9,7 +9,7 @@ system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
 See ``schemas/__init__.py`` for the domain-file map.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from hassette.schemas.job_models import JobGlobalStats
 from hassette.schemas.listener_models import ListenerGlobalStats
@@ -21,8 +21,11 @@ class AppHealthAggregates(BaseModel):
     The single input to app-health computation, for both scopes: one app instance
     (``get_app_health_aggregates()``) and all instances of an app (``get_all_app_summaries()``).
     Counts include executions of handlers and jobs removed since they ran. An average is
-    ``None`` when nothing of its kind ran; the job average excludes skipped executions.
+    ``None`` when nothing of its kind ran; the job average excludes skipped executions, so it is
+    also ``None`` when every job run in the window was skipped.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     total_invocations: int
     handler_errors: int

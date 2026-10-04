@@ -96,7 +96,11 @@ export function OverviewTab({ listeners, jobs, appKey, instanceQs, resolvedInsta
       className={cn("flex flex-col gap-7", !isWsConnected && "opacity-[var(--op-muted)]")}
       data-testid="overview-tab"
     >
-      <OverviewHealthStrip listeners={listeners} jobs={jobs} />
+      <OverviewHealthStrip
+        appKey={appKey}
+        resolvedInstanceIndex={resolvedInstanceIndex}
+        handlerCount={listeners.length + jobs.length}
+      />
 
       {failingItems.length > 0 && (
         <ErrorSpotlight failingItems={failingItems} appKey={appKey} instanceQs={instanceQs} />

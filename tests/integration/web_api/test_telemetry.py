@@ -194,7 +194,9 @@ class TestTelemetryDashboard:
         assert len(data["apps"]) == 1
         app_entry = data["apps"][0]
         assert app_entry["app_key"] == "my_app"
-        # No summary for the app: an all-zero health record with no averages.
+        # No summary for the app: an all-zero health record with no averages. The same record
+        # stands in when the summaries query fails; that "excellent" is a placeholder until spec
+        # 125's degradation marker lets the grid say a part of `activity` is missing.
         assert app_entry["health"] == {
             "error_rate": 0.0,
             "error_rate_class": "good",

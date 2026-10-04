@@ -161,8 +161,6 @@ class SummaryQueriesMixin:
         # so only the first params dict is kept; the rest are discarded as _.
         tier_e_handler_clause, tier_params = source_tier_clause(source_tier, "e_h")
         tier_e_job_clause, _ = source_tier_clause(source_tier, "e_j")
-        tier_l_clause, _ = source_tier_clause(source_tier, "l")
-        tier_sj_clause, _ = source_tier_clause(source_tier, "sj")
         since_h_clause, since_params = since_clause(since, "e_h.execution_start_ts")
         since_j_clause, _ = since_clause(since, "e_j.execution_start_ts")
 
@@ -183,6 +181,10 @@ class SummaryQueriesMixin:
             GROUP BY sj.app_key
         """
 
+        # Activity rows select executions by the execution's own tier, as get_app_health_aggregates
+        # does, so both scopes count the same executions even after a registration's tier changes.
+        # Inner joins: an app with no matching executions gets no activity row, and its summary
+        # falls back to zero counts and null averages in build_app_summaries.
         listener_act_query = f"""
             SELECT
                 l.app_key,
@@ -192,10 +194,9 @@ class SummaryQueriesMixin:
                 AVG(e_h.duration_ms) AS handler_avg_duration_ms,
                 MAX(e_h.execution_start_ts) AS last_listener_activity_ts
             FROM listeners l
-            LEFT JOIN executions e_h ON e_h.listener_id = l.id AND e_h.kind = 'handler'
+            JOIN executions e_h ON e_h.listener_id = l.id AND e_h.kind = 'handler'
                 {tier_e_handler_clause}
                 {since_h_clause}
-            WHERE 1=1 {tier_l_clause}
             GROUP BY l.app_key
         """
         job_act_query = f"""
@@ -208,10 +209,9 @@ class SummaryQueriesMixin:
                 AVG(CASE WHEN e_j.status != 'skipped' THEN e_j.duration_ms END) AS job_avg_duration_ms,
                 MAX(e_j.execution_start_ts) AS last_job_activity_ts
             FROM scheduled_jobs sj
-            LEFT JOIN executions e_j ON e_j.job_id = sj.id AND e_j.kind = 'job'
+            JOIN executions e_j ON e_j.job_id = sj.id AND e_j.kind = 'job'
                 {tier_e_job_clause}
                 {since_j_clause}
-            WHERE 1=1 {tier_sj_clause}
             GROUP BY sj.app_key
         """
         act_params: dict[str, Any] = {**tier_params, **since_params}

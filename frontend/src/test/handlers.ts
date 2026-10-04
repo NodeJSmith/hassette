@@ -13,7 +13,13 @@ import { http, HttpResponse } from "msw";
 import type { SetupServer } from "msw/node";
 
 import type { components } from "../api/generated-types";
-import { createManifestList, createSystemConfig, createSystemStatus, createTelemetryStatus } from "./factories";
+import {
+  createAppHealth,
+  createManifestList,
+  createSystemConfig,
+  createSystemStatus,
+  createTelemetryStatus,
+} from "./factories";
 
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
@@ -100,6 +106,11 @@ export const handlers = [
   // GET /api/telemetry/app/:app_key/jobs
   http.get("/api/telemetry/app/:app_key/jobs", () => {
     return HttpResponse.json<JobSummary[]>([]);
+  }),
+
+  // GET /api/telemetry/app/:app_key/health
+  http.get("/api/telemetry/app/:app_key/health", () => {
+    return HttpResponse.json(createAppHealth());
   }),
 
   // GET /api/telemetry/app/:app_key/activity

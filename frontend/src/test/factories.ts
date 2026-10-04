@@ -22,6 +22,7 @@ type AppManifestResponse = components["schemas"]["AppManifestResponse"];
 type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
 type AppManifestListResponse = components["schemas"]["AppManifestListResponse"];
 type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
+type AppHealth = components["schemas"]["AppHealth"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
@@ -133,6 +134,18 @@ export function createManifestList(overrides: Partial<AppManifestListResponse> =
     only_apps: [],
     ...overrides,
   } satisfies AppManifestListResponse;
+}
+
+export function createAppHealth(overrides: Partial<AppHealth> = {}): AppHealth {
+  return {
+    error_rate: 0,
+    error_rate_class: "good",
+    health_status: "excellent",
+    last_activity_ts: null,
+    handler_avg_duration_ms: null,
+    job_avg_duration_ms: null,
+    ...overrides,
+  } satisfies AppHealth;
 }
 
 export function createAppGridEntry(overrides: Partial<DashboardAppGridEntry> = {}): DashboardAppGridEntry {
