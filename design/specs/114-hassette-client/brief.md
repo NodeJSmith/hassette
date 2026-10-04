@@ -290,3 +290,10 @@ is standalone housekeeping, not linked to the epic.
 - **Single console script today:** `hassette = "hassette.__main__:entrypoint"` (`pyproject.toml:124`).
 - **Related issues:** #2368 (start/reload failures return 500; epic unit A), #2369 (problem
   details repo-wide; closed as not planned, since #2382 now covers its scope), #45 (epic tracker).
+
+## Addendum
+
+- **2026-10-04: the work split changed after filing.** The table above records the split as filed. Since then:
+  - Three pieces were carved out of #2386 (item 4) as their own issues: lenient enum parsing (#2484), problem bodies for degraded telemetry 503s (#2483), and the cross-version CI job (#2485). #2486 has the research behind the split. #2485 needs a published `hassette-client` that contains #2386's transport, so it follows a release instead of shipping with #2386.
+  - #2448 (tighten the wire contract: `Literal` narrowing, class naming, consumer-facing docstrings) was added between 3b and 4. It goes first because renaming the public wire names is cheap only until the client and hass-hassette import them.
+  - Items 5 and 6 (#2387, #2388) no longer gate HACS v0.1. The integration needs only the transport, so the CLI move is its own initiative with its own milestone, *Standalone CLI* (tracker #1540). `design/roadmap.md` has the current ordering.
