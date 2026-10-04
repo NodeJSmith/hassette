@@ -52,13 +52,14 @@ milestone that turned out not to be needed out of it, then close the milestone.
 | **HACS companion v0.1** | *HACS v0.1* | #45, `design/specs/113-hacs-companion-integration/brief.md`, `design/specs/114-hassette-client/brief.md` |
 
 Order. The workspace, wire package, problem details and lenient parsing are done
-(#2381, #2382, #2384, #2385, #2483, #2484). What's left is a straight line:
+(#2381, #2382, #2384, #2385, #2483, #2484). What's left, with the forced orderings in
+"Dependency chains" below:
 
 1. #2448 tighten the `hassette-wire` contract (Literal narrowing, class naming, docstrings).
    It goes first because renames are cheap until the client and hass-hassette import them
 2. #2386 async transport, error mapping, typed methods in `hassette-client`
-3. A release that publishes `hassette-client` with #2386, then #2485 cross-version CI
-   (it needs that published client)
+3. A release that publishes `hassette-client` with #2386. After it, #2485 (cross-version CI,
+   which needs that published client) and step 4 can run in parallel; neither gates the other
 4. hass-hassette repo: config flow, coordinator, platforms, HACS release (its own spec). The repo
    doesn't exist yet; until it does, unit C on #45's checklist tracks this step
 5. #2506 pinned integration in system-test/demo HA + one end-to-end system test + docs page
