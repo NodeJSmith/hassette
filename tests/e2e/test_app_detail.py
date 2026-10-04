@@ -28,10 +28,9 @@ def test_app_detail_renders_health_strip(page: Page, base_url: str) -> None:
     strip = page.locator("[data-testid='overview-health-strip']")
     expect(strip).to_be_visible()
     expect(strip).to_contain_text("Handlers")
-    expect(strip).to_contain_text("Total Runs")
-    expect(strip).to_contain_text("Failed")
     expect(strip).to_contain_text("Error Rate")
-    expect(strip).to_contain_text("Avg Duration")
+    expect(strip).to_contain_text("Handler Avg")
+    expect(strip).to_contain_text("Job Avg")
 
 
 def test_running_app_shows_stop_and_reload_buttons(page: Page, base_url: str) -> None:
@@ -165,7 +164,7 @@ def test_empty_detail_placeholder_visible_by_default(page: Page, base_url: str) 
 
 
 def test_stats_strip_renders(page: Page, base_url: str) -> None:
-    """Overview health strip above handler activity shows handler count and call totals."""
+    """Overview health strip above handler activity shows the handler count."""
     page.goto(base_url + "/apps/my_app")
     stats_strip = page.locator("[data-testid='overview-health-strip']")
     expect(stats_strip).to_be_visible()

@@ -9,25 +9,62 @@ system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
 See ``schemas/__init__.py`` for the domain-file map.
 """
 
-from pydantic import BaseModel
+from typing import Self
+
+from pydantic import BaseModel, ConfigDict
 
 from hassette.schemas.job_models import JobGlobalStats
 from hassette.schemas.listener_models import ListenerGlobalStats
 
 
+class AppHealthAggregates(BaseModel):
+    """Handler and job execution aggregates for one app over a time window.
+
+    The single input to app-health computation, for both scopes: one app instance
+    (``get_app_health_aggregates()``) and all instances of an app (``get_all_app_summaries()``).
+    Counts include executions of handlers and jobs removed since they ran. An average is
+    ``None`` when nothing of its kind ran; the job average excludes skipped executions, so it is
+    also ``None`` when every job run in the window was skipped.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    total_invocations: int
+    handler_errors: int
+    handler_timed_out: int
+    handler_avg_duration_ms: float | None
+    total_executions: int
+    job_errors: int
+    job_timed_out: int
+    job_avg_duration_ms: float | None
+    last_activity_ts: float | None
+
+    @classmethod
+    def empty(cls) -> Self:
+        """Aggregates for a window in which nothing ran: zero counts, no averages."""
+        return cls(
+            total_invocations=0,
+            handler_errors=0,
+            handler_timed_out=0,
+            handler_avg_duration_ms=None,
+            total_executions=0,
+            job_errors=0,
+            job_timed_out=0,
+            job_avg_duration_ms=None,
+            last_activity_ts=None,
+        )
+
+
 class AppHealthSummary(BaseModel):
-    """Per-app health summary returned by ``get_all_app_summaries()``."""
+    """Per-app health summary returned by ``get_all_app_summaries()``.
+
+    ``handler_count``/``job_count`` count currently registered handlers and jobs only, while
+    ``aggregates`` covers every execution in the window.
+    """
 
     handler_count: int
     job_count: int
-    total_invocations: int
-    total_errors: int
-    total_timed_out: int = 0
-    total_executions: int
-    total_job_errors: int
-    total_job_timed_out: int = 0
-    avg_duration_ms: float
-    last_activity_ts: float | None
+    aggregates: AppHealthAggregates
 
 
 class GlobalSummary(BaseModel):

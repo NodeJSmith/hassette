@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.schemas.live_counts import LiveCounts
+from hassette.schemas.summary_models import AppHealthAggregates
 from tests.support.web_manifest_helpers import make_manifest_db_row
 from tests.support.web_telemetry_helpers import make_execution, make_listener_summary
 
@@ -54,16 +54,17 @@ class TestTelemetryAppHealth:
                 total_executions=0,
                 job_errors=0,
                 job_timed_out=0,
-                job_avg_duration_ms=0.0,
+                job_avg_duration_ms=None,
                 last_activity_ts=MOCK_TS,
             )
         )
 
         data = await get_json(client, APP_HEALTH_PATH)
 
-        assert "error_rate" in data
-        assert "error_rate_class" in data
-        assert "health_status" in data
+        assert data["handler_avg_duration_ms"] == pytest.approx(50.0)
+        # No job ran, so there is no job average rather than a 0ms one.
+        assert data["job_avg_duration_ms"] is None
+        assert data["last_activity_ts"] == MOCK_TS
         assert data["error_rate"] == pytest.approx(5.0)
         assert data["error_rate_class"] == "warn"
         # success_rate = 100 - 5 = 95 → "good" (>= 95 threshold). Pins the
@@ -97,6 +98,8 @@ class TestTelemetryAppHealth:
 
         assert data["error_rate"] == 0.0
         assert data["health_status"] == "excellent"
+        assert data["handler_avg_duration_ms"] is None
+        assert data["job_avg_duration_ms"] is None
 
     async def test_instance_index_param(self, client: "AsyncClient", mock_hassette) -> None:
         await get_json(client, f"{APP_HEALTH_PATH}?instance_index=1")
@@ -191,7 +194,19 @@ class TestTelemetryDashboard:
         assert len(data["apps"]) == 1
         app_entry = data["apps"][0]
         assert app_entry["app_key"] == "my_app"
-        assert "health_status" in app_entry
+        # No summary for the app: an all-zero health record with no averages. The same record
+        # stands in when the summaries query fails; that "excellent" is a placeholder until spec
+        # 125's degradation marker lets the grid say a part of `activity` is missing.
+        assert app_entry["health"] == {
+            "error_rate": 0.0,
+            "error_rate_class": "good",
+            "health_status": "excellent",
+            "last_activity_ts": None,
+            "handler_avg_duration_ms": None,
+            "job_avg_duration_ms": None,
+        }
+        for loose_field in ("avg_duration_ms", "error_rate", "error_rate_class", "health_status", "last_activity_ts"):
+            assert loose_field not in app_entry
         assert "status" in app_entry
         # Manifest metadata fields are present alongside telemetry data.
         assert app_entry["class_name"] == "MyApp"

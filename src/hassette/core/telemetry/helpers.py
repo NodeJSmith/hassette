@@ -1,19 +1,18 @@
 """Shared helpers for telemetry query modules.
 
-Contains clause-builders, row converters, and the AppHealthAggregates dataclass
-used across registration_queries, execution_queries, and summary_queries.
+Contains clause-builders and row converters used across registration_queries,
+execution_queries, and summary_queries.
 """
 
 import sqlite3
 from collections.abc import Iterable
 from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass
 from typing import Any, assert_never
 
 import aiosqlite
 from hassette_wire import QuerySourceTier
 
-from hassette.schemas.summary_models import AppHealthSummary
+from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
 from hassette.types.types import is_framework_key
 
 # Storage-layer exceptions translated to TelemetryUnavailableError at the read boundary.
@@ -39,7 +38,6 @@ __all__ = [
     "DEFAULT_LOG_RECORDS_LIMIT",
     "DEFAULT_SESSION_LIST_LIMIT",
     "STORAGE_ERRORS",
-    "AppHealthAggregates",
     "build_app_summaries",
     "fetch_all_as_dicts",
     "handler_job_union_arms",
@@ -48,25 +46,6 @@ __all__ = [
     "since_clause",
     "source_tier_clause",
 ]
-
-
-@dataclass(frozen=True)
-class AppHealthAggregates:
-    """Single-row aggregate result returned by ``get_app_health_aggregates()``.
-
-    All counts and averages are computed in a single query over the ``executions``
-    table - no per-item detail fetching or Python-side aggregation.
-    """
-
-    total_invocations: int
-    handler_errors: int
-    handler_timed_out: int
-    handler_avg_duration_ms: float
-    total_executions: int
-    job_errors: int
-    job_timed_out: int
-    job_avg_duration_ms: float
-    last_activity_ts: float | None
 
 
 def row_to_dict(row: aiosqlite.Row) -> dict[str, Any]:
@@ -285,13 +264,16 @@ def build_app_summaries(
         result[app_key] = AppHealthSummary(
             handler_count=app_listener_reg.get("handler_count", 0),
             job_count=app_job_reg.get("job_count", 0),
-            total_invocations=app_listener_act.get("total_invocations", 0),
-            total_errors=app_listener_act.get("total_errors", 0),
-            total_timed_out=app_listener_act.get("total_timed_out", 0),
-            total_executions=app_job_act.get("total_executions", 0),
-            total_job_errors=app_job_act.get("total_job_errors", 0),
-            total_job_timed_out=app_job_act.get("total_job_timed_out", 0),
-            avg_duration_ms=app_listener_act.get("avg_duration_ms", 0.0),
-            last_activity_ts=max(last_times) if last_times else None,
+            aggregates=AppHealthAggregates(
+                total_invocations=app_listener_act.get("total_invocations", 0),
+                handler_errors=app_listener_act.get("handler_errors", 0),
+                handler_timed_out=app_listener_act.get("handler_timed_out", 0),
+                handler_avg_duration_ms=app_listener_act.get("handler_avg_duration_ms"),
+                total_executions=app_job_act.get("total_executions", 0),
+                job_errors=app_job_act.get("job_errors", 0),
+                job_timed_out=app_job_act.get("job_timed_out", 0),
+                job_avg_duration_ms=app_job_act.get("job_avg_duration_ms"),
+                last_activity_ts=max(last_times) if last_times else None,
+            ),
         )
     return result

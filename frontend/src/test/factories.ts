@@ -22,6 +22,7 @@ type AppManifestResponse = components["schemas"]["AppManifestResponse"];
 type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
 type AppManifestListResponse = components["schemas"]["AppManifestListResponse"];
 type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
+type AppHealth = components["schemas"]["AppHealth"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
@@ -135,6 +136,18 @@ export function createManifestList(overrides: Partial<AppManifestListResponse> =
   } satisfies AppManifestListResponse;
 }
 
+export function createAppHealth(overrides: Partial<AppHealth> = {}): AppHealth {
+  return {
+    error_rate: 0,
+    error_rate_class: "good",
+    health_status: "excellent",
+    last_activity_ts: null,
+    handler_avg_duration_ms: null,
+    job_avg_duration_ms: null,
+    ...overrides,
+  } satisfies AppHealth;
+}
+
 export function createAppGridEntry(overrides: Partial<DashboardAppGridEntry> = {}): DashboardAppGridEntry {
   return {
     app_key: "test_app",
@@ -149,11 +162,11 @@ export function createAppGridEntry(overrides: Partial<DashboardAppGridEntry> = {
     total_executions: 5,
     total_job_errors: 0,
     total_job_timed_out: 0,
-    avg_duration_ms: 50,
-    last_activity_ts: FIXED_TEST_TIMESTAMP,
-    health_status: "good",
-    error_rate: 0,
-    error_rate_class: "good",
+    health: createAppHealth({
+      health_status: "good",
+      last_activity_ts: FIXED_TEST_TIMESTAMP,
+      handler_avg_duration_ms: 50,
+    }),
     activity_buckets: [],
     blocking_event_count: 0,
     last_error_message: null,

@@ -186,15 +186,24 @@ class JobSummary(BaseModel):
     live from the in-process guard and reset to 0 on restart."""
 
 
-class AppHealthResponse(BaseModel):
-    """Health metrics for a single app instance."""
+class AppHealth(BaseModel):
+    """Health of an app over a time window: one app instance, or all instances of an app.
+
+    Computed over every execution in the window, including those of handlers and jobs removed since.
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     error_rate: float
+    """Failed (error or timed out) handler and job executions as a percentage of all of them."""
     error_rate_class: OpenErrorRateClass
-    handler_avg_duration: Annotated[float, CliFormat("duration_ms")]
-    job_avg_duration: Annotated[float, CliFormat("duration_ms")]
-    last_activity_ts: Annotated[float | None, CliFormat("relative_time")]
     health_status: OpenHealthStatus
+    last_activity_ts: Annotated[float | None, CliFormat("relative_time")]
+    """Start of the latest handler or job execution, or null when nothing ran."""
+    handler_avg_duration_ms: Annotated[float | None, CliFormat("duration_ms")]
+    """Mean handler execution duration, or null when no handler ran."""
+    job_avg_duration_ms: Annotated[float | None, CliFormat("duration_ms")]
+    """Mean job execution duration excluding skipped runs; null when no job ran or every job run was skipped."""
 
 
 class ListenerWithSummary(BaseModel):
@@ -273,11 +282,7 @@ class DashboardAppGridEntry(BaseModel):
     total_executions: int
     total_job_errors: int
     total_job_timed_out: int = 0
-    avg_duration_ms: float
-    last_activity_ts: float | None
-    health_status: OpenHealthStatus
-    error_rate: float
-    error_rate_class: OpenErrorRateClass
+    health: AppHealth
     activity_buckets: list[ActivityBucket] = Field(default_factory=list)
     """Per-app sparkline buckets (ok/err counts per time window)."""
     blocking_event_count: int = 0

@@ -1,110 +1,124 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, waitFor } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { JobData, ListenerData } from "../../api/endpoints";
-import { createJob, createListener } from "../../test/factories";
+import type { AppHealthData } from "../../api/endpoints";
+import { WS_DEBOUNCE_MAX_WAIT_MS } from "../../hooks/use-query-invalidator";
+import { useAppStore } from "../../state/store";
+import { createAppHealth, createExecutionCompletedPayload } from "../../test/factories";
+import { mockMediaQueryMatches, renderWithAppState } from "../../test/render-helpers";
+import { server } from "../../test/server";
 import { OverviewHealthStrip } from "./health-strip";
 
 const CELL_SELECTOR = "[data-testid='stats-strip-cell']";
 const ERR_TONE_SELECTOR = "[data-tone='err']";
 const STRIP_TESTID = "overview-health-strip";
+const HEALTH_ROUTE = "/api/telemetry/app/:app_key/health";
 
 const COL_HANDLERS = 0;
-const COL_TOTAL_RUNS = 1;
-const COL_FAILED = 2;
-const COL_ERROR_RATE = 3;
-const COL_AVG_DURATION = 4;
+const COL_ERROR_RATE = 1;
+const COL_HANDLER_AVG = 2;
+const COL_JOB_AVG = 3;
 
-function renderStrip(listeners: ListenerData[] = [], jobs: JobData[] = []) {
-  const result = render(<OverviewHealthStrip listeners={listeners} jobs={jobs} />);
-  const cards = result.container.querySelectorAll(CELL_SELECTOR);
+function serveHealth(health: AppHealthData) {
+  const requests: URL[] = [];
+  server.use(
+    http.get(HEALTH_ROUTE, ({ request }) => {
+      requests.push(new URL(request.url));
+      return HttpResponse.json(health);
+    }),
+  );
+  return requests;
+}
+
+function renderStrip({ handlerCount = 3, resolvedInstanceIndex = 0 } = {}) {
+  const result = renderWithAppState(
+    <OverviewHealthStrip appKey="my_app" resolvedInstanceIndex={resolvedInstanceIndex} handlerCount={handlerCount} />,
+    // useScopedQuery holds since-restart queries until uptime is known.
+    { storeOverrides: { uptimeSeconds: 120 } },
+  );
+  const cards = () => result.container.querySelectorAll(CELL_SELECTOR);
   return { ...result, cards };
 }
 
 describe("OverviewHealthStrip", () => {
-  it("renders 5 columns with correct labels", () => {
-    const { container, cards } = renderStrip([createListener()], [createJob()]);
-    expect(cards.length).toBe(5);
-    // Check all 5 labels (CSS text-transform: uppercase applies visually; DOM text is mixed case)
-    const text = container.textContent ?? "";
-    expect(text.toLowerCase()).toContain("handlers");
-    expect(text.toLowerCase()).toContain("total runs");
-    expect(text.toLowerCase()).toContain("failed");
-    expect(text.toLowerCase()).toContain("error rate");
-    expect(text.toLowerCase()).toContain("avg duration");
+  afterEach(() => vi.restoreAllMocks());
+
+  it("renders the handler count and the server's health for the instance", async () => {
+    const requests = serveHealth(
+      createAppHealth({ error_rate: 8.4, handler_avg_duration_ms: 120, job_avg_duration_ms: 2500 }),
+    );
+    const { cards } = renderStrip({ handlerCount: 7, resolvedInstanceIndex: 2 });
+
+    await waitFor(() => expect(cards()[COL_ERROR_RATE].textContent).toContain("8%"));
+    expect(cards()[COL_HANDLERS].textContent).toContain("7");
+    expect(cards()[COL_HANDLER_AVG].textContent).toContain("120");
+    expect(cards()[COL_JOB_AVG].textContent).toContain("2.5s");
+    expect(requests[0].searchParams.get("instance_index")).toBe("2");
   });
 
-  it("renders combined handler + job count in HANDLERS column", () => {
-    const listeners = [createListener({ listener_id: 1 }), createListener({ listener_id: 2 })];
-    const jobs = [createJob({ job_id: 10 })];
-    const { cards } = renderStrip(listeners, jobs);
-    expect(cards[COL_HANDLERS].textContent).toContain("3");
+  it("applies the err tone to ERROR RATE only when the server reports errors", async () => {
+    serveHealth(createAppHealth({ error_rate: 2 }));
+    const { cards } = renderStrip();
+    await waitFor(() => expect(cards()[COL_ERROR_RATE].textContent).toContain("2%"));
+    expect(cards()[COL_ERROR_RATE].querySelector(ERR_TONE_SELECTOR)).not.toBeNull();
   });
 
-  it("renders combined invocations + executions in TOTAL RUNS column", () => {
-    const listeners = [createListener({ listener_id: 1, total_invocations: 10 })];
-    const jobs = [createJob({ job_id: 1, total_executions: 5 })];
-    const { cards } = renderStrip(listeners, jobs);
-    const text = cards[COL_TOTAL_RUNS].textContent ?? "";
-    expect(text).toContain("15");
+  it("shows a positive error rate below 1% as <1% with the err tone", async () => {
+    serveHealth(createAppHealth({ error_rate: 0.3 }));
+    const { cards } = renderStrip();
+    await waitFor(() => expect(cards()[COL_ERROR_RATE].textContent).toContain("<1%"));
+    expect(cards()[COL_ERROR_RATE].querySelector(ERR_TONE_SELECTOR)).not.toBeNull();
   });
 
-  it("shows failed count and applies err tone when > 0", () => {
-    const listeners = [createListener({ listener_id: 1, failed: 3, total_invocations: 10 })];
-    const { container } = renderStrip(listeners);
-    const errValue = container.querySelector(ERR_TONE_SELECTOR);
-    expect(errValue).not.toBeNull();
-    expect(errValue?.textContent).toContain("3");
+  it("shows an error rate just under 100% as >99%", async () => {
+    serveHealth(createAppHealth({ error_rate: 99.7 }));
+    const { cards } = renderStrip();
+    await waitFor(() => expect(cards()[COL_ERROR_RATE].textContent).toContain(">99%"));
   });
 
-  it("renders 0 for FAILED when count is 0", () => {
-    const { cards } = renderStrip([createListener({ failed: 0 })]);
-    expect(cards[COL_FAILED].textContent).toContain("0");
+  it("shows a recorded zero average as a duration, not a dash", async () => {
+    serveHealth(createAppHealth({ handler_avg_duration_ms: 0, job_avg_duration_ms: 0 }));
+    const { cards } = renderStrip();
+    await waitFor(() => expect(cards()[COL_HANDLER_AVG].textContent).toContain("<1ms"));
+    expect(cards()[COL_JOB_AVG].textContent).toContain("<1ms");
   });
 
-  it("renders 0% for ERROR RATE when there are no runs", () => {
-    const { getByTestId } = renderStrip();
-    const strip = getByTestId(STRIP_TESTID);
-    expect(strip.textContent).toContain("0%");
+  it("shows no tone and dashes for averages when nothing ran", async () => {
+    serveHealth(createAppHealth());
+    const { cards } = renderStrip();
+    await waitFor(() => expect(cards()[COL_ERROR_RATE].textContent).toContain("0%"));
+    expect(cards()[COL_ERROR_RATE].querySelector(ERR_TONE_SELECTOR)).toBeNull();
+    expect(cards()[COL_HANDLER_AVG].textContent).toContain("—");
+    expect(cards()[COL_JOB_AVG].textContent).toContain("—");
   });
 
-  it("computes ERROR RATE from failed + timed out runs", () => {
-    const listeners = [createListener({ listener_id: 1, total_invocations: 10, failed: 1, timed_out: 1 })];
-    const { cards } = renderStrip(listeners);
-    // (1 failed + 1 timed out) / 10 runs = 20%
-    expect(cards[COL_ERROR_RATE].textContent).toContain("20%");
+  it("shows the error rate as unavailable when the health request fails", async () => {
+    server.use(http.get(HEALTH_ROUTE, () => HttpResponse.json(null, { status: 503 })));
+    const { cards } = renderStrip();
+    await waitFor(() => expect(cards()[COL_ERROR_RATE].textContent).toContain("unavailable"));
+    expect(cards()[COL_ERROR_RATE].querySelector(ERR_TONE_SELECTOR)).not.toBeNull();
   });
 
-  it("applies err tone to ERROR RATE when there are errors", () => {
-    const listeners = [createListener({ listener_id: 1, total_invocations: 10, failed: 2, timed_out: 0 })];
-    const { cards } = renderStrip(listeners);
-    expect(cards[COL_ERROR_RATE].querySelector(ERR_TONE_SELECTOR)).not.toBeNull();
+  it("refetches health when one of the app's executions completes", async () => {
+    const requests = serveHealth(createAppHealth());
+    renderStrip();
+    await waitFor(() => expect(requests.length).toBe(1));
+
+    act(() => {
+      useAppStore.setState({
+        executionCompleted: [createExecutionCompletedPayload({ kind: "handler", app_key: "my_app" })],
+      });
+    });
+
+    await waitFor(() => expect(requests.length).toBeGreaterThan(1), { timeout: WS_DEBOUNCE_MAX_WAIT_MS });
   });
 
-  it("does not apply a tone to ERROR RATE when there are no errors", () => {
-    const listeners = [createListener({ listener_id: 1, total_invocations: 10, failed: 0, timed_out: 0 })];
-    const { cards } = renderStrip(listeners);
-    expect(cards[COL_ERROR_RATE].querySelector(ERR_TONE_SELECTOR)).toBeNull();
-  });
-
-  it("shows weighted average duration across listeners and jobs", () => {
-    const listeners = [
-      createListener({ listener_id: 1, total_invocations: 10, avg_duration_ms: 100 }),
-      createListener({ listener_id: 2, total_invocations: 0, avg_duration_ms: 5000 }),
-    ];
-    const jobs = [createJob({ job_id: 1, total_executions: 10, avg_duration_ms: 300 })];
-    const { cards } = renderStrip(listeners, jobs);
-    // (100*10 + 300*10) / 20 = 200ms — the idle listener's 5000ms is excluded (0 runs)
-    expect(cards[COL_AVG_DURATION].textContent).toContain("200.0ms");
-  });
-
-  it("shows a dash for AVG DURATION when no handlers have run", () => {
-    const { cards } = renderStrip([createListener({ total_invocations: 0 })]);
-    expect(cards[COL_AVG_DURATION].textContent).toContain("—");
-  });
-
-  it("renders testid overview-health-strip", () => {
-    const { getByTestId } = renderStrip();
-    expect(getByTestId(STRIP_TESTID)).toBeDefined();
+  it("drops the job average on small mobile", async () => {
+    mockMediaQueryMatches(true);
+    serveHealth(createAppHealth());
+    const { cards, getByTestId } = renderStrip();
+    await waitFor(() => expect(getByTestId(STRIP_TESTID).textContent).toContain("0%"));
+    expect(cards().length).toBe(3);
   });
 });

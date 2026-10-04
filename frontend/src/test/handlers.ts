@@ -13,7 +13,13 @@ import { http, HttpResponse } from "msw";
 import type { SetupServer } from "msw/node";
 
 import type { components } from "../api/generated-types";
-import { createManifestList, createSystemConfig, createSystemStatus, createTelemetryStatus } from "./factories";
+import {
+  createAppHealth,
+  createManifestList,
+  createSystemConfig,
+  createSystemStatus,
+  createTelemetryStatus,
+} from "./factories";
 
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
@@ -26,6 +32,7 @@ type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
+type AppHealth = components["schemas"]["AppHealth"];
 type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 type BlockingFindingsResponse = components["schemas"]["BlockingFindingsResponse"];
 type UnattributedBlockingResponse = components["schemas"]["UnattributedBlockingResponse"];
@@ -100,6 +107,11 @@ export const handlers = [
   // GET /api/telemetry/app/:app_key/jobs
   http.get("/api/telemetry/app/:app_key/jobs", () => {
     return HttpResponse.json<JobSummary[]>([]);
+  }),
+
+  // GET /api/telemetry/app/:app_key/health
+  http.get("/api/telemetry/app/:app_key/health", () => {
+    return HttpResponse.json<AppHealth>(createAppHealth());
   }),
 
   // GET /api/telemetry/app/:app_key/activity

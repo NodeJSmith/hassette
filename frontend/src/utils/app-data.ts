@@ -29,7 +29,6 @@ export interface AppRow {
   total_timed_out: number;
   total_job_errors: number;
   total_job_timed_out: number;
-  error_rate: number;
   last_activity_ts: number | null;
   activity_buckets: Array<{ ok: number; err: number }>;
   last_error_message: string | null;
@@ -67,8 +66,7 @@ export function toAppRow(entry: DashboardAppGridEntry): AppRow {
     total_timed_out: entry.total_timed_out,
     total_job_errors: entry.total_job_errors,
     total_job_timed_out: entry.total_job_timed_out,
-    error_rate: entry.error_rate,
-    last_activity_ts: entry.last_activity_ts,
+    last_activity_ts: entry.health.last_activity_ts,
     activity_buckets: entry.activity_buckets ?? [],
     last_error_message: entry.last_error_message ?? null,
     last_error_type: entry.last_error_type ?? null,

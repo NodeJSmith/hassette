@@ -11,9 +11,10 @@ DASHBOARD_COLUMNS: list[Column] = [
     Column("status", "Status", max_width=8),
     Column("total_invocations", "Invoc", max_width=6),
     Column("total_errors", "Errs", max_width=5),
-    Column("avg_duration_ms", "Avg Dur", max_width=8, formatter=fmt_duration_ms),
-    Column("last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
-    Column("health_status", "Health", max_width=9),
+    Column("health.handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
+    Column("health.job_avg_duration_ms", "Job Avg", max_width=9, formatter=fmt_duration_ms),
+    Column("health.last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
+    Column("health.health_status", "Health", max_width=9),
 ]
 
 

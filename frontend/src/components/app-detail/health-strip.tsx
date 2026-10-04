@@ -1,50 +1,57 @@
-import type { JobData, ListenerData } from "../../api/endpoints";
+import { getAppHealth } from "../../api/endpoints";
 import { BREAKPOINT_SMALL_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
-import { formatDurationOrDash } from "../../utils/format";
-import { computeHandlerStats } from "../../utils/handler-stats";
+import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
+import { isExecutionDefined, useAppExecution } from "../../hooks/use-scoped-execution";
+import { useScopedQuery } from "../../hooks/use-scoped-query";
+import { queryKeys } from "../../lib/query-keys";
+import { formatOptionalDuration } from "../../utils/format";
 import { StatsStrip, type StatsStripCell } from "../shared/stats-strip";
 
 interface OverviewHealthStripProps {
-  listeners: ListenerData[];
-  jobs: JobData[];
+  appKey: string;
+  resolvedInstanceIndex: number;
+  /** Registered handlers and jobs. Health itself comes from the server and also counts runs of
+   *  handlers and jobs removed since, so the two are not derived from the same rows. */
+  handlerCount: number;
 }
 
-export function OverviewHealthStrip({ listeners, jobs }: OverviewHealthStripProps) {
+export function OverviewHealthStrip({ appKey, resolvedInstanceIndex, handlerCount }: OverviewHealthStripProps) {
   const isSmallMobile = useMediaQuery(BREAKPOINT_SMALL_MOBILE);
-
-  const { totalInvocations, totalExecutions, totalFailed, totalTimedOut, totalAvgDurationMs } = computeHandlerStats(
-    listeners,
-    jobs,
+  const { data: health, isError } = useScopedQuery(
+    queryKeys.appHealth.base(appKey, resolvedInstanceIndex),
+    (since, signal) => getAppHealth(appKey, resolvedInstanceIndex, since, signal),
   );
 
-  const totalRuns = totalInvocations + totalExecutions;
-  // Cancelled is deliberately excluded from the error rate: cancellation is the designed
-  // outcome of restart/replace overlap modes, not a failure. Timed-out still contributes,
-  // matching the backend success_rate, which counts only error + timed_out as failures.
-  const totalErrors = totalFailed + totalTimedOut;
-  const errorRate = totalRuns > 0 ? Math.round((totalErrors / totalRuns) * 100) : 0;
+  const execution = useAppExecution(appKey);
+  useQueryInvalidator(execution, isExecutionDefined, queryKeys.appHealth.prefix(appKey));
 
+  const errorRate = health?.error_rate ?? null;
+  const showErrorTone = isError || (errorRate ?? 0) > 0;
   const cells: StatsStripCell[] = [
-    { label: "Handlers", value: listeners.length + jobs.length },
-    { label: isSmallMobile ? "Runs" : "Total Runs", value: totalRuns },
-    {
-      label: "Failed",
-      value: totalFailed,
-      tone: totalFailed > 0 ? "err" : undefined,
-    },
+    { label: "Handlers", value: handlerCount },
     {
       label: "Error Rate",
-      value: `${errorRate}%`,
-      tone: totalErrors > 0 ? "err" : undefined,
+      value: formatErrorRate(isError, errorRate),
+      tone: showErrorTone ? "err" : undefined,
     },
+    { label: "Handler Avg", value: formatOptionalDuration(health?.handler_avg_duration_ms) },
   ];
 
   if (!isSmallMobile) {
-    cells.push({
-      label: "Avg Duration",
-      value: formatDurationOrDash(totalAvgDurationMs),
-    });
+    cells.push({ label: "Job Avg", value: formatOptionalDuration(health?.job_avg_duration_ms) });
   }
 
   return <StatsStrip cells={cells} cols={cells.length} data-testid="overview-health-strip" />;
+}
+
+function formatErrorRate(isError: boolean, errorRate: number | null): string {
+  // A failed request reads "unavailable", so a telemetry outage never passes for an idle app.
+  if (isError) return "unavailable";
+  if (errorRate === null) return "—";
+  const rounded = Math.round(errorRate);
+  // Rounding never hides the difference from the extremes: a rate that rounds to 0 reads "<1%"
+  // (some runs failed), and one that rounds to 100 reads ">99%" (some runs succeeded).
+  if (errorRate > 0 && rounded === 0) return "<1%";
+  if (errorRate < 100 && rounded === 100) return ">99%";
+  return `${rounded}%`;
 }

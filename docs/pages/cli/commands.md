@@ -136,19 +136,24 @@ hassette app reload my-app --instance office --yes
 
 ### `hassette app health <key>`
 
-Reports health metrics for an app: error rate, average handler and job duration, and overall health status.
+Reports health metrics for an app: error rate, overall health status, last activity, and average handler and job duration. An average shows `—` when nothing of that kind ran in the window. The job average leaves out skipped runs, so it also shows `—` when every job run was skipped.
 
 ```console
 $ hassette app health bus_handler_app
-╭────────── App Health ─────────────╮
-│  error_rate            0.0        │
-│  error_rate_class      good       │
-│  handler_avg_duration  0.0        │
-│  job_avg_duration      0.0        │
-│  last_activity_ts                 │
-│  health_status         excellent  │
-╰───────────────────────────────────╯
+╭───────────── App Health ─────────────╮
+│  error_rate               0.0        │
+│  error_rate_class         good       │
+│  health_status            excellent  │
+│  last_activity_ts         —          │
+│  handler_avg_duration_ms  —          │
+│  job_avg_duration_ms      —          │
+╰──────────────────────────────────────╯
 ```
+
+Health counts every run in the window, including runs of handlers and jobs removed since. `hassette dashboard` uses the same rule across all of an app's instances, so the two agree whenever only one instance ran in the window.
+
+??? note "Runs that drop out of health"
+    Health reads stored executions. Retention deletes old ones, and a restart deletes the previous session's `once=True` listeners along with their executions, so those runs stop counting.
 
 `--instance` and `--since` scope the metrics window:
 
@@ -370,17 +375,17 @@ The Stall column shows how long the loop was held. A [Tier 2](../core-concepts/b
 
 ## `hassette dashboard`
 
-Per-app health status, invocation counts, error counts, average duration, and last activity. Mirrors the dashboard grid in the web UI.
+Per-app health status, invocation counts, error counts, average handler and job duration, and last activity, across all of an app's instances. Mirrors the dashboard grid in the web UI. An average is blank when nothing of that kind ran.
 
 ```console
 $ hassette dashboard
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┓
-┃ App             ┃ Status  ┃ Invoc ┃ Errs ┃ Avg Dur ┃ Last Active ┃ Health    ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━┩
-│ config_app      │ running │ 0     │ 0    │ 0ms     │             │ excellent │
-│ trivial_app     │ running │ 0     │ 0    │ 0ms     │             │ excellent │
-│ bus_handler_app │ running │ 0     │ 0    │ 0ms     │             │ excellent │
-└─────────────────┴─────────┴───────┴──────┴─────────┴─────────────┴───────────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ App             ┃ Status  ┃ Invoc ┃ Errs ┃ Handler Avg ┃ Job Avg ┃ Last Active ┃ Health    ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ config_app      │ running │ 0     │ 0    │             │         │             │ excellent │
+│ trivial_app     │ running │ 0     │ 0    │             │         │             │ excellent │
+│ bus_handler_app │ running │ 0     │ 0    │             │         │             │ excellent │
+└─────────────────┴─────────┴───────┴──────┴─────────────┴─────────┴─────────────┴───────────┘
 ```
 
 **API endpoint:** `GET /api/telemetry/dashboard/app-grid`

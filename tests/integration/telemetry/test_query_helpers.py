@@ -67,8 +67,8 @@ class TestGetAllAppSummariesFrameworkTier:
         summary = result["__hassette__"]
         assert summary.handler_count == 1
         assert summary.job_count == 1
-        assert summary.total_invocations == 1
-        assert summary.total_executions == 1
+        assert summary.aggregates.total_invocations == 1
+        assert summary.aggregates.total_executions == 1
 
         # my_app's registrations and activity are all app-tier, so it has no framework-tier data
         assert "my_app" not in result
@@ -92,4 +92,4 @@ class TestGetAllAppSummariesFrameworkTier:
         assert "my_app" in result
         summary = result["my_app"]
         assert summary.handler_count == 1  # only the framework listener
-        assert summary.total_invocations == 1
+        assert summary.aggregates.total_invocations == 1

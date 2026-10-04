@@ -32,4 +32,8 @@ export const queryKeys = {
     base: (appKey: string, idx: number) => ["app-activity", appKey, idx] as const,
     prefix: (appKey: string) => ["app-activity", appKey] as const,
   },
+  appHealth: {
+    base: (appKey: string, idx: number) => ["app-health", appKey, idx] as const,
+    prefix: (appKey: string) => ["app-health", appKey] as const,
+  },
 };

@@ -12,6 +12,7 @@ import pytest
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.summary_models import AppHealthSummary
+from hassette.web.telemetry_helpers import build_app_health
 
 from .helpers import (
     BASE_TS,
@@ -55,21 +56,21 @@ class TestGetAllAppSummaries:
         assert isinstance(a, AppHealthSummary)
         assert a.handler_count == 2
         assert a.job_count == 1
-        assert a.total_invocations == 3
-        assert a.total_errors == 1
-        assert a.total_executions == 2
-        assert a.total_job_errors == 1
-        assert a.avg_duration_ms == pytest.approx(20.0)  # (10+20+30)/3
-        assert a.last_activity_ts is not None
+        assert a.aggregates.total_invocations == 3
+        assert a.aggregates.handler_errors == 1
+        assert a.aggregates.total_executions == 2
+        assert a.aggregates.job_errors == 1
+        assert a.aggregates.handler_avg_duration_ms == pytest.approx(20.0)  # (10+20+30)/3
+        assert a.aggregates.last_activity_ts is not None
 
         b = result["app_b"]
         assert isinstance(b, AppHealthSummary)
         assert b.handler_count == 1
         assert b.job_count == 0
-        assert b.total_invocations == 1
-        assert b.total_errors == 0
-        assert b.total_executions == 0
-        assert b.total_job_errors == 0
+        assert b.aggregates.total_invocations == 1
+        assert b.aggregates.handler_errors == 0
+        assert b.aggregates.total_executions == 0
+        assert b.aggregates.job_errors == 0
 
     async def test_get_all_app_summaries_empty_db(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """No listeners or jobs — returns empty dict."""
@@ -99,10 +100,10 @@ class TestGetAllAppSummaries:
         result = await query_service.get_all_app_summaries(since=since_ts)
         assert "app_x" in result
         x = result["app_x"]
-        assert x.total_invocations == 2
-        assert x.total_errors == 1
-        assert x.total_executions == 1
-        assert x.total_job_errors == 0
+        assert x.aggregates.total_invocations == 2
+        assert x.aggregates.handler_errors == 1
+        assert x.aggregates.total_executions == 1
+        assert x.aggregates.job_errors == 0
 
     async def test_get_all_app_summaries_multi_instance_activity_aggregation(
         self, query_service: TelemetryQueryService, db: DbFixture
@@ -134,11 +135,11 @@ class TestGetAllAppSummaries:
         # handler_count = distinct (name, topic) identities across all instances: {on_a, on_b} = 2
         assert m.handler_count == 2
         # total_invocations sums across ALL instances: 2 + 3 + 1 = 6
-        assert m.total_invocations == 6
-        # total_errors sums across ALL instances: 1 + 1 = 2
-        assert m.total_errors == 2
-        # avg_duration_ms is AVG over all 6 raw rows: (10+20+30+40+50+60)/6 = 35.0
-        assert m.avg_duration_ms == pytest.approx(35.0)
+        assert m.aggregates.total_invocations == 6
+        # handler_errors sums across ALL instances: 1 + 1 = 2
+        assert m.aggregates.handler_errors == 2
+        # handler_avg_duration_ms is AVG over all 6 raw rows: (10+20+30+40+50+60)/6 = 35.0
+        assert m.aggregates.handler_avg_duration_ms == pytest.approx(35.0)
 
     async def test_get_all_app_summaries_asymmetric_instances_handler_count(
         self, query_service: TelemetryQueryService, db: DbFixture
@@ -189,9 +190,9 @@ class TestGetAllAppSummaries:
         # job_count = distinct job_name across all instances: {cron_a} = 1
         assert j.job_count == 1
         # total_executions sums across ALL instances: 2 + 3 + 1 = 6
-        assert j.total_executions == 6
-        # total_job_errors sums across ALL instances: 1 + 1 = 2
-        assert j.total_job_errors == 2
+        assert j.aggregates.total_executions == 6
+        # job_errors sums across ALL instances: 1 + 1 = 2
+        assert j.aggregates.job_errors == 2
 
     async def test_get_all_app_summaries_single_instance_equivalence(
         self, query_service: TelemetryQueryService, db: DbFixture
@@ -213,11 +214,11 @@ class TestGetAllAppSummaries:
 
         assert s.handler_count == 1
         assert s.job_count == 1
-        assert s.total_invocations == 2
-        assert s.total_errors == 1
-        assert s.total_executions == 1
-        assert s.total_job_errors == 0
-        assert s.avg_duration_ms == pytest.approx(20.0, abs=0.001)
+        assert s.aggregates.total_invocations == 2
+        assert s.aggregates.handler_errors == 1
+        assert s.aggregates.total_executions == 1
+        assert s.aggregates.job_errors == 0
+        assert s.aggregates.handler_avg_duration_ms == pytest.approx(20.0, abs=0.001)
 
     async def test_get_all_app_summaries_multi_instance_since_scoped(
         self, query_service: TelemetryQueryService, db: DbFixture
@@ -264,15 +265,135 @@ class TestGetAllAppSummaries:
         # job_count from instance 0 only
         assert ms.job_count == 1
         # total_invocations: after since_ts across all instances = 2 + 1 = 3
-        assert ms.total_invocations == 3
-        # total_errors: after since_ts across all instances = 1
-        assert ms.total_errors == 1
+        assert ms.aggregates.total_invocations == 3
+        # handler_errors: after since_ts across all instances = 1
+        assert ms.aggregates.handler_errors == 1
         # total_executions: after since_ts across all instances = 1 + 1 = 2
-        assert ms.total_executions == 2
-        # total_job_errors: after since_ts across all instances = 1
-        assert ms.total_job_errors == 1
-        # avg_duration_ms: after since_ts across all instances = (10+20+30)/3 = 20.0
-        assert ms.avg_duration_ms == pytest.approx(20.0)
+        assert ms.aggregates.total_executions == 2
+        # job_errors: after since_ts across all instances = 1
+        assert ms.aggregates.job_errors == 1
+        # handler_avg_duration_ms: after since_ts across all instances = (10+20+30)/3 = 20.0
+        assert ms.aggregates.handler_avg_duration_ms == pytest.approx(20.0)
+
+
+class TestAppHealthAcrossScopes:
+    """Per-instance and per-app health share one definition; only the instance set differs."""
+
+    async def test_single_instance_app_health_agrees_across_scopes(
+        self, query_service: TelemetryQueryService, db: DbFixture
+    ) -> None:
+        """When only one instance ran, both scopes build the same AppHealth over the same window.
+
+        The data covers each rule both scopes must apply identically: a removed handler's error
+        counts, a removed job's execution counts, a skipped job run is excluded from the job
+        average, a timed-out run is a failure, and an execution before the window is excluded.
+        """
+        db_svc, session_id = db
+        since_ts = BASE_TS + 5.0
+
+        live = await insert_listener(db_svc, app_key="app_one", handler_method="on_live")
+        removed = await insert_listener(db_svc, app_key="app_one", handler_method="on_removed")
+        job = await insert_job(db_svc, app_key="app_one", job_name="job_live")
+        removed_job = await insert_job(db_svc, app_key="app_one", job_name="job_removed")
+
+        await insert_invocation(db_svc, live, session_id, duration_ms=10.0, execution_start_ts=BASE_TS + 10.0)
+        await insert_invocation(
+            db_svc, live, session_id, status="timed_out", duration_ms=50.0, execution_start_ts=BASE_TS + 11.0
+        )
+        await insert_invocation(
+            db_svc, removed, session_id, status="error", duration_ms=30.0, execution_start_ts=BASE_TS + 12.0
+        )
+        await insert_execution(db_svc, job, session_id, duration_ms=100.0, execution_start_ts=BASE_TS + 13.0)
+        await insert_execution(
+            db_svc, job, session_id, status="skipped", duration_ms=0.0, execution_start_ts=BASE_TS + 14.0
+        )
+        await insert_execution(
+            db_svc, removed_job, session_id, status="error", duration_ms=200.0, execution_start_ts=BASE_TS + 15.0
+        )
+        # Before the window: excluded from both scopes.
+        await insert_invocation(
+            db_svc, live, session_id, status="error", duration_ms=999.0, execution_start_ts=BASE_TS + 1.0
+        )
+        await db_svc.db.execute("UPDATE listeners SET removed_at = ? WHERE id = ?", (BASE_TS + 20.0, removed))
+        await db_svc.db.execute("UPDATE scheduled_jobs SET removed_at = ? WHERE id = ?", (BASE_TS + 20.0, removed_job))
+        await db_svc.db.commit()
+
+        per_instance = build_app_health(
+            await query_service.get_app_health_aggregates(app_key="app_one", instance_index=0, since=since_ts)
+        )
+        per_app = build_app_health((await query_service.get_all_app_summaries(since=since_ts))["app_one"].aggregates)
+
+        assert per_app == per_instance
+        # 3 failures (timed_out, removed handler's error, removed job's error) of 6 executions.
+        assert per_app.error_rate == pytest.approx(50.0)
+        assert per_app.handler_avg_duration_ms == pytest.approx(30.0)  # (10 + 50 + 30) / 3
+        assert per_app.job_avg_duration_ms == pytest.approx(150.0)  # (100 + 200) / 2, skipped excluded
+        assert per_app.last_activity_ts == pytest.approx(BASE_TS + 15.0)
+
+    async def test_removed_handler_counts_toward_health_but_not_handler_count(
+        self, query_service: TelemetryQueryService, db: DbFixture
+    ) -> None:
+        """handler_count describes what is registered; health describes what ran."""
+        db_svc, session_id = db
+
+        live = await insert_listener(db_svc, app_key="app_r", handler_method="on_live")
+        removed = await insert_listener(db_svc, app_key="app_r", handler_method="on_removed")
+        await insert_invocation(db_svc, live, session_id, status="success")
+        await insert_invocation(db_svc, removed, session_id, status="error")
+        await db_svc.db.execute("UPDATE listeners SET removed_at = ? WHERE id = ?", (BASE_TS, removed))
+        await db_svc.db.commit()
+
+        summary = (await query_service.get_all_app_summaries())["app_r"]
+
+        assert summary.handler_count == 1
+        assert summary.aggregates.total_invocations == 2
+        assert summary.aggregates.handler_errors == 1
+
+    async def test_scopes_agree_after_a_registration_changes_tier(
+        self, query_service: TelemetryQueryService, db: DbFixture
+    ) -> None:
+        """Both scopes select executions by the execution's tier, not the registration's current tier."""
+        db_svc, session_id = db
+        listener = await insert_listener(db_svc, app_key="app_tier")
+        await insert_invocation(db_svc, listener, session_id, status="error", source_tier="app")
+        await db_svc.db.execute("UPDATE listeners SET source_tier = 'framework' WHERE id = ?", (listener,))
+        await db_svc.db.commit()
+
+        per_instance = await query_service.get_app_health_aggregates(app_key="app_tier", instance_index=0)
+        per_app = (await query_service.get_all_app_summaries())["app_tier"].aggregates
+
+        assert per_app == per_instance
+        assert per_app.handler_errors == 1
+
+    async def test_job_average_is_none_when_every_job_run_was_skipped(
+        self, query_service: TelemetryQueryService, db: DbFixture
+    ) -> None:
+        """Skipped runs count as executions but not toward the job average, in both scopes."""
+        db_svc, session_id = db
+        job = await insert_job(db_svc, app_key="app_skip")
+        await insert_execution(db_svc, job, session_id, status="skipped", duration_ms=0.0)
+        await insert_execution(db_svc, job, session_id, status="skipped", duration_ms=0.0)
+
+        per_instance = await query_service.get_app_health_aggregates(app_key="app_skip", instance_index=0)
+        per_app = (await query_service.get_all_app_summaries())["app_skip"].aggregates
+
+        for agg in (per_instance, per_app):
+            assert agg.total_executions == 2
+            assert agg.job_avg_duration_ms is None
+
+    async def test_averages_are_none_when_nothing_ran(
+        self, query_service: TelemetryQueryService, db: DbFixture
+    ) -> None:
+        """A registered handler and job with no executions yield no averages, not 0ms."""
+        db_svc, _ = db
+        await insert_listener(db_svc, app_key="app_idle")
+        await insert_job(db_svc, app_key="app_idle")
+
+        summary = (await query_service.get_all_app_summaries())["app_idle"]
+
+        assert summary.aggregates.handler_avg_duration_ms is None
+        assert summary.aggregates.job_avg_duration_ms is None
+        assert summary.aggregates.last_activity_ts is None
 
 
 class TestCrossSessionAndRetiredRows:
@@ -462,8 +583,8 @@ class TestGetAllAppSummariesSourceTier:
         assert "my_app" in result
         summary = result["my_app"]
         # Only the 1 app-tier invocation should be counted
-        assert summary.total_invocations == 1
-        assert summary.total_errors == 0
+        assert summary.aggregates.total_invocations == 1
+        assert summary.aggregates.handler_errors == 0
 
 
 class TestDiFailureFlag:

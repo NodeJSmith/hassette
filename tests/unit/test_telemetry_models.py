@@ -14,37 +14,49 @@ class TestAppHealthSummary:
         data = {
             "handler_count": 3,
             "job_count": 2,
-            "total_invocations": 100,
-            "total_errors": 5,
-            "total_executions": 50,
-            "total_job_errors": 2,
-            "avg_duration_ms": 12.5,
-            "last_activity_ts": TEST_EPOCH_B,
+            "aggregates": {
+                "total_invocations": 100,
+                "handler_errors": 5,
+                "handler_timed_out": 1,
+                "handler_avg_duration_ms": 12.5,
+                "total_executions": 50,
+                "job_errors": 2,
+                "job_timed_out": 0,
+                "job_avg_duration_ms": 30.0,
+                "last_activity_ts": TEST_EPOCH_B,
+            },
         }
         model = AppHealthSummary.model_validate(data)
         assert model.handler_count == 3
         assert model.job_count == 2
-        assert model.total_invocations == 100
-        assert model.total_errors == 5
-        assert model.total_executions == 50
-        assert model.total_job_errors == 2
-        assert model.avg_duration_ms == 12.5
-        assert model.last_activity_ts == TEST_EPOCH_B
+        assert model.aggregates.total_invocations == 100
+        assert model.aggregates.handler_errors == 5
+        assert model.aggregates.total_executions == 50
+        assert model.aggregates.job_errors == 2
+        assert model.aggregates.handler_avg_duration_ms == 12.5
+        assert model.aggregates.job_avg_duration_ms == 30.0
+        assert model.aggregates.last_activity_ts == TEST_EPOCH_B
 
-    def test_app_health_summary_nullable_last_activity(self) -> None:
+    def test_app_health_summary_nothing_ran(self) -> None:
         data = {
             "handler_count": 0,
             "job_count": 0,
-            "total_invocations": 0,
-            "total_errors": 0,
-            "total_executions": 0,
-            "total_job_errors": 0,
-            "avg_duration_ms": 0.0,
-            "last_activity_ts": None,
+            "aggregates": {
+                "total_invocations": 0,
+                "handler_errors": 0,
+                "handler_timed_out": 0,
+                "handler_avg_duration_ms": None,
+                "total_executions": 0,
+                "job_errors": 0,
+                "job_timed_out": 0,
+                "job_avg_duration_ms": None,
+                "last_activity_ts": None,
+            },
         }
         model = AppHealthSummary.model_validate(data)
-        assert model.last_activity_ts is None
-        assert model.handler_count == 0
+        assert model.aggregates.last_activity_ts is None
+        assert model.aggregates.handler_avg_duration_ms is None
+        assert model.aggregates.job_avg_duration_ms is None
 
 
 class TestListenerSummary:

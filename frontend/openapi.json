@@ -1502,7 +1502,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppHealthResponse"
+                  "$ref": "#/components/schemas/AppHealth"
                 }
               }
             }
@@ -2838,11 +2838,12 @@
         "title": "AppConfigResponse",
         "description": "Response model for GET /apps/{app_key}/config."
       },
-      "AppHealthResponse": {
+      "AppHealth": {
         "properties": {
           "error_rate": {
             "type": "number",
-            "title": "Error Rate"
+            "title": "Error Rate",
+            "description": "Failed (error or timed out) handler and job executions as a percentage of all of them."
           },
           "error_rate_class": {
             "type": "string",
@@ -2853,13 +2854,15 @@
             ],
             "title": "Error Rate Class"
           },
-          "handler_avg_duration": {
-            "type": "number",
-            "title": "Handler Avg Duration"
-          },
-          "job_avg_duration": {
-            "type": "number",
-            "title": "Job Avg Duration"
+          "health_status": {
+            "type": "string",
+            "enum": [
+              "excellent",
+              "good",
+              "warning",
+              "critical"
+            ],
+            "title": "Health Status"
           },
           "last_activity_ts": {
             "anyOf": [
@@ -2870,30 +2873,45 @@
                 "type": "null"
               }
             ],
-            "title": "Last Activity Ts"
+            "title": "Last Activity Ts",
+            "description": "Start of the latest handler or job execution, or null when nothing ran."
           },
-          "health_status": {
-            "type": "string",
-            "enum": [
-              "excellent",
-              "good",
-              "warning",
-              "critical"
+          "handler_avg_duration_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Health Status"
+            "title": "Handler Avg Duration Ms",
+            "description": "Mean handler execution duration, or null when no handler ran."
+          },
+          "job_avg_duration_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Avg Duration Ms",
+            "description": "Mean job execution duration excluding skipped runs; null when no job ran or every job run was skipped."
           }
         },
         "type": "object",
         "required": [
           "error_rate",
           "error_rate_class",
-          "handler_avg_duration",
-          "job_avg_duration",
+          "health_status",
           "last_activity_ts",
-          "health_status"
+          "handler_avg_duration_ms",
+          "job_avg_duration_ms"
         ],
-        "title": "AppHealthResponse",
-        "description": "Health metrics for a single app instance."
+        "title": "AppHealth",
+        "description": "Health of an app over a time window: one app instance, or all instances of an app.\n\nComputed over every execution in the window, including those of handlers and jobs removed since."
       },
       "AppInstanceResponse": {
         "properties": {
@@ -3530,43 +3548,8 @@
             "title": "Total Job Timed Out",
             "default": 0
           },
-          "avg_duration_ms": {
-            "type": "number",
-            "title": "Avg Duration Ms"
-          },
-          "last_activity_ts": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Activity Ts"
-          },
-          "health_status": {
-            "type": "string",
-            "enum": [
-              "excellent",
-              "good",
-              "warning",
-              "critical"
-            ],
-            "title": "Health Status"
-          },
-          "error_rate": {
-            "type": "number",
-            "title": "Error Rate"
-          },
-          "error_rate_class": {
-            "type": "string",
-            "enum": [
-              "good",
-              "warn",
-              "bad"
-            ],
-            "title": "Error Rate Class"
+          "health": {
+            "$ref": "#/components/schemas/AppHealth"
           },
           "activity_buckets": {
             "items": {
@@ -3696,11 +3679,7 @@
           "total_errors",
           "total_executions",
           "total_job_errors",
-          "avg_duration_ms",
-          "last_activity_ts",
-          "health_status",
-          "error_rate",
-          "error_rate_class"
+          "health"
         ],
         "title": "DashboardAppGridEntry",
         "description": "Per-app health entry for the dashboard grid."

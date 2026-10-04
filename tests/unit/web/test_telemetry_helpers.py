@@ -4,7 +4,13 @@ from types import SimpleNamespace
 
 import pytest
 
-from hassette.web.telemetry_helpers import compute_error_rate, compute_success_rate, format_handler_summary
+from hassette.schemas.summary_models import AppHealthAggregates
+from hassette.web.telemetry_helpers import (
+    build_app_health,
+    compute_error_rate,
+    compute_success_rate,
+    format_handler_summary,
+)
 
 
 @pytest.mark.parametrize(
@@ -56,6 +62,30 @@ def make_listener(
         human_description=human_description,
         predicate_description=predicate_description,
     )
+
+
+def test_build_app_health_counts_timeouts_as_failures() -> None:
+    """Errors and timeouts of both kinds are failures; averages and last activity pass through."""
+    health = build_app_health(
+        AppHealthAggregates(
+            total_invocations=80,
+            handler_errors=4,
+            handler_timed_out=2,
+            handler_avg_duration_ms=12.0,
+            total_executions=20,
+            job_errors=1,
+            job_timed_out=1,
+            job_avg_duration_ms=None,
+            last_activity_ts=1700000000.0,
+        )
+    )
+
+    assert health.error_rate == pytest.approx(8.0)  # 8 failures / 100 executions
+    assert health.error_rate_class == "warn"
+    assert health.health_status == "warning"  # 92% success
+    assert health.handler_avg_duration_ms == 12.0
+    assert health.job_avg_duration_ms is None
+    assert health.last_activity_ts == 1700000000.0
 
 
 def test_format_handler_summary_entity_with_human_description() -> None:

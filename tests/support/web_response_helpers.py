@@ -5,7 +5,7 @@ from typing import Any
 import tomli_w
 from hassette_wire import (
     AppConfigResponse,
-    AppHealthResponse,
+    AppHealth,
     AppInstanceResponse,
     AppSourceResponse,
     ConfigSchemaResponse,
@@ -70,11 +70,7 @@ def make_dashboard_app_grid_entry(
     total_errors: int = 0,
     total_executions: int = 50,
     total_job_errors: int = 0,
-    avg_duration_ms: float = 5.0,
-    last_activity_ts: float | None = None,
-    health_status: str = "excellent",
-    error_rate: float = 0.0,
-    error_rate_class: str = "good",
+    health: AppHealth | None = None,
     class_name: str = "TestApp",
     filename: str = "test_app.py",
     enabled: bool = True,
@@ -98,11 +94,7 @@ def make_dashboard_app_grid_entry(
         total_errors=total_errors,
         total_executions=total_executions,
         total_job_errors=total_job_errors,
-        avg_duration_ms=avg_duration_ms,
-        last_activity_ts=last_activity_ts,
-        health_status=health_status,  # pyright: ignore[reportArgumentType]
-        error_rate=error_rate,
-        error_rate_class=error_rate_class,  # pyright: ignore[reportArgumentType]
+        health=health if health is not None else make_app_health(),
         class_name=class_name,
         filename=filename,
         enabled=enabled,
@@ -168,20 +160,20 @@ def make_config_schema_response() -> ConfigSchemaResponse:
     )
 
 
-def make_app_health_response(
+def make_app_health(
     error_rate: float = 0.0,
     error_rate_class: str = "good",
-    handler_avg_duration: float = 5.0,
-    job_avg_duration: float = 10.0,
+    handler_avg_duration_ms: float | None = 5.0,
+    job_avg_duration_ms: float | None = 10.0,
     last_activity_ts: float | None = TEST_EPOCH_B,
     health_status: str = "excellent",
-) -> AppHealthResponse:
-    """Build an AppHealthResponse with sensible defaults."""
-    return AppHealthResponse(
+) -> AppHealth:
+    """Build an AppHealth with sensible defaults."""
+    return AppHealth(
         error_rate=error_rate,
         error_rate_class=error_rate_class,  # pyright: ignore[reportArgumentType]
-        handler_avg_duration=handler_avg_duration,
-        job_avg_duration=job_avg_duration,
+        handler_avg_duration_ms=handler_avg_duration_ms,
+        job_avg_duration_ms=job_avg_duration_ms,
         last_activity_ts=last_activity_ts,
         health_status=health_status,  # pyright: ignore[reportArgumentType]
     )

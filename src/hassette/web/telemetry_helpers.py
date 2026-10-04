@@ -3,7 +3,9 @@
 from logging import getLogger
 from typing import Protocol
 
-from hassette_wire import ErrorRateClass, HealthStatus
+from hassette_wire import AppHealth, ErrorRateClass, HealthStatus
+
+from hassette.schemas.summary_models import AppHealthAggregates
 
 LOGGER = getLogger(__name__)
 
@@ -86,6 +88,28 @@ def classify_health_bar(success_rate: float) -> HealthStatus:
     if success_rate >= HEALTH_WARNING_THRESHOLD:
         return "warning"
     return "critical"
+
+
+def build_app_health(agg: AppHealthAggregates) -> AppHealth:
+    """Build the served ``AppHealth`` from execution aggregates.
+
+    The one place app health is computed, for both the per-instance and the per-app scope:
+    scope only changes which executions ``agg`` covers. Timed-out executions count as failures.
+    """
+    error_rate = compute_error_rate(
+        total_invocations=agg.total_invocations,
+        total_executions=agg.total_executions,
+        handler_errors=agg.handler_errors + agg.handler_timed_out,
+        job_errors=agg.job_errors + agg.job_timed_out,
+    )
+    return AppHealth(
+        error_rate=error_rate,
+        error_rate_class=classify_error_rate(error_rate),
+        health_status=classify_health_bar(compute_success_rate(error_rate)),
+        last_activity_ts=agg.last_activity_ts,
+        handler_avg_duration_ms=agg.handler_avg_duration_ms,
+        job_avg_duration_ms=agg.job_avg_duration_ms,
+    )
 
 
 def extract_entity_from_topic(topic: str) -> str | None:

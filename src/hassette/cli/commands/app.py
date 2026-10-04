@@ -7,7 +7,7 @@ from cyclopts import Parameter
 from hassette_wire import (
     ActivityFeedEntry,
     AppConfigResponse,
-    AppHealthResponse,
+    AppHealth,
     AppManifestListResponse,
     AppSourceResponse,
 )
@@ -55,8 +55,8 @@ APP_HEALTH_COLUMNS: list[Column] = [
     Column("health_status", "Health", max_width=10),
     Column("error_rate", "Error Rate", max_width=10),
     Column("error_rate_class", "Rate Class", max_width=10),
-    Column("handler_avg_duration", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
-    Column("job_avg_duration", "Job Avg", max_width=9, formatter=fmt_duration_ms),
+    Column("handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
+    Column("job_avg_duration_ms", "Job Avg", max_width=9, formatter=fmt_duration_ms),
     Column("last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
 ]
 APP_ACTIVITY_COLUMNS: list[Column] = [
@@ -93,7 +93,7 @@ def cmd_app_health(
         since=since,
         source_tier=source_tier,
     )
-    result = client.get(f"/api/telemetry/app/{key}/health", AppHealthResponse, params=params)
+    result = client.get(f"/api/telemetry/app/{key}/health", AppHealth, params=params)
     render_detail(result, json_mode=ctx.json_mode)
 
 

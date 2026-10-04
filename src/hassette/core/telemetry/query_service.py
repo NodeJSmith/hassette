@@ -12,7 +12,6 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.telemetry.blocking_queries import BlockingQueriesMixin
 from hassette.core.telemetry.execution_queries import ExecutionQueriesMixin
 from hassette.core.telemetry.helpers import STORAGE_ERRORS, fetch_all_as_dicts, row_to_dict
-from hassette.core.telemetry.helpers import AppHealthAggregates as AppHealthAggregates  # re-exported
 from hassette.core.telemetry.registration_queries import RegistrationQueriesMixin
 from hassette.core.telemetry.summary_queries import SummaryQueriesMixin
 from hassette.exceptions import TelemetryUnavailableError

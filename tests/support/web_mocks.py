@@ -15,8 +15,8 @@ from hassette_wire import BlockingFindingsResponse, ResourceStatus, Unattributed
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.state_proxy import StateCacheFreshness
-from hassette.core.telemetry.query_service import AppHealthAggregates
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.summary_models import AppHealthAggregates
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
 from hassette.web.app import create_fastapi_app
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
@@ -46,19 +46,7 @@ def wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts = hassette._telemetry_query_service
     ts.get_listener_summary = AsyncMock(return_value=[])
     ts.get_job_summary = AsyncMock(return_value=[])
-    ts.get_app_health_aggregates = AsyncMock(
-        return_value=AppHealthAggregates(
-            total_invocations=0,
-            handler_errors=0,
-            handler_timed_out=0,
-            handler_avg_duration_ms=0.0,
-            total_executions=0,
-            job_errors=0,
-            job_timed_out=0,
-            job_avg_duration_ms=0.0,
-            last_activity_ts=None,
-        )
-    )
+    ts.get_app_health_aggregates = AsyncMock(return_value=AppHealthAggregates.empty())
     ts.get_all_app_summaries = AsyncMock(return_value={})
     ts.get_executions = AsyncMock(return_value=[])
     ts.get_execution_by_id = AsyncMock(return_value=None)

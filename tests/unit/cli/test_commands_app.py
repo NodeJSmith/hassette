@@ -28,7 +28,7 @@ from hassette.cli.output import now_epoch
 from tests.support.web_manifest_helpers import make_manifest_list_response, make_manifest_response
 from tests.support.web_response_helpers import (
     make_app_config_response,
-    make_app_health_response,
+    make_app_health,
     make_app_source_response,
 )
 from tests.support.web_telemetry_helpers import make_activity_feed_entry
@@ -110,7 +110,7 @@ class TestCmdApp:
 class TestCmdAppHealth:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """App health fetches from GET /api/telemetry/app/{key}/health."""
-        health = make_app_health_response()
+        health = make_app_health()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
@@ -120,7 +120,7 @@ class TestCmdAppHealth:
 
     def test_instance_integer_passes_index_param(self, cli_client_factory: CLIClientFactory) -> None:
         """App health --instance 1 passes instance_index=1 as a query param."""
-        health = make_app_health_response()
+        health = make_app_health()
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
@@ -130,7 +130,7 @@ class TestCmdAppHealth:
 
     def test_instance_name_resolution(self, cli_client_factory: CLIClientFactory) -> None:
         """App health --instance office resolves the name to an index."""
-        health = make_app_health_response()
+        health = make_app_health()
         instance_resp = AppInstanceResponse(
             app_key="my-app",
             index=2,
@@ -152,7 +152,7 @@ class TestCmdAppHealth:
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """App health renders a key-value detail panel."""
-        health = make_app_health_response(health_status="excellent", error_rate=0.05)
+        health = make_app_health(health_status="excellent", error_rate=0.05)
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )
@@ -162,7 +162,7 @@ class TestCmdAppHealth:
 
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
         """App health --json outputs a JSON object."""
-        health = make_app_health_response(error_rate=0.1)
+        health = make_app_health(error_rate=0.1)
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump())]
         )

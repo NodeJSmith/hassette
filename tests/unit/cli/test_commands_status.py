@@ -152,9 +152,10 @@ class TestCmdDashboard:
         """DASHBOARD_COLUMNS includes the core per-app fields."""
         field_names = [c.field for c in DASHBOARD_COLUMNS]
         assert "app_key" in field_names
-        assert "health_status" in field_names
-        assert "avg_duration_ms" in field_names
-        assert "last_activity_ts" in field_names
+        assert "health.health_status" in field_names
+        assert "health.handler_avg_duration_ms" in field_names
+        assert "health.job_avg_duration_ms" in field_names
+        assert "health.last_activity_ts" in field_names
 
     def test_dashboard_columns_count_is_compact(self) -> None:
         """Dashboard uses at most 8 columns for readability in 80-col terminals."""

@@ -11,7 +11,6 @@ from hassette.core.telemetry.helpers import (
     DEFAULT_LOG_RECORDS_LIMIT,
     DEFAULT_SESSION_LIST_LIMIT,
     STORAGE_ERRORS,
-    AppHealthAggregates,
     build_app_summaries,
     fetch_all_as_dicts,
     log_record_filter_clauses,
@@ -20,7 +19,7 @@ from hassette.core.telemetry.helpers import (
     source_tier_clause,
 )
 from hassette.exceptions import TelemetryUnavailableError
-from hassette.schemas.summary_models import AppHealthSummary, SessionRecord
+from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary, SessionRecord
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -52,8 +51,9 @@ class SummaryQueriesMixin:
     ) -> AppHealthAggregates:
         """Return a single-row aggregate of handler and job health metrics for one app instance.
 
-        Uses a single query against ``executions`` with two CTE arms (handler_agg, job_agg).
-        SQLite does not support ``FILTER``; uses ``SUM(CASE WHEN kind='handler' ...)`` instead.
+        Uses a single query against ``executions``. SQLite does not support ``FILTER``; uses
+        ``SUM(CASE WHEN kind='handler' ...)`` instead. Executions of handlers and jobs removed
+        since they ran still count: health over a window reflects what ran in it.
 
         Args:
             app_key: The app key to filter by.
@@ -72,7 +72,6 @@ class SummaryQueriesMixin:
             **since_params,
         }
 
-        # SQLite has no FILTER clause; use SUM(CASE WHEN kind='handler' THEN 1 ELSE 0 END) pattern.
         query = f"""
             WITH agg AS (
                 SELECT
@@ -83,6 +82,7 @@ class SummaryQueriesMixin:
                     SUM(CASE WHEN e.kind = 'job' THEN 1 ELSE 0 END) AS total_executions,
                     SUM(CASE WHEN e.kind = 'job' AND e.status = 'error' THEN 1 ELSE 0 END) AS job_errors,
                     SUM(CASE WHEN e.kind = 'job' AND e.status = 'timed_out' THEN 1 ELSE 0 END) AS job_timed_out,
+                    -- A skipped job run did no work, so its duration would drag the average down.
                     AVG(CASE WHEN e.kind = 'job' AND e.status != 'skipped'
                         THEN e.duration_ms END) AS job_avg_duration_ms,
                     MAX(e.execution_start_ts) AS last_activity
@@ -90,11 +90,9 @@ class SummaryQueriesMixin:
                 LEFT JOIN listeners l ON l.id = e.listener_id AND e.kind = 'handler'
                 LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id AND e.kind = 'job'
                 WHERE (
-                    (e.kind = 'handler' AND l.app_key = :app_key AND l.instance_index = :instance_index
-                     AND l.removed_at IS NULL)
+                    (e.kind = 'handler' AND l.app_key = :app_key AND l.instance_index = :instance_index)
                     OR
-                    (e.kind = 'job' AND sj.app_key = :app_key AND sj.instance_index = :instance_index
-                     AND sj.removed_at IS NULL)
+                    (e.kind = 'job' AND sj.app_key = :app_key AND sj.instance_index = :instance_index)
                 )
                 {tier_e_clause}
                 {since_sql}
@@ -104,30 +102,18 @@ class SummaryQueriesMixin:
         async with self.execute(query, params) as cursor:
             row = await cursor.fetchone()
 
-        if row is None:
-            return AppHealthAggregates(
-                total_invocations=0,
-                handler_errors=0,
-                handler_timed_out=0,
-                handler_avg_duration_ms=0.0,
-                total_executions=0,
-                job_errors=0,
-                job_timed_out=0,
-                job_avg_duration_ms=0.0,
-                last_activity_ts=None,
-            )
-
-        row_dict = row_to_dict(row)
+        # SUMs over no rows are NULL, hence the `or 0` below.
+        row_dict = row_to_dict(row)  # pyright: ignore[reportArgumentType] — aggregates without GROUP BY yield one row
         return AppHealthAggregates(
             total_invocations=row_dict["total_invocations"] or 0,
             handler_errors=row_dict["handler_errors"] or 0,
             handler_timed_out=row_dict["handler_timed_out"] or 0,
-            handler_avg_duration_ms=row_dict["handler_avg_duration_ms"] or 0.0,
+            handler_avg_duration_ms=row_dict["handler_avg_duration_ms"],
             total_executions=row_dict["total_executions"] or 0,
             job_errors=row_dict["job_errors"] or 0,
             job_timed_out=row_dict["job_timed_out"] or 0,
-            job_avg_duration_ms=row_dict["job_avg_duration_ms"] or 0.0,
-            last_activity_ts=row_dict["last_activity"] if row_dict.get("last_activity") is not None else None,
+            job_avg_duration_ms=row_dict["job_avg_duration_ms"],
+            last_activity_ts=row_dict["last_activity"],
         )
 
     async def get_all_app_summaries(
@@ -137,8 +123,9 @@ class SummaryQueriesMixin:
     ) -> dict[str, AppHealthSummary]:
         """Return per-app health summaries via 4 batch SQL queries against executions.
 
-        Registration counts (handler_count, job_count) still use ``active_*`` views.
-        Activity counts query the unified ``executions`` table.
+        Registration counts (handler_count, job_count) use the ``active_*`` views. Activity
+        aggregates join the raw ``listeners``/``scheduled_jobs`` tables, so executions of
+        handlers and jobs removed since they ran still count, as in ``get_app_health_aggregates``.
 
         Args:
             since: When provided, restrict activity counts to records with
@@ -162,8 +149,6 @@ class SummaryQueriesMixin:
         # so only the first params dict is kept; the rest are discarded as _.
         tier_e_handler_clause, tier_params = source_tier_clause(source_tier, "e_h")
         tier_e_job_clause, _ = source_tier_clause(source_tier, "e_j")
-        tier_l_clause, _ = source_tier_clause(source_tier, "l")
-        tier_sj_clause, _ = source_tier_clause(source_tier, "sj")
         since_h_clause, since_params = since_clause(since, "e_h.execution_start_ts")
         since_j_clause, _ = since_clause(since, "e_j.execution_start_ts")
 
@@ -184,33 +169,37 @@ class SummaryQueriesMixin:
             GROUP BY sj.app_key
         """
 
+        # Activity rows select executions by the execution's own tier, as get_app_health_aggregates
+        # does, so both scopes count the same executions even after a registration's tier changes.
+        # Inner joins: an app with no matching executions gets no activity row, and its summary
+        # falls back to zero counts and null averages in build_app_summaries.
         listener_act_query = f"""
             SELECT
                 l.app_key,
                 COUNT(e_h.rowid) AS total_invocations,
-                SUM(CASE WHEN e_h.status = 'error' THEN 1 ELSE 0 END) AS total_errors,
-                SUM(CASE WHEN e_h.status = 'timed_out' THEN 1 ELSE 0 END) AS total_timed_out,
-                COALESCE(AVG(e_h.duration_ms), 0.0) AS avg_duration_ms,
+                SUM(CASE WHEN e_h.status = 'error' THEN 1 ELSE 0 END) AS handler_errors,
+                SUM(CASE WHEN e_h.status = 'timed_out' THEN 1 ELSE 0 END) AS handler_timed_out,
+                AVG(e_h.duration_ms) AS handler_avg_duration_ms,
                 MAX(e_h.execution_start_ts) AS last_listener_activity_ts
             FROM listeners l
-            LEFT JOIN executions e_h ON e_h.listener_id = l.id AND e_h.kind = 'handler'
+            JOIN executions e_h ON e_h.listener_id = l.id AND e_h.kind = 'handler'
                 {tier_e_handler_clause}
                 {since_h_clause}
-            WHERE 1=1 {tier_l_clause}
             GROUP BY l.app_key
         """
         job_act_query = f"""
             SELECT
                 sj.app_key,
                 COUNT(e_j.rowid) AS total_executions,
-                SUM(CASE WHEN e_j.status = 'error' THEN 1 ELSE 0 END) AS total_job_errors,
-                SUM(CASE WHEN e_j.status = 'timed_out' THEN 1 ELSE 0 END) AS total_job_timed_out,
+                SUM(CASE WHEN e_j.status = 'error' THEN 1 ELSE 0 END) AS job_errors,
+                SUM(CASE WHEN e_j.status = 'timed_out' THEN 1 ELSE 0 END) AS job_timed_out,
+                -- Skipped runs excluded, as in get_app_health_aggregates.
+                AVG(CASE WHEN e_j.status != 'skipped' THEN e_j.duration_ms END) AS job_avg_duration_ms,
                 MAX(e_j.execution_start_ts) AS last_job_activity_ts
             FROM scheduled_jobs sj
-            LEFT JOIN executions e_j ON e_j.job_id = sj.id AND e_j.kind = 'job'
+            JOIN executions e_j ON e_j.job_id = sj.id AND e_j.kind = 'job'
                 {tier_e_job_clause}
                 {since_j_clause}
-            WHERE 1=1 {tier_sj_clause}
             GROUP BY sj.app_key
         """
         act_params: dict[str, Any] = {**tier_params, **since_params}
