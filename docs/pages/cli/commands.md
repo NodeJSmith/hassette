@@ -150,7 +150,10 @@ $ hassette app health bus_handler_app
 ╰──────────────────────────────────────╯
 ```
 
-Health counts every execution in the window that's still stored, including those of handlers and jobs removed since. Retention deletes old executions, and a restart deletes the previous session's `once=True` listeners along with their executions. The same rule applies to `hassette dashboard`, which covers all of an app's instances, so the two agree whenever only one instance ran in the window.
+Health counts every run in the window, including runs of handlers and jobs removed since. `hassette dashboard` uses the same rule across all of an app's instances, so the two agree whenever only one instance ran in the window.
+
+??? note "Runs that drop out of health"
+    Health reads stored executions. Retention deletes old ones, and a restart deletes the previous session's `once=True` listeners along with their executions, so those runs stop counting.
 
 `--instance` and `--since` scope the metrics window:
 

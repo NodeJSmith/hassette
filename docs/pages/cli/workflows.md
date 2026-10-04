@@ -60,7 +60,7 @@ If `status` is `ok`, the framework is healthy. If it's `degraded`, something is 
 hassette dashboard
 ```
 
-The dashboard shows every app's invocation count, error count, average handler and job duration, and health status. Look for apps with a non-zero `Errs` value or a health status other than `excellent`:
+The dashboard shows every app's invocation count, error count, average handler and job duration, and health status. A blank average means nothing of that kind ran, for example an app with no scheduled jobs. Look for apps with a non-zero `Errs` value or a health status other than `excellent`:
 
 ```
 ┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┓
@@ -187,7 +187,7 @@ if [ "$status" != "ok" ]; then
 fi
 ```
 
-**Alert on error rate** (exits non-zero if any app has more than 5 failures):
+**Alert on failures** (exits non-zero if handler failures across all listeners total more than 5):
 
 ```bash
 #!/usr/bin/env bash

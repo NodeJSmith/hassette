@@ -35,7 +35,12 @@ Click any app row to open the App Detail view. The detail view shows health indi
 
 ![App detail overview](../../_static/web_ui_app_detail_overview.png)
 
-The strip at the top of the overview shows the instance's health over the selected time window: error rate, average handler duration, and average job duration (skipped job runs aren't included). It reads the same numbers as `hassette app health` for that instance, and matches the Apps table when only that one instance ran in the window. **Handlers** counts the handlers and jobs registered now. Health counts every run in the window, including runs of handlers and jobs that have since been removed, such as a `once=True` listener after it fires, a finished `wait_for`, a cancelled subscription, or a removed job. The handler list doesn't show removed registrations, so an error from one appears in the health numbers and the Apps table's last error, but not as a failing row.
+The strip at the top of the overview shows the instance's health over the selected time window: error rate, average handler duration, and average job duration (skipped job runs aren't included). It reads the same numbers as `hassette app health` for that instance. **Handlers** counts the handlers and jobs registered now.
+
+Health counts every run in the window, including runs of handlers that no longer exist, so an error can show in the error rate without a matching failing row in the handler list.
+
+??? note "Which runs count toward health"
+    Health includes runs of handlers and jobs removed since they ran: a `once=True` listener after it fires, a finished `wait_for`, a cancelled subscription, or a removed job. The handler list shows only current registrations, so an error from one of these appears in the health numbers and the Apps table's last error, but not as a failing row. The strip matches the Apps table when only that one instance ran in the window.
 
 ### Multi-instance apps
 
