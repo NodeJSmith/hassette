@@ -1,5 +1,6 @@
 """FastAPI application factory for the Hassette Web API."""
 
+import re
 import typing
 from pathlib import Path
 
@@ -52,7 +53,7 @@ _CORS_ALLOW_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
 _CORS_ALLOW_HEADERS = ("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With")
 
 API_PREFIX = "/api"
-"""URL prefix every API router is mounted under. ``SpaPathConvertor.regex`` hardcodes it; keep them in sync."""
+"""URL prefix every API router is mounted under; ``SpaPathConvertor.regex`` is derived from it."""
 
 SPA_PATH_CONVERTOR = "hassette_spa_path"
 """Path convertor for the SPA catch-all: any path except ``/api`` and ``/api/...``."""
@@ -63,7 +64,7 @@ class SpaPathConvertor(Convertor[str]):
     404 (and real 405s survive) whether or not the SPA is served.
     """
 
-    regex = r"(?!api(?:/|$)).*"
+    regex = rf"(?!{re.escape(API_PREFIX.removeprefix('/'))}(?:/|$)).*"
 
     def convert(self, value: str) -> str:
         return value
@@ -110,8 +111,8 @@ def create_fastapi_app(
         CORSMiddleware,
         allow_origins=list(hassette.config.web_api.cors_origins),
         allow_credentials=True,
-        allow_methods=list(_CORS_ALLOW_METHODS),
-        allow_headers=list(_CORS_ALLOW_HEADERS),
+        allow_methods=_CORS_ALLOW_METHODS,
+        allow_headers=_CORS_ALLOW_HEADERS,
     )
 
     # Added last so it is outermost; see hassette/web/request_context.py.
