@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-09-26
+Last reviewed: 2026-10-04
 
 ## How the pieces fit
 
@@ -47,18 +47,19 @@ milestone that turned out not to be needed out of it, then close the milestone.
 |---|---|---|
 | **HACS companion v0.1** | *HACS v0.1* | #45, `design/specs/113-hacs-companion-integration/brief.md`, `design/specs/114-hassette-client/brief.md` |
 
-Order (spec 114 first; everything after it depends on it). Dependencies follow the work-split
-table in `design/specs/114-hassette-client/brief.md`, which wins if the two disagree:
+Order. The workspace, wire package, problem details and lenient parsing are done
+(#2381, #2382, #2384, #2385, #2483, #2484). What's left is a straight line:
 
-1. #2384 uv workspace with empty `hassette-wire` / `hassette-client`, and #2382 RFC 9457
-   problem details on the app action routes, and #2381 nested-path boundary rules
-   (independent of each other; any order)
-2. #2385 wire models and enums → `hassette-wire` — needs #2384 and #2381
-3. #2386 async transport, error mapping, typed methods in `hassette-client` — needs #2385 and
-   #2382 (the error mapping uses #2382's stable codes)
-4. #2387 CLI moves into `hassette-client[cli]`, then #2388 named remote targets
-5. hass-hassette repo: config flow, coordinator, platforms, HACS release (its own spec)
-6. Pinned integration in system-test/demo HA + one end-to-end system test + docs page
+1. #2448 tighten the `hassette-wire` contract (Literal narrowing, class naming, docstrings).
+   It goes first because renames are cheap until the client and hass-hassette import them
+2. #2386 async transport, error mapping, typed methods in `hassette-client`
+3. A release that publishes `hassette-client` with #2386, then #2485 cross-version CI
+   (it needs that published client)
+4. hass-hassette repo: config flow, coordinator, platforms, HACS release (its own spec)
+5. #2506 pinned integration in system-test/demo HA + one end-to-end system test + docs page
+
+The CLI move (#2387, #2388) isn't on this path. The integration needs only the client
+transport, so the standalone CLI is its own initiative in Next.
 
 ## Next
 
@@ -67,9 +68,10 @@ Ordered. Only the first row is committed; the rest can swap.
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
+| **Standalone CLI** | pool: #1540 (#2387, #2388) | Needs #2386. Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (#1798, #1797, #1716, #1224) plus the `wait_for` races (#2302–#2309). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
-| **HACS v0.2** | pool: `epic:hacs` | WS topic subscriptions, per-instance + app-declared entities, `self.entities` (#1449) |
+| **HACS v0.2** | pool: `epic:hacs` | WS topic subscriptions, per-instance + app-declared entities, `self.entities` (#1449), WS wire-compat check (#2439) |
 
 ## Later
 
@@ -87,7 +89,8 @@ Ordered. Only the first row is committed; the rest can swap.
 These are the only forced orderings. Anything not on a chain can go in any order.
 
 ```
-spec 114 client split ──> hass-hassette v0.1 ──> HACS v0.2 ──> v0.3 webhooks ──> v0.4 add-on discovery
+#2448 wire contract ──> #2386 client transport ──> hass-hassette v0.1 ──> HACS v0.2 ──> v0.3 webhooks ──> v0.4 add-on discovery
+                         #2386 client transport ──> standalone CLI (#2387 ──> #2388)
 #1850 + #616 Docker fixes ──────────────────────────────────────────────────────> HA add-on (#71)
 testing redesign + all breaking changes ──> v1.0 tag
 ```
