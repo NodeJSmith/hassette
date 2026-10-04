@@ -9,14 +9,15 @@ Last reviewed: 2026-10-04
 
 | Piece | Means |
 |---|---|
-| **Milestone** | An initiative. Its description holds the **Done when** line. Being in the milestone means committed scope |
+| **Milestone** | An initiative. Its description holds the **Done when** line. Being in the milestone means the Done-when needs it |
 | **`epic:*` label** | Topic only ("related to HACS"). Apply freely; it never adds scope |
 | **`topic:*` / `epic:correctness` labels** | Buckets. Never in a milestone unless an initiative's Done-when needs them |
-| **Tracker issue** | Optional — only where there's a brief or discussion to hang off it (#45, #1336) |
+| **Tracker issue** | Optional — only where there's a brief or discussion to hang off it (#45, #1336, #1540, #1427) |
 | **This file** | Which milestone is Now / Next / Later, and the forced orderings |
 
-An initiative gets its milestone when it enters Now (or earlier, if it's first in Next and its
-scope is already clear). Until then its `epic:*` label is just the candidate pool.
+An initiative gets its milestone when it enters Now, or earlier once its Done-when can be
+written (a brief plus filed issues). Having a milestone doesn't mean the work has started.
+Until it has one, its `epic:*` label is just the candidate pool.
 
 ## How to choose what to work on
 
@@ -27,10 +28,13 @@ scope is already clear). Until then its `epic:*` label is just the candidate poo
 3. **Between PRs, waiting on CI, or low energy:** pull one small issue from a bucket.
 4. **New idea?** File it and leave it in Later. Don't promote it mid-initiative.
 
-## Follow-up issues: scope is frozen when an initiative starts
+## Follow-up issues: the Done-when decides scope
 
-Work that spawns out of an initiative (review findings, "while I was in here", edge cases) gets
-triaged with one question: **does the milestone's Done-when fail without it?**
+Scope is whatever the Done-when needs, nothing more and nothing less. It isn't locked in when
+the milestone is created or when work starts, so a requirement discovered late joins the
+milestone the moment the Done-when turns out to depend on it. Work that spawns out of an
+initiative (review findings, "while I was in here", edge cases) gets triaged with one question:
+**does the milestone's Done-when fail without it?**
 
 - **Yes** → put it in the milestone.
 - **It's a bug in code this initiative just shipped** → fix it in the current or next PR; it
@@ -55,7 +59,8 @@ Order. The workspace, wire package, problem details and lenient parsing are done
 2. #2386 async transport, error mapping, typed methods in `hassette-client`
 3. A release that publishes `hassette-client` with #2386, then #2485 cross-version CI
    (it needs that published client)
-4. hass-hassette repo: config flow, coordinator, platforms, HACS release (its own spec)
+4. hass-hassette repo: config flow, coordinator, platforms, HACS release (its own spec). The repo
+   doesn't exist yet; until it does, unit C on #45's checklist tracks this step
 5. #2506 pinned integration in system-test/demo HA + one end-to-end system test + docs page
 
 The CLI move (#2387, #2388) isn't on this path. The integration needs only the client
@@ -63,22 +68,22 @@ transport, so the standalone CLI is its own initiative in Next.
 
 ## Next
 
-Ordered. Only the first row is committed; the rest can swap.
+Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
-| **Standalone CLI** | pool: #1540 (#2387, #2388) | Needs #2386. Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed |
-| **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (#1798, #1797, #1716, #1224) plus the `wait_for` races (#2302–#2309). Any can be pulled forward as an interrupt |
+| **Standalone CLI** | *Standalone CLI* (tracker #1540) | Needs #2386. Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed |
+| **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the `wait_for` races (#2302, #2303, #2304, #2309). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
-| **HACS v0.2** | pool: `epic:hacs` | WS topic subscriptions, per-instance + app-declared entities, `self.entities` (#1449), WS wire-compat check (#2439) |
+| **HACS v0.2** | pool: #1449, #2439 (`epic:hacs`) | WS topic subscriptions, per-instance + app-declared entities, `self.entities` (#1449), WS wire-compat check (#2439) |
 
 ## Later
 
 | Initiative | Milestone / pool | Blocked on / note |
 |---|---|---|
 | **HA add-on** | pool: `epic:ha-addon`, #71 | #1850 (mounted `/apps` don't load) and #616 (`hassette build`); Supervisor discovery arrives with HACS v0.4 |
-| **HACS v0.3+** | pool: `epic:hacs` | Webhooks (#594), `@template` (#46), HACS default store |
+| **HACS v0.3+** | pool: #594, #46 (`epic:hacs`) | Webhooks (#594), `@template` (#46), HACS default store |
 | **v1.0 release** | pool: `release:v1.0.0` | Tag after the testing redesign and every planned breaking change (client split, HACS v0.2 app API) |
 | **Frontend visual system alignment** | pool: tracker #1427 (lists all 15 child issues) | Lower priority by choice: frontend is the least familiar area. Needs a very concrete spec before starting. Recreate the milestone from #1427's list when promoted |
 | **Frontend quality & facelift** | pool: `area:ui` | Same. Rescope from scratch into a milestone with a Done-when if promoted. Individual UI *bugs* can still come in as interrupts |
@@ -89,9 +94,11 @@ Ordered. Only the first row is committed; the rest can swap.
 These are the only forced orderings. Anything not on a chain can go in any order.
 
 ```
-#2448 wire contract ──> #2386 client transport ──> hass-hassette v0.1 ──> HACS v0.2 ──> v0.3 webhooks ──> v0.4 add-on discovery
+#2448 wire contract ──> #2386 client transport ──> client release ──> hass-hassette v0.1 ──> #2506 pinned E2E
+                                                     client release ──> #2485 cross-version CI
                          #2386 client transport ──> standalone CLI (#2387 ──> #2388)
-#1850 + #616 Docker fixes ──────────────────────────────────────────────────────> HA add-on (#71)
+hass-hassette v0.1 ──> HACS v0.2 ──> v0.3 webhooks ──> v0.4 add-on discovery
+#1850 + #616 Docker fixes ──> HA add-on (#71) ──> v0.4 add-on discovery
 testing redesign + all breaking changes ──> v1.0 tag
 ```
 
