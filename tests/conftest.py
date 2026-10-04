@@ -56,6 +56,12 @@ APPS_TOML_TEMPLATE = TEST_CONFIG_PATH / "hassette_apps.toml"
 # worker) so the suite never touches the platform user data dir a local `hassette run` uses.
 _session_data_dir: Path | None = None
 
+# An exported data-dir env var outranks TestConfig's scratch default in pydantic-settings source
+# precedence, and is also read by `default_data_dir()`. Drop both spellings for this process so
+# no test config can resolve data_dir to a developer's real directory.
+for _data_dir_var in ("HASSETTE__DATA_DIR", "HASSETTE_DATA_DIR"):
+    os.environ.pop(_data_dir_var, None)
+
 assert ENV_FILE.exists(), f"Environment file {ENV_FILE} does not exist"
 assert TEST_TOML_FILE.exists(), f"Test TOML file {TEST_TOML_FILE} does not exist"
 assert APPS_TOML_TEMPLATE.exists(), f"Apps TOML template {APPS_TOML_TEMPLATE} does not exist"
