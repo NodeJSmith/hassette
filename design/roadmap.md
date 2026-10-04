@@ -55,8 +55,11 @@ Order. The workspace, wire package, problem details and lenient parsing are done
 (#2381, #2382, #2384, #2385, #2483, #2484). What's left, with the forced orderings in
 "Dependency chains" below:
 
-1. #2448 tighten the `hassette-wire` contract (Literal narrowing, class naming, docstrings).
-   It goes first because renames are cheap until the client and hass-hassette import them
+1. Fix the wire contract before anything imports it. Renames are cheap until the client and
+   hass-hassette pin these names. Four ratified ledgers, one PR each:
+   - #2448 (`design/specs/123-wire-vocabulary-typing/`) and #2508 (`design/specs/124-app-health-unification/`) can land in either order
+   - #2509 (`design/specs/125-apps-resource-and-grid/`) needs #2508
+   - #2448 (`design/specs/126-wire-naming-and-docs/`) goes last and closes #2448
 2. #2386 async transport, error mapping, typed methods in `hassette-client`
 3. A release that publishes `hassette-client` with #2386. After it, #2485 (cross-version CI,
    which needs that published client) and step 4 can run in parallel; neither gates the other
@@ -95,7 +98,9 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 These are the only forced orderings. Anything not on a chain can go in any order.
 
 ```
-#2448 wire contract ──> #2386 client transport ──> client release ──> hass-hassette v0.1 ──> #2506 pinned E2E
+#2508 app health ──> #2509 apps resource + grid ──> #2448 naming + docs (126)
+#2448 vocabulary (123) ─────────────────────────> #2448 naming + docs (126)
+#2448 naming + docs (126) ──> #2386 client transport ──> client release ──> hass-hassette v0.1 ──> #2506 pinned E2E
                                                      client release ──> #2485 cross-version CI
                          #2386 client transport ──> standalone CLI (#2387 ──> #2388)
 hass-hassette v0.1 ──> HACS v0.2 ──> v0.3 webhooks ──> v0.4 add-on discovery
