@@ -48,6 +48,12 @@ _STATIC_EXTENSIONS = frozenset(
     }
 )
 
+_CORS_ALLOW_METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+_CORS_ALLOW_HEADERS = ("Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With")
+
+API_PREFIX = "/api"
+"""URL prefix every API router is mounted under. ``SpaPathConvertor.regex`` hardcodes it; keep them in sync."""
+
 SPA_PATH_CONVERTOR = "hassette_spa_path"
 """Path convertor for the SPA catch-all: any path except ``/api`` and ``/api/...``."""
 
@@ -80,8 +86,8 @@ def create_fastapi_app(
 ) -> FastAPI:
     app = FastAPI(
         title="Hassette Web API",
-        docs_url="/api/docs",
-        openapi_url="/api/openapi.json",
+        docs_url=f"{API_PREFIX}/docs",
+        openapi_url=f"{API_PREFIX}/openapi.json",
     )
     install_problem_handlers(app)
     install_problem_openapi(app)
@@ -89,45 +95,39 @@ def create_fastapi_app(
     app.state.auth_token = auth_token
     app.state.trusted_proxies = trusted_proxies or EMPTY_TRUSTED_PROXY_SET
 
-    # Registration order matters: Starlette wraps middleware so the LAST one added ends up
-    # OUTERMOST (it sees the request first, the response last). DefaultDenyMiddleware is
-    # registered first (innermost relative to CORS) so CORSMiddleware — added after — sits
-    # outside it and can short-circuit a genuine preflight OPTIONS request with a proper CORS
-    # response before DefaultDenyMiddleware ever gets a chance to reject it with an opaque 401.
-    # Verified empirically by test_cors_preflight_gets_cors_response_not_opaque_401 in
-    # tests/integration/web_api/test_auth.py — see design.md's Open Questions for the ordering
-    # claim this resolves.
+    # Starlette wraps middleware so the LAST one added is OUTERMOST: it sees the request first and
+    # the response last. Each comment below gives only that middleware's placement reason.
+
+    # Innermost of the auth/CORS stack, so CORSMiddleware can answer a genuine preflight before this
+    # rejects it with an opaque 401 (test_cors_preflight_gets_cors_response_not_opaque_401).
     app.add_middleware(DefaultDenyMiddleware)
 
-    # Outside DefaultDenyMiddleware (added after it), so an oversized body is refused before the
-    # auth decision runs — which is the point, since POST /api/auth/session is credential-free by
-    # design and would otherwise buffer an unbounded body before comparing tokens. Still inside
-    # CORSMiddleware, so the 413 carries CORS headers and a browser sees the real status rather
-    # than an opaque network error.
+    # Outside DefaultDeny, so an oversized body is refused before auth runs (POST /api/auth/session is
+    # credential-free); inside CORS, so the 413 carries CORS headers instead of an opaque network error.
     app.add_middleware(RequestBodySizeLimitMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(hassette.config.web_api.cors_origins),
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
+        allow_methods=list(_CORS_ALLOW_METHODS),
+        allow_headers=list(_CORS_ALLOW_HEADERS),
     )
 
     # Added last so it is outermost; see hassette/web/request_context.py.
     app.add_middleware(HassetteContextMiddleware, hassette=hassette)
 
     # API routes
-    app.include_router(health_router, prefix="/api")
-    app.include_router(apps_router, prefix="/api")
-    app.include_router(auth_router, prefix="/api")
-    app.include_router(logs_router, prefix="/api")
-    app.include_router(executions_router, prefix="/api")
-    app.include_router(bus_router, prefix="/api")
-    app.include_router(config_router, prefix="/api")
-    app.include_router(ws_router, prefix="/api")
-    app.include_router(telemetry_router, prefix="/api")
-    app.include_router(scheduler_router, prefix="/api")
+    app.include_router(health_router, prefix=API_PREFIX)
+    app.include_router(apps_router, prefix=API_PREFIX)
+    app.include_router(auth_router, prefix=API_PREFIX)
+    app.include_router(logs_router, prefix=API_PREFIX)
+    app.include_router(executions_router, prefix=API_PREFIX)
+    app.include_router(bus_router, prefix=API_PREFIX)
+    app.include_router(config_router, prefix=API_PREFIX)
+    app.include_router(ws_router, prefix=API_PREFIX)
+    app.include_router(telemetry_router, prefix=API_PREFIX)
+    app.include_router(scheduler_router, prefix=API_PREFIX)
 
     # SPA serving (Preact)
     if hassette.config.web_api.run_ui and _SPA_DIR.exists():
