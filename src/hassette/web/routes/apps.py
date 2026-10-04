@@ -229,6 +229,16 @@ async def _run_app_action(
     """
     _validate_app_key(app_key)
     _require_known_app(app_key, hassette, action)
+    await _await_operation(action, app_key, operation)
+    _raise_if_target_failed(action, app_key, hassette, instance_index)
+    LOGGER.info("%s app %s (source=%s)", _ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))
+    return ActionResponse(status="accepted", app_key=app_key, action=action, instance_index=instance_index)
+
+
+async def _await_operation(action: AppAction, app_key: str, operation: Callable[[], Awaitable[object]]) -> None:
+    """Await ``operation`` and map the exceptions it can raise to their problem codes
+    (see ``_run_app_action`` for why each mapping exists).
+    """
     try:
         await operation()
     except AppBootstrapNotReleasedError as exc:
@@ -241,27 +251,32 @@ async def _run_app_action(
         LOGGER.warning("Failed to %s app %s", action, app_key, exc_info=True)
         raise WebApiError(ProblemCode.ACTION_FAILED, _generic_action_failure_detail(action, app_key)) from exc
 
-    failed = _failed_target_instances(hassette, app_key, instance_index)
-    if failed:
-        first_index = min(failed)
-        detail = failed[first_index].error_message or _generic_action_failure_detail(action, app_key)
-        if len(failed) > 1:
-            # The response can only carry one failure — log the rest so a multi-instance
-            # failure isn't silently reduced to whichever index happened to sort lowest.
-            LOGGER.warning(
-                "Failed to %s app %s: %d instances failed (%s); surfacing instance %s in the response",
-                action,
-                app_key,
-                len(failed),
-                ", ".join(f"{index}: {info.error_message}" for index, info in sorted(failed.items())),
-                first_index,
-            )
-        else:
-            LOGGER.warning("Failed to %s app %s (instance %s): %s", action, app_key, first_index, detail)
-        raise WebApiError(ProblemCode.ACTION_FAILED, detail)
 
-    LOGGER.info("%s app %s (source=%s)", _ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))
-    return ActionResponse(status="accepted", app_key=app_key, action=action, instance_index=instance_index)
+def _raise_if_target_failed(action: AppAction, app_key: str, hassette: HassetteDep, instance_index: int | None) -> None:
+    """Raise ``ACTION_FAILED`` when a cleanly-returning action left a targeted instance FAILED.
+
+    Surfaces the lowest-indexed failure in the response and logs every failed instance (see
+    ``_run_app_action`` and ``_failed_target_instances``).
+    """
+    failed = _failed_target_instances(hassette, app_key, instance_index)
+    if not failed:
+        return
+    first_index = min(failed)
+    detail = failed[first_index].error_message or _generic_action_failure_detail(action, app_key)
+    if len(failed) > 1:
+        # The response can only carry one failure — log the rest so a multi-instance
+        # failure isn't silently reduced to whichever index happened to sort lowest.
+        LOGGER.warning(
+            "Failed to %s app %s: %d instances failed (%s); surfacing instance %s in the response",
+            action,
+            app_key,
+            len(failed),
+            ", ".join(f"{index}: {info.error_message}" for index, info in sorted(failed.items())),
+            first_index,
+        )
+    else:
+        LOGGER.warning("Failed to %s app %s (instance %s): %s", action, app_key, first_index, detail)
+    raise WebApiError(ProblemCode.ACTION_FAILED, detail)
 
 
 @router.get("/apps", response_model=AppStatusResponse)
