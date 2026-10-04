@@ -37,7 +37,12 @@ from hassette.web.auth.session import (
     should_renew_session_cookie,
     should_set_secure_cookie_flag,
 )
-from hassette.web.auth.trusted_proxies import get_trusted_proxies, peer_address, peer_address_or_unknown
+from hassette.web.auth.trusted_proxies import (
+    TrustedProxySet,
+    get_trusted_proxies,
+    peer_address,
+    peer_address_or_unknown,
+)
 from hassette.web.errors import problem_response
 
 LOGGER = getLogger(__name__)
@@ -247,15 +252,11 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
         route_key = (request.method, request.url.path)
         if route_key in EXEMPT_ROUTES:
             # The trusted-peer/bearer/cookie checks are bypassed entirely for these three routes —
-            # they're reachable with zero prior credential. Sliding renewal and failed-auth
-            # counting still apply below: no renewal (the middleware never authenticated this
-            # request via a cookie, so there's nothing to renew), but failed-auth counting still
-            # applies to the outgoing status — this is what makes POST /api/auth/session's own
-            # handler-issued 401 countable.
-            response = await call_next(request)
-            if response.status_code == 401:
-                self._failed_auth.record(_source_key(request))
-            return response
+            # they're reachable with zero prior credential. No sliding renewal either (the
+            # middleware never authenticated this request via a cookie, so there's nothing to
+            # renew), but failed-auth counting still applies to the outgoing status — this is what
+            # makes POST /api/auth/session's own handler-issued 401 countable.
+            return self._count_failed_auth(request, await call_next(request))
 
         trusted_proxies = get_trusted_proxies(request.app.state)
         resolved_token = getattr(request.app.state, "auth_token", None)
@@ -270,27 +271,51 @@ class DefaultDenyMiddleware(BaseHTTPMiddleware):
 
         # Sliding renewal — only for a request authenticated via session cookie.
         if outcome.session_issued_at is not None and resolved_token is not None:
-            if should_renew_session_cookie(outcome.session_issued_at, web_api_config.session_ttl):
-                new_cookie_value = mint_session_cookie(resolved_token)
-                # A second, independent read of the peer address: resolve_auth_outcome consulted it
-                # to decide auth, this one decides the cookie's Secure flag. Same value, different
-                # question — see should_set_secure_cookie_flag on why the two share one signal.
-                secure = should_set_secure_cookie_flag(
-                    peer_address(request), request.headers.get("x-forwarded-proto"), trusted_proxies
-                )
-                response.set_cookie(
-                    SESSION_COOKIE_NAME,
-                    new_cookie_value,
-                    max_age=web_api_config.session_ttl,
-                    httponly=True,
-                    samesite="strict",
-                    secure=secure,
-                )
+            _renew_session_cookie_if_due(
+                request,
+                response,
+                outcome.session_issued_at,
+                resolved_token,
+                trusted_proxies,
+                web_api_config.session_ttl,
+            )
 
-        # Failed-auth counting keys off the outgoing status, not off this middleware's own reject
-        # branch (that path already returned above) — a route the middleware let through can still
-        # have its own handler issue a 401.
+        return self._count_failed_auth(request, response)
+
+    def _count_failed_auth(self, request: Request, response: Response) -> Response:
+        """Record a failed-auth attempt when the outgoing ``response`` is a 401, then return it.
+
+        Counting keys off the outgoing status, not off the middleware's own reject branch (that
+        path records directly) — a route the middleware let through can still have its own handler
+        issue a 401.
+        """
         if response.status_code == 401:
             self._failed_auth.record(_source_key(request))
-
         return response
+
+
+def _renew_session_cookie_if_due(
+    request: Request,
+    response: Response,
+    session_issued_at: int,
+    resolved_token: str,
+    trusted_proxies: TrustedProxySet,
+    session_ttl: int,
+) -> None:
+    """Re-issue the session cookie on ``response`` when the one that authenticated ``request`` is due."""
+    if not should_renew_session_cookie(session_issued_at, session_ttl):
+        return
+    # A second, independent read of the peer address: resolve_auth_outcome consulted it to decide
+    # auth, this one decides the cookie's Secure flag. Same value, different question — see
+    # should_set_secure_cookie_flag on why the two share one signal.
+    secure = should_set_secure_cookie_flag(
+        peer_address(request), request.headers.get("x-forwarded-proto"), trusted_proxies
+    )
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        mint_session_cookie(resolved_token),
+        max_age=session_ttl,
+        httponly=True,
+        samesite="strict",
+        secure=secure,
+    )
