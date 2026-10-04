@@ -142,3 +142,16 @@ PUT /api/logs/level removed the required property `status` from the response wit
 PUT /api/logs/level removed the required property `title` from the response with the `422` status
 PUT /api/logs/level the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
 PUT /api/logs/level the response property `detail` became optional for the status `422`
+
+# #2508: app health becomes one AppHealth record; grid rows nest it under `health`.
+# Both check directions report, so each side's renamed fields appear as "removed".
+GET /api/telemetry/app/{app_key}/health removed the required property `handler_avg_duration_ms` from the response with the `200` status
+GET /api/telemetry/app/{app_key}/health removed the required property `job_avg_duration_ms` from the response with the `200` status
+GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/health` from the response with the `200` status
+GET /api/telemetry/app/{app_key}/health removed the required property `handler_avg_duration` from the response with the `200` status
+GET /api/telemetry/app/{app_key}/health removed the required property `job_avg_duration` from the response with the `200` status
+GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/avg_duration_ms` from the response with the `200` status
+GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/error_rate` from the response with the `200` status
+GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/error_rate_class` from the response with the `200` status
+GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/health_status` from the response with the `200` status
+GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/last_activity_ts` from the response with the `200` status

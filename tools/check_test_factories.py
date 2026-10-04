@@ -83,7 +83,7 @@ SHARED_FACTORIES = {
     "make_dashboard_app_grid_entry": "tests.support.web_response_helpers",
     "make_dashboard_app_grid_response": "tests.support.web_response_helpers",
     "make_config_schema_response": "tests.support.web_response_helpers",
-    "make_app_health_response": "tests.support.web_response_helpers",
+    "make_app_health": "tests.support.web_response_helpers",
     "make_app_config_response": "tests.support.web_response_helpers",
     "make_app_source_response": "tests.support.web_response_helpers",
     "make_activity_feed_entry": "tests.support.web_telemetry_helpers",

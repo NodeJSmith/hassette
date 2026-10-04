@@ -70,7 +70,7 @@ from hassette_wire.problems import ProblemCode, ProblemDetail
 from hassette_wire.telemetry import (
     ActivityBucket,
     ActivityFeedEntry,
-    AppHealthResponse,
+    AppHealth,
     DashboardAppGridEntry,
     DashboardAppGridResponse,
     Execution,
@@ -103,7 +103,7 @@ __all__ = [
     "ActivityBucket",
     "ActivityFeedEntry",
     "AppConfigResponse",
-    "AppHealthResponse",
+    "AppHealth",
     "AppInstanceResponse",
     "AppManifestListResponse",
     "AppManifestResponse",

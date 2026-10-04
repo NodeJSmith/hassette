@@ -864,28 +864,42 @@ export interface components {
             framework_fields: string[];
         };
         /**
-         * AppHealthResponse
-         * @description Health metrics for a single app instance.
+         * AppHealth
+         * @description Health of an app over a time window: one app instance, or all instances of an app.
+         *
+         *     Counts every execution in the window, including those of handlers and jobs removed since.
          */
-        AppHealthResponse: {
-            /** Error Rate */
+        AppHealth: {
+            /**
+             * Error Rate
+             * @description Failed (error or timed out) handler and job executions as a percentage of all of them.
+             */
             error_rate: number;
             /**
              * Error Rate Class
              * @enum {string}
              */
             error_rate_class: "good" | "warn" | "bad";
-            /** Handler Avg Duration */
-            handler_avg_duration: number;
-            /** Job Avg Duration */
-            job_avg_duration: number;
-            /** Last Activity Ts */
-            last_activity_ts: number | null;
             /**
              * Health Status
              * @enum {string}
              */
             health_status: "excellent" | "good" | "warning" | "critical";
+            /**
+             * Last Activity Ts
+             * @description Start of the latest handler or job execution, or null when nothing ran.
+             */
+            last_activity_ts: number | null;
+            /**
+             * Handler Avg Duration Ms
+             * @description Mean handler execution duration, or null when no handler ran.
+             */
+            handler_avg_duration_ms: number | null;
+            /**
+             * Job Avg Duration Ms
+             * @description Mean job execution duration excluding skipped runs, or null when no job ran.
+             */
+            job_avg_duration_ms: number | null;
         };
         /** AppInstanceResponse */
         AppInstanceResponse: {
@@ -1171,22 +1185,7 @@ export interface components {
              * @default 0
              */
             total_job_timed_out: number;
-            /** Avg Duration Ms */
-            avg_duration_ms: number;
-            /** Last Activity Ts */
-            last_activity_ts: number | null;
-            /**
-             * Health Status
-             * @enum {string}
-             */
-            health_status: "excellent" | "good" | "warning" | "critical";
-            /** Error Rate */
-            error_rate: number;
-            /**
-             * Error Rate Class
-             * @enum {string}
-             */
-            error_rate_class: "good" | "warn" | "bad";
+            health: components["schemas"]["AppHealth"];
             /** Activity Buckets */
             activity_buckets?: components["schemas"]["ActivityBucket"][];
             /**
@@ -2908,7 +2907,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AppHealthResponse"];
+                    "application/json": components["schemas"]["AppHealth"];
                 };
             };
             /** @description Validation Error */

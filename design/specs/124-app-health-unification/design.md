@@ -101,10 +101,14 @@ Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- `AppHealthAggregates` moved from `core/telemetry/helpers.py` to `schemas/summary_models.py` as a pydantic model, and `AppHealthSummary` composes it as `aggregates` next to `handler_count`/`job_count`: both scopes then feed the one builder the same input type, and `summary_models` can't import from `core/telemetry` (`helpers.py` already imports `summary_models`).
+- `build_app_health` lives in `src/hassette/web/telemetry_helpers.py`, beside the `compute_error_rate`/`classify_*` functions it composes. The aggregation itself (counts, averages, the removed-registration rule) stays in `core/telemetry/summary_queries.py`.
+- The Apps page has no duration cell, so the frontend consumer is `toAppRow()` reading `health.last_activity_ts`; `AppRow.error_rate` had no reader and was dropped.
+- The grid-entry vocabulary tests in `tests/unit/test_model_types.py` were removed: the grid row no longer has its own `health_status`/`error_rate_class`, and `AppHealth`'s tests cover both.
 
 ## Addendum

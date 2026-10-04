@@ -15,19 +15,36 @@ from hassette.schemas.job_models import JobGlobalStats
 from hassette.schemas.listener_models import ListenerGlobalStats
 
 
+class AppHealthAggregates(BaseModel):
+    """Handler and job execution aggregates for one app over a time window.
+
+    The single input to app-health computation, for both scopes: one app instance
+    (``get_app_health_aggregates()``) and all instances of an app (``get_all_app_summaries()``).
+    Counts include executions of handlers and jobs removed since they ran. An average is
+    ``None`` when nothing of its kind ran; the job average excludes skipped executions.
+    """
+
+    total_invocations: int
+    handler_errors: int
+    handler_timed_out: int
+    handler_avg_duration_ms: float | None
+    total_executions: int
+    job_errors: int
+    job_timed_out: int
+    job_avg_duration_ms: float | None
+    last_activity_ts: float | None
+
+
 class AppHealthSummary(BaseModel):
-    """Per-app health summary returned by ``get_all_app_summaries()``."""
+    """Per-app health summary returned by ``get_all_app_summaries()``.
+
+    ``handler_count``/``job_count`` count currently registered handlers and jobs only, while
+    ``aggregates`` covers every execution in the window.
+    """
 
     handler_count: int
     job_count: int
-    total_invocations: int
-    total_errors: int
-    total_timed_out: int = 0
-    total_executions: int
-    total_job_errors: int
-    total_job_timed_out: int = 0
-    avg_duration_ms: float
-    last_activity_ts: float | None
+    aggregates: AppHealthAggregates
 
 
 class GlobalSummary(BaseModel):

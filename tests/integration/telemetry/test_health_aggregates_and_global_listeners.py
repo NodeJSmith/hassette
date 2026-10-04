@@ -11,8 +11,9 @@ Covers:
 
 import pytest
 
-from hassette.core.telemetry.query_service import AppHealthAggregates, TelemetryQueryService
+from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.summary_models import AppHealthAggregates
 
 from .helpers import (
     BASE_TS,
@@ -67,44 +68,50 @@ class TestGetAppHealthAggregates:
         # last_activity_ts should be set (most recent invocation/execution)
         assert agg.last_activity_ts is not None
 
-    async def test_excludes_cancelled_listener_invocations(
+    async def test_counts_removed_handler_and_job_executions(
         self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
-        """A cancelled listener's invocations are excluded from handler aggregates."""
+        """Executions of handlers and jobs removed after they ran still count toward health."""
         db_svc, session_id = db
 
         live = await insert_listener(db_svc, app_key="test_app", handler_method="on_live")
-        cancelled = await insert_listener(db_svc, app_key="test_app", handler_method="on_cancelled")
+        removed = await insert_listener(db_svc, app_key="test_app", handler_method="on_removed")
+        removed_job = await insert_job(db_svc, app_key="test_app", job_name="removed_job")
         await insert_invocation(db_svc, live, session_id, status="success", duration_ms=10.0)
-        await insert_invocation(db_svc, cancelled, session_id, status="error", duration_ms=20.0)
-        await db_svc.db.execute("UPDATE listeners SET removed_at = ? WHERE id = ?", (1000.0, cancelled))
+        await insert_invocation(db_svc, removed, session_id, status="error", duration_ms=20.0)
+        await insert_execution(db_svc, removed_job, session_id, status="error", duration_ms=40.0)
+        await db_svc.db.execute("UPDATE listeners SET removed_at = ? WHERE id = ?", (1000.0, removed))
+        await db_svc.db.execute("UPDATE scheduled_jobs SET removed_at = ? WHERE id = ?", (1000.0, removed_job))
         await db_svc.db.commit()
 
         agg = await query_service.get_app_health_aggregates(app_key="test_app", instance_index=0)
 
-        # Only the live listener's success counts; the cancelled listener's error is excluded.
-        assert agg.total_invocations == 1
-        assert agg.handler_errors == 0
+        assert agg.total_invocations == 2
+        assert agg.handler_errors == 1
+        assert agg.handler_avg_duration_ms == pytest.approx(15.0)
+        assert agg.total_executions == 1
+        assert agg.job_errors == 1
+        assert agg.job_avg_duration_ms == pytest.approx(40.0)
 
     async def test_zero_invocations_returns_zero_values(
         self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
-        """App with no invocations or executions returns all-zero aggregates, None last_activity_ts."""
+        """App with no invocations or executions returns zero counts and None averages and last_activity_ts."""
         result = await query_service.get_app_health_aggregates(app_key="no_such_app", instance_index=0)
 
         assert isinstance(result, AppHealthAggregates)
         assert result.total_invocations == 0
         assert result.handler_errors == 0
         assert result.handler_timed_out == 0
-        assert result.handler_avg_duration_ms == 0.0
+        assert result.handler_avg_duration_ms is None
         assert result.total_executions == 0
         assert result.job_errors == 0
         assert result.job_timed_out == 0
-        assert result.job_avg_duration_ms == 0.0
+        assert result.job_avg_duration_ms is None
         assert result.last_activity_ts is None
 
     async def test_listeners_only_no_jobs(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
-        """App with handlers but no jobs returns correct handler totals, zero job totals."""
+        """App with handlers but no jobs returns correct handler totals, zero job totals, no job average."""
         db_svc, session_id = db
 
         listener_id = await insert_listener(db_svc, app_key="handler_only", handler_method="on_event")
@@ -119,10 +126,10 @@ class TestGetAppHealthAggregates:
         assert agg.handler_avg_duration_ms == pytest.approx(11.5)
         assert agg.total_executions == 0
         assert agg.job_errors == 0
-        assert agg.job_avg_duration_ms == 0.0
+        assert agg.job_avg_duration_ms is None
 
     async def test_jobs_only_no_listeners(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
-        """App with jobs but no listeners returns correct job totals, zero handler totals."""
+        """App with jobs but no listeners returns correct job totals, zero handler totals, no handler average."""
         db_svc, session_id = db
 
         job_id = await insert_job(db_svc, app_key="job_only", job_name="scheduled")
@@ -133,7 +140,7 @@ class TestGetAppHealthAggregates:
 
         assert agg.total_invocations == 0
         assert agg.handler_errors == 0
-        assert agg.handler_avg_duration_ms == 0.0
+        assert agg.handler_avg_duration_ms is None
         assert agg.total_executions == 2
         assert agg.job_errors == 0
         assert agg.job_timed_out == 1

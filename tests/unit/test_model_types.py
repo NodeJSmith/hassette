@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from hassette_wire import (
     ActivityFeedEntry,
-    AppHealthResponse,
+    AppHealth,
     AppInstanceResponse,
     AppManifestResponse,
     DashboardAppGridEntry,
@@ -87,11 +87,7 @@ def minimal_grid_entry(**overrides: Any) -> DashboardAppGridEntry:
             "total_errors": 0,
             "total_executions": 0,
             "total_job_errors": 0,
-            "avg_duration_ms": 0.0,
-            "last_activity_ts": None,
-            "health_status": "excellent",
-            "error_rate": 0.0,
-            "error_rate_class": "good",
+            "health": minimal_app_health(),
         },
         overrides,
     )
@@ -112,17 +108,17 @@ def minimal_instance_response(**overrides: Any) -> AppInstanceResponse:
     )
 
 
-def minimal_health_response(**overrides: Any) -> AppHealthResponse:
-    """AppHealthResponse with only its required fields set."""
+def minimal_app_health(**overrides: Any) -> AppHealth:
+    """AppHealth with only its required fields set."""
     return build(
-        AppHealthResponse,
+        AppHealth,
         {
             "error_rate": 0.0,
             "error_rate_class": "good",
-            "handler_avg_duration": 0.0,
-            "job_avg_duration": 0.0,
-            "last_activity_ts": None,
             "health_status": "excellent",
+            "last_activity_ts": None,
+            "handler_avg_duration_ms": None,
+            "job_avg_duration_ms": None,
         },
         overrides,
     )
@@ -344,29 +340,21 @@ class TestResourceStatus:
 class TestHealthStatus:
     def test_rejects_unknown(self) -> None:
         with pytest.raises(ValidationError):
-            minimal_health_response(health_status="unknown")
+            minimal_app_health(health_status="unknown")
 
     def test_accepts_all_four_values(self) -> None:
         for value in ("excellent", "good", "warning", "critical"):
-            assert minimal_health_response(health_status=value).health_status == value
-
-    def test_rejects_on_dashboard_grid_entry(self) -> None:
-        with pytest.raises(ValidationError):
-            minimal_grid_entry(health_status="unknown")
+            assert minimal_app_health(health_status=value).health_status == value
 
 
 class TestErrorRateClass:
     def test_rejects_ok(self) -> None:
         with pytest.raises(ValidationError):
-            minimal_health_response(error_rate_class="ok")  # not in the 3-value set
+            minimal_app_health(error_rate_class="ok")  # not in the 3-value set
 
     def test_accepts_all_three_values(self) -> None:
         for value in ("good", "warn", "bad"):
-            assert minimal_health_response(error_rate_class=value).error_rate_class == value
-
-    def test_rejects_ok_on_dashboard_grid_entry(self) -> None:
-        with pytest.raises(ValidationError):
-            minimal_grid_entry(error_rate_class="ok")
+            assert minimal_app_health(error_rate_class=value).error_rate_class == value
 
 
 class TestListenerKind:

@@ -60,16 +60,16 @@ If `status` is `ok`, the framework is healthy. If it's `degraded`, something is 
 hassette dashboard
 ```
 
-The dashboard shows every app's invocation count, error count, average duration, and health status. Look for apps with a non-zero `Errs` value or a health status other than `excellent`:
+The dashboard shows every app's invocation count, error count, average handler and job duration, and health status. Look for apps with a non-zero `Errs` value or a health status other than `excellent`:
 
 ```
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┓
-┃ App             ┃ Status  ┃ Invoc ┃ Errs ┃ Avg Dur ┃ Last Active ┃ Health    ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━┩
-│ motion_lights   │ running │ 142   │ 0    │ 12ms    │ 2m ago      │ excellent │
-│ garage_door     │ running │ 34    │ 3    │ 45ms    │ 14m ago     │ warning   │
-│ thermostat      │ running │ 8     │ 0    │ 230ms   │ 1h ago      │ excellent │
-└─────────────────┴─────────┴───────┴──────┴─────────┴─────────────┴───────────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ App             ┃ Status  ┃ Invoc ┃ Errs ┃ Handler Avg ┃ Job Avg ┃ Last Active ┃ Health    ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ motion_lights   │ running │ 142   │ 0    │ 12ms        │         │ 2m ago      │ excellent │
+│ garage_door     │ running │ 34    │ 3    │ 45ms        │ 1.2s    │ 14m ago     │ warning   │
+│ thermostat      │ running │ 8     │ 0    │ 230ms       │ 85ms    │ 1h ago      │ excellent │
+└─────────────────┴─────────┴───────┴──────┴─────────────┴─────────┴─────────────┴───────────┘
 ```
 
 `garage_door` has 3 errors. Drill into it next.
@@ -167,7 +167,7 @@ Every command accepts `--json` and writes structured JSON to stdout. Pipe it to 
 **Extract failing apps:**
 
 ```bash
-hassette dashboard --json | jq '.[] | select(.health_status != "excellent") | .app_key'
+hassette dashboard --json | jq '.[] | select(.health.health_status != "excellent") | .app_key'
 ```
 
 **Count total handler failures across all listeners:**

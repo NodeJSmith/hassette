@@ -18,12 +18,11 @@ from fastapi import APIRouter, Query, Response
 from hassette_wire import (
     ActivityBucket,
     ActivityFeedEntry,
-    AppHealthResponse,
+    AppHealth,
     BlockingFindingsResponse,
     DashboardAppGridEntry,
     DashboardAppGridResponse,
     Execution,
-    HealthStatus,
     JobSummary,
     ListenerWithSummary,
     ProblemCode,
@@ -33,7 +32,7 @@ from hassette_wire import (
 
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
-from hassette.schemas.summary_models import AppHealthSummary
+from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
 from hassette.web.dependencies import (
     AppKeyPath,
     HassetteDep,
@@ -48,12 +47,7 @@ from hassette.web.dependencies import (
 )
 from hassette.web.errors import problem_responses
 from hassette.web.mappers import manifest_response_fields, to_listener_with_summary
-from hassette.web.telemetry_helpers import (
-    classify_error_rate,
-    classify_health_bar,
-    compute_error_rate,
-    compute_success_rate,
-)
+from hassette.web.telemetry_helpers import build_app_health
 from hassette.web.utils import enrich_jobs_with_live_data
 
 if TYPE_CHECKING:
@@ -112,52 +106,19 @@ async def telemetry_status(
     )
 
 
-def error_rate_from_summary(summary: AppHealthSummary) -> float:
-    """Compute error rate percentage from an app health summary."""
-    return compute_error_rate(
-        total_invocations=summary.total_invocations,
-        total_executions=summary.total_executions,
-        handler_errors=summary.total_errors + summary.total_timed_out,
-        job_errors=summary.total_job_errors + summary.total_job_timed_out,
-    )
-
-
-def health_status_from_summary(summary: AppHealthSummary) -> HealthStatus:
-    """Derive a health status label from an app health summary.
-
-    Zero-invocation apps have a ``0.0`` error rate, so they classify as
-    ``"excellent"`` — the ``HealthStatus`` Literal has no ``"unknown"`` state.
-    """
-    success_rate = compute_success_rate(error_rate_from_summary(summary))
-    return classify_health_bar(success_rate)
-
-
 @router.get(
     "/app/{app_key}/health",
-    response_model=AppHealthResponse,
+    response_model=AppHealth,
     responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
 )
 async def app_health(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
     filters: TelemetryFiltersDep,
-) -> AppHealthResponse:
+) -> AppHealth:
     """Health strip metrics for a single app instance."""
     agg = await telemetry.get_app_health_aggregates(app_key=app_key, **filters.query_kwargs)
-    error_rate = compute_error_rate(
-        total_invocations=agg.total_invocations,
-        total_executions=agg.total_executions,
-        handler_errors=agg.handler_errors + agg.handler_timed_out,
-        job_errors=agg.job_errors + agg.job_timed_out,
-    )
-    return AppHealthResponse(
-        error_rate=error_rate,
-        error_rate_class=classify_error_rate(error_rate),
-        handler_avg_duration=agg.handler_avg_duration_ms,
-        job_avg_duration=agg.job_avg_duration_ms,
-        last_activity_ts=agg.last_activity_ts,
-        health_status=classify_health_bar(compute_success_rate(error_rate)),
-    )
+    return build_app_health(agg)
 
 
 @router.get(
@@ -382,38 +343,37 @@ async def dashboard_app_grid(
     empty = AppHealthSummary(
         handler_count=0,
         job_count=0,
-        total_invocations=0,
-        total_errors=0,
-        total_timed_out=0,
-        total_executions=0,
-        total_job_errors=0,
-        total_job_timed_out=0,
-        avg_duration_ms=0.0,
-        last_activity_ts=None,
+        aggregates=AppHealthAggregates(
+            total_invocations=0,
+            handler_errors=0,
+            handler_timed_out=0,
+            handler_avg_duration_ms=None,
+            total_executions=0,
+            job_errors=0,
+            job_timed_out=0,
+            job_avg_duration_ms=None,
+            last_activity_ts=None,
+        ),
     )
 
     entries: list[DashboardAppGridEntry] = []
     for manifest in manifest_infos:
-        health = summaries.get(manifest.app_key, empty)
-        rate = error_rate_from_summary(health)
+        summary = summaries.get(manifest.app_key, empty)
+        agg = summary.aggregates
         buckets = per_app_buckets.get(manifest.app_key, [])
         err_info = per_app_errors.get(manifest.app_key)
         entries.append(
             DashboardAppGridEntry(
                 **manifest_response_fields(manifest),
-                handler_count=health.handler_count,
-                job_count=health.job_count,
-                total_invocations=health.total_invocations,
-                total_errors=health.total_errors,
-                total_timed_out=health.total_timed_out,
-                total_executions=health.total_executions,
-                total_job_errors=health.total_job_errors,
-                total_job_timed_out=health.total_job_timed_out,
-                avg_duration_ms=health.avg_duration_ms,
-                last_activity_ts=health.last_activity_ts,
-                health_status=health_status_from_summary(health),
-                error_rate=rate,
-                error_rate_class=classify_error_rate(rate),
+                handler_count=summary.handler_count,
+                job_count=summary.job_count,
+                total_invocations=agg.total_invocations,
+                total_errors=agg.handler_errors,
+                total_timed_out=agg.handler_timed_out,
+                total_executions=agg.total_executions,
+                total_job_errors=agg.job_errors,
+                total_job_timed_out=agg.job_timed_out,
+                health=build_app_health(agg),
                 last_error_message=err_info.error_message if err_info else None,
                 last_error_type=err_info.error_type if err_info else None,
                 last_error_ts=err_info.timestamp if err_info else None,

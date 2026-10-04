@@ -50,7 +50,6 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
     total_timed_out: 0,
     total_job_errors: 0,
     total_job_timed_out: 0,
-    error_rate: 0.02,
     last_activity_ts: null,
     activity_buckets: [],
     last_error_message: null,

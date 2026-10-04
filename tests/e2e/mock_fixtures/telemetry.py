@@ -13,7 +13,7 @@ from hassette_wire import Execution, JobSummary
 
 from hassette.schemas.job_models import JobErrorRecord, JobGlobalStats
 from hassette.schemas.listener_models import HandlerErrorRecord, ListenerGlobalStats, ListenerSummary
-from hassette.schemas.summary_models import AppHealthSummary, GlobalSummary
+from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary, GlobalSummary
 from tests.e2e.mock_fixtures.constants import (
     APP_KEY_BROKEN_APP,
     APP_KEY_MY_APP,
@@ -554,22 +554,32 @@ def build_app_health_summaries() -> dict[str, AppHealthSummary]:
         APP_KEY_MY_APP: AppHealthSummary(
             handler_count=2,
             job_count=2,
-            total_invocations=30,
-            total_errors=1,
-            total_executions=20,
-            total_job_errors=1,
-            avg_duration_ms=2.0,
-            last_activity_ts=TS_BASE,
+            aggregates=AppHealthAggregates(
+                total_invocations=30,
+                handler_errors=1,
+                handler_timed_out=0,
+                handler_avg_duration_ms=2.0,
+                total_executions=20,
+                job_errors=1,
+                job_timed_out=0,
+                job_avg_duration_ms=4.0,
+                last_activity_ts=TS_BASE,
+            ),
         ),
         APP_KEY_BROKEN_APP: AppHealthSummary(
             handler_count=1,
             job_count=1,
-            total_invocations=3,
-            total_errors=2,
-            total_executions=8,
-            total_job_errors=5,
-            avg_duration_ms=5.0,
-            last_activity_ts=TS_OLDER,
+            aggregates=AppHealthAggregates(
+                total_invocations=3,
+                handler_errors=2,
+                handler_timed_out=0,
+                handler_avg_duration_ms=5.0,
+                total_executions=8,
+                job_errors=5,
+                job_timed_out=0,
+                job_avg_duration_ms=7.0,
+                last_activity_ts=TS_OLDER,
+            ),
         ),
     }
 
