@@ -52,9 +52,9 @@ ENV_FILE = TEST_CONFIG_PATH / ".env"
 TEST_TOML_FILE = TEST_CONFIG_PATH / "hassette.toml"
 APPS_TOML_TEMPLATE = TEST_CONFIG_PATH / "hassette_apps.toml"
 
-# Per-process scratch data_dir shared by every TestConfig instance. Created lazily (one per xdist
+# Per-process scratch data dir shared by every TestConfig instance. Created lazily (one per xdist
 # worker) so the suite never touches the platform user data dir a local `hassette run` uses.
-_session_data_dir: Path | None = None
+_scratch_data_dir: Path | None = None
 
 # An exported data-dir env var outranks TestConfig's scratch default in pydantic-settings source
 # precedence, and is also read by `default_data_dir()`. Drop both spellings for this process so
@@ -166,13 +166,13 @@ def build_web_api_config() -> WebApiConfig:
     return WebApiConfig(run=False)
 
 
-def session_data_dir() -> Path:
-    """Return this test process's scratch data directory, creating it on first use."""
-    global _session_data_dir
-    if _session_data_dir is None:
-        _session_data_dir = Path(tempfile.mkdtemp(prefix="hassette_test_data_"))
-        atexit.register(shutil.rmtree, _session_data_dir, True)
-    return _session_data_dir
+def scratch_data_dir() -> Path:
+    """Return this test process's scratch data dir, creating it on first use."""
+    global _scratch_data_dir
+    if _scratch_data_dir is None:
+        _scratch_data_dir = Path(tempfile.mkdtemp(prefix="hassette_test_data_"))
+        atexit.register(shutil.rmtree, _scratch_data_dir, ignore_errors=True)
+    return _scratch_data_dir
 
 
 class TestConfig(HassetteConfig):
@@ -182,7 +182,7 @@ class TestConfig(HassetteConfig):
     }
 
     token: SecretStr = SecretStr("test-token")
-    data_dir: Path = Field(default_factory=session_data_dir)
+    data_dir: Path = Field(default_factory=scratch_data_dir)
 
     file_watcher: FileWatcherConfig = Field(default_factory=build_file_watcher_config)
     websocket: WebSocketConfig = Field(default_factory=build_websocket_config)
