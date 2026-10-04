@@ -1,7 +1,10 @@
 import asyncio
+import atexit
 import faulthandler
 import os
+import shutil
 import sys
+import tempfile
 import threading
 import time
 import tracemalloc
@@ -48,6 +51,10 @@ TEST_APPS_PATH = TEST_DATA_PATH / "apps"
 ENV_FILE = TEST_CONFIG_PATH / ".env"
 TEST_TOML_FILE = TEST_CONFIG_PATH / "hassette.toml"
 APPS_TOML_TEMPLATE = TEST_CONFIG_PATH / "hassette_apps.toml"
+
+# Per-process scratch data_dir shared by every TestConfig instance. Created lazily (one per xdist
+# worker) so the suite never touches the platform user data dir a local `hassette run` uses.
+_session_data_dir: Path | None = None
 
 assert ENV_FILE.exists(), f"Environment file {ENV_FILE} does not exist"
 assert TEST_TOML_FILE.exists(), f"Test TOML file {TEST_TOML_FILE} does not exist"
@@ -153,6 +160,15 @@ def build_web_api_config() -> WebApiConfig:
     return WebApiConfig(run=False)
 
 
+def session_data_dir() -> Path:
+    """Return this test process's scratch data directory, creating it on first use."""
+    global _session_data_dir
+    if _session_data_dir is None:
+        _session_data_dir = Path(tempfile.mkdtemp(prefix="hassette_test_data_"))
+        atexit.register(shutil.rmtree, _session_data_dir, True)
+    return _session_data_dir
+
+
 class TestConfig(HassetteConfig):
     model_config = HassetteConfig.model_config.copy() | {
         "toml_file": TEST_TOML_FILE,
@@ -160,6 +176,7 @@ class TestConfig(HassetteConfig):
     }
 
     token: SecretStr = SecretStr("test-token")
+    data_dir: Path = Field(default_factory=session_data_dir)
 
     file_watcher: FileWatcherConfig = Field(default_factory=build_file_watcher_config)
     websocket: WebSocketConfig = Field(default_factory=build_websocket_config)
