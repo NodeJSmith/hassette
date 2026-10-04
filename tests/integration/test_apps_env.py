@@ -123,7 +123,7 @@ def write_toml(
     )
 
 
-def build_config_class(*, toml_file: Path, env_files: list[Path]):
+def build_config_class(*, toml_file: Path, env_files: list[Path], scratch_dir: Path):
     class _TestConfig(HassetteConfig):
         model_config = HassetteConfig.model_config.copy() | {
             "cli_parse_args": False,
@@ -132,6 +132,7 @@ def build_config_class(*, toml_file: Path, env_files: list[Path]):
         }
 
         token: SecretStr = SecretStr(TOKEN)
+        data_dir: Path = scratch_dir
 
     return _TestConfig
 
@@ -158,7 +159,7 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(
     monkeypatch.delenv(ENV_IMPORT_KEY, raising=False)
     clear_app_import_caches(pkg_name, "env_reader_app")
 
-    app_import_config = build_config_class(toml_file=toml_file, env_files=[env_file])
+    app_import_config = build_config_class(toml_file=toml_file, env_files=[env_file], scratch_dir=tmp_path / "data")
     config = app_import_config(import_dot_env_files=True)
     with context.use_hassette_config(config):
         run_hassette_startup_tasks(config)
@@ -191,7 +192,7 @@ async def test_import_dot_env_files_disabled_not_visible_during_app_import(
     monkeypatch.delenv(ENV_IMPORT_KEY, raising=False)
     clear_app_import_caches(pkg_name, "env_reader_app")
 
-    app_import_config = build_config_class(toml_file=toml_file, env_files=[env_file])
+    app_import_config = build_config_class(toml_file=toml_file, env_files=[env_file], scratch_dir=tmp_path / "data")
     config = app_import_config(import_dot_env_files=False)
     with context.use_hassette_config(config):
         run_hassette_startup_tasks(config)
@@ -223,7 +224,7 @@ async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPat
 
     clear_app_import_caches(pkg_name, "env_settings_app")
 
-    app_settings_config = build_config_class(toml_file=toml_file, env_files=[])
+    app_settings_config = build_config_class(toml_file=toml_file, env_files=[], scratch_dir=tmp_path / "data")
     config = app_settings_config(import_dot_env_files=False)
 
     async with build_harness(HassetteHarness(config).with_app_handler().with_scheduler()) as harness:
@@ -267,7 +268,7 @@ async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_fi
 
     clear_app_import_caches(pkg_name, "env_settings_app")
 
-    custom_env_config = build_config_class(toml_file=toml_file, env_files=[custom_env])
+    custom_env_config = build_config_class(toml_file=toml_file, env_files=[custom_env], scratch_dir=tmp_path / "data")
     config = custom_env_config(import_dot_env_files=False)
     run_hassette_startup_tasks(config)
 
@@ -315,7 +316,7 @@ async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
 
     clear_app_import_caches(pkg_name, "env_settings_app")
 
-    custom_env_config = build_config_class(toml_file=toml_file, env_files=[custom_env])
+    custom_env_config = build_config_class(toml_file=toml_file, env_files=[custom_env], scratch_dir=tmp_path / "data")
     config = custom_env_config(import_dot_env_files=True)
     with context.use_hassette_config(config):
         run_hassette_startup_tasks(config)
