@@ -158,7 +158,7 @@ export function useWebSocket(): void {
             // Refetch every manifest-backed query instead of trusting whatever's cached.
             void queryClient.invalidateQueries({ queryKey: queryKeys.manifests() });
             void queryClient.invalidateQueries({ queryKey: queryKeys.manifest.prefix() });
-            void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardGrid() });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardAppGrid() });
             void queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus() });
             break;
 

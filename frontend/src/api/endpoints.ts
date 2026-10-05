@@ -11,6 +11,7 @@ export type AppInstance = components["schemas"]["AppInstanceResponse"];
 export type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
 export type ListenerData = components["schemas"]["ListenerWithSummary"];
 export type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
+export type DashboardAppGridResponse = components["schemas"]["DashboardAppGridResponse"];
 export type JobData = components["schemas"]["JobSummary"];
 export type ExecutionData = components["schemas"]["Execution"];
 export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
@@ -50,38 +51,40 @@ function buildUrl(path: string, params: Record<string, string | number | null | 
   return qs ? `${path}?${qs}` : path;
 }
 
+const appPath = (appKey: string) => `/apps/${encodeURIComponent(appKey)}`;
+const telemetryAppPath = (appKey: string) => `/telemetry/app/${encodeURIComponent(appKey)}`;
+
 export const getAppManifests = () => apiFetch<ManifestListResponse>("/apps/manifests");
 
-export const getAppManifest = (appKey: string) => apiFetch<AppManifest>(`/apps/${encodeURIComponent(appKey)}/manifest`);
+export const getAppManifest = (appKey: string) => apiFetch<AppManifest>(`${appPath(appKey)}/manifest`);
 
-export const startApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/start`);
-export const stopApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/stop`);
-export const reloadApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/reload`);
+export const startApp = (appKey: string) => apiPost<ActionResponse>(`${appPath(appKey)}/start`);
+export const stopApp = (appKey: string) => apiPost<ActionResponse>(`${appPath(appKey)}/stop`);
+export const reloadApp = (appKey: string) => apiPost<ActionResponse>(`${appPath(appKey)}/reload`);
 
 export const startInstance = (appKey: string, index: number) =>
-  apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/instances/${index}/start`);
+  apiPost<ActionResponse>(`${appPath(appKey)}/instances/${index}/start`);
 export const stopInstance = (appKey: string, index: number) =>
-  apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/instances/${index}/stop`);
+  apiPost<ActionResponse>(`${appPath(appKey)}/instances/${index}/stop`);
 export const reloadInstance = (appKey: string, index: number) =>
-  apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/instances/${index}/reload`);
+  apiPost<ActionResponse>(`${appPath(appKey)}/instances/${index}/reload`);
 
 export const getAppConfig = (appKey: string, signal?: AbortSignal) =>
-  apiFetch<AppConfigData>(`/apps/${encodeURIComponent(appKey)}/config`, { signal });
+  apiFetch<AppConfigData>(`${appPath(appKey)}/config`, { signal });
 
 export const getAppSource = (appKey: string, signal?: AbortSignal) =>
-  apiFetch<AppSourceData>(`/apps/${encodeURIComponent(appKey)}/source`, { signal });
+  apiFetch<AppSourceData>(`${appPath(appKey)}/source`, { signal });
 
 export const getAppListeners = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
   apiFetch<ListenerData[]>(
-    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/listeners`, { instance_index: instanceIndex, since }),
+    buildUrl(`${telemetryAppPath(appKey)}/listeners`, { instance_index: instanceIndex, since }),
     { signal },
   );
 
 export const getAppJobs = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
-  apiFetch<JobData[]>(
-    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/jobs`, { instance_index: instanceIndex, since }),
-    { signal },
-  );
+  apiFetch<JobData[]>(buildUrl(`${telemetryAppPath(appKey)}/jobs`, { instance_index: instanceIndex, since }), {
+    signal,
+  });
 
 /** Omit `instanceIndex` for findings across every instance (the multi-instance parent overview). */
 export const getAppBlockingFindings = (
@@ -91,7 +94,7 @@ export const getAppBlockingFindings = (
   signal?: AbortSignal,
 ) =>
   apiFetch<BlockingFindingsData>(
-    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/blocking`, { instance_index: instanceIndex, since }),
+    buildUrl(`${telemetryAppPath(appKey)}/blocking`, { instance_index: instanceIndex, since }),
     { signal },
   );
 
@@ -106,15 +109,14 @@ export const getAppActivity = (
   signal?: AbortSignal,
 ) =>
   apiFetch<ActivityFeedEntryData[]>(
-    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/activity`, { instance_index: instanceIndex, limit, since }),
+    buildUrl(`${telemetryAppPath(appKey)}/activity`, { instance_index: instanceIndex, limit, since }),
     { signal },
   );
 
 export const getAppHealth = (appKey: string, instanceIndex = 0, since?: number | null, signal?: AbortSignal) =>
-  apiFetch<AppHealthData>(
-    buildUrl(`/telemetry/app/${encodeURIComponent(appKey)}/health`, { instance_index: instanceIndex, since }),
-    { signal },
-  );
+  apiFetch<AppHealthData>(buildUrl(`${telemetryAppPath(appKey)}/health`, { instance_index: instanceIndex, since }), {
+    signal,
+  });
 
 export const getListenerExecutions = (
   listenerId: number,
@@ -137,7 +139,7 @@ export const getExecutionById = (executionId: string, signal?: AbortSignal) =>
   apiFetch<ExecutionData | null>(`/telemetry/execution/${executionId}`, { signal });
 
 export const getDashboardAppGrid = (since?: number | null, signal?: AbortSignal) =>
-  apiFetch<{ apps: DashboardAppGridEntry[] }>(buildUrl("/telemetry/dashboard/app-grid", { since }), { signal });
+  apiFetch<DashboardAppGridResponse>(buildUrl("/telemetry/dashboard/app-grid", { since }), { signal });
 
 export const getTelemetryStatus = (signal?: AbortSignal) => apiFetch<TelemetryStatus>("/telemetry/status", { signal });
 
