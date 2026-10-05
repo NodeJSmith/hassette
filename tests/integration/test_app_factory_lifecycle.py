@@ -399,11 +399,6 @@ class TestAppLifecycleServiceIntegration:
         DEBUG rather than removed, so the traceback stays available for anyone with DEBUG
         logging enabled.
         """
-        # caplog relies on propagation to the root logger; another test in the session may
-        # have left this False (see tests/integration/web_api/test_auth.py for the same
-        # workaround).
-        logging.getLogger("hassette").propagate = True
-
         manifest = make_manifest("failing", "failing_init_app.py", "FailingInitApp")
         app_registry.set_manifests({"failing": manifest})
 

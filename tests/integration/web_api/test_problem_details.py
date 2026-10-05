@@ -615,17 +615,13 @@ class TestRoutingErrors:
 
 
 class TestServerErrors:
-    async def test_unhandled_exception_is_internal_error(
-        self, app: FastAPI, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_unhandled_exception_is_internal_error(self, app: FastAPI, caplog: pytest.LogCaptureFixture) -> None:
         """The client gets a constant body; the traceback and request go to hassette's own log.
 
         Asserts on a captured log record on purpose, an exception to the no-caplog rule in
         `tests/TESTING.md`: this log record is the documented behavior (D7, and the API error
         catalog promises it to operators), since uvicorn's own copy never reaches hassette's log.
         """
-        # Another test may have turned propagation off; caplog only sees propagated records.
-        monkeypatch.setattr(logging.getLogger("hassette"), "propagate", True)
 
         def broken_dependency() -> None:
             raise RuntimeError("secret internals")

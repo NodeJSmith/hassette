@@ -57,22 +57,6 @@ _WRONG_TOKEN = "wrong-token"
 """Credential that never matches `WEB_API_TEST_TOKEN`, for every fail-closed assertion."""
 
 
-@pytest.fixture(autouse=True)
-def _propagate_hassette_logger() -> None:
-    """Ensure the "hassette" logger propagates so caplog can see records.
-
-    Some other test in the session may have left `propagate` set to False (e.g. via
-    `enable_basic_logging()`) -- caplog relies on propagation to the root logger. Same
-    workaround as `tests/unit/web/conftest.py`.
-
-    Kept as a local copy rather than hoisted into this directory's conftest: the unit-side
-    consolidation covers `tests/unit/web/` only, and this is the one module here that needs
-    the workaround, so a directory-wide autouse fixture would apply it to every integration
-    web-api module to serve a single caller.
-    """
-    logging.getLogger("hassette").propagate = True
-
-
 async def _mint_cookie_at(token: str, seconds_ago: int) -> str:
     """Mint a session cookie as if it were minted `seconds_ago` seconds in the past."""
     stale_timestamp = int(time.time()) - seconds_ago
