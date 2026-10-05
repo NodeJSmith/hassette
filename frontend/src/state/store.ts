@@ -6,6 +6,12 @@ import { getStoredValue, setStoredValue } from "../utils/local-storage";
 import { isTheme } from "../utils/theme";
 
 export const RELATIVE_TIME_TICK_MS = 30_000;
+/** The hassette version this bundle was built from, the baseline for detecting a server update.
+ * Both it and the server's reported version come from pyproject.toml's version (build time vs.
+ * package metadata), so they're compared as exact strings. */
+export const BUNDLE_VERSION = __HASSETTE_VERSION__;
+/** What the server reports when it has no package metadata (`UNKNOWN_VERSION` in version_utils.py). */
+const UNKNOWN_SERVER_VERSION = "unknown";
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
@@ -74,11 +80,8 @@ export interface AppStore extends TelemetryHealth {
   connection: ConnectionStatus;
   uptimeSeconds: number | null;
   systemVersion: string | null;
-  /** First non-empty server version this tab saw. Never overwritten, so it stays the baseline
-   * even if a later connect reports no version. */
-  loadedServerVersion: string | null;
-  /** True once a connect reports a different server version than `loadedServerVersion`. The
-   * bundle and its generated types match only the server it was loaded from, so a changed
+  /** True once a connect reports a different server version than `BUNDLE_VERSION`. The bundle
+   * and its generated types match only the server version they were built for, so a different
    * version means the tab must reload; it stays true until then. */
   serverUpdated: boolean;
   setConnection: (status: ConnectionStatus) => void;
@@ -144,7 +147,6 @@ export function initialState(): Omit<
     connection: "connecting",
     uptimeSeconds: null,
     systemVersion: null,
-    loadedServerVersion: null,
     serverUpdated: false,
 
     // --- telemetry ---
@@ -212,34 +214,31 @@ export const useAppStore = create<AppStore>()((set) => ({
     // (e.g. a separate set() that clears serviceStatus) would make atomicity depend on React's batching
     // rather than the shape of the code — a component could then observe an intermediate
     // render where connection is "connected" but serviceStatus/appStatus are stale.
-    set((state) => {
-      const loadedServerVersion = state.loadedServerVersion ?? (data.version || null);
-      return {
-        connection: "connected",
-        uptimeSeconds: data.uptime_seconds,
-        systemVersion: data.version ?? null,
-        loadedServerVersion,
-        serverUpdated: state.serverUpdated || isVersionChange(loadedServerVersion, data.version),
-        // `isReconnect && {...}` is `false` (spreads to nothing) on first connect, or the object
-        // (spreads its fields in) on reconnect — clears stale data only when reconnecting.
-        // appStatus must clear here too: an instance's status/exception can change while
-        // disconnected (the missed app_status_changed event is never replayed), and
-        // instanceLiveStatus()/instanceLiveError() prefer any existing appStatus entry over the
-        // freshly-refetched manifest data (see the reconnect invalidateQueries() call in
-        // use-websocket.ts) for as long as it stays around -- so a stale entry can outlive the
-        // refetch it was supposed to be superseded by. Logs need no bump here: the unfiltered
-        // `invalidateQueries()` in use-websocket.ts already covers the log query on reconnect,
-        // same as every other cache entry.
-        ...(isReconnect && {
-          serviceStatus: {},
-          appStatus: {},
-        }),
-      };
-    }),
+    set((state) => ({
+      connection: "connected",
+      uptimeSeconds: data.uptime_seconds,
+      systemVersion: data.version ?? null,
+      serverUpdated: state.serverUpdated || isVersionChange(data.version),
+      // `isReconnect && {...}` is `false` (spreads to nothing) on first connect, or the object
+      // (spreads its fields in) on reconnect — clears stale data only when reconnecting.
+      // appStatus must clear here too: an instance's status/exception can change while
+      // disconnected (the missed app_status_changed event is never replayed), and
+      // instanceLiveStatus()/instanceLiveError() prefer any existing appStatus entry over the
+      // freshly-refetched manifest data (see the reconnect invalidateQueries() call in
+      // use-websocket.ts) for as long as it stays around -- so a stale entry can outlive the
+      // refetch it was supposed to be superseded by. Logs need no bump here: the unfiltered
+      // `invalidateQueries()` in use-websocket.ts already covers the log query on reconnect,
+      // same as every other cache entry.
+      ...(isReconnect && {
+        serviceStatus: {},
+        appStatus: {},
+      }),
+    })),
 }));
 
-/** Whether a reported server version differs from the loaded one. An absent or empty version
- * (older servers default it to "") is unknown, not a change. */
-function isVersionChange(loaded: string | null, reported: string | undefined): boolean {
-  return Boolean(loaded) && Boolean(reported) && reported !== loaded;
+/** Whether a reported server version differs from the one this bundle was built for. An absent,
+ * empty (older servers default it to ""), or "unknown" (no package metadata) version can't be
+ * compared, so it isn't a change. */
+function isVersionChange(reported: string | undefined): boolean {
+  return Boolean(reported) && reported !== UNKNOWN_SERVER_VERSION && reported !== BUNDLE_VERSION;
 }
