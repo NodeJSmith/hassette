@@ -1,4 +1,3 @@
-import os
 import typing
 from pathlib import Path
 
@@ -172,12 +171,11 @@ def e2e(session: "Session"):
     if not _SPA_INDEX.exists():
         session.run("npm", "ci", "--prefix", "frontend", external=True)
         session.run("npm", "run", "build", "--prefix", "frontend", external=True)
-    # ``--with-deps`` installs system libraries via apt, which needs root. CI runners have
-    # passwordless sudo, so keep it there; locally it would prompt for a password with no TTY
-    # and fail even when the deps are already present. Locally, install just the browser binary
-    # (idempotent, no root) — system deps are a one-time manual ``sudo playwright install-deps``.
-    deps_flag = ["--with-deps"] if os.environ.get("CI") else []
-    session.run("uv", "run", "--active", "playwright", "install", *deps_flag, "chromium", external=True)
+    # Install just the browser binary: idempotent, no root, and a no-op when it's already in
+    # ``~/.cache/ms-playwright``. System libraries need root, so they're installed separately —
+    # by the e2e workflow in CI (which also caches the browser), and locally as a one-time
+    # manual ``playwright install-deps``.
+    session.run("uv", "run", "--active", "playwright", "install", "chromium", external=True)
     session.run(
         "uv",
         "run",
