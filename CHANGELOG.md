@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.1](https://github.com/NodeJSmith/hassette/compare/v0.55.0...v0.55.1) (2026-10-05)
+
+### Bug Fixes
+
+- Startup no longer fails when `file_watcher.watch_files` is disabled. The file watcher service never marked itself ready on that path, so startup waited out the full timeout and then aborted. (#2501)
+
 ## [0.55.0](https://github.com/NodeJSmith/hassette/compare/v0.54.0...v0.55.0) (2026-09-28)
 
 ### Breaking Changes
