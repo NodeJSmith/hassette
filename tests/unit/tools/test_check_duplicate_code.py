@@ -365,6 +365,42 @@ def test_build_edges_drops_boilerplate_import_only_fragment(
     assert build_edges(blocks, tmp_path) == []
 
 
+def test_build_edges_drops_import_fragment_spanning_type_checking_guard(
+    write_file: Callable[[str, str], Path], tmp_path: Path
+) -> None:
+    content = (
+        "import typing\n"
+        "from a import b\n"
+        "from c import d\n"
+        "\n"
+        "if typing.TYPE_CHECKING:\n"
+        "    from e import f\n"
+        "    from g import h\n"
+    )
+    a = write_file("a.py", content)
+    b = write_file("b.py", content)
+    blocks = [[Fragment(a, 2, 7), Fragment(b, 2, 7)]]
+    assert build_edges(blocks, tmp_path) == []
+
+
+def test_build_edges_keeps_type_checking_guard_with_non_import_body(
+    write_file: Callable[[str, str], Path], tmp_path: Path
+) -> None:
+    content = (
+        "import typing\n"
+        "from a import b\n"
+        "from c import d\n"
+        "\n"
+        "if typing.TYPE_CHECKING:\n"
+        "    from e import f\n"
+        "    Alias = f\n"
+    )
+    a = write_file("a.py", content)
+    b = write_file("b.py", content)
+    blocks = [[Fragment(a, 2, 7), Fragment(b, 2, 7)]]
+    assert build_edges(blocks, tmp_path) != []
+
+
 def test_fragment_from_file_element_parses_pmd_xml() -> None:
     xml = f"""<duplication xmlns="{CPD_NS["cpd"]}">
         <file path="/repo/tests/foo.py" line="10" endline="20"/>
