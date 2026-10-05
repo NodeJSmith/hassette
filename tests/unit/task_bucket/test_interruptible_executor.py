@@ -91,13 +91,9 @@ def capture_warnings(logger_name: str = _EXECUTOR_LOGGER) -> Iterator[list[loggi
     """Capture WARNING+ records from ``logger_name`` via a directly-attached handler.
 
     Unlike pytest's ``caplog``, this does not rely on records propagating to the root
-    logger, so it is immune to other tests leaving ``propagate=False`` on a ``hassette``
-    ancestor (which the async logging pipeline sets). The handler sits on the target
-    logger itself, and the logger's level is pinned to WARNING for the duration so the
-    record is not filtered by an ancestor's level.
-
-    test_sync_executor_service_saturation.py works around the same ``propagate=False``
-    problem by mock-patching the service logger's ``.warning`` method instead.
+    logger, so it does not depend on ``propagate`` state on a ``hassette`` ancestor. The
+    handler sits on the target logger itself, and the logger's level is pinned to WARNING
+    for the duration so the record is not filtered by an ancestor's level.
     """
     records: list[logging.LogRecord] = []
 

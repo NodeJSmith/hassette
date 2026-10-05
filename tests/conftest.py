@@ -1,6 +1,7 @@
 import asyncio
 import atexit
 import faulthandler
+import logging
 import os
 import shutil
 import sys
@@ -132,6 +133,26 @@ def _ensure_block_io_guard_uninstalled():
     block_io_guard.uninstall()
     yield
     block_io_guard.uninstall()
+
+
+@pytest.fixture(autouse=True)
+def _propagate_hassette_logger():
+    """Guarantee the "hassette" logger propagates so caplog can see its records.
+
+    ``enable_basic_logging()`` (any directly-constructed ``Hassette()``, the logging-pipeline
+    fixtures) sets ``propagate=False`` on this process-global logger, and nothing restores it.
+    caplog attaches to the root logger, so a later test on the same worker would read an empty
+    ``caplog.text`` — which of those later tests share a worker depends on xdist scheduling,
+    hence the intermittent CI failures. Forcing Python's default before each test makes the
+    outcome independent of ordering; tests that need ``propagate=False`` set it in their own
+    function-scoped fixtures (e.g. ``logging_pipeline`` in ``tests/unit/conftest.py``), which
+    run after this one because autouse fixtures are instantiated first within a scope. A
+    wider-scoped fixture that sets it would be overridden here, so don't add one.
+
+    ``HassetteHarness`` (``src/hassette/testing/_harness.py``) also resets ``propagate`` after
+    constructing its ``Hassette``; that copy ships to user test suites and stays.
+    """
+    logging.getLogger("hassette").propagate = True
 
 
 def build_file_watcher_config() -> FileWatcherConfig:

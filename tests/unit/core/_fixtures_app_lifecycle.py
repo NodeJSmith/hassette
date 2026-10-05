@@ -1,7 +1,6 @@
 """AppLifecycleService fixtures and mock factories for tests/unit/core/."""
 
 import asyncio
-import logging
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
@@ -213,8 +212,6 @@ def lifecycle_service(
     mock_hassette: MagicMock, mock_registry: MagicMock, mock_factory: MagicMock
 ) -> AppLifecycleService:
     """Create an AppLifecycleService with mocked dependencies."""
-    logging.getLogger("hassette").propagate = True
-
     with (
         patch("hassette.core.app_lifecycle_service.AppFactory", return_value=mock_factory),
         patch("hassette.core.app_lifecycle_service.AppChangeDetector"),
