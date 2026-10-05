@@ -1,10 +1,28 @@
 import { describe, expect, it } from "vitest";
 
+import type { components } from "../api/generated-types";
 import type { AppStatusEntry } from "../state/store";
 import { createAppGridEntry, createInstance } from "../test/factories";
 import { appLiveStatus, compareAppRows, toAppRow } from "./app-data";
 
+type AppStatus = components["schemas"]["AppStatus"];
+type ResourceStatus = components["schemas"]["ResourceStatus"];
+
 const NO_LIVE_STATUSES: Record<string, AppStatusEntry> = {};
+
+/** A grid row for `appKey` whose cached instances have the given statuses, indexed from 0. */
+function instanceRow(appKey: string, status: AppStatus, instanceStatuses: ResourceStatus[]) {
+  return toAppRow(
+    createAppGridEntry({
+      app: {
+        app_key: appKey,
+        status,
+        instance_count: instanceStatuses.length,
+        instances: instanceStatuses.map((s, index) => createInstance({ app_key: appKey, index, status: s })),
+      },
+    }),
+  );
+}
 
 describe("appLiveStatus", () => {
   it("returns row.status directly for single-instance apps", () => {
@@ -32,19 +50,7 @@ describe("appLiveStatus", () => {
   });
 
   it("derives degraded from a live running+failed mix, not from cached row.status", () => {
-    const row = toAppRow(
-      createAppGridEntry({
-        app: {
-          app_key: "multi_app",
-          status: "degraded",
-          instance_count: 2,
-          instances: [
-            createInstance({ app_key: "multi_app", index: 0, status: "running" }),
-            createInstance({ app_key: "multi_app", index: 1, status: "failed" }),
-          ],
-        },
-      }),
-    );
+    const row = instanceRow("multi_app", "degraded", ["running", "failed"]);
     expect(appLiveStatus(NO_LIVE_STATUSES, row)).toBe("degraded");
   });
 
@@ -52,19 +58,7 @@ describe("appLiveStatus", () => {
     // The dashboard grid query is invalidated on execution events, not app_status_changed, so
     // row.status can lag the live WS view — a manifest that just degraded may still read
     // "running" from the cache until an unrelated execution refetches it.
-    const row = toAppRow(
-      createAppGridEntry({
-        app: {
-          app_key: "multi_app",
-          status: "running",
-          instance_count: 2,
-          instances: [
-            createInstance({ app_key: "multi_app", index: 0, status: "running" }),
-            createInstance({ app_key: "multi_app", index: 1, status: "running" }),
-          ],
-        },
-      }),
-    );
+    const row = instanceRow("multi_app", "running", ["running", "running"]);
     const liveStatuses: Record<string, AppStatusEntry> = {
       "multi_app:0": { status: "running", index: 0 },
       "multi_app:1": { status: "failed", index: 1 },
@@ -73,19 +67,7 @@ describe("appLiveStatus", () => {
   });
 
   it("clears a stale degraded row.status once live statuses show full recovery", () => {
-    const row = toAppRow(
-      createAppGridEntry({
-        app: {
-          app_key: "multi_app",
-          status: "degraded",
-          instance_count: 2,
-          instances: [
-            createInstance({ app_key: "multi_app", index: 0, status: "running" }),
-            createInstance({ app_key: "multi_app", index: 1, status: "failed" }),
-          ],
-        },
-      }),
-    );
+    const row = instanceRow("multi_app", "degraded", ["running", "failed"]);
     const liveStatuses: Record<string, AppStatusEntry> = {
       "multi_app:0": { status: "running", index: 0 },
       "multi_app:1": { status: "running", index: 1 },
@@ -97,16 +79,7 @@ describe("appLiveStatus", () => {
     // A hot reload that expands a healthy single-instance app to two instances delivers a WS
     // update for the new index before any execution event refetches the grid, so row.instances
     // still only has index 0. The live index 1 must still be folded into the reduction.
-    const row = toAppRow(
-      createAppGridEntry({
-        app: {
-          app_key: "multi_app",
-          status: "running",
-          instance_count: 1,
-          instances: [createInstance({ app_key: "multi_app", index: 0, status: "running" })],
-        },
-      }),
-    );
+    const row = instanceRow("multi_app", "running", ["running"]);
     const liveStatuses: Record<string, AppStatusEntry> = {
       "multi_app:0": { status: "running", index: 0 },
       "multi_app:1": { status: "failed", index: 1 },
@@ -117,16 +90,7 @@ describe("appLiveStatus", () => {
   it("merges multiple live indices added beyond the cached snapshot in one reload", () => {
     // A reload can add more than one instance at once; the forward probe must keep walking
     // past the first new index rather than stopping after finding just one.
-    const row = toAppRow(
-      createAppGridEntry({
-        app: {
-          app_key: "multi_app",
-          status: "running",
-          instance_count: 1,
-          instances: [createInstance({ app_key: "multi_app", index: 0, status: "running" })],
-        },
-      }),
-    );
+    const row = instanceRow("multi_app", "running", ["running"]);
     const liveStatuses: Record<string, AppStatusEntry> = {
       "multi_app:0": { status: "running", index: 0 },
       "multi_app:1": { status: "running", index: 1 },
@@ -136,19 +100,7 @@ describe("appLiveStatus", () => {
   });
 
   it("still reduces per-instance statuses for multi-instance apps that are not degraded", () => {
-    const row = toAppRow(
-      createAppGridEntry({
-        app: {
-          app_key: "multi_app",
-          status: "running",
-          instance_count: 2,
-          instances: [
-            createInstance({ app_key: "multi_app", index: 0, status: "running" }),
-            createInstance({ app_key: "multi_app", index: 1, status: "starting" }),
-          ],
-        },
-      }),
-    );
+    const row = instanceRow("multi_app", "running", ["running", "starting"]);
     // "starting" is worse (lower priority number) than "running" in STATUS_PRIORITY.
     expect(appLiveStatus(NO_LIVE_STATUSES, row)).toBe("starting");
   });
@@ -156,19 +108,7 @@ describe("appLiveStatus", () => {
 
 describe("compareAppRows status sort", () => {
   it("sorts a degraded app ahead of a running app (warn-tier, not last)", () => {
-    const degraded = toAppRow(
-      createAppGridEntry({
-        app: {
-          app_key: "degraded_app",
-          status: "degraded",
-          instance_count: 2,
-          instances: [
-            createInstance({ app_key: "degraded_app", index: 0, status: "running" }),
-            createInstance({ app_key: "degraded_app", index: 1, status: "failed" }),
-          ],
-        },
-      }),
-    );
+    const degraded = instanceRow("degraded_app", "degraded", ["running", "failed"]);
     const running = toAppRow(createAppGridEntry({ app: { app_key: "running_app", status: "running" } }));
 
     const ascending = compareAppRows(degraded, running, { key: "status", dir: "asc" }, NO_LIVE_STATUSES);

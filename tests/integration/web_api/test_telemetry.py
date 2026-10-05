@@ -181,12 +181,17 @@ class TestTelemetryListeners:
         assert data[0]["dropped_count"] == 0
 
 
+def seed_grid_apps(mock_hassette: MagicMock, *app_keys: str) -> None:
+    """Make the grid's DB spine return one manifest row per app key."""
+    mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+        return_value=[make_manifest_db_row(app_key=key) for key in app_keys]
+    )
+
+
 class TestAppGrid:
     async def test_app_grid_rows_nest_app_and_activity(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """The grid spine is DB-sourced; each row is the app summary plus its activity."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[make_manifest_db_row(app_key="my_app")]
-        )
+        seed_grid_apps(mock_hassette, "my_app")
 
         data = await get_json(client, APP_GRID_PATH)
 
@@ -233,9 +238,7 @@ class TestAppGrid:
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         """Each entry gets its app's blocking-event count for the requested window; absent apps read 0."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[make_manifest_db_row(app_key="my_app"), make_manifest_db_row(app_key="clean_app")]
-        )
+        seed_grid_apps(mock_hassette, "my_app", "clean_app")
         mock_hassette.telemetry_query_service.get_blocking_event_counts = AsyncMock(return_value={"my_app": 9})
 
         data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
@@ -248,9 +251,7 @@ class TestAppGrid:
     async def test_fully_successful_grid_reports_nothing_degraded_and_echoes_since(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[make_manifest_db_row(app_key="my_app")]
-        )
+        seed_grid_apps(mock_hassette, "my_app")
 
         data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
 
@@ -261,9 +262,7 @@ class TestAppGrid:
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
         """since=None means all-time totals: the windowed enrichments don't run and rows carry their empties."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[make_manifest_db_row(app_key="my_app")]
-        )
+        seed_grid_apps(mock_hassette, "my_app")
 
         data = await get_json(client, APP_GRID_PATH)
 
@@ -288,9 +287,7 @@ class TestAppGrid:
         self, client: "AsyncClient", mock_hassette: MagicMock, query_method: str, enrichment: str
     ) -> None:
         """A failed enrichment query degrades only its part of `activity`, and the response names it."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[make_manifest_db_row(app_key="my_app")]
-        )
+        seed_grid_apps(mock_hassette, "my_app")
         setattr(mock_hassette.telemetry_query_service, query_method, telemetry_error(f"{query_method} failed"))
 
         data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
@@ -299,9 +296,7 @@ class TestAppGrid:
         assert data["apps"][0]["app"]["app_key"] == "my_app"
 
     async def test_every_failed_enrichment_is_listed(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[make_manifest_db_row(app_key="my_app")]
-        )
+        seed_grid_apps(mock_hassette, "my_app")
         for method in (
             "get_all_app_summaries",
             "get_per_app_activity_buckets",
