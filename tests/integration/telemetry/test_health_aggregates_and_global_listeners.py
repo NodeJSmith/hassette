@@ -25,8 +25,8 @@ from .helpers import (
     insert_invocation,
     insert_job,
     insert_listener,
-    mark_job_removed,
-    mark_listener_removed,
+    set_job_removed_at,
+    set_listener_removed_at,
 )
 
 
@@ -83,8 +83,8 @@ class TestGetAppHealthAggregates:
         await insert_invocation(db_svc, live, session_id, status="success", duration_ms=10.0)
         await insert_invocation(db_svc, removed, session_id, status="error", duration_ms=20.0)
         await insert_execution(db_svc, removed_job, session_id, status="error", duration_ms=40.0)
-        await mark_listener_removed(db_svc, removed, 1000.0)
-        await mark_job_removed(db_svc, removed_job, 1000.0)
+        await set_listener_removed_at(db_svc, removed, 1000.0)
+        await set_job_removed_at(db_svc, removed_job, 1000.0)
 
         agg = await query_service.get_app_health_aggregates(app_key="test_app", instance_index=0)
 

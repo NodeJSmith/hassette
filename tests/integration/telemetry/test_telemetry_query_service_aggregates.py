@@ -22,11 +22,11 @@ from .helpers import (
     insert_job,
     insert_listener,
     insert_tiered_listeners,
-    mark_job_removed,
-    mark_job_retired,
-    mark_listener_removed,
-    mark_listener_retired,
     only_row,
+    set_job_removed_at,
+    set_job_retired_at,
+    set_listener_removed_at,
+    set_listener_retired_at,
 )
 
 
@@ -313,8 +313,8 @@ class TestAppHealthAcrossScopes:
         await insert_invocation(
             db_svc, live, session_id, status="error", duration_ms=999.0, execution_start_ts=BASE_TS + 1.0
         )
-        await mark_listener_removed(db_svc, removed, BASE_TS + 20.0)
-        await mark_job_removed(db_svc, removed_job, BASE_TS + 20.0)
+        await set_listener_removed_at(db_svc, removed, BASE_TS + 20.0)
+        await set_job_removed_at(db_svc, removed_job, BASE_TS + 20.0)
 
         per_instance = build_app_health(
             await query_service.get_app_health_aggregates(app_key="app_one", instance_index=0, since=since_ts)
@@ -338,7 +338,7 @@ class TestAppHealthAcrossScopes:
         removed = await insert_listener(db_svc, app_key="app_r", handler_method="on_removed")
         await insert_invocation(db_svc, live, session_id, status="success")
         await insert_invocation(db_svc, removed, session_id, status="error")
-        await mark_listener_removed(db_svc, removed, BASE_TS)
+        await set_listener_removed_at(db_svc, removed, BASE_TS)
 
         summary = (await query_service.get_all_app_summaries())["app_r"]
 
@@ -441,7 +441,7 @@ class TestCrossSessionAndRetiredRows:
         await insert_invocation(db_svc, retired_id, session_id, status="success")
         await insert_invocation(db_svc, retired_id, session_id, status="error")
 
-        await mark_listener_retired(db_svc, retired_id, time.time())
+        await set_listener_retired_at(db_svc, retired_id, time.time())
 
         row = await only_row(query_service.get_listener_summary("test_app", 0))
         assert row.handler_method == "on_retired"
@@ -466,10 +466,10 @@ class TestCrossSessionAndRetiredRows:
         recent_listener_id = await insert_listener(db_svc, handler_method="on_recent")
         old_job_id = await insert_job(db_svc, job_name="old_job", handler_method="run_old")
         recent_job_id = await insert_job(db_svc, job_name="recent_job", handler_method="run_recent")
-        await mark_listener_retired(db_svc, old_listener_id, old_retired_at)
-        await mark_listener_retired(db_svc, recent_listener_id, recent_retired_at)
-        await mark_job_retired(db_svc, old_job_id, old_retired_at)
-        await mark_job_retired(db_svc, recent_job_id, recent_retired_at)
+        await set_listener_retired_at(db_svc, old_listener_id, old_retired_at)
+        await set_listener_retired_at(db_svc, recent_listener_id, recent_retired_at)
+        await set_job_retired_at(db_svc, old_job_id, old_retired_at)
+        await set_job_retired_at(db_svc, recent_job_id, recent_retired_at)
 
         # Run retention cleanup
         await db_svc._do_run_retention_cleanup()
