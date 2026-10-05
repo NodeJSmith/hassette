@@ -5,39 +5,43 @@ import { validateWsMessage, WsValidationError } from "./ws-validator";
 const BASE_TIMESTAMP_SECONDS = 1_700_000_000; // arbitrary fixed epoch in seconds
 
 describe("validateWsMessage", () => {
-  it("validates a connected message", () => {
-    const msg = {
-      type: "connected",
-      data: { uptime_seconds: 123.4, entity_count: 50, app_count: 3, version: "0.25.0" },
-      timestamp: BASE_TIMESTAMP_SECONDS,
-    };
-    expect(validateWsMessage(msg)).toEqual(msg);
-  });
-
-  it("validates an execution_completed message with array data", () => {
-    const msg = {
-      type: "execution_completed",
-      data: [
-        {
-          kind: "handler",
-          listener_id: 1,
-          app_key: "my_app",
-          instance_index: 0,
-          status: "success",
-          duration_ms: 42,
-          error_type: null,
-        },
-      ],
-      timestamp: BASE_TIMESTAMP_SECONDS,
-    };
-    expect(validateWsMessage(msg)).toEqual(msg);
-  });
-
-  it("validates a log_hint message", () => {
-    const msg = {
-      type: "log_hint",
-      timestamp: BASE_TIMESTAMP_SECONDS,
-    };
+  it.each([
+    {
+      name: "a connected message",
+      msg: {
+        type: "connected",
+        data: { uptime_seconds: 123.4, entity_count: 50, app_count: 3, version: "0.25.0" },
+        timestamp: BASE_TIMESTAMP_SECONDS,
+      },
+    },
+    {
+      name: "an execution_completed message with array data",
+      msg: {
+        type: "execution_completed",
+        data: [
+          {
+            kind: "handler",
+            listener_id: 1,
+            app_key: "my_app",
+            instance_index: 0,
+            status: "success",
+            duration_ms: 42,
+            error_type: null,
+          },
+        ],
+        timestamp: BASE_TIMESTAMP_SECONDS,
+      },
+    },
+    { name: "a log_hint message", msg: { type: "log_hint", timestamp: BASE_TIMESTAMP_SECONDS } },
+    {
+      name: "a service_status message with a known role",
+      msg: {
+        type: "service_status",
+        data: { resource_name: "WebsocketService", role: "service", status: "running" },
+        timestamp: BASE_TIMESTAMP_SECONDS,
+      },
+    },
+  ])("validates $name", ({ msg }) => {
     expect(validateWsMessage(msg)).toEqual(msg);
   });
 
@@ -47,15 +51,6 @@ describe("validateWsMessage", () => {
       data: { uptime_seconds: 123.4, entity_count: 50 },
     };
     expect(() => validateWsMessage(msg)).toThrow(WsValidationError);
-  });
-
-  it("validates a service_status message with a known role", () => {
-    const msg = {
-      type: "service_status",
-      data: { resource_name: "WebsocketService", role: "service", status: "running" },
-      timestamp: BASE_TIMESTAMP_SECONDS,
-    };
-    expect(validateWsMessage(msg)).toEqual(msg);
   });
 
   // The bundle only ever talks to the server version it was loaded from (a changed version raises
