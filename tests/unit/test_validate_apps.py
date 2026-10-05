@@ -5,7 +5,6 @@ Complements `test_autodetect_apps.py` (TestAutoDetectAppsCurrDir, TestAutoDetect
 `test_autodetect_apps_integration.py` (TestAutoDetectIntegration).
 """
 
-import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -266,11 +265,6 @@ class TestValidateApps:
         self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Two apps with different app_key but the same explicit cache_key log a WARNING."""
-        # Some other test in this session may have left the "hassette" logger's propagate flag
-        # set to False (e.g. via enable_basic_logging()); caplog relies on propagation to the
-        # root logger, so restore it here. See src/hassette/testing/_harness.py:337-340 for
-        # the same workaround applied elsewhere.
-        logging.getLogger("hassette").propagate = True
         config = self.make_config(
             tmp_path,
             directory=app_dir,
@@ -322,8 +316,6 @@ class TestValidateApps:
         app's explicit cache_key — the collision check must expand multi-instance app_config
         lists to each instance's resolved key, not just check the manifest as a whole.
         """
-        # See comment in test_validate_apps_warns_on_cache_key_collision above.
-        logging.getLogger("hassette").propagate = True
         config = self.make_config(
             tmp_path,
             directory=app_dir,
