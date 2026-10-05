@@ -10,6 +10,8 @@ import logging
 import typing
 from contextlib import suppress
 
+from hassette_wire import ResourceRole
+
 from hassette.exceptions import RestartRefusedError
 from hassette.resources.lifecycle import (
     create_lifecycle_task,
@@ -19,7 +21,6 @@ from hassette.resources.lifecycle import (
     start,
 )
 from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence, merge_teardown_reports
-from hassette.types.enums import ResourceRole
 from hassette.utils.service_utils import wait_for_ready
 
 if typing.TYPE_CHECKING:

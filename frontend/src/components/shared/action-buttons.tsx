@@ -35,7 +35,7 @@ const ACTIONS = {
   start: { request: startApp, instanceRequest: startInstance, verb: "start", outcome: "started" },
   stop: { request: stopApp, instanceRequest: stopInstance, verb: "stop", outcome: "stopped" },
   reload: { request: reloadApp, instanceRequest: reloadInstance, verb: "reload", outcome: "reloaded" },
-} satisfies Record<"start" | "stop" | "reload", ActionConfig>;
+} satisfies Record<ActionResponse["action"], ActionConfig>;
 
 type ActionName = keyof typeof ACTIONS;
 type ButtonVariant = ComponentProps<typeof Button>["variant"];

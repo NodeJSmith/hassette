@@ -31,6 +31,7 @@ import { StatusBar } from "./components/layout/status-bar";
 import { StatusShape } from "./components/shared/status-shape";
 import { useManifests } from "./hooks/use-manifests";
 import { BREAKPOINT_SIDEBAR, useMediaQuery } from "./hooks/use-media-query";
+import { useServerUpdatePrompt } from "./hooks/use-server-update-prompt";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
 import { createQueryClient } from "./lib/query-client";
@@ -310,9 +311,10 @@ export function App() {
   );
 }
 
-/** Side-effect component that wires up the WebSocket connection. */
+/** Side-effect component that wires up the WebSocket connection and its server-update reload prompt. */
 function WebSocketEffect() {
   useWebSocket();
+  useServerUpdatePrompt();
   return null;
 }
 

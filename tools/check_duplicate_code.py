@@ -32,11 +32,12 @@ unambiguous and never need a human judgment call:
     codegen'd sync-facade file in this repo carries (see codegen/src/hassette_codegen/), plus
     the two codegen'd model directories that don't carry that marker (generated from HA core
     source; see docs/document-codegen.md). A human didn't choose to duplicate this.
-  - Fragments whose every non-blank line is part of a module docstring or an `import`/`from
-    ... import` statement — content that necessarily repeats across sibling files without being
-    copy-paste debt. Checked by content (via `ast`), not by position — a fragment right after
-    the imports (e.g. shared path-hacking setup) is real logic and stays in scope. Python-only:
-    a TypeScript/TSX import block is never exempted by this check.
+  - Fragments whose every non-blank line is part of a module docstring, an `import`/`from
+    ... import` statement, or an `if TYPE_CHECKING:` guard holding only imports — content that
+    necessarily repeats across sibling files without being copy-paste debt. Checked by content
+    (via `ast`), not by position — a fragment right after the imports (e.g. shared path-hacking
+    setup) is real logic and stays in scope. Python-only: a TypeScript/TSX import block is never
+    exempted by this check.
 
 Everything else surfaces by default, including patterns this codebase has hand-decided to keep
 (e.g. the "Shape B delegate" convenience-method convention in bus.py/scheduler.py). For those,
@@ -112,7 +113,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 from collections import Counter
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, TypeGuard
 
 from lint_helpers import (
     REPO_ROOT,
@@ -264,7 +265,24 @@ def docstring_and_import_lines(path: Path) -> frozenset[int]:
         if isinstance(node, ast.Import | ast.ImportFrom):
             end = node.end_lineno or node.lineno
             lines.update(range(node.lineno, end + 1))
+        elif is_import_only_type_checking_guard(node):
+            lines.add(node.lineno)
     return frozenset(lines)
+
+
+def is_import_only_type_checking_guard(node: ast.AST) -> TypeGuard[ast.If]:
+    """Return True for an ``if TYPE_CHECKING:`` / ``if typing.TYPE_CHECKING:`` whose body is only imports.
+
+    The guard line is import scaffolding, so it shouldn't turn an otherwise import-only fragment into a
+    duplicate. Its imports are exempted by the ast.Import walk; this exempts the ``if`` line itself.
+    """
+    if not isinstance(node, ast.If) or node.orelse:
+        return False
+    test = node.test
+    is_guard = (isinstance(test, ast.Name) and test.id == "TYPE_CHECKING") or (
+        isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
+    )
+    return is_guard and all(isinstance(stmt, ast.Import | ast.ImportFrom) for stmt in node.body)
 
 
 def is_boilerplate(fragment: Fragment) -> bool:

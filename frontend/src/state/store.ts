@@ -6,6 +6,12 @@ import { getStoredValue, setStoredValue } from "../utils/local-storage";
 import { isTheme } from "../utils/theme";
 
 export const RELATIVE_TIME_TICK_MS = 30_000;
+/** The hassette version this bundle was built from, the baseline for detecting a server update.
+ * Both it and the server's reported version come from pyproject.toml's version (build time vs.
+ * package metadata), so they're compared as exact strings. */
+export const BUNDLE_VERSION = __HASSETTE_VERSION__;
+/** What the server reports when it has no package metadata (`UNKNOWN_VERSION` in version_utils.py). */
+const UNKNOWN_SERVER_VERSION = "unknown";
 
 export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
 
@@ -22,6 +28,7 @@ function isBoolean(v: unknown): v is boolean {
 }
 
 type ResourceStatus = components["schemas"]["ResourceStatus"];
+type ResourceRole = components["schemas"]["ResourceRole"];
 
 export interface AppStatusEntry {
   status: ResourceStatus;
@@ -38,7 +45,7 @@ export function appStatusKey(appKey: string, index: number): string {
 
 export interface ServiceStatusEntry {
   resource_name: string;
-  role: string;
+  role: ResourceRole;
   status: ResourceStatus;
   previous_status?: ResourceStatus | null;
   exception?: string | null;
@@ -73,6 +80,10 @@ export interface AppStore extends TelemetryHealth {
   connection: ConnectionStatus;
   uptimeSeconds: number | null;
   systemVersion: string | null;
+  /** True once a connect reports a different server version than `BUNDLE_VERSION`. The bundle
+   * and its generated types match only the server version they were built for, so a different
+   * version means the tab must reload; it stays true until then. */
+  serverUpdated: boolean;
   setConnection: (status: ConnectionStatus) => void;
 
   // --- telemetry (health fields inherited from TelemetryHealth) ---
@@ -136,6 +147,7 @@ export function initialState(): Omit<
     connection: "connecting",
     uptimeSeconds: null,
     systemVersion: null,
+    serverUpdated: false,
 
     // --- telemetry ---
     appStatus: {},
@@ -202,10 +214,11 @@ export const useAppStore = create<AppStore>()((set) => ({
     // (e.g. a separate set() that clears serviceStatus) would make atomicity depend on React's batching
     // rather than the shape of the code — a component could then observe an intermediate
     // render where connection is "connected" but serviceStatus/appStatus are stale.
-    set(() => ({
+    set((state) => ({
       connection: "connected",
       uptimeSeconds: data.uptime_seconds,
       systemVersion: data.version ?? null,
+      serverUpdated: state.serverUpdated || isVersionChange(data.version),
       // `isReconnect && {...}` is `false` (spreads to nothing) on first connect, or the object
       // (spreads its fields in) on reconnect — clears stale data only when reconnecting.
       // appStatus must clear here too: an instance's status/exception can change while
@@ -222,3 +235,10 @@ export const useAppStore = create<AppStore>()((set) => ({
       }),
     })),
 }));
+
+/** Whether a reported server version differs from the one this bundle was built for. An absent,
+ * empty (older servers default it to ""), or "unknown" (no package metadata) version can't be
+ * compared, so it isn't a change. */
+function isVersionChange(reported: string | undefined): boolean {
+  return Boolean(reported) && reported !== UNKNOWN_SERVER_VERSION && reported !== BUNDLE_VERSION;
+}

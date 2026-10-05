@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ScheduleStatus, ScheduleStatusReason
 
 from hassette.web.utils import enrich_jobs_with_live, enrich_jobs_with_live_data
 from tests.support.web_job_helpers import make_job_summary
@@ -21,7 +22,7 @@ class TestEnrichJobsWithLiveData:
         live_job.next_run.timestamp.return_value = 9999.0
         live_job.fire_at = None
         live_job.jitter = None
-        live_job.schedule_status.value = "scheduled"
+        live_job.schedule_status = ScheduleStatus.SCHEDULED
         live_job.schedule_status_reason = None
         live_job.guard.suppressed = 0
         live_job.guard.dropped = 0
@@ -69,8 +70,8 @@ class TestEnrichJobsWithLive:
         live_job.next_run.timestamp.return_value = 1111.0
         live_job.fire_at.timestamp.return_value = 2222.0
         live_job.jitter = 3.5
-        live_job.schedule_status.value = "waiting"
-        live_job.schedule_status_reason.value = "trigger_error"
+        live_job.schedule_status = ScheduleStatus.WAITING
+        live_job.schedule_status_reason = ScheduleStatusReason.TRIGGER_ERROR
         live_job.guard.suppressed = 4
         live_job.guard.dropped = 5
 
@@ -97,7 +98,7 @@ class TestEnrichJobsWithLive:
         broken_live.next_run = None
         broken_live.fire_at = None
         broken_live.jitter = object()  # wrong type for the float | None field
-        broken_live.schedule_status.value = "scheduled"
+        broken_live.schedule_status = ScheduleStatus.SCHEDULED
         broken_live.schedule_status_reason = None
         broken_live.guard.suppressed = 0
         broken_live.guard.dropped = 0
@@ -107,7 +108,7 @@ class TestEnrichJobsWithLive:
         healthy_live.next_run = None
         healthy_live.fire_at = None
         healthy_live.jitter = None
-        healthy_live.schedule_status.value = "waiting"
+        healthy_live.schedule_status = ScheduleStatus.WAITING
         healthy_live.schedule_status_reason = None
         healthy_live.guard.suppressed = 1
         healthy_live.guard.dropped = 0

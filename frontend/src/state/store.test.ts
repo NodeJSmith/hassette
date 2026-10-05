@@ -2,12 +2,16 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ConnectedPayload } from "../api/ws-types";
 import { expectLogHintVersionIncrementedBy } from "../test/websocket-test-utils";
-import { initialState, useAppStore } from "./store";
+import { BUNDLE_VERSION, initialState, useAppStore } from "./store";
 
+/** A server version that never equals the bundle's. */
+const OTHER_VERSION = "999.0.0";
+
+/** Defaults to the bundle's own version, so a payload only signals an update when overridden. */
 function createConnectedPayload(overrides: Partial<ConnectedPayload> = {}): ConnectedPayload {
   return {
     uptime_seconds: 42,
-    version: "1.2.3",
+    version: BUNDLE_VERSION,
     ...overrides,
   } as ConnectedPayload;
 }
@@ -30,12 +34,50 @@ describe("useAppStore", () => {
   });
 
   describe("handleWsConnected", () => {
+    it("flags serverUpdated when a reconnect reports a version other than the bundle's", () => {
+      useAppStore.getState().handleWsConnected(createConnectedPayload(), false);
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: OTHER_VERSION }), true);
+
+      expect(useAppStore.getState().serverUpdated).toBe(true);
+    });
+
+    it("flags serverUpdated when the first connect already reports a different version", () => {
+      // The tab loaded an old bundle while the socket was down and the server was upgraded:
+      // the first version it ever sees is already newer than the bundle.
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: OTHER_VERSION }), false);
+
+      expect(useAppStore.getState().serverUpdated).toBe(true);
+    });
+
+    it("does not flag serverUpdated when the server reports the bundle's version", () => {
+      useAppStore.getState().handleWsConnected(createConnectedPayload(), false);
+
+      expect(useAppStore.getState().serverUpdated).toBe(false);
+    });
+
+    it.each([
+      ["an empty version", ""],
+      ["no version", undefined],
+      ["an unknown version", "unknown"],
+    ])("does not flag serverUpdated for a connect reporting %s", (_, version) => {
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version }), false);
+
+      expect(useAppStore.getState().serverUpdated).toBe(false);
+    });
+
+    it("keeps serverUpdated set after a later connect reports the bundle's version again", () => {
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: OTHER_VERSION }), false);
+      useAppStore.getState().handleWsConnected(createConnectedPayload(), true);
+
+      expect(useAppStore.getState().serverUpdated).toBe(true);
+    });
+
     it("on first connect, does not clear serviceStatus/appStatus", () => {
       useAppStore.setState({
         serviceStatus: {
           svc: {
             resource_name: "svc",
-            role: "r",
+            role: "service",
             status: "running",
             previous_status: null,
             exception: null,
@@ -62,7 +104,7 @@ describe("useAppStore", () => {
         serviceStatus: {
           svc: {
             resource_name: "svc",
-            role: "r",
+            role: "service",
             status: "running",
             previous_status: null,
             exception: null,
@@ -193,7 +235,7 @@ describe("useAppStore", () => {
     it("updateServiceStatus stores the entry under its resource name", () => {
       useAppStore.getState().updateServiceStatus("svc", {
         resource_name: "svc",
-        role: "r",
+        role: "service",
         status: "running",
         previous_status: null,
         exception: null,

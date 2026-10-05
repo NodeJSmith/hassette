@@ -37,24 +37,20 @@ describe("mergeServices", () => {
     expect(merged.map((s) => s.resource_name)).toEqual(["bus", "scheduler", "api", "websocket"]);
   });
 
-  it("normalizes absent optional fields to empty string or null", () => {
-    const merged = mergeServices(
-      [createServiceInfo({ role: undefined, ready_phase: undefined, retry_at: undefined })],
-      {},
-    );
-    expect(merged[0]).toMatchObject({ role: "", ready_phase: null, retry_at: null, exception: null });
+  it("normalizes absent optional fields to null", () => {
+    const merged = mergeServices([createServiceInfo({ ready_phase: undefined, retry_at: undefined })], {});
+    expect(merged[0]).toMatchObject({ ready_phase: null, retry_at: null, exception: null });
   });
 
   it("normalizes absent optional fields on the WS overlay too, not just the HTTP seed", () => {
     const merged = mergeServices([], {
       bus: createServiceStatusEntry({
-        role: undefined,
         ready_phase: undefined,
         retry_at: undefined,
         exception: undefined,
       }),
     });
-    expect(merged[0]).toMatchObject({ role: "", ready_phase: null, retry_at: null, exception: null });
+    expect(merged[0]).toMatchObject({ ready_phase: null, retry_at: null, exception: null });
   });
 
   it("returns nothing when neither source reported a service", () => {

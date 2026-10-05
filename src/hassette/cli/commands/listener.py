@@ -4,7 +4,7 @@ from typing import Any
 
 from hassette_wire import Execution, ListenerWithSummary
 
-from hassette.cli.client import make_client, query_params
+from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_handler_short, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
@@ -54,7 +54,7 @@ def cmd_listener(
             list,
             params=query_params(since=since, limit=limit),
         )
-        invocations = [Execution.model_validate(e) for e in raw]
+        invocations = parse_wire_list(Execution, raw)
         render_table(invocations, LISTENER_INVOCATION_COLUMNS, json_mode=ctx.json_mode)
         return
 
@@ -66,5 +66,5 @@ def cmd_listener(
         instance=instance,
         extra_params=query_params(since=since, source_tier=source_tier),
     )
-    listeners = [ListenerWithSummary.model_validate(e) for e in raw]
+    listeners = parse_wire_list(ListenerWithSummary, raw)
     render_table(listeners, LISTENER_LIST_COLUMNS, json_mode=ctx.json_mode)

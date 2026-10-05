@@ -22,12 +22,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fair_async_rlock import FairAsyncRLock
+from hassette_wire import ScheduleStatus, ScheduleStatusReason
 from whenever import ZonedDateTime
 
 import hassette.core.scheduler_service as hassette_svc_module
 import hassette.utils.date_utils as date_utils
 from hassette.core.scheduler_service import SchedulerService
-from hassette.scheduler.classes import Job, ScheduleStatus, ScheduleStatusReason
+from hassette.scheduler.classes import Job
 from hassette.scheduler.job_queue import HeapQueue, _ScheduledJobQueue
 from hassette.scheduler.triggers import WAITING, Every, _WaitingSentinel
 from tests.support.factories import make_scheduled_job

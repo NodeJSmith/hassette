@@ -84,12 +84,7 @@ describe("ActionButtons", () => {
     // here: userEvent.click() internally awaits several microtask turns, so by the time it
     // resolves an already-settled mock promise would have flipped `loading` back to false
     // already, making the mid-flight "disabled while loading" state unobservable.
-    let resolveStart: (value: {
-      status: "accepted";
-      app_key: string;
-      action: string;
-      instance_index: number | null;
-    }) => void;
+    let resolveStart: (value: ActionResponse) => void;
     startApp.mockImplementation(
       () =>
         new Promise((resolve) => {

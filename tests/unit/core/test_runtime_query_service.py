@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock
 
 import pytest
-from hassette_wire import ExecutionCompletedData, ResourceStatus, SystemStatusResponse
+from hassette_wire import ExecutionCompletedData, ResourceRole, ResourceStatus, SystemStatusResponse
 from pydantic import TypeAdapter, ValidationError
 
 from hassette.core.app_handler import AppHandler
@@ -19,7 +19,7 @@ from hassette.events.hassette import (
 )
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppStatusSnapshot
 from hassette.testing import wait_for
-from hassette.types.enums import BlockReason, ResourceRole, Topic
+from hassette.types.enums import BlockReason, Topic
 from hassette.utils import get_version
 from tests.support.helpers import create_app_manifest
 from tests.support.mock_hassette import make_mock_hassette
@@ -567,7 +567,7 @@ class TestSystemStatus:
         mock_child = MagicMock()
         mock_child.class_name = "WebsocketService"
         mock_child.status = ResourceStatus.RUNNING
-        mock_child.role.value = "service"
+        mock_child.role = ResourceRole.SERVICE
         mock_child._ready_reason = "connected to HA"
         mock_child._retry_at = None
         runtime.hassette.children = [mock_child]

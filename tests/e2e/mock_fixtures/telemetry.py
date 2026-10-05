@@ -200,6 +200,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
     """Build per-app job summaries for e2e tests."""
     telemetry_jobs_my_app = [
         JobSummary(
+            schedule_status="scheduled",
             job_id=1,
             app_key=APP_KEY_MY_APP,
             instance_index=0,
@@ -218,6 +219,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
             avg_duration_ms=3.5,
         ),
         JobSummary(
+            schedule_status="scheduled",
             job_id=2,
             app_key=APP_KEY_MY_APP,
             instance_index=0,
@@ -259,6 +261,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
     ]
     telemetry_jobs_broken_app = [
         JobSummary(
+            schedule_status="scheduled",
             job_id=3,
             app_key=APP_KEY_BROKEN_APP,
             instance_index=0,
@@ -280,6 +283,7 @@ def build_job_telemetry() -> dict[str, list[JobSummary]]:
     # nosource_app jobs — empty source fields for testing hidden source display.
     telemetry_jobs_nosource_app = [
         JobSummary(
+            schedule_status="scheduled",
             job_id=100,
             app_key=APP_KEY_NOSOURCE_APP,
             instance_index=0,

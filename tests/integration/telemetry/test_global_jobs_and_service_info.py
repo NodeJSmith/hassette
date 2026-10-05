@@ -11,14 +11,19 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from hassette_wire import JobSummary, ResourceStatus, ServiceInfoResponse
+from hassette_wire import (
+    JobSummary,
+    ResourceRole,
+    ResourceStatus,
+    ScheduleStatus,
+    ScheduleStatusReason,
+    ServiceInfoResponse,
+)
 from httpx2 import ASGITransport, AsyncClient
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.scheduler.classes import ScheduleStatus, ScheduleStatusReason
 from hassette.scheduler.triggers import Every
-from hassette.types.enums import ResourceRole
 from hassette.web.app import create_fastapi_app
 from tests.support.web_job_helpers import make_job_summary, make_real_job
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
@@ -387,18 +392,17 @@ class TestServiceInfoResponseExtension:
         resp = ServiceInfoResponse(
             name="WebSocketService",
             status="running",
-            role="Service",
+            role=ResourceRole.SERVICE,
             ready_phase="connected",
             retry_at=STUB_TIMESTAMP,
         )
-        assert resp.role == "Service"
+        assert resp.role is ResourceRole.SERVICE
         assert resp.ready_phase == "connected"
         assert resp.retry_at == STUB_TIMESTAMP
 
     def test_service_info_response_defaults(self) -> None:
-        """ServiceInfoResponse has sensible defaults when role/ready_phase/retry_at omitted."""
-        resp = ServiceInfoResponse(name="SomeService", status="running")
-        assert resp.role == ""
+        """ServiceInfoResponse defaults ready_phase/retry_at to None when omitted."""
+        resp = ServiceInfoResponse(name="SomeService", status="running", role=ResourceRole.SERVICE)
         assert resp.ready_phase is None
         assert resp.retry_at is None
 

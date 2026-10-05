@@ -5,16 +5,16 @@ from dataclasses import dataclass, field
 from typing import Generic, TypeVar
 
 from fair_async_rlock import FairAsyncRLock
-from hassette_wire import LogLevel
+from hassette_wire import LogLevel, ScheduleStatus
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.scheduler.classes import Job, ScheduleStatus
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.scheduler.classes import Job
 
 __all__ = ["HeapQueue", "_ScheduledJobQueue"]
 

@@ -5,6 +5,11 @@
  * fallback in `scheduleStatusDisplay()`'s docstring and in `job-detail.tsx`'s
  * `scheduleStatusText`.
  */
+import type { components } from "../api/generated-types";
+
+type ScheduleStatus = components["schemas"]["ScheduleStatus"];
+type ScheduleStatusReason = components["schemas"]["ScheduleStatusReason"];
+
 export interface ScheduleStatusDisplay {
   /** Short list-view label. */
   label: string;
@@ -12,20 +17,29 @@ export interface ScheduleStatusDisplay {
   text: string;
 }
 
-/** status -> display info, when no reason-specific override below applies. No "scheduled"
- * entry: that status has no default text, only the "legacy_unknown" override below. */
-const SCHEDULE_STATUS_DISPLAY: Record<string, ScheduleStatusDisplay> = {
+const COMPLETED_DISPLAY: ScheduleStatusDisplay = { label: "completed", text: "Schedule completed." };
+
+/** status -> display info, when no reason-specific override below applies. Total over
+ * `ScheduleStatus`, so a new status fails to compile until it gets an entry. "scheduled" is null:
+ * it has no default text, only the "legacy_unknown" override below. */
+const SCHEDULE_STATUS_DISPLAY: Record<ScheduleStatus, ScheduleStatusDisplay | null> = {
+  scheduled: null,
   manual: { label: "manual", text: "Manual only." },
   waiting: { label: "waiting", text: "Waiting for entity time." },
-  completed: { label: "completed", text: "Schedule completed." },
+  completed: COMPLETED_DISPLAY,
 };
 
-/** (status, reason) -> display info, overriding the status-level default above. */
-const SCHEDULE_STATUS_REASON_DISPLAY: Record<string, Record<string, ScheduleStatusDisplay>> = {
+/**
+ * (status, reason) -> display info, overriding the status-level default above. Sparse by design:
+ * only reasons whose display differs from their status's default have an entry.
+ */
+const SCHEDULE_STATUS_REASON_DISPLAY: Partial<
+  Record<ScheduleStatus, Partial<Record<ScheduleStatusReason, ScheduleStatusDisplay>>>
+> = {
   completed: {
     // Same label as the default "completed" entry — only the detail-view text differs for
     // this reason, so it's derived by spreading rather than duplicating the label string.
-    trigger_error: { ...SCHEDULE_STATUS_DISPLAY.completed, text: "Schedule stopped after trigger error." },
+    trigger_error: { ...COMPLETED_DISPLAY, text: "Schedule stopped after trigger error." },
   },
   scheduled: {
     legacy_unknown: { label: "unknown", text: "Legacy status unknown." },
@@ -39,8 +53,14 @@ const SCHEDULE_STATUS_REASON_DISPLAY: Record<string, Record<string, ScheduleStat
  * static text because it depends on whether live next_run timing is available, which callers
  * must resolve themselves (see `job-detail.tsx`'s `scheduleStatusText`).
  */
-export function scheduleStatusDisplay(status: string | null, reason?: string | null): ScheduleStatusDisplay | null {
+export function scheduleStatusDisplay(
+  status: ScheduleStatus | null,
+  reason?: ScheduleStatusReason | null,
+): ScheduleStatusDisplay | null {
   if (status === null) return null;
+  // SCHEDULE_STATUS_DISPLAY is total for compile-time exhaustiveness, but REST data isn't
+  // runtime-validated, so a stale tab can see a newer server's status before the reload prompt
+  // appears. Stay defensive.
   if (reason) {
     const override = SCHEDULE_STATUS_REASON_DISPLAY[status]?.[reason];
     if (override) return override;

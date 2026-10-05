@@ -6,6 +6,10 @@ every response model it uses from `wire/src/hassette_wire/`? Missing required
 fields raise `ValidationError` (caught by `_handle_malformed_response`), so
 those aren't silent. The silent risk is *extra* fields the server adds that the
 CLI model ignores, or *optional* fields whose defaults mask a semantic change.
+The CLI supports talking to a newer server, so does every new parse go through
+`parse_wire`/`parse_wire_list` rather than a direct `model_validate`? A direct
+call drops `LENIENT_CONTEXT`, and a newer server's enum value then fails the
+whole command instead of arriving as `UnknownValue`.
 
 ## JSON/Human Output Duality
 When a new CLI command is added in `src/hassette/cli/__init__.py`, does it

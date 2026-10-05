@@ -14,6 +14,7 @@ from hassette_wire import (
     ExecutionCompletedWsMessage,
     ExecutionStatus,
     LogHintWsMessage,
+    ResourceRole,
     ResourceStatus,
     ServiceStatusWsMessage,
     WsServerMessage,
@@ -22,7 +23,6 @@ from hassette_wire import ServiceStatusData as WsServiceStatusPayload
 from pydantic import TypeAdapter
 
 from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPayload, ServiceStatusPayload
-from hassette.types.enums import ResourceRole
 
 TEST_TIMESTAMP = 1234567890.0
 

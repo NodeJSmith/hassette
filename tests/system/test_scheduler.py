@@ -3,9 +3,10 @@
 import asyncio
 
 import pytest
+from hassette_wire import ScheduleStatus
 
 import hassette.utils.date_utils as date_utils
-from hassette.scheduler import EntityTime, ScheduleStatus
+from hassette.scheduler import EntityTime
 from hassette.testing import wait_for
 
 from .conftest import make_fired_recorder, make_system_config, startup_context

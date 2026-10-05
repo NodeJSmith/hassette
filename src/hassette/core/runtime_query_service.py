@@ -191,7 +191,7 @@ class RuntimeQueryService(Resource):
         data = event.payload.data
         payload = ServiceStatusData(
             resource_name=data.resource_name,
-            role=data.role.value,
+            role=data.role,
             status=data.status,
             previous_status=data.previous_status,
             exception=data.exception,
@@ -329,7 +329,7 @@ class RuntimeQueryService(Resource):
             ServiceInfoResponse(
                 name=child.class_name,
                 status=child.status,
-                role=child.role.value,
+                role=child.role,
                 ready_phase=getattr(child, "_ready_reason", None),
                 retry_at=getattr(child, "_retry_at", None),
             )

@@ -9,6 +9,8 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ ./
+# vite.config.ts bakes the project version from pyproject.toml into the bundle
+COPY pyproject.toml /app/pyproject.toml
 RUN npm run build
 
 # ---- uv stage ----

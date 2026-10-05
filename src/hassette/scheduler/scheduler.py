@@ -79,7 +79,7 @@ from collections.abc import Coroutine, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from hassette_wire import LogLevel
+from hassette_wire import LogLevel, ScheduleStatus
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -96,7 +96,7 @@ from hassette.utils.func_utils import callable_name, callable_stable_name, is_as
 from hassette.utils.source_capture import capture_registration_source
 from hassette.utils.type_utils import get_typed_signature
 
-from .classes import Job, ScheduleStatus
+from .classes import Job
 from .sync import SchedulerSyncFacade
 from .triggers import WAITING, After, Cron, Daily, EntityTime, Every, Once, _WaitingSentinel
 

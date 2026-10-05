@@ -6,6 +6,7 @@ from typing import Annotated, Any
 from cyclopts import Parameter
 from hassette_wire import (
     ActivityFeedEntry,
+    AppAction,
     AppConfigResponse,
     AppHealth,
     AppManifestListResponse,
@@ -13,7 +14,7 @@ from hassette_wire import (
 )
 
 import hassette.cli.output as cli_output
-from hassette.cli.client import make_client, query_params
+from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import (
     Column,
@@ -25,19 +26,15 @@ from hassette.cli.output import (
 )
 from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 
-#: Past-tense verb used in success messages, keyed by action name. Mirrors
-#: ``_ACTION_PAST_TENSE`` in ``hassette.web.routes.apps`` (same three actions, same shape), but
-#: intentionally lowercase here for CLI message construction vs. capitalized there for log lines.
-#: Not shared/imported: the web module lives in the route layer (pulls in FastAPI machinery), so
-#: importing its ``AppAction`` type here would be an awkward cross-layer dependency for a
-#: three-entry dict that changes in lockstep with the action set defined in this same file.
-_ACTION_PAST_TENSE: dict[str, str] = {"start": "started", "stop": "stopped", "reload": "reloaded"}
+#: Past-tense verb used in success messages, keyed by action. Lowercase for CLI message
+#: construction; ``hassette.web.routes.apps`` keeps a capitalized copy for its log lines.
+_ACTION_PAST_TENSE: dict[AppAction, str] = {"start": "started", "stop": "stopped", "reload": "reloaded"}
 
 #: Actions that require interactive confirmation before executing. Kept in sync by hand with the
 #: frontend's per-action `ACTIONS` map (``frontend/src/components/shared/action-buttons.tsx``,
 #: `CAN_START`/`CAN_STOP` in ``frontend/src/utils/status.ts``) — no shared source of truth across
 #: the CLI/frontend boundary for "which actions exist and what each one needs."
-_ACTIONS_REQUIRING_CONFIRMATION: frozenset[str] = frozenset({"stop", "reload"})
+_ACTIONS_REQUIRING_CONFIRMATION: frozenset[AppAction] = frozenset({"stop", "reload"})
 
 APP_LIST_COLUMNS: list[Column] = [
     Column("app_key", "App Key", max_width=20),
@@ -116,7 +113,7 @@ def cmd_app_activity(
         limit=limit,
     )
     raw: list[Any] = client.get(f"/api/telemetry/app/{key}/activity", list, params=params)
-    entries = [ActivityFeedEntry.model_validate(e) for e in raw]
+    entries = parse_wire_list(ActivityFeedEntry, raw)
     render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=ctx.json_mode)
 
 
@@ -150,7 +147,7 @@ def cmd_app_source(
     render_detail(result, json_mode=ctx.json_mode)
 
 
-def _run_app_action(key: str, action: str, instance: str | None, yes: bool, ctx: CLIContextParam) -> None:
+def _run_app_action(key: str, action: AppAction, instance: str | None, yes: bool, ctx: CLIContextParam) -> None:
     """Shared implementation for ``start``/``stop``/``reload``: confirm, POST, render result."""
     client = make_client(ctx)
     index: int | None = None

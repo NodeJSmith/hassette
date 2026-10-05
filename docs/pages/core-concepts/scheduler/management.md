@@ -13,6 +13,13 @@ Every live job carries a `schedule_status` — what it's doing right now, indepe
 | `completed` | Every automatic occurrence has fired, or the trigger raised while computing the next one. The job stays live and can still be submitted manually. |
 | `manual` | Registered via `register()` with no trigger at all. Never fires on its own. |
 
+Sometimes the status alone doesn't say why a job is in it. `schedule_status_reason` covers those cases. It's `None` for most jobs, and otherwise holds one of two values:
+
+| Reason | Meaning |
+|---|---|
+| `trigger_error` | Appears on a `completed` job. The job stopped because its trigger raised while computing the next run, not because its schedule ran out. Check the logs for the trigger's exception. |
+| `legacy_unknown` | Appears only in the monitoring UI and API, never on a live `Job`. Hassette recorded this job before it tracked schedule status, and the app hasn't registered the job since. It clears the next time the app registers the job. |
+
 `schedule_status` is not the same as "has this job ever run." A `completed` job that has never been submitted manually is still `completed` — completion tracks the automatic schedule, not execution history. The [monitoring UI](../../web-ui/index.md) shows the status directly instead of a fabricated or blank next-run time.
 
 ## Remove a job
@@ -169,6 +176,7 @@ Jitter is useful when several apps schedule work at the same wall-clock time and
 |---|---|---|
 | `name` | `str` | Human-readable name, set by the required `name=` argument on every scheduling call. Appears in logs; idempotent re-registration matches on this name. |
 | `schedule_status` | `ScheduleStatus` | One of `scheduled`, `waiting`, `completed`, `manual`. See [Schedule status](#schedule-status). |
+| `schedule_status_reason` | `ScheduleStatusReason \| None` | Why the job is in its current status, when the status alone doesn't explain it. See [Schedule status](#schedule-status). |
 | `next_run` | `ZonedDateTime \| None` | Unjittered logical fire time. `None` for every status except `scheduled`. Subsequent trigger calculations use this as `previous_run`. |
 | `trigger` | `TriggerProtocol \| None` | The trigger that drives scheduling. `None` for a manual-only job. |
 | `group` | `str \| None` | Group name, set when the job was registered with `group=`. `remove_group()` uses this for bulk removal. |

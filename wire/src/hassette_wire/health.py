@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from hassette_wire.cli_format import CliFormat
-from hassette_wire.enums import OpenResourceStatus
+from hassette_wire.enums import OpenResourceRole, OpenResourceStatus
 from hassette_wire.literals import OpenBootIssueSeverity, OpenSystemHealthStatus
 
 
@@ -20,8 +20,8 @@ class ServiceInfoResponse(BaseModel):
 
     name: str
     status: OpenResourceStatus
-    role: str = ""
-    """Role of the service (e.g. 'service', 'resource'). Empty string when not available."""
+    role: OpenResourceRole
+    """What kind of framework component the service is."""
     ready_phase: str | None = None
     """Human-readable description of the current readiness phase, or None if not available."""
     retry_at: float | None = None

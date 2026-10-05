@@ -3,6 +3,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from hassette_wire.enums import OpenManifestStatus, OpenResourceStatus
+from hassette_wire.literals import OpenAppAction
 
 
 class AppInstanceResponse(BaseModel):
@@ -54,7 +55,7 @@ class AppManifestResponse(BaseModel):
 
 class AppManifestListResponse(BaseModel):
     total: int
-    status_counts: dict[str, int] = Field(default_factory=dict)
+    status_counts: dict[OpenManifestStatus, int] = Field(default_factory=dict)
     manifests: list[AppManifestResponse]
     only_apps: list[str] = Field(default_factory=list)
 
@@ -70,7 +71,7 @@ class ActionResponse(BaseModel):
 
     status: Literal["accepted"] = "accepted"
     app_key: str
-    action: str
+    action: OpenAppAction
     instance_index: int | None
 
 

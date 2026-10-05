@@ -3,11 +3,12 @@
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from hassette_wire import ScheduleStatus
 from whenever import ZonedDateTime
 
 from hassette.exceptions import SchedulerNameRequiredError
 from hassette.resources.base import Resource
-from hassette.scheduler.classes import Job, ScheduleStatus
+from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import After, Cron, Daily, Every, Once
 from hassette.utils.date_utils import now

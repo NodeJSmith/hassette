@@ -26,7 +26,7 @@ import contextlib
 import unittest.mock
 
 import pytest
-from hassette_wire import ExecutionMode
+from hassette_wire import ExecutionMode, ScheduleStatus, ScheduleStatusReason
 from whenever import ZonedDateTime
 
 import hassette.core.scheduler_dispatch as scheduler_dispatch_module
@@ -34,7 +34,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.execution_mode import ExecutionModeGuard
-from hassette.scheduler import Job, ScheduleStatus, ScheduleStatusReason
+from hassette.scheduler import Job
 from hassette.scheduler.triggers import Every
 from hassette.testing import AppTestHarness
 from tests.support.helpers import noop

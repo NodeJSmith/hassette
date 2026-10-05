@@ -1,7 +1,11 @@
 import type { JobData, ListenerData } from "../api/endpoints";
+import type { components } from "../api/generated-types";
 import type { SortState } from "../components/shared/sort-header";
 import { lastDotSegment } from "./format";
 import { scheduleStatusDisplay } from "./schedule-status";
+
+type ScheduleStatus = components["schemas"]["ScheduleStatus"];
+type ScheduleStatusReason = components["schemas"]["ScheduleStatusReason"];
 
 export interface UnifiedRow {
   kind: "listener" | "job";
@@ -18,8 +22,8 @@ export interface UnifiedRow {
   avg_duration_ms: number;
   next_run_ts: number | null;
   source_tier: string;
-  schedule_status: string | null;
-  schedule_status_reason: string | null;
+  schedule_status: ScheduleStatus | null;
+  schedule_status_reason: ScheduleStatusReason | null;
 }
 
 /**
@@ -29,20 +33,26 @@ export interface UnifiedRow {
  * state) and for a "scheduled" status without a `legacy_unknown` reason (degraded timing —
  * callers fall back to their own placeholder text).
  */
-export function scheduleStatusLabel(status: string | null, reason?: string | null): string | null {
+export function scheduleStatusLabel(
+  status: ScheduleStatus | null,
+  reason?: ScheduleStatusReason | null,
+): string | null {
   return scheduleStatusDisplay(status, reason)?.label ?? null;
 }
 
-/** Secondary sort rank for jobs with no `next_run_ts`, per design: manual < waiting < completed < unknown/degraded. */
-const SCHEDULE_STATUS_SORT_RANK: Record<string, number> = {
+/** Secondary sort rank for jobs with no `next_run_ts`, per design: manual < waiting < completed <
+ * scheduled-without-timing (unknown/degraded). Total over `ScheduleStatus`. */
+const SCHEDULE_STATUS_SORT_RANK: Record<ScheduleStatus, number> = {
   manual: 0,
   waiting: 1,
   completed: 2,
+  scheduled: 3,
 };
 
-function scheduleStatusRank(status: string | null): number {
-  if (status === null) return 3;
-  return SCHEDULE_STATUS_SORT_RANK[status] ?? 3;
+function scheduleStatusRank(status: ScheduleStatus | null): number {
+  // A missing status, or one this tab doesn't know (a stale tab seeing a newer server before the
+  // reload prompt), sorts with "scheduled".
+  return SCHEDULE_STATUS_SORT_RANK[status ?? "scheduled"] ?? SCHEDULE_STATUS_SORT_RANK.scheduled;
 }
 
 export function listenerToRow(l: ListenerData): UnifiedRow {

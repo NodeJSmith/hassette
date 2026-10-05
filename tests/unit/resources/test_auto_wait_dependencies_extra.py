@@ -13,9 +13,9 @@ from typing import ClassVar
 from unittest.mock import AsyncMock
 
 import pytest
+from hassette_wire import ResourceRole
 
 from hassette.resources.base import Resource
-from hassette.types.enums import ResourceRole
 from tests.support.factories import wire_dependent_resource
 
 from .conftest import build_hassette

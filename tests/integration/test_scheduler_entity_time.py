@@ -10,11 +10,11 @@ from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock
 
 import pytest
+from hassette_wire import ScheduleStatus
 from whenever import TimeDelta
 
 import hassette.utils.date_utils as date_utils
 from hassette.resources.lifecycle import mark_ready
-from hassette.scheduler.classes import ScheduleStatus
 from hassette.scheduler.triggers import EntityTime
 from hassette.testing import HassetteHarness, create_state_change_event, make_state_dict
 from tests.support.helpers import entity_topic, noop

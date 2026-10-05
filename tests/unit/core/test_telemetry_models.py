@@ -10,6 +10,7 @@ from tests.support.web_job_helpers import TEST_EPOCH_B
 def test_job_summary_new_fields_defaults() -> None:
     """New fields on JobSummary have correct default values."""
     summary = JobSummary(
+        schedule_status="scheduled",
         job_id=1,
         app_key="my_app",
         instance_index=0,
@@ -58,6 +59,7 @@ def test_job_summary_repeat_field_removed() -> None:
 def test_job_summary_group_can_be_set() -> None:
     """Group field accepts non-None string values."""
     summary = JobSummary(
+        schedule_status="scheduled",
         job_id=2,
         app_key="my_app",
         instance_index=0,
@@ -99,6 +101,7 @@ def test_job_summary_predicate_description_fields_present() -> None:
 def test_job_summary_invariant_with_skipped() -> None:
     """Successful + failed + cancelled + timed_out + skipped == total_executions when skipped > 0."""
     summary = JobSummary(
+        schedule_status="scheduled",
         job_id=10,
         app_key="my_app",
         instance_index=0,
@@ -132,6 +135,7 @@ def test_job_summary_next_run_and_fire_at_are_floats() -> None:
     ts2 = 1700000015.0
 
     summary = JobSummary(
+        schedule_status="scheduled",
         job_id=4,
         app_key="my_app",
         instance_index=0,

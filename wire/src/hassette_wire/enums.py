@@ -129,3 +129,72 @@ class ExecutionStatus(StrEnum):
 
 
 OpenExecutionStatus = Annotated[ExecutionStatus | UnknownValue, LenientValue("ExecutionStatus")]
+
+
+class ResourceRole(StrEnum):
+    """The kind of framework component a status or service entry describes."""
+
+    CORE = "core"
+    """The framework itself rather than one of its components. Not currently reported."""
+
+    BASE = "base"
+    """A generic component with no more specific kind. Not currently reported; treat it like
+    ``resource``."""
+
+    SERVICE = "service"
+    """A long-running framework service that is supervised and restarted on failure, such as the
+    Home Assistant connection or the database."""
+
+    RESOURCE = "resource"
+    """A framework component that runs for the life of its owner but is not supervised or restarted
+    on its own."""
+
+    APP = "app"
+    """A user app instance."""
+
+    UNKNOWN = "unknown"
+    """A component whose kind is not classified. Not currently reported."""
+
+
+OpenResourceRole = Annotated[ResourceRole | UnknownValue, LenientValue("ResourceRole")]
+
+
+# Values must equal the server's scheduled_jobs.schedule_status CHECK constraint (parity-tested).
+class ScheduleStatus(StrEnum):
+    """Whether a scheduled job will run again on its own."""
+
+    SCHEDULED = "scheduled"
+    """The job has a concrete next automatic run."""
+
+    WAITING = "waiting"
+    """The job's next run time comes from an entity that currently reports no usable time. The job
+    stays registered and resumes once the entity reports one."""
+
+    COMPLETED = "completed"
+    """The job will not run again automatically: every occurrence has run, or computing the next one
+    failed (see ``ScheduleStatusReason.TRIGGER_ERROR``). It can still be run on demand."""
+
+    MANUAL = "manual"
+    """The job has no automatic schedule and only runs on demand."""
+
+
+OpenScheduleStatus = Annotated[ScheduleStatus | UnknownValue, LenientValue("ScheduleStatus")]
+
+
+# Values must equal the server's scheduled_jobs.schedule_status_reason CHECK constraint (parity-tested).
+class ScheduleStatusReason(StrEnum):
+    """Qualifies a ``ScheduleStatus`` when the status alone does not explain the job's state.
+
+    Absent when the status needs no qualification.
+    """
+
+    LEGACY_UNKNOWN = "legacy_unknown"
+    """The status was carried over from data recorded before schedule status existed and has not
+    been confirmed since. It is replaced once the job's app registers the job again."""
+
+    TRIGGER_ERROR = "trigger_error"
+    """The job is ``completed`` because computing its next run raised an error, not because its
+    schedule ran out."""
+
+
+OpenScheduleStatusReason = Annotated[ScheduleStatusReason | UnknownValue, LenientValue("ScheduleStatusReason")]

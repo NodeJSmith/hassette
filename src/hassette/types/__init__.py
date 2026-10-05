@@ -1,9 +1,10 @@
+from hassette_wire import ResourceRole
+
 from .enums import (
     ACTIVE_STATUSES,
     TERMINAL_STATUSES,
     ConnectionState,
     Outcome,
-    ResourceRole,
     Topic,
 )
 from .types import (

@@ -1,12 +1,11 @@
 import typing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import StrEnum
 from logging import getLogger
 from typing import Any
 
 from croniter import croniter
-from hassette_wire import ExecutionMode, SourceTier
+from hassette_wire import ExecutionMode, ScheduleStatus, ScheduleStatusReason, SourceTier
 from whenever import Instant, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -34,40 +33,6 @@ if typing.TYPE_CHECKING:
 
 
 LOGGER = getLogger(__name__)
-
-
-class ScheduleStatus(StrEnum):
-    """Current schedule status of a live :class:`Job`.
-
-    Live ``Job.schedule_status`` is authoritative for future automatic scheduling
-    availability. Only ``SCHEDULED`` jobs carry a concrete ``next_run``/``fire_at`` and
-    sit on the scheduler's due-time heap.
-
-    - ``SCHEDULED``: has a concrete automatic next occurrence.
-    - ``WAITING``: an ``EntityTime``-triggered job whose source currently reports no usable
-      time. Stays registered and watched by the entity-change listener, but off the heap.
-    - ``COMPLETED``: every automatic occurrence has fired, or the trigger raised while
-      computing the next one. The job remains live and submit-capable.
-    - ``MANUAL``: registered via ``Scheduler.register()`` with no trigger at all.
-    """
-
-    SCHEDULED = "scheduled"
-    WAITING = "waiting"
-    COMPLETED = "completed"
-    MANUAL = "manual"
-
-
-class ScheduleStatusReason(StrEnum):
-    """Optional diagnostic reason qualifying :class:`Job`'s ``schedule_status``.
-
-    ``None`` means the status needs no further explanation. A non-``None`` reason overrides
-    the normal guarantees implied by the status alone — e.g. a ``COMPLETED`` job with
-    ``TRIGGER_ERROR`` stopped because its trigger raised while computing the next
-    occurrence, not because it ran out of occurrences normally.
-    """
-
-    LEGACY_UNKNOWN = "legacy_unknown"
-    TRIGGER_ERROR = "trigger_error"
 
 
 class CronTrigger:

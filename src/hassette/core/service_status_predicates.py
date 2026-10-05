@@ -5,9 +5,10 @@ Current consumers: ServiceWatcher and SessionManager (#2153).
 Planned: RuntimeQueryService (#1666).
 """
 
+from hassette_wire import ResourceRole
+
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
-from hassette.types import ResourceRole
 
 SERVICE_STATUS_PATH = "payload.data.status"
 SERVICE_ROLE_PATH = "payload.data.role"
