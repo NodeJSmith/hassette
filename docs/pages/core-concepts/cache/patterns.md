@@ -37,7 +37,9 @@ External APIs impose rate limits. Storing the response alongside a timestamp let
 `get_weather` checks the cache first. The entry holds a tuple of `(timestamp, forecast)`. When the stored timestamp falls within the 30-minute window, the cached value is returned without a network call. A stale or absent entry triggers a fresh fetch and overwrites the cache entry.
 
 !!! note "Typing cached values"
-    The cache holds any picklable object, so `get()` cannot infer what a key contains — an unannotated read resolves to `None` for the type checker. Annotating the target fixes that, as `entry: WeatherEntry | None` does above. Passing `default=` works too: `await self.cache.get("count", default=0)` reads as `int | None`.
+    The cache holds any picklable object, so `get()` cannot infer what a key contains. A read without a default is typed `Any | None`; annotate the target to narrow it, as `entry: WeatherEntry | None` does above. Passing a non-`None` `default=` types the result as the default's type: `await self.cache.get("count", default=0)` reads as `int`.
+
+    The type checker takes the default's type on trust. A stored value is returned as-is even when a default is passed, so if a key can hold `None` (or a value of another type), annotate the read to include it.
 
 ## Expiring Entries
 

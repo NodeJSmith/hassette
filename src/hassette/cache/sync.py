@@ -51,6 +51,12 @@ class SyncCache:
     @overload
     def get(self, key: str, default: T) -> T: ...
     def get(self, key: str, default: T | None = None) -> T | None:
+        """Return the cached value for *key*, or *default* if missing or expired.
+
+        A non-``None`` *default* types the result as the default's type. That type is
+        the caller's assertion about what *key* holds: a stored value, including a
+        stored ``None``, is returned as-is regardless of *default*.
+        """
         guard_not_in_event_loop("SyncCache.get")
         validate_key(key)
         conn = self._connect()

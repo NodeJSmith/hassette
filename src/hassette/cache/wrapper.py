@@ -165,7 +165,12 @@ class AsyncCache:
     @overload
     async def get(self, key: str, default: T) -> T: ...
     async def get(self, key: str, default: T | None = None) -> T | None:
-        """Return the cached value for *key*, or *default* if missing or expired."""
+        """Return the cached value for *key*, or *default* if missing or expired.
+
+        A non-``None`` *default* types the result as the default's type. That type is
+        the caller's assertion about what *key* holds: a stored value, including a
+        stored ``None``, is returned as-is regardless of *default*.
+        """
         validate_key(key)
         async with self._read_conn.execute(
             "SELECT value, expires_at FROM cache_entries WHERE key = ?", (key,)
