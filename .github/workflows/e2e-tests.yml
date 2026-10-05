@@ -65,6 +65,25 @@ jobs:
 
             - run: uv sync
 
+            # Key the browser cache on the locked Playwright version, not the whole lockfile:
+            # each Playwright release pins its own Chromium build, and nothing else in uv.lock
+            # changes which browser gets downloaded.
+            - name: Resolve Playwright version
+              id: playwright
+              run: echo "version=$(uv run python -c 'import importlib.metadata as m; print(m.version("playwright"))')" >> "$GITHUB_OUTPUT"
+
+            - name: Cache Playwright browsers
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+            # System libraries aren't covered by the cache. When not run as root, Playwright
+            # elevates the apt install itself; the nox session then installs the browser binary,
+            # which is a no-op on a cache hit.
+            - name: Install Playwright system dependencies
+              run: uv run playwright install-deps chromium
+
             - name: Run e2e tests
               run: uv run nox -s e2e -p ${{ matrix.python-version }}
 
