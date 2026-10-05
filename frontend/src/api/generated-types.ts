@@ -1513,7 +1513,8 @@ export interface components {
             fire_at?: number | null;
             /**
              * Jitter
-             * @description Seconds of random jitter offset; live-only.
+             * @description Configured maximum jitter in seconds, not the offset sampled for this occurrence;
+             *     live-only. The applied offset is ``fire_at - next_run``.
              */
             jitter?: number | null;
             /**

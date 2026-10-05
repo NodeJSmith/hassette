@@ -168,7 +168,8 @@ class JobSummary(BaseModel):
     """Unix epoch seconds of the live job's dispatch time; live-only. Equals
     ``next_run`` when no jitter is configured."""
     jitter: float | None = None
-    """Seconds of random jitter offset; live-only."""
+    """Configured maximum jitter in seconds, not the offset sampled for this occurrence;
+    live-only. The applied offset is ``fire_at - next_run``."""
     last_error_message: str | None = None
     """Most recent error message within the query window, or None."""
     last_error_type: str | None = None
