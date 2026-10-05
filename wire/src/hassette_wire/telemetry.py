@@ -32,6 +32,8 @@ class Execution(BaseModel):
     ``None`` for job executions.
     """
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     kind: OpenExecutionKind
     """Discriminator: 'handler' for bus invocations, 'job' for scheduled-job executions."""
 
@@ -53,19 +55,24 @@ class Execution(BaseModel):
     UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions.
     """
     trigger_context_id: str | None = None
-    """event_id from the triggering event payload. None for job executions and non-event-triggered invocations."""
+    """event_id from the triggering event payload. None for job executions, synthetic immediate-fire
+    invocations, and handler rows recorded because the listener's predicate raised."""
     trigger_origin: str | None = None
-    """Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'). None for job executions."""
+    """Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for
+    immediate-fire synthetic invocations). None for job executions and for handler rows recorded because
+    the listener's predicate raised."""
     trigger_mode: str | None = None
     """How this execution was triggered (e.g., "manual" for a run-now request). None when not set."""
     retry_count: int = 0
-    """Number of retry attempts before this execution. 0 for first attempts."""
+    """Reserved for future retry tracking; currently always 0."""
     attempt_number: int = 1
-    """Ordinal attempt number (1-based). 1 for first attempt."""
+    """Reserved for future retry tracking; currently always 1."""
     args_json: str = "[]"
-    """JSON-encoded positional arguments for job executions. '[]' for handler invocations."""
+    """Reserved; not currently populated, so always '[]'. A job's registered positional arguments are
+    on ``JobSummary.args_json``."""
     kwargs_json: str = "{}"
-    """JSON-encoded keyword arguments for job executions. '{}' for handler invocations."""
+    """Reserved; not currently populated, so always '{}'. A job's registered keyword arguments are
+    on ``JobSummary.kwargs_json``."""
     thread_leaked: bool = False
     """True when the execution timed out and the sync worker thread was still alive after the timeout.
 
@@ -77,6 +84,8 @@ class Execution(BaseModel):
 
 class ActivityFeedEntry(BaseModel):
     """A single activity entry for the cross-app recent activity feed."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     row_id: str
     """Stable unique identifier for this entry.
@@ -110,6 +119,8 @@ class JobSummary(BaseModel):
     are tracked separately.
     Invariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``.
     """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     job_id: int
     app_key: str
@@ -162,27 +173,31 @@ class JobSummary(BaseModel):
     """Unix epoch seconds of the live job's dispatch time; live-only. Equals
     ``next_run`` when no jitter is configured."""
     jitter: float | None = None
-    """Seconds of random jitter offset; live-only."""
+    """Configured maximum jitter in seconds, not the offset sampled for this occurrence;
+    live-only. The applied offset is ``fire_at - next_run``."""
     last_error_message: str | None = None
-    """Most recent error message within the query window, or None."""
+    """Message of the most recent error or timeout within the query window, or None."""
     last_error_type: str | None = None
-    """Most recent error exception type within the query window, or None."""
+    """Exception type of the most recent error or timeout within the query window, or None."""
     last_error_ts: float | None = None
-    """Unix epoch of the most recent error within the query window, or None."""
+    """Unix epoch of the most recent error or timeout within the query window, or None."""
     last_error_traceback: str | None = None
-    """Traceback from the most recent error within the query window, or None."""
+    """Traceback from the most recent error or timeout within the query window. None when there is none,
+    or when that row recorded no traceback (timeouts never do)."""
     min_duration_ms: float | None = None
-    """Minimum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
+    """Minimum duration in milliseconds across non-skipped executions. None means no non-skipped executions."""
     max_duration_ms: float | None = None
-    """Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms."""
+    """Maximum duration in milliseconds across non-skipped executions. None means no non-skipped executions."""
     mode: OpenExecutionMode = ExecutionMode.SINGLE
     """Resolved overlap mode for this job. Persisted at registration."""
     suppressed_count: int = 0
     """Live count of re-fires suppressed by the guard (``single`` mode). Not persisted by design — read
-    live from the in-process guard and reset to 0 on restart."""
+    live from the in-process guard and reset to 0 on restart. Reads 0 when the job has no live match or the
+    live registry is unavailable, so 0 does not prove none occurred."""
     dropped_count: int = 0
     """Live count of re-fires dropped due to queue cap (``queued`` mode). Not persisted by design — read
-    live from the in-process guard and reset to 0 on restart."""
+    live from the in-process guard and reset to 0 on restart. Reads 0 when the job has no live match or the
+    live registry is unavailable, so 0 does not prove none occurred."""
 
 
 class AppHealth(BaseModel):
@@ -255,6 +270,8 @@ class ListenerWithSummary(BaseModel):
 class ActivityBucket(BaseModel):
     """A single time-window bucket for the sparkline chart."""
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     ok: int
     """Number of successful invocations/executions in this bucket."""
 
@@ -265,14 +282,15 @@ class ActivityBucket(BaseModel):
 class DashboardAppGridEntry(BaseModel):
     """Per-app health entry for the dashboard grid."""
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     app_key: str
     status: OpenManifestStatus
     display_name: str
-    instance_count: int = Field(
-        default=0,
-        description="Configured instances, including ones not currently tracked (never started, "
-        "or independently stopped). Always len(instances).",
-    )
+    instance_count: int = 0
+    """Number of entries in ``instances``: every configured instance (including untracked ones, never started
+    or independently stopped) plus any still-tracked instance outside the configured range. 0 for DB-only or
+    removed apps. Always len(instances)."""
     handler_count: int
     job_count: int
     total_invocations: int
@@ -283,7 +301,8 @@ class DashboardAppGridEntry(BaseModel):
     total_job_timed_out: int = 0
     health: AppHealth
     activity_buckets: list[ActivityBucket] = Field(default_factory=list)
-    """Per-app sparkline buckets (ok/err counts per time window)."""
+    """Per-app sparkline: equal-width ok/err buckets from ``since`` to now, oldest first. Empty when the
+    request has no ``since``, the app had no executions in the window, or the bucket query failed."""
     blocking_event_count: int = 0
     """Attributed blocking-IO events for this app in the requested window. Best-effort: reads 0
     when only this count's query fails, so a zero is not proof the app never blocked."""
@@ -299,10 +318,8 @@ class DashboardAppGridEntry(BaseModel):
     instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
-    in_current_config: bool = Field(
-        default=True,
-        description="True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
-    )
+    in_current_config: bool = True
+    """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
 
 
 class DashboardAppGridResponse(BaseModel):

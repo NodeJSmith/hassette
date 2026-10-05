@@ -176,8 +176,8 @@ async def app_jobs(
 ) -> list[JobSummary]:
     """Job summaries for a single app instance, enriched with live registry data.
 
-    ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
-    (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
+    ``schedule_status``/``schedule_status_reason``, ``jitter``, and, for ``SCHEDULED`` jobs, live timing
+    (``next_run``, ``fire_at``) are joined from the live scheduler registry by
     ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
     and a warning is logged. If the telemetry DB can't be read, the route answers
     ``telemetry_unavailable``.

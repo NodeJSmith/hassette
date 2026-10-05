@@ -11,9 +11,9 @@ from unittest.mock import AsyncMock
 
 from hassette_wire import Execution, JobSummary
 
-from hassette.schemas.job_models import JobErrorRecord, JobGlobalStats
-from hassette.schemas.listener_models import HandlerErrorRecord, ListenerGlobalStats, ListenerSummary
-from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary, GlobalSummary
+from hassette.schemas.job_models import JobErrorRecord
+from hassette.schemas.listener_models import HandlerErrorRecord, ListenerSummary
+from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
 from tests.e2e.mock_fixtures.constants import (
     APP_KEY_BROKEN_APP,
     APP_KEY_MY_APP,
@@ -475,78 +475,6 @@ def wire_error_telemetry(
             {FRAMEWORK_TIER: framework_tier_errors, APP_TIER: app_tier_errors},
             default_tier=ALL_TIER,
             fallback=app_tier_errors + framework_tier_errors,
-        )
-    )
-
-
-def build_global_summaries() -> tuple[GlobalSummary, GlobalSummary]:
-    """Build framework-tier and default global summaries.
-
-    Returns:
-        A ``(framework_global_summary, default_global_summary)`` tuple.
-    """
-    framework_global_summary = GlobalSummary(
-        listeners=ListenerGlobalStats(
-            total_listeners=2,
-            invoked_listeners=1,
-            total_invocations=5,
-            total_errors=1,
-            total_di_failures=0,
-            avg_duration_ms=1.5,
-        ),
-        jobs=JobGlobalStats(
-            total_jobs=1,
-            executed_jobs=1,
-            total_executions=3,
-            total_errors=0,
-        ),
-    )
-    default_global_summary = GlobalSummary(
-        listeners=ListenerGlobalStats(
-            total_listeners=3,
-            invoked_listeners=3,
-            total_invocations=33,
-            total_errors=3,
-            total_di_failures=0,
-            avg_duration_ms=2.5,
-        ),
-        jobs=JobGlobalStats(
-            total_jobs=3,
-            executed_jobs=3,
-            total_executions=28,
-            total_errors=6,
-        ),
-    )
-    return framework_global_summary, default_global_summary
-
-
-def wire_global_summary(
-    hassette,
-    framework_global_summary: GlobalSummary,
-    default_global_summary: GlobalSummary,
-    framework_tier_errors: list[HandlerErrorRecord] | None = None,
-) -> None:
-    """Wire global summary and error count side effects onto the mock telemetry query service."""
-    hassette._telemetry_query_service.get_global_summary = AsyncMock(
-        side_effect=by_tier(
-            {FRAMEWORK_TIER: framework_global_summary},
-            default_tier=APP_TIER,
-            fallback=default_global_summary,
-        )
-    )
-
-    fw_errors = framework_tier_errors or []
-    framework_error_counts = (
-        sum(1 for e in fw_errors if isinstance(e, HandlerErrorRecord)),
-        sum(1 for e in fw_errors if isinstance(e, JobErrorRecord)),
-    )
-    # get_error_counts() returns (handler_errors, job_errors), matching the global summary's totals.
-    default_error_counts = (default_global_summary.listeners.total_errors, default_global_summary.jobs.total_errors)
-    hassette._telemetry_query_service.get_error_counts = AsyncMock(
-        side_effect=by_tier(
-            {FRAMEWORK_TIER: framework_error_counts},
-            default_tier=APP_TIER,
-            fallback=default_error_counts,
         )
     )
 

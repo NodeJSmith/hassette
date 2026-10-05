@@ -518,8 +518,8 @@ export interface paths {
          * App Jobs
          * @description Job summaries for a single app instance, enriched with live registry data.
          *
-         *     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
-         *     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
+         *     ``schedule_status``/``schedule_status_reason``, ``jitter``, and, for ``SCHEDULED`` jobs, live timing
+         *     (``next_run``, ``fire_at``) are joined from the live scheduler registry by
          *     ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
          *     and a warning is logged. If the telemetry DB can't be read, the route answers
          *     ``telemetry_unavailable``.
@@ -805,9 +805,15 @@ export interface components {
          * @description A single time-window bucket for the sparkline chart.
          */
         ActivityBucket: {
-            /** Ok */
+            /**
+             * Ok
+             * @description Number of successful invocations/executions in this bucket.
+             */
             ok: number;
-            /** Err */
+            /**
+             * Err
+             * @description Number of error/timed-out invocations/executions in this bucket.
+             */
             err: number;
         };
         /**
@@ -815,14 +821,28 @@ export interface components {
          * @description A single activity entry for the cross-app recent activity feed.
          */
         ActivityFeedEntry: {
-            /** Row Id */
+            /**
+             * Row Id
+             * @description Stable unique identifier for this entry.
+             *
+             *     Carries the ``execution_id`` UUID when present. Rows that predate the
+             *     ``execution_id`` column fall back to ``'h-'`` (handler) or ``'j-'`` (job)
+             *     prefixing the SQLite rowid. The type is always ``str``.
+             */
             row_id: string;
+            /** @description Handler or job execution status. */
             status: components["schemas"]["ExecutionStatus"];
-            /** Timestamp */
+            /**
+             * Timestamp
+             * @description Unix epoch float for when the invocation/execution started.
+             */
             timestamp: number;
             /** App Key */
             app_key: string;
-            /** Handler Id */
+            /**
+             * Handler Id
+             * @description Listener or scheduled-job registration ID, interpreted according to ``kind``.
+             */
             handler_id: number;
             /** Handler Name */
             handler_name: string;
@@ -832,6 +852,7 @@ export interface components {
             error_type?: string | null;
             /**
              * Kind
+             * @description Whether this is a handler invocation or a job execution.
              * @enum {string}
              */
             kind: "handler" | "job";
@@ -1162,7 +1183,9 @@ export interface components {
             display_name: string;
             /**
              * Instance Count
-             * @description Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).
+             * @description Number of entries in ``instances``: every configured instance (including untracked ones, never started
+             *     or independently stopped) plus any still-tracked instance outside the configured range. 0 for DB-only or
+             *     removed apps. Always len(instances).
              * @default 0
              */
             instance_count: number;
@@ -1189,10 +1212,16 @@ export interface components {
              */
             total_job_timed_out: number;
             health: components["schemas"]["AppHealth"];
-            /** Activity Buckets */
+            /**
+             * Activity Buckets
+             * @description Per-app sparkline: equal-width ok/err buckets from ``since`` to now, oldest first. Empty when the
+             *     request has no ``since``, the app had no executions in the window, or the bucket query failed.
+             */
             activity_buckets?: components["schemas"]["ActivityBucket"][];
             /**
              * Blocking Event Count
+             * @description Attributed blocking-IO events for this app in the requested window. Best-effort: reads 0
+             *     when only this count's query fails, so a zero is not proof the app never blocked.
              * @default 0
              */
             blocking_event_count: number;
@@ -1262,12 +1291,19 @@ export interface components {
         Execution: {
             /**
              * Kind
+             * @description Discriminator: 'handler' for bus invocations, 'job' for scheduled-job executions.
              * @enum {string}
              */
             kind: "handler" | "job";
-            /** Listener Id */
+            /**
+             * Listener Id
+             * @description The owning listener row id. Set when kind='handler', None for job executions.
+             */
             listener_id?: number | null;
-            /** Job Id */
+            /**
+             * Job Id
+             * @description The owning scheduled-job row id. Set when kind='job', None for handler invocations.
+             */
             job_id?: number | null;
             /** Execution Start Ts */
             execution_start_ts: number;
@@ -1286,36 +1322,64 @@ export interface components {
             error_message: string | null;
             /** Error Traceback */
             error_traceback?: string | null;
-            /** Execution Id */
+            /**
+             * Execution Id
+             * @description UUID string identifying the specific execution instance. None when not populated.
+             *
+             *     UUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions.
+             */
             execution_id?: string | null;
-            /** Trigger Context Id */
+            /**
+             * Trigger Context Id
+             * @description event_id from the triggering event payload. None for job executions, synthetic immediate-fire
+             *     invocations, and handler rows recorded because the listener's predicate raised.
+             */
             trigger_context_id?: string | null;
-            /** Trigger Origin */
+            /**
+             * Trigger Origin
+             * @description Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for
+             *     immediate-fire synthetic invocations). None for job executions and for handler rows recorded because
+             *     the listener's predicate raised.
+             */
             trigger_origin?: string | null;
-            /** Trigger Mode */
+            /**
+             * Trigger Mode
+             * @description How this execution was triggered (e.g., "manual" for a run-now request). None when not set.
+             */
             trigger_mode?: string | null;
             /**
              * Retry Count
+             * @description Reserved for future retry tracking; currently always 0.
              * @default 0
              */
             retry_count: number;
             /**
              * Attempt Number
+             * @description Reserved for future retry tracking; currently always 1.
              * @default 1
              */
             attempt_number: number;
             /**
              * Args Json
+             * @description Reserved; not currently populated, so always '[]'. A job's registered positional arguments are
+             *     on ``JobSummary.args_json``.
              * @default []
              */
             args_json: string;
             /**
              * Kwargs Json
+             * @description Reserved; not currently populated, so always '{}'. A job's registered keyword arguments are
+             *     on ``JobSummary.kwargs_json``.
              * @default {}
              */
             kwargs_json: string;
             /**
              * Thread Leaked
+             * @description True when the execution timed out and the sync worker thread was still alive after the timeout.
+             *
+             *     Subject to a small race window: if the worker finishes between the timeout cancellation and the
+             *     liveness check, this field reads False even though the thread outlived the asyncio deadline.
+             *     This is a false-negative (undercounting), not a false-positive. Treat as a lower bound.
              * @default false
              */
             thread_leaked: boolean;
@@ -1376,9 +1440,16 @@ export interface components {
              * @enum {string}
              */
             source_tier: "app" | "framework";
-            /** Predicate Description */
+            /**
+             * Predicate Description
+             * @description Structural description of the job's scheduler predicate — ``repr()`` for composed
+             *     predicate objects, the qualified name for a bare callable. ``None`` when unset.
+             */
             predicate_description?: string | null;
-            /** Human Description */
+            /**
+             * Human Description
+             * @description Human-readable summary of the job's scheduler predicate, or ``None`` when unset.
+             */
             human_description?: string | null;
             /** Total Executions */
             total_executions: number;
@@ -1398,11 +1469,16 @@ export interface components {
             timed_out: number;
             /**
              * Skipped
+             * @description Number of executions where the scheduler predicate returned ``False`` and the handler
+             *     did not run. Counted toward ``total_executions`` per the class invariant.
              * @default 0
              */
             skipped: number;
             /**
              * Thread Leaked
+             * @description Number of executions whose sync worker thread outlived its timeout (see ``Execution.thread_leaked``).
+             *     A non-zero value flags a job leaking worker threads.
+             *     Mirrors the ``timed_out`` aggregate naming — the bare participle, not a ``_count`` suffix.
              * @default 0
              */
             thread_leaked: number;
@@ -1412,37 +1488,91 @@ export interface components {
             total_duration_ms: number;
             /** Avg Duration Ms */
             avg_duration_ms: number;
-            /** Group */
+            /**
+             * Group
+             * @description Scheduler group name, persisted at registration.
+             */
             group?: string | null;
+            /**
+             * @description Whether the job will run again on its own. Persisted at registration and every status
+             *     transition; live enrichment overlays the current in-process value, so a DB-only degraded
+             *     response still reflects the last persisted status.
+             */
             schedule_status: components["schemas"]["ScheduleStatus"];
+            /**
+             * @description Qualifies ``schedule_status`` when the status alone does not explain the job's state.
+             *     ``None`` for a clean status with no override.
+             */
             schedule_status_reason?: components["schemas"]["ScheduleStatusReason"] | null;
-            /** Next Run */
+            /**
+             * Next Run
+             * @description Unix epoch seconds of the next scheduled fire time (unjittered); live-only — always
+             *     ``None`` in a DB-only response, and ``None`` for every status except ``scheduled`` with
+             *     live timing available. A ``None`` value no longer implies the job is done; see
+             *     ``schedule_status``/``schedule_status_reason`` for the reason timing is unavailable.
+             */
             next_run?: number | null;
-            /** Fire At */
+            /**
+             * Fire At
+             * @description Unix epoch seconds of the live job's dispatch time; live-only. Equals
+             *     ``next_run`` when no jitter is configured.
+             */
             fire_at?: number | null;
-            /** Jitter */
+            /**
+             * Jitter
+             * @description Configured maximum jitter in seconds, not the offset sampled for this occurrence;
+             *     live-only. The applied offset is ``fire_at - next_run``.
+             */
             jitter?: number | null;
-            /** Last Error Message */
+            /**
+             * Last Error Message
+             * @description Message of the most recent error or timeout within the query window, or None.
+             */
             last_error_message?: string | null;
-            /** Last Error Type */
+            /**
+             * Last Error Type
+             * @description Exception type of the most recent error or timeout within the query window, or None.
+             */
             last_error_type?: string | null;
-            /** Last Error Ts */
+            /**
+             * Last Error Ts
+             * @description Unix epoch of the most recent error or timeout within the query window, or None.
+             */
             last_error_ts?: number | null;
-            /** Last Error Traceback */
+            /**
+             * Last Error Traceback
+             * @description Traceback from the most recent error or timeout within the query window. None when there is none,
+             *     or when that row recorded no traceback (timeouts never do).
+             */
             last_error_traceback?: string | null;
-            /** Min Duration Ms */
+            /**
+             * Min Duration Ms
+             * @description Minimum duration in milliseconds across non-skipped executions. None means no non-skipped executions.
+             */
             min_duration_ms?: number | null;
-            /** Max Duration Ms */
+            /**
+             * Max Duration Ms
+             * @description Maximum duration in milliseconds across non-skipped executions. None means no non-skipped executions.
+             */
             max_duration_ms?: number | null;
-            /** @default single */
+            /**
+             * @description Resolved overlap mode for this job. Persisted at registration.
+             * @default single
+             */
             mode: components["schemas"]["ExecutionMode"];
             /**
              * Suppressed Count
+             * @description Live count of re-fires suppressed by the guard (``single`` mode). Not persisted by design — read
+             *     live from the in-process guard and reset to 0 on restart. Reads 0 when the job has no live match or the
+             *     live registry is unavailable, so 0 does not prove none occurred.
              * @default 0
              */
             suppressed_count: number;
             /**
              * Dropped Count
+             * @description Live count of re-fires dropped due to queue cap (``queued`` mode). Not persisted by design — read
+             *     live from the in-process guard and reset to 0 on restart. Reads 0 when the job has no live match or the
+             *     live registry is unavailable, so 0 does not prove none occurred.
              * @default 0
              */
             dropped_count: number;
