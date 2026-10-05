@@ -19,7 +19,6 @@ from tests.e2e.mock_fixtures import (
     build_app_health_summaries,
     build_error_records,
     build_executions,
-    build_global_summaries,
     build_job_telemetry,
     build_listener_telemetry,
     build_manifests,
@@ -30,7 +29,6 @@ from tests.e2e.mock_fixtures import (
     wire_app_manifest_lookups,
     wire_config,
     wire_error_telemetry,
-    wire_global_summary,
     wire_invocation_telemetry,
     wire_job_telemetry,
     wire_listener_telemetry,
@@ -135,9 +133,6 @@ def build_mock_hassette(*, is_ready: bool = True, auth_enabled: bool = False) ->
 
     app_tier_errors, framework_tier_errors = build_error_records()
     wire_error_telemetry(hassette, app_tier_errors, framework_tier_errors)
-
-    framework_summary, default_summary = build_global_summaries()
-    wire_global_summary(hassette, framework_summary, default_summary, framework_tier_errors)
 
     # Owner resolution wiring.
     wire_owner_resolution(hassette)

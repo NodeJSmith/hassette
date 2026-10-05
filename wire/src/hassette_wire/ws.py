@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.enums import OpenExecutionStatus, OpenResourceRole, OpenResourceStatus
 from hassette_wire.literals import OpenExecutionKind
@@ -44,6 +44,8 @@ class ServiceStatusData(BaseModel):
     Mirrors ``events.hassette.ServiceStatusPayload``.
     """
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     resource_name: str
     role: OpenResourceRole
     status: OpenResourceStatus
@@ -56,7 +58,7 @@ class ServiceStatusData(BaseModel):
 
     Populated for ``EXHAUSTED_COOLING`` events (the service is in a long cooldown
     and will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other
-    statuses.  The frontend uses this to display a live countdown timer.
+    statuses. The frontend uses this to display a live countdown timer.
     """
     ready: bool = False
     """Whether the service had signalled readiness at the time of this status event."""
@@ -125,9 +127,11 @@ class ExecutionCompletedData(BaseModel):
 
 
 class ExecutionCompletedWsMessage(BaseModel):
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     type: Literal["execution_completed"]
     data: list[ExecutionCompletedData]
-    """Per-drain batch: all executions persisted in one ``drain_and_persist()`` cycle."""
+    """App-tier executions persisted since the previous message, delivered together in one batch."""
     timestamp: float
 
 

@@ -154,6 +154,30 @@ async def insert_invocation(
     return await commit_returning_id(db_svc, cursor)
 
 
+async def set_listener_removed_at(db_svc: DatabaseService, listener_id: int, removed_at: float) -> None:
+    """Stamp ``removed_at`` on a listener row, as when its app unregisters it."""
+    await db_svc.db.execute("UPDATE listeners SET removed_at = ? WHERE id = ?", (removed_at, listener_id))
+    await db_svc.db.commit()
+
+
+async def set_job_removed_at(db_svc: DatabaseService, job_id: int, removed_at: float) -> None:
+    """Stamp ``removed_at`` on a scheduled_jobs row, as when its app cancels it."""
+    await db_svc.db.execute("UPDATE scheduled_jobs SET removed_at = ? WHERE id = ?", (removed_at, job_id))
+    await db_svc.db.commit()
+
+
+async def set_listener_retired_at(db_svc: DatabaseService, listener_id: int, retired_at: float) -> None:
+    """Stamp ``retired_at`` on a listener row, making it eligible for retention cleanup."""
+    await db_svc.db.execute("UPDATE listeners SET retired_at = ? WHERE id = ?", (retired_at, listener_id))
+    await db_svc.db.commit()
+
+
+async def set_job_retired_at(db_svc: DatabaseService, job_id: int, retired_at: float) -> None:
+    """Stamp ``retired_at`` on a scheduled_jobs row, making it eligible for retention cleanup."""
+    await db_svc.db.execute("UPDATE scheduled_jobs SET retired_at = ? WHERE id = ?", (retired_at, job_id))
+    await db_svc.db.commit()
+
+
 async def insert_listener_and_job(db_svc: DatabaseService, *, app_key: str = "test_app") -> tuple[int, int]:
     """Insert one listener and one job for ``app_key`` — the two arms every UNION query merges.
 

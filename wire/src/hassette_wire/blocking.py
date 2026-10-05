@@ -31,7 +31,7 @@ OpenUnattributedReason = Annotated[UnattributedReason | UnknownValue, LenientVal
 class StackFrame(BaseModel):
     """One captured stack frame."""
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, use_attribute_docstrings=True)
 
     filename: str
     """Absolute path of the frame's source file, verbatim from the code object."""
@@ -51,6 +51,8 @@ class BlockingFrameRef(StackFrame):
 
 class BlockingHandlerRef(BaseModel):
     """A handler or job whose execution reached a blocking call site."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     kind: OpenHandlerKind
     id: int
@@ -75,6 +77,8 @@ class BlockingFinding(BaseModel):
     ``call_site`` is ``None`` when no app-code frame was captured for these events (no stack
     captured, or the row predates structured frames); such findings are grouped per handler instead.
     """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     app_key: str
     tier: OpenBlockingTier
@@ -105,6 +109,8 @@ class BlockingFinding(BaseModel):
 class BlockingFindingsResponse(BaseModel):
     """Blocking findings for one app, or for every app."""
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     findings: list[BlockingFinding]
     """Ordered by most recently seen first."""
     truncated: bool = False
@@ -113,6 +119,8 @@ class BlockingFindingsResponse(BaseModel):
 
 class UnattributedStall(BaseModel):
     """One blocking event that names no app."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     detected_ts: float
     tier: OpenBlockingTier
@@ -127,6 +135,8 @@ class UnattributedStall(BaseModel):
 
 class UnattributedBlockingResponse(BaseModel):
     """Loop stalls that no app is credited with, for the diagnostics page."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     total_count: int = 0
     displaced_count: int = 0

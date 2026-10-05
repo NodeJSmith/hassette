@@ -1,6 +1,6 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.enums import OpenAppStatus, OpenResourceStatus
 from hassette_wire.literals import OpenAppAction
@@ -25,6 +25,8 @@ class AppSummary(BaseModel):
     ``AppActivity``, never here.
     """
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     app_key: str
     class_name: str
     display_name: str
@@ -34,18 +36,15 @@ class AppSummary(BaseModel):
     autostart: bool = True
     status: OpenAppStatus
     block_reason: str | None = None
-    instance_count: int = Field(
-        default=0,
-        description="Configured instances, including ones not currently tracked (never started, "
-        "or independently stopped). Always len(instances).",
-    )
+    instance_count: int = 0
+    """Number of entries in ``instances``: every configured instance (including untracked ones, never started
+    or independently stopped) plus any still-tracked instance outside the configured range. 0 for DB-only or
+    removed apps. Always len(instances)."""
     instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
-    in_current_config: bool = Field(
-        default=True,
-        description="True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
-    )
+    in_current_config: bool = True
+    """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
 
 
 class AppListResponse(BaseModel):

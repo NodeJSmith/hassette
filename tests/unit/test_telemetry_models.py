@@ -3,7 +3,7 @@
 from hassette_wire import Execution, JobSummary
 
 from hassette.schemas.listener_models import ListenerSummaryRow
-from hassette.schemas.summary_models import AppHealthSummary, GlobalSummary, SessionSummary
+from hassette.schemas.summary_models import AppHealthSummary
 from hassette.types.enums import DEFAULT_OVERLAP_MODE
 from tests.support.factories import TEST_SOURCE_LOCATION
 from tests.support.web_job_helpers import TEST_EPOCH_B
@@ -334,41 +334,3 @@ class TestJobSummary:
         model = JobSummary.model_validate(data)
         assert model.successful + model.failed + model.cancelled + model.timed_out + model.skipped == 10
         assert model.total_executions == 10
-
-
-class TestGlobalSummary:
-    def test_global_summary_from_dict(self) -> None:
-        data = {
-            "listeners": {
-                "total_listeners": 5,
-                "invoked_listeners": 3,
-                "total_invocations": 100,
-                "total_errors": 2,
-                "total_di_failures": 1,
-                "avg_duration_ms": 10.0,
-            },
-            "jobs": {
-                "total_jobs": 2,
-                "executed_jobs": 1,
-                "total_executions": 10,
-                "total_errors": 0,
-            },
-        }
-        model = GlobalSummary.model_validate(data)
-        assert model.listeners.total_listeners == 5
-        assert model.jobs.total_executions == 10
-
-
-class TestSessionSummary:
-    def test_session_summary_from_dict(self) -> None:
-        data = {
-            "started_at": TEST_EPOCH_B,
-            "last_heartbeat_at": 1700000100.0,
-            "total_invocations": 50,
-            "invocation_errors": 3,
-            "total_executions": 10,
-            "execution_errors": 1,
-        }
-        model = SessionSummary.model_validate(data)
-        assert model.started_at == TEST_EPOCH_B
-        assert model.total_invocations == 50

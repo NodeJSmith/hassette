@@ -15,17 +15,6 @@ from hassette_wire import SourceTier
 from pydantic import BaseModel
 
 
-class JobGlobalStats(BaseModel):
-    """Job aggregate stats within ``GlobalSummary``."""
-
-    total_jobs: int
-    executed_jobs: int
-    total_executions: int
-    total_errors: int
-    total_timed_out: int = 0
-    avg_duration_ms: float = 0.0
-
-
 class JobErrorRecord(BaseModel):
     """Job error returned by ``get_recent_errors()``."""
 

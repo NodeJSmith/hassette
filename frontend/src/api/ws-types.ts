@@ -100,12 +100,28 @@ export interface ServiceStatusData {
   exception?: string | null;
   exception_type?: string | null;
   exception_traceback?: string | null;
+  /**
+   * Unix timestamp when the next restart will be attempted.
+   *
+   * Populated for ``EXHAUSTED_COOLING`` events (the service is in a long cooldown
+   * and will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other
+   * statuses. The frontend uses this to display a live countdown timer.
+   */
   retry_at?: number | null;
+  /**
+   * Whether the service had signalled readiness at the time of this status event.
+   */
   ready?: boolean;
+  /**
+   * Human-readable description of the current readiness phase, or None if not available.
+   */
   ready_phase?: string | null;
 }
 export interface ExecutionCompletedWsMessage {
   type: "execution_completed";
+  /**
+   * App-tier executions persisted since the previous message, delivered together in one batch.
+   */
   data: ExecutionCompletedData[];
   timestamp: number;
 }

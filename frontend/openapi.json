@@ -1750,7 +1750,7 @@
           "telemetry"
         ],
         "summary": "App Jobs",
-        "description": "Job summaries for a single app instance, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. If the live registry can't be read, the DB rows are returned without enrichment\nand a warning is logged. If the telemetry DB can't be read, the route answers\n``telemetry_unavailable``.",
+        "description": "Job summaries for a single app instance, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason``, ``jitter``, and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``) are joined from the live scheduler registry by\n``db_id``. If the live registry can't be read, the DB rows are returned without enrichment\nand a warning is logged. If the telemetry DB can't be read, the route answers\n``telemetry_unavailable``.",
         "operationId": "app_jobs_api_telemetry_app__app_key__jobs_get",
         "parameters": [
           {
@@ -2662,11 +2662,13 @@
         "properties": {
           "ok": {
             "type": "integer",
-            "title": "Ok"
+            "title": "Ok",
+            "description": "Number of successful invocations/executions in this bucket."
           },
           "err": {
             "type": "integer",
-            "title": "Err"
+            "title": "Err",
+            "description": "Number of error/timed-out invocations/executions in this bucket."
           }
         },
         "type": "object",
@@ -2681,14 +2683,17 @@
         "properties": {
           "row_id": {
             "type": "string",
-            "title": "Row Id"
+            "title": "Row Id",
+            "description": "Stable unique identifier for this entry.\n\nCarries the ``execution_id`` UUID when present. Rows that predate the\n``execution_id`` column fall back to ``'h-'`` (handler) or ``'j-'`` (job)\nprefixing the SQLite rowid. The type is always ``str``."
           },
           "status": {
-            "$ref": "#/components/schemas/ExecutionStatus"
+            "$ref": "#/components/schemas/ExecutionStatus",
+            "description": "Handler or job execution status."
           },
           "timestamp": {
             "type": "number",
-            "title": "Timestamp"
+            "title": "Timestamp",
+            "description": "Unix epoch float for when the invocation/execution started."
           },
           "app_key": {
             "type": "string",
@@ -2696,7 +2701,8 @@
           },
           "handler_id": {
             "type": "integer",
-            "title": "Handler Id"
+            "title": "Handler Id",
+            "description": "Listener or scheduled-job registration ID, interpreted according to ``kind``."
           },
           "handler_name": {
             "type": "string",
@@ -2730,7 +2736,8 @@
               "handler",
               "job"
             ],
-            "title": "Kind"
+            "title": "Kind",
+            "description": "Whether this is a handler invocation or a job execution."
           }
         },
         "type": "object",
@@ -3246,7 +3253,7 @@
           "instance_count": {
             "type": "integer",
             "title": "Instance Count",
-            "description": "Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).",
+            "description": "Number of entries in ``instances``: every configured instance (including untracked ones, never started\nor independently stopped) plus any still-tracked instance outside the configured range. 0 for DB-only or\nremoved apps. Always len(instances).",
             "default": 0
           },
           "instances": {
@@ -3329,11 +3336,13 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Innermost app-code frame (Tier 1) or the intercepted call's caller frame (Tier 2)."
           },
           "call_site_is_user_code": {
             "type": "boolean",
-            "title": "Call Site Is User Code"
+            "title": "Call Site Is User Code",
+            "description": "``False`` when a Tier 2 call site is library or stdlib code; see ``detected_in_package``."
           },
           "detected_in_package": {
             "anyOf": [
@@ -3344,7 +3353,8 @@
                 "type": "null"
               }
             ],
-            "title": "Detected In Package"
+            "title": "Detected In Package",
+            "description": "Top-level package a non-user Tier 2 call site belongs to (e.g. ``\"requests\"``), else ``None``."
           },
           "callee": {
             "anyOf": [
@@ -3354,7 +3364,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Tier 1 only: the frame just inside the call site \u2014 what the app code called into."
           },
           "primitive": {
             "anyOf": [
@@ -3365,21 +3376,24 @@
                 "type": "null"
               }
             ],
-            "title": "Primitive"
+            "title": "Primitive",
+            "description": "Tier 2 only: the intercepted primitive, e.g. ``\"time.sleep\"``."
           },
           "handlers": {
             "items": {
               "$ref": "#/components/schemas/BlockingHandlerRef"
             },
             "type": "array",
-            "title": "Handlers"
+            "title": "Handlers",
+            "description": "Every handler or job whose execution reached this call site, most recently seen first."
           },
           "instances": {
             "items": {
               "$ref": "#/components/schemas/BlockingInstanceRef"
             },
             "type": "array",
-            "title": "Instances"
+            "title": "Instances",
+            "description": "The app instances these events came from, by index. A request for every instance merges\none call site's events across instances into one finding, since they share the code to fix."
           },
           "event_count": {
             "type": "integer",
@@ -3394,7 +3408,8 @@
                 "type": "null"
               }
             ],
-            "title": "Max Stall Ms"
+            "title": "Max Stall Ms",
+            "description": "Longest stall in milliseconds. ``None`` for Tier 2, which records no duration."
           },
           "avg_stall_ms": {
             "anyOf": [
@@ -3416,7 +3431,8 @@
               "$ref": "#/components/schemas/StackFrame"
             },
             "type": "array",
-            "title": "Latest Stack"
+            "title": "Latest Stack",
+            "description": "The most recent event's captured stack, innermost first. Empty when none was stored."
           }
         },
         "type": "object",
@@ -3441,11 +3457,13 @@
               "$ref": "#/components/schemas/BlockingFinding"
             },
             "type": "array",
-            "title": "Findings"
+            "title": "Findings",
+            "description": "Ordered by most recently seen first."
           },
           "truncated": {
             "type": "boolean",
             "title": "Truncated",
+            "description": "``True`` when the cap on findings was hit: the least recently seen call sites are omitted.",
             "default": false
           }
         },
@@ -3460,7 +3478,8 @@
         "properties": {
           "filename": {
             "type": "string",
-            "title": "Filename"
+            "title": "Filename",
+            "description": "Absolute path of the frame's source file, verbatim from the code object."
           },
           "lineno": {
             "type": "integer",
@@ -3479,11 +3498,13 @@
                 "type": "null"
               }
             ],
-            "title": "Module"
+            "title": "Module",
+            "description": "The frame's module ``__name__``, or ``None`` when unavailable."
           },
           "display_path": {
             "type": "string",
-            "title": "Display Path"
+            "title": "Display Path",
+            "description": "App-code frames relative to their app directory; library frames relative to their\n``site-packages`` root; stdlib frames as ``stdlib/<path>``; anything else absolute."
           }
         },
         "type": "object",
@@ -3508,11 +3529,13 @@
           },
           "id": {
             "type": "integer",
-            "title": "Id"
+            "title": "Id",
+            "description": "Listener or scheduled-job row id."
           },
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "Listener name or job name."
           },
           "handler_method": {
             "type": "string",
@@ -3520,7 +3543,8 @@
           },
           "instance_index": {
             "type": "integer",
-            "title": "Instance Index"
+            "title": "Instance Index",
+            "description": "The app instance that registered this handler."
           }
         },
         "type": "object",
@@ -3616,7 +3640,8 @@
               "handler",
               "job"
             ],
-            "title": "Kind"
+            "title": "Kind",
+            "description": "Discriminator: 'handler' for bus invocations, 'job' for scheduled-job executions."
           },
           "listener_id": {
             "anyOf": [
@@ -3627,7 +3652,8 @@
                 "type": "null"
               }
             ],
-            "title": "Listener Id"
+            "title": "Listener Id",
+            "description": "The owning listener row id. Set when kind='handler', None for job executions."
           },
           "job_id": {
             "anyOf": [
@@ -3638,7 +3664,8 @@
                 "type": "null"
               }
             ],
-            "title": "Job Id"
+            "title": "Job Id",
+            "description": "The owning scheduled-job row id. Set when kind='job', None for handler invocations."
           },
           "execution_start_ts": {
             "type": "number",
@@ -3702,7 +3729,8 @@
                 "type": "null"
               }
             ],
-            "title": "Execution Id"
+            "title": "Execution Id",
+            "description": "UUID string identifying the specific execution instance. None when not populated.\n\nUUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions."
           },
           "trigger_context_id": {
             "anyOf": [
@@ -3713,7 +3741,8 @@
                 "type": "null"
               }
             ],
-            "title": "Trigger Context Id"
+            "title": "Trigger Context Id",
+            "description": "event_id from the triggering event payload. None for job executions, synthetic immediate-fire\ninvocations, and handler rows recorded because the listener's predicate raised."
           },
           "trigger_origin": {
             "anyOf": [
@@ -3724,7 +3753,8 @@
                 "type": "null"
               }
             ],
-            "title": "Trigger Origin"
+            "title": "Trigger Origin",
+            "description": "Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for\nimmediate-fire synthetic invocations). None for job executions and for handler rows recorded because\nthe listener's predicate raised."
           },
           "trigger_mode": {
             "anyOf": [
@@ -3735,31 +3765,37 @@
                 "type": "null"
               }
             ],
-            "title": "Trigger Mode"
+            "title": "Trigger Mode",
+            "description": "How this execution was triggered (e.g., \"manual\" for a run-now request). None when not set."
           },
           "retry_count": {
             "type": "integer",
             "title": "Retry Count",
+            "description": "Reserved for future retry tracking; currently always 0.",
             "default": 0
           },
           "attempt_number": {
             "type": "integer",
             "title": "Attempt Number",
+            "description": "Reserved for future retry tracking; currently always 1.",
             "default": 1
           },
           "args_json": {
             "type": "string",
             "title": "Args Json",
+            "description": "Reserved; not currently populated, so always '[]'. A job's registered positional arguments are\non ``JobSummary.args_json``.",
             "default": "[]"
           },
           "kwargs_json": {
             "type": "string",
             "title": "Kwargs Json",
+            "description": "Reserved; not currently populated, so always '{}'. A job's registered keyword arguments are\non ``JobSummary.kwargs_json``.",
             "default": "{}"
           },
           "thread_leaked": {
             "type": "boolean",
             "title": "Thread Leaked",
+            "description": "True when the execution timed out and the sync worker thread was still alive after the timeout.\n\nSubject to a small race window: if the worker finishes between the timeout cancellation and the\nliveness check, this field reads False even though the thread outlived the asyncio deadline.\nThis is a false-negative (undercounting), not a false-positive. Treat as a lower bound.",
             "default": false
           }
         },
@@ -3888,7 +3924,8 @@
                 "type": "null"
               }
             ],
-            "title": "Predicate Description"
+            "title": "Predicate Description",
+            "description": "Structural description of the job's scheduler predicate \u2014 ``repr()`` for composed\npredicate objects, the qualified name for a bare callable. ``None`` when unset."
           },
           "human_description": {
             "anyOf": [
@@ -3899,7 +3936,8 @@
                 "type": "null"
               }
             ],
-            "title": "Human Description"
+            "title": "Human Description",
+            "description": "Human-readable summary of the job's scheduler predicate, or ``None`` when unset."
           },
           "total_executions": {
             "type": "integer",
@@ -3926,11 +3964,13 @@
           "skipped": {
             "type": "integer",
             "title": "Skipped",
+            "description": "Number of executions where the scheduler predicate returned ``False`` and the handler\ndid not run. Counted toward ``total_executions`` per the class invariant.",
             "default": 0
           },
           "thread_leaked": {
             "type": "integer",
             "title": "Thread Leaked",
+            "description": "Number of executions whose sync worker thread outlived its timeout (see ``Execution.thread_leaked``).\nA non-zero value flags a job leaking worker threads.\nMirrors the ``timed_out`` aggregate naming \u2014 the bare participle, not a ``_count`` suffix.",
             "default": 0
           },
           "last_executed_at": {
@@ -3961,10 +4001,12 @@
                 "type": "null"
               }
             ],
-            "title": "Group"
+            "title": "Group",
+            "description": "Scheduler group name, persisted at registration."
           },
           "schedule_status": {
-            "$ref": "#/components/schemas/ScheduleStatus"
+            "$ref": "#/components/schemas/ScheduleStatus",
+            "description": "Whether the job will run again on its own. Persisted at registration and every status\ntransition; live enrichment overlays the current in-process value, so a DB-only degraded\nresponse still reflects the last persisted status."
           },
           "schedule_status_reason": {
             "anyOf": [
@@ -3974,7 +4016,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Qualifies ``schedule_status`` when the status alone does not explain the job's state.\n``None`` for a clean status with no override."
           },
           "next_run": {
             "anyOf": [
@@ -3985,7 +4028,8 @@
                 "type": "null"
               }
             ],
-            "title": "Next Run"
+            "title": "Next Run",
+            "description": "Unix epoch seconds of the next scheduled fire time (unjittered); live-only \u2014 always\n``None`` in a DB-only response, and ``None`` for every status except ``scheduled`` with\nlive timing available. A ``None`` value no longer implies the job is done; see\n``schedule_status``/``schedule_status_reason`` for the reason timing is unavailable."
           },
           "fire_at": {
             "anyOf": [
@@ -3996,7 +4040,8 @@
                 "type": "null"
               }
             ],
-            "title": "Fire At"
+            "title": "Fire At",
+            "description": "Unix epoch seconds of the live job's dispatch time; live-only. Equals\n``next_run`` when no jitter is configured."
           },
           "jitter": {
             "anyOf": [
@@ -4007,7 +4052,8 @@
                 "type": "null"
               }
             ],
-            "title": "Jitter"
+            "title": "Jitter",
+            "description": "Configured maximum jitter in seconds, not the offset sampled for this occurrence;\nlive-only. The applied offset is ``fire_at - next_run``."
           },
           "last_error_message": {
             "anyOf": [
@@ -4018,7 +4064,8 @@
                 "type": "null"
               }
             ],
-            "title": "Last Error Message"
+            "title": "Last Error Message",
+            "description": "Message of the most recent error or timeout within the query window, or None."
           },
           "last_error_type": {
             "anyOf": [
@@ -4029,7 +4076,8 @@
                 "type": "null"
               }
             ],
-            "title": "Last Error Type"
+            "title": "Last Error Type",
+            "description": "Exception type of the most recent error or timeout within the query window, or None."
           },
           "last_error_ts": {
             "anyOf": [
@@ -4040,7 +4088,8 @@
                 "type": "null"
               }
             ],
-            "title": "Last Error Ts"
+            "title": "Last Error Ts",
+            "description": "Unix epoch of the most recent error or timeout within the query window, or None."
           },
           "last_error_traceback": {
             "anyOf": [
@@ -4051,7 +4100,8 @@
                 "type": "null"
               }
             ],
-            "title": "Last Error Traceback"
+            "title": "Last Error Traceback",
+            "description": "Traceback from the most recent error or timeout within the query window. None when there is none,\nor when that row recorded no traceback (timeouts never do)."
           },
           "min_duration_ms": {
             "anyOf": [
@@ -4062,7 +4112,8 @@
                 "type": "null"
               }
             ],
-            "title": "Min Duration Ms"
+            "title": "Min Duration Ms",
+            "description": "Minimum duration in milliseconds across non-skipped executions. None means no non-skipped executions."
           },
           "max_duration_ms": {
             "anyOf": [
@@ -4073,20 +4124,24 @@
                 "type": "null"
               }
             ],
-            "title": "Max Duration Ms"
+            "title": "Max Duration Ms",
+            "description": "Maximum duration in milliseconds across non-skipped executions. None means no non-skipped executions."
           },
           "mode": {
             "$ref": "#/components/schemas/ExecutionMode",
+            "description": "Resolved overlap mode for this job. Persisted at registration.",
             "default": "single"
           },
           "suppressed_count": {
             "type": "integer",
             "title": "Suppressed Count",
+            "description": "Live count of re-fires suppressed by the guard (``single`` mode). Not persisted by design \u2014 read\nlive from the in-process guard and reset to 0 on restart. Reads 0 when the job has no live match or the\nlive registry is unavailable, so 0 does not prove none occurred.",
             "default": 0
           },
           "dropped_count": {
             "type": "integer",
             "title": "Dropped Count",
+            "description": "Live count of re-fires dropped due to queue cap (``queued`` mode). Not persisted by design \u2014 read\nlive from the in-process guard and reset to 0 on restart. Reads 0 when the job has no live match or the\nlive registry is unavailable, so 0 does not prove none occurred.",
             "default": 0
           }
         },
@@ -4835,7 +4890,8 @@
             "$ref": "#/components/schemas/ResourceStatus"
           },
           "role": {
-            "$ref": "#/components/schemas/ResourceRole"
+            "$ref": "#/components/schemas/ResourceRole",
+            "description": "What kind of framework component the service is."
           },
           "ready_phase": {
             "anyOf": [
@@ -4846,7 +4902,8 @@
                 "type": "null"
               }
             ],
-            "title": "Ready Phase"
+            "title": "Ready Phase",
+            "description": "Human-readable description of the current readiness phase, or None if not available."
           },
           "retry_at": {
             "anyOf": [
@@ -4857,7 +4914,8 @@
                 "type": "null"
               }
             ],
-            "title": "Retry At"
+            "title": "Retry At",
+            "description": "Unix timestamp when the next restart will be attempted (cooling state), or None."
           }
         },
         "type": "object",
@@ -4874,7 +4932,8 @@
           "token": {
             "type": "string",
             "maxLength": 4096,
-            "title": "Token"
+            "title": "Token",
+            "description": "Bearer token to exchange for a session cookie.\n\nThe server rejects a value longer than the field's maximum length with a 422."
           }
         },
         "type": "object",
@@ -4901,7 +4960,8 @@
         "properties": {
           "filename": {
             "type": "string",
-            "title": "Filename"
+            "title": "Filename",
+            "description": "Absolute path of the frame's source file, verbatim from the code object."
           },
           "lineno": {
             "type": "integer",
@@ -4920,7 +4980,8 @@
                 "type": "null"
               }
             ],
-            "title": "Module"
+            "title": "Module",
+            "description": "The frame's module ``__name__``, or ``None`` when unavailable."
           }
         },
         "type": "object",
@@ -4985,16 +5046,19 @@
           "log_queue_drops": {
             "type": "integer",
             "title": "Log Queue Drops",
+            "description": "Log records dropped because the log queue was full \u2014 tune ``logging.log_queue_max``.",
             "default": 0
           },
           "db_write_queue_drops": {
             "type": "integer",
             "title": "Db Write Queue Drops",
+            "description": "Log records dropped because the DB write queue was full, unavailable, or closed.",
             "default": 0
           },
           "log_persistence_active": {
             "type": "boolean",
             "title": "Log Persistence Active",
+            "description": "Whether log records are being persisted. When ``False``, a ``db_write_queue_drops`` of 0 does not mean\nlogs are being stored.",
             "default": false
           }
         },
@@ -5081,7 +5145,8 @@
               "$ref": "#/components/schemas/UnattributedStall"
             },
             "type": "array",
-            "title": "Recent"
+            "title": "Recent",
+            "description": "The most recent stalls, newest first."
           }
         },
         "type": "object",
@@ -5143,14 +5208,16 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Innermost app-code frame in the stack, if any. Shown as evidence, not attribution."
           },
           "stack": {
             "items": {
               "$ref": "#/components/schemas/StackFrame"
             },
             "type": "array",
-            "title": "Stack"
+            "title": "Stack",
+            "description": "The captured stack, innermost first. Empty when none was stored."
           }
         },
         "type": "object",

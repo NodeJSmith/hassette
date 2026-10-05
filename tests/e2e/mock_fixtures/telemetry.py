@@ -11,9 +11,9 @@ from unittest.mock import AsyncMock
 
 from hassette_wire import Execution, JobSummary
 
-from hassette.schemas.job_models import JobErrorRecord, JobGlobalStats
-from hassette.schemas.listener_models import HandlerErrorRecord, ListenerGlobalStats, ListenerSummaryRow
-from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary, GlobalSummary
+from hassette.schemas.job_models import JobErrorRecord
+from hassette.schemas.listener_models import HandlerErrorRecord, ListenerSummaryRow
+from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
 from tests.e2e.mock_fixtures.constants import (
     APP_KEY_BROKEN_APP,
     APP_KEY_MY_APP,
@@ -31,9 +31,6 @@ T = TypeVar("T")
 FRAMEWORK_TIER = "framework"
 APP_TIER = "app"
 ALL_TIER = "all"
-
-# get_error_counts() returns (handler_errors, job_errors); these are the non-framework totals.
-DEFAULT_ERROR_COUNTS = (3, 6)
 
 
 def by_app_key_or_all(items_by_app: Mapping[str, list[T]]) -> Callable[..., list[T]]:
@@ -376,7 +373,7 @@ def wire_invocation_telemetry(hassette, executions: list[Execution]) -> None:
     ``/telemetry/job/{id}/executions``).
     """
 
-    def _executions_side_effect(
+    def executions_side_effect(
         *,
         listener_id: int | None = None,
         job_id: int | None = None,
@@ -395,7 +392,7 @@ def wire_invocation_telemetry(hassette, executions: list[Execution]) -> None:
             rows = [e for e in rows if e.execution_start_ts >= since]
         return rows[:limit]
 
-    hassette._telemetry_query_service.get_executions = AsyncMock(side_effect=_executions_side_effect)
+    hassette._telemetry_query_service.get_executions = AsyncMock(side_effect=executions_side_effect)
 
 
 def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], list[HandlerErrorRecord]]:
@@ -412,7 +409,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             topic="state_changed.light.kitchen",
             execution_start_ts=TS_RECENT,
             duration_ms=3.1,
-            source_tier="app",
+            source_tier=APP_TIER,
             error_type="ValueError",
             error_message="Bad state value",
         ),
@@ -423,7 +420,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             job_name="check_lights",
             execution_start_ts=TS_OLDEST,
             duration_ms=4.2,
-            source_tier="app",
+            source_tier=APP_TIER,
             error_type="TimeoutError",
             error_message="Light service unavailable",
         ),
@@ -434,7 +431,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             topic="state_changed.binary_sensor.door",
             execution_start_ts=TS_OLDER,
             duration_ms=10.0,
-            source_tier="app",
+            source_tier=APP_TIER,
             error_type="RuntimeError",
             error_message="Lock service timed out",
         ),
@@ -446,7 +443,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             topic=None,
             execution_start_ts=TS_OLDEST + 0.5,
             duration_ms=1.0,
-            source_tier="app",
+            source_tier=APP_TIER,
             error_type="RuntimeError",
             error_message="Orphan error from deleted listener",
         ),
@@ -459,7 +456,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             topic="state_changed",
             execution_start_ts=TS_BASE,
             duration_ms=1.5,
-            source_tier="framework",
+            source_tier=FRAMEWORK_TIER,
             error_type="DispatchError",
             error_message="Framework dispatch failed",
         ),
@@ -478,76 +475,6 @@ def wire_error_telemetry(
             {FRAMEWORK_TIER: framework_tier_errors, APP_TIER: app_tier_errors},
             default_tier=ALL_TIER,
             fallback=app_tier_errors + framework_tier_errors,
-        )
-    )
-
-
-def build_global_summaries() -> tuple[GlobalSummary, GlobalSummary]:
-    """Build framework-tier and default global summaries.
-
-    Returns:
-        A ``(framework_global_summary, default_global_summary)`` tuple.
-    """
-    framework_global_summary = GlobalSummary(
-        listeners=ListenerGlobalStats(
-            total_listeners=2,
-            invoked_listeners=1,
-            total_invocations=5,
-            total_errors=1,
-            total_di_failures=0,
-            avg_duration_ms=1.5,
-        ),
-        jobs=JobGlobalStats(
-            total_jobs=1,
-            executed_jobs=1,
-            total_executions=3,
-            total_errors=0,
-        ),
-    )
-    default_global_summary = GlobalSummary(
-        listeners=ListenerGlobalStats(
-            total_listeners=3,
-            invoked_listeners=3,
-            total_invocations=33,
-            total_errors=3,
-            total_di_failures=0,
-            avg_duration_ms=2.5,
-        ),
-        jobs=JobGlobalStats(
-            total_jobs=3,
-            executed_jobs=3,
-            total_executions=28,
-            total_errors=6,
-        ),
-    )
-    return framework_global_summary, default_global_summary
-
-
-def wire_global_summary(
-    hassette,
-    framework_global_summary: GlobalSummary,
-    default_global_summary: GlobalSummary,
-    framework_tier_errors: list[HandlerErrorRecord] | None = None,
-) -> None:
-    """Wire global summary and error count side effects onto the mock telemetry query service."""
-    hassette._telemetry_query_service.get_global_summary = AsyncMock(
-        side_effect=by_tier(
-            {FRAMEWORK_TIER: framework_global_summary},
-            default_tier=APP_TIER,
-            fallback=default_global_summary,
-        )
-    )
-
-    fw_errors = framework_tier_errors or []
-    framework_error_counts = (
-        sum(1 for e in fw_errors if isinstance(e, HandlerErrorRecord)),
-        sum(1 for e in fw_errors if isinstance(e, JobErrorRecord)),
-    )
-    hassette._telemetry_query_service.get_error_counts = AsyncMock(
-        side_effect=by_tier(
-            {FRAMEWORK_TIER: framework_error_counts},
-            default_tier=APP_TIER,
-            fallback=DEFAULT_ERROR_COUNTS,
         )
     )
 

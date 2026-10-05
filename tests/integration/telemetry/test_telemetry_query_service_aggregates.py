@@ -1,8 +1,8 @@
 """Integration tests for TelemetryQueryService — aggregate and cross-cutting queries.
 
-Covers get_all_app_summaries, cross-session/retired-row behaviour, source-tier
-clause helpers, DI failure flags, slow-handler left-join, job summary, activity
-feed, and health check.
+Covers get_all_app_summaries, per-instance vs per-app health agreement,
+cross-session/retired-row behaviour and retention cleanup, source-tier filtering,
+DI failure flags, and the slow-handler left-join.
 """
 
 import time
@@ -23,6 +23,10 @@ from .helpers import (
     insert_listener,
     insert_tiered_listeners,
     only_row,
+    set_job_removed_at,
+    set_job_retired_at,
+    set_listener_removed_at,
+    set_listener_retired_at,
 )
 
 
@@ -34,43 +38,43 @@ class TestGetAllAppSummaries:
         db_svc, session_id = db
 
         # App A: 2 listeners, 1 job
-        l1 = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
-        l2 = await insert_listener(db_svc, app_key="app_a", handler_method="on_b")
-        j1 = await insert_job(db_svc, app_key="app_a", job_name="job_a")
+        on_a_listener = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        on_b_listener = await insert_listener(db_svc, app_key="app_a", handler_method="on_b")
+        job_a = await insert_job(db_svc, app_key="app_a", job_name="job_a")
 
-        await insert_invocation(db_svc, l1, session_id, status="success", duration_ms=10.0)
-        await insert_invocation(db_svc, l1, session_id, status="error", duration_ms=20.0)
-        await insert_invocation(db_svc, l2, session_id, status="success", duration_ms=30.0)
-        await insert_execution(db_svc, j1, session_id, status="success", duration_ms=100.0)
-        await insert_execution(db_svc, j1, session_id, status="error", duration_ms=50.0)
+        await insert_invocation(db_svc, on_a_listener, session_id, status="success", duration_ms=10.0)
+        await insert_invocation(db_svc, on_a_listener, session_id, status="error", duration_ms=20.0)
+        await insert_invocation(db_svc, on_b_listener, session_id, status="success", duration_ms=30.0)
+        await insert_execution(db_svc, job_a, session_id, status="success", duration_ms=100.0)
+        await insert_execution(db_svc, job_a, session_id, status="error", duration_ms=50.0)
 
         # App B: 1 listener, 0 jobs
-        l3 = await insert_listener(db_svc, app_key="app_b", handler_method="on_c")
-        await insert_invocation(db_svc, l3, session_id, status="success", duration_ms=5.0)
+        on_c_listener = await insert_listener(db_svc, app_key="app_b", handler_method="on_c")
+        await insert_invocation(db_svc, on_c_listener, session_id, status="success", duration_ms=5.0)
 
         result = await query_service.get_all_app_summaries()
         assert isinstance(result, dict)
         assert set(result.keys()) == {"app_a", "app_b"}
 
-        a = result["app_a"]
-        assert isinstance(a, AppHealthSummary)
-        assert a.handler_count == 2
-        assert a.job_count == 1
-        assert a.aggregates.total_invocations == 3
-        assert a.aggregates.handler_errors == 1
-        assert a.aggregates.total_executions == 2
-        assert a.aggregates.job_errors == 1
-        assert a.aggregates.handler_avg_duration_ms == pytest.approx(20.0)  # (10+20+30)/3
-        assert a.aggregates.last_activity_ts is not None
+        app_a = result["app_a"]
+        assert isinstance(app_a, AppHealthSummary)
+        assert app_a.handler_count == 2
+        assert app_a.job_count == 1
+        assert app_a.aggregates.total_invocations == 3
+        assert app_a.aggregates.handler_errors == 1
+        assert app_a.aggregates.total_executions == 2
+        assert app_a.aggregates.job_errors == 1
+        assert app_a.aggregates.handler_avg_duration_ms == pytest.approx(20.0)  # (10+20+30)/3
+        assert app_a.aggregates.last_activity_ts is not None
 
-        b = result["app_b"]
-        assert isinstance(b, AppHealthSummary)
-        assert b.handler_count == 1
-        assert b.job_count == 0
-        assert b.aggregates.total_invocations == 1
-        assert b.aggregates.handler_errors == 0
-        assert b.aggregates.total_executions == 0
-        assert b.aggregates.job_errors == 0
+        app_b = result["app_b"]
+        assert isinstance(app_b, AppHealthSummary)
+        assert app_b.handler_count == 1
+        assert app_b.job_count == 0
+        assert app_b.aggregates.total_invocations == 1
+        assert app_b.aggregates.handler_errors == 0
+        assert app_b.aggregates.total_executions == 0
+        assert app_b.aggregates.job_errors == 0
 
     async def test_get_all_app_summaries_empty_db(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
         """No listeners or jobs — returns empty dict."""
@@ -82,28 +86,27 @@ class TestGetAllAppSummaries:
     ) -> None:
         """Since filter restricts invocation/execution counts to records after the threshold."""
         db_svc, session_id = db
-        base_ts = BASE_TS
-        since_ts = base_ts + 5.0
+        since_ts = BASE_TS + 5.0
 
-        l1 = await insert_listener(db_svc, app_key="app_x", handler_method="on_a")
-        j1 = await insert_job(db_svc, app_key="app_x", job_name="job_a")
+        listener = await insert_listener(db_svc, app_key="app_x", handler_method="on_a")
+        job = await insert_job(db_svc, app_key="app_x", job_name="job_a")
 
         # After since_ts: 2 invocations (1 error), 1 execution — should count
-        await insert_invocation(db_svc, l1, session_id, status="success", execution_start_ts=base_ts + 10.0)
-        await insert_invocation(db_svc, l1, session_id, status="error", execution_start_ts=base_ts + 20.0)
-        await insert_execution(db_svc, j1, session_id, status="success", execution_start_ts=base_ts + 15.0)
+        await insert_invocation(db_svc, listener, session_id, status="success", execution_start_ts=BASE_TS + 10.0)
+        await insert_invocation(db_svc, listener, session_id, status="error", execution_start_ts=BASE_TS + 20.0)
+        await insert_execution(db_svc, job, session_id, status="success", execution_start_ts=BASE_TS + 15.0)
 
         # Before since_ts: 1 invocation, 1 execution (error) — should NOT count
-        await insert_invocation(db_svc, l1, session_id, status="success", execution_start_ts=base_ts + 1.0)
-        await insert_execution(db_svc, j1, session_id, status="error", execution_start_ts=base_ts + 2.0)
+        await insert_invocation(db_svc, listener, session_id, status="success", execution_start_ts=BASE_TS + 1.0)
+        await insert_execution(db_svc, job, session_id, status="error", execution_start_ts=BASE_TS + 2.0)
 
         result = await query_service.get_all_app_summaries(since=since_ts)
         assert "app_x" in result
-        x = result["app_x"]
-        assert x.aggregates.total_invocations == 2
-        assert x.aggregates.handler_errors == 1
-        assert x.aggregates.total_executions == 1
-        assert x.aggregates.job_errors == 0
+        summary = result["app_x"]
+        assert summary.aggregates.total_invocations == 2
+        assert summary.aggregates.handler_errors == 1
+        assert summary.aggregates.total_executions == 1
+        assert summary.aggregates.job_errors == 0
 
     async def test_get_all_app_summaries_multi_instance_activity_aggregation(
         self, query_service: TelemetryQueryService, db: DbFixture
@@ -112,34 +115,34 @@ class TestGetAllAppSummaries:
         db_svc, session_id = db
 
         # Instance 0: 2 listeners, 2 invocations
-        l0a = await insert_listener(db_svc, app_key="app_m", instance_index=0, handler_method="on_a")
-        l0b = await insert_listener(db_svc, app_key="app_m", instance_index=0, handler_method="on_b")
-        await insert_invocation(db_svc, l0a, session_id, status="success", duration_ms=10.0)
-        await insert_invocation(db_svc, l0b, session_id, status="error", duration_ms=20.0)
+        inst0_on_a = await insert_listener(db_svc, app_key="app_m", instance_index=0, handler_method="on_a")
+        inst0_on_b = await insert_listener(db_svc, app_key="app_m", instance_index=0, handler_method="on_b")
+        await insert_invocation(db_svc, inst0_on_a, session_id, status="success", duration_ms=10.0)
+        await insert_invocation(db_svc, inst0_on_b, session_id, status="error", duration_ms=20.0)
 
         # Instance 1: 2 listeners (same handlers, different instance), 3 invocations
-        l1a = await insert_listener(db_svc, app_key="app_m", instance_index=1, handler_method="on_a")
-        l1b = await insert_listener(db_svc, app_key="app_m", instance_index=1, handler_method="on_b")
-        await insert_invocation(db_svc, l1a, session_id, status="success", duration_ms=30.0)
-        await insert_invocation(db_svc, l1b, session_id, status="success", duration_ms=40.0)
-        await insert_invocation(db_svc, l1b, session_id, status="error", duration_ms=50.0)
+        inst1_on_a = await insert_listener(db_svc, app_key="app_m", instance_index=1, handler_method="on_a")
+        inst1_on_b = await insert_listener(db_svc, app_key="app_m", instance_index=1, handler_method="on_b")
+        await insert_invocation(db_svc, inst1_on_a, session_id, status="success", duration_ms=30.0)
+        await insert_invocation(db_svc, inst1_on_b, session_id, status="success", duration_ms=40.0)
+        await insert_invocation(db_svc, inst1_on_b, session_id, status="error", duration_ms=50.0)
 
         # Instance 2: 1 listener, 1 invocation
-        l2a = await insert_listener(db_svc, app_key="app_m", instance_index=2, handler_method="on_a")
-        await insert_invocation(db_svc, l2a, session_id, status="success", duration_ms=60.0)
+        inst2_on_a = await insert_listener(db_svc, app_key="app_m", instance_index=2, handler_method="on_a")
+        await insert_invocation(db_svc, inst2_on_a, session_id, status="success", duration_ms=60.0)
 
         result = await query_service.get_all_app_summaries()
         assert "app_m" in result
-        m = result["app_m"]
+        summary = result["app_m"]
 
         # handler_count = distinct (name, topic) identities across all instances: {on_a, on_b} = 2
-        assert m.handler_count == 2
+        assert summary.handler_count == 2
         # total_invocations sums across ALL instances: 2 + 3 + 1 = 6
-        assert m.aggregates.total_invocations == 6
+        assert summary.aggregates.total_invocations == 6
         # handler_errors sums across ALL instances: 1 + 1 = 2
-        assert m.aggregates.handler_errors == 2
+        assert summary.aggregates.handler_errors == 2
         # handler_avg_duration_ms is AVG over all 6 raw rows: (10+20+30+40+50+60)/6 = 35.0
-        assert m.aggregates.handler_avg_duration_ms == pytest.approx(35.0)
+        assert summary.aggregates.handler_avg_duration_ms == pytest.approx(35.0)
 
     async def test_get_all_app_summaries_asymmetric_instances_handler_count(
         self, query_service: TelemetryQueryService, db: DbFixture
@@ -147,8 +150,7 @@ class TestGetAllAppSummaries:
         """Asymmetric instances: handler_count is the union of distinct identities, not instance 0's set.
 
         Instance 0 registers on_a, on_b; instance 1 adds on_c that instance 0 never had. The count
-        is 3 (the distinct union), which is where counting distinct identities across all instances
-        diverges from the older instance-0-only approach (which would report 2).
+        is 3, the distinct union, so a handler registered only by a later instance still counts.
         """
         db_svc, _session_id = db
 
@@ -169,56 +171,55 @@ class TestGetAllAppSummaries:
         db_svc, session_id = db
 
         # Instance 0: 1 job, 2 executions
-        j0 = await insert_job(db_svc, app_key="app_j", instance_index=0, job_name="cron_a")
-        await insert_execution(db_svc, j0, session_id, status="success", duration_ms=100.0)
-        await insert_execution(db_svc, j0, session_id, status="error", duration_ms=50.0)
+        inst0_job = await insert_job(db_svc, app_key="app_j", instance_index=0, job_name="cron_a")
+        await insert_execution(db_svc, inst0_job, session_id, status="success", duration_ms=100.0)
+        await insert_execution(db_svc, inst0_job, session_id, status="error", duration_ms=50.0)
 
         # Instance 1: 1 job, 3 executions
-        j1 = await insert_job(db_svc, app_key="app_j", instance_index=1, job_name="cron_a")
-        await insert_execution(db_svc, j1, session_id, status="success", duration_ms=200.0)
-        await insert_execution(db_svc, j1, session_id, status="success", duration_ms=150.0)
-        await insert_execution(db_svc, j1, session_id, status="error", duration_ms=80.0)
+        inst1_job = await insert_job(db_svc, app_key="app_j", instance_index=1, job_name="cron_a")
+        await insert_execution(db_svc, inst1_job, session_id, status="success", duration_ms=200.0)
+        await insert_execution(db_svc, inst1_job, session_id, status="success", duration_ms=150.0)
+        await insert_execution(db_svc, inst1_job, session_id, status="error", duration_ms=80.0)
 
         # Instance 2: 1 job, 1 execution
-        j2 = await insert_job(db_svc, app_key="app_j", instance_index=2, job_name="cron_a")
-        await insert_execution(db_svc, j2, session_id, status="success", duration_ms=300.0)
+        inst2_job = await insert_job(db_svc, app_key="app_j", instance_index=2, job_name="cron_a")
+        await insert_execution(db_svc, inst2_job, session_id, status="success", duration_ms=300.0)
 
         result = await query_service.get_all_app_summaries()
         assert "app_j" in result
-        j = result["app_j"]
+        summary = result["app_j"]
 
         # job_count = distinct job_name across all instances: {cron_a} = 1
-        assert j.job_count == 1
+        assert summary.job_count == 1
         # total_executions sums across ALL instances: 2 + 3 + 1 = 6
-        assert j.aggregates.total_executions == 6
+        assert summary.aggregates.total_executions == 6
         # job_errors sums across ALL instances: 1 + 1 = 2
-        assert j.aggregates.job_errors == 2
+        assert summary.aggregates.job_errors == 2
 
     async def test_get_all_app_summaries_single_instance_equivalence(
         self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
-        """Single-instance app produces equivalent results to current behavior."""
+        """Single-instance app: counts, sums, and averages cover that one instance's rows."""
         db_svc, session_id = db
 
-        # Only instance 0 — same as current behavior
-        l1 = await insert_listener(db_svc, app_key="app_s", instance_index=0, handler_method="on_x")
-        j1 = await insert_job(db_svc, app_key="app_s", instance_index=0, job_name="job_x")
+        listener = await insert_listener(db_svc, app_key="app_s", instance_index=0, handler_method="on_x")
+        job = await insert_job(db_svc, app_key="app_s", instance_index=0, job_name="job_x")
 
-        await insert_invocation(db_svc, l1, session_id, status="success", duration_ms=15.0)
-        await insert_invocation(db_svc, l1, session_id, status="error", duration_ms=25.0)
-        await insert_execution(db_svc, j1, session_id, status="success", duration_ms=100.0)
+        await insert_invocation(db_svc, listener, session_id, status="success", duration_ms=15.0)
+        await insert_invocation(db_svc, listener, session_id, status="error", duration_ms=25.0)
+        await insert_execution(db_svc, job, session_id, status="success", duration_ms=100.0)
 
         result = await query_service.get_all_app_summaries()
         assert "app_s" in result
-        s = result["app_s"]
+        summary = result["app_s"]
 
-        assert s.handler_count == 1
-        assert s.job_count == 1
-        assert s.aggregates.total_invocations == 2
-        assert s.aggregates.handler_errors == 1
-        assert s.aggregates.total_executions == 1
-        assert s.aggregates.job_errors == 0
-        assert s.aggregates.handler_avg_duration_ms == pytest.approx(20.0, abs=0.001)
+        assert summary.handler_count == 1
+        assert summary.job_count == 1
+        assert summary.aggregates.total_invocations == 2
+        assert summary.aggregates.handler_errors == 1
+        assert summary.aggregates.total_executions == 1
+        assert summary.aggregates.job_errors == 0
+        assert summary.aggregates.handler_avg_duration_ms == pytest.approx(20.0, abs=0.001)
 
     async def test_get_all_app_summaries_multi_instance_since_scoped(
         self, query_service: TelemetryQueryService, db: DbFixture
@@ -226,54 +227,52 @@ class TestGetAllAppSummaries:
         """Multi-instance data with since filter: only records after threshold count."""
         db_svc, session_id = db
 
-        base_ts = BASE_TS
-        since_ts = base_ts + 5.0
+        since_ts = BASE_TS + 5.0
 
         # Instance 0: listener + job
-        l0 = await insert_listener(db_svc, app_key="app_ms", instance_index=0, handler_method="on_a")
-        j0 = await insert_job(db_svc, app_key="app_ms", instance_index=0, job_name="cron_a")
+        inst0_listener = await insert_listener(db_svc, app_key="app_ms", instance_index=0, handler_method="on_a")
+        inst0_job = await insert_job(db_svc, app_key="app_ms", instance_index=0, job_name="cron_a")
 
         # Instance 1: listener + job
-        l1 = await insert_listener(db_svc, app_key="app_ms", instance_index=1, handler_method="on_a")
-        j1 = await insert_job(db_svc, app_key="app_ms", instance_index=1, job_name="cron_a")
+        inst1_listener = await insert_listener(db_svc, app_key="app_ms", instance_index=1, handler_method="on_a")
+        inst1_job = await insert_job(db_svc, app_key="app_ms", instance_index=1, job_name="cron_a")
 
         # After since_ts: instance 0 gets 2 invocations, instance 1 gets 1 invocation
         await insert_invocation(
-            db_svc, l0, session_id, status="success", duration_ms=10.0, execution_start_ts=base_ts + 10.0
+            db_svc, inst0_listener, session_id, status="success", duration_ms=10.0, execution_start_ts=BASE_TS + 10.0
         )
         await insert_invocation(
-            db_svc, l0, session_id, status="error", duration_ms=20.0, execution_start_ts=base_ts + 20.0
+            db_svc, inst0_listener, session_id, status="error", duration_ms=20.0, execution_start_ts=BASE_TS + 20.0
         )
         await insert_invocation(
-            db_svc, l1, session_id, status="success", duration_ms=30.0, execution_start_ts=base_ts + 30.0
+            db_svc, inst1_listener, session_id, status="success", duration_ms=30.0, execution_start_ts=BASE_TS + 30.0
         )
-        await insert_execution(db_svc, j0, session_id, status="success", execution_start_ts=base_ts + 10.0)
-        await insert_execution(db_svc, j1, session_id, status="error", execution_start_ts=base_ts + 20.0)
+        await insert_execution(db_svc, inst0_job, session_id, status="success", execution_start_ts=BASE_TS + 10.0)
+        await insert_execution(db_svc, inst1_job, session_id, status="error", execution_start_ts=BASE_TS + 20.0)
 
         # Before since_ts: 1 invocation + 1 execution per instance — should NOT be counted
         await insert_invocation(
-            db_svc, l0, session_id, status="success", duration_ms=100.0, execution_start_ts=base_ts + 1.0
+            db_svc, inst0_listener, session_id, status="success", duration_ms=100.0, execution_start_ts=BASE_TS + 1.0
         )
-        await insert_execution(db_svc, j0, session_id, status="error", execution_start_ts=base_ts + 2.0)
+        await insert_execution(db_svc, inst0_job, session_id, status="error", execution_start_ts=BASE_TS + 2.0)
 
         result = await query_service.get_all_app_summaries(since=since_ts)
         assert "app_ms" in result
-        ms = result["app_ms"]
+        summary = result["app_ms"]
 
-        # handler_count from instance 0 only
-        assert ms.handler_count == 1
-        # job_count from instance 0 only
-        assert ms.job_count == 1
+        # handler_count / job_count = distinct identities across all instances: {on_a} / {cron_a} = 1
+        assert summary.handler_count == 1
+        assert summary.job_count == 1
         # total_invocations: after since_ts across all instances = 2 + 1 = 3
-        assert ms.aggregates.total_invocations == 3
+        assert summary.aggregates.total_invocations == 3
         # handler_errors: after since_ts across all instances = 1
-        assert ms.aggregates.handler_errors == 1
+        assert summary.aggregates.handler_errors == 1
         # total_executions: after since_ts across all instances = 1 + 1 = 2
-        assert ms.aggregates.total_executions == 2
+        assert summary.aggregates.total_executions == 2
         # job_errors: after since_ts across all instances = 1
-        assert ms.aggregates.job_errors == 1
+        assert summary.aggregates.job_errors == 1
         # handler_avg_duration_ms: after since_ts across all instances = (10+20+30)/3 = 20.0
-        assert ms.aggregates.handler_avg_duration_ms == pytest.approx(20.0)
+        assert summary.aggregates.handler_avg_duration_ms == pytest.approx(20.0)
 
 
 class TestAppHealthAcrossScopes:
@@ -314,9 +313,8 @@ class TestAppHealthAcrossScopes:
         await insert_invocation(
             db_svc, live, session_id, status="error", duration_ms=999.0, execution_start_ts=BASE_TS + 1.0
         )
-        await db_svc.db.execute("UPDATE listeners SET removed_at = ? WHERE id = ?", (BASE_TS + 20.0, removed))
-        await db_svc.db.execute("UPDATE scheduled_jobs SET removed_at = ? WHERE id = ?", (BASE_TS + 20.0, removed_job))
-        await db_svc.db.commit()
+        await set_listener_removed_at(db_svc, removed, BASE_TS + 20.0)
+        await set_job_removed_at(db_svc, removed_job, BASE_TS + 20.0)
 
         per_instance = build_app_health(
             await query_service.get_app_health_aggregates(app_key="app_one", instance_index=0, since=since_ts)
@@ -340,8 +338,7 @@ class TestAppHealthAcrossScopes:
         removed = await insert_listener(db_svc, app_key="app_r", handler_method="on_removed")
         await insert_invocation(db_svc, live, session_id, status="success")
         await insert_invocation(db_svc, removed, session_id, status="error")
-        await db_svc.db.execute("UPDATE listeners SET removed_at = ? WHERE id = ?", (BASE_TS, removed))
-        await db_svc.db.commit()
+        await set_listener_removed_at(db_svc, removed, BASE_TS)
 
         summary = (await query_service.get_all_app_summaries())["app_r"]
 
@@ -444,13 +441,7 @@ class TestCrossSessionAndRetiredRows:
         await insert_invocation(db_svc, retired_id, session_id, status="success")
         await insert_invocation(db_svc, retired_id, session_id, status="error")
 
-        # Mark as retired
-        now = time.time()
-        await db_svc.db.execute(
-            "UPDATE listeners SET retired_at = ? WHERE id = ?",
-            (now, retired_id),
-        )
-        await db_svc.db.commit()
+        await set_listener_retired_at(db_svc, retired_id, time.time())
 
         row = await only_row(query_service.get_listener_summary("test_app", 0))
         assert row.handler_method == "on_retired"
@@ -471,43 +462,14 @@ class TestCrossSessionAndRetiredRows:
         old_retired_at = now - (8 * SECONDS_PER_DAY)  # 8 days ago — beyond 7-day retention
         recent_retired_at = now - (1 * SECONDS_PER_DAY)  # 1 day ago — within retention
 
-        # Insert old retired listener (no invocations needed)
-        cursor = await db_svc.db.execute(
-            "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, "
-            "debounce, throttle, once, priority, source_location, retired_at) "
-            "VALUES ('test_app', 0, 'on_old', 'on_old', 'hass.event', NULL, NULL, 0, 0, 'test.py:1', ?)",
-            (old_retired_at,),
-        )
-        old_listener_id = cursor.lastrowid
-
-        # Insert recent retired listener (should survive cleanup)
-        cursor = await db_svc.db.execute(
-            "INSERT INTO listeners (app_key, instance_index, name, handler_method, topic, "
-            "debounce, throttle, once, priority, source_location, retired_at) "
-            "VALUES ('test_app', 0, 'on_recent', 'on_recent', 'hass.event', NULL, NULL, 0, 0, 'test.py:2', ?)",
-            (recent_retired_at,),
-        )
-        recent_listener_id = cursor.lastrowid
-
-        # Insert old retired scheduled_job
-        cursor = await db_svc.db.execute(
-            "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, "
-            "trigger_type, repeat, source_location, retired_at, schedule_status) "
-            "VALUES ('test_app', 0, 'old_job', 'run_old', 'interval', 1, 'test.py:3', ?, 'scheduled')",
-            (old_retired_at,),
-        )
-        old_job_id = cursor.lastrowid
-
-        # Insert recent retired scheduled_job (should survive cleanup)
-        cursor = await db_svc.db.execute(
-            "INSERT INTO scheduled_jobs (app_key, instance_index, job_name, handler_method, "
-            "trigger_type, repeat, source_location, retired_at, schedule_status) "
-            "VALUES ('test_app', 0, 'recent_job', 'run_recent', 'interval', 1, 'test.py:4', ?, 'scheduled')",
-            (recent_retired_at,),
-        )
-        recent_job_id = cursor.lastrowid
-
-        await db_svc.db.commit()
+        old_listener_id = await insert_listener(db_svc, handler_method="on_old")
+        recent_listener_id = await insert_listener(db_svc, handler_method="on_recent")
+        old_job_id = await insert_job(db_svc, job_name="old_job", handler_method="run_old")
+        recent_job_id = await insert_job(db_svc, job_name="recent_job", handler_method="run_recent")
+        await set_listener_retired_at(db_svc, old_listener_id, old_retired_at)
+        await set_listener_retired_at(db_svc, recent_listener_id, recent_retired_at)
+        await set_job_retired_at(db_svc, old_job_id, old_retired_at)
+        await set_job_retired_at(db_svc, recent_job_id, recent_retired_at)
 
         # Run retention cleanup
         await db_svc._do_run_retention_cleanup()

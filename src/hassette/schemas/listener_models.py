@@ -64,18 +64,6 @@ class ListenerSummaryRow(BaseModel):
     last_error_traceback: str | None = None
 
 
-class ListenerGlobalStats(BaseModel):
-    """Listener aggregate stats within ``GlobalSummary``."""
-
-    total_listeners: int
-    invoked_listeners: int
-    total_invocations: int
-    total_errors: int
-    total_timed_out: int = 0
-    total_di_failures: int
-    avg_duration_ms: float | None
-
-
 class HandlerErrorRecord(BaseModel):
     """Handler error returned by ``get_recent_errors()``."""
 

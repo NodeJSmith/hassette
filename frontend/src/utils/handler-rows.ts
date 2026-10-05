@@ -113,37 +113,37 @@ export type HandlerSortKey =
 const NO_NEXT_RUN = Number.MAX_SAFE_INTEGER;
 
 export function compareHandlerRows(a: UnifiedRow, b: UnifiedRow, sort: SortState<HandlerSortKey>): number {
-  const dir = sort.dir === "asc" ? 1 : -1;
+  const direction = sort.dir === "asc" ? 1 : -1;
   switch (sort.key) {
     case "kind":
-      return dir * a.kind.localeCompare(b.kind);
+      return direction * a.kind.localeCompare(b.kind);
     case "app":
-      return dir * a.app_key.localeCompare(b.app_key);
+      return direction * a.app_key.localeCompare(b.app_key);
     case "name":
-      return dir * a.name.localeCompare(b.name);
+      return direction * a.name.localeCompare(b.name);
     case "trigger":
-      return dir * (a.trigger ?? "").localeCompare(b.trigger ?? "");
+      return direction * (a.trigger ?? "").localeCompare(b.trigger ?? "");
     case "runs":
-      return dir * (a.runs - b.runs);
+      return direction * (a.runs - b.runs);
     case "failed":
-      return dir * (a.failed - b.failed);
+      return direction * (a.failed - b.failed);
     case "timed_out":
-      return dir * (a.timed_out - b.timed_out);
+      return direction * (a.timed_out - b.timed_out);
     case "cancelled":
-      return dir * (a.cancelled - b.cancelled);
+      return direction * (a.cancelled - b.cancelled);
     case "error_rate": {
       const rateA = a.runs > 0 ? a.failed / a.runs : 0;
       const rateB = b.runs > 0 ? b.failed / b.runs : 0;
-      return dir * (rateA - rateB);
+      return direction * (rateA - rateB);
     }
     case "avg_duration":
-      return dir * (a.avg_duration_ms - b.avg_duration_ms);
+      return direction * (a.avg_duration_ms - b.avg_duration_ms);
     case "next_run": {
       const ts = (r: UnifiedRow) => r.next_run_ts ?? NO_NEXT_RUN;
       const primary = ts(a) - ts(b);
-      if (primary !== 0) return dir * primary;
+      if (primary !== 0) return direction * primary;
       if (a.next_run_ts === null && b.next_run_ts === null) {
-        return dir * (scheduleStatusRank(a.schedule_status) - scheduleStatusRank(b.schedule_status));
+        return direction * (scheduleStatusRank(a.schedule_status) - scheduleStatusRank(b.schedule_status));
       }
       return 0;
     }

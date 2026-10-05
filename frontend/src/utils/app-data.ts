@@ -111,11 +111,7 @@ export function configStatusOverride(status: AppStatus | ResourceStatus): "disab
  *  forward from the highest cached index with direct key lookups finds any new indices without
  *  scanning the whole (cross-app) `appStatuses` record or prefix-matching app_key by hand.
  *
- *  "disabled" and "blocked" are manifest-level configuration states, not derived from instance
- *  activity — an app that's been disabled has no running instances, but a per-instance WS
- *  status can still linger from before it was disabled (e.g. a "stopped" event from the
- *  instance's own teardown). Returning the config state before ever consulting `appStatuses`
- *  keeps that leftover per-instance status from permanently masking it. */
+ *  Config states win over any live status — see `configStatusOverride`. */
 export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
@@ -171,32 +167,36 @@ export function instanceLiveError(
   return entry ? entry.exception : inst.error_message;
 }
 
+function hasError(row: AppRow): boolean {
+  return Boolean(row.error_message);
+}
+
 export function compareAppRows(
   a: AppRow,
   b: AppRow,
   sort: AppSortState,
   appStatuses: Record<string, AppStatusEntry>,
 ): number {
-  const dir = sort.dir === "asc" ? 1 : -1;
+  const direction = sort.dir === "asc" ? 1 : -1;
   const aStatus = appLiveStatus(appStatuses, a);
   const bStatus = appLiveStatus(appStatuses, b);
   switch (sort.key) {
     case "name":
-      return dir * a.display_name.localeCompare(b.display_name) || a.app_key.localeCompare(b.app_key);
+      return direction * a.display_name.localeCompare(b.display_name) || a.app_key.localeCompare(b.app_key);
     case "status": {
       const statusDiff = statusPriority(aStatus) - statusPriority(bStatus);
-      if (statusDiff !== 0) return dir * statusDiff;
+      if (statusDiff !== 0) return direction * statusDiff;
       return a.app_key.localeCompare(b.app_key);
     }
     case "error":
-      return dir * ((a.error_message ? 0 : 1) - (b.error_message ? 0 : 1));
+      return direction * ((hasError(a) ? 0 : 1) - (hasError(b) ? 0 : 1));
     case "runs": {
       const aRuns = a.total_invocations + a.total_executions;
       const bRuns = b.total_invocations + b.total_executions;
-      return dir * (aRuns - bRuns);
+      return direction * (aRuns - bRuns);
     }
     case "last":
-      return dir * ((a.last_activity_ts ?? 0) - (b.last_activity_ts ?? 0));
+      return direction * ((a.last_activity_ts ?? 0) - (b.last_activity_ts ?? 0));
     default:
       return 0;
   }
