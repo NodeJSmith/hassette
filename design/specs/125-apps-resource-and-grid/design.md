@@ -1,7 +1,7 @@
 # Design: Reshape the apps resource and Apps grid
 
 **Date:** 2026-10-04
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 
 ## Summary
