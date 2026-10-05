@@ -1,6 +1,7 @@
 """Unit tests for hassette job and job <id> commands."""
 
 import pytest
+from hassette_wire import ScheduleStatus
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.job import (
@@ -88,6 +89,20 @@ class TestCmdJob:
         client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [])])
         assert "No results" in runner.stderr(client, cmd_job)
 
+    def test_values_from_a_newer_server_render_instead_of_failing(self, cli_client_factory: CLIClientFactory) -> None:
+        """A remote server newer than the CLI may send vocabulary values the CLI doesn't know yet."""
+        body = make_job_summary(job_id=7).model_dump(mode="json") | {
+            "schedule_status": "paused",
+            "schedule_status_reason": "user_paused",
+            "next_run": None,
+        }
+        client = cli_client_factory.build_with_routes([("GET", JOBS_ENDPOINT, 200, [body])])
+
+        # The Status column capitalizes the raw value.
+        assert "Paused" in runner.stdout(client, cmd_job)
+        parsed = runner.json_output(client, cmd_job)
+        assert (parsed[0]["schedule_status"], parsed[0]["schedule_status_reason"]) == ("paused", "user_paused")
+
     @pytest.mark.parametrize(
         ("schedule_status", "schedule_status_reason", "expected_text"),
         [
@@ -117,6 +132,9 @@ class TestCmdJob:
         )
 
         assert _next_run_display(job) == expected_text
+
+    def test_every_schedule_status_has_null_timing_text(self) -> None:
+        assert set(_SCHEDULE_STATUS_TEXT) == set(ScheduleStatus)
 
     def test_concrete_next_run_renders_relative_time(self) -> None:
         """A concrete next_run still renders via fmt_relative_time, not status text."""

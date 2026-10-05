@@ -1414,7 +1414,6 @@ export interface components {
             avg_duration_ms: number;
             /** Group */
             group?: string | null;
-            /** @default scheduled */
             schedule_status: components["schemas"]["ScheduleStatus"];
             schedule_status_reason?: components["schemas"]["ScheduleStatusReason"] | null;
             /** Next Run */

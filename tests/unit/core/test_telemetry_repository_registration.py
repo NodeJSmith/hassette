@@ -3,6 +3,7 @@
 import time
 
 import aiosqlite
+from hassette_wire import ScheduleStatus, ScheduleStatusReason
 
 from hassette.core.telemetry.repository import (
     TelemetryRepository,
@@ -102,14 +103,14 @@ async def test_mark_job_status_updates_status_and_reason(
     reg = make_job_registration(job_name="status_job")
     job_id = await telemetry_repo.register_job(reg)
 
-    await telemetry_repo.mark_job_status(job_id, "waiting", None)
+    await telemetry_repo.mark_job_status(job_id, ScheduleStatus.WAITING, None)
 
     schedule_status = await fetch_job_field(telemetry_db, job_id, "schedule_status")
     schedule_status_reason = await fetch_job_field(telemetry_db, job_id, "schedule_status_reason")
     assert schedule_status == "waiting"
     assert schedule_status_reason is None
 
-    await telemetry_repo.mark_job_status(job_id, "completed", "trigger_error")
+    await telemetry_repo.mark_job_status(job_id, ScheduleStatus.COMPLETED, ScheduleStatusReason.TRIGGER_ERROR)
 
     schedule_status = await fetch_job_field(telemetry_db, job_id, "schedule_status")
     schedule_status_reason = await fetch_job_field(telemetry_db, job_id, "schedule_status_reason")

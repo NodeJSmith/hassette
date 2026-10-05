@@ -12,7 +12,7 @@ from typing import ClassVar
 
 import structlog.contextvars
 import uuid_utils
-from hassette_wire import ExecutionStatus, LogLevel
+from hassette_wire import ExecutionStatus, LogLevel, ScheduleStatus, ScheduleStatusReason
 
 from hassette.bus.error_context import BusErrorContext
 from hassette.commands import ExecuteJob, InvokeHandler
@@ -634,7 +634,7 @@ class CommandExecutor(Service):
         """
         await self.hassette.database_service.submit(self.repository.mark_job_removed(db_id))
 
-    async def mark_job_status(self, db_id: int, status: str, reason: str | None) -> None:
+    async def mark_job_status(self, db_id: int, status: ScheduleStatus, reason: ScheduleStatusReason | None) -> None:
         """Persist a schedule-status transition for a scheduled_jobs row.
 
         Delegates to ``TelemetryRepository.mark_job_status`` via ``DatabaseService.submit``.

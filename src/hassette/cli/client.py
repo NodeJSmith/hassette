@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Literal, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
-from hassette_wire import ActionResponse, AppAction, AppInstanceResponse, AppManifestListResponse
+from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstanceResponse, AppManifestListResponse
 from pydantic import ValidationError
 from rich.markup import escape
 
@@ -202,7 +202,7 @@ class HassetteCLIClient:
             if model is dict or model is list:
                 result: Any = data
             else:
-                result = model.model_validate(data)  # pyright: ignore[reportAttributeAccessIssue]
+                result = model.model_validate(data, context=LENIENT_CONTEXT)  # pyright: ignore[reportAttributeAccessIssue]
         except (json.JSONDecodeError, ValidationError, UnicodeDecodeError) as exc:
             # A tolerated 503 can carry a body that isn't the expected status
             # payload — a proxy/LB HTML error page (non-JSON) or JSON of the wrong
@@ -239,7 +239,7 @@ class HassetteCLIClient:
             self._handle_http_error(response)
 
         try:
-            result = ActionResponse.model_validate(response.json())
+            result = ActionResponse.model_validate(response.json(), context=LENIENT_CONTEXT)
         except (json.JSONDecodeError, ValidationError, UnicodeDecodeError) as exc:
             # Mirrors get()'s malformed-response handling above — a 2xx response we can't
             # parse into an ActionResponse means the same thing there does: wrong
@@ -346,7 +346,7 @@ class HassetteCLIClient:
             return None
 
         try:
-            manifest_list = AppManifestListResponse.model_validate(response.json())
+            manifest_list = AppManifestListResponse.model_validate(response.json(), context=LENIENT_CONTEXT)
         except (json.JSONDecodeError, ValidationError, UnicodeDecodeError):
             return None
 

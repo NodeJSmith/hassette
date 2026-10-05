@@ -104,6 +104,7 @@ def make_job_registration(
     human_description: str | None = None,
 ) -> ScheduledJobRegistration:
     return ScheduledJobRegistration(
+        schedule_status=ScheduleStatus.SCHEDULED,
         app_key=app_key,
         instance_index=instance_index,
         job_name=job_name,

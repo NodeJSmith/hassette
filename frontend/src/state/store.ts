@@ -74,6 +74,13 @@ export interface AppStore extends TelemetryHealth {
   connection: ConnectionStatus;
   uptimeSeconds: number | null;
   systemVersion: string | null;
+  /** First non-empty server version this tab saw. Never overwritten, so it stays the baseline
+   * even if a later connect reports no version. */
+  loadedServerVersion: string | null;
+  /** True once a connect reports a different server version than `loadedServerVersion`. The
+   * bundle and its generated types match only the server it was loaded from, so a changed
+   * version means the tab must reload; it stays true until then. */
+  serverUpdated: boolean;
   setConnection: (status: ConnectionStatus) => void;
 
   // --- telemetry (health fields inherited from TelemetryHealth) ---
@@ -137,6 +144,8 @@ export function initialState(): Omit<
     connection: "connecting",
     uptimeSeconds: null,
     systemVersion: null,
+    loadedServerVersion: null,
+    serverUpdated: false,
 
     // --- telemetry ---
     appStatus: {},
@@ -203,23 +212,34 @@ export const useAppStore = create<AppStore>()((set) => ({
     // (e.g. a separate set() that clears serviceStatus) would make atomicity depend on React's batching
     // rather than the shape of the code — a component could then observe an intermediate
     // render where connection is "connected" but serviceStatus/appStatus are stale.
-    set(() => ({
-      connection: "connected",
-      uptimeSeconds: data.uptime_seconds,
-      systemVersion: data.version ?? null,
-      // `isReconnect && {...}` is `false` (spreads to nothing) on first connect, or the object
-      // (spreads its fields in) on reconnect — clears stale data only when reconnecting.
-      // appStatus must clear here too: an instance's status/exception can change while
-      // disconnected (the missed app_status_changed event is never replayed), and
-      // instanceLiveStatus()/instanceLiveError() prefer any existing appStatus entry over the
-      // freshly-refetched manifest data (see the reconnect invalidateQueries() call in
-      // use-websocket.ts) for as long as it stays around -- so a stale entry can outlive the
-      // refetch it was supposed to be superseded by. Logs need no bump here: the unfiltered
-      // `invalidateQueries()` in use-websocket.ts already covers the log query on reconnect,
-      // same as every other cache entry.
-      ...(isReconnect && {
-        serviceStatus: {},
-        appStatus: {},
-      }),
-    })),
+    set((state) => {
+      const loadedServerVersion = state.loadedServerVersion ?? (data.version || null);
+      return {
+        connection: "connected",
+        uptimeSeconds: data.uptime_seconds,
+        systemVersion: data.version ?? null,
+        loadedServerVersion,
+        serverUpdated: state.serverUpdated || isVersionChange(loadedServerVersion, data.version),
+        // `isReconnect && {...}` is `false` (spreads to nothing) on first connect, or the object
+        // (spreads its fields in) on reconnect — clears stale data only when reconnecting.
+        // appStatus must clear here too: an instance's status/exception can change while
+        // disconnected (the missed app_status_changed event is never replayed), and
+        // instanceLiveStatus()/instanceLiveError() prefer any existing appStatus entry over the
+        // freshly-refetched manifest data (see the reconnect invalidateQueries() call in
+        // use-websocket.ts) for as long as it stays around -- so a stale entry can outlive the
+        // refetch it was supposed to be superseded by. Logs need no bump here: the unfiltered
+        // `invalidateQueries()` in use-websocket.ts already covers the log query on reconnect,
+        // same as every other cache entry.
+        ...(isReconnect && {
+          serviceStatus: {},
+          appStatus: {},
+        }),
+      };
+    }),
 }));
+
+/** Whether a reported server version differs from the loaded one. An absent or empty version
+ * (older servers default it to "") is unknown, not a change. */
+function isVersionChange(loaded: string | null, reported: string | undefined): boolean {
+  return Boolean(loaded) && Boolean(reported) && reported !== loaded;
+}

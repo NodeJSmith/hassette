@@ -30,6 +30,46 @@ describe("useAppStore", () => {
   });
 
   describe("handleWsConnected", () => {
+    it("flags serverUpdated when a reconnect reports a different version", () => {
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "1.2.3" }), false);
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "1.3.0" }), true);
+
+      expect(useAppStore.getState().serverUpdated).toBe(true);
+    });
+
+    it("does not flag serverUpdated on a first connect", () => {
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "1.2.3" }), false);
+
+      expect(useAppStore.getState().serverUpdated).toBe(false);
+    });
+
+    it.each([
+      ["same version", "1.2.3"],
+      ["empty version", ""],
+      ["no version", undefined],
+    ])("does not flag serverUpdated for a reconnect reporting the %s", (_, second) => {
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "1.2.3" }), false);
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: second }), true);
+
+      expect(useAppStore.getState().serverUpdated).toBe(false);
+    });
+
+    it("keeps the loaded version as the baseline across a connect that reports no version", () => {
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "1.2.3" }), false);
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "" }), true);
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "1.3.0" }), true);
+
+      expect(useAppStore.getState().serverUpdated).toBe(true);
+    });
+
+    it("keeps serverUpdated set after a later reconnect reports the new version again", () => {
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "1.2.3" }), false);
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "1.3.0" }), true);
+      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "1.3.0" }), true);
+
+      expect(useAppStore.getState().serverUpdated).toBe(true);
+    });
+
     it("on first connect, does not clear serviceStatus/appStatus", () => {
       useAppStore.setState({
         serviceStatus: {

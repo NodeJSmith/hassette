@@ -4,6 +4,8 @@ import time
 from logging import getLogger
 from typing import TYPE_CHECKING
 
+from hassette_wire import ScheduleStatus, ScheduleStatusReason
+
 from hassette.config.classes import AppManifest
 from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration, ScheduledJobRegistration
@@ -236,7 +238,7 @@ class TelemetryRepository:
         )
         await db.commit()
 
-    async def mark_job_status(self, db_id: int, status: str, reason: str | None) -> None:
+    async def mark_job_status(self, db_id: int, status: ScheduleStatus, reason: ScheduleStatusReason | None) -> None:
         """Persist a ``Job.transition_to()`` status change for the given job row.
 
         Called after every schedule-status transition (scheduled, waiting, completed) so a
@@ -246,7 +248,7 @@ class TelemetryRepository:
 
         Args:
             db_id: The ``id`` of the ``scheduled_jobs`` row to update.
-            status: The new ``schedule_status`` value (a ``ScheduleStatus.value``).
+            status: The new ``schedule_status``.
             reason: The new ``schedule_status_reason`` value, or ``None`` to clear it.
         """
         db = self._db_service.db

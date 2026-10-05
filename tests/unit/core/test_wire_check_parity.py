@@ -57,17 +57,31 @@ def vocabulary_values(vocabulary: Any) -> set[str]:
 
 
 @pytest.fixture(scope="module")
-def check_constraints(tmp_path_factory: pytest.TempPathFactory) -> dict[tuple[str, str], set[str]]:
-    """(table, column) -> values listed by that column's IN-list CHECK in the fully migrated schema."""
+def in_list_checks(tmp_path_factory: pytest.TempPathFactory) -> list[tuple[str, str, set[str]]]:
+    """(table, column, values) for every IN-list CHECK in the fully migrated schema."""
     db_path = tmp_path_factory.mktemp("parity") / "parity.db"
     run_migrations(db_path)
     with sqlite_conn(db_path) as conn:
         rows = conn.execute("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND sql IS NOT NULL").fetchall()
-    return {
-        (table, column): {value.strip().strip("'") for value in values.split(",")}
+    return [
+        (table, column, {value.strip().strip("'") for value in values.split(",")})
         for table, sql in rows
         for column, values in IN_LIST.findall(sql)
-    }
+    ]
+
+
+@pytest.fixture(scope="module")
+def check_constraints(in_list_checks: list[tuple[str, str, set[str]]]) -> dict[tuple[str, str], set[str]]:
+    """(table, column) -> values; each column has one IN-list (see test_each_column_has_one_in_list)."""
+    return {(table, column): values for table, column, values in in_list_checks}
+
+
+def test_each_column_has_one_in_list(in_list_checks: list[tuple[str, str, set[str]]]) -> None:
+    """A second IN-list on the same column would make check_constraints compare against only one of them."""
+    keys = [(table, column) for table, column, _ in in_list_checks]
+    duplicates = {key for key in keys if keys.count(key) > 1}
+
+    assert not duplicates, f"columns with more than one IN-list CHECK: {sorted(duplicates)}"
 
 
 def test_every_in_list_check_is_classified(check_constraints: dict[tuple[str, str], set[str]]) -> None:

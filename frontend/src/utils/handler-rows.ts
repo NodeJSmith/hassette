@@ -40,16 +40,19 @@ export function scheduleStatusLabel(
   return scheduleStatusDisplay(status, reason)?.label ?? null;
 }
 
-/** Secondary sort rank for jobs with no `next_run_ts`, per design: manual < waiting < completed < unknown/degraded. */
-const SCHEDULE_STATUS_SORT_RANK: Partial<Record<ScheduleStatus, number>> = {
+/** Secondary sort rank for jobs with no `next_run_ts`, per design: manual < waiting < completed <
+ * scheduled-without-timing (unknown/degraded). Total over `ScheduleStatus`. */
+const SCHEDULE_STATUS_SORT_RANK: Record<ScheduleStatus, number> = {
   manual: 0,
   waiting: 1,
   completed: 2,
+  scheduled: 3,
 };
 
 function scheduleStatusRank(status: ScheduleStatus | null): number {
-  if (status === null) return 3;
-  return SCHEDULE_STATUS_SORT_RANK[status] ?? 3;
+  // Unknown statuses (a stale tab seeing a newer server before the reload prompt) sort with "scheduled".
+  if (status === null) return SCHEDULE_STATUS_SORT_RANK.scheduled;
+  return SCHEDULE_STATUS_SORT_RANK[status] ?? SCHEDULE_STATUS_SORT_RANK.scheduled;
 }
 
 export function listenerToRow(l: ListenerData): UnifiedRow {

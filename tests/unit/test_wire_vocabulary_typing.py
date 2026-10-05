@@ -83,15 +83,21 @@ def test_unknown_value_parses_leniently(model: type[BaseModel], body: BodyBuilde
     assert value == unknown
 
 
-def test_schedule_status_parses_to_members_and_defaults_to_scheduled() -> None:
+def test_schedule_status_parses_to_members() -> None:
     parsed = JobSummary.model_validate(
         job_summary_body(schedule_status="completed", schedule_status_reason="trigger_error")
     )
-    defaulted = JobSummary.model_validate({k: v for k, v in job_summary_body().items() if k != "schedule_status"})
 
     assert parsed.schedule_status is ScheduleStatus.COMPLETED
     assert parsed.schedule_status_reason is ScheduleStatusReason.TRIGGER_ERROR
-    assert defaulted.schedule_status is ScheduleStatus.SCHEDULED
+
+
+def test_schedule_status_is_required() -> None:
+    body = job_summary_body()
+    del body["schedule_status"]
+
+    with pytest.raises(ValidationError, match="schedule_status"):
+        JobSummary.model_validate(body)
 
 
 def test_service_info_role_is_required() -> None:

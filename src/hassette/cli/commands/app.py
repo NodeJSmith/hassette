@@ -5,6 +5,7 @@ from typing import Annotated, Any
 
 from cyclopts import Parameter
 from hassette_wire import (
+    LENIENT_CONTEXT,
     ActivityFeedEntry,
     AppAction,
     AppConfigResponse,
@@ -113,7 +114,7 @@ def cmd_app_activity(
         limit=limit,
     )
     raw: list[Any] = client.get(f"/api/telemetry/app/{key}/activity", list, params=params)
-    entries = [ActivityFeedEntry.model_validate(e) for e in raw]
+    entries = [ActivityFeedEntry.model_validate(e, context=LENIENT_CONTEXT) for e in raw]
     render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=ctx.json_mode)
 
 

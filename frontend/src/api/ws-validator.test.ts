@@ -49,6 +49,26 @@ describe("validateWsMessage", () => {
     expect(() => validateWsMessage(msg)).toThrow(WsValidationError);
   });
 
+  it("validates a service_status message with a known role", () => {
+    const msg = {
+      type: "service_status",
+      data: { resource_name: "WebsocketService", role: "service", status: "running" },
+      timestamp: BASE_TIMESTAMP_SECONDS,
+    };
+    expect(validateWsMessage(msg)).toEqual(msg);
+  });
+
+  // The bundle only ever talks to the server version it was loaded from (a changed version raises
+  // the reload prompt), so a role outside the generated vocabulary is a contract violation.
+  it("throws WsValidationError for a service_status role outside the vocabulary", () => {
+    const msg = {
+      type: "service_status",
+      data: { resource_name: "WebsocketService", role: "plugin", status: "running" },
+      timestamp: BASE_TIMESTAMP_SECONDS,
+    };
+    expect(() => validateWsMessage(msg)).toThrow(WsValidationError);
+  });
+
   it("throws WsValidationError for unknown type value", () => {
     const msg = {
       type: "unknown_type",

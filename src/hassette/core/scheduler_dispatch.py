@@ -141,8 +141,7 @@ class SchedulerDispatchMixin:
         """
         if job.db_id is None:
             return
-        reason = job.schedule_status_reason.value if job.schedule_status_reason is not None else None
-        await self._executor.mark_job_status(job.db_id, job.schedule_status.value, reason)
+        await self._executor.mark_job_status(job.db_id, job.schedule_status, job.schedule_status_reason)
 
     async def dispatch_and_log(self, job: "Job") -> None:
         """Dispatch a job and log its execution.

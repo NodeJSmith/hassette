@@ -232,10 +232,8 @@ class SchedulerService(SchedulerDispatchMixin, Service):
             mode=job.mode,
             predicate_description=predicate_description,
             human_description=human_description,
-            schedule_status=job.schedule_status.value,
-            schedule_status_reason=(
-                job.schedule_status_reason.value if job.schedule_status_reason is not None else None
-            ),
+            schedule_status=job.schedule_status,
+            schedule_status_reason=job.schedule_status_reason,
         )
         job.mark_registered(await self._executor.register_job(reg))
         # db_id can stay None here — a degraded registration write (or a test double)

@@ -17,19 +17,22 @@ export interface ScheduleStatusDisplay {
   text: string;
 }
 
-/** status -> display info, when no reason-specific override below applies. No "scheduled"
- * entry: that status has no default text, only the "legacy_unknown" override below. */
 const COMPLETED_DISPLAY: ScheduleStatusDisplay = { label: "completed", text: "Schedule completed." };
 
-const SCHEDULE_STATUS_DISPLAY: Partial<Record<ScheduleStatus, ScheduleStatusDisplay>> = {
+/** status -> display info, when no reason-specific override below applies. Total over
+ * `ScheduleStatus`, so a new status fails to compile until it gets an entry. "scheduled" is null:
+ * it has no default text, only the "legacy_unknown" override below. */
+const SCHEDULE_STATUS_DISPLAY: Record<ScheduleStatus, ScheduleStatusDisplay | null> = {
+  scheduled: null,
   manual: { label: "manual", text: "Manual only." },
   waiting: { label: "waiting", text: "Waiting for entity time." },
   completed: COMPLETED_DISPLAY,
 };
 
 /** (status, reason) -> display info, overriding the status-level default above. */
-const SCHEDULE_STATUS_REASON_DISPLAY: Partial<
-  Record<ScheduleStatus, Partial<Record<ScheduleStatusReason, ScheduleStatusDisplay>>>
+const SCHEDULE_STATUS_REASON_DISPLAY: Record<
+  ScheduleStatus,
+  Partial<Record<ScheduleStatusReason, ScheduleStatusDisplay>>
 > = {
   completed: {
     // Same label as the default "completed" entry — only the detail-view text differs for
@@ -39,6 +42,9 @@ const SCHEDULE_STATUS_REASON_DISPLAY: Partial<
   scheduled: {
     legacy_unknown: { label: "unknown", text: "Legacy status unknown." },
   },
+  // No reason overrides for these; present only so the map stays total over ScheduleStatus.
+  manual: {},
+  waiting: {},
 };
 
 /**
@@ -53,6 +59,8 @@ export function scheduleStatusDisplay(
   reason?: ScheduleStatusReason | null,
 ): ScheduleStatusDisplay | null {
   if (status === null) return null;
+  // The maps are total for compile-time exhaustiveness, but REST data isn't runtime-validated, so a
+  // stale tab can see a newer server's status before the reload prompt appears. Stay defensive.
   if (reason) {
     const override = SCHEDULE_STATUS_REASON_DISPLAY[status]?.[reason];
     if (override) return override;

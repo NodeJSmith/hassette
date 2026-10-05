@@ -4065,8 +4065,7 @@
             "title": "Group"
           },
           "schedule_status": {
-            "$ref": "#/components/schemas/ScheduleStatus",
-            "default": "scheduled"
+            "$ref": "#/components/schemas/ScheduleStatus"
           },
           "schedule_status_reason": {
             "anyOf": [
@@ -4209,7 +4208,8 @@
           "failed",
           "last_executed_at",
           "total_duration_ms",
-          "avg_duration_ms"
+          "avg_duration_ms",
+          "schedule_status"
         ],
         "title": "JobSummary",
         "description": "Per-job summary returned by ``get_job_summary()``.\n\n``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``\nare tracked separately.\nInvariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``."

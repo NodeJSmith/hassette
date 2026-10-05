@@ -46,6 +46,12 @@ describe("scheduleStatusDisplay", () => {
     });
   });
 
+  it("returns null for a status from a newer server instead of throwing", () => {
+    // REST payloads aren't runtime-validated; parse one the way the API client receives it.
+    const { status, reason } = JSON.parse('{"status": "paused", "reason": "user_paused"}');
+    expect(scheduleStatusDisplay(status, reason)).toBeNull();
+  });
+
   it("returns null for a null status", () => {
     expect(scheduleStatusDisplay(null)).toBeNull();
   });

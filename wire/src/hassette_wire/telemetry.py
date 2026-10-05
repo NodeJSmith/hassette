@@ -13,7 +13,6 @@ from hassette_wire.enums import (
     OpenManifestStatus,
     OpenScheduleStatus,
     OpenScheduleStatusReason,
-    ScheduleStatus,
 )
 from hassette_wire.literals import (
     OpenErrorRateClass,
@@ -147,7 +146,7 @@ class JobSummary(BaseModel):
     avg_duration_ms: float
     group: str | None = None
     """Scheduler group name, persisted at registration."""
-    schedule_status: OpenScheduleStatus = ScheduleStatus.SCHEDULED
+    schedule_status: OpenScheduleStatus
     """Whether the job will run again on its own. Persisted at registration and every status
     transition; live enrichment overlays the current in-process value, so a DB-only degraded
     response still reflects the last persisted status."""

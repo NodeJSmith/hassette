@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from hassette_wire import BackpressurePolicy, ExecutionMode, SourceTier
+from hassette_wire import BackpressurePolicy, ExecutionMode, ScheduleStatus, ScheduleStatusReason, SourceTier
 
 from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
 
@@ -111,6 +111,11 @@ class ScheduledJobRegistration:
     registration_source: str | None
     """Source code snippet of the registration call, or None if unavailable."""
 
+    schedule_status: ScheduleStatus
+    """Current schedule status at registration time.
+    Persisted to the ``scheduled_jobs.schedule_status`` column, which is ``NOT NULL`` with no
+    DEFAULT — every registration must supply its live status explicitly."""
+
     source_tier: SourceTier = "app"
     """Whether this job originates from a user app or the framework itself."""
 
@@ -129,12 +134,7 @@ class ScheduledJobRegistration:
     """Stable, human-readable summary of the predicate — ``predicate.summarize()`` when
     available, otherwise ``callable_stable_name()`` as a fallback. None if no predicate."""
 
-    schedule_status: str = "scheduled"
-    """Current :class:`~hassette.scheduler.classes.ScheduleStatus` value at registration time.
-    Persisted to the ``scheduled_jobs.schedule_status`` column, which is ``NOT NULL`` with no
-    DEFAULT — every registration must supply its live status explicitly."""
-
-    schedule_status_reason: str | None = None
-    """Optional :class:`~hassette.scheduler.classes.ScheduleStatusReason` value qualifying
+    schedule_status_reason: ScheduleStatusReason | None = None
+    """Optional reason qualifying
     ``schedule_status``. Persisted to the nullable ``scheduled_jobs.schedule_status_reason``
     column. None for a clean status with no further explanation needed."""

@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from hassette_wire import Execution, ListenerWithSummary
+from hassette_wire import LENIENT_CONTEXT, Execution, ListenerWithSummary
 
 from hassette.cli.client import make_client, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
@@ -54,7 +54,7 @@ def cmd_listener(
             list,
             params=query_params(since=since, limit=limit),
         )
-        invocations = [Execution.model_validate(e) for e in raw]
+        invocations = [Execution.model_validate(e, context=LENIENT_CONTEXT) for e in raw]
         render_table(invocations, LISTENER_INVOCATION_COLUMNS, json_mode=ctx.json_mode)
         return
 
@@ -66,5 +66,5 @@ def cmd_listener(
         instance=instance,
         extra_params=query_params(since=since, source_tier=source_tier),
     )
-    listeners = [ListenerWithSummary.model_validate(e) for e in raw]
+    listeners = [ListenerWithSummary.model_validate(e, context=LENIENT_CONTEXT) for e in raw]
     render_table(listeners, LISTENER_LIST_COLUMNS, json_mode=ctx.json_mode)

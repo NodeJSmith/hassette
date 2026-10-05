@@ -101,12 +101,17 @@ async def set_log_level(
             f"Invalid log level {body.level!r}. Must be one of: {', '.join(sorted(VALID_LOG_LEVEL_NAMES))}",
         )
     target_logger = logging.getLogger(body.logger)
-    # After setLevel() the logger's effective level is the level just set, so no getEffectiveLevel() lookup.
     target_logger.setLevel(level_upper)
+    # Read the level back rather than echoing the request, so the response reports the logger's real state.
+    # The raise guards an invariant, not an input: level_upper is one of the five standard names, so
+    # the effective level can only differ if something replaces logging's level handling.
+    effective = logging.getLevelName(target_logger.getEffectiveLevel())
+    if not is_log_level(effective):
+        raise RuntimeError(f"Logger {body.logger!r} reports non-standard effective level {effective!r}")
     LOGGER.info(
         "Changed log level for %s to %s (source=%s)",
         body.logger,
-        level_upper,
+        effective,
         peer_address_or_unknown(request),
     )
-    return LogLevelResponse(logger=body.logger, effective_level=level_upper)
+    return LogLevelResponse(logger=body.logger, effective_level=effective)

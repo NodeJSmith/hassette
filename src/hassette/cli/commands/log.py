@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from hassette_wire import LogEntryResponse, LogsByExecutionResponse
+from hassette_wire import LENIENT_CONTEXT, LogEntryResponse, LogsByExecutionResponse
 
 from hassette.cli.client import make_client, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
@@ -49,7 +49,7 @@ def cmd_log(
         list,
         params=query_params(app_key=app, since=since, limit=limit, source_tier=source_tier),
     )
-    entries = [LogEntryResponse.model_validate(e) for e in raw]
+    entries = [LogEntryResponse.model_validate(e, context=LENIENT_CONTEXT) for e in raw]
     render_table(entries, LOG_COLUMNS, json_mode=ctx.json_mode)
 
 

@@ -1,7 +1,7 @@
 # Design: Type the wire vocabulary fields
 
 **Date:** 2026-10-04
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 
 ## Summary
@@ -106,6 +106,7 @@ A `status_counts` holding an unknown key parses leniently and round-trips unchan
 - `ServiceInfoResponse.role` becomes required and typed (D4)
 - The (a) fields listed in the Summary become enums in the OpenAPI/WS schemas, where they were free strings (D3, D5, D6). The frontend's generated WS validator rejects unknown `role` values
 - `ResourceRole`, `ScheduleStatus`, `ScheduleStatusReason` and `AppAction` are published wire names; `hassette` keeps re-exporting them from their old homes (D3)
+- `JobSummary.schedule_status` becomes required, losing its `"scheduled"` default (added during the build; see Build)
 
 Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the header of `tools/wire_compat_ignore.txt` pairs them with `!` plus a footer.
 
@@ -135,18 +136,23 @@ Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
-- CHECK parity covers every IN-list CHECK in the migrated schema, not only D3's five columns: `listeners.backpressure`, `executions.kind` and `blocking_events.tier` also equal a wire vocabulary, and `tests/unit/core/test_wire_check_parity.py` fails on any new IN-list CHECK until it is classified as a wire match or server-only (`blocking_events.reason` is server-only: it also holds `attributed`, which `UnattributedReason` excludes). Same cost, and drift in a constrained column that nobody listed is exactly what the check exists to catch.
+- CHECK parity covers every IN-list CHECK in the migrated schema, not only the five columns D3 names: `listeners.backpressure`, `executions.kind` and `blocking_events.tier` also equal a wire vocabulary, and `tests/unit/core/test_wire_check_parity.py` fails on any new IN-list CHECK until it is classified as a wire match or server-only (`blocking_events.reason` is server-only: it also holds `attributed`, which `UnattributedReason` excludes). Same cost, and drift in a constrained column that nobody listed is exactly what the check exists to catch.
 - The CHECK-sync notes on `ScheduleStatus`/`ScheduleStatusReason` are source comments, not docstrings: enum class docstrings are emitted into `openapi.json`, and `REVIEW.md` bars server table names there.
-- `PUT /api/logs/level` returns the validated level name, narrowed to `LogLevel` by `is_log_level` (`src/hassette/web/dependencies.py`), instead of re-reading `logging.getLevelName(...)`: a logger with an explicit level reports that level as its effective level, so the value is identical and needs no unchecked `str` → `LogLevel` step.
+- `PUT /api/logs/level` still reads the level back with `logging.getLevelName(target_logger.getEffectiveLevel())`, so `effective_level` reports the logger's real state rather than echoing the request. The name is narrowed to `LogLevel` by `is_log_level` (`src/hassette/web/dependencies.py`), and a non-standard name raises instead of being emitted unchecked.
 - Server-side `status_counts` (`AppFullSnapshot`, `tally_manifest_statuses`) is typed `dict[ManifestStatus, int]`; `app_manifest_list_response_from` copies it through `.items()` so the key type widens to `OpenManifestStatus` (dict keys are invariant).
+- `JobSummary.schedule_status` drops its `"scheduled"` default and becomes required, applying D4's reasoning (no invented default for a field the server always sends) to it as well: the column is NOT NULL and the server always sends the field, so a missing value must fail rather than read as "will run again". It is listed in D9's breaks for the `BREAKING CHANGE:` footer, with its compat-ignore entries.
 - `JobSummary.schedule_status`/`schedule_status_reason` docstrings drop their hand-listed values, which the enums now document. Other field docstrings are left for spec 126.
-- The frontend test feeding `schedule_status: "unrecognized_status"` is removed: the generated types are now closed (spec 121's intent), the SPA ships with the server it talks to, and keeping it would need an `as` cast or an `any` from `JSON.parse`.
-- `ResourceRole` members spell out their string values instead of using `auto()`. The values are unchanged (`test_resource_role_values_are_unchanged` pins them), and a member rename can no longer silently change the wire value. `CORE`, `BASE` and `UNKNOWN` are assigned nowhere in the server, so their consumer docstrings say they are reserved and not currently reported.
-- The frontend consumes the new types instead of `string`: `MergedService.role` and `ServiceStatusEntry.role` are `ResourceRole` with the `?? ""` fallback dropped, the `ACTIONS` map `satisfies Record<ActionResponse["action"], ...>`, and the schedule-status display and sort maps are keyed on the generated `ScheduleStatus`/`ScheduleStatusReason`. Tests that fed values outside the vocabulary now use real ones, or were removed where the only point was an impossible value.
-- Two drift guards in `tests/unit/test_wire_vocabulary_typing.py`: `LOG_LEVELS` keys equal `LogLevel`, and both `_ACTION_PAST_TENSE` maps (CLI and route) cover every `AppAction`.
-- CLI response parsing stays strict (no `LENIENT_CONTEXT`): the CLI ships in the same package as the server, so it is out of this ledger's scope.
+- Version-skew policy for the in-package clients. One policy per client, because each place that handles an unknown value (the WS validator, the display fallbacks, CLI parsing) otherwise implies its own answer:
+  - **SPA: skew is unsupported, and enforced.** A tab left open across a server upgrade used to keep running the old bundle indefinitely: the WS reconnects without reloading, and nothing compared versions. Now `handleWsConnected` (`frontend/src/state/store.ts`) sets `serverUpdated` when a connect's `connected.version` differs from `loadedServerVersion`, the first non-empty version the tab saw. `useServerUpdatePrompt` then shows a persistent reload prompt. It prompts rather than reloading, so nothing in progress is lost. The prompt waits for a WS reconnect; a tab whose socket stays down gets no prompt until it reconnects. The closed generated types are therefore the contract:
+    - The WS validator rejecting an unknown `role` is pinned in `ws-validator.test.ts`.
+    - The schedule-status display and sort maps are total `Record<ScheduleStatus, ...>`, so a new status fails to compile until it has an entry. Their lookups stay defensive (`?.`, `??`), because REST data isn't runtime-validated and a stale tab can receive a newer server's status in the window before the prompt appears. `schedule-status.test.ts` pins that with a parsed-JSON input.
+  - **CLI: skew is supported.** `--server-url` targets a separately deployed server, and the CLI's own error paths anticipate version skew. Every CLI response parse passes `LENIENT_CONTEXT`, so a newer server's unknown value renders as its raw string instead of failing the command. This also closes the same gap for fields this ledger doesn't touch (`ManifestStatus`, `ExecutionMode`, and others).
+- `ResourceRole` members spell out their string values instead of using `auto()`. The values are unchanged (`test_resource_role_values_are_unchanged` pins them), and a member rename can no longer silently change the wire value. `CORE`, `BASE` and `UNKNOWN` are assigned nowhere in the server, so their consumer docstrings say they are not currently reported. Whether they, and `role` on the wire, should exist at all is #2524.
+- The frontend consumes the new types instead of `string`: `MergedService.role` and `ServiceStatusEntry.role` are `ResourceRole` with the `?? ""` fallback dropped, and the `ACTIONS` map `satisfies Record<ActionResponse["action"], ...>`. Tests that fed out-of-vocabulary values to typed parameters now use real ones.
+- The server's write path is typed too: `ScheduledJobRegistration.schedule_status` (required, like `JobSummary`'s) and `schedule_status_reason`, and both `mark_job_status` signatures (repository and command executor) take `ScheduleStatus`/`ScheduleStatusReason`, and the callers pass enum members (a `StrEnum` binds as text in sqlite3). Only typed values reach the CHECK-constrained columns.
+- Drift guards: `LOG_LEVELS` keys equal `LogLevel` and both `_ACTION_PAST_TENSE` maps (CLI and route) cover every `AppAction` (`tests/unit/test_wire_vocabulary_typing.py`); the CLI's `_SCHEDULE_STATUS_TEXT` covers every `ScheduleStatus` (`tests/unit/cli/test_commands_job.py`).
 
 ## Addendum
