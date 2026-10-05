@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from hassette.const.misc import SECONDS_PER_DAY
+from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.schemas.summary_models import AppHealthSummary
 from hassette.web.telemetry_helpers import build_app_health
@@ -585,6 +585,37 @@ class TestGetAllAppSummariesSourceTier:
         # Only the 1 app-tier invocation should be counted
         assert summary.aggregates.total_invocations == 1
         assert summary.aggregates.handler_errors == 0
+
+
+class TestOneHourInvocationWindow:
+    async def test_summary_total_invocations_counts_app_tier_handlers_in_last_hour(
+        self, query_service: TelemetryQueryService, db: DbFixture
+    ) -> None:
+        """With since = now - 1h, total_invocations is the per-app count `hassette app list` shows as Invoc/1h.
+
+        Counts only app-tier handler executions started inside the window: job executions,
+        framework-tier executions, and anything older than an hour are excluded.
+        """
+        db_svc, session_id = db
+        now = time.time()
+
+        listener_a = await insert_listener(db_svc, app_key="app_a", handler_method="on_a")
+        listener_b = await insert_listener(db_svc, app_key="app_b", handler_method="on_b")
+        fw_listener = await insert_listener(db_svc, app_key="app_a", handler_method="on_fw", source_tier="framework")
+        job_a = await insert_job(db_svc, app_key="app_a")
+
+        for status in ("success", "error", "timed_out"):
+            await insert_invocation(db_svc, listener_a, session_id, status=status, execution_start_ts=now - 60)
+        await insert_invocation(db_svc, listener_a, session_id, execution_start_ts=now - 2 * SECONDS_PER_HOUR)
+        await insert_invocation(db_svc, listener_b, session_id, execution_start_ts=now - 120)
+        await insert_invocation(db_svc, fw_listener, session_id, execution_start_ts=now - 60, source_tier="framework")
+        await insert_execution(db_svc, job_a, session_id, execution_start_ts=now - 60)
+
+        summaries = await query_service.get_all_app_summaries(since=now - SECONDS_PER_HOUR, source_tier="app")
+        window_counts = {key: summary.aggregates.total_invocations for key, summary in summaries.items()}
+
+        assert window_counts == {"app_a": 3, "app_b": 1}
+        assert window_counts == await query_service.get_recent_invocations_1h_all_apps()
 
 
 class TestDiFailureFlag:
