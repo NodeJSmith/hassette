@@ -163,32 +163,32 @@ def make_config_schema_response() -> ConfigSchemaResponse:
 def make_app_health(
     error_rate: float = 0.0,
     error_rate_class: str = "good",
+    health_status: str = "excellent",
+    last_activity_ts: float | None = TEST_EPOCH_B,
     handler_avg_duration_ms: float | None = 5.0,
     job_avg_duration_ms: float | None = 10.0,
-    last_activity_ts: float | None = TEST_EPOCH_B,
-    health_status: str = "excellent",
 ) -> AppHealth:
     """Build an AppHealth with sensible defaults."""
     return AppHealth(
         error_rate=error_rate,
         error_rate_class=error_rate_class,  # pyright: ignore[reportArgumentType]
+        health_status=health_status,  # pyright: ignore[reportArgumentType]
+        last_activity_ts=last_activity_ts,
         handler_avg_duration_ms=handler_avg_duration_ms,
         job_avg_duration_ms=job_avg_duration_ms,
-        last_activity_ts=last_activity_ts,
-        health_status=health_status,  # pyright: ignore[reportArgumentType]
     )
 
 
-def _strip_none(obj: Any) -> Any:
+def strip_none(obj: Any) -> Any:
     if isinstance(obj, dict):
-        return {k: _strip_none(v) for k, v in obj.items() if v is not None}
+        return {k: strip_none(v) for k, v in obj.items() if v is not None}
     if isinstance(obj, list):
-        return [_strip_none(v) for v in obj if v is not None]
+        return [strip_none(v) for v in obj if v is not None]
     return obj
 
 
-def _config_to_toml(app_key: str, app_config: dict[str, Any] | list[dict[str, Any]]) -> str:
-    toml_wrapper: dict[str, Any] = {"hassette": {"apps": {app_key: {"config": _strip_none(app_config)}}}}
+def config_to_toml(app_key: str, app_config: dict[str, Any] | list[dict[str, Any]]) -> str:
+    toml_wrapper: dict[str, Any] = {"hassette": {"apps": {app_key: {"config": strip_none(app_config)}}}}
     return tomli_w.dumps(toml_wrapper)
 
 
@@ -211,7 +211,7 @@ def make_app_config_response(
         enabled=enabled,
         autostart=autostart,
         app_config=resolved_config,
-        config_toml=_config_to_toml(app_key, resolved_config),
+        config_toml=config_to_toml(app_key, resolved_config),
         config_schema=config_schema,
         framework_fields=framework_fields if framework_fields is not None else [],
     )
