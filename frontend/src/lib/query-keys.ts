@@ -11,7 +11,7 @@ export const queryKeys = {
     ["recent-logs", appKey ?? null, executionId ?? null] as const,
   allListeners: () => ["all-listeners"] as const,
   allJobs: () => ["all-jobs"] as const,
-  dashboardGrid: () => ["dashboard-grid"] as const,
+  appGrid: () => ["app-grid"] as const,
   listenerExecutions: (listenerId: number) => ["listener-executions", listenerId] as const,
   jobExecutions: (jobId: number) => ["job-executions", jobId] as const,
   appListeners: {

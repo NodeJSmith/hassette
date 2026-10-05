@@ -507,7 +507,7 @@ describe("useWebSocket", () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["manifests"] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["manifest"] });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["dashboard-grid"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["app-grid"] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["system-status"] });
   });
 

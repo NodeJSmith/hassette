@@ -1,7 +1,7 @@
 # Design: Reshape the apps resource and Apps grid
 
 **Date:** 2026-10-04
-**Status:** ratified
+**Status:** draft
 **Mode:** sketch
 
 ## Summary
@@ -78,6 +78,7 @@ Under A:
 - Afterwards, `get_recent_invocations_1h_all_apps` and its enrichment blocks in `get_app_manifests`/`get_app_manifest` (`src/hassette/web/routes/apps.py`) are deleted.
 - `hassette app list --json` prints a bare array today (`cmd_app` dumps the manifest list); after the switch it dumps the grid rows, so each element becomes `{app, activity}`.
 - The command runs the heavier grid query (buckets, last errors, blocking counts).
+- The window rides the CLI's clock while the server stamps executions, so clock skew shifts it, and D12's `since` echo can't reveal that (it returns the caller's own value). Accepted at the ship-time challenge (Finding 11); server-side resolution of relative windows for every caller is #2536.
 
 **Ratified:** Chose removing the field and reading the grid (A) over keeping it (B) and the envelope map (C), to model one apps-with-activity resource with activity in one place, accepting nested `app list --json` rows and client-computed windows matching the Apps page. Re-ratified after the challenge corrected the side-effect description.
 
@@ -112,7 +113,9 @@ This comes from Finding 2 of the sketch challenge, which chose a response-level 
 
 Behavior to pin:
 - Each enrichment query that fails appears in `degraded` by its `GridEnrichment` value. A fully successful response has `degraded == []`.
-- `since` echoes the request's value. `None` means all-time totals, with empty buckets and no last errors.
+- `since` echoes the request's value. `None` means all-time totals; the windowed parts (buckets, last error) are not computed, which D17 shows in the row.
+- A non-finite `since` (`nan`, `inf`, `-inf`) is rejected with 422 by the shared `SinceQuery` annotation (`Query(allow_inf_nan=False)` in `src/hassette/web/dependencies.py`), so every `since` endpoint inherits it; the grid route has a test for `?since=nan`. Without it, Pydantic serializes the echo as `null` ("all-time") while the windowed queries ran (ship-time challenge Finding 12).
+- The Apps page asks for all-time as `since = null`, never the `0` sentinel `useScopedQuery` falls back to before uptime arrives (`frontend/src/hooks/use-scoped-query.ts`), so the server doesn't run the windowed queries from the epoch and the echo reads all-time. The change is scoped to the grid call (or an opt-in on `useScopedQuery`), leaving other scoped views as they are (ship-time challenge Finding 16).
 - `hassette app list` and `hassette dashboard` print a one-line warning to stderr naming what degraded, so the table output stays clean.
 
 `.claude/rules/web-api.md`'s Enrichment bullet gains a sentence: a route whose response model carries a degradation marker reports each degraded enrichment in it.
@@ -120,7 +123,35 @@ Behavior to pin:
 **Recommendation:** A, because "which part is missing" is what tells a client whether `health` is trustworthy: summaries degraded means it isn't, buckets degraded means it is.
 **Pick B instead if** you consider any degradation reason enough to distrust the whole row.
 **Reversibility:** hard after #2386, easy before.
-**Ratified:** Chose a list of degraded enrichments (A) over a boolean (B), so a client knows whether `health` is trustworthy, accepting the new `GridEnrichment` name and its `Open` alias.
+**Ratified:** Chose a list of degraded enrichments (A) over a boolean (B), so a client knows whether `health` is trustworthy, accepting the new `GridEnrichment` name and its `Open` alias. The `since = None` pin was updated when D17 was added.
+
+### D17: How does an enrichment that failed or didn't run show up in each row?
+
+This comes from Finding 1 of the ship-time challenge, where three critics converged on one mechanism. As first built, a failed enrichment filled its part of every row with values that read as real, healthy data: zero counts, `health_status == "excellent"` (spec 124 classifies zero invocations as healthy), and empty sparklines. `degraded` was the only signal. Every consumer then had to cross-reference it, and each one that didn't showed false health: `hassette app --json`/`hassette dashboard --json` rows, the dashboard's Health column, an absent `degraded` field reading as complete, and the Apps page cache. D12 weighed only list against bool, never how a failed part appears in the row itself.
+
+Each enrichment is an all-apps query that succeeds or fails as one unit and fills a fixed group of `AppActivity` fields: `summaries` → `handler_count`, `job_count`, the six `total_*` counts and `health`; `activity_buckets` → `activity_buckets`; `last_errors` → `last_error_message`/`_type`/`_ts`; `blocking_counts` → `blocking_event_count`.
+
+**Deciding factor:** a client reading one row can never mistake missing data for real data, with the fewest new names and null checks.
+
+| | A: Healthy-looking fallbacks + response-level `degraded` (as first built) | B: Flat nulls: every enrichment-filled field nullable, `null` when its enrichment failed or didn't run; `degraded` stays as the reason | C: Grouped nulls: `stats: AppActivityStats \| None` (the `summaries` fields), `activity_buckets: list[ActivityBucket] \| None`, `last_error: LastError \| None` (message/type/ts; not `AppLastError`, which D15's rule rules out because `hassette.schemas.execution_models.AppLastError` exists), `blocking_event_count: int \| None`; `degraded` stays as the reason |
+|---|---|---|---|
+| Failed part readable as healthy | Yes | No | No |
+| Null checks per consumer | 0, plus a `degraded` cross-check | Up to 13 nullable fields | 4, one per enrichment |
+| `health` trustworthy from the row alone | No | Yes | Yes |
+| `last_error: null` means "no error" or "not computed" | `degraded` tells | `degraded` tells | `degraded` tells |
+| Impossible mixed states | n/a | Representable (`total_invocations: null` with `handler_count: 3`) | Not representable |
+| Churn | None | Field types, CLI blank cells, frontend nullable `AppRow` | B's, plus nesting (`activity.stats.health.health_status`) and the new public names `AppActivityStats` and `LastError` |
+
+Behavior to pin:
+- A part is `null` exactly when its enrichment failed (named in `degraded`) or did not run (`activity_buckets` and `last_error` when `since` is `None`). A computed part is never `null`, except `last_error`, whose `null` also means "no error in the window" (`degraded` distinguishes the two).
+- When one enrichment fails, the other three parts keep their real values. The tests seed non-zero data for all four and assert the untouched parts survive and the failed part is `null`.
+- `hassette app` and `hassette dashboard` render a `null` part as a blank cell, never as `0` or `excellent`.
+- The Apps page renders a `null` part as "—" and sorts it last. That is the smallest display change that stops it showing false zeros; surfacing `degraded` itself in the UI stays out of scope.
+
+**Recommendation:** C, because each enrichment is all-or-nothing, so its type should be too: one `stats: null` instead of nine nulls a client must check consistently.
+**Pick B instead if** you'd rather not add the `AppActivityStats` name and the extra nesting level. **Pick A instead if** you accept every consumer cross-referencing `degraded`.
+**Reversibility:** hard after #2386, easy before.
+**Ratified:** Chose grouped nullable parts (C) over flat nulls (B) and healthy-looking fallbacks (A), so no row can read a missing part as real, healthy data, accepting the new `AppActivityStats` and `LastError` names, one more nesting level, and blank or "—" cells where a part wasn't computed.
 
 ### D15: What happens when a spec 126 D1 rename collides with an existing hassette name?
 
@@ -179,10 +210,10 @@ Hardcoded paths to update: `src/hassette/cli/client.py` (`_fetch_instances`, `_t
 - `recent_invocations_1h` leaves the app summary. oasdiff scores removing an optional response property as `info`, so `tools/check_wire_compat.py` won't flag it; it is listed because the tool can't see it (D10)
 - `GET /api/apps` (`AppStatusResponse`) is removed. The app list moves from `GET /api/apps/manifests` to `GET /api/apps`, and one app from `GET /api/apps/{app_key}/manifest` to `GET /api/apps/{app_key}`. The list envelope's `manifests` field becomes `apps`, the WS event `app_manifests_changed` becomes `apps_changed`, and `ManifestStatus` becomes `AppStatus`, and `OpenManifestStatus` becomes `OpenAppStatus` (D16)
 - OpenAPI and WS-schema component names change: `AppManifestResponse`→`AppSummary`, `AppManifestListResponse`→`AppListResponse`, `DashboardAppGrid*`→`AppGrid*`, the WS manifests-changed classes, `ManifestStatus`→`AppStatus` (D11, D15, D16)
-- `hassette_wire` root exports change: `AppStatusResponse` is removed, and the renamed types above (`AppSummary`, `AppListResponse`, `AppGridEntry`, `AppGridResponse`, `AppsChangedData`/`AppsChangedWsMessage`, `AppStatus`, `OpenAppStatus`) replace their old names; `AppActivity` and `GridEnrichment`/`OpenGridEnrichment` are added
+- `hassette_wire` root exports change: `AppStatusResponse` is removed, and the renamed types above (`AppSummary`, `AppListResponse`, `AppGridEntry`, `AppGridResponse`, `AppsChangedData`/`AppsChangedWsMessage`, `AppStatus`) replace their old names; `AppActivity`, `AppActivityStats`, `LastError` and `GridEnrichment` are added. The `Open*` aliases (`OpenAppStatus`, `OpenGridEnrichment`) are not root exports, like every other `Open*` alias; `OpenManifestStatus` → `OpenAppStatus` is a rename inside `hassette_wire.enums` only
 - `AppGridResponse` gains `degraded` and `since` (D12). These are additive, listed for completeness
 
-The PR body also gets a migration note for HTTP consumers (old paths → new paths; flat → `app`/`activity`; `apps_changed`).
+The PR body also gets a migration note for HTTP consumers (old paths → new paths; flat → `app`/`activity`; `apps_changed`). It names the two old paths that now fail misleadingly instead of 404ing (ship-time challenge Finding 8): `GET /api/apps` answers 200 with the app list in place of `AppStatusResponse`, and `GET /api/apps/manifests` is captured by `/api/apps/{app_key}` and reports app 'manifests' not found.
 
 Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the header of `tools/wire_compat_ignore.txt` pairs them with `!` plus a footer.
 
@@ -208,9 +239,11 @@ Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the
 
 ## Build
 
-- [x] Implementation and tests committed
-- [x] Docs
+- [ ] Implementation and tests committed
+- [ ] Docs
 - [ ] Ship-time challenge
+
+**Reopened at the first ship-time challenge (2026-10-05).** The first build (commits `b1efd992`, `c4f0838f`, `6d49638d`) implements every decision except D17, which the challenge added. The rebuild keeps that work and adds: D17's grouped nullable `AppActivity` parts (`AppActivityStats`, `LastError`) through wire, route, CLI blank cells, frontend "—" cells and tests; D12's non-finite-`since` 422 pin and Apps-page `since = null` pin; D9's corrected export list and migration-note lines; and the CLI docs' description of blank cells. Already done on the branch: the `queryKeys.appGrid` rename (Finding 15). Issues filed instead of fixed here: #2536 (server-resolved relative windows), #2537 (framework listener reconciliation).
 
 **Calls made during the build:**
 
@@ -219,8 +252,8 @@ Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the
 - D15 internal renames: `hassette.schemas.listener_models.ListenerSummary` → `ListenerSummaryRow` (a DB query row) and `hassette.logging_.LogEntry` → `LogRecordEntry` (a captured log record). Python only; the frontend's local `LogEntry` alias belongs to spec 126's wire renames.
 - The frontend's local `type AppStatus` in `overview-tab.tsx` → `AppDisplayStatus`.
 - `GridEnrichment` lives in `hassette_wire.literals` beside the other `Literal` vocabularies. Root exports gain `AppActivity` and `GridEnrichment`; `OpenGridEnrichment` and `OpenAppStatus` are not root exports, matching every existing `Open*` alias (none is exported from the root, including the old `OpenManifestStatus`).
-- The handler that emits the WS event is renamed with it: `RuntimeQueryService.on_app_manifests_changed` → `on_apps_changed`, listener name `hassette.rqs.on_apps_changed`. The stored row is keyed by name, so the old row stops being re-registered; every clean shutdown cancels the subscription and sets `removed_at`, so after the last clean shutdown on the old version the old row is already out of the `active_*` views (framework listeners are never reconciled, so if that last shutdown was a crash the row stays listed with zero counts, as any removed framework listener would).
-- "Manifest" stays as the internal term per D16 for the frontend's internal `useManifests`, `getAppManifests`, `AppManifest` alias and `queryKeys.dashboardGrid`.
+- The handler that emits the WS event is renamed with it: `RuntimeQueryService.on_app_manifests_changed` → `on_apps_changed`, listener name `hassette.rqs.on_apps_changed`. The stored row is keyed by name, so the old row stops being re-registered; every clean shutdown cancels the subscription and sets `removed_at`, so after the last clean shutdown on the old version the old row is already out of the `active_*` views (framework listeners are never reconciled, so if that last shutdown was a crash the row stays listed with zero counts, as any removed framework listener would; the general fix is #2537).
+- "Manifest" stays as the internal term per D16 for the frontend's internal `useManifests`, `getAppManifests` and `AppManifest` alias. The grid query key is renamed `queryKeys.appGrid` (`["app-grid"]`) to match D11 (ship-time challenge Finding 15).
 - The CLI's degraded warning is `warn_degraded()` in `src/hassette/cli/output.py`, shared by `hassette app list` and `hassette dashboard`, and prints in both table and `--json` modes since stderr never reaches stdout's JSON.
 - D10's equivalence was pinned in its own commit (`get_all_app_summaries(since=now-1h)` per-app `total_invocations` == `get_recent_invocations_1h_all_apps()` on one seeded DB, with explicit expected counts), then the old query was deleted and the test kept the explicit counts.
 - Deleted tests that asserted removed behavior: the `AppStatusResponse`/`app_status_response_from`/`get_app_status_snapshot` tests, the `recent_invocations_1h` mapper and endpoint tests, and `test_get_app_endpoint_removed` (it asserted `GET /api/apps/{app_key}` 404s, which D16 now serves). `AppGridEntry`'s flat-field default tests moved to `AppSummary`'s existing ones plus new `AppGridResponse` `degraded`/`since` tests.
