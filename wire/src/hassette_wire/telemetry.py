@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from hassette_wire.apps import AppSummary
 from hassette_wire.cli_format import CliFormat
@@ -16,7 +16,6 @@ from hassette_wire.enums import (
 from hassette_wire.literals import (
     OpenErrorRateClass,
     OpenExecutionKind,
-    OpenGridEnrichment,
     OpenHealthStatus,
     OpenListenerKind,
     SourceTier,
@@ -279,13 +278,10 @@ class ActivityBucket(BaseModel):
     """Number of error/timed-out invocations/executions in this bucket."""
 
 
-class AppActivity(BaseModel):
-    """How an app is doing over the grid's time window (``AppGridResponse.since``).
+class AppActivityStats(BaseModel):
+    """An app's listener and job counts, run totals and health over the grid's window."""
 
-    Each part comes from its own enrichment query. A failed query leaves its fields at their
-    defaults and is named in ``AppGridResponse.degraded``, so a zero here is only trustworthy
-    when its enrichment is absent from that list.
-    """
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     handler_count: int
     job_count: int
@@ -296,14 +292,49 @@ class AppActivity(BaseModel):
     total_job_errors: int
     total_job_timed_out: int = 0
     health: AppHealth
-    activity_buckets: list[ActivityBucket] = Field(default_factory=list)
-    """Per-app sparkline: equal-width ok/err buckets from ``since`` to now, oldest first. Empty when the
-    request has no ``since``, the app had no executions in the window, or the bucket query failed."""
-    blocking_event_count: int = 0
-    """Attributed blocking-IO events for this app in the requested window."""
-    last_error_message: str | None = None
-    last_error_type: str | None = None
-    last_error_ts: float | None = None
+
+
+class LastError(BaseModel):
+    """The most recent handler or job error for an app in the grid's window."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    error_message: str
+    error_type: str | None = None
+    ts: float
+    """When the failing execution started (Unix seconds)."""
+
+
+class LastErrorResult(BaseModel):
+    """The outcome of the last-error lookup for one app."""
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    error: LastError | None
+    """The most recent error in the window. ``None`` means the lookup ran and found no error."""
+
+
+class AppActivity(BaseModel):
+    """How an app is doing over the grid's time window (``AppGridResponse.since``).
+
+    Each part comes from its own all-apps enrichment query and is ``None`` exactly when that query
+    failed or did not run: ``activity_buckets`` and ``last_error`` only run for a window, so they are
+    ``None`` when ``since`` is ``None``. A computed part is never ``None``. The parts are read
+    separately, so they need not agree with each other (e.g. error totals against ``last_error``).
+    """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    stats: AppActivityStats | None
+    """Counts, run totals and health. ``None`` when the summary query failed."""
+    activity_buckets: list[ActivityBucket] | None
+    """Per-app sparkline: equal-width ok/err buckets from ``since`` to now, oldest first; empty when the app
+    had no executions in the window. ``None`` when the bucket query failed or the request had no ``since``."""
+    last_error: LastErrorResult | None
+    """The last-error lookup. ``None`` when it failed or the request had no ``since``."""
+    blocking_event_count: int | None
+    """Attributed blocking-IO events for this app in the requested window. ``None`` when the count query
+    failed."""
 
 
 class AppGridEntry(BaseModel):
@@ -316,12 +347,12 @@ class AppGridEntry(BaseModel):
 class AppGridResponse(BaseModel):
     """The Apps grid: every app with its activity over ``since``."""
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     apps: list[AppGridEntry]
-    degraded: list[OpenGridEnrichment] = Field(default_factory=list)
-    """Enrichment queries that failed for this response. Empty when every part of ``activity`` is real."""
     since: float | None = None
-    """The window start the activity covers, echoed from the request. ``None`` means all-time
-    totals, with empty ``activity_buckets`` and no ``last_error_*``."""
+    """The window start the activity covers, echoed from the request. ``None`` means all-time totals,
+    with ``activity_buckets`` and ``last_error`` not computed (``None`` in every row)."""
 
 
 class TelemetryStatusResponse(BaseModel):

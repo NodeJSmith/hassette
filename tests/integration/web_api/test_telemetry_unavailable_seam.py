@@ -57,7 +57,7 @@ class TestAppGridDegrades:
 
         This is an optional enrichment query: the required spine query
         (get_all_app_manifests + overlay_runtime_state()) succeeds independently, and this
-        one enrichment failure degrades to zeroed stats while the response stays 200.
+        one enrichment failure leaves every row's ``stats`` null while the response stays 200.
         """
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
             return_value=[make_manifest_db_row(app_key="my_app")]
@@ -70,5 +70,4 @@ class TestAppGridDegrades:
         data = await get_json(client, APP_GRID_PATH)
 
         assert len(data["apps"]) == 1
-        assert data["apps"][0]["activity"]["total_invocations"] == 0
-        assert data["degraded"] == ["summaries"]
+        assert data["apps"][0]["activity"]["stats"] is None

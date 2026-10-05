@@ -4,7 +4,7 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { appStatusKey, useAppStore } from "../state/store";
-import { createAppGridEntry } from "../test/factories";
+import { createAppActivityStats, createAppGridEntry } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
@@ -134,6 +134,59 @@ describe("AppsPage", () => {
     expect(getStatValue(strip, "failed")).toBe("1");
     expect(getStatValue(strip, "stopped")).toBe("1");
     expect(getStatValue(strip, "disabled")).toBe("1");
+  });
+
+  it("shows '—' for handlers and runs/hr when any row's stats weren't computed, not a partial sum", async () => {
+    server.use(
+      http.get(APP_GRID_URL, () =>
+        HttpResponse.json({
+          apps: [
+            createAppGridEntry({ app: { app_key: "a" }, activity: { stats: createAppActivityStats() } }),
+            createAppGridEntry({ app: { app_key: "b" }, activity: { stats: null } }),
+          ],
+        }),
+      ),
+    );
+    const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
+    const strip = await findByTestId("apps-stats-strip");
+
+    expect(getStatValue(strip, "handlers")).toBe("—");
+    expect(getStatValue(strip, "runs / hr")).toBe("—");
+  });
+
+  it("asks for all-time as since=null (no since param) before uptime arrives", async () => {
+    const urls: string[] = [];
+    server.use(
+      http.get(APP_GRID_URL, ({ request }) => {
+        urls.push(request.url);
+        return HttpResponse.json({ apps: [createAppGridEntry({ app: { app_key: "my_app" } })] });
+      }),
+    );
+    const { findByTestId } = renderWithAppState(<AppsPage />);
+    await findByTestId("app-row-my_app");
+
+    expect(new URL(urls[0]).searchParams.has("since")).toBe(false);
+  });
+
+  it("renders each response as sent: a part a newer response nulls doesn't keep its old value", async () => {
+    let stats: ReturnType<typeof createAppActivityStats> | null = createAppActivityStats({
+      total_invocations: 7,
+      total_executions: 0,
+    });
+    server.use(
+      http.get(APP_GRID_URL, () =>
+        HttpResponse.json({ apps: [createAppGridEntry({ app: { app_key: "my_app" }, activity: { stats } })] }),
+      ),
+    );
+    const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
+    expect((await findByTestId("app-runs")).textContent).toBe("7");
+
+    stats = null;
+    act(() => {
+      useAppStore.setState({ uptimeSeconds: 240 });
+    });
+
+    await vi.waitFor(async () => expect((await findByTestId("app-runs")).textContent).toBe("—"));
   });
 
   it("does not render legacy filter pills", async () => {

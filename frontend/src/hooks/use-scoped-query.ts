@@ -9,7 +9,7 @@ export interface UseScopedQueryOptions {
   enabled?: boolean;
   /**
    * When false, a `since-restart` query fires immediately with an all-time window
-   * (`since=0`) instead of blocking until the WS connected message provides
+   * (`since=null`) instead of blocking until the WS connected message provides
    * `uptimeSeconds`. The query key still includes uptime, so it refetches with the
    * accurate restart-relative window as soon as uptime arrives.
    *
@@ -61,7 +61,7 @@ export interface UseScopedQueryOptions {
  */
 export function useScopedQuery<T>(
   baseKey: readonly unknown[],
-  fetcher: (since: number, signal: AbortSignal) => Promise<T>,
+  fetcher: (since: number | null, signal: AbortSignal) => Promise<T>,
   options?: UseScopedQueryOptions,
 ): UseQueryResult<T> & { queryKey: readonly unknown[] } {
   const timePreset = useAppStore((s) => s.timePreset);
@@ -83,9 +83,9 @@ export function useScopedQuery<T>(
   const result = useQuery<T>({
     queryKey,
     queryFn: ({ signal }) => {
-      // Falls back to an all-time window (since=0) when waitForUptime opted out of the
-      // blocking gate above and uptime hasn't arrived yet.
-      const since = resolveSince(preset, uptime) ?? 0;
+      // Falls back to an all-time window (since=null) when waitForUptime opted out of the blocking
+      // gate above and uptime hasn't arrived yet.
+      const since = resolveSince(preset, uptime) ?? null;
       return fetcher(since, signal);
     },
     // Picked individually rather than `...options` — a blind spread would also forward

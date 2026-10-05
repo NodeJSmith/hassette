@@ -56,12 +56,3 @@ AppAction = Literal["start", "stop", "reload"]
 """A lifecycle action requested on an app or one of its instances."""
 
 OpenAppAction = Annotated[AppAction | UnknownValue, LenientValue("AppAction")]
-
-GridEnrichment = Literal["summaries", "activity_buckets", "last_errors", "blocking_counts"]
-"""An enrichment query behind the app grid's ``activity`` that can fail on its own.
-
-``summaries`` carries the counts and ``health``, ``activity_buckets`` the sparkline,
-``last_errors`` the ``last_error_*`` fields, and ``blocking_counts`` ``blocking_event_count``.
-"""
-
-OpenGridEnrichment = Annotated[GridEnrichment | UnknownValue, LenientValue("GridEnrichment")]

@@ -132,7 +132,7 @@
         "overflow": "ellipsis"
       },
       {
-        "field": "activity.total_invocations",
+        "field": "activity.stats.total_invocations",
         "formatter": null,
         "header": "Invoc/1h",
         "max_width": 8,
@@ -594,42 +594,42 @@
         "overflow": "ellipsis"
       },
       {
-        "field": "activity.total_invocations",
+        "field": "activity.stats.total_invocations",
         "formatter": null,
         "header": "Invoc",
         "max_width": 6,
         "overflow": "ellipsis"
       },
       {
-        "field": "activity.total_errors",
+        "field": "activity.stats.total_errors",
         "formatter": null,
         "header": "Errs",
         "max_width": 5,
         "overflow": "ellipsis"
       },
       {
-        "field": "activity.health.handler_avg_duration_ms",
+        "field": "activity.stats.health.handler_avg_duration_ms",
         "formatter": "fmt_duration_ms",
         "header": "Handler Avg",
         "max_width": 11,
         "overflow": "ellipsis"
       },
       {
-        "field": "activity.health.job_avg_duration_ms",
+        "field": "activity.stats.health.job_avg_duration_ms",
         "formatter": "fmt_duration_ms",
         "header": "Job Avg",
         "max_width": 9,
         "overflow": "ellipsis"
       },
       {
-        "field": "activity.health.last_activity_ts",
+        "field": "activity.stats.health.last_activity_ts",
         "formatter": "fmt_relative_time",
         "header": "Last Active",
         "max_width": 11,
         "overflow": "ellipsis"
       },
       {
-        "field": "activity.health.health_status",
+        "field": "activity.stats.health.health_status",
         "formatter": null,
         "header": "Health",
         "max_width": 9,

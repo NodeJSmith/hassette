@@ -5,6 +5,7 @@ from typing import Any
 import tomli_w
 from hassette_wire import (
     AppActivity,
+    AppActivityStats,
     AppConfigResponse,
     AppGridEntry,
     AppGridResponse,
@@ -12,7 +13,7 @@ from hassette_wire import (
     AppSourceResponse,
     AppSummary,
     ConfigSchemaResponse,
-    GridEnrichment,
+    LastErrorResult,
     SystemStatusResponse,
     TelemetryStatusResponse,
 )
@@ -71,15 +72,24 @@ def make_app_activity(
     total_job_errors: int = 0,
     health: AppHealth | None = None,
 ) -> AppActivity:
-    """Build an AppActivity with sensible defaults."""
+    """Build an AppActivity with every part computed: no buckets, no last error, no blocking events.
+
+    To model a part whose enrichment failed or didn't run, null it on the result:
+    ``make_app_activity().model_copy(update={"stats": None})``.
+    """
     return AppActivity(
-        handler_count=handler_count,
-        job_count=job_count,
-        total_invocations=total_invocations,
-        total_errors=total_errors,
-        total_executions=total_executions,
-        total_job_errors=total_job_errors,
-        health=health if health is not None else make_app_health(),
+        stats=AppActivityStats(
+            handler_count=handler_count,
+            job_count=job_count,
+            total_invocations=total_invocations,
+            total_errors=total_errors,
+            total_executions=total_executions,
+            total_job_errors=total_job_errors,
+            health=health if health is not None else make_app_health(),
+        ),
+        activity_buckets=[],
+        last_error=LastErrorResult(error=None),
+        blocking_event_count=0,
     )
 
 
@@ -93,15 +103,10 @@ def make_app_grid_entry(app: AppSummary | None = None, activity: AppActivity | N
 
 def make_app_grid_response(
     entries: list[AppGridEntry] | None = None,
-    degraded: list[GridEnrichment] | None = None,
     since: float | None = None,
 ) -> AppGridResponse:
     """Build an AppGridResponse from a list of entries."""
-    return AppGridResponse(
-        apps=entries if entries is not None else [make_app_grid_entry()],
-        degraded=[*(degraded or [])],  # a fresh list widens GridEnrichment to the field's OpenGridEnrichment
-        since=since,
-    )
+    return AppGridResponse(apps=entries if entries is not None else [make_app_grid_entry()], since=since)
 
 
 def make_config_schema_response() -> ConfigSchemaResponse:

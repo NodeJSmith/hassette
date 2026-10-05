@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { type AppStatusEntry, appStatusKey } from "../state/store";
+import { createAppActivityStats, createAppHealth } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import type { AppRow } from "../utils/app-data";
@@ -42,19 +43,13 @@ function createAppRow(overrides: Partial<AppRow> = {}): AppRow {
     instances: [],
     error_message: null,
     in_current_config: true,
-    handler_count: 3,
-    job_count: 1,
-    total_invocations: 100,
-    total_executions: 50,
-    total_errors: 2,
-    total_timed_out: 0,
-    total_job_errors: 0,
-    total_job_timed_out: 0,
-    last_activity_ts: null,
+    stats: createAppActivityStats({
+      total_invocations: 100,
+      total_executions: 50,
+      health: createAppHealth({ last_activity_ts: null }),
+    }),
     activity_buckets: [],
-    last_error_message: null,
-    last_error_type: null,
-    last_error_ts: null,
+    last_error: { error: null },
     blocking_event_count: 0,
     ...overrides,
   };
@@ -121,10 +116,26 @@ describe("AppTableRow", () => {
   });
 
   it("shows total runs as sum of invocations and executions", () => {
-    const { getByText } = renderRow({
-      app: createAppRow({ total_invocations: 80, total_executions: 20 }),
+    const { getByTestId } = renderRow({
+      app: createAppRow({ stats: createAppActivityStats({ total_invocations: 80, total_executions: 20 }) }),
     });
-    expect(getByText("100")).toBeDefined();
+    expect(getByTestId("app-runs").textContent).toBe("100");
+  });
+
+  it("renders uncomputed parts as an em dash, never as zero or healthy", () => {
+    const { getByTestId, queryByTestId } = renderRow({
+      app: createAppRow({ stats: null, activity_buckets: null, last_error: null, blocking_event_count: null }),
+    });
+    expect(getByTestId("app-runs").textContent).toBe("—");
+    expect(getByTestId("sparkline-unavailable").textContent).toBe("—");
+    expect(queryByTestId("mini-sparkline")).toBeNull();
+    expect(queryByTestId("blocking-badge")).toBeNull();
+  });
+
+  it("shows the sparkline when buckets were computed, even if empty", () => {
+    const { getByTestId, queryByTestId } = renderRow({ app: createAppRow({ activity_buckets: [] }) });
+    expect(getByTestId("mini-sparkline")).toBeDefined();
+    expect(queryByTestId("sparkline-unavailable")).toBeNull();
   });
 
   it("shows em dash when error_message is null", () => {

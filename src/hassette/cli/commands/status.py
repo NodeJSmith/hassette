@@ -4,17 +4,24 @@ from hassette_wire import AppGridResponse, SystemStatusResponse, TelemetryStatus
 
 from hassette.cli.client import make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table, warn_degraded
+from hassette.cli.output import (
+    Column,
+    fmt_duration_ms,
+    fmt_relative_time,
+    render_detail,
+    render_table,
+    warn_missing_activity,
+)
 
 DASHBOARD_COLUMNS: list[Column] = [
     Column("app.app_key", "App", max_width=20),
     Column("app.status", "Status", max_width=8),
-    Column("activity.total_invocations", "Invoc", max_width=6),
-    Column("activity.total_errors", "Errs", max_width=5),
-    Column("activity.health.handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
-    Column("activity.health.job_avg_duration_ms", "Job Avg", max_width=9, formatter=fmt_duration_ms),
-    Column("activity.health.last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
-    Column("activity.health.health_status", "Health", max_width=9),
+    Column("activity.stats.total_invocations", "Invoc", max_width=6),
+    Column("activity.stats.total_errors", "Errs", max_width=5),
+    Column("activity.stats.health.handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
+    Column("activity.stats.health.job_avg_duration_ms", "Job Avg", max_width=9, formatter=fmt_duration_ms),
+    Column("activity.stats.health.last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
+    Column("activity.stats.health.health_status", "Health", max_width=9),
 ]
 
 
@@ -39,5 +46,5 @@ def cmd_dashboard(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """
     client = make_client(ctx)
     result = client.get("/api/telemetry/app-grid", AppGridResponse)
-    warn_degraded(result.degraded)
+    warn_missing_activity([row.activity for row in result.apps], windowed=False)
     render_table(result.apps, DASHBOARD_COLUMNS, json_mode=ctx.json_mode)

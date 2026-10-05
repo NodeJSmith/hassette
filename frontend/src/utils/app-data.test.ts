@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { AppActivity } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 import type { AppStatusEntry } from "../state/store";
-import { createAppGridEntry, createInstance } from "../test/factories";
+import { createAppActivityStats, createAppGridEntry, createAppHealth, createInstance } from "../test/factories";
 import { appLiveStatus, compareAppRows, toAppRow } from "./app-data";
 
 type AppStatus = components["schemas"]["AppStatus"];
@@ -113,5 +114,44 @@ describe("compareAppRows status sort", () => {
 
     const ascending = compareAppRows(degraded, running, { key: "status", dir: "asc" }, NO_LIVE_STATUSES);
     expect(ascending).toBeLessThan(0);
+  });
+});
+
+describe("compareAppRows activity sorts", () => {
+  const row = (app_key: string, activity: Partial<AppActivity>) =>
+    toAppRow(createAppGridEntry({ app: { app_key }, activity }));
+  const busy = row("busy", { stats: createAppActivityStats({ total_invocations: 90, total_executions: 10 }) });
+  const quiet = row("quiet", {
+    stats: createAppActivityStats({ total_invocations: 1, total_executions: 0, health: createAppHealth() }),
+  });
+  const unknown = row("unknown", { stats: null });
+
+  function sorted(key: "runs" | "last", dir: "asc" | "desc"): string[] {
+    return [unknown, busy, quiet]
+      .sort((a, b) => compareAppRows(a, b, { key, dir }, NO_LIVE_STATUSES))
+      .map((r) => r.app_key);
+  }
+
+  it.each(["asc", "desc"] as const)("sorts a row with uncomputed stats last by runs (%s)", (dir) => {
+    expect(sorted("runs", dir)[2]).toBe("unknown");
+  });
+
+  it.each(["asc", "desc"] as const)("sorts a row with uncomputed stats last by last activity (%s)", (dir) => {
+    expect(sorted("last", dir)[2]).toBe("unknown");
+  });
+
+  it("orders computed rows by total runs", () => {
+    expect(sorted("runs", "asc")).toEqual(["quiet", "busy", "unknown"]);
+    expect(sorted("runs", "desc")).toEqual(["busy", "quiet", "unknown"]);
+  });
+
+  it("sorts a never-run app (computed stats, no activity) as zero, not as uncomputed", () => {
+    const neverRan = row("never_ran", {
+      stats: createAppActivityStats({ health: createAppHealth({ last_activity_ts: null }) }),
+    });
+    const order = [unknown, neverRan, busy]
+      .sort((a, b) => compareAppRows(a, b, { key: "last", dir: "asc" }, NO_LIVE_STATUSES))
+      .map((r) => r.app_key);
+    expect(order).toEqual(["never_ran", "busy", "unknown"]);
   });
 });

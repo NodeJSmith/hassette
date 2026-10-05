@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import ActionResponse, AppGridEntry, AppInstanceResponse, AppListResponse, AppStatus, GridEnrichment
+from hassette_wire import ActionResponse, AppGridEntry, AppInstanceResponse, AppListResponse, AppStatus
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
@@ -44,6 +44,7 @@ from tests.unit.cli.conftest import (
     capture_json_stdout,
     fixed_now,
     make_post_spy,
+    resolve_path,
 )
 
 runner = CommandRunner("hassette.cli.commands.app.make_client")
@@ -62,11 +63,15 @@ _ACTION_CASES = [
 # cmd_app (bare — list all apps)
 
 
-def _grid_body(
-    entries: list[AppGridEntry] | None = None, degraded: list[GridEnrichment] | None = None
-) -> dict[str, Any]:
+def _grid_body(entries: list[AppGridEntry] | None = None) -> dict[str, Any]:
     """JSON body for a mocked ``GET /api/telemetry/app-grid`` response."""
-    return make_app_grid_response(entries, degraded=degraded).model_dump(mode="json")
+    return make_app_grid_response(entries).model_dump(mode="json")
+
+
+def _grid_body_missing(*parts: str) -> dict[str, Any]:
+    """Grid body with one row whose ``activity`` parts named in ``parts`` are ``None``."""
+    activity = make_app_activity(total_invocations=42).model_copy(update=dict.fromkeys(parts))
+    return _grid_body([make_app_grid_entry(activity=activity)])
 
 
 class TestCmdApp:
@@ -105,17 +110,38 @@ class TestCmdApp:
         client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, _grid_body([]))])
         assert "No results" in runner.stderr(client, cmd_app)
 
-    def test_degraded_grid_warns_on_stderr_naming_each_enrichment(self, cli_client_factory: CLIClientFactory) -> None:
-        """A degraded grid prints one stderr line naming what failed; stdout keeps only the table."""
-        body = _grid_body(degraded=["summaries", "blocking_counts"])
+    def test_null_stats_renders_a_blank_invocations_cell(self, cli_client_factory: CLIClientFactory) -> None:
+        """A row whose stats didn't compute shows a blank Invoc/1h cell, never a count."""
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, _grid_body_missing("stats"))])
+        output = runner.stdout(client, cmd_app)
+        assert "test_app" in output
+        assert "42" not in output
+        assert " 0 " not in output
+
+    def test_missing_parts_warn_on_stderr_by_field_name(self, cli_client_factory: CLIClientFactory) -> None:
+        """Every null part is named, windowed ones included, since the command sends a since."""
+        body = _grid_body_missing("stats", "last_error", "blocking_event_count")
         client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, body)])
 
         # Two runs on purpose: the runner captures one stream per invocation.
-        assert "summaries, blocking_counts" in runner.stderr(client, cmd_app)
-        assert "summaries" not in runner.stdout(client, cmd_app)
+        assert "stats, last_error, blocking_event_count" in runner.stderr(client, cmd_app)
+        assert "last_error" not in runner.stdout(client, cmd_app)
+
+    def test_missing_parts_warn_in_json_mode_without_touching_stdout(
+        self, cli_client_factory: CLIClientFactory
+    ) -> None:
+        client = cli_client_factory.build_with_routes(
+            [("GET", APP_GRID_ENDPOINT, 200, _grid_body_missing("activity_buckets"))]
+        )
+        assert "activity_buckets" in runner.stderr(client, cmd_app, ctx=CLIContext(json_mode=True))
+        assert runner.json_output(client, cmd_app)[0]["activity"]["activity_buckets"] is None
 
     def test_fully_successful_grid_prints_no_warning(self, cli_client_factory: CLIClientFactory) -> None:
         client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, _grid_body())])
+        assert "Warning" not in runner.stderr(client, cmd_app)
+
+    def test_empty_grid_prints_no_warning(self, cli_client_factory: CLIClientFactory) -> None:
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, _grid_body([]))])
         assert "Warning" not in runner.stderr(client, cmd_app)
 
     def test_app_list_columns_defined(self) -> None:
@@ -126,7 +152,12 @@ class TestCmdApp:
         assert "app.display_name" in field_names
         assert "app.instance_count" in field_names
         assert "app.autostart" in field_names
-        assert "activity.total_invocations" in field_names
+        assert "activity.stats.total_invocations" in field_names
+
+    def test_app_list_column_paths_resolve_on_a_populated_row(self) -> None:
+        """No column is blank because its path is stale: each one reads a value from a full row."""
+        row = make_app_grid_entry().model_dump(mode="json")
+        assert {c.field for c in APP_LIST_COLUMNS if resolve_path(row, c.field) is None} == set()
 
     def test_app_list_columns_count_is_compact(self) -> None:
         """APP_LIST_COLUMNS uses at most 8 columns for readability."""

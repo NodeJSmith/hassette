@@ -25,7 +25,7 @@ interface RenderScopedQueryOptions {
 
 /** A `vi.fn()`-created fetcher mock matching `useScopedQuery`'s fetcher signature — every test in
  * this file creates one of these and passes it straight to the helpers below. */
-type ScopedFetcherMock<T> = Mock<(since: number, signal: AbortSignal) => Promise<T>>;
+type ScopedFetcherMock<T> = Mock<(since: number | null, signal: AbortSignal) => Promise<T>>;
 
 /**
  * Renders `useScopedQuery` behind a fresh QueryClientProvider, seeding the app store with

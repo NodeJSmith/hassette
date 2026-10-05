@@ -87,7 +87,7 @@ $ hassette app
 └─────────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴───────────┴───────────────────┘
 ```
 
-`--json` prints one object per app with two keys: `app` (the app's identity, status and instances) and `activity` (its counts and health over the last hour). If the server couldn't load part of the activity data, a one-line warning on stderr names what's missing, and stdout still carries the full table or JSON.
+`--json` prints one object per app with two keys: `app` (the app's identity, status and instances) and `activity` (its counts and health over the last hour). `activity` has four parts: `stats` (counts and health), `activity_buckets`, `last_error` and `blocking_event_count`. A part is `null` when the server couldn't compute it, and the table shows that as a blank cell rather than `0`. A one-line warning on stderr then names the missing parts, and stdout still carries the full table or JSON.
 
 ### Subcommands
 
@@ -390,7 +390,7 @@ $ hassette dashboard
 └─────────────────┴─────────┴───────┴──────┴─────────────┴─────────┴─────────────┴───────────┘
 ```
 
-As with `hassette app`, `--json` rows have `app` and `activity` keys, and a partial response prints a warning on stderr.
+As with `hassette app`, `--json` rows have `app` and `activity` keys. If the server couldn't compute an app's counts and health, those cells are blank (never `0` or `excellent`) and a warning on stderr names the missing parts. The dashboard asks for all-time counts, so `activity_buckets` and `last_error` are always `null` here and never warned about.
 
 **API endpoint:** `GET /api/telemetry/app-grid`
 

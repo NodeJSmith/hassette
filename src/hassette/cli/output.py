@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from typing import Any
 
-from hassette_wire import CliFormat, ResourceStatus
+from hassette_wire import AppActivity, CliFormat, ResourceStatus
 from pydantic import BaseModel
 from rich.console import Console, OverflowMethod
 from rich.markup import escape
@@ -27,6 +27,9 @@ from rich.table import Table
 from whenever import Instant, OffsetDateTime, PlainDateTime
 
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
+
+WINDOWED_ACTIVITY_PARTS = frozenset({"activity_buckets", "last_error"})
+"""``AppActivity`` parts the server computes only for a request with a ``since``; ``None`` otherwise."""
 
 stdout_console = Console(file=sys.stdout, highlight=False)
 stderr_console = Console(file=sys.stderr, stderr=True, highlight=False)
@@ -259,15 +262,19 @@ def render_table(
     stdout_console.print(table)
 
 
-def warn_degraded(degraded: Sequence[str]) -> None:
-    """Print a one-line stderr warning naming the enrichments a response reports as degraded.
+def warn_missing_activity(activities: Sequence[AppActivity], *, windowed: bool) -> None:
+    """Print a one-line stderr warning naming the ``activity`` parts the server couldn't compute.
 
-    Goes to stderr in both modes, so table and JSON output on stdout stay clean. No-op when
-    nothing degraded.
+    A part is ``None`` when its enrichment failed, or when it didn't run: ``activity_buckets`` and
+    ``last_error`` only run for a window, so they are named only when the command sent a ``since``
+    (``windowed``). Goes to stderr in both modes, so table and JSON output on stdout stay clean.
+    No-op for an empty grid or when every requested part is present.
     """
-    if degraded:
+    parts = [part for part in AppActivity.model_fields if windowed or part not in WINDOWED_ACTIVITY_PARTS]
+    missing = [part for part in parts if any(getattr(activity, part) is None for activity in activities)]
+    if missing:
         stderr_console.print(
-            f"[yellow]Warning:[/yellow] partial data, these queries failed: {escape(', '.join(degraded))}",
+            f"[yellow]Warning:[/yellow] partial data, the server could not compute: {escape(', '.join(missing))}",
             highlight=False,
         )
 

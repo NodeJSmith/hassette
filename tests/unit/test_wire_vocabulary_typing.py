@@ -9,7 +9,6 @@ from hassette_wire import (
     LENIENT_CONTEXT,
     ActionResponse,
     AppAction,
-    AppGridResponse,
     AppListResponse,
     AppStatus,
     JobSummary,
@@ -170,15 +169,3 @@ def test_server_log_level_names_equal_the_wire_vocabulary() -> None:
 @pytest.mark.parametrize("module", [cli_app, apps_route], ids=["cli", "route"])
 def test_action_past_tense_covers_every_app_action(module: Any) -> None:
     assert set(module._ACTION_PAST_TENSE) == set(get_args(AppAction))
-
-
-def test_grid_degraded_unknown_enrichment_parses_leniently_and_round_trips() -> None:
-    body = {"apps": [], "degraded": ["summaries", "future_enrichment"], "since": None}
-
-    with pytest.raises(ValidationError):
-        AppGridResponse.model_validate(body)
-    parsed = AppGridResponse.model_validate(body, context=LENIENT_CONTEXT)
-
-    assert parsed.degraded == ["summaries", "future_enrichment"]
-    assert isinstance(parsed.degraded[1], UnknownValue)
-    assert parsed.model_dump(mode="json")["degraded"] == body["degraded"]

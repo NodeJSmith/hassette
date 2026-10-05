@@ -674,9 +674,11 @@ export interface paths {
          *
          *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
          *     failure) and overlaid with live runtime state via
-         *     ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below are
-         *     caught individually: each failure degrades its part of ``activity`` to empty defaults, is
-         *     named in ``degraded``, and the response continues at 200 — see ``.claude/rules/web-api.md``.
+         *     ``RuntimeQueryService.overlay_manifest_rows()``. Each telemetry enrichment below is one
+         *     all-apps query that fills one ``AppActivity`` part. A failed query leaves its part ``None`` in
+         *     every row and the response continues at 200, with one summary warning naming the failed parts
+         *     — see ``.claude/rules/web-api.md``. ``activity_buckets`` and ``last_error`` only run for a
+         *     window, so they are ``None`` when ``since`` is ``None``.
          *
          *     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
          *     not the manifest-driven app grid.
@@ -843,11 +845,34 @@ export interface components {
          * AppActivity
          * @description How an app is doing over the grid's time window (``AppGridResponse.since``).
          *
-         *     Each part comes from its own enrichment query. A failed query leaves its fields at their
-         *     defaults and is named in ``AppGridResponse.degraded``, so a zero here is only trustworthy
-         *     when its enrichment is absent from that list.
+         *     Each part comes from its own all-apps enrichment query and is ``None`` exactly when that query
+         *     failed or did not run: ``activity_buckets`` and ``last_error`` only run for a window, so they are
+         *     ``None`` when ``since`` is ``None``. A computed part is never ``None``. The parts are read
+         *     separately, so they need not agree with each other (e.g. error totals against ``last_error``).
          */
         AppActivity: {
+            /** @description Counts, run totals and health. ``None`` when the summary query failed. */
+            stats: components["schemas"]["AppActivityStats"] | null;
+            /**
+             * Activity Buckets
+             * @description Per-app sparkline: equal-width ok/err buckets from ``since`` to now, oldest first; empty when the app
+             *     had no executions in the window. ``None`` when the bucket query failed or the request had no ``since``.
+             */
+            activity_buckets: components["schemas"]["ActivityBucket"][] | null;
+            /** @description The last-error lookup. ``None`` when it failed or the request had no ``since``. */
+            last_error: components["schemas"]["LastErrorResult"] | null;
+            /**
+             * Blocking Event Count
+             * @description Attributed blocking-IO events for this app in the requested window. ``None`` when the count query
+             *     failed.
+             */
+            blocking_event_count: number | null;
+        };
+        /**
+         * AppActivityStats
+         * @description An app's listener and job counts, run totals and health over the grid's window.
+         */
+        AppActivityStats: {
             /** Handler Count */
             handler_count: number;
             /** Job Count */
@@ -871,19 +896,6 @@ export interface components {
              */
             total_job_timed_out: number;
             health: components["schemas"]["AppHealth"];
-            /** Activity Buckets */
-            activity_buckets?: components["schemas"]["ActivityBucket"][];
-            /**
-             * Blocking Event Count
-             * @default 0
-             */
-            blocking_event_count: number;
-            /** Last Error Message */
-            last_error_message?: string | null;
-            /** Last Error Type */
-            last_error_type?: string | null;
-            /** Last Error Ts */
-            last_error_ts?: number | null;
         };
         /**
          * AppConfigResponse
@@ -930,9 +942,11 @@ export interface components {
         AppGridResponse: {
             /** Apps */
             apps: components["schemas"]["AppGridEntry"][];
-            /** Degraded */
-            degraded?: ("summaries" | "activity_buckets" | "last_errors" | "blocking_counts")[];
-            /** Since */
+            /**
+             * Since
+             * @description The window start the activity covers, echoed from the request. ``None`` means all-time totals,
+             *     with ``activity_buckets`` and ``last_error`` not computed (``None`` in every row).
+             */
             since?: number | null;
         };
         /**
@@ -1581,6 +1595,29 @@ export interface components {
             job_id: number;
             /** Job Name */
             job_name: string;
+        };
+        /**
+         * LastError
+         * @description The most recent handler or job error for an app in the grid's window.
+         */
+        LastError: {
+            /** Error Message */
+            error_message: string;
+            /** Error Type */
+            error_type?: string | null;
+            /**
+             * Ts
+             * @description When the failing execution started (Unix seconds).
+             */
+            ts: number;
+        };
+        /**
+         * LastErrorResult
+         * @description The outcome of the last-error lookup for one app.
+         */
+        LastErrorResult: {
+            /** @description The most recent error in the window. ``None`` means the lookup ran and found no error. */
+            error: components["schemas"]["LastError"] | null;
         };
         /**
          * ListenerWithSummary

@@ -45,7 +45,7 @@ APP_LIST_COLUMNS: list[Column] = [
     Column("app.status", "Status", max_width=10),
     Column("app.display_name", "Display Name", max_width=22),
     Column("app.instance_count", "Instances", max_width=9),
-    Column("activity.total_invocations", "Invoc/1h", max_width=8),
+    Column("activity.stats.total_invocations", "Invoc/1h", max_width=8),
     Column("app.enabled", "Enabled", max_width=7),
     Column("app.autostart", "Autostart", max_width=9),
     Column("app.filename", "File", max_width=20),
@@ -81,7 +81,7 @@ def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     client = make_client(ctx)
     params = query_params(since=cli_output.now_epoch() - APP_LIST_WINDOW_SECONDS)
     result = client.get("/api/telemetry/app-grid", AppGridResponse, params=params)
-    cli_output.warn_degraded(result.degraded)
+    cli_output.warn_missing_activity([row.activity for row in result.apps], windowed=True)
     render_table(result.apps, APP_LIST_COLUMNS, json_mode=ctx.json_mode)
 
 

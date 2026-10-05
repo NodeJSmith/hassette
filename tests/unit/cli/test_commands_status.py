@@ -7,11 +7,13 @@ from hassette.cli.commands.status import (
     cmd_telemetry,
 )
 from tests.support.web_response_helpers import (
+    make_app_activity,
+    make_app_grid_entry,
     make_app_grid_response,
     make_system_status_response,
     make_telemetry_status_response,
 )
-from tests.unit.cli.conftest import CLIClientFactory, CommandRunner
+from tests.unit.cli.conftest import CLIClientFactory, CommandRunner, resolve_path
 
 runner = CommandRunner("hassette.cli.commands.status.make_client")
 
@@ -143,21 +145,44 @@ class TestCmdDashboard:
         assert set(parsed[0]) == {"app", "activity"}
         assert parsed[0]["app"]["app_key"] == "test_app"
 
-    def test_degraded_grid_warns_on_stderr(self, cli_client_factory: CLIClientFactory) -> None:
-        """A degraded grid prints one stderr line naming each failed enrichment."""
-        grid = make_app_grid_response(degraded=["activity_buckets"])
+    def test_null_stats_renders_blank_cells_not_healthy(self, cli_client_factory: CLIClientFactory) -> None:
+        """A row whose stats didn't compute shows blank count and health cells, never 0 or excellent."""
+        activity = make_app_activity(total_invocations=42).model_copy(update={"stats": None})
+        grid = make_app_grid_response([make_app_grid_entry(activity=activity)])
         client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/app-grid", 200, grid.model_dump())])
 
-        assert "activity_buckets" in runner.stderr(client, cmd_dashboard)
+        output = runner.stdout(client, cmd_dashboard)
+        assert "excellent" not in output
+        assert "42" not in output
+
+    def test_missing_stats_warns_on_stderr(self, cli_client_factory: CLIClientFactory) -> None:
+        activity = make_app_activity().model_copy(update={"stats": None, "blocking_event_count": None})
+        grid = make_app_grid_response([make_app_grid_entry(activity=activity)])
+        client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/app-grid", 200, grid.model_dump())])
+
+        assert "stats, blocking_event_count" in runner.stderr(client, cmd_dashboard)
+
+    def test_unrequested_windowed_parts_do_not_warn(self, cli_client_factory: CLIClientFactory) -> None:
+        """The dashboard sends no since, so null buckets and last error are expected, not a failure."""
+        activity = make_app_activity().model_copy(update={"activity_buckets": None, "last_error": None})
+        grid = make_app_grid_response([make_app_grid_entry(activity=activity)])
+        client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/app-grid", 200, grid.model_dump())])
+
+        assert "Warning" not in runner.stderr(client, cmd_dashboard)
 
     def test_dashboard_columns_defined(self) -> None:
         """DASHBOARD_COLUMNS includes the core per-app fields."""
         field_names = [c.field for c in DASHBOARD_COLUMNS]
         assert "app.app_key" in field_names
-        assert "activity.health.health_status" in field_names
-        assert "activity.health.handler_avg_duration_ms" in field_names
-        assert "activity.health.job_avg_duration_ms" in field_names
-        assert "activity.health.last_activity_ts" in field_names
+        assert "activity.stats.health.health_status" in field_names
+        assert "activity.stats.health.handler_avg_duration_ms" in field_names
+        assert "activity.stats.health.job_avg_duration_ms" in field_names
+        assert "activity.stats.health.last_activity_ts" in field_names
+
+    def test_dashboard_column_paths_resolve_on_a_populated_row(self) -> None:
+        """No column is blank because its path is stale: each one reads a value from a full row."""
+        row = make_app_grid_entry().model_dump(mode="json")
+        assert {c.field for c in DASHBOARD_COLUMNS if resolve_path(row, c.field) is None} == set()
 
     def test_dashboard_columns_count_is_compact(self) -> None:
         """Dashboard uses at most 8 columns for readability in 80-col terminals."""

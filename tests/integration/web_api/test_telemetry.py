@@ -1,12 +1,14 @@
 """Integration tests for telemetry web API endpoints."""
 
+import logging
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from hassette.schemas.execution_models import AppLastError
 from hassette.schemas.live_counts import LiveCounts
-from hassette.schemas.summary_models import AppHealthAggregates
+from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
 from tests.support.web_manifest_helpers import make_manifest_db_row
 from tests.support.web_telemetry_helpers import make_execution, make_listener_summary
 
@@ -18,6 +20,13 @@ if TYPE_CHECKING:
     from httpx2 import AsyncClient
 
 APP_LISTENERS_PATH = "/api/telemetry/app/my_app/listeners"
+GRID_SINCE = 1700000000.0
+GRID_ENRICHMENT_QUERIES = (
+    "get_all_app_summaries",
+    "get_per_app_activity_buckets",
+    "get_per_app_last_errors",
+    "get_blocking_event_counts",
+)
 
 # The listener shape every test in TestTelemetryListeners starts from; each overrides only the
 # fields it asserts on.
@@ -204,8 +213,8 @@ class TestAppGrid:
         assert entry["app"]["in_current_config"] is False
         assert "recent_invocations_1h" not in entry["app"]
         # No summary for the app: zero counts and an all-zero health record with no averages.
-        assert entry["activity"]["total_invocations"] == 0
-        assert entry["activity"]["health"] == {
+        assert entry["activity"]["stats"]["total_invocations"] == 0
+        assert entry["activity"]["stats"]["health"] == {
             "error_rate": 0.0,
             "error_rate_class": "good",
             "health_status": "excellent",
@@ -248,67 +257,142 @@ class TestAppGrid:
         call = mock_hassette.telemetry_query_service.get_blocking_event_counts.call_args
         assert call.kwargs == {"since": pytest.approx(1700000000.0)}
 
-    async def test_fully_successful_grid_reports_nothing_degraded_and_echoes_since(
+    async def test_grid_with_since_computes_every_part_and_echoes_since(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        seed_grid_apps(mock_hassette, "my_app")
+        """With a window, every part is computed; an app with no error in it reads ``{error: null}``."""
+        seed_grid_apps(mock_hassette, "my_app", "quiet_app")
+        seed_grid_enrichments(mock_hassette, "my_app")
 
-        data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
+        data = await get_json(client, f"{APP_GRID_PATH}?since={GRID_SINCE}")
 
-        assert data["degraded"] == []
-        assert data["since"] == pytest.approx(1700000000.0)
+        assert data["since"] == pytest.approx(GRID_SINCE)
+        rows = {e["app"]["app_key"]: e["activity"] for e in data["apps"]}
+        assert rows["my_app"]["stats"]["total_invocations"] == 12
+        assert rows["my_app"]["activity_buckets"] == [{"ok": 3, "err": 1}]
+        assert rows["my_app"]["last_error"] == {
+            "error": {"error_message": "boom", "error_type": "ValueError", "ts": pytest.approx(GRID_SINCE + 5)}
+        }
+        assert rows["my_app"]["blocking_event_count"] == 9
+        # Ran and found nothing for this app: computed empties, never null.
+        assert rows["quiet_app"]["stats"]["total_invocations"] == 0
+        assert rows["quiet_app"]["activity_buckets"] == []
+        assert rows["quiet_app"]["last_error"] == {"error": None}
+        assert rows["quiet_app"]["blocking_event_count"] == 0
 
-    async def test_grid_without_since_is_all_time_with_no_buckets_or_last_errors(
+    async def test_grid_without_since_leaves_windowed_parts_null(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """since=None means all-time totals: the windowed enrichments don't run and rows carry their empties."""
+        """since=None means all-time totals: buckets and last error don't run, so they are null."""
         seed_grid_apps(mock_hassette, "my_app")
+        seed_grid_enrichments(mock_hassette, "my_app")
 
         data = await get_json(client, APP_GRID_PATH)
 
         assert data["since"] is None
-        assert data["degraded"] == []
         activity = data["apps"][0]["activity"]
-        assert activity["activity_buckets"] == []
-        assert activity["last_error_message"] is None
+        assert activity["activity_buckets"] is None
+        assert activity["last_error"] is None
+        assert activity["stats"]["total_invocations"] == 12
+        assert activity["blocking_event_count"] == 9
         mock_hassette.telemetry_query_service.get_per_app_activity_buckets.assert_not_called()
         mock_hassette.telemetry_query_service.get_per_app_last_errors.assert_not_called()
 
     @pytest.mark.parametrize(
-        ("query_method", "enrichment"),
+        ("query_method", "part"),
         [
-            ("get_all_app_summaries", "summaries"),
+            ("get_all_app_summaries", "stats"),
             ("get_per_app_activity_buckets", "activity_buckets"),
-            ("get_per_app_last_errors", "last_errors"),
-            ("get_blocking_event_counts", "blocking_counts"),
+            ("get_per_app_last_errors", "last_error"),
+            ("get_blocking_event_counts", "blocking_event_count"),
         ],
     )
-    async def test_each_failed_enrichment_is_named_in_degraded_and_stays_200(
-        self, client: "AsyncClient", mock_hassette: MagicMock, query_method: str, enrichment: str
+    async def test_a_failed_enrichment_nulls_only_its_part_in_every_row(
+        self,
+        client: "AsyncClient",
+        mock_hassette: MagicMock,
+        caplog: pytest.LogCaptureFixture,
+        query_method: str,
+        part: str,
     ) -> None:
-        """A failed enrichment query degrades only its part of `activity`, and the response names it."""
-        seed_grid_apps(mock_hassette, "my_app")
+        """The failed part is null in every row, the other three keep their real values, and the
+        route logs one summary warning naming the part (the operator's only aggregate signal).
+        """
+        seed_grid_apps(mock_hassette, "my_app", "other_app")
+        seed_grid_enrichments(mock_hassette, "my_app")
         setattr(mock_hassette.telemetry_query_service, query_method, telemetry_error(f"{query_method} failed"))
 
-        data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
+        with caplog.at_level(logging.WARNING, logger="hassette.web.routes.telemetry"):
+            data = await get_json(client, f"{APP_GRID_PATH}?since={GRID_SINCE}")
 
-        assert data["degraded"] == [enrichment]
-        assert data["apps"][0]["app"]["app_key"] == "my_app"
+        assert all(e["activity"][part] is None for e in data["apps"])
+        mine = next(e["activity"] for e in data["apps"] if e["app"]["app_key"] == "my_app")
+        populated = {
+            "stats": mine["stats"] and mine["stats"]["total_invocations"],
+            "activity_buckets": mine["activity_buckets"],
+            "last_error": mine["last_error"] and mine["last_error"]["error"]["error_message"],
+            "blocking_event_count": mine["blocking_event_count"],
+        }
+        assert populated == {
+            **{"stats": 12, "activity_buckets": [{"ok": 3, "err": 1}], "last_error": "boom", "blocking_event_count": 9},
+            part: None,
+        }
+        assert grid_summary_warnings(caplog) == [f"App grid served without these activity parts: {part}"]
 
-    async def test_every_failed_enrichment_is_listed(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+    async def test_every_failed_part_is_named_in_one_summary_warning(
+        self, client: "AsyncClient", mock_hassette: MagicMock, caplog: pytest.LogCaptureFixture
+    ) -> None:
         seed_grid_apps(mock_hassette, "my_app")
-        for method in (
-            "get_all_app_summaries",
-            "get_per_app_activity_buckets",
-            "get_per_app_last_errors",
-            "get_blocking_event_counts",
-        ):
+        for method in GRID_ENRICHMENT_QUERIES:
             setattr(mock_hassette.telemetry_query_service, method, telemetry_error(f"{method} failed"))
 
-        data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
+        with caplog.at_level(logging.WARNING, logger="hassette.web.routes.telemetry"):
+            data = await get_json(client, f"{APP_GRID_PATH}?since={GRID_SINCE}")
 
-        assert data["degraded"] == ["summaries", "activity_buckets", "last_errors", "blocking_counts"]
-        assert data["apps"][0]["activity"]["blocking_event_count"] == 0
+        assert data["apps"][0]["activity"] == {
+            "stats": None,
+            "activity_buckets": None,
+            "last_error": None,
+            "blocking_event_count": None,
+        }
+        assert grid_summary_warnings(caplog) == [
+            "App grid served without these activity parts: stats, activity_buckets, last_error, blocking_event_count"
+        ]
+
+    async def test_a_fully_successful_grid_logs_no_summary_warning(
+        self, client: "AsyncClient", mock_hassette: MagicMock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        seed_grid_apps(mock_hassette, "my_app")
+
+        with caplog.at_level(logging.WARNING, logger="hassette.web.routes.telemetry"):
+            await get_json(client, f"{APP_GRID_PATH}?since={GRID_SINCE}")
+
+        assert grid_summary_warnings(caplog) == []
+
+    @pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+    @pytest.mark.parametrize("path", [APP_GRID_PATH, "/api/logs/recent"])
+    async def test_non_finite_since_is_rejected(self, client: "AsyncClient", path: str, value: str) -> None:
+        """A non-finite since would echo as null (all-time) while the windowed queries ran."""
+        response = await client.get(f"{path}?since={value}")
+        assert response.status_code == 422
+
+
+def seed_grid_enrichments(mock_hassette: MagicMock, app_key: str) -> None:
+    """Give ``app_key`` real, non-zero results from all four grid enrichment queries."""
+    ts = mock_hassette.telemetry_query_service
+    aggregates = AppHealthAggregates.empty().model_copy(update={"total_invocations": 12, "handler_errors": 1})
+    ts.get_all_app_summaries = AsyncMock(
+        return_value={app_key: AppHealthSummary(handler_count=2, job_count=1, aggregates=aggregates)}
+    )
+    ts.get_per_app_activity_buckets = AsyncMock(return_value={app_key: [(3, 1)]})
+    ts.get_per_app_last_errors = AsyncMock(
+        return_value={app_key: AppLastError(error_message="boom", error_type="ValueError", timestamp=GRID_SINCE + 5)}
+    )
+    ts.get_blocking_event_counts = AsyncMock(return_value={app_key: 9})
+
+
+def grid_summary_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [r.getMessage() for r in caplog.records if r.getMessage().startswith("App grid served without")]
 
 
 class TestTelemetryBlocking:

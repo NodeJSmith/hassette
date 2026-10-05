@@ -79,6 +79,20 @@ def fixed_now() -> float:
     return NOW_EPOCH
 
 
+def resolve_path(row: dict[str, Any], path: str) -> Any:
+    """Follow a ``Column`` dot path through a dumped row; ``None`` when any segment is missing.
+
+    Walks the JSON dump rather than reusing the CLI's own resolver, so a column-path test pins the
+    paths against the wire shape the server actually sends.
+    """
+    value: Any = row
+    for part in path.split("."):
+        if not isinstance(value, dict):
+            return None
+        value = value.get(part)
+    return value
+
+
 class GetSpy:
     """Wraps ``client.get`` to record paths and params for assertion.
 

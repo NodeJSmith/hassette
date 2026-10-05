@@ -22,7 +22,15 @@ import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
 import type { AppStatusEntry } from "../state/store";
 import { useAppStore } from "../state/store";
-import { appLiveStatus, type AppRow, type AppSortState, compareAppRows, toAppRow } from "../utils/app-data";
+import {
+  appLiveStatus,
+  type AppRow,
+  type AppSortState,
+  compareAppRows,
+  sumOrNull,
+  toAppRow,
+  totalRuns,
+} from "../utils/app-data";
 import { pluralize } from "../utils/format";
 import { type StatusKind } from "../utils/status";
 import { PRESET_WINDOW_SECONDS } from "../utils/time-window";
@@ -110,16 +118,16 @@ function buildAppsCells(
   const statusCounts: Record<string, number> = Object.fromEntries(
     FILTER_OPTIONS.filter((f) => f !== "all").map((f) => [f, 0]),
   );
-  let totalHandlers = 0;
-  let totalRuns = 0;
   for (const a of apps) {
     const live = appLiveStatus(appStatuses, a);
     if (live in statusCounts) statusCounts[live]++;
-    totalHandlers += a.handler_count + a.job_count;
-    totalRuns += a.total_invocations + a.total_executions;
   }
+  const totalHandlers = sumOrNull(apps, (a) => (a.stats ? a.stats.handler_count + a.stats.job_count : null));
+  const runsInWindow = sumOrNull(apps, totalRuns);
   const runsPerHour =
-    windowSeconds && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC ? totalRuns / (windowSeconds / SECONDS_PER_HOUR) : null;
+    runsInWindow !== null && windowSeconds && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC
+      ? runsInWindow / (windowSeconds / SECONDS_PER_HOUR)
+      : null;
 
   const cells: StatsStripCell[] = [
     { label: "total", value: apps.length },
@@ -135,7 +143,7 @@ function buildAppsCells(
     cells.push({ label: "disabled", value: statusCounts.disabled });
   }
 
-  cells.push({ label: "handlers", value: totalHandlers });
+  cells.push({ label: "handlers", value: totalHandlers ?? "—" });
   cells.push({ label: "runs / hr", value: runsPerHour !== null ? runsPerHour.toFixed(1) : "—" });
   return cells;
 }

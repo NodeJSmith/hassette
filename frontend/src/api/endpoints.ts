@@ -11,6 +11,7 @@ export type AppInstance = components["schemas"]["AppInstanceResponse"];
 export type ManifestListResponse = components["schemas"]["AppListResponse"];
 export type ListenerData = components["schemas"]["ListenerWithSummary"];
 export type AppGridEntry = components["schemas"]["AppGridEntry"];
+export type AppActivity = components["schemas"]["AppActivity"];
 export type AppGridResponse = components["schemas"]["AppGridResponse"];
 export type JobData = components["schemas"]["JobSummary"];
 export type ExecutionData = components["schemas"]["Execution"];

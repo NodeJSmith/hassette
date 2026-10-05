@@ -561,12 +561,14 @@ import { createAppGridEntry, createHandlerError } from "../../test/factories";
 // Minimal — uses all defaults
 const app = createAppGridEntry();
 
-// Override specific fields
-const failedApp = createAppGridEntry({ status: "failed", total_errors: 5 });
+// Override specific fields; a grid entry takes its two halves separately
+const failedApp = createAppGridEntry({ app: { status: "failed" } });
+// A part whose enrichment failed or didn't run is null
+const unknownStats = createAppGridEntry({ activity: { stats: null } });
 const err = createHandlerError({ error_type: "TimeoutError", app_key: "my_app" });
 ```
 
-Available factories: `createManifest`, `createManifestList`, `createAppGridEntry`, `createListener`, `createJob`, `createHealthData`, `createKpis`, `createHandlerError`, `createJobError`, `createLogEntry`, `createSession`, `createTelemetryStatus`.
+Available factories: `createManifest`, `createManifestList`, `createAppGridEntry`, `createAppActivity`, `createAppActivityStats`, `createListener`, `createJob`, `createHealthData`, `createKpis`, `createHandlerError`, `createJobError`, `createLogEntry`, `createSession`, `createTelemetryStatus`.
 
 ### Render Helper
 

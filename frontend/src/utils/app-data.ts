@@ -1,4 +1,4 @@
-import type { AppGridEntry } from "../api/endpoints";
+import type { AppActivity, AppGridEntry } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 import type { SortState } from "../components/shared/sort-header";
 import { type AppStatusEntry, appStatusKey } from "../state/store";
@@ -21,27 +21,21 @@ export interface AppRow {
   instances: NonNullable<AppGridEntry["app"]["instances"]>;
   error_message: string | null;
   in_current_config: boolean;
-  handler_count: number;
-  job_count: number;
-  total_invocations: number;
-  total_executions: number;
-  total_errors: number;
-  total_timed_out: number;
-  total_job_errors: number;
-  total_job_timed_out: number;
-  last_activity_ts: number | null;
-  activity_buckets: Array<{ ok: number; err: number }>;
-  last_error_message: string | null;
-  last_error_type: string | null;
-  last_error_ts: number | null;
-  blocking_event_count: number;
+  /** The activity parts are `null` when the server couldn't compute them: the part's query failed,
+   *  or (`activity_buckets`, `last_error`) it only runs for a window and this was an all-time
+   *  request. Render a null part as "—", never as a zero or a healthy value. */
+  stats: AppActivity["stats"];
+  activity_buckets: AppActivity["activity_buckets"];
+  /** `null`: the lookup didn't run or failed. `{ error: null }`: it ran and found no error. */
+  last_error: AppActivity["last_error"];
+  blocking_event_count: AppActivity["blocking_event_count"];
 }
 
 /**
- * Flatten an app grid entry (`{app, activity}`) into an `AppRow`, defaulting the
- * optional fields (activity buckets, last-error fields, instances) to their
- * empty/null equivalents. The grid endpoint is the sole data source — this is
- * flattening and field defaulting, not a merge of two sources.
+ * Flatten an app grid entry (`{app, activity}`) into an `AppRow`: the app's fields side by side
+ * with its activity parts, defaulting the app's optional fields (instances, error fields) to
+ * their empty/null equivalents. The grid endpoint is the sole data source — this is flattening,
+ * not a merge of two sources.
  */
 export function toAppRow({ app, activity }: AppGridEntry): AppRow {
   return {
@@ -58,21 +52,28 @@ export function toAppRow({ app, activity }: AppGridEntry): AppRow {
     instances: app.instances ?? [],
     error_message: app.error_message ?? null,
     in_current_config: app.in_current_config,
-    handler_count: activity.handler_count,
-    job_count: activity.job_count,
-    total_invocations: activity.total_invocations,
-    total_executions: activity.total_executions,
-    total_errors: activity.total_errors,
-    total_timed_out: activity.total_timed_out,
-    total_job_errors: activity.total_job_errors,
-    total_job_timed_out: activity.total_job_timed_out,
-    last_activity_ts: activity.health.last_activity_ts,
-    activity_buckets: activity.activity_buckets ?? [],
-    last_error_message: activity.last_error_message ?? null,
-    last_error_type: activity.last_error_type ?? null,
-    last_error_ts: activity.last_error_ts ?? null,
+    stats: activity.stats,
+    activity_buckets: activity.activity_buckets,
+    last_error: activity.last_error,
     blocking_event_count: activity.blocking_event_count,
   };
+}
+
+/** Sums `pick` over every row, or `null` when any row's value is `null`: a total that skipped
+ *  uncomputed rows would read as a smaller real number. */
+export function sumOrNull(rows: readonly AppRow[], pick: (row: AppRow) => number | null): number | null {
+  let total = 0;
+  for (const row of rows) {
+    const value = pick(row);
+    if (value === null) return null;
+    total += value;
+  }
+  return total;
+}
+
+/** Handler invocations plus job executions, or `null` when the row's stats weren't computed. */
+export function totalRuns(row: Pick<AppRow, "stats">): number | null {
+  return row.stats ? row.stats.total_invocations + row.stats.total_executions : null;
 }
 
 export type AppSortKey = "name" | "status" | "error" | "runs" | "last";
@@ -190,14 +191,25 @@ export function compareAppRows(
     }
     case "error":
       return direction * ((hasError(a) ? 0 : 1) - (hasError(b) ? 0 : 1));
-    case "runs": {
-      const aRuns = a.total_invocations + a.total_executions;
-      const bRuns = b.total_invocations + b.total_executions;
-      return direction * (aRuns - bRuns);
-    }
+    case "runs":
+      return compareNullsLast(totalRuns(a), totalRuns(b), direction);
     case "last":
-      return direction * ((a.last_activity_ts ?? 0) - (b.last_activity_ts ?? 0));
+      return compareNullsLast(lastActivitySortValue(a), lastActivitySortValue(b), direction);
     default:
       return 0;
   }
+}
+
+/** `null` (sorted last) when the row's stats weren't computed. An app whose stats were computed but
+ *  that never ran has no `last_activity_ts`, and sorts as the oldest possible activity (0). */
+function lastActivitySortValue(row: AppRow): number | null {
+  return row.stats ? (row.stats.health.last_activity_ts ?? 0) : null;
+}
+
+/** Orders two values by `direction`, with `null` (an uncomputed part) last in either direction. */
+function compareNullsLast(a: number | null, b: number | null, direction: number): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return direction * (a - b);
 }

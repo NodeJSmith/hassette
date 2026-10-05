@@ -4,11 +4,12 @@ Every field with an enumerated value set uses a constrained type that rejects
 values outside that set at validation time.
 """
 
-from typing import Any, get_args
+from typing import Any
 
 import pytest
 from hassette_wire import (
     ActivityFeedEntry,
+    AppActivity,
     AppGridResponse,
     AppHealth,
     AppInstanceResponse,
@@ -17,7 +18,7 @@ from hassette_wire import (
     Execution,
     ExecutionCompletedData,
     ExecutionStatus,
-    GridEnrichment,
+    LastErrorResult,
     ListenerWithSummary,
     LogEntryResponse,
     ResourceRole,
@@ -245,18 +246,27 @@ class TestInCurrentConfig:
 
 
 class TestAppGridResponse:
-    def test_degraded_and_since_default_to_fully_successful_all_time(self) -> None:
-        obj = AppGridResponse(apps=[])
-        assert obj.degraded == []
-        assert obj.since is None
+    def test_since_defaults_to_all_time(self) -> None:
+        assert AppGridResponse(apps=[]).since is None
 
-    def test_accepts_every_grid_enrichment(self) -> None:
-        enrichments = list(get_args(GridEnrichment))
-        assert AppGridResponse(apps=[], degraded=enrichments).degraded == enrichments
 
-    def test_rejects_degraded_value_not_in_grid_enrichment(self) -> None:
+class TestAppActivity:
+    @pytest.mark.parametrize("part", ["stats", "activity_buckets", "last_error", "blocking_event_count"])
+    def test_a_missing_part_key_fails_validation(self, part: str) -> None:
+        """Every part is required-nullable: an absent key can't read as "not computed"."""
+        body = {"stats": None, "activity_buckets": None, "last_error": None, "blocking_event_count": None}
+        del body[part]
         with pytest.raises(ValidationError):
-            AppGridResponse(apps=[], degraded=["buckets"])  # pyright: ignore[reportArgumentType]
+            AppActivity.model_validate(body)
+
+    def test_explicit_nulls_validate(self) -> None:
+        body = {"stats": None, "activity_buckets": None, "last_error": None, "blocking_event_count": None}
+        assert AppActivity.model_validate(body).stats is None
+
+    def test_last_error_result_requires_its_error_key(self) -> None:
+        """``{error: null}`` (ran, found none) must be sent explicitly, never inferred from ``{}``."""
+        with pytest.raises(ValidationError):
+            LastErrorResult.model_validate({})
 
 
 class TestResourceStatus:

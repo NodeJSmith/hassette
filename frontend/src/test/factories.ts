@@ -23,6 +23,7 @@ type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
 type AppListResponse = components["schemas"]["AppListResponse"];
 type AppGridEntry = components["schemas"]["AppGridEntry"];
 type AppActivity = components["schemas"]["AppActivity"];
+type AppActivityStats = components["schemas"]["AppActivityStats"];
 type AppHealth = components["schemas"]["AppHealth"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
@@ -148,7 +149,7 @@ export function createAppHealth(overrides: Partial<AppHealth> = {}): AppHealth {
   } satisfies AppHealth;
 }
 
-export function createAppActivity(overrides: Partial<AppActivity> = {}): AppActivity {
+export function createAppActivityStats(overrides: Partial<AppActivityStats> = {}): AppActivityStats {
   return {
     handler_count: 3,
     job_count: 2,
@@ -163,11 +164,17 @@ export function createAppActivity(overrides: Partial<AppActivity> = {}): AppActi
       last_activity_ts: FIXED_TEST_TIMESTAMP,
       handler_avg_duration_ms: 50,
     }),
+    ...overrides,
+  } satisfies AppActivityStats;
+}
+
+/** Every part computed by default; pass a part as `null` to model an enrichment that failed or didn't run. */
+export function createAppActivity(overrides: Partial<AppActivity> = {}): AppActivity {
+  return {
+    stats: createAppActivityStats(),
     activity_buckets: [],
+    last_error: { error: null },
     blocking_event_count: 0,
-    last_error_message: null,
-    last_error_type: null,
-    last_error_ts: null,
     ...overrides,
   } satisfies AppActivity;
 }
