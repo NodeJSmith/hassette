@@ -518,8 +518,8 @@ export interface paths {
          * App Jobs
          * @description Job summaries for a single app instance, enriched with live registry data.
          *
-         *     ``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing
-         *     (``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by
+         *     ``schedule_status``/``schedule_status_reason``, ``jitter``, and, for ``SCHEDULED`` jobs, live timing
+         *     (``next_run``, ``fire_at``) are joined from the live scheduler registry by
          *     ``db_id``. If the live registry can't be read, the DB rows are returned without enrichment
          *     and a warning is logged. If the telemetry DB can't be read, the route answers
          *     ``telemetry_unavailable``.
@@ -1183,8 +1183,9 @@ export interface components {
             display_name: string;
             /**
              * Instance Count
-             * @description Configured instances, including ones not currently tracked (never started, or independently stopped).
-             *     Always len(instances).
+             * @description Number of entries in ``instances``: every configured instance (including untracked ones, never started
+             *     or independently stopped) plus any still-tracked instance outside the configured range. 0 for DB-only or
+             *     removed apps. Always len(instances).
              * @default 0
              */
             instance_count: number;
@@ -1213,7 +1214,8 @@ export interface components {
             health: components["schemas"]["AppHealth"];
             /**
              * Activity Buckets
-             * @description Per-app sparkline buckets (ok/err counts per time window).
+             * @description Per-app sparkline: equal-width ok/err buckets from ``since`` to now, oldest first. Empty when the
+             *     request has no ``since``, the app had no executions in the window, or the bucket query failed.
              */
             activity_buckets?: components["schemas"]["ActivityBucket"][];
             /**
@@ -1329,12 +1331,15 @@ export interface components {
             execution_id?: string | null;
             /**
              * Trigger Context Id
-             * @description event_id from the triggering event payload. None for job executions and non-event-triggered invocations.
+             * @description event_id from the triggering event payload. None for job executions, synthetic immediate-fire
+             *     invocations, and handler rows recorded because the listener's predicate raised.
              */
             trigger_context_id?: string | null;
             /**
              * Trigger Origin
-             * @description Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'). None for job executions.
+             * @description Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for
+             *     immediate-fire synthetic invocations). None for job executions and for handler rows recorded because
+             *     the listener's predicate raised.
              */
             trigger_origin?: string | null;
             /**
@@ -1344,25 +1349,27 @@ export interface components {
             trigger_mode?: string | null;
             /**
              * Retry Count
-             * @description Number of retry attempts before this execution. 0 for first attempts.
+             * @description Reserved for future retry tracking; currently always 0.
              * @default 0
              */
             retry_count: number;
             /**
              * Attempt Number
-             * @description Ordinal attempt number (1-based). 1 for first attempt.
+             * @description Reserved for future retry tracking; currently always 1.
              * @default 1
              */
             attempt_number: number;
             /**
              * Args Json
-             * @description JSON-encoded positional arguments for job executions. '[]' for handler invocations.
+             * @description Reserved; not currently populated, so always '[]'. A job's registered positional arguments are
+             *     on ``JobSummary.args_json``.
              * @default []
              */
             args_json: string;
             /**
              * Kwargs Json
-             * @description JSON-encoded keyword arguments for job executions. '{}' for handler invocations.
+             * @description Reserved; not currently populated, so always '{}'. A job's registered keyword arguments are
+             *     on ``JobSummary.kwargs_json``.
              * @default {}
              */
             kwargs_json: string;
@@ -1519,32 +1526,33 @@ export interface components {
             jitter?: number | null;
             /**
              * Last Error Message
-             * @description Most recent error message within the query window, or None.
+             * @description Message of the most recent error or timeout within the query window, or None.
              */
             last_error_message?: string | null;
             /**
              * Last Error Type
-             * @description Most recent error exception type within the query window, or None.
+             * @description Exception type of the most recent error or timeout within the query window, or None.
              */
             last_error_type?: string | null;
             /**
              * Last Error Ts
-             * @description Unix epoch of the most recent error within the query window, or None.
+             * @description Unix epoch of the most recent error or timeout within the query window, or None.
              */
             last_error_ts?: number | null;
             /**
              * Last Error Traceback
-             * @description Traceback from the most recent error within the query window, or None.
+             * @description Traceback from the most recent error or timeout within the query window. None when there is none,
+             *     or when that row recorded no traceback (timeouts never do).
              */
             last_error_traceback?: string | null;
             /**
              * Min Duration Ms
-             * @description Minimum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms.
+             * @description Minimum duration in milliseconds across non-skipped executions. None means no non-skipped executions.
              */
             min_duration_ms?: number | null;
             /**
              * Max Duration Ms
-             * @description Maximum execution duration in milliseconds. None means no executions; 0.0 means executed in under 1ms.
+             * @description Maximum duration in milliseconds across non-skipped executions. None means no non-skipped executions.
              */
             max_duration_ms?: number | null;
             /**
@@ -1555,14 +1563,16 @@ export interface components {
             /**
              * Suppressed Count
              * @description Live count of re-fires suppressed by the guard (``single`` mode). Not persisted by design — read
-             *     live from the in-process guard and reset to 0 on restart.
+             *     live from the in-process guard and reset to 0 on restart. Reads 0 when the job has no live match or the
+             *     live registry is unavailable, so 0 does not prove none occurred.
              * @default 0
              */
             suppressed_count: number;
             /**
              * Dropped Count
              * @description Live count of re-fires dropped due to queue cap (``queued`` mode). Not persisted by design — read
-             *     live from the in-process guard and reset to 0 on restart.
+             *     live from the in-process guard and reset to 0 on restart. Reads 0 when the job has no live match or the
+             *     live registry is unavailable, so 0 does not prove none occurred.
              * @default 0
              */
             dropped_count: number;
