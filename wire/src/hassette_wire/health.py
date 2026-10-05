@@ -49,7 +49,7 @@ class SystemStatusResponse(BaseModel):
     """Log records dropped because the DB write queue was full, unavailable, or closed."""
 
     log_persistence_active: bool = False
-    """``False`` when log records are not being persisted, so a ``db_write_queue_drops`` of 0 does not mean
+    """Whether log records are being persisted. When ``False``, a ``db_write_queue_drops`` of 0 does not mean
     logs are being stored."""
 
 

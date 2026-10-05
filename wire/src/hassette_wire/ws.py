@@ -131,7 +131,7 @@ class ExecutionCompletedWsMessage(BaseModel):
 
     type: Literal["execution_completed"]
     data: list[ExecutionCompletedData]
-    """Executions persisted together in one batch write."""
+    """App-tier executions persisted since the previous message, delivered together in one batch."""
     timestamp: float
 
 

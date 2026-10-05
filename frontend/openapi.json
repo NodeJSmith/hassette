@@ -5049,7 +5049,7 @@
             "type": "string",
             "maxLength": 4096,
             "title": "Token",
-            "description": "Bearer token to exchange for a session cookie.\n\nThe server rejects a value longer than ``maxLength`` with a 422."
+            "description": "Bearer token to exchange for a session cookie.\n\nThe server rejects a value longer than the field's maximum length with a 422."
           }
         },
         "type": "object",
@@ -5174,7 +5174,7 @@
           "log_persistence_active": {
             "type": "boolean",
             "title": "Log Persistence Active",
-            "description": "``False`` when log records are not being persisted, so a ``db_write_queue_drops`` of 0 does not mean\nlogs are being stored.",
+            "description": "Whether log records are being persisted. When ``False``, a ``db_write_queue_drops`` of 0 does not mean\nlogs are being stored.",
             "default": false
           }
         },

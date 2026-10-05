@@ -320,7 +320,7 @@
           "type": "string"
         },
         "data": {
-          "description": "Executions persisted together in one batch write.",
+          "description": "App-tier executions persisted since the previous message, delivered together in one batch.",
           "items": {
             "$ref": "#/$defs/ExecutionCompletedData"
           },

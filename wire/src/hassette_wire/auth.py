@@ -24,7 +24,7 @@ class SessionRequest(BaseModel):
     token: str = Field(max_length=MAX_SESSION_TOKEN_LENGTH)
     """Bearer token to exchange for a session cookie.
 
-    The server rejects a value longer than ``maxLength`` with a 422.
+    The server rejects a value longer than the field's maximum length with a 422.
     """
 
 

@@ -120,7 +120,7 @@ const schema11 = {
       properties: {
         type: { const: "execution_completed", title: "Type", type: "string" },
         data: {
-          description: "Executions persisted together in one batch write.",
+          description: "App-tier executions persisted since the previous message, delivered together in one batch.",
           items: { $ref: "#/$defs/ExecutionCompletedData" },
           title: "Data",
           type: "array",
@@ -2145,7 +2145,7 @@ const schema25 = {
   properties: {
     type: { const: "execution_completed", title: "Type", type: "string" },
     data: {
-      description: "Executions persisted together in one batch write.",
+      description: "App-tier executions persisted since the previous message, delivered together in one batch.",
       items: { $ref: "#/$defs/ExecutionCompletedData" },
       title: "Data",
       type: "array",

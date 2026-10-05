@@ -120,7 +120,7 @@ export interface ServiceStatusData {
 export interface ExecutionCompletedWsMessage {
   type: "execution_completed";
   /**
-   * Executions persisted together in one batch write.
+   * App-tier executions persisted since the previous message, delivered together in one batch.
    */
   data: ExecutionCompletedData[];
   timestamp: number;

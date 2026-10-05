@@ -1988,7 +1988,7 @@ export interface components {
              * Token
              * @description Bearer token to exchange for a session cookie.
              *
-             *     The server rejects a value longer than ``maxLength`` with a 422.
+             *     The server rejects a value longer than the field's maximum length with a 422.
              */
             token: string;
         };
@@ -2068,7 +2068,7 @@ export interface components {
             db_write_queue_drops: number;
             /**
              * Log Persistence Active
-             * @description ``False`` when log records are not being persisted, so a ``db_write_queue_drops`` of 0 does not mean
+             * @description Whether log records are being persisted. When ``False``, a ``db_write_queue_drops`` of 0 does not mean
              *     logs are being stored.
              * @default false
              */
