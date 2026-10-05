@@ -1,4 +1,4 @@
-"""Pydantic models for app-health and global telemetry summary DB query results.
+"""Pydantic models for app-health and session telemetry DB query results.
 
 These typed models replace raw ``dict`` returns, preventing the
 "column rename -> silent template failure" class of bugs.
@@ -12,9 +12,6 @@ See ``schemas/__init__.py`` for the domain-file map.
 from typing import Self
 
 from pydantic import BaseModel, ConfigDict
-
-from hassette.schemas.job_models import JobGlobalStats
-from hassette.schemas.listener_models import ListenerGlobalStats
 
 
 class AppHealthAggregates(BaseModel):
@@ -67,13 +64,6 @@ class AppHealthSummary(BaseModel):
     aggregates: AppHealthAggregates
 
 
-class GlobalSummary(BaseModel):
-    """Aggregate telemetry summary returned by ``get_global_summary()``."""
-
-    listeners: ListenerGlobalStats
-    jobs: JobGlobalStats
-
-
 class SessionRecord(BaseModel):
     """Single session record returned by ``get_session_list()``."""
 
@@ -87,14 +77,3 @@ class SessionRecord(BaseModel):
     dropped_overflow: int = 0
     dropped_exhausted: int = 0
     dropped_shutdown: int = 0
-
-
-class SessionSummary(BaseModel):
-    """Current-session summary returned by ``get_current_session_summary()``."""
-
-    started_at: float
-    last_heartbeat_at: float
-    total_invocations: int
-    invocation_errors: int
-    total_executions: int
-    execution_errors: int

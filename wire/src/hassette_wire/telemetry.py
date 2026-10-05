@@ -32,6 +32,8 @@ class Execution(BaseModel):
     ``None`` for job executions.
     """
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     kind: OpenExecutionKind
     """Discriminator: 'handler' for bus invocations, 'job' for scheduled-job executions."""
 
@@ -78,6 +80,8 @@ class Execution(BaseModel):
 class ActivityFeedEntry(BaseModel):
     """A single activity entry for the cross-app recent activity feed."""
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     row_id: str
     """Stable unique identifier for this entry.
 
@@ -110,6 +114,8 @@ class JobSummary(BaseModel):
     are tracked separately.
     Invariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``.
     """
+
+    model_config = ConfigDict(use_attribute_docstrings=True)
 
     job_id: int
     app_key: str
@@ -255,6 +261,8 @@ class ListenerWithSummary(BaseModel):
 class ActivityBucket(BaseModel):
     """A single time-window bucket for the sparkline chart."""
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     ok: int
     """Number of successful invocations/executions in this bucket."""
 
@@ -265,14 +273,14 @@ class ActivityBucket(BaseModel):
 class DashboardAppGridEntry(BaseModel):
     """Per-app health entry for the dashboard grid."""
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     app_key: str
     status: OpenManifestStatus
     display_name: str
-    instance_count: int = Field(
-        default=0,
-        description="Configured instances, including ones not currently tracked (never started, "
-        "or independently stopped). Always len(instances).",
-    )
+    instance_count: int = 0
+    """Configured instances, including ones not currently tracked (never started, or independently stopped).
+    Always len(instances)."""
     handler_count: int
     job_count: int
     total_invocations: int
@@ -299,10 +307,8 @@ class DashboardAppGridEntry(BaseModel):
     instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
-    in_current_config: bool = Field(
-        default=True,
-        description="True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
-    )
+    in_current_config: bool = True
+    """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
 
 
 class DashboardAppGridResponse(BaseModel):

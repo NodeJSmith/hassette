@@ -11,10 +11,10 @@ keeping ``schemas`` below ``core``/``web`` in the layer DAG.
 
 Telemetry DB query-result models are split by domain across sibling modules:
 
-- ``listener_models.py`` — per-listener summaries, stats, and error records
+- ``listener_models.py`` — per-listener summaries, slow-handler records, and error records
 - ``execution_models.py`` — unified execution records and activity feed
-- ``job_models.py`` — per-job summaries, stats, and error records
-- ``summary_models.py`` — app-health and global aggregates
+- ``job_models.py`` — per-job summaries and error records
+- ``summary_models.py`` — app-health aggregates and session records
 - ``log_models.py`` — log records and blocking events
 
 Served models, WS payloads, and the live system-status snapshot are defined only in
