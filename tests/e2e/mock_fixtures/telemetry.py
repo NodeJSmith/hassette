@@ -32,9 +32,6 @@ FRAMEWORK_TIER = "framework"
 APP_TIER = "app"
 ALL_TIER = "all"
 
-# get_error_counts() returns (handler_errors, job_errors); these are the non-framework totals.
-DEFAULT_ERROR_COUNTS = (3, 6)
-
 
 def by_app_key_or_all(items_by_app: Mapping[str, list[T]]) -> Callable[..., list[T]]:
     """Build a side effect that filters per-app telemetry rows by ``app_key``.
@@ -376,7 +373,7 @@ def wire_invocation_telemetry(hassette, executions: list[Execution]) -> None:
     ``/telemetry/job/{id}/executions``).
     """
 
-    def _executions_side_effect(
+    def executions_side_effect(
         *,
         listener_id: int | None = None,
         job_id: int | None = None,
@@ -395,7 +392,7 @@ def wire_invocation_telemetry(hassette, executions: list[Execution]) -> None:
             rows = [e for e in rows if e.execution_start_ts >= since]
         return rows[:limit]
 
-    hassette._telemetry_query_service.get_executions = AsyncMock(side_effect=_executions_side_effect)
+    hassette._telemetry_query_service.get_executions = AsyncMock(side_effect=executions_side_effect)
 
 
 def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], list[HandlerErrorRecord]]:
@@ -412,7 +409,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             topic="state_changed.light.kitchen",
             execution_start_ts=TS_RECENT,
             duration_ms=3.1,
-            source_tier="app",
+            source_tier=APP_TIER,
             error_type="ValueError",
             error_message="Bad state value",
         ),
@@ -423,7 +420,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             job_name="check_lights",
             execution_start_ts=TS_OLDEST,
             duration_ms=4.2,
-            source_tier="app",
+            source_tier=APP_TIER,
             error_type="TimeoutError",
             error_message="Light service unavailable",
         ),
@@ -434,7 +431,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             topic="state_changed.binary_sensor.door",
             execution_start_ts=TS_OLDER,
             duration_ms=10.0,
-            source_tier="app",
+            source_tier=APP_TIER,
             error_type="RuntimeError",
             error_message="Lock service timed out",
         ),
@@ -446,7 +443,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             topic=None,
             execution_start_ts=TS_OLDEST + 0.5,
             duration_ms=1.0,
-            source_tier="app",
+            source_tier=APP_TIER,
             error_type="RuntimeError",
             error_message="Orphan error from deleted listener",
         ),
@@ -459,7 +456,7 @@ def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], li
             topic="state_changed",
             execution_start_ts=TS_BASE,
             duration_ms=1.5,
-            source_tier="framework",
+            source_tier=FRAMEWORK_TIER,
             error_type="DispatchError",
             error_message="Framework dispatch failed",
         ),
@@ -543,11 +540,13 @@ def wire_global_summary(
         sum(1 for e in fw_errors if isinstance(e, HandlerErrorRecord)),
         sum(1 for e in fw_errors if isinstance(e, JobErrorRecord)),
     )
+    # get_error_counts() returns (handler_errors, job_errors), matching the global summary's totals.
+    default_error_counts = (default_global_summary.listeners.total_errors, default_global_summary.jobs.total_errors)
     hassette._telemetry_query_service.get_error_counts = AsyncMock(
         side_effect=by_tier(
             {FRAMEWORK_TIER: framework_error_counts},
             default_tier=APP_TIER,
-            fallback=DEFAULT_ERROR_COUNTS,
+            fallback=default_error_counts,
         )
     )
 
