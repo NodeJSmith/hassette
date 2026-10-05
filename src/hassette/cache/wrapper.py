@@ -160,6 +160,7 @@ class AsyncCache:
         await self._write_conn.execute("DELETE FROM cache_entries WHERE key = ? AND value = ?", (key, value_blob))
         await self._write_conn.commit()
 
+    # dup-ignore-start: @overloads and user-facing docstring must repeat on each cache class
     @overload
     async def get(self, key: str, default: None = None) -> Any | None: ...
     @overload
@@ -171,6 +172,7 @@ class AsyncCache:
         the caller's assertion about what *key* holds: a stored value, including a
         stored ``None``, is returned as-is regardless of *default*.
         """
+        # dup-ignore-end
         validate_key(key)
         async with self._read_conn.execute(
             "SELECT value, expires_at FROM cache_entries WHERE key = ?", (key,)

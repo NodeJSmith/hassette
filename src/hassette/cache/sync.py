@@ -46,6 +46,7 @@ class SyncCache:
         conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
         return conn
 
+    # dup-ignore-start: @overloads and user-facing docstring must repeat on each cache class
     @overload
     def get(self, key: str, default: None = None) -> Any | None: ...
     @overload
@@ -57,6 +58,7 @@ class SyncCache:
         the caller's assertion about what *key* holds: a stored value, including a
         stored ``None``, is returned as-is regardless of *default*.
         """
+        # dup-ignore-end
         guard_not_in_event_loop("SyncCache.get")
         validate_key(key)
         conn = self._connect()

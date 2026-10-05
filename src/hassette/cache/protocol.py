@@ -21,6 +21,7 @@ class CacheProtocol(Protocol):
         """Prepare the cache for use (open connections, create schema, etc.)."""
         ...
 
+    # dup-ignore-start: @overloads and user-facing docstring must repeat on each cache class
     @overload
     async def get(self, key: str, default: None = None) -> Any | None: ...
     @overload
@@ -32,6 +33,7 @@ class CacheProtocol(Protocol):
         the caller's assertion about what *key* holds: a stored value, including a
         stored ``None``, is returned as-is regardless of *default*.
         """
+        # dup-ignore-end
         ...
 
     async def set(self, key: str, value: object, ttl: int | None = None) -> None:
