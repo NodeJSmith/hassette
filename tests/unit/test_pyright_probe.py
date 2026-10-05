@@ -28,6 +28,7 @@ WORKTREE_ROOT = Path(__file__).resolve().parents[2]
 PROBE_DIR = WORKTREE_ROOT / "tests" / "pyright_probes"
 PROBE_FILE = PROBE_DIR / "forgotten_await_probe.py"
 HARNESS_TYPE_PROBE_FILE = PROBE_DIR / "harness_typing_probe.py"
+CACHE_GET_PROBE_FILE = PROBE_DIR / "cache_get_typing_probe.py"
 
 EXPECTED_PROBE_COUNT = 8
 
@@ -143,3 +144,24 @@ def test_pyright_harness_probe_preserves_concrete_app_type() -> None:
 
     output = result.stdout + result.stderr
     assert result.returncode == 0, f"AppTestHarness typing probe failed:\n{output}"
+
+
+def test_pyright_cache_get_probe_narrows_non_none_default() -> None:
+    """Pyright types cache ``get(key, default=x)`` as ``type(x)``, not ``type(x) | None`` (#2526)."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pyright",
+            "--project",
+            str(PROBE_DIR),
+            str(CACHE_GET_PROBE_FILE),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(WORKTREE_ROOT),
+        timeout=120,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, f"Cache get() typing probe failed:\n{output}"

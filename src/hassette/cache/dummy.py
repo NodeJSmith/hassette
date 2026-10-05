@@ -8,7 +8,7 @@ management.
 
 import time
 from collections.abc import Awaitable, Callable
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast, overload
 
 from hassette.cache._helpers import MISSING, guard_not_in_event_loop, resolve_ttl, validate_key
 
@@ -25,6 +25,10 @@ class DummySyncCache:
         self._store = store
         self.default_ttl = default_ttl
 
+    @overload
+    def get(self, key: str, default: None = None) -> Any | None: ...
+    @overload
+    def get(self, key: str, default: T) -> T: ...
     def get(self, key: str, default: T | None = None) -> T | None:
         guard_not_in_event_loop("DummySyncCache.get")
         validate_key(key)
@@ -59,7 +63,7 @@ class DummySyncCache:
         validate_key(key)
         cached = self.get(key, default=cast("T", MISSING))
         if cached is not MISSING:
-            return cast("T", cached)
+            return cached
         value = creator()
         self.set(key, value, ttl=ttl)
         return value
@@ -86,6 +90,10 @@ class DummyCache:
     async def initialize(self) -> None:
         """No-op -- DummyCache has no backing store to initialize."""
 
+    @overload
+    async def get(self, key: str, default: None = None) -> Any | None: ...
+    @overload
+    async def get(self, key: str, default: T) -> T: ...
     async def get(self, key: str, default: T | None = None) -> T | None:
         """Return the cached value for *key*, or *default* if missing or expired."""
         validate_key(key)
@@ -124,7 +132,7 @@ class DummyCache:
         validate_key(key)
         cached = await self.get(key, default=cast("T", MISSING))
         if cached is not MISSING:
-            return cast("T", cached)
+            return cached
         value = await creator()
         await self.set(key, value, ttl=ttl)
         return value

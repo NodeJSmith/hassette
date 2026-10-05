@@ -6,7 +6,7 @@ import sqlite3
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast, overload
 
 import aiosqlite
 
@@ -160,6 +160,10 @@ class AsyncCache:
         await self._write_conn.execute("DELETE FROM cache_entries WHERE key = ? AND value = ?", (key, value_blob))
         await self._write_conn.commit()
 
+    @overload
+    async def get(self, key: str, default: None = None) -> Any | None: ...
+    @overload
+    async def get(self, key: str, default: T) -> T: ...
     async def get(self, key: str, default: T | None = None) -> T | None:
         """Return the cached value for *key*, or *default* if missing or expired."""
         validate_key(key)
@@ -216,7 +220,7 @@ class AsyncCache:
         validate_key(key)
         cached = await self.get(key, default=cast("T", MISSING))
         if cached is not MISSING:
-            return cast("T", cached)
+            return cached
         value = await creator()
         await self.set(key, value, ttl=ttl)
         return value

@@ -8,7 +8,7 @@ polymorphically alongside the async implementations.
 """
 
 from collections.abc import Awaitable, Callable
-from typing import Any, Protocol, TypeVar, runtime_checkable
+from typing import Any, Protocol, TypeVar, overload, runtime_checkable
 
 T = TypeVar("T")
 
@@ -21,6 +21,10 @@ class CacheProtocol(Protocol):
         """Prepare the cache for use (open connections, create schema, etc.)."""
         ...
 
+    @overload
+    async def get(self, key: str, default: None = None) -> Any | None: ...
+    @overload
+    async def get(self, key: str, default: T) -> T: ...
     async def get(self, key: str, default: T | None = None) -> T | None:
         """Return the cached value for *key*, or *default* if missing or expired."""
         ...

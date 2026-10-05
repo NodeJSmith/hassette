@@ -13,7 +13,7 @@ import sqlite3
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast, overload
 
 from hassette.cache._helpers import (
     BUSY_TIMEOUT_MS,
@@ -46,6 +46,10 @@ class SyncCache:
         conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
         return conn
 
+    @overload
+    def get(self, key: str, default: None = None) -> Any | None: ...
+    @overload
+    def get(self, key: str, default: T) -> T: ...
     def get(self, key: str, default: T | None = None) -> T | None:
         guard_not_in_event_loop("SyncCache.get")
         validate_key(key)
@@ -118,7 +122,7 @@ class SyncCache:
         validate_key(key)
         cached = self.get(key, default=cast("T", MISSING))
         if cached is not MISSING:
-            return cast("T", cached)
+            return cached
         value = creator()
         self.set(key, value, ttl=ttl)
         return value
