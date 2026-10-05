@@ -29,6 +29,7 @@ from hassette.config.models import (
     WebSocketConfig,
 )
 from hassette.core.migration_runner import run_migrations
+from hassette.logging_ import HASSETTE_LOGGER_NAME
 from hassette.models.states.catalog import restore_catalog, snapshot_catalog
 from hassette.task_bucket import TaskBucket
 
@@ -136,23 +137,16 @@ def _ensure_block_io_guard_uninstalled():
 
 
 @pytest.fixture(autouse=True)
-def _propagate_hassette_logger():
-    """Guarantee the "hassette" logger propagates so caplog can see its records.
+def _propagate_hassette_logger() -> None:
+    """Reset the "hassette" logger to propagating before each test so caplog can see its records.
 
-    ``enable_basic_logging()`` (any directly-constructed ``Hassette()``, the logging-pipeline
-    fixtures) sets ``propagate=False`` on this process-global logger, and nothing restores it.
-    caplog attaches to the root logger, so a later test on the same worker would read an empty
-    ``caplog.text`` — which of those later tests share a worker depends on xdist scheduling,
-    hence the intermittent CI failures. Forcing Python's default before each test makes the
-    outcome independent of ordering; tests that need ``propagate=False`` set it in their own
-    function-scoped fixtures (e.g. ``logging_pipeline`` in ``tests/unit/conftest.py``), which
-    run after this one because autouse fixtures are instantiated first within a scope. A
-    wider-scoped fixture that sets it would be overridden here, so don't add one.
-
-    ``HassetteHarness`` (``src/hassette/testing/_harness.py``) also resets ``propagate`` after
-    constructing its ``Hassette``; that copy ships to user test suites and stays.
+    ``enable_basic_logging()`` leaves this process-global logger non-propagating and caplog reads
+    the root logger, so the outcome of any caplog test would otherwise depend on which tests ran
+    before it on the same worker. A test that needs ``propagate=False`` must set it from a
+    function-scoped fixture: autouse fixtures run first within a scope, and a wider-scoped
+    fixture would be overridden here.
     """
-    logging.getLogger("hassette").propagate = True
+    logging.getLogger(HASSETTE_LOGGER_NAME).propagate = True
 
 
 def build_file_watcher_config() -> FileWatcherConfig:
