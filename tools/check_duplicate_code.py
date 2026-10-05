@@ -113,7 +113,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 from collections import Counter
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, TypeGuard
 
 from lint_helpers import (
     REPO_ROOT,
@@ -270,7 +270,7 @@ def docstring_and_import_lines(path: Path) -> frozenset[int]:
     return frozenset(lines)
 
 
-def is_import_only_type_checking_guard(node: ast.AST) -> bool:
+def is_import_only_type_checking_guard(node: ast.AST) -> TypeGuard[ast.If]:
     """Return True for an ``if TYPE_CHECKING:`` / ``if typing.TYPE_CHECKING:`` whose body is only imports.
 
     The guard line is import scaffolding, so it shouldn't turn an otherwise import-only fragment into a
