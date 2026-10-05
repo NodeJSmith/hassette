@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from hassette_wire.apps import AppInstanceResponse
+from hassette_wire.apps import AppSummary
 from hassette_wire.cli_format import CliFormat
 from hassette_wire.enums import (
     BackpressurePolicy,
@@ -10,13 +10,13 @@ from hassette_wire.enums import (
     OpenBackpressurePolicy,
     OpenExecutionMode,
     OpenExecutionStatus,
-    OpenManifestStatus,
     OpenScheduleStatus,
     OpenScheduleStatusReason,
 )
 from hassette_wire.literals import (
     OpenErrorRateClass,
     OpenExecutionKind,
+    OpenGridEnrichment,
     OpenHealthStatus,
     OpenListenerKind,
     SourceTier,
@@ -262,17 +262,14 @@ class ActivityBucket(BaseModel):
     """Number of error/timed-out invocations/executions in this bucket."""
 
 
-class DashboardAppGridEntry(BaseModel):
-    """Per-app health entry for the dashboard grid."""
+class AppActivity(BaseModel):
+    """How an app is doing over the grid's time window (``AppGridResponse.since``).
 
-    app_key: str
-    status: OpenManifestStatus
-    display_name: str
-    instance_count: int = Field(
-        default=0,
-        description="Configured instances, including ones not currently tracked (never started, "
-        "or independently stopped). Always len(instances).",
-    )
+    Each part comes from its own enrichment query. A failed query leaves its fields at their
+    defaults and is named in ``AppGridResponse.degraded``, so a zero here is only trustworthy
+    when its enrichment is absent from that list.
+    """
+
     handler_count: int
     job_count: int
     total_invocations: int
@@ -285,30 +282,28 @@ class DashboardAppGridEntry(BaseModel):
     activity_buckets: list[ActivityBucket] = Field(default_factory=list)
     """Per-app sparkline buckets (ok/err counts per time window)."""
     blocking_event_count: int = 0
-    """Attributed blocking-IO events for this app in the requested window. Best-effort: reads 0
-    when only this count's query fails, so a zero is not proof the app never blocked."""
+    """Attributed blocking-IO events for this app in the requested window."""
     last_error_message: str | None = None
     last_error_type: str | None = None
     last_error_ts: float | None = None
-    class_name: str = ""
-    filename: str = ""
-    enabled: bool = True
-    auto_loaded: bool = False
-    autostart: bool = True
-    block_reason: str | None = None
-    instances: list[AppInstanceResponse] = Field(default_factory=list)
-    error_message: str | None = None
-    error_traceback: str | None = None
-    in_current_config: bool = Field(
-        default=True,
-        description="True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
-    )
 
 
-class DashboardAppGridResponse(BaseModel):
-    """Dashboard app grid with per-app health data."""
+class AppGridEntry(BaseModel):
+    """One Apps grid row: an app joined with its activity, in a single server-side query."""
 
-    apps: list[DashboardAppGridEntry]
+    app: AppSummary
+    activity: AppActivity
+
+
+class AppGridResponse(BaseModel):
+    """The Apps grid: every app with its activity over ``since``."""
+
+    apps: list[AppGridEntry]
+    degraded: list[OpenGridEnrichment] = Field(default_factory=list)
+    """Enrichment queries that failed for this response. Empty when every part of ``activity`` is real."""
+    since: float | None = None
+    """The window start the activity covers, echoed from the request. ``None`` means all-time
+    totals, with empty ``activity_buckets`` and no ``last_error_*``."""
 
 
 class TelemetryStatusResponse(BaseModel):

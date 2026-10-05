@@ -1,6 +1,6 @@
 """Degraded App Demo.
 
-Multi-instance demo app used to reproduce `ManifestStatus.DEGRADED` for documentation
+Multi-instance demo app used to reproduce `AppStatus.DEGRADED` for documentation
 screenshots. One instance starts normally; the other is configured to crash during
 `on_initialize()`. `AppRegistry.build_manifest_info()` computes "degraded" whenever an app has
 both a running instance and a failed one — this app exists solely to put it in that state on

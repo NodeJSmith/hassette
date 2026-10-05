@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Literal, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
-from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstanceResponse, AppManifestListResponse
+from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstanceResponse, AppListResponse
 from pydantic import BaseModel, ValidationError
 from rich.markup import escape
 
@@ -49,13 +49,13 @@ T = TypeVar("T")
 M = TypeVar("M", bound=BaseModel)
 
 
-def _filter_instances(manifest_list: AppManifestListResponse, app_key: str) -> list[AppInstanceResponse]:
-    """Flatten the instance list for ``app_key`` out of a full manifest list response.
+def _filter_instances(app_list: AppListResponse, app_key: str) -> list[AppInstanceResponse]:
+    """Flatten the instance list for ``app_key`` out of a full app list response.
 
     Shared by :meth:`HassetteCLIClient._fetch_instances` and
     :meth:`HassetteCLIClient._try_fetch_instances` so the filter has one source of truth.
     """
-    return [inst for manifest in manifest_list.manifests if manifest.app_key == app_key for inst in manifest.instances]
+    return [inst for app in app_list.apps if app.app_key == app_key for inst in app.instances]
 
 
 def query_params(**values: Any) -> dict[str, Any]:
@@ -339,14 +339,14 @@ class HassetteCLIClient:
         return self.get(path, model, params=params)
 
     def _fetch_instances(self, app_key: str) -> list[AppInstanceResponse]:
-        """Fetch all manifests and return the instance list for ``app_key``."""
-        manifest_list = self.get("/api/apps/manifests", AppManifestListResponse)
-        return _filter_instances(manifest_list, app_key)
+        """Fetch the app list and return the instance list for ``app_key``."""
+        app_list = self.get("/api/apps", AppListResponse)
+        return _filter_instances(app_list, app_key)
 
     def _try_fetch_instances(self, app_key: str) -> list[AppInstanceResponse] | None:
         """Best-effort variant of :meth:`_fetch_instances` that never exits the process.
 
-        ``/api/apps/manifests`` returns a 503 ``telemetry_unavailable`` problem when the
+        ``/api/apps`` returns a 503 ``telemetry_unavailable`` problem when the
         telemetry DB is unavailable. Resolving a numeric ``--instance`` selector to its
         canonical name is a purely cosmetic lookup — the mutating start/stop/reload
         action it supports has no telemetry dependency of its own — so a telemetry
@@ -356,7 +356,7 @@ class HassetteCLIClient:
         calling ``sys.exit``.
         """
         try:
-            response = self._client.get("/api/apps/manifests", timeout=self.timeout)
+            response = self._client.get("/api/apps", timeout=self.timeout)
         except httpx.RequestError:
             return None
 
@@ -364,11 +364,11 @@ class HassetteCLIClient:
             return None
 
         try:
-            manifest_list = parse_wire(AppManifestListResponse, response.json())
+            app_list = parse_wire(AppListResponse, response.json())
         except (json.JSONDecodeError, ValidationError, UnicodeDecodeError):
             return None
 
-        return _filter_instances(manifest_list, app_key)
+        return _filter_instances(app_list, app_key)
 
     def _instance_not_found(self, app_key: str, instance: str, instances: list[AppInstanceResponse]) -> NoReturn:
         names = ", ".join(repr(inst.instance_name) for inst in instances) if instances else "(none)"

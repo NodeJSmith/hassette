@@ -87,7 +87,7 @@ No fallback value, no `response.status_code`, no `try`. Post-query work (`live_e
 
 Catch `TelemetryUnavailableError` yourself only when the route still has a useful answer without the query:
 
-- **Enrichment (partial data at 200):** the route answers from other data and a failed enrichment query degrades to a safe default (e.g. `dashboard_app_grid`'s `get_all_app_summaries`, `get_app_manifests`' `recent_invocations_1h`, the execution-logs route's UUIDv4 retention check). Log a warning with `exc_info` and keep going.
+- **Enrichment (partial data at 200):** the route answers from other data and a failed enrichment query degrades to a safe default (e.g. `app_grid`'s `get_all_app_summaries` and `get_blocking_event_counts`, the execution-logs route's UUIDv4 retention check). Log a warning with `exc_info` and keep going. A route whose response model carries a degradation marker (`AppGridResponse.degraded`) reports each degraded enrichment in it.
 - **Probes:** `/api/telemetry/status` catches the health-check failure and answers its own `TelemetryStatusResponse(degraded=True)` with a 503 (see "Not problem bodies" above). Don't add another probe-shaped route without the same reason.
 
 To find every inline site, grep `src/hassette/web/` for `TelemetryUnavailableError`.

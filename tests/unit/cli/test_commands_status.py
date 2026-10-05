@@ -7,7 +7,7 @@ from hassette.cli.commands.status import (
     cmd_telemetry,
 )
 from tests.support.web_response_helpers import (
-    make_dashboard_app_grid_response,
+    make_app_grid_response,
     make_system_status_response,
     make_telemetry_status_response,
 )
@@ -115,21 +115,17 @@ class TestCmdTelemetry:
 
 class TestCmdDashboard:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """Dashboard command fetches from GET /api/telemetry/dashboard/app-grid."""
-        grid = make_dashboard_app_grid_response()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
-        )
+        """Dashboard command fetches from GET /api/telemetry/app-grid."""
+        grid = make_app_grid_response()
+        client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/app-grid", 200, grid.model_dump())])
         spy = runner.spy(client, cmd_dashboard)
 
-        assert any("/api/telemetry/dashboard/app-grid" in p for p in spy.paths)
+        assert any("/api/telemetry/app-grid" in p for p in spy.paths)
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Dashboard command renders a table with app rows."""
-        grid = make_dashboard_app_grid_response()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
-        )
+        grid = make_app_grid_response()
+        client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/app-grid", 200, grid.model_dump())])
         output = runner.stdout(client, cmd_dashboard)
         # Table headers must always be visible
         assert "App" in output
@@ -139,23 +135,29 @@ class TestCmdDashboard:
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """Dashboard --json outputs the apps list as JSON array."""
-        grid = make_dashboard_app_grid_response()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
-        )
+        grid = make_app_grid_response()
+        client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/app-grid", 200, grid.model_dump())])
 
         parsed = runner.json_output(client, cmd_dashboard)
         assert isinstance(parsed, list)
-        assert parsed[0]["app_key"] == "test_app"
+        assert set(parsed[0]) == {"app", "activity"}
+        assert parsed[0]["app"]["app_key"] == "test_app"
+
+    def test_degraded_grid_warns_on_stderr(self, cli_client_factory: CLIClientFactory) -> None:
+        """A degraded grid prints one stderr line naming each failed enrichment."""
+        grid = make_app_grid_response(degraded=["activity_buckets"])
+        client = cli_client_factory.build_with_routes([("GET", "/api/telemetry/app-grid", 200, grid.model_dump())])
+
+        assert "activity_buckets" in runner.stderr(client, cmd_dashboard)
 
     def test_dashboard_columns_defined(self) -> None:
         """DASHBOARD_COLUMNS includes the core per-app fields."""
         field_names = [c.field for c in DASHBOARD_COLUMNS]
-        assert "app_key" in field_names
-        assert "health.health_status" in field_names
-        assert "health.handler_avg_duration_ms" in field_names
-        assert "health.job_avg_duration_ms" in field_names
-        assert "health.last_activity_ts" in field_names
+        assert "app.app_key" in field_names
+        assert "activity.health.health_status" in field_names
+        assert "activity.health.handler_avg_duration_ms" in field_names
+        assert "activity.health.job_avg_duration_ms" in field_names
+        assert "activity.health.last_activity_ts" in field_names
 
     def test_dashboard_columns_count_is_compact(self) -> None:
         """Dashboard uses at most 8 columns for readability in 80-col terminals."""

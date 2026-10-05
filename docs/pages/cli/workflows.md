@@ -167,7 +167,7 @@ Every command accepts `--json` and writes structured JSON to stdout. Pipe it to 
 **Extract failing apps:**
 
 ```bash
-hassette dashboard --json | jq '.[] | select(.health.health_status != "excellent") | .app_key'
+hassette dashboard --json | jq '.[] | select(.activity.health.health_status != "excellent") | .app.app_key'
 ```
 
 **Count total handler failures across all listeners:**

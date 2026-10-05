@@ -9,16 +9,16 @@ from typing import Any
 
 import httpx2 as httpx
 import pytest
-from hassette_wire import ActionResponse, AppInstanceResponse, AppManifestListResponse
+from hassette_wire import ActionResponse, AppInstanceResponse, AppListResponse
 from pydantic import BaseModel
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.config.models import WebApiConfig
-from tests.support.web_manifest_helpers import make_manifest_list_response, make_manifest_response
+from tests.support.web_manifest_helpers import make_app_list_response, make_app_summary
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, capture_stderr, make_cli_config
 
-MANIFESTS_ENDPOINT = "/api/apps/manifests"
+MANIFESTS_ENDPOINT = "/api/apps"
 BUS_LISTENERS_ENDPOINT = "/api/bus/listeners"
 CRASH_ENDPOINT = "/api/crash"
 HEALTH_ENDPOINT = "/api/health"
@@ -101,10 +101,10 @@ def make_raw_body_client(
     )
 
 
-def make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my_app") -> AppManifestListResponse:
-    """Wrap ``instances`` in a single-app manifest list, as ``/api/apps/manifests`` returns it."""
-    manifest = make_manifest_response(app_key=app_key, instance_count=len(instances), instances=instances)
-    return make_manifest_list_response(manifests=[manifest])
+def make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my_app") -> AppListResponse:
+    """Wrap ``instances`` in a single-app manifest list, as ``/api/apps`` returns it."""
+    manifest = make_app_summary(app_key=app_key, instance_count=len(instances), instances=instances)
+    return make_app_list_response(manifests=[manifest])
 
 
 def url_capturing_client(
@@ -113,7 +113,7 @@ def url_capturing_client(
     """Build a default-target client plus the list its request URLs are recorded into.
 
     Every request answers with an empty JSON array, except that when ``manifest_instances`` is
-    given, ``/api/apps/manifests`` serves those instances as a single-app manifest list so the
+    given, ``/api/apps`` serves those instances as a single-app manifest list so the
     instance-name lookup can resolve. The empty array is enough for the downstream listener call,
     since the routing tests assert on the recorded URL rather than the payload.
     """

@@ -10,7 +10,7 @@ export type WsServerMessage =
   | ConnectivityWsMessage
   | ServiceStatusWsMessage
   | ExecutionCompletedWsMessage
-  | AppManifestsChangedWsMessage;
+  | AppsChangedWsMessage;
 /**
  * Enumeration for resource status.
  */
@@ -126,19 +126,19 @@ export interface ExecutionCompletedData {
   job_id?: number | null;
   thread_leaked?: boolean;
 }
-export interface AppManifestsChangedWsMessage {
-  type: "app_manifests_changed";
-  data: AppManifestsChangedData;
+export interface AppsChangedWsMessage {
+  type: "apps_changed";
+  data: AppsChangedData;
   timestamp: number;
 }
 /**
- * Payload for a manifest refresh broadcast over WebSocket.
+ * Payload for an app-list refresh broadcast over WebSocket.
  *
  * Carries no fields and does not identify which apps changed — it is a refetch
- * signal, not a diff. Clients should treat receipt as "manifest status may be
+ * signal, not a diff. Clients should treat receipt as "app status may be
  * stale, refetch" rather than inspect the payload.
  */
-export type AppManifestsChangedData = Record<string, never>;
+export type AppsChangedData = Record<string, never>;
 
 export type WsExecutionCompletedPayload = ExecutionCompletedData;
 

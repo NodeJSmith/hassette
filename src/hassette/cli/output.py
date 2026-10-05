@@ -21,6 +21,7 @@ from typing import Any
 from hassette_wire import CliFormat, ResourceStatus
 from pydantic import BaseModel
 from rich.console import Console, OverflowMethod
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from whenever import Instant, OffsetDateTime, PlainDateTime
@@ -256,6 +257,19 @@ def render_table(
         table.add_row(*row)
 
     stdout_console.print(table)
+
+
+def warn_degraded(degraded: Sequence[str]) -> None:
+    """Print a one-line stderr warning naming the enrichments a response reports as degraded.
+
+    Goes to stderr in both modes, so table and JSON output on stdout stay clean. No-op when
+    nothing degraded.
+    """
+    if degraded:
+        stderr_console.print(
+            f"[yellow]Warning:[/yellow] partial data, these queries failed: {escape(', '.join(degraded))}",
+            highlight=False,
+        )
 
 
 def render_detail(

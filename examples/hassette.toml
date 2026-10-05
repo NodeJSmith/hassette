@@ -85,7 +85,7 @@ autostart = false
 config = { instance_name = "backpressure_demo" }
 
 # autostart=false is intentional: this app does nothing useful running continuously. It exists
-# to reproduce ManifestStatus.DEGRADED on demand (one instance starts, the other crashes on
+# to reproduce AppStatus.DEGRADED on demand (one instance starts, the other crashes on
 # init) for the docs screenshot (docs/_static/web_ui_degraded_banner.png).
 # Don't remove without updating docs/screenshots.yml and app.tsx's FailedAppsAlert docs.
 [hassette.apps.degraded_demo]

@@ -233,7 +233,7 @@ changes = make_change_set(reload_apps={"app_a"})
 
 ### `make_log_entry(**kwargs)` — `tests/support/factories.py`
 
-Builds a `hassette.logging_.LogEntry` with all seven required fields defaulted to neutral placeholders
+Builds a `hassette.logging_.LogRecordEntry` with all seven required fields defaulted to neutral placeholders
 and all six optional fields (`exc_info`, plus five correlation fields) defaulted to `None`. Every field
 is an explicit keyword, so callers spell out only what they assert on. Distinct from the web-layer `make_log_entry_response()`
 (`tests/support/web_telemetry_helpers.py`), which builds the `LogEntryResponse` pydantic model.
@@ -528,11 +528,12 @@ import type { components } from "../../../api/generated-types";
 
 it("shows app name from API", async () => {
   server.use(
-    http.get("/api/apps/manifests", () =>
-      HttpResponse.json<components["schemas"]["AppManifestListResponse"]>({
-        total: 1, running: 1, failed: 0, stopped: 0, disabled: 0, blocked: 0,
-        manifests: [{ app_key: "my_app", display_name: "My App", ... }],
-        only_app: null,
+    http.get("/api/apps", () =>
+      HttpResponse.json<components["schemas"]["AppListResponse"]>({
+        total: 1,
+        status_counts: { running: 1 },
+        apps: [{ app_key: "my_app", display_name: "My App", ... }],
+        only_apps: [],
       })
     )
   );

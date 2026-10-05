@@ -4,14 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated-types";
 import { useAppStore } from "../../state/store";
-import { createInstance, createManifest } from "../../test/factories";
+import { createAppSummary, createInstance } from "../../test/factories";
 import { withManifests as installManifests } from "../../test/handlers";
 import { createWouterMock } from "../../test/mock-wouter";
 import { renderWithAppState } from "../../test/render-helpers";
 import { server } from "../../test/server";
 import { Sidebar } from "./sidebar";
 
-type AppManifest = components["schemas"]["AppManifestResponse"];
+type AppManifest = components["schemas"]["AppSummary"];
 
 function withManifests(manifests: AppManifest[]) {
   installManifests(manifests, server);
@@ -21,7 +21,7 @@ function withManifests(manifests: AppManifest[]) {
 // app with two instances, used to test expand/collapse and instance-link behavior.
 function withMultiInstanceApp() {
   withManifests([
-    createManifest({
+    createAppSummary({
       app_key: "multi_app",
       display_name: "Multi App",
       instance_count: 2,
@@ -138,13 +138,13 @@ describe("Sidebar — nav items", () => {
 
 describe("Sidebar — app list", () => {
   it("renders apps from the manifests API", async () => {
-    withManifests([createManifest({ app_key: "my_app", display_name: "My App", status: "running" })]);
+    withManifests([createAppSummary({ app_key: "my_app", display_name: "My App", status: "running" })]);
     renderWithAppState(<Sidebar />);
     expect(await screen.findByText("My App")).toBeDefined();
   });
 
   it("renders app link with correct href", async () => {
-    withManifests([createManifest({ app_key: "my_app", display_name: "My App" })]);
+    withManifests([createAppSummary({ app_key: "my_app", display_name: "My App" })]);
     renderWithAppState(<Sidebar />);
     const nameEl = await screen.findByText("My App");
     const link = nameEl.closest("a");
@@ -152,14 +152,14 @@ describe("Sidebar — app list", () => {
   });
 
   it("shows auto badge on auto-loaded apps", async () => {
-    withManifests([createManifest({ auto_loaded: true, display_name: "My App" })]);
+    withManifests([createAppSummary({ auto_loaded: true, display_name: "My App" })]);
     renderWithAppState(<Sidebar />);
     await screen.findByText("My App");
     expect(screen.getByTitle("Auto-loaded")).toBeDefined();
   });
 
   it("does not show auto badge on non-auto-loaded apps", async () => {
-    withManifests([createManifest({ auto_loaded: false, display_name: "My App" })]);
+    withManifests([createAppSummary({ auto_loaded: false, display_name: "My App" })]);
     renderWithAppState(<Sidebar />);
     await screen.findByText("My App");
     expect(screen.queryByTitle("Auto-loaded")).toBeNull();
@@ -167,8 +167,8 @@ describe("Sidebar — app list", () => {
 
   it("groups apps so FAILING group header appears before RUNNING group header in DOM", async () => {
     withManifests([
-      createManifest({ app_key: "running_app", display_name: "Running App", status: "running" }),
-      createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+      createAppSummary({ app_key: "running_app", display_name: "Running App", status: "running" }),
+      createAppSummary({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
     ]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
     // Failed App is visible in expanded FAILING group
@@ -186,7 +186,7 @@ describe("Sidebar — app list", () => {
   });
 
   it("applies is-blocked class and aria-disabled to blocked apps", async () => {
-    withManifests([createManifest({ app_key: "b_app", display_name: "Blocked App", status: "blocked" })]);
+    withManifests([createAppSummary({ app_key: "b_app", display_name: "Blocked App", status: "blocked" })]);
     renderWithAppState(<Sidebar />);
     const nameEl = await screen.findByText("Blocked App");
     const item = nameEl.closest("[data-testid='app-item-b_app']");
@@ -195,8 +195,8 @@ describe("Sidebar — app list", () => {
 
   it("excludes removed (in_current_config: false) apps from navigation", async () => {
     withManifests([
-      createManifest({ app_key: "live_app", display_name: "Live App", in_current_config: true }),
-      createManifest({ app_key: "removed_app", display_name: "Removed App", in_current_config: false }),
+      createAppSummary({ app_key: "live_app", display_name: "Live App", in_current_config: true }),
+      createAppSummary({ app_key: "removed_app", display_name: "Removed App", in_current_config: false }),
     ]);
     renderWithAppState(<Sidebar />);
     await screen.findByText("Live App");
@@ -214,8 +214,8 @@ describe("Sidebar — search", () => {
   it("filters apps by display name when user types", async () => {
     const user = userEvent.setup();
     withManifests([
-      createManifest({ app_key: "alpha", display_name: "Alpha App" }),
-      createManifest({ app_key: "beta", display_name: "Beta App" }),
+      createAppSummary({ app_key: "alpha", display_name: "Alpha App" }),
+      createAppSummary({ app_key: "beta", display_name: "Beta App" }),
     ]);
     const { container } = renderWithAppState(<Sidebar />);
     // Wait for both apps to appear
@@ -303,7 +303,7 @@ describe("Sidebar — version display", () => {
 
 describe("Sidebar — APPS section header", () => {
   it("renders APPS header above the search input", async () => {
-    withManifests([createManifest({ display_name: "My App" })]);
+    withManifests([createAppSummary({ display_name: "My App" })]);
     renderWithAppState(<Sidebar />);
     await screen.findByText("My App");
     expect(screen.getByText(/^APPS/)).toBeDefined();
@@ -311,8 +311,8 @@ describe("Sidebar — APPS section header", () => {
 
   it("APPS header shows total count", async () => {
     withManifests([
-      createManifest({ app_key: "a1", display_name: "App One" }),
-      createManifest({ app_key: "a2", display_name: "App Two" }),
+      createAppSummary({ app_key: "a1", display_name: "App One" }),
+      createAppSummary({ app_key: "a2", display_name: "App Two" }),
     ]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
     await screen.findByText("App One");
@@ -322,8 +322,8 @@ describe("Sidebar — APPS section header", () => {
 
   it("excludes removed apps from the total count", async () => {
     withManifests([
-      createManifest({ app_key: "live_app", display_name: "Live App", in_current_config: true }),
-      createManifest({ app_key: "removed_app", display_name: "Removed App", in_current_config: false }),
+      createAppSummary({ app_key: "live_app", display_name: "Live App", in_current_config: true }),
+      createAppSummary({ app_key: "removed_app", display_name: "Removed App", in_current_config: false }),
     ]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
     await screen.findByText("Live App");
@@ -335,8 +335,8 @@ describe("Sidebar — APPS section header", () => {
   it("shows filtered/total counts when search is active", async () => {
     const user = userEvent.setup();
     withManifests([
-      createManifest({ app_key: "a1", display_name: "Alpha App" }),
-      createManifest({ app_key: "a2", display_name: "Beta App" }),
+      createAppSummary({ app_key: "a1", display_name: "Alpha App" }),
+      createAppSummary({ app_key: "a2", display_name: "Beta App" }),
     ]);
     const { getByTestId, container } = renderWithAppState(<Sidebar />);
     await screen.findByText("Alpha App");
@@ -350,8 +350,8 @@ describe("Sidebar — APPS section header", () => {
 describe("Sidebar — display name collision (#1452)", () => {
   it("shows app_key instead of display_name when two apps share the same display_name", async () => {
     withManifests([
-      createManifest({ app_key: "blocking_io_lab", display_name: "BlockingIOLab", status: "running" }),
-      createManifest({ app_key: "blocking_io_lab_ignore", display_name: "BlockingIOLab", status: "running" }),
+      createAppSummary({ app_key: "blocking_io_lab", display_name: "BlockingIOLab", status: "running" }),
+      createAppSummary({ app_key: "blocking_io_lab_ignore", display_name: "BlockingIOLab", status: "running" }),
     ]);
     renderWithAppState(<Sidebar />);
     // Both entries should render their unique app_key, not the shared display_name
@@ -363,9 +363,9 @@ describe("Sidebar — display name collision (#1452)", () => {
 
   it("does not affect entries with unique display names", async () => {
     withManifests([
-      createManifest({ app_key: "blocking_io_lab", display_name: "BlockingIOLab", status: "running" }),
-      createManifest({ app_key: "blocking_io_lab_ignore", display_name: "BlockingIOLab", status: "running" }),
-      createManifest({ app_key: "unique_app", display_name: "Unique App", status: "running" }),
+      createAppSummary({ app_key: "blocking_io_lab", display_name: "BlockingIOLab", status: "running" }),
+      createAppSummary({ app_key: "blocking_io_lab_ignore", display_name: "BlockingIOLab", status: "running" }),
+      createAppSummary({ app_key: "unique_app", display_name: "Unique App", status: "running" }),
     ]);
     renderWithAppState(<Sidebar />);
     // The unique app still shows its display_name
@@ -378,8 +378,8 @@ describe("Sidebar — display name collision (#1452)", () => {
   it("collision detection is independent of search filtering", async () => {
     const user = userEvent.setup();
     withManifests([
-      createManifest({ app_key: "blocking_io_lab", display_name: "BlockingIOLab", status: "running" }),
-      createManifest({ app_key: "blocking_io_lab_ignore", display_name: "BlockingIOLab", status: "running" }),
+      createAppSummary({ app_key: "blocking_io_lab", display_name: "BlockingIOLab", status: "running" }),
+      createAppSummary({ app_key: "blocking_io_lab_ignore", display_name: "BlockingIOLab", status: "running" }),
     ]);
     const { container } = renderWithAppState(<Sidebar />);
     // Wait for entries
@@ -395,26 +395,26 @@ describe("Sidebar — display name collision (#1452)", () => {
 
 describe("Sidebar — status groups", () => {
   it("groups failed apps under FAILING header", async () => {
-    withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    withManifests([createAppSummary({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
     renderWithAppState(<Sidebar />);
     expect(await screen.findByText("FAILING")).toBeDefined();
     expect(await screen.findByText("Failed App")).toBeDefined();
   });
 
   it("groups running apps under RUNNING header", async () => {
-    withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]);
+    withManifests([createAppSummary({ app_key: "running_app", display_name: "Running App", status: "running" })]);
     renderWithAppState(<Sidebar />);
     expect(await screen.findByText("RUNNING")).toBeDefined();
   });
 
   it("groups disabled apps under DISABLED header", async () => {
-    withManifests([createManifest({ app_key: "dis_app", display_name: "Disabled App", status: "disabled" })]);
+    withManifests([createAppSummary({ app_key: "dis_app", display_name: "Disabled App", status: "disabled" })]);
     renderWithAppState(<Sidebar />);
     expect(await screen.findByText("DISABLED")).toBeDefined();
   });
 
   it("hides empty groups", async () => {
-    withManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]);
+    withManifests([createAppSummary({ app_key: "running_app", display_name: "Running App", status: "running" })]);
     const { getByTestId } = renderWithAppState(<Sidebar />);
     await screen.findByText("Running App");
     const appNav = getByTestId("app-nav");
@@ -427,7 +427,7 @@ describe("Sidebar — status groups", () => {
 
   it("clicking group header collapses the group", async () => {
     const user = userEvent.setup();
-    withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    withManifests([createAppSummary({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
     renderWithAppState(<Sidebar />);
     const header = await screen.findByText("FAILING");
     // Failed App visible before collapse
@@ -440,7 +440,7 @@ describe("Sidebar — status groups", () => {
 
   it("pressing Enter on group header toggles collapse", async () => {
     const user = userEvent.setup();
-    withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    withManifests([createAppSummary({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
     renderWithAppState(<Sidebar />);
     const header = await screen.findByText("FAILING");
     expect(screen.getByText("Failed App")).toBeDefined();
@@ -457,7 +457,7 @@ describe("Sidebar — status groups", () => {
 
   it("maps exhausted_dead to FAILING group", async () => {
     withManifests([
-      createManifest({
+      createAppSummary({
         app_key: "dead_app",
         display_name: "Dead App",
         status: "failed",
@@ -480,7 +480,7 @@ describe("Sidebar — status groups", () => {
 
   it("pressing Space on group header toggles collapse", async () => {
     const user = userEvent.setup();
-    withManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    withManifests([createAppSummary({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
     renderWithAppState(<Sidebar />);
     const header = await screen.findByText("FAILING");
     expect(screen.getByText("Failed App")).toBeDefined();
@@ -502,8 +502,8 @@ describe("Sidebar — status groups", () => {
 
   it("forces RUNNING group open when all apps are healthy", async () => {
     withManifests([
-      createManifest({ app_key: "app1", display_name: "App One", status: "running" }),
-      createManifest({ app_key: "app2", display_name: "App Two", status: "running" }),
+      createAppSummary({ app_key: "app1", display_name: "App One", status: "running" }),
+      createAppSummary({ app_key: "app2", display_name: "App Two", status: "running" }),
     ]);
     renderWithAppState(<Sidebar />);
     expect(await screen.findByText("App One")).toBeDefined();

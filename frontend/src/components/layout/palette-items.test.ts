@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as endpoints from "../../api/endpoints";
 import type { AppStatusEntry } from "../../state/store";
-import { createInstance, createManifest } from "../../test/factories";
+import { createAppSummary, createInstance } from "../../test/factories";
 import { buildActionItems, buildAppItems } from "./palette-items";
 
 const NO_LIVE_STATUSES: Record<string, AppStatusEntry> = {};
@@ -17,7 +17,7 @@ afterEach(() => {
 describe("buildAppItems", () => {
   it("includes apps that are in the current config", () => {
     const items = buildAppItems(
-      [createManifest({ app_key: "live_app", display_name: "Live App", in_current_config: true })],
+      [createAppSummary({ app_key: "live_app", display_name: "Live App", in_current_config: true })],
       NO_LIVE_STATUSES,
       vi.fn(),
       vi.fn(),
@@ -27,7 +27,7 @@ describe("buildAppItems", () => {
 
   it("excludes removed (in_current_config: false) apps", () => {
     const items = buildAppItems(
-      [createManifest({ app_key: "removed_app", display_name: "Removed App", in_current_config: false })],
+      [createAppSummary({ app_key: "removed_app", display_name: "Removed App", in_current_config: false })],
       NO_LIVE_STATUSES,
       vi.fn(),
       vi.fn(),
@@ -38,7 +38,7 @@ describe("buildAppItems", () => {
   it("also excludes instances belonging to a removed app", () => {
     const items = buildAppItems(
       [
-        createManifest({
+        createAppSummary({
           app_key: "removed_app",
           display_name: "Removed App",
           in_current_config: false,
@@ -54,7 +54,7 @@ describe("buildAppItems", () => {
 
   it("shows live WS status over a stale cached manifest status for the app row", () => {
     const items = buildAppItems(
-      [createManifest({ app_key: "stale_running_app", status: "running", in_current_config: true })],
+      [createAppSummary({ app_key: "stale_running_app", status: "running", in_current_config: true })],
       { "stale_running_app:0": { status: "failed", index: 0 } },
       vi.fn(),
       vi.fn(),
@@ -65,7 +65,7 @@ describe("buildAppItems", () => {
   it("shows live WS status over a stale cached instance status for instance rows", () => {
     const items = buildAppItems(
       [
-        createManifest({
+        createAppSummary({
           app_key: "multi_app",
           status: "running",
           in_current_config: true,
@@ -89,9 +89,9 @@ describe("buildActionItems", () => {
   it("includes degraded apps in reload-all, alongside running apps", () => {
     vi.spyOn(endpoints, "reloadApp").mockResolvedValue(undefined as never);
     const manifests = [
-      createManifest({ app_key: "running_app", status: "running", in_current_config: true }),
-      createManifest({ app_key: "degraded_app", status: "degraded", in_current_config: true }),
-      createManifest({ app_key: "stopped_app", status: "stopped", in_current_config: true }),
+      createAppSummary({ app_key: "running_app", status: "running", in_current_config: true }),
+      createAppSummary({ app_key: "degraded_app", status: "degraded", in_current_config: true }),
+      createAppSummary({ app_key: "stopped_app", status: "stopped", in_current_config: true }),
     ];
     const items = buildActionItems(manifests, NO_LIVE_STATUSES, vi.fn());
 
@@ -105,9 +105,9 @@ describe("buildActionItems", () => {
   it("includes degraded apps in stop-failing, alongside failed apps", () => {
     vi.spyOn(endpoints, "stopApp").mockResolvedValue(undefined as never);
     const manifests = [
-      createManifest({ app_key: "failed_app", status: "failed", in_current_config: true }),
-      createManifest({ app_key: "degraded_app", status: "degraded", in_current_config: true }),
-      createManifest({ app_key: "running_app", status: "running", in_current_config: true }),
+      createAppSummary({ app_key: "failed_app", status: "failed", in_current_config: true }),
+      createAppSummary({ app_key: "degraded_app", status: "degraded", in_current_config: true }),
+      createAppSummary({ app_key: "running_app", status: "running", in_current_config: true }),
     ];
     const items = buildActionItems(manifests, NO_LIVE_STATUSES, vi.fn());
 
@@ -123,7 +123,7 @@ describe("buildActionItems", () => {
     // an app was healthy can still read status: "running" after an instance has since failed.
     // The bulk command must catch this via the live appStatus store, not the cached manifest.
     vi.spyOn(endpoints, "stopApp").mockResolvedValue(undefined as never);
-    const manifests = [createManifest({ app_key: "stale_running_app", status: "running", in_current_config: true })];
+    const manifests = [createAppSummary({ app_key: "stale_running_app", status: "running", in_current_config: true })];
     const liveStatuses: Record<string, AppStatusEntry> = {
       "stale_running_app:0": { status: "failed", index: 0 },
     };
@@ -136,7 +136,7 @@ describe("buildActionItems", () => {
 
   it("excludes a stale cached 'failed' manifest from stop-failing once live status recovers", () => {
     vi.spyOn(endpoints, "stopApp").mockResolvedValue(undefined as never);
-    const manifests = [createManifest({ app_key: "recovered_app", status: "failed", in_current_config: true })];
+    const manifests = [createAppSummary({ app_key: "recovered_app", status: "failed", in_current_config: true })];
     const liveStatuses: Record<string, AppStatusEntry> = {
       "recovered_app:0": { status: "running", index: 0 },
     };
@@ -154,7 +154,7 @@ describe("buildActionItems", () => {
     // command should still include one via the live overlay if that ever changes, since it
     // routes through the same shared predicate as FailedAppsAlert rather than its own list.
     vi.spyOn(endpoints, "stopApp").mockResolvedValue(undefined as never);
-    const manifests = [createManifest({ app_key: "crashed_app", status: "running", in_current_config: true })];
+    const manifests = [createAppSummary({ app_key: "crashed_app", status: "running", in_current_config: true })];
     const liveStatuses: Record<string, AppStatusEntry> = {
       "crashed_app:0": { status: "crashed", index: 0 },
     };

@@ -2,13 +2,13 @@ import { http, HttpResponse } from "msw";
 import type { ReactNode } from "react";
 
 import type { AppManifest, JobData, ListenerData } from "../api/endpoints";
-import { createInstance, createManifest } from "../test/factories";
+import { createAppSummary, createInstance } from "../test/factories";
 import { server } from "../test/server";
 
 /** Registers MSW handlers for the manifest/listeners/jobs endpoints AppDetailPage queries. */
 export function setupApi(manifest: AppManifest, listeners: ListenerData[] = [], jobs: JobData[] = []) {
   server.use(
-    http.get("/api/apps/:app_key/manifest", () => HttpResponse.json(manifest)),
+    http.get("/api/apps/:app_key", () => HttpResponse.json(manifest)),
     http.get("/api/telemetry/app/:app_key/listeners", () => HttpResponse.json(listeners)),
     http.get("/api/telemetry/app/:app_key/jobs", () => HttpResponse.json(jobs)),
   );
@@ -16,7 +16,7 @@ export function setupApi(manifest: AppManifest, listeners: ListenerData[] = [], 
 
 /** Registers a 2-instance manifest (no ?instance= param selected) for multi-instance parent-view tests. */
 export function setupMultiInstanceParent() {
-  const manifest = createManifest({
+  const manifest = createAppSummary({
     instance_count: 2,
     instances: [
       createInstance({ index: 0, instance_name: "inst_0", status: "running" }),

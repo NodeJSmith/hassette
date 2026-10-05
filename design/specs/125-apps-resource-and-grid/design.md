@@ -208,10 +208,22 @@ Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+
+- Mapper names: `app_manifest_response_from` → `app_summary_from` and `app_manifest_list_response_from` → `app_list_response_from`; the grid row is built inline in the `app_grid` route as `AppGridEntry(app=app_summary_from(...), activity=AppActivity(...))`, since no grid mapper existed to rename: one call site, nothing to share.
+- Route functions: `get_apps` (list), `get_app` (one), `app_grid` (grid); frontend `getAppGrid`. The CLI path constant is the literal `/api/telemetry/app-grid` in both commands, as the old path was.
+- D15 internal renames: `hassette.schemas.listener_models.ListenerSummary` → `ListenerSummaryRow` (a DB query row) and `hassette.logging_.LogEntry` → `LogRecordEntry` (a captured log record). Python only; the frontend's local `LogEntry` alias belongs to spec 126's wire renames.
+- The frontend's local `type AppStatus` in `overview-tab.tsx` → `AppDisplayStatus`.
+- `GridEnrichment` lives in `hassette_wire.literals` beside the other `Literal` vocabularies. Root exports gain `AppActivity` and `GridEnrichment`; `OpenGridEnrichment` and `OpenAppStatus` are not root exports, matching every existing `Open*` alias (none is exported from the root, including the old `OpenManifestStatus`).
+- The handler that emits the WS event is renamed with it: `RuntimeQueryService.on_app_manifests_changed` → `on_apps_changed`, listener name `hassette.rqs.on_apps_changed`. The stored row is keyed by name, so the old row stops being re-registered; every clean shutdown cancels the subscription and sets `removed_at`, so after the last clean shutdown on the old version the old row is already out of the `active_*` views (framework listeners are never reconciled, so if that last shutdown was a crash the row stays listed with zero counts, as any removed framework listener would).
+- "Manifest" stays as the internal term per D16 for the frontend's internal `useManifests`, `getAppManifests`, `AppManifest` alias and `queryKeys.dashboardGrid`.
+- The CLI's degraded warning is `warn_degraded()` in `src/hassette/cli/output.py`, shared by `hassette app list` and `hassette dashboard`, and prints in both table and `--json` modes since stderr never reaches stdout's JSON.
+- D10's equivalence was pinned in its own commit (`get_all_app_summaries(since=now-1h)` per-app `total_invocations` == `get_recent_invocations_1h_all_apps()` on one seeded DB, with explicit expected counts), then the old query was deleted and the test kept the explicit counts.
+- Deleted tests that asserted removed behavior: the `AppStatusResponse`/`app_status_response_from`/`get_app_status_snapshot` tests, the `recent_invocations_1h` mapper and endpoint tests, and `test_get_app_endpoint_removed` (it asserted `GET /api/apps/{app_key}` 404s, which D16 now serves). `AppGridEntry`'s flat-field default tests moved to `AppSummary`'s existing ones plus new `AppGridResponse` `degraded`/`since` tests.
+- Test factories: `make_app_activity` added (registered in `tools/check_test_factories.py`); `make_app_grid_entry(app=, activity=)` and the frontend `createAppGridEntry({app, activity})` take the two halves.
 
 ## Addendum

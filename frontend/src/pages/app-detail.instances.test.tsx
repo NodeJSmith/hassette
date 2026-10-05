@@ -3,7 +3,7 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { appStatusKey, type AppStore } from "../state/store";
-import { createBlockingFinding, createInstance, createManifest } from "../test/factories";
+import { createAppSummary, createBlockingFinding, createInstance } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
@@ -67,7 +67,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("renders multi-instance parent overview when instance_count > 1 and no index param", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -95,7 +95,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("renders instance grid cards with instance names", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -112,7 +112,7 @@ describe("AppDetailPage instances", () => {
     // Reproduces a stale-status report: the manifest fetch says inst_0 is still "running",
     // but a WS app_status_changed message (mirrored into the appStatus store) already marked
     // it "stopped". The grid must show the live value, not the cached manifest snapshot.
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -135,7 +135,7 @@ describe("AppDetailPage instances", () => {
     // before it recovered, but a WS app_status_changed message (mirrored into the appStatus
     // store) already reports it "running" with no exception. The grid must not keep showing
     // the old error alongside the now-live "running" status.
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "failed", error_message: "boom" }),
@@ -156,7 +156,7 @@ describe("AppDetailPage instances", () => {
     // Reproduces the inverse: the manifest fetch cached inst_0 as healthy, but a WS
     // app_status_changed message already reports it "failed" with a live exception. The grid
     // must surface that exception, not the cached (empty) error_message.
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -174,7 +174,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("instance switcher status dot reflects live appStatus over stale manifest status", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -196,7 +196,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("renders instance count badge in parent overview header", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 3,
       instances: [
         createInstance({ index: 0, instance_name: "a", status: "running" }),
@@ -210,7 +210,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("renders instance switcher in detail header when on instance view with siblings", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -226,7 +226,7 @@ describe("AppDetailPage instances", () => {
 
   it("instance switcher navigates to current tab path with instance query param", async () => {
     const user = userEvent.setup();
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -245,7 +245,7 @@ describe("AppDetailPage instances", () => {
 
   it("multi-instance parent overview navigates using ?instance= query param", async () => {
     const user = userEvent.setup();
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -263,7 +263,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("reads instance from ?instance= query param for multi-instance detail view", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -281,7 +281,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("corrects out-of-range instance index to instance 0 via correctUrl", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -301,7 +301,7 @@ describe("AppDetailPage instances", () => {
     // Config shrank to 1 instance while index 2 was still running. The backend reports the
     // union of configured and tracked indices, so instance_count is 2 while the orphan sits at
     // index 2 — redirecting away from it would make it unstoppable from the UI.
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -317,10 +317,10 @@ describe("AppDetailPage instances", () => {
   });
 
   it("corrects an out-of-range index when the manifest omits its instances array", async () => {
-    // `instances` is optional on AppManifestResponse, so the membership check can find nothing
+    // `instances` is optional on AppSummary, so the membership check can find nothing
     // to consult. With no tracked-index evidence, an index past instance_count is not
     // addressable and the redirect must still fire.
-    const manifest = createManifest({ instance_count: 2, instances: undefined });
+    const manifest = createAppSummary({ instance_count: 2, instances: undefined });
     setupApi(manifest);
     mockSearchString = "instance=5";
     renderPage({ key: "test_app", tab: "handlers" });
@@ -331,7 +331,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("corrects negative instance query params before preserving them in links", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -350,7 +350,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it.each(["0x1", "1e2"])("corrects malformed instance query param %s", async (instanceParam) => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -368,7 +368,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("preserves code line deep links when correcting invalid instance params", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),
@@ -386,7 +386,7 @@ describe("AppDetailPage instances", () => {
   });
 
   it("corrects negative instance query params on handlers without redirecting to parent overview", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       instance_count: 2,
       instances: [
         createInstance({ index: 0, instance_name: "inst_0", status: "running" }),

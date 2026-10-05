@@ -380,8 +380,8 @@ describe("AppTableRow", () => {
 
   describe("dimmed styling for inactive statuses", () => {
     // "shutting_down" and "unknown" can no longer reach `AppRow.status` (typed to the backend's
-    // `ManifestStatus`) — they only exist in INACTIVE_STATUSES for backwards-compat matching
-    // against live-status values (`ManifestStatus | ResourceStatus`), neither of which includes
+    // `AppStatus`) — they only exist in INACTIVE_STATUSES for backwards-compat matching
+    // against live-status values (`AppStatus | ResourceStatus`), neither of which includes
     // them either. See design/specs/102-status-exhaustiveness-enforcement.
     const manifestInactiveStatuses = [...INACTIVE_STATUSES].filter(
       (s): s is AppRow["status"] => s !== "shutting_down" && s !== "unknown",

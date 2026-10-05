@@ -18,11 +18,13 @@ from fastapi import APIRouter, Query, Response
 from hassette_wire import (
     ActivityBucket,
     ActivityFeedEntry,
+    AppActivity,
+    AppGridEntry,
+    AppGridResponse,
     AppHealth,
     BlockingFindingsResponse,
-    DashboardAppGridEntry,
-    DashboardAppGridResponse,
     Execution,
+    GridEnrichment,
     JobSummary,
     ListenerWithSummary,
     ProblemCode,
@@ -46,7 +48,7 @@ from hassette.web.dependencies import (
     TelemetryFiltersDep,
 )
 from hassette.web.errors import problem_responses
-from hassette.web.mappers import manifest_response_fields, to_listener_with_summary
+from hassette.web.mappers import app_summary_from, to_listener_with_summary
 from hassette.web.telemetry_helpers import build_app_health
 from hassette.web.utils import enrich_jobs_with_live_data
 
@@ -286,37 +288,40 @@ async def get_execution(
 
 
 @router.get(
-    "/dashboard/app-grid",
-    response_model=DashboardAppGridResponse,
+    "/app-grid",
+    response_model=AppGridResponse,
     responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
 )
-async def dashboard_app_grid(
+async def app_grid(
     runtime: RuntimeDep,
     telemetry: TelemetryDep,
     since: SinceQuery = None,
-) -> DashboardAppGridResponse:
-    """Per-app health data for the dashboard grid.
+) -> AppGridResponse:
+    """Every app joined with its activity over ``since``, for the Apps grid.
 
     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
     failure) and overlaid with live runtime state via
     ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below are
-    caught individually and degrade to empty defaults while the response continues at 200 —
-    see ``.claude/rules/web-api.md``.
+    caught individually: each failure degrades its part of ``activity`` to empty defaults, is
+    named in ``degraded``, and the response continues at 200 — see ``.claude/rules/web-api.md``.
 
     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
     not the manifest-driven app grid.
     """
     db_rows = await telemetry.get_all_app_manifests()
     manifest_infos = runtime.overlay_manifest_rows(db_rows)
+    degraded: list[GridEnrichment] = []
 
     try:
         summaries = await telemetry.get_all_app_summaries(since=since, source_tier="app")
     except TelemetryUnavailableError:
-        LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
+        LOGGER.warning("Failed to fetch app summaries for the app grid", exc_info=True)
         summaries = {}
+        degraded.append("summaries")
 
     per_app_buckets: dict[str, list[tuple[int, int]]] = {}
     per_app_errors: dict[str, AppLastError] = {}
+    # Buckets and last errors only exist for a window; all-time (since=None) leaves both empty.
     if since is not None:
         now = time.time()
         try:
@@ -328,44 +333,46 @@ async def dashboard_app_grid(
             )
         except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app activity buckets", exc_info=True)
+            degraded.append("activity_buckets")
         try:
             per_app_errors = await telemetry.get_per_app_last_errors(since=since, source_tier="app")
         except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app last errors", exc_info=True)
+            degraded.append("last_errors")
 
-    # Optional enrichment: a failure here reads as zero blocking events rather than failing the grid.
     try:
         blocking_counts = await telemetry.get_blocking_event_counts(since=since)
     except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch per-app blocking-event counts", exc_info=True)
         blocking_counts = {}
+        degraded.append("blocking_counts")
 
     empty = AppHealthSummary(handler_count=0, job_count=0, aggregates=AppHealthAggregates.empty())
 
-    entries: list[DashboardAppGridEntry] = []
+    entries: list[AppGridEntry] = []
     for manifest in manifest_infos:
         summary = summaries.get(manifest.app_key, empty)
         agg = summary.aggregates
         buckets = per_app_buckets.get(manifest.app_key, [])
         err_info = per_app_errors.get(manifest.app_key)
-        entries.append(
-            DashboardAppGridEntry(
-                **manifest_response_fields(manifest),
-                handler_count=summary.handler_count,
-                job_count=summary.job_count,
-                total_invocations=agg.total_invocations,
-                total_errors=agg.handler_errors,
-                total_timed_out=agg.handler_timed_out,
-                total_executions=agg.total_executions,
-                total_job_errors=agg.job_errors,
-                total_job_timed_out=agg.job_timed_out,
-                health=build_app_health(agg),
-                last_error_message=err_info.error_message if err_info else None,
-                last_error_type=err_info.error_type if err_info else None,
-                last_error_ts=err_info.timestamp if err_info else None,
-                activity_buckets=[ActivityBucket(ok=ok, err=err) for ok, err in buckets],
-                blocking_event_count=blocking_counts.get(manifest.app_key, 0),
-            )
+        activity = AppActivity(
+            handler_count=summary.handler_count,
+            job_count=summary.job_count,
+            total_invocations=agg.total_invocations,
+            total_errors=agg.handler_errors,
+            total_timed_out=agg.handler_timed_out,
+            total_executions=agg.total_executions,
+            total_job_errors=agg.job_errors,
+            total_job_timed_out=agg.job_timed_out,
+            health=build_app_health(agg),
+            last_error_message=err_info.error_message if err_info else None,
+            last_error_type=err_info.error_type if err_info else None,
+            last_error_ts=err_info.timestamp if err_info else None,
+            activity_buckets=[ActivityBucket(ok=ok, err=err) for ok, err in buckets],
+            blocking_event_count=blocking_counts.get(manifest.app_key, 0),
         )
+        entries.append(AppGridEntry(app=app_summary_from(manifest), activity=activity))
 
-    return DashboardAppGridResponse(apps=entries)
+    # [*degraded], not degraded: list is invariant, so a fresh list is needed for the element type to widen
+    # from GridEnrichment to the field's OpenGridEnrichment.
+    return AppGridResponse(apps=entries, degraded=[*degraded], since=since)

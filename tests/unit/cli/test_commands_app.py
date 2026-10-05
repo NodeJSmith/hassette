@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import ActionResponse, AppInstanceResponse, AppManifestListResponse
+from hassette_wire import ActionResponse, AppGridEntry, AppInstanceResponse, AppListResponse, AppStatus, GridEnrichment
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
@@ -25,23 +25,30 @@ from hassette.cli.commands.app import (
 )
 from hassette.cli.context import CLIContext
 from hassette.cli.output import now_epoch
-from tests.support.web_manifest_helpers import make_manifest_list_response, make_manifest_response
+from hassette.const.misc import SECONDS_PER_HOUR
+from tests.support.web_manifest_helpers import make_app_list_response, make_app_summary
 from tests.support.web_response_helpers import (
+    make_app_activity,
     make_app_config_response,
+    make_app_grid_entry,
+    make_app_grid_response,
     make_app_health,
     make_app_source_response,
 )
 from tests.support.web_telemetry_helpers import make_activity_feed_entry
 from tests.unit.cli.conftest import (
+    NOW_EPOCH,
     SINCE_EPOCH,
     CLIClientFactory,
     CommandRunner,
     capture_json_stdout,
+    fixed_now,
     make_post_spy,
 )
 
 runner = CommandRunner("hassette.cli.commands.app.make_client")
 ACTIVITY_ENDPOINT = "/api/telemetry/app/my-app/activity"
+APP_GRID_ENDPOINT = "/api/telemetry/app-grid"
 
 #: (command, action verb, past-tense verb, extra kwargs) for the three action commands.
 #: `start` never prompts for confirmation and takes no `yes` kwarg; `stop`/`reload` do.
@@ -55,49 +62,71 @@ _ACTION_CASES = [
 # cmd_app (bare — list all apps)
 
 
+def _grid_body(
+    entries: list[AppGridEntry] | None = None, degraded: list[GridEnrichment] | None = None
+) -> dict[str, Any]:
+    """JSON body for a mocked ``GET /api/telemetry/app-grid`` response."""
+    return make_app_grid_response(entries, degraded=degraded).model_dump(mode="json")
+
+
 class TestCmdApp:
-    def test_calls_manifests_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """Bare app command fetches from GET /api/apps/manifests."""
-        manifest = make_manifest_response()
-        data = make_manifest_list_response([manifest])
-        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
-        spy = runner.spy(client, cmd_app)
+    def test_reads_grid_over_the_last_hour(self, cli_client_factory: CLIClientFactory) -> None:
+        """Bare app command reads GET /api/telemetry/app-grid with since = now - 1h on the CLI's clock."""
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, _grid_body())])
+        with patch("hassette.cli.output.now_epoch", fixed_now):
+            spy = runner.spy(client, cmd_app)
 
-        assert "/api/apps/manifests" in spy.paths
+        assert spy.params_for("app-grid")["since"] == pytest.approx(NOW_EPOCH - SECONDS_PER_HOUR)
 
-    def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
-        """App renders a table with app_key and status columns."""
-        manifest = make_manifest_response(app_key="my_app", status="running", display_name="My App")
-        data = make_manifest_list_response([manifest])
-        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
+    def test_human_mode_renders_app_and_hour_invocations(self, cli_client_factory: CLIClientFactory) -> None:
+        """The table shows app fields and activity.total_invocations under Invoc/1h."""
+        entry = make_app_grid_entry(
+            app=make_app_summary(app_key="my_app", status=AppStatus.RUNNING, display_name="My App"),
+            activity=make_app_activity(total_invocations=42),
+        )
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, _grid_body([entry]))])
         output = runner.stdout(client, cmd_app)
         assert "my_app" in output
         assert "running" in output
+        assert "42" in output
 
-    def test_json_mode_outputs_manifests_list(self, cli_client_factory: CLIClientFactory) -> None:
-        """App --json outputs the manifests list as a JSON array."""
-        manifest = make_manifest_response(app_key="my_app")
-        data = make_manifest_list_response([manifest])
-        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
+    def test_json_mode_outputs_app_activity_rows(self, cli_client_factory: CLIClientFactory) -> None:
+        """App --json outputs the grid rows as a JSON array of {app, activity}."""
+        entry = make_app_grid_entry(app=make_app_summary(app_key="my_app"))
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, _grid_body([entry]))])
 
         parsed = runner.json_output(client, cmd_app)
         assert isinstance(parsed, list)
-        assert parsed[0]["app_key"] == "my_app"
+        assert set(parsed[0]) == {"app", "activity"}
+        assert parsed[0]["app"]["app_key"] == "my_app"
 
     def test_empty_result_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
-        """App renders a no-results message when manifests list is empty."""
-        data = make_manifest_list_response([])
-        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
+        """App renders a no-results message when the grid is empty."""
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, _grid_body([]))])
         assert "No results" in runner.stderr(client, cmd_app)
 
+    def test_degraded_grid_warns_on_stderr_naming_each_enrichment(self, cli_client_factory: CLIClientFactory) -> None:
+        """A degraded grid prints one stderr line naming what failed; stdout keeps only the table."""
+        body = _grid_body(degraded=["summaries", "blocking_counts"])
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, body)])
+
+        # Two runs on purpose: the runner captures one stream per invocation.
+        assert "summaries, blocking_counts" in runner.stderr(client, cmd_app)
+        assert "summaries" not in runner.stdout(client, cmd_app)
+
+    def test_fully_successful_grid_prints_no_warning(self, cli_client_factory: CLIClientFactory) -> None:
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, _grid_body())])
+        assert "Warning" not in runner.stderr(client, cmd_app)
+
     def test_app_list_columns_defined(self) -> None:
-        """APP_LIST_COLUMNS includes the key per-app fields."""
+        """APP_LIST_COLUMNS reads app fields from `app` and the hour's invocations from `activity`."""
         field_names = [c.field for c in APP_LIST_COLUMNS]
-        assert "app_key" in field_names
-        assert "status" in field_names
-        assert "display_name" in field_names
-        assert "instance_count" in field_names
-        assert "autostart" in field_names
+        assert "app.app_key" in field_names
+        assert "app.status" in field_names
+        assert "app.display_name" in field_names
+        assert "app.instance_count" in field_names
+        assert "app.autostart" in field_names
+        assert "activity.total_invocations" in field_names
 
     def test_app_list_columns_count_is_compact(self) -> None:
         """APP_LIST_COLUMNS uses at most 8 columns for readability."""
@@ -138,11 +167,11 @@ class TestCmdAppHealth:
             class_name="MyApp",
             status="running",  # pyright: ignore[reportArgumentType]
         )
-        manifest_resp = make_manifest_response(app_key="my-app", instances=[instance_resp])
-        manifest_list = AppManifestListResponse(total=1, status_counts={"running": 1}, manifests=[manifest_resp])
+        manifest_resp = make_app_summary(app_key="my-app", instances=[instance_resp])
+        manifest_list = AppListResponse(total=1, status_counts={"running": 1}, apps=[manifest_resp])
         client = cli_client_factory.build_with_routes(
             [
-                ("GET", "/api/apps/manifests", 200, manifest_list.model_dump()),
+                ("GET", "/api/apps", 200, manifest_list.model_dump()),
                 ("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump()),
             ]
         )
@@ -371,10 +400,10 @@ def _instance(index: int, name: str, app_key: str = "my_app") -> AppInstanceResp
 
 
 def _manifest_route(instances: list[AppInstanceResponse], app_key: str = "my_app") -> tuple[str, str, int, Any]:
-    """Route entry for ``GET /api/apps/manifests``, used to resolve instance names."""
-    manifest_resp = make_manifest_response(app_key=app_key, instances=instances)
-    manifest_list = make_manifest_list_response([manifest_resp])
-    return ("GET", "/api/apps/manifests", 200, manifest_list.model_dump())
+    """Route entry for ``GET /api/apps``, used to resolve instance names."""
+    manifest_resp = make_app_summary(app_key=app_key, instances=instances)
+    manifest_list = make_app_list_response([manifest_resp])
+    return ("GET", "/api/apps", 200, manifest_list.model_dump())
 
 
 def _instance_action_routes(
@@ -404,7 +433,7 @@ def _instance_action_routes(
         confirmed_index = requested_index
 
     if manifest_status != 200:
-        manifest_route = ("GET", "/api/apps/manifests", manifest_status, {"detail": manifest_detail})
+        manifest_route = ("GET", "/api/apps", manifest_status, {"detail": manifest_detail})
     else:
         manifest_route = _manifest_route(instances, app_key=app_key)
 
@@ -512,7 +541,7 @@ class TestCmdAppActionRouting:
     def test_numeric_instance_succeeds_when_manifest_fetch_returns_503(
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
-        """A numeric --instance still succeeds when /api/apps/manifests 503s (telemetry outage).
+        """A numeric --instance still succeeds when /api/apps 503s (telemetry outage).
 
         The manifest lookup is a best-effort name resolution — the mutating action itself
         has no telemetry dependency, so a degraded telemetry DB must not block it.

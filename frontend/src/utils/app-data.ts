@@ -1,10 +1,10 @@
-import type { DashboardAppGridEntry } from "../api/endpoints";
+import type { AppGridEntry } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 import type { SortState } from "../components/shared/sort-header";
 import { type AppStatusEntry, appStatusKey } from "../state/store";
 import { statusPriority } from "./status-priority";
 
-type ManifestStatus = components["schemas"]["ManifestStatus"];
+type AppStatus = components["schemas"]["AppStatus"];
 type ResourceStatus = components["schemas"]["ResourceStatus"];
 
 export interface AppRow {
@@ -12,13 +12,13 @@ export interface AppRow {
   class_name: string;
   display_name: string;
   filename: string;
-  status: ManifestStatus;
+  status: AppStatus;
   block_reason: string | null;
   enabled: boolean;
   auto_loaded: boolean;
   autostart: boolean;
   instance_count: number;
-  instances: NonNullable<DashboardAppGridEntry["instances"]>;
+  instances: NonNullable<AppGridEntry["app"]["instances"]>;
   error_message: string | null;
   in_current_config: boolean;
   handler_count: number;
@@ -38,40 +38,40 @@ export interface AppRow {
 }
 
 /**
- * Normalize a dashboard grid entry into an `AppRow`, defaulting the entry's
- * optional enrichment fields (activity buckets, last-error fields, instances)
- * to their empty/null equivalents. The grid endpoint is the sole data source —
- * this is field defaulting, not a merge of two sources.
+ * Flatten an app grid entry (`{app, activity}`) into an `AppRow`, defaulting the
+ * optional fields (activity buckets, last-error fields, instances) to their
+ * empty/null equivalents. The grid endpoint is the sole data source — this is
+ * flattening and field defaulting, not a merge of two sources.
  */
-export function toAppRow(entry: DashboardAppGridEntry): AppRow {
+export function toAppRow({ app, activity }: AppGridEntry): AppRow {
   return {
-    app_key: entry.app_key,
-    class_name: entry.class_name,
-    display_name: entry.display_name,
-    filename: entry.filename,
-    status: entry.status,
-    block_reason: entry.block_reason ?? null,
-    enabled: entry.enabled,
-    auto_loaded: entry.auto_loaded,
-    autostart: entry.autostart,
-    instance_count: entry.instance_count,
-    instances: entry.instances ?? [],
-    error_message: entry.error_message ?? null,
-    in_current_config: entry.in_current_config,
-    handler_count: entry.handler_count,
-    job_count: entry.job_count,
-    total_invocations: entry.total_invocations,
-    total_executions: entry.total_executions,
-    total_errors: entry.total_errors,
-    total_timed_out: entry.total_timed_out,
-    total_job_errors: entry.total_job_errors,
-    total_job_timed_out: entry.total_job_timed_out,
-    last_activity_ts: entry.health.last_activity_ts,
-    activity_buckets: entry.activity_buckets ?? [],
-    last_error_message: entry.last_error_message ?? null,
-    last_error_type: entry.last_error_type ?? null,
-    last_error_ts: entry.last_error_ts ?? null,
-    blocking_event_count: entry.blocking_event_count,
+    app_key: app.app_key,
+    class_name: app.class_name,
+    display_name: app.display_name,
+    filename: app.filename,
+    status: app.status,
+    block_reason: app.block_reason ?? null,
+    enabled: app.enabled,
+    auto_loaded: app.auto_loaded,
+    autostart: app.autostart,
+    instance_count: app.instance_count,
+    instances: app.instances ?? [],
+    error_message: app.error_message ?? null,
+    in_current_config: app.in_current_config,
+    handler_count: activity.handler_count,
+    job_count: activity.job_count,
+    total_invocations: activity.total_invocations,
+    total_executions: activity.total_executions,
+    total_errors: activity.total_errors,
+    total_timed_out: activity.total_timed_out,
+    total_job_errors: activity.total_job_errors,
+    total_job_timed_out: activity.total_job_timed_out,
+    last_activity_ts: activity.health.last_activity_ts,
+    activity_buckets: activity.activity_buckets ?? [],
+    last_error_message: activity.last_error_message ?? null,
+    last_error_type: activity.last_error_type ?? null,
+    last_error_ts: activity.last_error_ts ?? null,
+    blocking_event_count: activity.blocking_event_count,
   };
 }
 
@@ -86,7 +86,7 @@ export type AppSortState = SortState<AppSortKey>;
  *  config state. Single source of truth for this rule — `appLiveStatus` and the per-instance
  *  action-button gating in `AppTableRow`/`AppDetailHeader` all call this instead of
  *  reimplementing the `"disabled" | "blocked"` check inline. */
-export function configStatusOverride(status: ManifestStatus | ResourceStatus): "disabled" | "blocked" | undefined {
+export function configStatusOverride(status: AppStatus | ResourceStatus): "disabled" | "blocked" | undefined {
   return status === "disabled" || status === "blocked" ? status : undefined;
 }
 
@@ -119,7 +119,7 @@ export function configStatusOverride(status: ManifestStatus | ResourceStatus): "
 export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
-): ManifestStatus | ResourceStatus {
+): AppStatus | ResourceStatus {
   const override = configStatusOverride(row.status);
   if (override) return override;
   const instances = row.instances ?? [];

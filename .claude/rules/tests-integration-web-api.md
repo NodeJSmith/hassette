@@ -44,4 +44,4 @@ second file drives the same endpoint.
 ## Key conventions
 
 - `app`/`client`/`runtime_query_service` live here (not `tests/integration/conftest.py`) because their sole dependency, `mock_hassette`, is web-test-specific.
-- Build `ListenerSummary`, `Execution`, and `AppInstanceInfo` test data through the shared factories (`make_listener_summary`, `make_execution`, `make_app_instance_info`) rather than the model constructors — the raw constructors are 10-30 keyword arguments of which a test typically asserts on two.
+- Build `ListenerSummaryRow`, `Execution`, and `AppInstanceInfo` test data through the shared factories (`make_listener_summary`, `make_execution`, `make_app_instance_info`) rather than the model constructors — the raw constructors are 10-30 keyword arguments of which a test typically asserts on two.

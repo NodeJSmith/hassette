@@ -14,7 +14,7 @@ from hassette_wire import (
     SourceTier,
 )
 
-from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B, TEST_SOURCE_LOCATION
 from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
 
@@ -79,13 +79,13 @@ def make_listener_summary(
     last_error_type: str | None = None,
     last_error_message: str | None = None,
     last_error_traceback: str | None = None,
-) -> ListenerSummary:
-    """Build a ListenerSummary with sensible defaults.
+) -> ListenerSummaryRow:
+    """Build a ListenerSummaryRow with sensible defaults.
 
-    ``ListenerSummary`` is what ``get_listener_summary()`` returns — the DB-side model routes
+    ``ListenerSummaryRow`` is what ``get_listener_summary()`` returns — the DB-side model routes
     consume. For the response-side model the routes emit, see ``make_listener_with_summary``.
     """
-    return ListenerSummary(
+    return ListenerSummaryRow(
         listener_id=listener_id,
         app_key=app_key,
         instance_index=instance_index,

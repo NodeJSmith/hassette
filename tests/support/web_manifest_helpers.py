@@ -8,9 +8,9 @@ from typing import Any
 
 from hassette_wire import (
     AppInstanceResponse,
-    AppManifestListResponse,
-    AppManifestResponse,
-    ManifestStatus,
+    AppListResponse,
+    AppStatus,
+    AppSummary,
     ResourceStatus,
 )
 
@@ -18,11 +18,11 @@ from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, App
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 
 
-def _tally_statuses(manifests: Sequence[AppManifestInfo | AppManifestResponse]) -> dict[str, int]:
+def _tally_statuses(manifests: Sequence[AppManifestInfo | AppSummary]) -> dict[str, int]:
     """Count manifests by status.
 
     Delegates to ``tally_manifest_statuses()`` (schemas.app_snapshots), which only needs
-    ``.status`` on each item — safe for ``AppManifestResponse`` too despite the narrower
+    ``.status`` on each item — safe for ``AppSummary`` too despite the narrower
     ``Iterable[AppManifestInfo]`` type hint.
     """
     return tally_manifest_statuses(manifests)  # pyright: ignore[reportArgumentType]
@@ -79,7 +79,7 @@ def make_manifest(
     filename: str = "test_app.py",
     enabled: bool = True,
     auto_loaded: bool = False,
-    status: ManifestStatus = ManifestStatus.RUNNING,
+    status: AppStatus = AppStatus.RUNNING,
     block_reason: str | None = None,
     instance_count: int = 1,
     instances: list[AppInstanceInfo] | None = None,
@@ -107,20 +107,20 @@ def make_manifest(
     )
 
 
-def make_manifest_response(
+def make_app_summary(
     app_key: str = DEFAULT_TEST_APP_KEY,
     class_name: str = "TestApp",
     display_name: str = "Test App",
     filename: str = "test_app.py",
     enabled: bool = True,
     auto_loaded: bool = False,
-    status: ManifestStatus = ManifestStatus.RUNNING,
+    status: AppStatus = AppStatus.RUNNING,
     instance_count: int = 1,
     instances: list[AppInstanceResponse] | None = None,
     in_current_config: bool = True,
-) -> AppManifestResponse:
-    """Build an AppManifestResponse with sensible defaults."""
-    return AppManifestResponse(
+) -> AppSummary:
+    """Build an AppSummary with sensible defaults."""
+    return AppSummary(
         app_key=app_key,
         class_name=class_name,
         display_name=display_name,
@@ -157,14 +157,14 @@ def make_manifest_db_row(app_key: str = DEFAULT_TEST_APP_KEY, **overrides: Any) 
     return row
 
 
-def make_manifest_list_response(
-    manifests: list[AppManifestResponse] | None = None,
-) -> AppManifestListResponse:
-    """Build an AppManifestListResponse from a list of manifests."""
+def make_app_list_response(
+    manifests: list[AppSummary] | None = None,
+) -> AppListResponse:
+    """Build an AppListResponse from a list of manifests."""
     manifests = manifests or []
     counts = _tally_statuses(manifests)
-    return AppManifestListResponse(
-        manifests=manifests,
+    return AppListResponse(
+        apps=manifests,
         total=len(manifests),
         status_counts=counts,
     )

@@ -1,34 +1,5 @@
 {
   "$defs": {
-    "AppManifestsChangedData": {
-      "description": "Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed \u2014 it is a refetch\nsignal, not a diff. Clients should treat receipt as \"manifest status may be\nstale, refetch\" rather than inspect the payload.",
-      "properties": {},
-      "title": "AppManifestsChangedData",
-      "type": "object"
-    },
-    "AppManifestsChangedWsMessage": {
-      "properties": {
-        "type": {
-          "const": "app_manifests_changed",
-          "title": "Type",
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/AppManifestsChangedData"
-        },
-        "timestamp": {
-          "title": "Timestamp",
-          "type": "number"
-        }
-      },
-      "required": [
-        "type",
-        "data",
-        "timestamp"
-      ],
-      "title": "AppManifestsChangedWsMessage",
-      "type": "object"
-    },
     "AppStatusChangedData": {
       "description": "Payload for an app lifecycle state-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.AppStateChangePayload`` exactly.",
       "properties": {
@@ -144,6 +115,35 @@
         "timestamp"
       ],
       "title": "AppStatusChangedWsMessage",
+      "type": "object"
+    },
+    "AppsChangedData": {
+      "description": "Payload for an app-list refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed \u2014 it is a refetch\nsignal, not a diff. Clients should treat receipt as \"app status may be\nstale, refetch\" rather than inspect the payload.",
+      "properties": {},
+      "title": "AppsChangedData",
+      "type": "object"
+    },
+    "AppsChangedWsMessage": {
+      "properties": {
+        "type": {
+          "const": "apps_changed",
+          "title": "Type",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AppsChangedData"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "number"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "timestamp"
+      ],
+      "title": "AppsChangedWsMessage",
       "type": "object"
     },
     "ConnectedPayload": {
@@ -523,8 +523,8 @@
   },
   "discriminator": {
     "mapping": {
-      "app_manifests_changed": "#/$defs/AppManifestsChangedWsMessage",
       "app_status_changed": "#/$defs/AppStatusChangedWsMessage",
+      "apps_changed": "#/$defs/AppsChangedWsMessage",
       "connected": "#/$defs/ConnectedWsMessage",
       "connectivity": "#/$defs/ConnectivityWsMessage",
       "execution_completed": "#/$defs/ExecutionCompletedWsMessage",
@@ -553,7 +553,7 @@
       "$ref": "#/$defs/ExecutionCompletedWsMessage"
     },
     {
-      "$ref": "#/$defs/AppManifestsChangedWsMessage"
+      "$ref": "#/$defs/AppsChangedWsMessage"
     }
   ]
 }

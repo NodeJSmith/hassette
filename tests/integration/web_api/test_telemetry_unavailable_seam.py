@@ -3,7 +3,7 @@
 - Only TelemetryUnavailableError maps to 503: a non-DB ValueError raised in a handler body
   propagates as HTTP 500.
 - A storage error in an optional enrichment query (get_all_app_summaries) degrades
-  dashboard_app_grid to 200-partial, not 500.
+  app_grid to 200-partial, not 500.
 
 The ``telemetry_unavailable`` problem body each data route answers with, and the probe's status
 body, are pinned per route in ``test_problem_details.py``.
@@ -45,7 +45,7 @@ class TestNonTelemetryErrorsStay500:
         assert response.status_code == 500
 
 
-class TestDashboardAppGridDegrades:
+class TestAppGridDegrades:
     """A storage error in get_all_app_summaries degrades to 200-partial, not 500."""
 
     async def test_storage_error_in_get_all_app_summaries_yields_200_partial(
@@ -69,6 +69,6 @@ class TestDashboardAppGridDegrades:
         # Must be 200 (partial), not 503 or 500 — an optional query never fails the request
         data = await get_json(client, APP_GRID_PATH)
 
-        assert "apps" in data
         assert len(data["apps"]) == 1
-        assert data["apps"][0]["total_invocations"] == 0
+        assert data["apps"][0]["activity"]["total_invocations"] == 0
+        assert data["degraded"] == ["summaries"]

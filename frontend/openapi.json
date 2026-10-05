@@ -86,6 +86,7 @@
           "apps"
         ],
         "summary": "Get Apps",
+        "description": "Return every persisted app, overlaid with live runtime state.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but\nno loaded manifest are still included.",
         "operationId": "get_apps_api_apps_get",
         "responses": {
           "200": {
@@ -93,29 +94,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppStatusResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/apps/manifests": {
-      "get": {
-        "tags": [
-          "apps"
-        ],
-        "summary": "Get App Manifests",
-        "description": "Return every persisted app manifest, overlaid with live runtime state.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but\nno loaded manifest are still included. The ``recent_invocations_1h`` enrichment query\nbelow is caught on its own and degrades to zero while the response continues at 200.",
-        "operationId": "get_app_manifests_api_apps_manifests_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AppManifestListResponse"
+                  "$ref": "#/components/schemas/AppListResponse"
                 }
               }
             }
@@ -136,14 +115,14 @@
         }
       }
     },
-    "/api/apps/{app_key}/manifest": {
+    "/api/apps/{app_key}": {
       "get": {
         "tags": [
           "apps"
         ],
-        "summary": "Get App Manifest",
-        "description": "Return the persisted manifest for a single app, overlaid with live runtime state.\n\nQueries the ``app_manifests`` DB table directly instead of the in-memory registry, so an\napp with historical telemetry but no loaded manifest returns 200 instead of 404. A DB\nfailure answers ``telemetry_unavailable``; a genuinely unknown ``app_key`` answers\n``app_not_found``.",
-        "operationId": "get_app_manifest_api_apps__app_key__manifest_get",
+        "summary": "Get App",
+        "description": "Return a single persisted app, overlaid with live runtime state.\n\nQueries the ``app_manifests`` DB table directly instead of the in-memory registry, so an\napp with historical telemetry but no loaded manifest returns 200 instead of 404. A DB\nfailure answers ``telemetry_unavailable``; a genuinely unknown ``app_key`` answers\n``app_not_found``.",
+        "operationId": "get_app_api_apps__app_key__get",
         "parameters": [
           {
             "name": "app_key",
@@ -161,7 +140,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppManifestResponse"
+                  "$ref": "#/components/schemas/AppSummary"
                 }
               }
             }
@@ -2431,14 +2410,14 @@
         }
       }
     },
-    "/api/telemetry/dashboard/app-grid": {
+    "/api/telemetry/app-grid": {
       "get": {
         "tags": [
           "telemetry"
         ],
-        "summary": "Dashboard App Grid",
-        "description": "Per-app health data for the dashboard grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below are\ncaught individually and degrade to empty defaults while the response continues at 200 \u2014\nsee ``.claude/rules/web-api.md``.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
-        "operationId": "dashboard_app_grid_api_telemetry_dashboard_app_grid_get",
+        "summary": "App Grid",
+        "description": "Every app joined with its activity over ``since``, for the Apps grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below are\ncaught individually: each failure degrades its part of ``activity`` to empty defaults, is\nnamed in ``degraded``, and the response continues at 200 \u2014 see ``.claude/rules/web-api.md``.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
+        "operationId": "app_grid_api_telemetry_app_grid_get",
         "parameters": [
           {
             "name": "since",
@@ -2463,7 +2442,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DashboardAppGridResponse"
+                  "$ref": "#/components/schemas/AppGridResponse"
                 }
               }
             }
@@ -2767,6 +2746,104 @@
         "title": "ActivityFeedEntry",
         "description": "A single activity entry for the cross-app recent activity feed."
       },
+      "AppActivity": {
+        "properties": {
+          "handler_count": {
+            "type": "integer",
+            "title": "Handler Count"
+          },
+          "job_count": {
+            "type": "integer",
+            "title": "Job Count"
+          },
+          "total_invocations": {
+            "type": "integer",
+            "title": "Total Invocations"
+          },
+          "total_errors": {
+            "type": "integer",
+            "title": "Total Errors"
+          },
+          "total_timed_out": {
+            "type": "integer",
+            "title": "Total Timed Out",
+            "default": 0
+          },
+          "total_executions": {
+            "type": "integer",
+            "title": "Total Executions"
+          },
+          "total_job_errors": {
+            "type": "integer",
+            "title": "Total Job Errors"
+          },
+          "total_job_timed_out": {
+            "type": "integer",
+            "title": "Total Job Timed Out",
+            "default": 0
+          },
+          "health": {
+            "$ref": "#/components/schemas/AppHealth"
+          },
+          "activity_buckets": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityBucket"
+            },
+            "type": "array",
+            "title": "Activity Buckets"
+          },
+          "blocking_event_count": {
+            "type": "integer",
+            "title": "Blocking Event Count",
+            "default": 0
+          },
+          "last_error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Message"
+          },
+          "last_error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Type"
+          },
+          "last_error_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Ts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "handler_count",
+          "job_count",
+          "total_invocations",
+          "total_errors",
+          "total_executions",
+          "total_job_errors",
+          "health"
+        ],
+        "title": "AppActivity",
+        "description": "How an app is doing over the grid's time window (``AppGridResponse.since``).\n\nEach part comes from its own enrichment query. A failed query leaves its fields at their\ndefaults and is named in ``AppGridResponse.degraded``, so a zero here is only trustworthy\nwhen its enrichment is absent from that list."
+      },
       "AppConfigResponse": {
         "properties": {
           "app_key": {
@@ -2842,6 +2919,64 @@
         ],
         "title": "AppConfigResponse",
         "description": "Response model for GET /apps/{app_key}/config."
+      },
+      "AppGridEntry": {
+        "properties": {
+          "app": {
+            "$ref": "#/components/schemas/AppSummary"
+          },
+          "activity": {
+            "$ref": "#/components/schemas/AppActivity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app",
+          "activity"
+        ],
+        "title": "AppGridEntry",
+        "description": "One Apps grid row: an app joined with its activity, in a single server-side query."
+      },
+      "AppGridResponse": {
+        "properties": {
+          "apps": {
+            "items": {
+              "$ref": "#/components/schemas/AppGridEntry"
+            },
+            "type": "array",
+            "title": "Apps"
+          },
+          "degraded": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "summaries",
+                "activity_buckets",
+                "last_errors",
+                "blocking_counts"
+              ]
+            },
+            "type": "array",
+            "title": "Degraded"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          }
+        },
+        "type": "object",
+        "required": [
+          "apps"
+        ],
+        "title": "AppGridResponse",
+        "description": "The Apps grid: every app with its activity over ``since``."
       },
       "AppHealth": {
         "properties": {
@@ -2983,7 +3118,7 @@
         ],
         "title": "AppInstanceResponse"
       },
-      "AppManifestListResponse": {
+      "AppListResponse": {
         "properties": {
           "total": {
             "type": "integer",
@@ -2994,17 +3129,17 @@
               "type": "integer"
             },
             "propertyNames": {
-              "$ref": "#/components/schemas/ManifestStatus"
+              "$ref": "#/components/schemas/AppStatus"
             },
             "type": "object",
             "title": "Status Counts"
           },
-          "manifests": {
+          "apps": {
             "items": {
-              "$ref": "#/components/schemas/AppManifestResponse"
+              "$ref": "#/components/schemas/AppSummary"
             },
             "type": "array",
-            "title": "Manifests"
+            "title": "Apps"
           },
           "only_apps": {
             "items": {
@@ -3017,11 +3152,53 @@
         "type": "object",
         "required": [
           "total",
-          "manifests"
+          "apps"
         ],
-        "title": "AppManifestListResponse"
+        "title": "AppListResponse"
       },
-      "AppManifestResponse": {
+      "AppSourceResponse": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "line_count": {
+            "type": "integer",
+            "title": "Line Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "filename",
+          "content",
+          "line_count"
+        ],
+        "title": "AppSourceResponse",
+        "description": "Response model for GET /apps/{app_key}/source."
+      },
+      "AppStatus": {
+        "type": "string",
+        "enum": [
+          "disabled",
+          "blocked",
+          "degraded",
+          "running",
+          "failed",
+          "stopped"
+        ],
+        "title": "AppStatus",
+        "description": "An app's overall lifecycle status across its instances (distinct from the per-instance ``ResourceStatus``)."
+      },
+      "AppSummary": {
         "properties": {
           "app_key": {
             "type": "string",
@@ -3053,7 +3230,7 @@
             "default": true
           },
           "status": {
-            "$ref": "#/components/schemas/ManifestStatus"
+            "$ref": "#/components/schemas/AppStatus"
           },
           "block_reason": {
             "anyOf": [
@@ -3101,12 +3278,6 @@
             ],
             "title": "Error Traceback"
           },
-          "recent_invocations_1h": {
-            "type": "integer",
-            "title": "Recent Invocations 1H",
-            "description": "Total handler invocations in the last hour across all instances.",
-            "default": 0
-          },
           "in_current_config": {
             "type": "boolean",
             "title": "In Current Config",
@@ -3124,74 +3295,8 @@
           "auto_loaded",
           "status"
         ],
-        "title": "AppManifestResponse"
-      },
-      "AppSourceResponse": {
-        "properties": {
-          "app_key": {
-            "type": "string",
-            "title": "App Key"
-          },
-          "filename": {
-            "type": "string",
-            "title": "Filename"
-          },
-          "content": {
-            "type": "string",
-            "title": "Content"
-          },
-          "line_count": {
-            "type": "integer",
-            "title": "Line Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "app_key",
-          "filename",
-          "content",
-          "line_count"
-        ],
-        "title": "AppSourceResponse",
-        "description": "Response model for GET /apps/{app_key}/source."
-      },
-      "AppStatusResponse": {
-        "properties": {
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "running": {
-            "type": "integer",
-            "title": "Running"
-          },
-          "failed": {
-            "type": "integer",
-            "title": "Failed"
-          },
-          "apps": {
-            "items": {
-              "$ref": "#/components/schemas/AppInstanceResponse"
-            },
-            "type": "array",
-            "title": "Apps"
-          },
-          "only_apps": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Only Apps"
-          }
-        },
-        "type": "object",
-        "required": [
-          "total",
-          "running",
-          "failed",
-          "apps"
-        ],
-        "title": "AppStatusResponse"
+        "title": "AppSummary",
+        "description": "What an app is: its config identity, lifecycle status and instances.\n\nServed by ``GET /api/apps`` (in ``AppListResponse``) and ``GET /api/apps/{app_key}``, and\nnested as ``app`` in each ``AppGridEntry``. Activity over a time window lives in\n``AppActivity``, never here."
       },
       "BackpressurePolicy": {
         "type": "string",
@@ -3502,212 +3607,6 @@
         ],
         "title": "ConfigSchemaResponse",
         "description": "Complete Hassette configuration as a JSON schema plus current values.\n\n``config_schema`` is the fully-inlined JSON schema (all ``$ref``/``$defs`` resolved)\nderived from ``HassetteConfig.model_json_schema()``.  ``config_values`` is the current\nconfiguration serialized to JSON with ``SecretStr`` fields replaced by a masked\nplaceholder.  Every field and nested group is present \u2014 nothing is omitted."
-      },
-      "DashboardAppGridEntry": {
-        "properties": {
-          "app_key": {
-            "type": "string",
-            "title": "App Key"
-          },
-          "status": {
-            "$ref": "#/components/schemas/ManifestStatus"
-          },
-          "display_name": {
-            "type": "string",
-            "title": "Display Name"
-          },
-          "instance_count": {
-            "type": "integer",
-            "title": "Instance Count",
-            "description": "Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).",
-            "default": 0
-          },
-          "handler_count": {
-            "type": "integer",
-            "title": "Handler Count"
-          },
-          "job_count": {
-            "type": "integer",
-            "title": "Job Count"
-          },
-          "total_invocations": {
-            "type": "integer",
-            "title": "Total Invocations"
-          },
-          "total_errors": {
-            "type": "integer",
-            "title": "Total Errors"
-          },
-          "total_timed_out": {
-            "type": "integer",
-            "title": "Total Timed Out",
-            "default": 0
-          },
-          "total_executions": {
-            "type": "integer",
-            "title": "Total Executions"
-          },
-          "total_job_errors": {
-            "type": "integer",
-            "title": "Total Job Errors"
-          },
-          "total_job_timed_out": {
-            "type": "integer",
-            "title": "Total Job Timed Out",
-            "default": 0
-          },
-          "health": {
-            "$ref": "#/components/schemas/AppHealth"
-          },
-          "activity_buckets": {
-            "items": {
-              "$ref": "#/components/schemas/ActivityBucket"
-            },
-            "type": "array",
-            "title": "Activity Buckets"
-          },
-          "blocking_event_count": {
-            "type": "integer",
-            "title": "Blocking Event Count",
-            "default": 0
-          },
-          "last_error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error Message"
-          },
-          "last_error_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error Type"
-          },
-          "last_error_ts": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Error Ts"
-          },
-          "class_name": {
-            "type": "string",
-            "title": "Class Name",
-            "default": ""
-          },
-          "filename": {
-            "type": "string",
-            "title": "Filename",
-            "default": ""
-          },
-          "enabled": {
-            "type": "boolean",
-            "title": "Enabled",
-            "default": true
-          },
-          "auto_loaded": {
-            "type": "boolean",
-            "title": "Auto Loaded",
-            "default": false
-          },
-          "autostart": {
-            "type": "boolean",
-            "title": "Autostart",
-            "default": true
-          },
-          "block_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Block Reason"
-          },
-          "instances": {
-            "items": {
-              "$ref": "#/components/schemas/AppInstanceResponse"
-            },
-            "type": "array",
-            "title": "Instances"
-          },
-          "error_message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Message"
-          },
-          "error_traceback": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Traceback"
-          },
-          "in_current_config": {
-            "type": "boolean",
-            "title": "In Current Config",
-            "description": "True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
-            "default": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "app_key",
-          "status",
-          "display_name",
-          "handler_count",
-          "job_count",
-          "total_invocations",
-          "total_errors",
-          "total_executions",
-          "total_job_errors",
-          "health"
-        ],
-        "title": "DashboardAppGridEntry",
-        "description": "Per-app health entry for the dashboard grid."
-      },
-      "DashboardAppGridResponse": {
-        "properties": {
-          "apps": {
-            "items": {
-              "$ref": "#/components/schemas/DashboardAppGridEntry"
-            },
-            "type": "array",
-            "title": "Apps"
-          }
-        },
-        "type": "object",
-        "required": [
-          "apps"
-        ],
-        "title": "DashboardAppGridResponse",
-        "description": "Dashboard app grid with per-app health data."
       },
       "Execution": {
         "properties": {
@@ -4788,19 +4687,6 @@
         ],
         "title": "LogsByExecutionResponse",
         "description": "Response for GET /api/executions/{execution_id}."
-      },
-      "ManifestStatus": {
-        "type": "string",
-        "enum": [
-          "disabled",
-          "blocked",
-          "degraded",
-          "running",
-          "failed",
-          "stopped"
-        ],
-        "title": "ManifestStatus",
-        "description": "Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``)."
       },
       "ProblemCode": {
         "type": "string",

@@ -73,7 +73,7 @@ Read this value with `log_persistence_active`; the counter changes only while pe
 
 ## `hassette app`
 
-Lists all loaded apps with key, status, display name, instance count, recent invocation counts, enabled state, autostart setting, and source file. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml` — the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance at index 0, but the same class can run multiple times with different configs.
+Lists all loaded apps with key, status, display name, instance count, handler invocations over the last hour, enabled state, autostart setting, and source file. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml` — the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance at index 0, but the same class can run multiple times with different configs.
 
 ```console
 $ hassette app
@@ -87,18 +87,20 @@ $ hassette app
 └─────────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴───────────┴───────────────────┘
 ```
 
+`--json` prints one object per app with two keys: `app` (the app's identity, status and instances) and `activity` (its counts and health over the last hour). If the server couldn't load part of the activity data, a one-line warning on stderr names what's missing, and stdout still carries the full table or JSON.
+
 ### Subcommands
 
-| Subcommand                    | Description                 | API endpoint                            |
-| ----------------------------- | --------------------------- | --------------------------------------- |
-| `hassette app`                | Lists all apps.             | `GET /api/apps/manifests`               |
-| `hassette app health <key>`   | Health metrics for one app. | `GET /api/telemetry/app/{key}/health`   |
-| `hassette app activity <key>` | Recent activity feed.       | `GET /api/telemetry/app/{key}/activity` |
-| `hassette app config <key>`   | Resolved configuration.     | `GET /api/apps/{key}/config`            |
-| `hassette app source <key>`   | Source file path.           | `GET /api/apps/{key}/source`            |
-| `hassette app start <key>`    | Starts an app or instance.  | `POST /api/apps/{key}/start`            |
-| `hassette app stop <key>`     | Stops an app or instance.   | `POST /api/apps/{key}/stop`             |
-| `hassette app reload <key>`   | Reloads an app or instance. | `POST /api/apps/{key}/reload`           |
+| Subcommand                    | Description                 | API endpoint                                    |
+| ----------------------------- | --------------------------- | ----------------------------------------------- |
+| `hassette app`                | Lists all apps.             | `GET /api/telemetry/app-grid` (last hour)       |
+| `hassette app health <key>`   | Health metrics for one app. | `GET /api/telemetry/app/{key}/health`           |
+| `hassette app activity <key>` | Recent activity feed.       | `GET /api/telemetry/app/{key}/activity`         |
+| `hassette app config <key>`   | Resolved configuration.     | `GET /api/apps/{key}/config`                    |
+| `hassette app source <key>`   | Source file path.           | `GET /api/apps/{key}/source`                    |
+| `hassette app start <key>`    | Starts an app or instance.  | `POST /api/apps/{key}/start`                    |
+| `hassette app stop <key>`     | Stops an app or instance.   | `POST /api/apps/{key}/stop`                     |
+| `hassette app reload <key>`   | Reloads an app or instance. | `POST /api/apps/{key}/reload`                   |
 
 The CLI routes `start`/`stop`/`reload` with `--instance` to a different endpoint: `POST /api/apps/{key}/instances/{index}/{start,stop,reload}` instead of the app-level path shown above.
 
@@ -375,7 +377,7 @@ The Stall column shows how long the loop was held. A [Tier 2](../core-concepts/b
 
 ## `hassette dashboard`
 
-Per-app health status, invocation counts, error counts, average handler and job duration, and last activity, across all of an app's instances. Mirrors the dashboard grid in the web UI. An average is blank when nothing of that kind ran.
+Per-app health status, invocation counts, error counts, average handler and job duration, and last activity, across all of an app's instances. Mirrors the app grid on the web UI's Apps page, with counts over all retained history. An average is blank when nothing of that kind ran.
 
 ```console
 $ hassette dashboard
@@ -388,7 +390,9 @@ $ hassette dashboard
 └─────────────────┴─────────┴───────┴──────┴─────────────┴─────────┴─────────────┴───────────┘
 ```
 
-**API endpoint:** `GET /api/telemetry/dashboard/app-grid`
+As with `hassette app`, `--json` rows have `app` and `activity` keys, and a partial response prints a warning on stderr.
+
+**API endpoint:** `GET /api/telemetry/app-grid`
 
 ## `hassette config`
 

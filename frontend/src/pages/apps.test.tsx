@@ -28,7 +28,7 @@ vi.mock("../components/shared/spinner", () => ({
 // uptimeSeconds=120 ensures useScopedQuery is enabled (since-restart preset requires uptime).
 const STATE_WITH_UPTIME = { storeOverrides: { uptimeSeconds: 120 } };
 
-const APP_GRID_URL = "/api/telemetry/dashboard/app-grid";
+const APP_GRID_URL = "/api/telemetry/app-grid";
 
 /** Reads a stats-strip cell's value by its label, since cells carry no per-label testid. The
  * value span is tagged `data-role`, not `data-testid` — see `components/shared/stats-strip.tsx`.
@@ -60,7 +60,9 @@ describe("AppsPage", () => {
     // Regression test for design/specs/018-dashboard-without-ha: the apps page must render
     // even when the WS never connects (uptimeSeconds stays null), not spin forever on the
     // default since-restart preset.
-    server.use(http.get(APP_GRID_URL, () => HttpResponse.json({ apps: [createAppGridEntry({ app_key: "my_app" })] })));
+    server.use(
+      http.get(APP_GRID_URL, () => HttpResponse.json({ apps: [createAppGridEntry({ app: { app_key: "my_app" } })] })),
+    );
     const { findByTestId } = renderWithAppState(<AppsPage />);
     expect(await findByTestId("app-row-my_app")).toBeDefined();
   });
@@ -76,8 +78,8 @@ describe("AppsPage", () => {
       http.get(APP_GRID_URL, () =>
         HttpResponse.json({
           apps: [
-            createAppGridEntry({ app_key: "a", status: "running" }),
-            createAppGridEntry({ app_key: "b", status: "disabled" }),
+            createAppGridEntry({ app: { app_key: "a", status: "running" } }),
+            createAppGridEntry({ app: { app_key: "b", status: "disabled" } }),
           ],
         }),
       ),
@@ -97,10 +99,10 @@ describe("AppsPage", () => {
       http.get(APP_GRID_URL, () =>
         HttpResponse.json({
           apps: [
-            createAppGridEntry({ app_key: "a", status: "running" }),
-            createAppGridEntry({ app_key: "b", status: "running" }),
-            createAppGridEntry({ app_key: "c", status: "running" }),
-            createAppGridEntry({ app_key: "d", status: "disabled" }),
+            createAppGridEntry({ app: { app_key: "a", status: "running" } }),
+            createAppGridEntry({ app: { app_key: "b", status: "running" } }),
+            createAppGridEntry({ app: { app_key: "c", status: "running" } }),
+            createAppGridEntry({ app: { app_key: "d", status: "disabled" } }),
           ],
         }),
       ),
@@ -147,8 +149,8 @@ describe("AppsPage", () => {
       http.get(APP_GRID_URL, () =>
         HttpResponse.json({
           apps: [
-            createAppGridEntry({ app_key: "app_a", status: "running" }),
-            createAppGridEntry({ app_key: "app_b", status: "running" }),
+            createAppGridEntry({ app: { app_key: "app_a", status: "running" } }),
+            createAppGridEntry({ app: { app_key: "app_b", status: "running" } }),
           ],
         }),
       ),
@@ -176,8 +178,8 @@ describe("AppsPage", () => {
       http.get(APP_GRID_URL, () =>
         HttpResponse.json({
           apps: [
-            createAppGridEntry({ app_key: "app_a", status: "running" }),
-            createAppGridEntry({ app_key: "app_b", status: "running" }),
+            createAppGridEntry({ app: { app_key: "app_a", status: "running" } }),
+            createAppGridEntry({ app: { app_key: "app_b", status: "running" } }),
           ],
         }),
       ),
@@ -192,8 +194,8 @@ describe("AppsPage", () => {
       http.get(APP_GRID_URL, () =>
         HttpResponse.json({
           apps: [
-            createAppGridEntry({ app_key: "motion_lights", status: "running" }),
-            createAppGridEntry({ app_key: "alarm_app", status: "running" }),
+            createAppGridEntry({ app: { app_key: "motion_lights", status: "running" } }),
+            createAppGridEntry({ app: { app_key: "alarm_app", status: "running" } }),
           ],
         }),
       ),
@@ -206,7 +208,7 @@ describe("AppsPage", () => {
     it("renders a filter button on the STATUS column header", async () => {
       server.use(
         http.get(APP_GRID_URL, () =>
-          HttpResponse.json({ apps: [createAppGridEntry({ app_key: "app_a", status: "running" })] }),
+          HttpResponse.json({ apps: [createAppGridEntry({ app: { app_key: "app_a", status: "running" } })] }),
         ),
       );
       const { findByRole } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -221,8 +223,8 @@ describe("AppsPage", () => {
         http.get(APP_GRID_URL, () =>
           HttpResponse.json({
             apps: [
-              createAppGridEntry({ app_key: "running_app", status: "running" }),
-              createAppGridEntry({ app_key: "failed_app", status: "failed" }),
+              createAppGridEntry({ app: { app_key: "running_app", status: "running" } }),
+              createAppGridEntry({ app: { app_key: "failed_app", status: "failed" } }),
             ],
           }),
         ),
@@ -242,8 +244,8 @@ describe("AppsPage", () => {
         http.get(APP_GRID_URL, () =>
           HttpResponse.json({
             apps: [
-              createAppGridEntry({ app_key: "running_app", status: "running" }),
-              createAppGridEntry({ app_key: "failed_app", status: "failed" }),
+              createAppGridEntry({ app: { app_key: "running_app", status: "running" } }),
+              createAppGridEntry({ app: { app_key: "failed_app", status: "failed" } }),
             ],
           }),
         ),
@@ -261,8 +263,8 @@ describe("AppsPage", () => {
         http.get(APP_GRID_URL, () =>
           HttpResponse.json({
             apps: [
-              createAppGridEntry({ app_key: "motion_lights", status: "running" }),
-              createAppGridEntry({ app_key: "alarm_app", status: "running" }),
+              createAppGridEntry({ app: { app_key: "motion_lights", status: "running" } }),
+              createAppGridEntry({ app: { app_key: "alarm_app", status: "running" } }),
             ],
           }),
         ),
@@ -278,7 +280,7 @@ describe("AppsPage", () => {
       mockSearch = "";
       server.use(
         http.get(APP_GRID_URL, () =>
-          HttpResponse.json({ apps: [createAppGridEntry({ app_key: "app_a", status: "running" })] }),
+          HttpResponse.json({ apps: [createAppGridEntry({ app: { app_key: "app_a", status: "running" } })] }),
         ),
       );
       const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -291,7 +293,7 @@ describe("AppsPage", () => {
       mockSearch = "filter=failed";
       server.use(
         http.get(APP_GRID_URL, () =>
-          HttpResponse.json({ apps: [createAppGridEntry({ app_key: "running_app", status: "running" })] }),
+          HttpResponse.json({ apps: [createAppGridEntry({ app: { app_key: "running_app", status: "running" } })] }),
         ),
       );
       const { findByText } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -302,7 +304,7 @@ describe("AppsPage", () => {
       mockSearch = "filter=failed";
       server.use(
         http.get(APP_GRID_URL, () =>
-          HttpResponse.json({ apps: [createAppGridEntry({ app_key: "running_app", status: "running" })] }),
+          HttpResponse.json({ apps: [createAppGridEntry({ app: { app_key: "running_app", status: "running" } })] }),
         ),
       );
       const { findByRole } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -314,7 +316,7 @@ describe("AppsPage", () => {
       mockSearch = "filter=failed";
       server.use(
         http.get(APP_GRID_URL, () =>
-          HttpResponse.json({ apps: [createAppGridEntry({ app_key: "running_app", status: "running" })] }),
+          HttpResponse.json({ apps: [createAppGridEntry({ app: { app_key: "running_app", status: "running" } })] }),
         ),
       );
       const { findByRole } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);

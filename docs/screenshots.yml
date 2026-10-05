@@ -479,7 +479,7 @@
 # Degraded app in the failure banner
 # degraded_demo has autostart=false and two instances: one starts normally,
 # the other is configured (crash_on_init=true) to raise during on_initialize()
-# so AppRegistry computes ManifestStatus.DEGRADED for the app as a whole. JS
+# so AppRegistry computes AppStatus.DEGRADED for the app as a whole. JS
 # starts the app via the API, then waits for the alert banner to mention it.
 # Runs LAST on purpose — see the note on the skipped_result entry above.
 # ===========================================================================

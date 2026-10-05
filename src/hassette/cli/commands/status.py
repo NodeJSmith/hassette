@@ -1,20 +1,20 @@
 """System-level CLI commands: status, telemetry, dashboard."""
 
-from hassette_wire import DashboardAppGridResponse, SystemStatusResponse, TelemetryStatusResponse
+from hassette_wire import AppGridResponse, SystemStatusResponse, TelemetryStatusResponse
 
 from hassette.cli.client import make_client
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
+from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table, warn_degraded
 
 DASHBOARD_COLUMNS: list[Column] = [
-    Column("app_key", "App", max_width=20),
-    Column("status", "Status", max_width=8),
-    Column("total_invocations", "Invoc", max_width=6),
-    Column("total_errors", "Errs", max_width=5),
-    Column("health.handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
-    Column("health.job_avg_duration_ms", "Job Avg", max_width=9, formatter=fmt_duration_ms),
-    Column("health.last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
-    Column("health.health_status", "Health", max_width=9),
+    Column("app.app_key", "App", max_width=20),
+    Column("app.status", "Status", max_width=8),
+    Column("activity.total_invocations", "Invoc", max_width=6),
+    Column("activity.total_errors", "Errs", max_width=5),
+    Column("activity.health.handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
+    Column("activity.health.job_avg_duration_ms", "Job Avg", max_width=9, formatter=fmt_duration_ms),
+    Column("activity.health.last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
+    Column("activity.health.health_status", "Health", max_width=9),
 ]
 
 
@@ -33,7 +33,11 @@ def cmd_telemetry(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
 
 
 def cmd_dashboard(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
-    """Show app dashboard grid (GET /api/telemetry/dashboard/app-grid)."""
+    """Show the app grid with health columns and all-time counts (GET /api/telemetry/app-grid).
+
+    ``hassette app`` reads the same grid over the last hour, with config columns instead of health.
+    """
     client = make_client(ctx)
-    result = client.get("/api/telemetry/dashboard/app-grid", DashboardAppGridResponse)
+    result = client.get("/api/telemetry/app-grid", AppGridResponse)
+    warn_degraded(result.degraded)
     render_table(result.apps, DASHBOARD_COLUMNS, json_mode=ctx.json_mode)

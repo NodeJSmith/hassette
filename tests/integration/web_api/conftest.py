@@ -27,7 +27,7 @@ DB_LOCKED_MSG = "database is locked"
 # only needs to change here.
 HEALTH_PATH = "/api/health"
 APP_HEALTH_PATH = "/api/telemetry/app/my_app/health"
-APP_GRID_PATH = "/api/telemetry/dashboard/app-grid"
+APP_GRID_PATH = "/api/telemetry/app-grid"
 TELEMETRY_STATUS_PATH = "/api/telemetry/status"
 CONFIG_PATH = "/api/config"
 AUTH_SESSION_PATH = "/api/auth/session"

@@ -615,7 +615,6 @@ class TestOneHourInvocationWindow:
         window_counts = {key: summary.aggregates.total_invocations for key, summary in summaries.items()}
 
         assert window_counts == {"app_a": 3, "app_b": 1}
-        assert window_counts == await query_service.get_recent_invocations_1h_all_apps()
 
 
 class TestDiFailureFlag:

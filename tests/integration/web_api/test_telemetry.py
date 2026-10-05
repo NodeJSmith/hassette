@@ -181,23 +181,26 @@ class TestTelemetryListeners:
         assert data[0]["dropped_count"] == 0
 
 
-class TestTelemetryDashboard:
-    async def test_app_grid_returns_per_app_health(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """The grid spine is DB-sourced; entries carry both telemetry and manifest metadata."""
+class TestAppGrid:
+    async def test_app_grid_rows_nest_app_and_activity(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        """The grid spine is DB-sourced; each row is the app summary plus its activity."""
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
             return_value=[make_manifest_db_row(app_key="my_app")]
         )
 
         data = await get_json(client, APP_GRID_PATH)
 
-        assert isinstance(data["apps"], list)
         assert len(data["apps"]) == 1
-        app_entry = data["apps"][0]
-        assert app_entry["app_key"] == "my_app"
-        # No summary for the app: an all-zero health record with no averages. The same record
-        # stands in when the summaries query fails; that "excellent" is a placeholder until spec
-        # 125's degradation marker lets the grid say a part of `activity` is missing.
-        assert app_entry["health"] == {
+        entry = data["apps"][0]
+        assert set(entry) == {"app", "activity"}
+        assert entry["app"]["app_key"] == "my_app"
+        assert entry["app"]["class_name"] == "MyApp"
+        assert entry["app"]["filename"] == "my_app.py"
+        assert entry["app"]["in_current_config"] is False
+        assert "recent_invocations_1h" not in entry["app"]
+        # No summary for the app: zero counts and an all-zero health record with no averages.
+        assert entry["activity"]["total_invocations"] == 0
+        assert entry["activity"]["health"] == {
             "error_rate": 0.0,
             "error_rate_class": "good",
             "health_status": "excellent",
@@ -205,13 +208,6 @@ class TestTelemetryDashboard:
             "handler_avg_duration_ms": None,
             "job_avg_duration_ms": None,
         }
-        for loose_field in ("avg_duration_ms", "error_rate", "error_rate_class", "health_status", "last_activity_ts"):
-            assert loose_field not in app_entry
-        assert "status" in app_entry
-        # Manifest metadata fields are present alongside telemetry data.
-        assert app_entry["class_name"] == "MyApp"
-        assert app_entry["filename"] == "my_app.py"
-        assert app_entry["in_current_config"] is False
 
     async def test_app_grid_includes_db_only_apps(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         """A DB-only app (no matching in-memory manifest) appears in the grid."""
@@ -228,7 +224,7 @@ class TestTelemetryDashboard:
 
         data = await get_json(client, APP_GRID_PATH)
 
-        orphan = next(e for e in data["apps"] if e["app_key"] == "orphan_app")
+        orphan = next(e["app"] for e in data["apps"] if e["app"]["app_key"] == "orphan_app")
         assert orphan["status"] == "stopped"
         assert orphan["in_current_config"] is False
         assert orphan["instance_count"] == 0
@@ -244,22 +240,80 @@ class TestTelemetryDashboard:
 
         data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
 
-        assert {e["app_key"]: e["blocking_event_count"] for e in data["apps"]} == {"my_app": 9, "clean_app": 0}
+        counts = {e["app"]["app_key"]: e["activity"]["blocking_event_count"] for e in data["apps"]}
+        assert counts == {"my_app": 9, "clean_app": 0}
         call = mock_hassette.telemetry_query_service.get_blocking_event_counts.call_args
         assert call.kwargs == {"since": pytest.approx(1700000000.0)}
 
-    async def test_app_grid_count_failure_reads_zero_and_stays_200(
+    async def test_fully_successful_grid_reports_nothing_degraded_and_echoes_since(
         self, client: "AsyncClient", mock_hassette: MagicMock
     ) -> None:
-        """The count is an optional enrichment: its failure alone zeroes it rather than failing the grid."""
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
             return_value=[make_manifest_db_row(app_key="my_app")]
         )
-        mock_hassette.telemetry_query_service.get_blocking_event_counts = telemetry_error("count failed")
+
+        data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
+
+        assert data["degraded"] == []
+        assert data["since"] == pytest.approx(1700000000.0)
+
+    async def test_grid_without_since_is_all_time_with_no_buckets_or_last_errors(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        """since=None means all-time totals: the windowed enrichments don't run and rows carry their empties."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            return_value=[make_manifest_db_row(app_key="my_app")]
+        )
 
         data = await get_json(client, APP_GRID_PATH)
 
-        assert data["apps"][0]["blocking_event_count"] == 0
+        assert data["since"] is None
+        assert data["degraded"] == []
+        activity = data["apps"][0]["activity"]
+        assert activity["activity_buckets"] == []
+        assert activity["last_error_message"] is None
+        mock_hassette.telemetry_query_service.get_per_app_activity_buckets.assert_not_called()
+        mock_hassette.telemetry_query_service.get_per_app_last_errors.assert_not_called()
+
+    @pytest.mark.parametrize(
+        ("query_method", "enrichment"),
+        [
+            ("get_all_app_summaries", "summaries"),
+            ("get_per_app_activity_buckets", "activity_buckets"),
+            ("get_per_app_last_errors", "last_errors"),
+            ("get_blocking_event_counts", "blocking_counts"),
+        ],
+    )
+    async def test_each_failed_enrichment_is_named_in_degraded_and_stays_200(
+        self, client: "AsyncClient", mock_hassette: MagicMock, query_method: str, enrichment: str
+    ) -> None:
+        """A failed enrichment query degrades only its part of `activity`, and the response names it."""
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            return_value=[make_manifest_db_row(app_key="my_app")]
+        )
+        setattr(mock_hassette.telemetry_query_service, query_method, telemetry_error(f"{query_method} failed"))
+
+        data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
+
+        assert data["degraded"] == [enrichment]
+        assert data["apps"][0]["app"]["app_key"] == "my_app"
+
+    async def test_every_failed_enrichment_is_listed(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
+        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+            return_value=[make_manifest_db_row(app_key="my_app")]
+        )
+        for method in (
+            "get_all_app_summaries",
+            "get_per_app_activity_buckets",
+            "get_per_app_last_errors",
+            "get_blocking_event_counts",
+        ):
+            setattr(mock_hassette.telemetry_query_service, method, telemetry_error(f"{method} failed"))
+
+        data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
+
+        assert data["degraded"] == ["summaries", "activity_buckets", "last_errors", "blocking_counts"]
+        assert data["apps"][0]["activity"]["blocking_event_count"] == 0
 
 
 class TestTelemetryBlocking:
@@ -395,7 +449,7 @@ class TestQueryParamForwarding:
                 {"since": pytest.approx(1700000011.0)},
             ),
             (
-                "/api/telemetry/dashboard/app-grid?since=1700000013.0",
+                "/api/telemetry/app-grid?since=1700000013.0",
                 "get_all_app_summaries",
                 {"since": pytest.approx(1700000013.0)},
             ),

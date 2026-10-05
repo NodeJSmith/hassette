@@ -14,7 +14,7 @@ import hassette.types
 # The contract enums and Literals that moved to hassette_wire.
 MOVED_CONTRACT_NAMES = (
     "ResourceStatus",
-    "ManifestStatus",
+    "AppStatus",
     "ExecutionMode",
     "BackpressurePolicy",
     "ExecutionStatus",

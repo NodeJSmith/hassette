@@ -118,8 +118,8 @@ class TestTelemetryStatusDropCounterFallback:
         assert data["dropped_filtered"] == 0
 
 
-class TestDashboardAppGridDbErrorFallback:
-    """TelemetryUnavailableError degradation guard on dashboard_app_grid's optional enrichment query.
+class TestAppGridDbErrorFallback:
+    """TelemetryUnavailableError degradation guard on app_grid's optional enrichment query.
 
     The enrichment query failing must leave the response at 200 with zeroed per-app entries --
     the DB spine query succeeds independently, so every manifest entry still appears.
@@ -134,16 +134,17 @@ class TestDashboardAppGridDbErrorFallback:
 
         data = await get_json(client, APP_GRID_PATH)
 
-        assert "apps" in data
+        assert data["degraded"] == ["summaries"]
         for entry in data["apps"]:
-            assert entry["total_invocations"] == 0
-            assert entry["total_errors"] == 0
-            assert entry["handler_count"] == 0
-            assert entry["job_count"] == 0
+            activity = entry["activity"]
+            assert activity["total_invocations"] == 0
+            assert activity["total_errors"] == 0
+            assert activity["handler_count"] == 0
+            assert activity["job_count"] == 0
             # total_invocations=0 and total_executions=0 -> error_rate=0.0, and a zero-invocation
             # app is classified "excellent" (not "unknown").
-            assert entry["error_rate"] == 0.0
-            assert entry["health_status"] == "excellent"
+            assert activity["health"]["error_rate"] == 0.0
+            assert activity["health"]["health_status"] == "excellent"
 
 
 class TestAppKeyValidation:

@@ -9,12 +9,12 @@ import { App, MAIN_CONTENT_ID } from "./app";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
 import { appStatusKey, useAppStore } from "./state/store";
-import { createInstance, createListener, createManifest } from "./test/factories";
+import { createAppSummary, createInstance, createListener } from "./test/factories";
 import { withManifests } from "./test/handlers";
 import { server } from "./test/server";
 import { LOGIN_PATH } from "./utils/app-routes";
 
-type AppManifest = components["schemas"]["AppManifestResponse"];
+type AppManifest = components["schemas"]["AppSummary"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 
 const SELECTORS = {
@@ -420,7 +420,7 @@ describe("App — command palette", () => {
 
   it("shows app items from manifests and navigates on click", async () => {
     const user = userEvent.setup();
-    seedManifests([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
+    seedManifests([createAppSummary({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
     render(<App />);
     await openPalette(user);
     const item = await screen.findByTestId("cmd-result-app-garage_app");
@@ -431,7 +431,7 @@ describe("App — command palette", () => {
   it("shows instance items for multi-instance apps", async () => {
     const user = userEvent.setup();
     seedManifests([
-      createManifest({
+      createAppSummary({
         app_key: "multi_app",
         display_name: "Multi App",
         instance_count: 2,
@@ -450,8 +450,8 @@ describe("App — command palette", () => {
   it("filters results as the user types", async () => {
     const user = userEvent.setup();
     seedManifests([
-      createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" }),
-      createManifest({ app_key: "lights_app", display_name: "Lights App", status: "running" }),
+      createAppSummary({ app_key: "garage_app", display_name: "Garage App", status: "running" }),
+      createAppSummary({ app_key: "lights_app", display_name: "Lights App", status: "running" }),
     ]);
     render(<App />);
     await openPalette(user);
@@ -486,7 +486,7 @@ describe("App — command palette", () => {
         return HttpResponse.json<ListenerWithSummary[]>([]);
       }),
     );
-    seedManifests([createManifest({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
+    seedManifests([createAppSummary({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);
     render(<App />);
     // Settle on the manifests fetch resolving (the sidebar renders one entry per manifest), so the
     // assertion reflects a mounted app whose initial data path ran rather than one event-loop tick.
@@ -539,21 +539,21 @@ describe("App — /login route", () => {
 
 describe("App — FailedAppsAlert", () => {
   it("includes a degraded app in the failure banner", async () => {
-    seedManifests([createManifest({ app_key: "degraded_app", display_name: "Degraded App", status: "degraded" })]);
+    seedManifests([createAppSummary({ app_key: "degraded_app", display_name: "Degraded App", status: "degraded" })]);
     render(<App />);
     const banner = await screen.findByTestId(ALERT_BANNER_TESTID);
     expect(banner.textContent).toContain("degraded_app");
   });
 
   it("includes a failed app in the failure banner", async () => {
-    seedManifests([createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
+    seedManifests([createAppSummary({ app_key: "failed_app", display_name: "Failed App", status: "failed" })]);
     render(<App />);
     const banner = await screen.findByTestId(ALERT_BANNER_TESTID);
     expect(banner.textContent).toContain("failed_app");
   });
 
   it("does not include a running app in the failure banner", () => {
-    seedManifests([createManifest({ app_key: "running_app", display_name: "Running App", status: "running" })]);
+    seedManifests([createAppSummary({ app_key: "running_app", display_name: "Running App", status: "running" })]);
     render(<App />);
     expect(screen.queryByTestId(ALERT_BANNER_TESTID)).toBeNull();
   });
@@ -563,7 +563,7 @@ describe("App — FailedAppsAlert", () => {
     // passthrough of a manifest already tagged "degraded": a cached manifest can read "running"
     // while one of its instances has already failed, until an execution event refetches the grid.
     seedManifests([
-      createManifest({
+      createAppSummary({
         app_key: "multi_instance_app",
         display_name: "Multi Instance App",
         status: "running",
@@ -594,8 +594,8 @@ describe("App — FailedAppsAlert re-render scoping", () => {
 
   it("does not re-render when an unrelated status write leaves the failed-app set unchanged", async () => {
     seedManifests([
-      createManifest({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
-      createManifest({ app_key: "healthy_app", display_name: "Healthy App", status: "running" }),
+      createAppSummary({ app_key: "failed_app", display_name: "Failed App", status: "failed" }),
+      createAppSummary({ app_key: "healthy_app", display_name: "Healthy App", status: "running" }),
     ]);
     render(<App />);
     // Wait for manifests to load and settle the failure banner before capturing a baseline.
@@ -613,7 +613,7 @@ describe("App — FailedAppsAlert re-render scoping", () => {
   });
 
   it("re-renders when an app enters the failed set", async () => {
-    seedManifests([createManifest({ app_key: "flaky_app", display_name: "Flaky App", status: "running" })]);
+    seedManifests([createAppSummary({ app_key: "flaky_app", display_name: "Flaky App", status: "running" })]);
     render(<App />);
     // Wait for manifests to load (sidebar renders one entry per manifest) before triggering the
     // status change — the banner itself isn't present yet since nothing is failing.

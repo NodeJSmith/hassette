@@ -6,11 +6,12 @@ import { apiFetch, apiPost } from "./client";
 import type { ConfigRecord, SchemaNode } from "./config-view-types";
 import type { components } from "./generated-types";
 
-export type AppManifest = components["schemas"]["AppManifestResponse"];
+export type AppManifest = components["schemas"]["AppSummary"];
 export type AppInstance = components["schemas"]["AppInstanceResponse"];
-export type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
+export type ManifestListResponse = components["schemas"]["AppListResponse"];
 export type ListenerData = components["schemas"]["ListenerWithSummary"];
-export type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
+export type AppGridEntry = components["schemas"]["AppGridEntry"];
+export type AppGridResponse = components["schemas"]["AppGridResponse"];
 export type JobData = components["schemas"]["JobSummary"];
 export type ExecutionData = components["schemas"]["Execution"];
 export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
@@ -50,9 +51,9 @@ function buildUrl(path: string, params: Record<string, string | number | null | 
   return qs ? `${path}?${qs}` : path;
 }
 
-export const getAppManifests = () => apiFetch<ManifestListResponse>("/apps/manifests");
+export const getAppManifests = () => apiFetch<ManifestListResponse>("/apps");
 
-export const getAppManifest = (appKey: string) => apiFetch<AppManifest>(`/apps/${encodeURIComponent(appKey)}/manifest`);
+export const getAppManifest = (appKey: string) => apiFetch<AppManifest>(`/apps/${encodeURIComponent(appKey)}`);
 
 export const startApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/start`);
 export const stopApp = (appKey: string) => apiPost<ActionResponse>(`/apps/${encodeURIComponent(appKey)}/stop`);
@@ -136,8 +137,8 @@ export const getJobExecutions = (
 export const getExecutionById = (executionId: string, signal?: AbortSignal) =>
   apiFetch<ExecutionData | null>(`/telemetry/execution/${executionId}`, { signal });
 
-export const getDashboardAppGrid = (since?: number | null, signal?: AbortSignal) =>
-  apiFetch<{ apps: DashboardAppGridEntry[] }>(buildUrl("/telemetry/dashboard/app-grid", { since }), { signal });
+export const getAppGrid = (since?: number | null, signal?: AbortSignal) =>
+  apiFetch<AppGridResponse>(buildUrl("/telemetry/app-grid", { since }), { signal });
 
 export const getTelemetryStatus = (signal?: AbortSignal) => apiFetch<TelemetryStatus>("/telemetry/status", { signal });
 

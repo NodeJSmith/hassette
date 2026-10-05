@@ -4,19 +4,22 @@ from typing import Any
 
 import tomli_w
 from hassette_wire import (
+    AppActivity,
     AppConfigResponse,
+    AppGridEntry,
+    AppGridResponse,
     AppHealth,
-    AppInstanceResponse,
     AppSourceResponse,
+    AppSummary,
     ConfigSchemaResponse,
-    DashboardAppGridEntry,
-    DashboardAppGridResponse,
+    GridEnrichment,
     SystemStatusResponse,
     TelemetryStatusResponse,
 )
 
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_EPOCH_B
+from tests.support.web_manifest_helpers import make_app_summary
 
 
 def make_system_status_response(
@@ -59,11 +62,7 @@ def make_telemetry_status_response(
     )
 
 
-def make_dashboard_app_grid_entry(
-    app_key: str = DEFAULT_TEST_APP_KEY,
-    status: str = "running",
-    display_name: str = "Test App",
-    instance_count: int = 1,
+def make_app_activity(
     handler_count: int = 2,
     job_count: int = 1,
     total_invocations: int = 100,
@@ -71,23 +70,9 @@ def make_dashboard_app_grid_entry(
     total_executions: int = 50,
     total_job_errors: int = 0,
     health: AppHealth | None = None,
-    class_name: str = "TestApp",
-    filename: str = "test_app.py",
-    enabled: bool = True,
-    auto_loaded: bool = False,
-    autostart: bool = True,
-    block_reason: str | None = None,
-    instances: list[AppInstanceResponse] | None = None,
-    error_message: str | None = None,
-    error_traceback: str | None = None,
-    in_current_config: bool = True,
-) -> DashboardAppGridEntry:
-    """Build a DashboardAppGridEntry with sensible defaults."""
-    return DashboardAppGridEntry(
-        app_key=app_key,
-        status=status,  # pyright: ignore[reportArgumentType]
-        display_name=display_name,
-        instance_count=instance_count,
+) -> AppActivity:
+    """Build an AppActivity with sensible defaults."""
+    return AppActivity(
         handler_count=handler_count,
         job_count=job_count,
         total_invocations=total_invocations,
@@ -95,24 +80,28 @@ def make_dashboard_app_grid_entry(
         total_executions=total_executions,
         total_job_errors=total_job_errors,
         health=health if health is not None else make_app_health(),
-        class_name=class_name,
-        filename=filename,
-        enabled=enabled,
-        auto_loaded=auto_loaded,
-        autostart=autostart,
-        block_reason=block_reason,
-        instances=instances or [],
-        error_message=error_message,
-        error_traceback=error_traceback,
-        in_current_config=in_current_config,
     )
 
 
-def make_dashboard_app_grid_response(
-    entries: list[DashboardAppGridEntry] | None = None,
-) -> DashboardAppGridResponse:
-    """Build a DashboardAppGridResponse from a list of entries."""
-    return DashboardAppGridResponse(apps=entries if entries is not None else [make_dashboard_app_grid_entry()])
+def make_app_grid_entry(app: AppSummary | None = None, activity: AppActivity | None = None) -> AppGridEntry:
+    """Build an AppGridEntry from an app summary and its activity, defaulting each."""
+    return AppGridEntry(
+        app=app if app is not None else make_app_summary(),
+        activity=activity if activity is not None else make_app_activity(),
+    )
+
+
+def make_app_grid_response(
+    entries: list[AppGridEntry] | None = None,
+    degraded: list[GridEnrichment] | None = None,
+    since: float | None = None,
+) -> AppGridResponse:
+    """Build an AppGridResponse from a list of entries."""
+    return AppGridResponse(
+        apps=entries if entries is not None else [make_app_grid_entry()],
+        degraded=[*(degraded or [])],  # a fresh list widens GridEnrichment to the field's OpenGridEnrichment
+        since=since,
+    )
 
 
 def make_config_schema_response() -> ConfigSchemaResponse:

@@ -68,7 +68,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Apps */
+        /**
+         * Get Apps
+         * @description Return every persisted app, overlaid with live runtime state.
+         *
+         *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
+         *     failure) and overlaid with live runtime state via
+         *     ``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but
+         *     no loaded manifest are still included.
+         */
         get: operations["get_apps_api_apps_get"];
         put?: never;
         post?: never;
@@ -78,7 +86,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/apps/manifests": {
+    "/api/apps/{app_key}": {
         parameters: {
             query?: never;
             header?: never;
@@ -86,41 +94,15 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get App Manifests
-         * @description Return every persisted app manifest, overlaid with live runtime state.
-         *
-         *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
-         *     failure) and overlaid with live runtime state via
-         *     ``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but
-         *     no loaded manifest are still included. The ``recent_invocations_1h`` enrichment query
-         *     below is caught on its own and degrades to zero while the response continues at 200.
-         */
-        get: operations["get_app_manifests_api_apps_manifests_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/apps/{app_key}/manifest": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get App Manifest
-         * @description Return the persisted manifest for a single app, overlaid with live runtime state.
+         * Get App
+         * @description Return a single persisted app, overlaid with live runtime state.
          *
          *     Queries the ``app_manifests`` DB table directly instead of the in-memory registry, so an
          *     app with historical telemetry but no loaded manifest returns 200 instead of 404. A DB
          *     failure answers ``telemetry_unavailable``; a genuinely unknown ``app_key`` answers
          *     ``app_not_found``.
          */
-        get: operations["get_app_manifest_api_apps__app_key__manifest_get"];
+        get: operations["get_app_api_apps__app_key__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -679,7 +661,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/telemetry/dashboard/app-grid": {
+    "/api/telemetry/app-grid": {
         parameters: {
             query?: never;
             header?: never;
@@ -687,19 +669,19 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Dashboard App Grid
-         * @description Per-app health data for the dashboard grid.
+         * App Grid
+         * @description Every app joined with its activity over ``since``, for the Apps grid.
          *
          *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
          *     failure) and overlaid with live runtime state via
          *     ``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below are
-         *     caught individually and degrade to empty defaults while the response continues at 200 —
-         *     see ``.claude/rules/web-api.md``.
+         *     caught individually: each failure degrades its part of ``activity`` to empty defaults, is
+         *     named in ``degraded``, and the response continues at 200 — see ``.claude/rules/web-api.md``.
          *
          *     Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
          *     not the manifest-driven app grid.
          */
-        get: operations["dashboard_app_grid_api_telemetry_dashboard_app_grid_get"];
+        get: operations["app_grid_api_telemetry_app_grid_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -837,6 +819,52 @@ export interface components {
             kind: "handler" | "job";
         };
         /**
+         * AppActivity
+         * @description How an app is doing over the grid's time window (``AppGridResponse.since``).
+         *
+         *     Each part comes from its own enrichment query. A failed query leaves its fields at their
+         *     defaults and is named in ``AppGridResponse.degraded``, so a zero here is only trustworthy
+         *     when its enrichment is absent from that list.
+         */
+        AppActivity: {
+            /** Handler Count */
+            handler_count: number;
+            /** Job Count */
+            job_count: number;
+            /** Total Invocations */
+            total_invocations: number;
+            /** Total Errors */
+            total_errors: number;
+            /**
+             * Total Timed Out
+             * @default 0
+             */
+            total_timed_out: number;
+            /** Total Executions */
+            total_executions: number;
+            /** Total Job Errors */
+            total_job_errors: number;
+            /**
+             * Total Job Timed Out
+             * @default 0
+             */
+            total_job_timed_out: number;
+            health: components["schemas"]["AppHealth"];
+            /** Activity Buckets */
+            activity_buckets?: components["schemas"]["ActivityBucket"][];
+            /**
+             * Blocking Event Count
+             * @default 0
+             */
+            blocking_event_count: number;
+            /** Last Error Message */
+            last_error_message?: string | null;
+            /** Last Error Type */
+            last_error_type?: string | null;
+            /** Last Error Ts */
+            last_error_ts?: number | null;
+        };
+        /**
          * AppConfigResponse
          * @description Response model for GET /apps/{app_key}/config.
          */
@@ -865,6 +893,26 @@ export interface components {
             } | null;
             /** Framework Fields */
             framework_fields: string[];
+        };
+        /**
+         * AppGridEntry
+         * @description One Apps grid row: an app joined with its activity, in a single server-side query.
+         */
+        AppGridEntry: {
+            app: components["schemas"]["AppSummary"];
+            activity: components["schemas"]["AppActivity"];
+        };
+        /**
+         * AppGridResponse
+         * @description The Apps grid: every app with its activity over ``since``.
+         */
+        AppGridResponse: {
+            /** Apps */
+            apps: components["schemas"]["AppGridEntry"][];
+            /** Degraded */
+            degraded?: ("summaries" | "activity_buckets" | "last_errors" | "blocking_counts")[];
+            /** Since */
+            since?: number | null;
         };
         /**
          * AppHealth
@@ -922,21 +970,48 @@ export interface components {
             /** Owner Id */
             owner_id?: string | null;
         };
-        /** AppManifestListResponse */
-        AppManifestListResponse: {
+        /** AppListResponse */
+        AppListResponse: {
             /** Total */
             total: number;
             /** Status Counts */
             status_counts?: {
                 [key: string]: number;
             };
-            /** Manifests */
-            manifests: components["schemas"]["AppManifestResponse"][];
+            /** Apps */
+            apps: components["schemas"]["AppSummary"][];
             /** Only Apps */
             only_apps?: string[];
         };
-        /** AppManifestResponse */
-        AppManifestResponse: {
+        /**
+         * AppSourceResponse
+         * @description Response model for GET /apps/{app_key}/source.
+         */
+        AppSourceResponse: {
+            /** App Key */
+            app_key: string;
+            /** Filename */
+            filename: string;
+            /** Content */
+            content: string;
+            /** Line Count */
+            line_count: number;
+        };
+        /**
+         * AppStatus
+         * @description An app's overall lifecycle status across its instances (distinct from the per-instance ``ResourceStatus``).
+         * @enum {string}
+         */
+        AppStatus: "disabled" | "blocked" | "degraded" | "running" | "failed" | "stopped";
+        /**
+         * AppSummary
+         * @description What an app is: its config identity, lifecycle status and instances.
+         *
+         *     Served by ``GET /api/apps`` (in ``AppListResponse``) and ``GET /api/apps/{app_key}``, and
+         *     nested as ``app`` in each ``AppGridEntry``. Activity over a time window lives in
+         *     ``AppActivity``, never here.
+         */
+        AppSummary: {
             /** App Key */
             app_key: string;
             /** Class Name */
@@ -954,7 +1029,7 @@ export interface components {
              * @default true
              */
             autostart: boolean;
-            status: components["schemas"]["ManifestStatus"];
+            status: components["schemas"]["AppStatus"];
             /** Block Reason */
             block_reason?: string | null;
             /**
@@ -970,44 +1045,11 @@ export interface components {
             /** Error Traceback */
             error_traceback?: string | null;
             /**
-             * Recent Invocations 1H
-             * @description Total handler invocations in the last hour across all instances.
-             * @default 0
-             */
-            recent_invocations_1h: number;
-            /**
              * In Current Config
              * @description True if the app is present in the currently-loaded config; False for DB-only/removed apps.
              * @default true
              */
             in_current_config: boolean;
-        };
-        /**
-         * AppSourceResponse
-         * @description Response model for GET /apps/{app_key}/source.
-         */
-        AppSourceResponse: {
-            /** App Key */
-            app_key: string;
-            /** Filename */
-            filename: string;
-            /** Content */
-            content: string;
-            /** Line Count */
-            line_count: number;
-        };
-        /** AppStatusResponse */
-        AppStatusResponse: {
-            /** Total */
-            total: number;
-            /** Running */
-            running: number;
-            /** Failed */
-            failed: number;
-            /** Apps */
-            apps: components["schemas"]["AppInstanceResponse"][];
-            /** Only Apps */
-            only_apps?: string[];
         };
         /**
          * BackpressurePolicy
@@ -1149,106 +1191,6 @@ export interface components {
             config_values: {
                 [key: string]: unknown;
             };
-        };
-        /**
-         * DashboardAppGridEntry
-         * @description Per-app health entry for the dashboard grid.
-         */
-        DashboardAppGridEntry: {
-            /** App Key */
-            app_key: string;
-            status: components["schemas"]["ManifestStatus"];
-            /** Display Name */
-            display_name: string;
-            /**
-             * Instance Count
-             * @description Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).
-             * @default 0
-             */
-            instance_count: number;
-            /** Handler Count */
-            handler_count: number;
-            /** Job Count */
-            job_count: number;
-            /** Total Invocations */
-            total_invocations: number;
-            /** Total Errors */
-            total_errors: number;
-            /**
-             * Total Timed Out
-             * @default 0
-             */
-            total_timed_out: number;
-            /** Total Executions */
-            total_executions: number;
-            /** Total Job Errors */
-            total_job_errors: number;
-            /**
-             * Total Job Timed Out
-             * @default 0
-             */
-            total_job_timed_out: number;
-            health: components["schemas"]["AppHealth"];
-            /** Activity Buckets */
-            activity_buckets?: components["schemas"]["ActivityBucket"][];
-            /**
-             * Blocking Event Count
-             * @default 0
-             */
-            blocking_event_count: number;
-            /** Last Error Message */
-            last_error_message?: string | null;
-            /** Last Error Type */
-            last_error_type?: string | null;
-            /** Last Error Ts */
-            last_error_ts?: number | null;
-            /**
-             * Class Name
-             * @default
-             */
-            class_name: string;
-            /**
-             * Filename
-             * @default
-             */
-            filename: string;
-            /**
-             * Enabled
-             * @default true
-             */
-            enabled: boolean;
-            /**
-             * Auto Loaded
-             * @default false
-             */
-            auto_loaded: boolean;
-            /**
-             * Autostart
-             * @default true
-             */
-            autostart: boolean;
-            /** Block Reason */
-            block_reason?: string | null;
-            /** Instances */
-            instances?: components["schemas"]["AppInstanceResponse"][];
-            /** Error Message */
-            error_message?: string | null;
-            /** Error Traceback */
-            error_traceback?: string | null;
-            /**
-             * In Current Config
-             * @description True if the app is present in the currently-loaded config; False for DB-only/removed apps.
-             * @default true
-             */
-            in_current_config: boolean;
-        };
-        /**
-         * DashboardAppGridResponse
-         * @description Dashboard app grid with per-app health data.
-         */
-        DashboardAppGridResponse: {
-            /** Apps */
-            apps: components["schemas"]["DashboardAppGridEntry"][];
         };
         /**
          * Execution
@@ -1694,12 +1636,6 @@ export interface components {
             retention_expired: boolean;
         };
         /**
-         * ManifestStatus
-         * @description Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``).
-         * @enum {string}
-         */
-        ManifestStatus: "disabled" | "blocked" | "degraded" | "running" | "failed" | "stopped";
-        /**
          * ProblemCode
          * @description Machine-readable reason carried in the ``code`` member of every web API error body.
          *
@@ -2051,27 +1987,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AppStatusResponse"];
-                };
-            };
-        };
-    };
-    get_app_manifests_api_apps_manifests_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AppManifestListResponse"];
+                    "application/json": components["schemas"]["AppListResponse"];
                 };
             };
             /** @description `telemetry_unavailable`: the telemetry store could not be read */
@@ -2085,7 +2001,7 @@ export interface operations {
             };
         };
     };
-    get_app_manifest_api_apps__app_key__manifest_get: {
+    get_app_api_apps__app_key__get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2102,7 +2018,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AppManifestResponse"];
+                    "application/json": components["schemas"]["AppSummary"];
                 };
             };
             /** @description `invalid_app_key`: the app key is not a valid app key */
@@ -3386,7 +3302,7 @@ export interface operations {
             };
         };
     };
-    dashboard_app_grid_api_telemetry_dashboard_app_grid_get: {
+    app_grid_api_telemetry_app_grid_get: {
         parameters: {
             query?: {
                 since?: number | null;
@@ -3403,7 +3319,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DashboardAppGridResponse"];
+                    "application/json": components["schemas"]["AppGridResponse"];
                 };
             };
             /** @description Validation Error */

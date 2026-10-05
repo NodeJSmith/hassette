@@ -29,11 +29,11 @@ class ConnectivityData(BaseModel):
     connected: bool
 
 
-class AppManifestsChangedData(BaseModel):
-    """Payload for a manifest refresh broadcast over WebSocket.
+class AppsChangedData(BaseModel):
+    """Payload for an app-list refresh broadcast over WebSocket.
 
     Carries no fields and does not identify which apps changed — it is a refetch
-    signal, not a diff. Clients should treat receipt as "manifest status may be
+    signal, not a diff. Clients should treat receipt as "app status may be
     stale, refetch" rather than inspect the payload.
     """
 
@@ -100,9 +100,9 @@ class ServiceStatusWsMessage(BaseModel):
     timestamp: float
 
 
-class AppManifestsChangedWsMessage(BaseModel):
-    type: Literal["app_manifests_changed"]
-    data: AppManifestsChangedData
+class AppsChangedWsMessage(BaseModel):
+    type: Literal["apps_changed"]
+    data: AppsChangedData
     timestamp: float
 
 
@@ -138,6 +138,6 @@ WsServerMessage = Annotated[
     | ConnectivityWsMessage
     | ServiceStatusWsMessage
     | ExecutionCompletedWsMessage
-    | AppManifestsChangedWsMessage,
+    | AppsChangedWsMessage,
     Field(discriminator="type"),
 ]

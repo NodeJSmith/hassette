@@ -139,13 +139,6 @@ class TestPreBootstrapAppState:
     finished (or even started) app bootstrap.
     """
 
-    def test_get_app_status_snapshot_is_empty_before_bootstrap(self, runtime: RuntimeQueryService) -> None:
-        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[]))
-
-        snapshot = runtime.get_app_status_snapshot()
-
-        assert snapshot.total_count == 0
-
     def test_get_system_status_reports_zero_apps_before_bootstrap(self, runtime: RuntimeQueryService) -> None:
         runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[]))
 
@@ -280,14 +273,13 @@ class TestConcurrentAppHandlerTeardown:
         runtime.hassette.app_handler.get_status_snapshot = Mock(side_effect=registry.get_snapshot)
 
         # Sanity: the app is visible before teardown starts.
-        assert runtime.get_app_status_snapshot().total_count == 1
+        assert runtime.get_system_status().app_count == 1
 
         # AppHandler.on_shutdown() -> AppLifecycleService.shutdown_all() clears the registry.
         # Without the depends_on edge this can now race RuntimeQueryService's own shutdown.
         registry.clear_all()
 
         # No read path may raise once AppHandler starts tearing down.
-        assert runtime.get_app_status_snapshot().total_count == 0
         assert runtime.get_system_status().app_count == 0
         assert runtime.collect_boot_issues() == []
         assert runtime.get_registry_only_apps() == []
@@ -349,17 +341,6 @@ class TestUnwiredBootstrapCoordinator:
         issues = runtime.collect_boot_issues()
 
         assert any(issue.label == "Apps pending on Home Assistant" for issue in issues)
-
-
-class TestAppStatus:
-    def test_get_app_status_snapshot(self, runtime: RuntimeQueryService) -> None:
-        snapshot = runtime.get_app_status_snapshot()
-        assert isinstance(snapshot, AppStatusSnapshot)
-        assert snapshot.total_count == 1
-        assert snapshot.running_count == 1
-        assert snapshot.failed_count == 0
-        assert len(snapshot.instances) == 1
-        assert snapshot.instances[0].app_key == "my_app"
 
 
 class TestCompletionPayloadEnrichment:
@@ -730,15 +711,15 @@ class TestServiceStatusMapping:
 
 
 class TestAppManifestsChanged:
-    async def test_on_app_manifests_changed_broadcasts_signal(self, runtime: RuntimeQueryService) -> None:
+    async def test_on_apps_changed_broadcasts_signal(self, runtime: RuntimeQueryService) -> None:
         """A full app load/reload pass broadcasts an empty-payload refetch signal."""
         broadcast_calls: list[dict] = []
         runtime.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
 
-        await runtime.on_app_manifests_changed()
+        await runtime.on_apps_changed()
 
         assert len(broadcast_calls) == 1
-        assert broadcast_calls[0]["type"] == "app_manifests_changed"
+        assert broadcast_calls[0]["type"] == "apps_changed"
         assert broadcast_calls[0]["data"] == {}
 
     async def test_on_initialize_wires_app_load_completed_to_broadcast(
@@ -748,11 +729,11 @@ class TestAppManifestsChanged:
         unused_tcp_port_factory: "Callable[[], int]",
     ) -> None:
         """The bus subscription registered in on_initialize() actually routes
-        Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED to on_app_manifests_changed.
+        Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED to on_apps_changed.
 
         Unlike the direct-call test above, this exercises the real registration on a real Bus
         -- it would catch a wrong topic constant or a dropped registration in on_initialize(),
-        neither of which invoking on_app_manifests_changed() directly can detect. Builds its own
+        neither of which invoking on_apps_changed() directly can detect. Builds its own
         config (rather than the shared session-scoped `test_config` fixture) with
         `web_api.run=True`, since `on_initialize()` returns early without registering anything
         when the web API is disabled -- `TestConfig`'s default -- and mutating the shared
@@ -776,12 +757,12 @@ class TestAppManifestsChanged:
                     HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
                 )
                 await wait_for(
-                    lambda: any(call["type"] == "app_manifests_changed" for call in broadcast_calls),
-                    desc="app_manifests_changed broadcast",
+                    lambda: any(call["type"] == "apps_changed" for call in broadcast_calls),
+                    desc="apps_changed broadcast",
                 )
             finally:
                 await svc.on_shutdown()
 
-        manifest_calls = [call for call in broadcast_calls if call["type"] == "app_manifests_changed"]
+        manifest_calls = [call for call in broadcast_calls if call["type"] == "apps_changed"]
         assert len(manifest_calls) == 1
         assert manifest_calls[0]["data"] == {}

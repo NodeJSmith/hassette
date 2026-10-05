@@ -3,7 +3,7 @@
 import pytest
 
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.listener_models import ListenerSummaryRow
 
 from .helpers import (
     BASE_TS,
@@ -35,7 +35,7 @@ class TestGetListenerSummary:
         rows = await query_service.get_listener_summary("test_app", 0)
         assert len(rows) == 2
 
-        assert all(isinstance(r, ListenerSummary) for r in rows)
+        assert all(isinstance(r, ListenerSummaryRow) for r in rows)
         row = next(r for r in rows if r.handler_method == "on_a")
         assert row.total_invocations == 3
         assert row.successful == 2
