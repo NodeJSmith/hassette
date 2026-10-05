@@ -3,6 +3,9 @@
 Covers concurrent waiting on independent dependencies: every resource's ``wait_ready``
 is awaited at once, readiness order does not matter, and one dependency timing out fails
 the whole wait even when the others become ready.
+
+Each test runs with and without a ``shutdown_event`` because ``wait_for_ready`` takes a different
+code path for each: a plain ``gather`` without one, a ``gather`` raced against the event with one.
 """
 
 import asyncio
@@ -14,6 +17,12 @@ from hassette.utils import wait_for_ready
 
 if TYPE_CHECKING:
     from hassette.resources.base import Resource
+
+WAIT_TIMEOUT = 1.0
+"""Deadline for waits expected to succeed; far above the time event-driven readiness takes."""
+
+SHORT_TIMEOUT = 0.05
+"""Deadline for the wait that is expected to time out."""
 
 
 class StubResource:
@@ -43,8 +52,10 @@ async def test_independent_deps_are_awaited_concurrently(with_shutdown_event: bo
     dep_a, dep_b = StubResource(), StubResource()
     shutdown = asyncio.Event() if with_shutdown_event else None
 
-    task = asyncio.create_task(wait_for_ready(as_resources(dep_a, dep_b), timeout=1, shutdown_event=shutdown))
-    await asyncio.wait_for(asyncio.gather(dep_a.waiting.wait(), dep_b.waiting.wait()), timeout=1)
+    task = asyncio.create_task(
+        wait_for_ready(as_resources(dep_a, dep_b), timeout=WAIT_TIMEOUT, shutdown_event=shutdown)
+    )
+    await asyncio.wait_for(asyncio.gather(dep_a.waiting.wait(), dep_b.waiting.wait()), timeout=WAIT_TIMEOUT)
 
     assert not task.done(), "wait_for_ready must still be waiting while neither dep is ready"
 
@@ -59,15 +70,17 @@ async def test_deps_ready_at_different_times_in_reverse_order(with_shutdown_even
     dep_a, dep_b = StubResource(), StubResource()
     shutdown = asyncio.Event() if with_shutdown_event else None
 
-    task = asyncio.create_task(wait_for_ready(as_resources(dep_a, dep_b), timeout=1, shutdown_event=shutdown))
+    task = asyncio.create_task(
+        wait_for_ready(as_resources(dep_a, dep_b), timeout=WAIT_TIMEOUT, shutdown_event=shutdown)
+    )
 
     dep_b.ready_event.set()
-    await asyncio.wait_for(dep_b.finished.wait(), timeout=1)
+    await asyncio.wait_for(dep_b.finished.wait(), timeout=WAIT_TIMEOUT)
     assert not dep_a.finished.is_set()
     assert not task.done(), "wait_for_ready must not finish while dep_a is still not ready"
 
     dep_a.ready_event.set()
-    assert await asyncio.wait_for(task, timeout=1) is True
+    assert await asyncio.wait_for(task, timeout=WAIT_TIMEOUT) is True
 
 
 @pytest.mark.parametrize("with_shutdown_event", [False, True])
@@ -77,7 +90,7 @@ async def test_one_dep_times_out_while_other_succeeds(with_shutdown_event: bool)
     ready_dep.ready_event.set()
     shutdown = asyncio.Event() if with_shutdown_event else None
 
-    result = await wait_for_ready(as_resources(ready_dep, stuck_dep), timeout=0.05, shutdown_event=shutdown)
+    result = await wait_for_ready(as_resources(ready_dep, stuck_dep), timeout=SHORT_TIMEOUT, shutdown_event=shutdown)
 
     assert result is False
     assert ready_dep.ready_event.is_set()
