@@ -9,8 +9,6 @@ system-status snapshot, served models, and WS payloads, see ``hassette_wire``.
 See ``schemas/__init__.py`` for the domain-file map.
 """
 
-from typing import Literal
-
 from hassette_wire import BackpressurePolicy, ExecutionMode, SourceTier
 from pydantic import BaseModel
 
@@ -62,24 +60,6 @@ class ListenerSummary(BaseModel):
     last_error_type: str | None
     last_error_message: str | None
     last_error_traceback: str | None = None
-
-
-class HandlerErrorRecord(BaseModel):
-    """Handler error returned by ``get_recent_errors()``."""
-
-    kind: Literal["handler"] = "handler"
-    listener_id: int | None
-    app_key: str | None
-    handler_method: str | None
-    topic: str | None
-    execution_start_ts: float
-    duration_ms: float
-    source_tier: SourceTier = "app"
-    error_type: str | None
-    error_message: str | None
-    error_traceback: str | None = None
-    source_location: str | None = None
-    """Source file location of the handler (e.g. 'my_app.py:42')."""
 
 
 class SlowHandlerRecord(BaseModel):

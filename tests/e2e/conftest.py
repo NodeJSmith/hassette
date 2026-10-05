@@ -17,7 +17,6 @@ from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
     MANUAL_JOB_ID,
     build_app_health_summaries,
-    build_error_records,
     build_executions,
     build_job_telemetry,
     build_listener_telemetry,
@@ -28,7 +27,6 @@ from tests.e2e.mock_fixtures import (
     wire_app_health_summaries,
     wire_app_manifest_lookups,
     wire_config,
-    wire_error_telemetry,
     wire_invocation_telemetry,
     wire_job_telemetry,
     wire_listener_telemetry,
@@ -130,9 +128,6 @@ def build_mock_hassette(*, is_ready: bool = True, auth_enabled: bool = False) ->
     wire_invocation_telemetry(hassette, build_executions())
     wire_app_health_summaries(hassette, build_app_health_summaries())
     wire_session_telemetry(hassette, build_session_list())
-
-    app_tier_errors, framework_tier_errors = build_error_records()
-    wire_error_telemetry(hassette, app_tier_errors, framework_tier_errors)
 
     # Owner resolution wiring.
     wire_owner_resolution(hassette)
