@@ -3,7 +3,6 @@
 from typing import Any
 
 from hassette_wire import (
-    LENIENT_CONTEXT,
     Execution,
     JobSummary,
     ScheduleStatus,
@@ -11,7 +10,7 @@ from hassette_wire import (
     UnknownValue,
 )
 
-from hassette.cli.client import make_client, query_params
+from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
@@ -105,7 +104,7 @@ def cmd_job(
             list,
             params=query_params(since=since, limit=limit),
         )
-        executions = [Execution.model_validate(e, context=LENIENT_CONTEXT) for e in raw]
+        executions = parse_wire_list(Execution, raw)
         render_table(executions, JOB_EXECUTION_COLUMNS, json_mode=ctx.json_mode)
         return
 
@@ -117,5 +116,5 @@ def cmd_job(
         instance=instance,
         extra_params=query_params(since=since, source_tier=source_tier),
     )
-    jobs = [JobSummary.model_validate(e, context=LENIENT_CONTEXT) for e in raw]
+    jobs = parse_wire_list(JobSummary, raw)
     render_table(jobs, JOB_LIST_COLUMNS, json_mode=ctx.json_mode)

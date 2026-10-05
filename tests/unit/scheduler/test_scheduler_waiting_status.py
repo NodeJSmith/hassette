@@ -10,7 +10,8 @@ make_scheduler()'s mocked scheduler_service.add_job() which never touches the he
 
 from unittest.mock import AsyncMock
 
-from hassette.scheduler.classes import ScheduleStatus
+from hassette_wire import ScheduleStatus
+
 from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.triggers import EntityTime
 from tests.support.helpers import noop

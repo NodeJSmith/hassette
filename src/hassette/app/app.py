@@ -2,7 +2,7 @@ import typing
 from logging import Logger, getLogger
 from typing import ClassVar, Generic, TypeVar, cast, final
 
-from hassette_wire import LogLevel, SourceTier
+from hassette_wire import LogLevel, ResourceRole, SourceTier
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -15,7 +15,6 @@ from hassette.resources.base import FinalMeta, Resource
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.types import AppConfigT
-from hassette.types.enums import ResourceRole
 
 from .app_config import AppConfig
 

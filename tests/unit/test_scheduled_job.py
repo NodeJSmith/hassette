@@ -1,10 +1,10 @@
 """Tests for Job dataclass — group, jitter, trigger_id matching."""
 
 import pytest
+from hassette_wire import ScheduleStatus
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
-from hassette.scheduler.classes import ScheduleStatus
 from hassette.scheduler.triggers import Every
 from tests.support.factories import make_scheduled_job
 from tests.support.helpers import noop

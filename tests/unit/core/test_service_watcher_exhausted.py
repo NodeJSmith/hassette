@@ -9,12 +9,12 @@ Verifies:
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from hassette_wire import ResourceStatus
+from hassette_wire import ResourceRole, ResourceStatus
 
 from hassette.events.hassette import ServiceStatusPayload
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types.enums import ResourceRole, RestartType
+from hassette.types.enums import RestartType
 
 from .conftest import (
     COOLDOWN_NEVER_REACHED_SECONDS,

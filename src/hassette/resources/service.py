@@ -5,7 +5,7 @@ from contextlib import suppress
 from typing import Any, ClassVar
 
 from anyio import ClosedResourceError
-from hassette_wire import ResourceStatus
+from hassette_wire import ResourceRole, ResourceStatus
 
 from hassette.exceptions import FatalError
 from hassette.resources.base import Resource
@@ -21,7 +21,6 @@ from hassette.resources.lifecycle import (
 from hassette.resources.operations import run_hooks
 from hassette.resources.restart import RestartSpec
 from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
-from hassette.types.enums import ResourceRole
 
 
 class Service(Resource):

@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any, Literal, TypeVar
 from unittest.mock import AsyncMock, MagicMock, Mock
 
-from hassette_wire import ExecutionMode, ExecutionStatus, SourceTier
+from hassette_wire import ExecutionMode, ExecutionStatus, ScheduleStatus, SourceTier
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -31,7 +31,7 @@ from hassette.logging_ import (
     _format_exc_info,  # pyright: ignore[reportPrivateUsage]
 )
 from hassette.resources.base import Resource
-from hassette.scheduler.classes import Job, ScheduleStatus
+from hassette.scheduler.classes import Job
 from hassette.scheduler.scheduler import Scheduler
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_SOURCE_LOCATION
 from hassette.testing.recording_api import RecordingApi

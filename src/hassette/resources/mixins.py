@@ -11,8 +11,9 @@ from hassette.resources.teardown import TeardownReport
 from hassette.types.types import CoroLikeT
 
 if typing.TYPE_CHECKING:
+    from hassette_wire import ResourceRole
+
     from hassette.resources.lifecycle import ShutdownBudget
-    from hassette.types.enums import ResourceRole
 
 LOGGER = getLogger(__name__)
 

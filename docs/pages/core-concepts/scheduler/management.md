@@ -13,12 +13,12 @@ Every live job carries a `schedule_status` — what it's doing right now, indepe
 | `completed` | Every automatic occurrence has fired, or the trigger raised while computing the next one. The job stays live and can still be submitted manually. |
 | `manual` | Registered via `register()` with no trigger at all. Never fires on its own. |
 
-A job can also carry a `schedule_status_reason` that qualifies its status. It's `None` in the normal case. Two values exist:
+Sometimes the status alone doesn't say why a job is in it. `schedule_status_reason` covers those cases. It's `None` for most jobs, and otherwise holds one of two values:
 
 | Reason | Meaning |
 |---|---|
 | `trigger_error` | Appears on a `completed` job. The job stopped because its trigger raised while computing the next run, not because its schedule ran out. Check the logs for the trigger's exception. |
-| `legacy_unknown` | Appears only in the monitoring UI and API, never on a live `Job`. The row was recorded before Hassette tracked schedule status, and its job hasn't been registered since. The status settles once the app registers the job again. |
+| `legacy_unknown` | Appears only in the monitoring UI and API, never on a live `Job`. Hassette recorded this job before it tracked schedule status, and the app hasn't registered the job since. It clears the next time the app registers the job. |
 
 `schedule_status` is not the same as "has this job ever run." A `completed` job that has never been submitted manually is still `completed` — completion tracks the automatic schedule, not execution history. The [monitoring UI](../../web-ui/index.md) shows the status directly instead of a fabricated or blank next-run time.
 

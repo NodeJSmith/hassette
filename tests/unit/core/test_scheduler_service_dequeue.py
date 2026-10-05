@@ -14,9 +14,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fair_async_rlock import FairAsyncRLock
+from hassette_wire import ScheduleStatus
 
 from hassette.core.scheduler_service import SchedulerService
-from hassette.scheduler.classes import ScheduleStatus
 from hassette.scheduler.job_queue import HeapQueue, _ScheduledJobQueue
 from tests.support.factories import make_scheduled_job
 from tests.support.helpers import make_rejecting_task_bucket

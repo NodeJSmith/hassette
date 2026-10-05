@@ -11,7 +11,7 @@ from typing import ClassVar, NamedTuple
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import ResourceStatus
+from hassette_wire import ResourceRole, ResourceStatus
 
 from hassette import HassetteConfig, context
 from hassette.core.service_status_predicates import SERVICE_STATUS_PATH
@@ -26,7 +26,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.testing import EventCapture, HassetteHarness, build_harness, wait_for
 from hassette.testing._reset import reset_hassette_lifecycle
-from hassette.types import ResourceRole, Topic
+from hassette.types import Topic
 from hassette.types.enums import RestartType
 from tests.support.harness import preserve_config
 from tests.support.helpers import (

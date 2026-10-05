@@ -29,10 +29,12 @@ const SCHEDULE_STATUS_DISPLAY: Record<ScheduleStatus, ScheduleStatusDisplay | nu
   completed: COMPLETED_DISPLAY,
 };
 
-/** (status, reason) -> display info, overriding the status-level default above. */
-const SCHEDULE_STATUS_REASON_DISPLAY: Record<
-  ScheduleStatus,
-  Partial<Record<ScheduleStatusReason, ScheduleStatusDisplay>>
+/**
+ * (status, reason) -> display info, overriding the status-level default above. Sparse by design:
+ * only reasons whose display differs from their status's default have an entry.
+ */
+const SCHEDULE_STATUS_REASON_DISPLAY: Partial<
+  Record<ScheduleStatus, Partial<Record<ScheduleStatusReason, ScheduleStatusDisplay>>>
 > = {
   completed: {
     // Same label as the default "completed" entry — only the detail-view text differs for
@@ -42,9 +44,6 @@ const SCHEDULE_STATUS_REASON_DISPLAY: Record<
   scheduled: {
     legacy_unknown: { label: "unknown", text: "Legacy status unknown." },
   },
-  // No reason overrides for these; present only so the map stays total over ScheduleStatus.
-  manual: {},
-  waiting: {},
 };
 
 /**
@@ -59,8 +58,9 @@ export function scheduleStatusDisplay(
   reason?: ScheduleStatusReason | null,
 ): ScheduleStatusDisplay | null {
   if (status === null) return null;
-  // The maps are total for compile-time exhaustiveness, but REST data isn't runtime-validated, so a
-  // stale tab can see a newer server's status before the reload prompt appears. Stay defensive.
+  // SCHEDULE_STATUS_DISPLAY is total for compile-time exhaustiveness, but REST data isn't
+  // runtime-validated, so a stale tab can see a newer server's status before the reload prompt
+  // appears. Stay defensive.
   if (reason) {
     const override = SCHEDULE_STATUS_REASON_DISPLAY[status]?.[reason];
     if (override) return override;

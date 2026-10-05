@@ -6,14 +6,14 @@ import traceback
 import typing
 
 import uuid_utils
-from hassette_wire import ExecutionMode, ExecutionStatus
+from hassette_wire import ExecutionMode, ExecutionStatus, ScheduleStatus, ScheduleStatusReason
 from whenever import ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.commands import ExecuteJob
 from hassette.core.execution_record import ExecutionRecord
 from hassette.execution_mode import STALL_THRESHOLD_SECONDS, run_through_guard
-from hassette.scheduler.classes import Job, ScheduleStatus, ScheduleStatusReason
+from hassette.scheduler.classes import Job
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.scheduler.triggers import _WaitingSentinel
 

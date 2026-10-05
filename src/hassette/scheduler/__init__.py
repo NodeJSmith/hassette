@@ -4,12 +4,14 @@ This module provides clean access to the scheduler system for running jobs
 at specific times, intervals, or based on cron expressions.
 """
 
+from hassette_wire import ScheduleStatus, ScheduleStatusReason
+
 # TriggerProtocol is defined in hassette.types and re-exported here so that
 # users discover it alongside the trigger classes rather than hunting through
 # internal types packages.
 from hassette.types import TriggerProtocol
 
-from .classes import Job, ScheduleStatus, ScheduleStatusReason
+from .classes import Job
 from .error_context import SchedulerErrorContext
 from .scheduler import Scheduler
 from .sync import SchedulerSyncFacade

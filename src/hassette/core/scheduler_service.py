@@ -3,7 +3,7 @@ import typing
 from collections.abc import Callable
 from typing import ClassVar
 
-from hassette_wire import LogLevel
+from hassette_wire import LogLevel, ScheduleStatus
 from whenever import TimeDelta, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
@@ -17,7 +17,6 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
 from hassette.resources.service import Service
-from hassette.scheduler.classes import Job, ScheduleStatus
 from hassette.scheduler.job_queue import _ScheduledJobQueue
 from hassette.utils.func_utils import callable_stable_name, describe_predicate
 from hassette.utils.serialization import safe_json_serialize
@@ -25,6 +24,7 @@ from hassette.utils.serialization import safe_json_serialize
 if typing.TYPE_CHECKING:
     from hassette import Hassette
     from hassette.core.command_executor import CommandExecutor
+    from hassette.scheduler.classes import Job
 
 
 class SchedulerService(SchedulerDispatchMixin, Service):

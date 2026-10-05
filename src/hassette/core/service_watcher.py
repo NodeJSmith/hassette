@@ -3,7 +3,7 @@ import time
 import typing
 from typing import ClassVar
 
-from hassette_wire import LogLevel, ResourceStatus
+from hassette_wire import LogLevel, ResourceRole, ResourceStatus
 
 from hassette.bus import Bus
 from hassette.core.bus_service import BusService
@@ -19,7 +19,7 @@ from hassette.resources.lifecycle import create_service_status_event, mark_ready
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
-from hassette.types import ResourceRole, Topic
+from hassette.types import Topic
 from hassette.types.enums import RestartType
 
 if typing.TYPE_CHECKING:

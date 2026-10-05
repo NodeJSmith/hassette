@@ -10,8 +10,8 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from hassette_wire import ResourceRole
 
-from hassette.types.enums import ResourceRole
 from tests.support.helpers import make_crashed_event, make_unsafe_restart_refused_error
 
 from .conftest import make_watcher

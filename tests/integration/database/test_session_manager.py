@@ -7,12 +7,12 @@ from collections.abc import AsyncIterator, Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import ResourceRole
 
 from hassette import HassetteConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.session_manager import SessionManager
 from hassette.testing import HassetteHarness, build_harness
-from hassette.types import ResourceRole
 from tests.support.helpers import make_crashed_event
 
 

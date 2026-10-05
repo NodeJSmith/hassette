@@ -1,11 +1,12 @@
 import asyncio
 
+from hassette_wire import ScheduleStatus
 from whenever import ZonedDateTime
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.commands import ExecuteJob
-from hassette.scheduler import Job, ScheduleStatus
+from hassette.scheduler import Job
 from hassette.scheduler.triggers import Every
 from hassette.testing import AppTestHarness, HassetteHarness
 from hassette.utils.date_utils import now

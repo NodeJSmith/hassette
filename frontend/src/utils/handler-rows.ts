@@ -50,9 +50,9 @@ const SCHEDULE_STATUS_SORT_RANK: Record<ScheduleStatus, number> = {
 };
 
 function scheduleStatusRank(status: ScheduleStatus | null): number {
-  // Unknown statuses (a stale tab seeing a newer server before the reload prompt) sort with "scheduled".
-  if (status === null) return SCHEDULE_STATUS_SORT_RANK.scheduled;
-  return SCHEDULE_STATUS_SORT_RANK[status] ?? SCHEDULE_STATUS_SORT_RANK.scheduled;
+  // A missing status, or one this tab doesn't know (a stale tab seeing a newer server before the
+  // reload prompt), sorts with "scheduled".
+  return SCHEDULE_STATUS_SORT_RANK[status ?? "scheduled"] ?? SCHEDULE_STATUS_SORT_RANK.scheduled;
 }
 
 export function listenerToRow(l: ListenerData): UnifiedRow {
