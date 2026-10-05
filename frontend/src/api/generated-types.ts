@@ -792,8 +792,11 @@ export interface components {
             status: "accepted";
             /** App Key */
             app_key: string;
-            /** Action */
-            action: string;
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "start" | "stop" | "reload";
             /** Instance Index */
             instance_index: number | null;
         };
@@ -1411,13 +1414,9 @@ export interface components {
             avg_duration_ms: number;
             /** Group */
             group?: string | null;
-            /**
-             * Schedule Status
-             * @default scheduled
-             */
-            schedule_status: string;
-            /** Schedule Status Reason */
-            schedule_status_reason?: string | null;
+            /** @default scheduled */
+            schedule_status: components["schemas"]["ScheduleStatus"];
+            schedule_status_reason?: components["schemas"]["ScheduleStatusReason"] | null;
             /** Next Run */
             next_run?: number | null;
             /** Fire At */
@@ -1664,7 +1663,10 @@ export interface components {
         LogLevelRequest: {
             /** Logger */
             logger: string;
-            /** Level */
+            /**
+             * Level
+             * @description Level name to set: DEBUG, INFO, WARNING, ERROR, or CRITICAL. Case-insensitive.
+             */
             level: string;
         };
         /**
@@ -1674,8 +1676,11 @@ export interface components {
         LogLevelResponse: {
             /** Logger */
             logger: string;
-            /** Effective Level */
-            effective_level: string;
+            /**
+             * Effective Level
+             * @enum {string}
+             */
+            effective_level: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL";
         };
         /**
          * LogsByExecutionResponse
@@ -1748,11 +1753,31 @@ export interface components {
             ready: boolean;
         };
         /**
+         * ResourceRole
+         * @description The kind of framework component a status or service entry describes.
+         * @enum {string}
+         */
+        ResourceRole: "core" | "base" | "service" | "resource" | "app" | "unknown";
+        /**
          * ResourceStatus
          * @description Enumeration for resource status.
          * @enum {string}
          */
         ResourceStatus: "not_started" | "starting" | "running" | "stopping" | "stopped" | "failed" | "crashed" | "exhausted_dead" | "exhausted_cooling";
+        /**
+         * ScheduleStatus
+         * @description Whether a scheduled job will run again on its own.
+         * @enum {string}
+         */
+        ScheduleStatus: "scheduled" | "waiting" | "completed" | "manual";
+        /**
+         * ScheduleStatusReason
+         * @description Qualifies a ``ScheduleStatus`` when the status alone does not explain the job's state.
+         *
+         *     Absent when the status needs no qualification.
+         * @enum {string}
+         */
+        ScheduleStatusReason: "legacy_unknown" | "trigger_error";
         /**
          * ServiceInfoResponse
          * @description Structured info for one internal service.
@@ -1761,11 +1786,7 @@ export interface components {
             /** Name */
             name: string;
             status: components["schemas"]["ResourceStatus"];
-            /**
-             * Role
-             * @default
-             */
-            role: string;
+            role: components["schemas"]["ResourceRole"];
             /** Ready Phase */
             ready_phase?: string | null;
             /** Retry At */

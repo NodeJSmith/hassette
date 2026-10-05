@@ -2651,6 +2651,11 @@
           },
           "action": {
             "type": "string",
+            "enum": [
+              "start",
+              "stop",
+              "reload"
+            ],
             "title": "Action"
           },
           "instance_index": {
@@ -2987,6 +2992,9 @@
           "status_counts": {
             "additionalProperties": {
               "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/ManifestStatus"
             },
             "type": "object",
             "title": "Status Counts"
@@ -4057,20 +4065,18 @@
             "title": "Group"
           },
           "schedule_status": {
-            "type": "string",
-            "title": "Schedule Status",
+            "$ref": "#/components/schemas/ScheduleStatus",
             "default": "scheduled"
           },
           "schedule_status_reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/ScheduleStatusReason"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Schedule Status Reason"
+            ]
           },
           "next_run": {
             "anyOf": [
@@ -4718,7 +4724,8 @@
           },
           "level": {
             "type": "string",
-            "title": "Level"
+            "title": "Level",
+            "description": "Level name to set: DEBUG, INFO, WARNING, ERROR, or CRITICAL. Case-insensitive."
           }
         },
         "type": "object",
@@ -4737,6 +4744,13 @@
           },
           "effective_level": {
             "type": "string",
+            "enum": [
+              "DEBUG",
+              "INFO",
+              "WARNING",
+              "ERROR",
+              "CRITICAL"
+            ],
             "title": "Effective Level"
           }
         },
@@ -4876,6 +4890,19 @@
         "title": "ReadinessResponse",
         "description": "Response model for GET /api/health/ready."
       },
+      "ResourceRole": {
+        "type": "string",
+        "enum": [
+          "core",
+          "base",
+          "service",
+          "resource",
+          "app",
+          "unknown"
+        ],
+        "title": "ResourceRole",
+        "description": "The kind of framework component a status or service entry describes."
+      },
       "ResourceStatus": {
         "type": "string",
         "enum": [
@@ -4892,6 +4919,26 @@
         "title": "ResourceStatus",
         "description": "Enumeration for resource status."
       },
+      "ScheduleStatus": {
+        "type": "string",
+        "enum": [
+          "scheduled",
+          "waiting",
+          "completed",
+          "manual"
+        ],
+        "title": "ScheduleStatus",
+        "description": "Whether a scheduled job will run again on its own."
+      },
+      "ScheduleStatusReason": {
+        "type": "string",
+        "enum": [
+          "legacy_unknown",
+          "trigger_error"
+        ],
+        "title": "ScheduleStatusReason",
+        "description": "Qualifies a ``ScheduleStatus`` when the status alone does not explain the job's state.\n\nAbsent when the status needs no qualification."
+      },
       "ServiceInfoResponse": {
         "properties": {
           "name": {
@@ -4902,9 +4949,7 @@
             "$ref": "#/components/schemas/ResourceStatus"
           },
           "role": {
-            "type": "string",
-            "title": "Role",
-            "default": ""
+            "$ref": "#/components/schemas/ResourceRole"
           },
           "ready_phase": {
             "anyOf": [
@@ -4932,7 +4977,8 @@
         "type": "object",
         "required": [
           "name",
-          "status"
+          "status",
+          "role"
         ],
         "title": "ServiceInfoResponse",
         "description": "Structured info for one internal service."

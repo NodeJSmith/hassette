@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from hassette_wire.literals import LogLevel, OpenExecutionKind, SourceTier
 
@@ -35,11 +35,13 @@ class LogLevelRequest(BaseModel):
     """Request body for PUT /api/logs/level."""
 
     logger: str
-    level: str
+    level: str = Field(
+        description="Level name to set: DEBUG, INFO, WARNING, ERROR, or CRITICAL. Case-insensitive.",
+    )
 
 
 class LogLevelResponse(BaseModel):
     """Response for PUT /api/logs/level."""
 
     logger: str
-    effective_level: str
+    effective_level: LogLevel

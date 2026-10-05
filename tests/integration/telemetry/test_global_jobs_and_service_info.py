@@ -387,18 +387,17 @@ class TestServiceInfoResponseExtension:
         resp = ServiceInfoResponse(
             name="WebSocketService",
             status="running",
-            role="Service",
+            role=ResourceRole.SERVICE,
             ready_phase="connected",
             retry_at=STUB_TIMESTAMP,
         )
-        assert resp.role == "Service"
+        assert resp.role is ResourceRole.SERVICE
         assert resp.ready_phase == "connected"
         assert resp.retry_at == STUB_TIMESTAMP
 
     def test_service_info_response_defaults(self) -> None:
-        """ServiceInfoResponse has sensible defaults when role/ready_phase/retry_at omitted."""
-        resp = ServiceInfoResponse(name="SomeService", status="running")
-        assert resp.role == ""
+        """ServiceInfoResponse defaults ready_phase/retry_at to None when omitted."""
+        resp = ServiceInfoResponse(name="SomeService", status="running", role=ResourceRole.SERVICE)
         assert resp.ready_phase is None
         assert resp.retry_at is None
 

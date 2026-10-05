@@ -567,7 +567,7 @@ class TestSystemStatus:
         mock_child = MagicMock()
         mock_child.class_name = "WebsocketService"
         mock_child.status = ResourceStatus.RUNNING
-        mock_child.role.value = "service"
+        mock_child.role = ResourceRole.SERVICE
         mock_child._ready_reason = "connected to HA"
         mock_child._retry_at = None
         runtime.hassette.children = [mock_child]

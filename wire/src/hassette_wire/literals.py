@@ -51,3 +51,8 @@ HandlerKind = Literal["listener", "job"]
 """Whether a handler reference names a bus listener or a scheduled job."""
 
 OpenHandlerKind = Annotated[HandlerKind | UnknownValue, LenientValue("HandlerKind")]
+
+AppAction = Literal["start", "stop", "reload"]
+"""A lifecycle action requested on an app or one of its instances."""
+
+OpenAppAction = Annotated[AppAction | UnknownValue, LenientValue("AppAction")]

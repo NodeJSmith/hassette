@@ -155,3 +155,12 @@ GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/
 GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/error_rate_class` from the response with the `200` status
 GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/health_status` from the response with the `200` status
 GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/last_activity_ts` from the response with the `200` status
+
+# #2448 (spec 123): server-defined vocabularies on response fields get real types.
+# ServiceInfoResponse.role drops its "" default and becomes required. The reversed check (new
+# client, old server) phrases that as the property having "become optional" on the old side.
+GET /api/health the response property `services/items/role` became optional for the status `200`
+# schedule_status_reason narrows from a free string to ScheduleStatusReason | null; oasdiff reports
+# the new $ref arm as an anyOf addition.
+GET /api/scheduler/jobs added `#/components/schemas/ScheduleStatusReason` to the `items/schedule_status_reason` response property `anyOf` list for the response status `200`
+GET /api/telemetry/app/{app_key}/jobs added `#/components/schemas/ScheduleStatusReason` to the `items/schedule_status_reason` response property `anyOf` list for the response status `200`

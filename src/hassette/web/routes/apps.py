@@ -4,12 +4,13 @@ import asyncio
 import re
 from collections.abc import Awaitable, Callable
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 import tomli_w
 from fastapi import APIRouter, Request
 from hassette_wire import (
     ActionResponse,
+    AppAction,
     AppConfigResponse,
     AppManifestListResponse,
     AppManifestResponse,
@@ -33,8 +34,6 @@ if TYPE_CHECKING:
     from hassette.schemas.app_snapshots import AppInstanceInfo
 
 LOGGER = getLogger(__name__)
-
-AppAction = Literal["start", "stop", "reload"]
 
 _VALID_APP_KEY = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_.]{0,127}$")
 

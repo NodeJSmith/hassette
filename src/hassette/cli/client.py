@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Literal, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
-from hassette_wire import ActionResponse, AppInstanceResponse, AppManifestListResponse
+from hassette_wire import ActionResponse, AppAction, AppInstanceResponse, AppManifestListResponse
 from pydantic import ValidationError
 from rich.markup import escape
 
@@ -250,7 +250,7 @@ class HassetteCLIClient:
         return result
 
     def post_with_instance_routing(
-        self, app_key: str, action: str, instance_index: int | None = None
+        self, app_key: str, action: AppAction, instance_index: int | None = None
     ) -> ActionResponse:
         """Perform a POST to an app mutation endpoint, routing to the app- or instance-scoped path.
 

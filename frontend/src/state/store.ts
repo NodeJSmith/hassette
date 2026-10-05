@@ -22,6 +22,7 @@ function isBoolean(v: unknown): v is boolean {
 }
 
 type ResourceStatus = components["schemas"]["ResourceStatus"];
+type ResourceRole = components["schemas"]["ResourceRole"];
 
 export interface AppStatusEntry {
   status: ResourceStatus;
@@ -38,7 +39,7 @@ export function appStatusKey(appKey: string, index: number): string {
 
 export interface ServiceStatusEntry {
   resource_name: string;
-  role: string;
+  role: ResourceRole;
   status: ResourceStatus;
   previous_status?: ResourceStatus | null;
   exception?: string | null;

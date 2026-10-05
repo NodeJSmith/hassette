@@ -2,10 +2,10 @@
 
 from dataclasses import dataclass
 from logging import CRITICAL, DEBUG, ERROR, INFO, WARNING
-from typing import TYPE_CHECKING, Annotated, TypedDict
+from typing import TYPE_CHECKING, Annotated, TypedDict, TypeGuard
 
 from fastapi import Depends, Path, Query, Request
-from hassette_wire import QuerySourceTier
+from hassette_wire import LogLevel, QuerySourceTier
 
 from hassette.schemas.query_constants import MAX_QUERY_LIMIT
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from hassette.core.telemetry.query_service import TelemetryQueryService
 
 
-LOG_LEVELS: dict[str, int] = {
+LOG_LEVELS: dict[LogLevel, int] = {
     "DEBUG": DEBUG,
     "INFO": INFO,
     "WARNING": WARNING,
@@ -50,6 +50,11 @@ SourceTierQuery = Annotated[
 ``GET /logs/recent`` deliberately defaults to both tiers instead — see ``routes/logs.py``.
 """
 LimitQuery = Annotated[int, Query(ge=1, le=MAX_QUERY_LIMIT)]
+
+
+def is_log_level(name: str) -> TypeGuard[LogLevel]:
+    """Whether ``name`` is one of the five standard level names. Case-sensitive: upper-case input first."""
+    return name in VALID_LOG_LEVEL_NAMES
 
 
 def get_hassette(request: Request) -> "Hassette":

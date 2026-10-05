@@ -117,7 +117,9 @@ def app_manifest_list_response_from(
     invocations_by_key = invocations_by_key or {}
     return AppManifestListResponse(
         total=full.total,
-        status_counts=full.status_counts,
+        # Not dict(full.status_counts): dict keys are invariant, so pyright rejects dict[ManifestStatus, int]
+        # here. Building from items() (tuples are covariant) lets the key type widen to OpenManifestStatus.
+        status_counts=dict(full.status_counts.items()),
         manifests=[
             app_manifest_response_from(manifest, invocations_by_key.get(manifest.app_key, 0))
             for manifest in full.manifests

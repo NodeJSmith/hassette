@@ -3,11 +3,12 @@ import type { ServiceStatusEntry } from "../../state/store";
 
 type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
 type ResourceStatus = components["schemas"]["ResourceStatus"];
+type ResourceRole = components["schemas"]["ResourceRole"];
 
 export interface MergedService {
   resource_name: string;
   status: ResourceStatus;
-  role: string;
+  role: ResourceRole;
   ready_phase: string | null;
   retry_at: number | null;
   exception: string | null;
@@ -24,7 +25,7 @@ export function mergeServices(
     merged.set(httpEntry.name, {
       resource_name: httpEntry.name,
       status: httpEntry.status,
-      role: httpEntry.role ?? "",
+      role: httpEntry.role,
       ready_phase: httpEntry.ready_phase ?? null,
       retry_at: httpEntry.retry_at ?? null,
       exception: null,
@@ -36,7 +37,7 @@ export function mergeServices(
     merged.set(name, {
       resource_name: name,
       status: wsEntry.status,
-      role: wsEntry.role ?? "",
+      role: wsEntry.role,
       ready_phase: wsEntry.ready_phase ?? null,
       retry_at: wsEntry.retry_at ?? null,
       exception: wsEntry.exception ?? null,

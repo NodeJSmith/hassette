@@ -11,6 +11,9 @@ from hassette_wire.enums import (
     OpenExecutionMode,
     OpenExecutionStatus,
     OpenManifestStatus,
+    OpenScheduleStatus,
+    OpenScheduleStatusReason,
+    ScheduleStatus,
 )
 from hassette_wire.literals import (
     OpenErrorRateClass,
@@ -144,16 +147,13 @@ class JobSummary(BaseModel):
     avg_duration_ms: float
     group: str | None = None
     """Scheduler group name, persisted at registration."""
-    schedule_status: str = "scheduled"
-    """Current schedule status: ``scheduled``, ``waiting``, ``completed``, or ``manual``.
-    Persisted at registration and every status transition; live enrichment overlays the
-    current in-process value, so a DB-only degraded response still reflects the last
-    persisted status."""
-    schedule_status_reason: str | None = None
-    """Optional diagnostic reason qualifying ``schedule_status``: ``legacy_unknown`` for rows
-    backfilled by the schema migration before live re-registration establishes an exact
-    status, or ``trigger_error`` for a ``completed`` job whose trigger raised while computing
-    its next occurrence. ``None`` for a clean status with no override."""
+    schedule_status: OpenScheduleStatus = ScheduleStatus.SCHEDULED
+    """Whether the job will run again on its own. Persisted at registration and every status
+    transition; live enrichment overlays the current in-process value, so a DB-only degraded
+    response still reflects the last persisted status."""
+    schedule_status_reason: OpenScheduleStatusReason | None = None
+    """Qualifies ``schedule_status`` when the status alone does not explain the job's state.
+    ``None`` for a clean status with no override."""
     next_run: Annotated[float | None, CliFormat("relative_time")] = None
     """Unix epoch seconds of the next scheduled fire time (unjittered); live-only — always
     ``None`` in a DB-only response, and ``None`` for every status except ``scheduled`` with

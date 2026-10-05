@@ -98,12 +98,11 @@ class AppFullSnapshot:
     manifests: list[AppManifestInfo] = field(default_factory=list)
     only_apps: list[str] = field(default_factory=list)
     total: int = 0
-    status_counts: dict[str, int] = field(default_factory=lambda: dict.fromkeys(MANIFEST_STATUS_KEYS, 0))
-    """Manifest counts keyed by ``ManifestStatus`` value (``running``, ``failed``, ``stopped``,
-    ``disabled``, ``blocked``, ``degraded``)."""
+    status_counts: dict[ManifestStatus, int] = field(default_factory=lambda: dict.fromkeys(MANIFEST_STATUS_KEYS, 0))
+    """Manifest counts keyed by ``ManifestStatus``, with every member present."""
 
 
-def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[str, int]:
+def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[ManifestStatus, int]:
     """Count manifests by status (``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``,
     ``degraded``).
 
@@ -112,7 +111,7 @@ def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[str, i
     and DB-sourced rows overlaid with runtime state, where a future/drifted status value should
     degrade gracefully instead of crashing the response.
     """
-    counts: dict[str, int] = dict.fromkeys(MANIFEST_STATUS_KEYS, 0)
+    counts: dict[ManifestStatus, int] = dict.fromkeys(MANIFEST_STATUS_KEYS, 0)
     for m in manifests:
         if m.status in counts:
             counts[m.status] += 1

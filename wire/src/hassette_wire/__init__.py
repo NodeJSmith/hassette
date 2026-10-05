@@ -47,7 +47,16 @@ from hassette_wire.blocking import (
 )
 from hassette_wire.cli_format import CliFormat, CliFormatStyle
 from hassette_wire.config import ConfigSchemaResponse
-from hassette_wire.enums import BackpressurePolicy, ExecutionMode, ExecutionStatus, ManifestStatus, ResourceStatus
+from hassette_wire.enums import (
+    BackpressurePolicy,
+    ExecutionMode,
+    ExecutionStatus,
+    ManifestStatus,
+    ResourceRole,
+    ResourceStatus,
+    ScheduleStatus,
+    ScheduleStatusReason,
+)
 from hassette_wire.health import (
     BootIssueResponse,
     LivenessResponse,
@@ -57,6 +66,7 @@ from hassette_wire.health import (
 )
 from hassette_wire.lenient import LENIENT_CONTEXT, UnknownValue
 from hassette_wire.literals import (
+    AppAction,
     ErrorRateClass,
     HealthStatus,
     ListenerKind,
@@ -102,6 +112,7 @@ __all__ = [
     "ActionResponse",
     "ActivityBucket",
     "ActivityFeedEntry",
+    "AppAction",
     "AppConfigResponse",
     "AppHealth",
     "AppInstanceResponse",
@@ -153,7 +164,10 @@ __all__ = [
     "ProblemDetail",
     "QuerySourceTier",
     "ReadinessResponse",
+    "ResourceRole",
     "ResourceStatus",
+    "ScheduleStatus",
+    "ScheduleStatusReason",
     "ServiceInfoResponse",
     "ServiceStatusData",
     "ServiceStatusWsMessage",

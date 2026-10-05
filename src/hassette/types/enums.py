@@ -1,8 +1,9 @@
 from enum import StrEnum, auto
 
 from hassette_wire import BackpressurePolicy, ExecutionMode, ResourceStatus
+from hassette_wire import ResourceRole as ResourceRole  # public re-export: hassette.types.enums.ResourceRole
 
-# The contract enums (ResourceStatus, ManifestStatus, ExecutionMode, BackpressurePolicy,
+# The contract enums (ResourceStatus, ResourceRole, ManifestStatus, ExecutionMode, BackpressurePolicy,
 # ExecutionStatus) are defined in hassette_wire — one definition, no mirrors. App authors import
 # the public ones (ResourceStatus, ExecutionMode, BackpressurePolicy, ExecutionStatus) from
 # hassette. This module keeps the non-contract enums and the constants that reference the moved
@@ -171,25 +172,3 @@ class ConnectionState(StrEnum):
 
     CONNECTED = auto()
     """The WebSocket connection is established and active."""
-
-
-class ResourceRole(StrEnum):
-    """Enumeration for resource roles."""
-
-    CORE = auto()
-    """Only used by Hassette directly, as it does not inherit from Resource."""
-
-    BASE = auto()
-    """The base role for all resources."""
-
-    SERVICE = auto()
-    """A service resource."""
-
-    RESOURCE = auto()
-    """A generic resource."""
-
-    APP = auto()
-    """An application resource."""
-
-    UNKNOWN = auto()
-    """An unknown or unclassified resource."""

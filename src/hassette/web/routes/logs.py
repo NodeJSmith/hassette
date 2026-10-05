@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query, Request
 from hassette_wire import LogEntryResponse, LogLevelRequest, LogLevelResponse, ProblemCode
 
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
-from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep
+from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep, is_log_level
 from hassette.web.errors import WebApiError, problem_responses
 
 LOGGER = getLogger(__name__)
@@ -95,18 +95,18 @@ async def set_log_level(
     if not body.logger:
         raise WebApiError(ProblemCode.VALIDATION_FAILED, "logger name must not be empty")
     level_upper = body.level.upper()
-    if level_upper not in VALID_LOG_LEVEL_NAMES:
+    if not is_log_level(level_upper):
         raise WebApiError(
             ProblemCode.VALIDATION_FAILED,
             f"Invalid log level {body.level!r}. Must be one of: {', '.join(sorted(VALID_LOG_LEVEL_NAMES))}",
         )
     target_logger = logging.getLogger(body.logger)
+    # After setLevel() the logger's effective level is the level just set, so no getEffectiveLevel() lookup.
     target_logger.setLevel(level_upper)
-    effective = logging.getLevelName(target_logger.getEffectiveLevel())
     LOGGER.info(
         "Changed log level for %s to %s (source=%s)",
         body.logger,
-        effective,
+        level_upper,
         peer_address_or_unknown(request),
     )
-    return LogLevelResponse(logger=body.logger, effective_level=str(effective))
+    return LogLevelResponse(logger=body.logger, effective_level=level_upper)

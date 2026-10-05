@@ -34,13 +34,13 @@ describe("scheduleStatusDisplay", () => {
     expect(scheduleStatusDisplay("scheduled")).toBeNull();
   });
 
-  it("returns null for scheduled with an unrecognized reason", () => {
-    expect(scheduleStatusDisplay("scheduled", "some_other_reason")).toBeNull();
+  it("returns null for scheduled with a reason that has no scheduled override", () => {
+    expect(scheduleStatusDisplay("scheduled", "trigger_error")).toBeNull();
   });
 
   it("ignores reason overrides for statuses that don't define one", () => {
-    expect(scheduleStatusDisplay("manual", "some_reason")).toEqual({ label: "manual", text: "Manual only." });
-    expect(scheduleStatusDisplay("waiting", "some_reason")).toEqual({
+    expect(scheduleStatusDisplay("manual", "trigger_error")).toEqual({ label: "manual", text: "Manual only." });
+    expect(scheduleStatusDisplay("waiting", "legacy_unknown")).toEqual({
       label: "waiting",
       text: "Waiting for entity time.",
     });
@@ -48,9 +48,5 @@ describe("scheduleStatusDisplay", () => {
 
   it("returns null for a null status", () => {
     expect(scheduleStatusDisplay(null)).toBeNull();
-  });
-
-  it("returns null for an unrecognized status", () => {
-    expect(scheduleStatusDisplay("exploding")).toBeNull();
   });
 });

@@ -142,6 +142,12 @@ const schema11 = {
       title: "LogHintWsMessage",
       type: "object",
     },
+    ResourceRole: {
+      description: "The kind of framework component a status or service entry describes.",
+      enum: ["core", "base", "service", "resource", "app", "unknown"],
+      title: "ResourceRole",
+      type: "string",
+    },
     ResourceStatus: {
       description: "Enumeration for resource status.",
       enum: [
@@ -163,7 +169,7 @@ const schema11 = {
         "Payload for an internal service status-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.ServiceStatusPayload``.",
       properties: {
         resource_name: { title: "Resource Name", type: "string" },
-        role: { title: "Role", type: "string" },
+        role: { $ref: "#/$defs/ResourceRole" },
         status: { $ref: "#/$defs/ResourceStatus" },
         previous_status: { anyOf: [{ $ref: "#/$defs/ResourceStatus" }, { type: "null" }], default: null },
         exception: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception" },
@@ -203,7 +209,7 @@ const schema11 = {
     { $ref: "#/$defs/AppManifestsChangedWsMessage" },
   ],
 };
-const schema29 = {
+const schema30 = {
   properties: {
     type: { const: "log_hint", title: "Type", type: "string" },
     timestamp: { title: "Timestamp", type: "number" },
@@ -1346,7 +1352,7 @@ const schema21 = {
     "Payload for an internal service status-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.ServiceStatusPayload``.",
   properties: {
     resource_name: { title: "Resource Name", type: "string" },
-    role: { title: "Role", type: "string" },
+    role: { $ref: "#/$defs/ResourceRole" },
     status: { $ref: "#/$defs/ResourceStatus" },
     previous_status: { anyOf: [{ $ref: "#/$defs/ResourceStatus" }, { type: "null" }], default: null },
     exception: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception" },
@@ -1359,6 +1365,12 @@ const schema21 = {
   required: ["resource_name", "role", "status"],
   title: "ServiceStatusData",
   type: "object",
+};
+const schema22 = {
+  description: "The kind of framework component a status or service entry describes.",
+  enum: ["core", "base", "service", "resource", "app", "unknown"],
+  title: "ResourceRole",
+  type: "string",
 };
 function validate17(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
   let vErrors = null;
@@ -1402,15 +1414,35 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
         }
         if (valid0) {
           if (data.role !== undefined) {
+            let data1 = data.role;
             const _errs3 = errors;
-            if (typeof data.role !== "string") {
+            if (typeof data1 !== "string") {
               validate17.errors = [
                 {
                   instancePath: instancePath + "/role",
-                  schemaPath: "#/properties/role/type",
+                  schemaPath: "#/$defs/ResourceRole/type",
                   keyword: "type",
                   params: { type: "string" },
                   message: "must be string",
+                },
+              ];
+              return false;
+            }
+            if (!(
+              data1 === "core" ||
+              data1 === "base" ||
+              data1 === "service" ||
+              data1 === "resource" ||
+              data1 === "app" ||
+              data1 === "unknown"
+            )) {
+              validate17.errors = [
+                {
+                  instancePath: instancePath + "/role",
+                  schemaPath: "#/$defs/ResourceRole/enum",
+                  keyword: "enum",
+                  params: { allowedValues: schema22.enum },
+                  message: "must be equal to one of the allowed values",
                 },
               ];
               return false;
@@ -1422,7 +1454,7 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
           if (valid0) {
             if (data.status !== undefined) {
               let data2 = data.status;
-              const _errs5 = errors;
+              const _errs6 = errors;
               if (typeof data2 !== "string") {
                 validate17.errors = [
                   {
@@ -1457,17 +1489,17 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                 ];
                 return false;
               }
-              var valid0 = _errs5 === errors;
+              var valid0 = _errs6 === errors;
             } else {
               var valid0 = true;
             }
             if (valid0) {
               if (data.previous_status !== undefined) {
                 let data3 = data.previous_status;
-                const _errs8 = errors;
                 const _errs9 = errors;
-                let valid2 = false;
                 const _errs10 = errors;
+                let valid3 = false;
+                const _errs11 = errors;
                 if (typeof data3 !== "string") {
                   const err0 = {
                     instancePath: instancePath + "/previous_status",
@@ -1508,10 +1540,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                   }
                   errors++;
                 }
-                var _valid0 = _errs10 === errors;
-                valid2 = valid2 || _valid0;
-                if (!valid2) {
-                  const _errs13 = errors;
+                var _valid0 = _errs11 === errors;
+                valid3 = valid3 || _valid0;
+                if (!valid3) {
+                  const _errs14 = errors;
                   if (data3 !== null) {
                     const err2 = {
                       instancePath: instancePath + "/previous_status",
@@ -1527,10 +1559,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                     }
                     errors++;
                   }
-                  var _valid0 = _errs13 === errors;
-                  valid2 = valid2 || _valid0;
+                  var _valid0 = _errs14 === errors;
+                  valid3 = valid3 || _valid0;
                 }
-                if (!valid2) {
+                if (!valid3) {
                   const err3 = {
                     instancePath: instancePath + "/previous_status",
                     schemaPath: "#/properties/previous_status/anyOf",
@@ -1547,26 +1579,26 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                   validate17.errors = vErrors;
                   return false;
                 } else {
-                  errors = _errs9;
+                  errors = _errs10;
                   if (vErrors !== null) {
-                    if (_errs9) {
-                      vErrors.length = _errs9;
+                    if (_errs10) {
+                      vErrors.length = _errs10;
                     } else {
                       vErrors = null;
                     }
                   }
                 }
-                var valid0 = _errs8 === errors;
+                var valid0 = _errs9 === errors;
               } else {
                 var valid0 = true;
               }
               if (valid0) {
                 if (data.exception !== undefined) {
                   let data4 = data.exception;
-                  const _errs15 = errors;
                   const _errs16 = errors;
-                  let valid4 = false;
                   const _errs17 = errors;
+                  let valid5 = false;
+                  const _errs18 = errors;
                   if (typeof data4 !== "string") {
                     const err4 = {
                       instancePath: instancePath + "/exception",
@@ -1582,10 +1614,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                     }
                     errors++;
                   }
-                  var _valid1 = _errs17 === errors;
-                  valid4 = valid4 || _valid1;
-                  if (!valid4) {
-                    const _errs19 = errors;
+                  var _valid1 = _errs18 === errors;
+                  valid5 = valid5 || _valid1;
+                  if (!valid5) {
+                    const _errs20 = errors;
                     if (data4 !== null) {
                       const err5 = {
                         instancePath: instancePath + "/exception",
@@ -1601,10 +1633,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                       }
                       errors++;
                     }
-                    var _valid1 = _errs19 === errors;
-                    valid4 = valid4 || _valid1;
+                    var _valid1 = _errs20 === errors;
+                    valid5 = valid5 || _valid1;
                   }
-                  if (!valid4) {
+                  if (!valid5) {
                     const err6 = {
                       instancePath: instancePath + "/exception",
                       schemaPath: "#/properties/exception/anyOf",
@@ -1621,26 +1653,26 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                     validate17.errors = vErrors;
                     return false;
                   } else {
-                    errors = _errs16;
+                    errors = _errs17;
                     if (vErrors !== null) {
-                      if (_errs16) {
-                        vErrors.length = _errs16;
+                      if (_errs17) {
+                        vErrors.length = _errs17;
                       } else {
                         vErrors = null;
                       }
                     }
                   }
-                  var valid0 = _errs15 === errors;
+                  var valid0 = _errs16 === errors;
                 } else {
                   var valid0 = true;
                 }
                 if (valid0) {
                   if (data.exception_type !== undefined) {
                     let data5 = data.exception_type;
-                    const _errs21 = errors;
                     const _errs22 = errors;
-                    let valid5 = false;
                     const _errs23 = errors;
+                    let valid6 = false;
+                    const _errs24 = errors;
                     if (typeof data5 !== "string") {
                       const err7 = {
                         instancePath: instancePath + "/exception_type",
@@ -1656,10 +1688,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                       }
                       errors++;
                     }
-                    var _valid2 = _errs23 === errors;
-                    valid5 = valid5 || _valid2;
-                    if (!valid5) {
-                      const _errs25 = errors;
+                    var _valid2 = _errs24 === errors;
+                    valid6 = valid6 || _valid2;
+                    if (!valid6) {
+                      const _errs26 = errors;
                       if (data5 !== null) {
                         const err8 = {
                           instancePath: instancePath + "/exception_type",
@@ -1675,10 +1707,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                         }
                         errors++;
                       }
-                      var _valid2 = _errs25 === errors;
-                      valid5 = valid5 || _valid2;
+                      var _valid2 = _errs26 === errors;
+                      valid6 = valid6 || _valid2;
                     }
-                    if (!valid5) {
+                    if (!valid6) {
                       const err9 = {
                         instancePath: instancePath + "/exception_type",
                         schemaPath: "#/properties/exception_type/anyOf",
@@ -1695,26 +1727,26 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                       validate17.errors = vErrors;
                       return false;
                     } else {
-                      errors = _errs22;
+                      errors = _errs23;
                       if (vErrors !== null) {
-                        if (_errs22) {
-                          vErrors.length = _errs22;
+                        if (_errs23) {
+                          vErrors.length = _errs23;
                         } else {
                           vErrors = null;
                         }
                       }
                     }
-                    var valid0 = _errs21 === errors;
+                    var valid0 = _errs22 === errors;
                   } else {
                     var valid0 = true;
                   }
                   if (valid0) {
                     if (data.exception_traceback !== undefined) {
                       let data6 = data.exception_traceback;
-                      const _errs27 = errors;
                       const _errs28 = errors;
-                      let valid6 = false;
                       const _errs29 = errors;
+                      let valid7 = false;
+                      const _errs30 = errors;
                       if (typeof data6 !== "string") {
                         const err10 = {
                           instancePath: instancePath + "/exception_traceback",
@@ -1730,10 +1762,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                         }
                         errors++;
                       }
-                      var _valid3 = _errs29 === errors;
-                      valid6 = valid6 || _valid3;
-                      if (!valid6) {
-                        const _errs31 = errors;
+                      var _valid3 = _errs30 === errors;
+                      valid7 = valid7 || _valid3;
+                      if (!valid7) {
+                        const _errs32 = errors;
                         if (data6 !== null) {
                           const err11 = {
                             instancePath: instancePath + "/exception_traceback",
@@ -1749,10 +1781,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                           }
                           errors++;
                         }
-                        var _valid3 = _errs31 === errors;
-                        valid6 = valid6 || _valid3;
+                        var _valid3 = _errs32 === errors;
+                        valid7 = valid7 || _valid3;
                       }
-                      if (!valid6) {
+                      if (!valid7) {
                         const err12 = {
                           instancePath: instancePath + "/exception_traceback",
                           schemaPath: "#/properties/exception_traceback/anyOf",
@@ -1769,26 +1801,26 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                         validate17.errors = vErrors;
                         return false;
                       } else {
-                        errors = _errs28;
+                        errors = _errs29;
                         if (vErrors !== null) {
-                          if (_errs28) {
-                            vErrors.length = _errs28;
+                          if (_errs29) {
+                            vErrors.length = _errs29;
                           } else {
                             vErrors = null;
                           }
                         }
                       }
-                      var valid0 = _errs27 === errors;
+                      var valid0 = _errs28 === errors;
                     } else {
                       var valid0 = true;
                     }
                     if (valid0) {
                       if (data.retry_at !== undefined) {
                         let data7 = data.retry_at;
-                        const _errs33 = errors;
                         const _errs34 = errors;
-                        let valid7 = false;
                         const _errs35 = errors;
+                        let valid8 = false;
+                        const _errs36 = errors;
                         if (!(typeof data7 == "number")) {
                           const err13 = {
                             instancePath: instancePath + "/retry_at",
@@ -1804,10 +1836,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                           }
                           errors++;
                         }
-                        var _valid4 = _errs35 === errors;
-                        valid7 = valid7 || _valid4;
-                        if (!valid7) {
-                          const _errs37 = errors;
+                        var _valid4 = _errs36 === errors;
+                        valid8 = valid8 || _valid4;
+                        if (!valid8) {
+                          const _errs38 = errors;
                           if (data7 !== null) {
                             const err14 = {
                               instancePath: instancePath + "/retry_at",
@@ -1823,10 +1855,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                             }
                             errors++;
                           }
-                          var _valid4 = _errs37 === errors;
-                          valid7 = valid7 || _valid4;
+                          var _valid4 = _errs38 === errors;
+                          valid8 = valid8 || _valid4;
                         }
-                        if (!valid7) {
+                        if (!valid8) {
                           const err15 = {
                             instancePath: instancePath + "/retry_at",
                             schemaPath: "#/properties/retry_at/anyOf",
@@ -1843,22 +1875,22 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                           validate17.errors = vErrors;
                           return false;
                         } else {
-                          errors = _errs34;
+                          errors = _errs35;
                           if (vErrors !== null) {
-                            if (_errs34) {
-                              vErrors.length = _errs34;
+                            if (_errs35) {
+                              vErrors.length = _errs35;
                             } else {
                               vErrors = null;
                             }
                           }
                         }
-                        var valid0 = _errs33 === errors;
+                        var valid0 = _errs34 === errors;
                       } else {
                         var valid0 = true;
                       }
                       if (valid0) {
                         if (data.ready !== undefined) {
-                          const _errs39 = errors;
+                          const _errs40 = errors;
                           if (typeof data.ready !== "boolean") {
                             validate17.errors = [
                               {
@@ -1871,17 +1903,17 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                             ];
                             return false;
                           }
-                          var valid0 = _errs39 === errors;
+                          var valid0 = _errs40 === errors;
                         } else {
                           var valid0 = true;
                         }
                         if (valid0) {
                           if (data.ready_phase !== undefined) {
                             let data9 = data.ready_phase;
-                            const _errs41 = errors;
                             const _errs42 = errors;
-                            let valid8 = false;
                             const _errs43 = errors;
+                            let valid9 = false;
+                            const _errs44 = errors;
                             if (typeof data9 !== "string") {
                               const err16 = {
                                 instancePath: instancePath + "/ready_phase",
@@ -1897,10 +1929,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                               }
                               errors++;
                             }
-                            var _valid5 = _errs43 === errors;
-                            valid8 = valid8 || _valid5;
-                            if (!valid8) {
-                              const _errs45 = errors;
+                            var _valid5 = _errs44 === errors;
+                            valid9 = valid9 || _valid5;
+                            if (!valid9) {
+                              const _errs46 = errors;
                               if (data9 !== null) {
                                 const err17 = {
                                   instancePath: instancePath + "/ready_phase",
@@ -1916,10 +1948,10 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                                 }
                                 errors++;
                               }
-                              var _valid5 = _errs45 === errors;
-                              valid8 = valid8 || _valid5;
+                              var _valid5 = _errs46 === errors;
+                              valid9 = valid9 || _valid5;
                             }
-                            if (!valid8) {
+                            if (!valid9) {
                               const err18 = {
                                 instancePath: instancePath + "/ready_phase",
                                 schemaPath: "#/properties/ready_phase/anyOf",
@@ -1936,16 +1968,16 @@ function validate17(data, { instancePath = "", parentData, parentDataProperty, r
                               validate17.errors = vErrors;
                               return false;
                             } else {
-                              errors = _errs42;
+                              errors = _errs43;
                               if (vErrors !== null) {
-                                if (_errs42) {
-                                  vErrors.length = _errs42;
+                                if (_errs43) {
+                                  vErrors.length = _errs43;
                                 } else {
                                   vErrors = null;
                                 }
                               }
                             }
-                            var valid0 = _errs41 === errors;
+                            var valid0 = _errs42 === errors;
                           } else {
                             var valid0 = true;
                           }
@@ -2072,7 +2104,7 @@ function validate16(data, { instancePath = "", parentData, parentDataProperty, r
   validate16.errors = vErrors;
   return errors === 0;
 }
-const schema24 = {
+const schema25 = {
   properties: {
     type: { const: "execution_completed", title: "Type", type: "string" },
     data: { items: { $ref: "#/$defs/ExecutionCompletedData" }, title: "Data", type: "array" },
@@ -2082,7 +2114,7 @@ const schema24 = {
   title: "ExecutionCompletedWsMessage",
   type: "object",
 };
-const schema25 = {
+const schema26 = {
   description:
     "Payload for execution_completed WebSocket messages.\n\n``kind`` discriminates handler invocations from job executions.\n``listener_id`` is set when ``kind='handler'``; ``job_id`` when ``kind='job'``.",
   properties: {
@@ -2100,7 +2132,7 @@ const schema25 = {
   title: "ExecutionCompletedData",
   type: "object",
 };
-const schema26 = {
+const schema27 = {
   description:
     "Status values for handler invocations and job executions.\n\nMust stay in sync with the ``executions.status`` CHECK constraint.",
   enum: ["success", "error", "cancelled", "timed_out", "skipped"],
@@ -2152,7 +2184,7 @@ function validate20(data, { instancePath = "", parentData, parentDataProperty, r
                 instancePath: instancePath + "/kind",
                 schemaPath: "#/properties/kind/enum",
                 keyword: "enum",
-                params: { allowedValues: schema25.properties.kind.enum },
+                params: { allowedValues: schema26.properties.kind.enum },
                 message: "must be equal to one of the allowed values",
               },
             ];
@@ -2229,7 +2261,7 @@ function validate20(data, { instancePath = "", parentData, parentDataProperty, r
                       instancePath: instancePath + "/status",
                       schemaPath: "#/$defs/ExecutionStatus/enum",
                       keyword: "enum",
-                      params: { allowedValues: schema26.enum },
+                      params: { allowedValues: schema27.enum },
                       message: "must be equal to one of the allowed values",
                     },
                   ];
@@ -2646,7 +2678,7 @@ function validate19(data, { instancePath = "", parentData, parentDataProperty, r
   validate19.errors = vErrors;
   return errors === 0;
 }
-const schema27 = {
+const schema28 = {
   properties: {
     type: { const: "app_manifests_changed", title: "Type", type: "string" },
     data: { $ref: "#/$defs/AppManifestsChangedData" },
@@ -2656,7 +2688,7 @@ const schema27 = {
   title: "AppManifestsChangedWsMessage",
   type: "object",
 };
-const schema28 = {
+const schema29 = {
   description:
     'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed — it is a refetch\nsignal, not a diff. Clients should treat receipt as "manifest status may be\nstale, refetch" rather than inspect the payload.',
   properties: {},

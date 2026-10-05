@@ -25,7 +25,9 @@ A member added to an enum in `enums.py` or a value added to a Literal in
 client should see, or a server-internal state that needs its own enum in
 `src/hassette/types/enums.py`? Do the SQL `CHECK` constraints under
 `src/hassette/migrations_sql/` that list these values (`status`, `mode`,
-`source_tier`) still match?
+`source_tier`, `schedule_status`, `schedule_status_reason`, and the others
+mapped in `tests/unit/core/test_wire_check_parity.py`) still match? That test
+fails on a mismatch, and on a new IN-list `CHECK` it doesn't classify.
 
 ## Closed Vocabularies
 `SourceTier` and `LogLevel` stay strict on response models, so an older

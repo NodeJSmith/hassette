@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
-from hassette_wire.enums import OpenExecutionStatus, OpenResourceStatus
+from hassette_wire.enums import OpenExecutionStatus, OpenResourceRole, OpenResourceStatus
 from hassette_wire.literals import OpenExecutionKind
 
 
@@ -45,7 +45,7 @@ class ServiceStatusData(BaseModel):
     """
 
     resource_name: str
-    role: str
+    role: OpenResourceRole
     status: OpenResourceStatus
     previous_status: OpenResourceStatus | None = None
     exception: str | None = None

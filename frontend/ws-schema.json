@@ -370,6 +370,19 @@
       "title": "LogHintWsMessage",
       "type": "object"
     },
+    "ResourceRole": {
+      "description": "The kind of framework component a status or service entry describes.",
+      "enum": [
+        "core",
+        "base",
+        "service",
+        "resource",
+        "app",
+        "unknown"
+      ],
+      "title": "ResourceRole",
+      "type": "string"
+    },
     "ResourceStatus": {
       "description": "Enumeration for resource status.",
       "enum": [
@@ -394,8 +407,7 @@
           "type": "string"
         },
         "role": {
-          "title": "Role",
-          "type": "string"
+          "$ref": "#/$defs/ResourceRole"
         },
         "status": {
           "$ref": "#/$defs/ResourceStatus"

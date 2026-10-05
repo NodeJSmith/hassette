@@ -44,10 +44,8 @@ def enrich_jobs_with_live(
         try:
             guard = live_job.guard
             live_fields = {
-                "schedule_status": live_job.schedule_status.value,
-                "schedule_status_reason": (
-                    live_job.schedule_status_reason.value if live_job.schedule_status_reason is not None else None
-                ),
+                "schedule_status": live_job.schedule_status,
+                "schedule_status_reason": live_job.schedule_status_reason,
                 "next_run": live_job.next_run.timestamp() if live_job.next_run is not None else None,
                 "fire_at": live_job.fire_at.timestamp() if live_job.fire_at is not None else None,
                 "jitter": live_job.jitter,
