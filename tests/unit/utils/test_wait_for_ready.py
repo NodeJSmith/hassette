@@ -22,6 +22,7 @@ class StubResource:
     def __init__(self) -> None:
         self.ready_event = asyncio.Event()
         self.waiting = asyncio.Event()
+        self.finished = asyncio.Event()
 
     async def wait_ready(self, timeout: float | None = None) -> None:
         self.waiting.set()
@@ -29,6 +30,7 @@ class StubResource:
             await self.ready_event.wait()
         else:
             await asyncio.wait_for(self.ready_event.wait(), timeout)
+        self.finished.set()
 
 
 def as_resources(*stubs: StubResource) -> "list[Resource]":
@@ -53,14 +55,15 @@ async def test_independent_deps_are_awaited_concurrently(with_shutdown_event: bo
 
 @pytest.mark.parametrize("with_shutdown_event", [False, True])
 async def test_deps_ready_at_different_times_in_reverse_order(with_shutdown_event: bool) -> None:
-    """The second dep becoming ready first does not block on the first; the wait ends once both are ready."""
+    """The second dep's wait completes while the first is still pending; the overall wait ends once both are ready."""
     dep_a, dep_b = StubResource(), StubResource()
     shutdown = asyncio.Event() if with_shutdown_event else None
 
     task = asyncio.create_task(wait_for_ready(as_resources(dep_a, dep_b), timeout=1, shutdown_event=shutdown))
 
     dep_b.ready_event.set()
-    await asyncio.sleep(0.02)
+    await asyncio.wait_for(dep_b.finished.wait(), timeout=1)
+    assert not dep_a.finished.is_set()
     assert not task.done(), "wait_for_ready must not finish while dep_a is still not ready"
 
     dep_a.ready_event.set()
