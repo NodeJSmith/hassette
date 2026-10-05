@@ -15,7 +15,7 @@ class MyApp(App[AppConfig]):
             self.logger.info("Last run: %s", last_run)
 
         # Get with default value
-        count = await self.cache.get("run_count", default=0) or 0
+        count = await self.cache.get("run_count", default=0)
         await self.cache.set("run_count", count + 1)
 
         # Delete data

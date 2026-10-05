@@ -28,6 +28,7 @@ WORKTREE_ROOT = Path(__file__).resolve().parents[2]
 PROBE_DIR = WORKTREE_ROOT / "tests" / "pyright_probes"
 PROBE_FILE = PROBE_DIR / "forgotten_await_probe.py"
 HARNESS_TYPE_PROBE_FILE = PROBE_DIR / "harness_typing_probe.py"
+CACHE_GET_PROBE_FILE = PROBE_DIR / "cache_get_typing_probe.py"
 
 EXPECTED_PROBE_COUNT = 8
 
@@ -124,22 +125,25 @@ def test_pyright_probe_fires_unused_coroutine() -> None:
     )
 
 
-def test_pyright_harness_probe_preserves_concrete_app_type() -> None:
-    """Pyright accepts concrete AppTestHarness and harness.app type assertions."""
+def run_clean_probe(probe_file: Path) -> tuple[int, str]:
+    """Run pyright on a probe expected to type-check cleanly; return (exit code, combined output)."""
     result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pyright",
-            "--project",
-            str(PROBE_DIR),
-            str(HARNESS_TYPE_PROBE_FILE),
-        ],
+        [sys.executable, "-m", "pyright", "--project", str(PROBE_DIR), str(probe_file)],
         capture_output=True,
         text=True,
         cwd=str(WORKTREE_ROOT),
         timeout=120,
     )
+    return result.returncode, result.stdout + result.stderr
 
-    output = result.stdout + result.stderr
-    assert result.returncode == 0, f"AppTestHarness typing probe failed:\n{output}"
+
+def test_pyright_harness_probe_preserves_concrete_app_type() -> None:
+    """Pyright accepts concrete AppTestHarness and harness.app type assertions."""
+    returncode, output = run_clean_probe(HARNESS_TYPE_PROBE_FILE)
+    assert returncode == 0, f"AppTestHarness typing probe failed:\n{output}"
+
+
+def test_pyright_cache_get_probe_narrows_non_none_default() -> None:
+    """Pyright types cache ``get(key, default=x)`` as ``type(x)``, not ``type(x) | None`` (#2526)."""
+    returncode, output = run_clean_probe(CACHE_GET_PROBE_FILE)
+    assert returncode == 0, f"Cache get() typing probe failed:\n{output}"

@@ -13,7 +13,7 @@ import sqlite3
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast, overload
 
 from hassette.cache._helpers import (
     BUSY_TIMEOUT_MS,
@@ -46,7 +46,19 @@ class SyncCache:
         conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
         return conn
 
+    # dup-ignore-start: @overloads and user-facing docstring must repeat on each cache class
+    @overload
+    def get(self, key: str, default: None = None) -> Any | None: ...
+    @overload
+    def get(self, key: str, default: T) -> T: ...
     def get(self, key: str, default: T | None = None) -> T | None:
+        """Return the cached value for *key*, or *default* if missing or expired.
+
+        A non-``None`` *default* types the result as the default's type. That type is
+        the caller's assertion about what *key* holds: a stored value, including a
+        stored ``None``, is returned as-is regardless of *default*.
+        """
+        # dup-ignore-end
         guard_not_in_event_loop("SyncCache.get")
         validate_key(key)
         conn = self._connect()
@@ -118,7 +130,7 @@ class SyncCache:
         validate_key(key)
         cached = self.get(key, default=cast("T", MISSING))
         if cached is not MISSING:
-            return cast("T", cached)
+            return cached
         value = creator()
         self.set(key, value, ttl=ttl)
         return value
