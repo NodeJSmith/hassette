@@ -675,8 +675,9 @@ export interface paths {
          *     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
          *     failure) and overlaid with live runtime state via
          *     ``RuntimeQueryService.overlay_manifest_rows()``. Each telemetry enrichment below is one
-         *     all-apps query that fills one ``AppActivity`` part. A failed query leaves its part ``None`` in
-         *     every row and the response continues at 200, with one summary warning naming the failed parts
+         *     all-apps query that fills one ``AppActivity`` part. A query that raises
+         *     ``TelemetryUnavailableError`` leaves its part ``None`` in every row and the response continues at
+         *     200, with one summary warning naming the failed parts; any other error is a bug and returns 500
          *     — see ``.claude/rules/web-api.md``. ``activity_buckets`` and ``last_error`` only run for a
          *     window, so they are ``None`` when ``since`` is ``None``.
          *
@@ -881,19 +882,13 @@ export interface components {
             total_invocations: number;
             /** Total Errors */
             total_errors: number;
-            /**
-             * Total Timed Out
-             * @default 0
-             */
+            /** Total Timed Out */
             total_timed_out: number;
             /** Total Executions */
             total_executions: number;
             /** Total Job Errors */
             total_job_errors: number;
-            /**
-             * Total Job Timed Out
-             * @default 0
-             */
+            /** Total Job Timed Out */
             total_job_timed_out: number;
             health: components["schemas"]["AppHealth"];
         };

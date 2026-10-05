@@ -2416,7 +2416,7 @@
           "telemetry"
         ],
         "summary": "App Grid",
-        "description": "Every app joined with its activity over ``since``, for the Apps grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. Each telemetry enrichment below is one\nall-apps query that fills one ``AppActivity`` part. A failed query leaves its part ``None`` in\nevery row and the response continues at 200, with one summary warning naming the failed parts\n\u2014 see ``.claude/rules/web-api.md``. ``activity_buckets`` and ``last_error`` only run for a\nwindow, so they are ``None`` when ``since`` is ``None``.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
+        "description": "Every app joined with its activity over ``since``, for the Apps grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. Each telemetry enrichment below is one\nall-apps query that fills one ``AppActivity`` part. A query that raises\n``TelemetryUnavailableError`` leaves its part ``None`` in every row and the response continues at\n200, with one summary warning naming the failed parts; any other error is a bug and returns 500\n\u2014 see ``.claude/rules/web-api.md``. ``activity_buckets`` and ``last_error`` only run for a\nwindow, so they are ``None`` when ``since`` is ``None``.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
         "operationId": "app_grid_api_telemetry_app_grid_get",
         "parameters": [
           {
@@ -2835,8 +2835,7 @@
           },
           "total_timed_out": {
             "type": "integer",
-            "title": "Total Timed Out",
-            "default": 0
+            "title": "Total Timed Out"
           },
           "total_executions": {
             "type": "integer",
@@ -2848,8 +2847,7 @@
           },
           "total_job_timed_out": {
             "type": "integer",
-            "title": "Total Job Timed Out",
-            "default": 0
+            "title": "Total Job Timed Out"
           },
           "health": {
             "$ref": "#/components/schemas/AppHealth"
@@ -2861,8 +2859,10 @@
           "job_count",
           "total_invocations",
           "total_errors",
+          "total_timed_out",
           "total_executions",
           "total_job_errors",
+          "total_job_timed_out",
           "health"
         ],
         "title": "AppActivityStats",

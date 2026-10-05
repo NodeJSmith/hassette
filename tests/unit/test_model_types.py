@@ -10,6 +10,7 @@ import pytest
 from hassette_wire import (
     ActivityFeedEntry,
     AppActivity,
+    AppActivityStats,
     AppGridResponse,
     AppHealth,
     AppInstanceResponse,
@@ -29,6 +30,7 @@ from hassette_wire import (
 from pydantic import ValidationError
 
 from hassette.schemas.log_models import LogRecord
+from tests.support.web_response_helpers import make_app_activity
 
 STANDARD_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
@@ -262,6 +264,14 @@ class TestAppActivity:
     def test_explicit_nulls_validate(self) -> None:
         body = {"stats": None, "activity_buckets": None, "last_error": None, "blocking_event_count": None}
         assert AppActivity.model_validate(body).stats is None
+
+    @pytest.mark.parametrize("field", ["total_timed_out", "total_job_timed_out"])
+    def test_stats_timeout_counts_are_required(self, field: str) -> None:
+        """A missing count fails validation instead of reading as a real zero inside a populated part."""
+        body = make_app_activity().model_dump(mode="json")["stats"]
+        del body[field]
+        with pytest.raises(ValidationError):
+            AppActivityStats.model_validate(body)
 
     def test_last_error_result_requires_its_error_key(self) -> None:
         """``{error: null}`` (ran, found none) must be sent explicitly, never inferred from ``{}``."""

@@ -21,6 +21,10 @@ from hassette_wire.literals import (
     SourceTier,
 )
 
+WINDOWED_ACTIVITY_PARTS: frozenset[str] = frozenset({"activity_buckets", "last_error"})
+"""``AppActivity`` parts the server computes only for a request with a ``since``; ``None`` in every row
+otherwise. Mirrored in ``frontend/src/utils/app-data.ts``."""
+
 
 class Execution(BaseModel):
     """Unified execution record returned by queries against the ``executions`` table.
@@ -287,10 +291,10 @@ class AppActivityStats(BaseModel):
     job_count: int
     total_invocations: int
     total_errors: int
-    total_timed_out: int = 0
+    total_timed_out: int
     total_executions: int
     total_job_errors: int
-    total_job_timed_out: int = 0
+    total_job_timed_out: int
     health: AppHealth
 
 

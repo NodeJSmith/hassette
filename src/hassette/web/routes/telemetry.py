@@ -11,11 +11,13 @@ propagates to ``telemetry_unavailable_handler`` in ``hassette.web.errors``, whic
 """
 
 import time
+from dataclasses import dataclass, fields
 from logging import getLogger
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, Response
 from hassette_wire import (
+    WINDOWED_ACTIVITY_PARTS,
     ActivityBucket,
     ActivityFeedEntry,
     AppActivity,
@@ -305,8 +307,9 @@ async def app_grid(
     The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
     failure) and overlaid with live runtime state via
     ``RuntimeQueryService.overlay_manifest_rows()``. Each telemetry enrichment below is one
-    all-apps query that fills one ``AppActivity`` part. A failed query leaves its part ``None`` in
-    every row and the response continues at 200, with one summary warning naming the failed parts
+    all-apps query that fills one ``AppActivity`` part. A query that raises
+    ``TelemetryUnavailableError`` leaves its part ``None`` in every row and the response continues at
+    200, with one summary warning naming the failed parts; any other error is a bug and returns 500
     — see ``.claude/rules/web-api.md``. ``activity_buckets`` and ``last_error`` only run for a
     window, so they are ``None`` when ``since`` is ``None``.
 
@@ -315,14 +318,12 @@ async def app_grid(
     """
     db_rows = await telemetry.get_all_app_manifests()
     manifest_infos = runtime.overlay_manifest_rows(db_rows)
-    failed: list[str] = []
 
     summaries: dict[str, AppHealthSummary] | None = None
     try:
         summaries = await telemetry.get_all_app_summaries(since=since, source_tier="app")
     except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch app summaries for the app grid", exc_info=True)
-        failed.append("stats")
 
     per_app_buckets: dict[str, list[tuple[int, int]]] | None = None
     per_app_errors: dict[str, AppLastError] | None = None
@@ -336,55 +337,74 @@ async def app_grid(
             )
         except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app activity buckets", exc_info=True)
-            failed.append("activity_buckets")
         try:
             per_app_errors = await telemetry.get_per_app_last_errors(since=since, source_tier="app")
         except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app last errors", exc_info=True)
-            failed.append("last_error")
 
     blocking_counts: dict[str, int] | None = None
     try:
         blocking_counts = await telemetry.get_blocking_event_counts(since=since)
     except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch per-app blocking-event counts", exc_info=True)
-        failed.append("blocking_event_count")
 
+    enrichments = GridEnrichments(
+        stats=summaries,
+        activity_buckets=per_app_buckets,
+        last_error=per_app_errors,
+        blocking_event_count=blocking_counts,
+    )
     entries = [
-        AppGridEntry(
-            app=app_summary_from(manifest),
-            activity=activity_for(manifest.app_key, summaries, per_app_buckets, per_app_errors, blocking_counts),
-        )
+        AppGridEntry(app=app_summary_from(manifest), activity=enrichments.activity_for(manifest.app_key))
         for manifest in manifest_infos
     ]
 
+    failed = enrichments.failed_parts(windowed=since is not None)
     if failed:
         LOGGER.warning(
-            "App grid served without these activity parts: %s", ", ".join(failed), extra={"failed_parts": failed}
+            "App grid served without these activity parts: %s",
+            ", ".join(failed),
+            extra={"failed_parts": failed, "since": since},
         )
     return AppGridResponse(apps=entries, since=since)
 
 
-def activity_for(
-    app_key: str,
-    summaries: dict[str, AppHealthSummary] | None,
-    per_app_buckets: dict[str, list[tuple[int, int]]] | None,
-    per_app_errors: dict[str, AppLastError] | None,
-    blocking_counts: dict[str, int] | None,
-) -> AppActivity:
-    """Build one app's ``activity`` from the four all-apps enrichment results.
+@dataclass(frozen=True)
+class GridEnrichments:
+    """The four all-apps enrichment results behind ``AppActivity``, one field per part, named after it.
 
-    A ``None`` result (the query failed or didn't run) makes that part ``None``. A result that ran
-    but has no entry for this app is real data: the app had nothing in the window, so the part is
-    its computed empty value.
+    A field is ``None`` when its query failed, or, for a part in ``WINDOWED_ACTIVITY_PARTS``, when the
+    request had no ``since`` and the query didn't run. Both the row parts and the route's summary
+    warning are read from here, so a part whose query ran and failed is always named in the warning.
     """
-    buckets = None if per_app_buckets is None else per_app_buckets.get(app_key, [])
-    return AppActivity(
-        stats=None if summaries is None else stats_part(summaries.get(app_key, NO_TELEMETRY_SUMMARY)),
-        activity_buckets=None if buckets is None else [ActivityBucket(ok=ok, err=err) for ok, err in buckets],
-        last_error=None if per_app_errors is None else last_error_part(per_app_errors.get(app_key)),
-        blocking_event_count=None if blocking_counts is None else blocking_counts.get(app_key, 0),
-    )
+
+    stats: dict[str, AppHealthSummary] | None
+    activity_buckets: dict[str, list[tuple[int, int]]] | None
+    last_error: dict[str, AppLastError] | None
+    blocking_event_count: dict[str, int] | None
+
+    def failed_parts(self, *, windowed: bool) -> list[str]:
+        """Parts whose query ran (every part when ``windowed``, else the unwindowed ones) and failed."""
+        return [
+            f.name
+            for f in fields(self)
+            if getattr(self, f.name) is None and (windowed or f.name not in WINDOWED_ACTIVITY_PARTS)
+        ]
+
+    def activity_for(self, app_key: str) -> AppActivity:
+        """Build one app's ``activity``.
+
+        A ``None`` result makes that part ``None``. A result that ran but has no entry for this app
+        is real data: the app had nothing in the window, so the part is its computed empty value.
+        """
+        buckets = None if self.activity_buckets is None else self.activity_buckets.get(app_key, [])
+        blocking = None if self.blocking_event_count is None else self.blocking_event_count.get(app_key, 0)
+        return AppActivity(
+            stats=None if self.stats is None else stats_part(self.stats.get(app_key, NO_TELEMETRY_SUMMARY)),
+            activity_buckets=None if buckets is None else [ActivityBucket(ok=ok, err=err) for ok, err in buckets],
+            last_error=None if self.last_error is None else last_error_part(self.last_error.get(app_key)),
+            blocking_event_count=blocking,
+        )
 
 
 def stats_part(summary: AppHealthSummary) -> AppActivityStats:

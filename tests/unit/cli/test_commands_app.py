@@ -64,8 +64,8 @@ _ACTION_CASES = [
 
 
 def _grid_body(entries: list[AppGridEntry] | None = None) -> dict[str, Any]:
-    """JSON body for a mocked ``GET /api/telemetry/app-grid`` response."""
-    return make_app_grid_response(entries).model_dump(mode="json")
+    """JSON body for a mocked ``GET /api/telemetry/app-grid`` response, echoing the hour's ``since``."""
+    return make_app_grid_response(entries, since=NOW_EPOCH - SECONDS_PER_HOUR).model_dump(mode="json")
 
 
 def _grid_body_missing(*parts: str) -> dict[str, Any]:
@@ -135,6 +135,15 @@ class TestCmdApp:
         )
         assert "activity_buckets" in runner.stderr(client, cmd_app, ctx=CLIContext(json_mode=True))
         assert runner.json_output(client, cmd_app)[0]["activity"]["activity_buckets"] is None
+
+    def test_windowed_parts_warn_only_when_the_since_echo_says_a_window_was_requested(
+        self, cli_client_factory: CLIClientFactory
+    ) -> None:
+        """An all-time echo (since=None) means buckets and last error never ran, so their nulls aren't failures."""
+        activity = make_app_activity().model_copy(update={"activity_buckets": None, "last_error": None})
+        body = make_app_grid_response([make_app_grid_entry(activity=activity)], since=None).model_dump(mode="json")
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, body)])
+        assert "Warning" not in runner.stderr(client, cmd_app)
 
     def test_fully_successful_grid_prints_no_warning(self, cli_client_factory: CLIClientFactory) -> None:
         client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, _grid_body())])

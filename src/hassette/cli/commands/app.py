@@ -81,7 +81,7 @@ def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     client = make_client(ctx)
     params = query_params(since=cli_output.now_epoch() - APP_LIST_WINDOW_SECONDS)
     result = client.get("/api/telemetry/app-grid", AppGridResponse, params=params)
-    cli_output.warn_missing_activity([row.activity for row in result.apps], windowed=True)
+    cli_output.warn_missing_activity(result)
     render_table(result.apps, APP_LIST_COLUMNS, json_mode=ctx.json_mode)
 
 

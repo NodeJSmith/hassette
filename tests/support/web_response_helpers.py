@@ -68,8 +68,10 @@ def make_app_activity(
     job_count: int = 1,
     total_invocations: int = 100,
     total_errors: int = 0,
+    total_timed_out: int = 0,
     total_executions: int = 50,
     total_job_errors: int = 0,
+    total_job_timed_out: int = 0,
     health: AppHealth | None = None,
 ) -> AppActivity:
     """Build an AppActivity with every part computed: no buckets, no last error, no blocking events.
@@ -83,8 +85,10 @@ def make_app_activity(
             job_count=job_count,
             total_invocations=total_invocations,
             total_errors=total_errors,
+            total_timed_out=total_timed_out,
             total_executions=total_executions,
             total_job_errors=total_job_errors,
+            total_job_timed_out=total_job_timed_out,
             health=health if health is not None else make_app_health(),
         ),
         activity_buckets=[],

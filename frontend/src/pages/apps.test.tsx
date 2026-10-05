@@ -1,7 +1,7 @@
 import { act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { appStatusKey, useAppStore } from "../state/store";
 import { createAppActivityStats, createAppGridEntry } from "../test/factories";
@@ -166,6 +166,75 @@ describe("AppsPage", () => {
     await findByTestId("app-row-my_app");
 
     expect(new URL(urls[0]).searchParams.has("since")).toBe(false);
+  });
+
+  it("shows '—' for runs/hr while placeholder rows from the previous window await a refetch", async () => {
+    let calls = 0;
+    server.use(
+      http.get(APP_GRID_URL, () => {
+        calls++;
+        // The second fetch (the new window) never resolves, so the first response stays as placeholder data.
+        if (calls > 1) return new Promise(() => {});
+        return HttpResponse.json({ apps: [createAppGridEntry({ app: { app_key: "my_app" } })] });
+      }),
+    );
+    const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
+    const strip = await findByTestId("apps-stats-strip");
+    expect(getStatValue(strip, "runs / hr")).not.toBe("—");
+
+    act(() => {
+      useAppStore.setState({ uptimeSeconds: 3600 });
+    });
+
+    await vi.waitFor(() => expect(calls).toBe(2));
+    expect(getStatValue(strip, "runs / hr")).toBe("—");
+    expect((await findByTestId("app-row-my_app")).isConnected).toBe(true);
+  });
+
+  describe("polling while an enrichment failure is on screen", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function serveGrid(responses: Array<Parameters<typeof createAppGridEntry>[0]>): { calls: () => number } {
+      let calls = 0;
+      server.use(
+        http.get(APP_GRID_URL, () => {
+          const entry = responses[Math.min(calls, responses.length - 1)];
+          calls++;
+          return HttpResponse.json({ apps: [createAppGridEntry(entry)], since: 1000 });
+        }),
+      );
+      return { calls: () => calls };
+    }
+
+    it("refetches while a requested part is null and stops once the grid is whole", async () => {
+      const grid = serveGrid([
+        { app: { app_key: "my_app" }, activity: { stats: null } },
+        { app: { app_key: "my_app" } },
+      ]);
+      const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
+      await findByTestId("app-row-my_app");
+      expect(grid.calls()).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.waitFor(() => expect(grid.calls()).toBe(2));
+
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(grid.calls()).toBe(2);
+    });
+
+    it("doesn't poll a healthy grid", async () => {
+      const grid = serveGrid([{ app: { app_key: "my_app" } }]);
+      const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
+      await findByTestId("app-row-my_app");
+
+      await vi.advanceTimersByTimeAsync(90_000);
+      expect(grid.calls()).toBe(1);
+    });
   });
 
   it("renders each response as sent: a part a newer response nulls doesn't keep its old value", async () => {

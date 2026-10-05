@@ -1,14 +1,17 @@
 """Integration tests for telemetry web API endpoints."""
 
 import logging
+from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from hassette_wire import AppActivity
 
 from hassette.schemas.execution_models import AppLastError
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
+from hassette.web.routes.telemetry import GridEnrichments
 from tests.support.web_manifest_helpers import make_manifest_db_row
 from tests.support.web_telemetry_helpers import make_execution, make_listener_summary
 
@@ -338,6 +341,9 @@ class TestAppGrid:
             part: None,
         }
         assert grid_summary_warnings(caplog) == [f"App grid served without these activity parts: {part}"]
+        (record,) = [r for r in caplog.records if r.getMessage().startswith("App grid served without")]
+        assert record.failed_parts == [part]  # pyright: ignore[reportAttributeAccessIssue]
+        assert record.since == pytest.approx(GRID_SINCE)  # pyright: ignore[reportAttributeAccessIssue]
 
     async def test_every_failed_part_is_named_in_one_summary_warning(
         self, client: "AsyncClient", mock_hassette: MagicMock, caplog: pytest.LogCaptureFixture
@@ -375,6 +381,11 @@ class TestAppGrid:
         """A non-finite since would echo as null (all-time) while the windowed queries ran."""
         response = await client.get(f"{path}?since={value}")
         assert response.status_code == 422
+
+
+def test_grid_enrichments_has_one_field_per_activity_part() -> None:
+    """The route names failed parts from these fields, so a new AppActivity part can't skip the warning."""
+    assert [f.name for f in fields(GridEnrichments)] == list(AppActivity.model_fields)
 
 
 def seed_grid_enrichments(mock_hassette: MagicMock, app_key: str) -> None:

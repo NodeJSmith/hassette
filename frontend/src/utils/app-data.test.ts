@@ -4,7 +4,7 @@ import type { AppActivity } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 import type { AppStatusEntry } from "../state/store";
 import { createAppActivityStats, createAppGridEntry, createAppHealth, createInstance } from "../test/factories";
-import { appLiveStatus, compareAppRows, toAppRow } from "./app-data";
+import { appLiveStatus, compareAppRows, hasFailedActivityPart, toAppRow } from "./app-data";
 
 type AppStatus = components["schemas"]["AppStatus"];
 type ResourceStatus = components["schemas"]["ResourceStatus"];
@@ -153,5 +153,27 @@ describe("compareAppRows activity sorts", () => {
       .sort((a, b) => compareAppRows(a, b, { key: "last", dir: "asc" }, NO_LIVE_STATUSES))
       .map((r) => r.app_key);
     expect(order).toEqual(["never_ran", "busy", "unknown"]);
+  });
+});
+
+describe("hasFailedActivityPart", () => {
+  const grid = (since: number | null, activity: Partial<AppActivity>) => ({
+    apps: [createAppGridEntry({ activity })],
+    since,
+  });
+
+  it("is false for a fully computed grid and for no data", () => {
+    expect(hasFailedActivityPart(grid(1000, {}))).toBe(false);
+    expect(hasFailedActivityPart(undefined)).toBe(false);
+  });
+
+  it("is true when an unwindowed part is null, with or without a window", () => {
+    expect(hasFailedActivityPart(grid(null, { stats: null }))).toBe(true);
+    expect(hasFailedActivityPart(grid(1000, { blocking_event_count: null }))).toBe(true);
+  });
+
+  it("treats null windowed parts as failed only when the since echo says a window was requested", () => {
+    expect(hasFailedActivityPart(grid(null, { activity_buckets: null, last_error: null }))).toBe(false);
+    expect(hasFailedActivityPart(grid(1000, { last_error: null }))).toBe(true);
   });
 });

@@ -46,5 +46,5 @@ def cmd_dashboard(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """
     client = make_client(ctx)
     result = client.get("/api/telemetry/app-grid", AppGridResponse)
-    warn_missing_activity([row.activity for row in result.apps], windowed=False)
+    warn_missing_activity(result)
     render_table(result.apps, DASHBOARD_COLUMNS, json_mode=ctx.json_mode)

@@ -77,6 +77,7 @@ from hassette_wire.literals import (
 from hassette_wire.logs import LogEntryResponse, LogLevelRequest, LogLevelResponse, LogsByExecutionResponse
 from hassette_wire.problems import ProblemCode, ProblemDetail
 from hassette_wire.telemetry import (
+    WINDOWED_ACTIVITY_PARTS,
     ActivityBucket,
     ActivityFeedEntry,
     AppActivity,
@@ -112,6 +113,7 @@ from hassette_wire.ws import (
 __all__ = [
     "LENIENT_CONTEXT",
     "MAX_SESSION_TOKEN_LENGTH",
+    "WINDOWED_ACTIVITY_PARTS",
     "ActionResponse",
     "ActivityBucket",
     "ActivityFeedEntry",

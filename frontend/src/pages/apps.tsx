@@ -27,6 +27,7 @@ import {
   type AppRow,
   type AppSortState,
   compareAppRows,
+  hasFailedActivityPart,
   sumOrNull,
   toAppRow,
   totalRuns,
@@ -50,6 +51,8 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
 };
 
 const MIN_WINDOW_FOR_RATE_CALC = 60;
+/** How often the grid re-asks while an enrichment failure is on screen; a healthy grid doesn't poll. */
+const FAILED_PART_RETRY_MS = 30_000;
 const SECONDS_PER_HOUR = 3600;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
@@ -202,6 +205,7 @@ export function AppsPage() {
     data: gridData,
     error: gridError,
     isPending: gridLoading,
+    isPlaceholderData: gridIsPlaceholder,
   } = useScopedQuery(queryKeys.appGrid(), (since, signal) => getAppGrid(since, signal), {
     // The apps list must render even when HA/WS is unreachable (design/specs/018-dashboard-without-ha) —
     // don't block on uptimeSeconds like other scoped views. Falls back to an all-time window until
@@ -209,6 +213,9 @@ export function AppsPage() {
     waitForUptime: false,
     // Keep the table populated during that refetch instead of dropping to the full-page spinner.
     placeholderData: keepPreviousData,
+    // Otherwise the grid only refetches on execution events, so a transient failure's "—" cells
+    // could stay on a quiet system indefinitely.
+    refetchInterval: (query) => (hasFailedActivityPart(query.state.data) ? FAILED_PART_RETRY_MS : false),
   });
 
   useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.appGrid());
@@ -244,8 +251,10 @@ export function AppsPage() {
 
   const allApps = (gridData?.apps ?? []).map(toAppRow);
 
+  // The window the rows' runs cover. Placeholder rows (kept on screen while a new window refetches)
+  // cover the previous window, so no rate is computed from them: runs/hr reads "—" until the refetch lands.
   let windowSeconds: number | null = null;
-  if (uptimeSeconds !== null) {
+  if (uptimeSeconds !== null && !gridIsPlaceholder) {
     windowSeconds =
       effectiveTimePreset === "since-restart" ? uptimeSeconds : PRESET_WINDOW_SECONDS[effectiveTimePreset];
   }

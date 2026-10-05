@@ -1,9 +1,9 @@
-import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, type UseQueryOptions, type UseQueryResult } from "@tanstack/react-query";
 
 import { useAppStore } from "../state/store";
 import { resolveSince } from "../utils/time-window";
 
-export interface UseScopedQueryOptions {
+export interface UseScopedQueryOptions<T = unknown> {
   placeholderData?: typeof keepPreviousData;
   /** Skip the query entirely (e.g. the current route has no need for this data). */
   enabled?: boolean;
@@ -19,12 +19,13 @@ export interface UseScopedQueryOptions {
    */
   waitForUptime?: boolean;
   /**
-   * Forwarded to `useQuery`'s own `refetchInterval` — refetch on a fixed cadence while the
-   * query is mounted and enabled. TanStack stops interval refetches automatically once the
+   * Forwarded to `useQuery`'s own `refetchInterval` — a fixed cadence, or a function of the query
+   * that returns a cadence or `false`, so a caller can poll only while its data calls for it (the
+   * Apps grid polls while an enrichment failure is on screen). TanStack stops interval refetches automatically once the
    * query is disabled (e.g. by `waitForUptime`'s gate), so callers don't need to guard this
    * themselves.
    */
-  refetchInterval?: number;
+  refetchInterval?: UseQueryOptions<T>["refetchInterval"];
   /**
    * Forwarded to `useQuery`'s own `refetchOnMount`. TanStack's default (`true`) only refetches
    * on mount if the cached entry is past `staleTime` — a remount inside that window silently
@@ -62,7 +63,7 @@ export interface UseScopedQueryOptions {
 export function useScopedQuery<T>(
   baseKey: readonly unknown[],
   fetcher: (since: number | null, signal: AbortSignal) => Promise<T>,
-  options?: UseScopedQueryOptions,
+  options?: UseScopedQueryOptions<T>,
 ): UseQueryResult<T> & { queryKey: readonly unknown[] } {
   const timePreset = useAppStore((s) => s.timePreset);
   const urlWindowParam = useAppStore((s) => s.urlWindowParam);

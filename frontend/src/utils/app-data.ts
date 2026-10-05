@@ -1,4 +1,4 @@
-import type { AppActivity, AppGridEntry } from "../api/endpoints";
+import type { AppActivity, AppGridEntry, AppGridResponse } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 import type { SortState } from "../components/shared/sort-header";
 import { type AppStatusEntry, appStatusKey } from "../state/store";
@@ -6,6 +6,21 @@ import { statusPriority } from "./status-priority";
 
 type AppStatus = components["schemas"]["AppStatus"];
 type ResourceStatus = components["schemas"]["ResourceStatus"];
+
+/** `AppActivity` parts the server computes only for a request with a `since`; `null` otherwise.
+ *  Mirrors `WINDOWED_ACTIVITY_PARTS` in `hassette_wire.telemetry`. */
+const WINDOWED_ACTIVITY_PARTS: ReadonlySet<keyof AppActivity> = new Set(["activity_buckets", "last_error"]);
+/** Every `AppActivity` part; a `Record` over the type's keys, so adding a part is a compile error here. */
+const ACTIVITY_PART_KEYS: Record<keyof AppActivity, true> = {
+  stats: true,
+  activity_buckets: true,
+  last_error: true,
+  blocking_event_count: true,
+};
+// `Object.keys` returns `string[]`; this guard narrows it back to the part names without a cast.
+const isActivityPart = (key: string): key is keyof AppActivity =>
+  Object.prototype.hasOwnProperty.call(ACTIVITY_PART_KEYS, key);
+const ACTIVITY_PARTS = Object.keys(ACTIVITY_PART_KEYS).filter(isActivityPart);
 
 export interface AppRow {
   app_key: string;
@@ -69,6 +84,17 @@ export function sumOrNull(rows: readonly AppRow[], pick: (row: AppRow) => number
     total += value;
   }
   return total;
+}
+
+/** True when some row is missing a part the request asked for, i.e. an enrichment failed. A windowed
+ *  part is only asked for when the response's `since` echo is set; without one, its `null` means
+ *  "not computed", not a failure. */
+export function hasFailedActivityPart(grid: AppGridResponse | undefined): boolean {
+  if (!grid) return false;
+  // The response's `since` echo, not the page's own preset: it states what the server computed.
+  const windowed = grid.since !== null && grid.since !== undefined;
+  const requested = ACTIVITY_PARTS.filter((part) => windowed || !WINDOWED_ACTIVITY_PARTS.has(part));
+  return grid.apps.some(({ activity }) => requested.some((part) => activity[part] === null));
 }
 
 /** Handler invocations plus job executions, or `null` when the row's stats weren't computed. */
