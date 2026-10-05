@@ -1056,27 +1056,51 @@ export interface components {
              * @enum {string}
              */
             tier: "watchdog" | "monkeypatch";
+            /** @description Innermost app-code frame (Tier 1) or the intercepted call's caller frame (Tier 2). */
             call_site: components["schemas"]["BlockingFrameRef"] | null;
-            /** Call Site Is User Code */
+            /**
+             * Call Site Is User Code
+             * @description ``False`` when a Tier 2 call site is library or stdlib code; see ``detected_in_package``.
+             */
             call_site_is_user_code: boolean;
-            /** Detected In Package */
+            /**
+             * Detected In Package
+             * @description Top-level package a non-user Tier 2 call site belongs to (e.g. ``"requests"``), else ``None``.
+             */
             detected_in_package?: string | null;
+            /** @description Tier 1 only: the frame just inside the call site — what the app code called into. */
             callee?: components["schemas"]["BlockingFrameRef"] | null;
-            /** Primitive */
+            /**
+             * Primitive
+             * @description Tier 2 only: the intercepted primitive, e.g. ``"time.sleep"``.
+             */
             primitive?: string | null;
-            /** Handlers */
+            /**
+             * Handlers
+             * @description Every handler or job whose execution reached this call site, most recently seen first.
+             */
             handlers: components["schemas"]["BlockingHandlerRef"][];
-            /** Instances */
+            /**
+             * Instances
+             * @description The app instances these events came from, by index. A request for every instance merges
+             *     one call site's events across instances into one finding, since they share the code to fix.
+             */
             instances: components["schemas"]["BlockingInstanceRef"][];
             /** Event Count */
             event_count: number;
-            /** Max Stall Ms */
+            /**
+             * Max Stall Ms
+             * @description Longest stall in milliseconds. ``None`` for Tier 2, which records no duration.
+             */
             max_stall_ms?: number | null;
             /** Avg Stall Ms */
             avg_stall_ms?: number | null;
             /** Last Seen Ts */
             last_seen_ts: number;
-            /** Latest Stack */
+            /**
+             * Latest Stack
+             * @description The most recent event's captured stack, innermost first. Empty when none was stored.
+             */
             latest_stack: components["schemas"]["StackFrame"][];
         };
         /**
@@ -1084,10 +1108,14 @@ export interface components {
          * @description Blocking findings for one app, or for every app.
          */
         BlockingFindingsResponse: {
-            /** Findings */
+            /**
+             * Findings
+             * @description Ordered by most recently seen first.
+             */
             findings: components["schemas"]["BlockingFinding"][];
             /**
              * Truncated
+             * @description ``True`` when the cap on findings was hit: the least recently seen call sites are omitted.
              * @default false
              */
             truncated: boolean;
@@ -1097,15 +1125,25 @@ export interface components {
          * @description A frame picked out for display, with a short path for summary lines.
          */
         BlockingFrameRef: {
-            /** Filename */
+            /**
+             * Filename
+             * @description Absolute path of the frame's source file, verbatim from the code object.
+             */
             filename: string;
             /** Lineno */
             lineno: number;
             /** Function */
             function: string;
-            /** Module */
+            /**
+             * Module
+             * @description The frame's module ``__name__``, or ``None`` when unavailable.
+             */
             module?: string | null;
-            /** Display Path */
+            /**
+             * Display Path
+             * @description App-code frames relative to their app directory; library frames relative to their
+             *     ``site-packages`` root; stdlib frames as ``stdlib/<path>``; anything else absolute.
+             */
             display_path: string;
         };
         /**
@@ -1118,13 +1156,22 @@ export interface components {
              * @enum {string}
              */
             kind: "listener" | "job";
-            /** Id */
+            /**
+             * Id
+             * @description Listener or scheduled-job row id.
+             */
             id: number;
-            /** Name */
+            /**
+             * Name
+             * @description Listener name or job name.
+             */
             name: string;
             /** Handler Method */
             handler_method: string;
-            /** Instance Index */
+            /**
+             * Instance Index
+             * @description The app instance that registered this handler.
+             */
             instance_index: number;
         };
         /**
@@ -1915,10 +1962,17 @@ export interface components {
             /** Name */
             name: string;
             status: components["schemas"]["ResourceStatus"];
+            /** @description What kind of framework component the service is. */
             role: components["schemas"]["ResourceRole"];
-            /** Ready Phase */
+            /**
+             * Ready Phase
+             * @description Human-readable description of the current readiness phase, or None if not available.
+             */
             ready_phase?: string | null;
-            /** Retry At */
+            /**
+             * Retry At
+             * @description Unix timestamp when the next restart will be attempted (cooling state), or None.
+             */
             retry_at?: number | null;
         };
         /**
@@ -1930,7 +1984,12 @@ export interface components {
          *     (``postSession()`` in ``client.ts``) target this exact field name independently.
          */
         SessionRequest: {
-            /** Token */
+            /**
+             * Token
+             * @description Bearer token to exchange for a session cookie.
+             *
+             *     The server rejects a value longer than ``maxLength`` with a 422.
+             */
             token: string;
         };
         /**
@@ -1954,13 +2013,19 @@ export interface components {
          * @description One captured stack frame.
          */
         StackFrame: {
-            /** Filename */
+            /**
+             * Filename
+             * @description Absolute path of the frame's source file, verbatim from the code object.
+             */
             filename: string;
             /** Lineno */
             lineno: number;
             /** Function */
             function: string;
-            /** Module */
+            /**
+             * Module
+             * @description The frame's module ``__name__``, or ``None`` when unavailable.
+             */
             module?: string | null;
         };
         /** SystemStatusResponse */
@@ -1991,16 +2056,20 @@ export interface components {
             boot_issues?: components["schemas"]["BootIssueResponse"][];
             /**
              * Log Queue Drops
+             * @description Log records dropped because the log queue was full — tune ``logging.log_queue_max``.
              * @default 0
              */
             log_queue_drops: number;
             /**
              * Db Write Queue Drops
+             * @description Log records dropped because the DB write queue was full, unavailable, or closed.
              * @default 0
              */
             db_write_queue_drops: number;
             /**
              * Log Persistence Active
+             * @description ``False`` when log records are not being persisted, so a ``db_write_queue_drops`` of 0 does not mean
+             *     logs are being stored.
              * @default false
              */
             log_persistence_active: boolean;
@@ -2060,7 +2129,10 @@ export interface components {
             framework_count: number;
             /** Max Stall Ms */
             max_stall_ms?: number | null;
-            /** Recent */
+            /**
+             * Recent
+             * @description The most recent stalls, newest first.
+             */
             recent: components["schemas"]["UnattributedStall"][];
         };
         /**
@@ -2084,8 +2156,12 @@ export interface components {
             stall_duration_ms?: number | null;
             /** Primitive */
             primitive?: string | null;
+            /** @description Innermost app-code frame in the stack, if any. Shown as evidence, not attribution. */
             app_frame?: components["schemas"]["BlockingFrameRef"] | null;
-            /** Stack */
+            /**
+             * Stack
+             * @description The captured stack, innermost first. Empty when none was stored.
+             */
             stack: components["schemas"]["StackFrame"][];
         };
     };

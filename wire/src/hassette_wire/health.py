@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.cli_format import CliFormat
 from hassette_wire.enums import OpenResourceRole, OpenResourceStatus
@@ -18,6 +18,8 @@ class BootIssueResponse(BaseModel):
 class ServiceInfoResponse(BaseModel):
     """Structured info for one internal service."""
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     name: str
     status: OpenResourceStatus
     role: OpenResourceRole
@@ -29,6 +31,8 @@ class ServiceInfoResponse(BaseModel):
 
 
 class SystemStatusResponse(BaseModel):
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     status: OpenSystemHealthStatus
     websocket_connected: bool
     bootstrap_released: bool
@@ -45,7 +49,8 @@ class SystemStatusResponse(BaseModel):
     """Log records dropped because the DB write queue was full, unavailable, or closed."""
 
     log_persistence_active: bool = False
-    """False means log persistence is unavailable — ``db_write_queue_drops`` of 0 is not health."""
+    """``False`` when log records are not being persisted, so a ``db_write_queue_drops`` of 0 does not mean
+    logs are being stored."""
 
 
 class LivenessResponse(BaseModel):

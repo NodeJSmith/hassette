@@ -320,6 +320,7 @@
           "type": "string"
         },
         "data": {
+          "description": "Executions persisted together in one batch write.",
           "items": {
             "$ref": "#/$defs/ExecutionCompletedData"
           },
@@ -469,10 +470,12 @@
             }
           ],
           "default": null,
+          "description": "Unix timestamp when the next restart will be attempted.\n\nPopulated for ``EXHAUSTED_COOLING`` events (the service is in a long cooldown\nand will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other\nstatuses. The frontend uses this to display a live countdown timer.",
           "title": "Retry At"
         },
         "ready": {
           "default": false,
+          "description": "Whether the service had signalled readiness at the time of this status event.",
           "title": "Ready",
           "type": "boolean"
         },
@@ -486,6 +489,7 @@
             }
           ],
           "default": null,
+          "description": "Human-readable description of the current readiness phase, or None if not available.",
           "title": "Ready Phase"
         }
       },

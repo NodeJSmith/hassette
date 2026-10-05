@@ -119,7 +119,12 @@ const schema11 = {
     ExecutionCompletedWsMessage: {
       properties: {
         type: { const: "execution_completed", title: "Type", type: "string" },
-        data: { items: { $ref: "#/$defs/ExecutionCompletedData" }, title: "Data", type: "array" },
+        data: {
+          description: "Executions persisted together in one batch write.",
+          items: { $ref: "#/$defs/ExecutionCompletedData" },
+          title: "Data",
+          type: "array",
+        },
         timestamp: { title: "Timestamp", type: "number" },
       },
       required: ["type", "data", "timestamp"],
@@ -179,9 +184,25 @@ const schema11 = {
           default: null,
           title: "Exception Traceback",
         },
-        retry_at: { anyOf: [{ type: "number" }, { type: "null" }], default: null, title: "Retry At" },
-        ready: { default: false, title: "Ready", type: "boolean" },
-        ready_phase: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Ready Phase" },
+        retry_at: {
+          anyOf: [{ type: "number" }, { type: "null" }],
+          default: null,
+          description:
+            "Unix timestamp when the next restart will be attempted.\n\nPopulated for ``EXHAUSTED_COOLING`` events (the service is in a long cooldown\nand will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other\nstatuses. The frontend uses this to display a live countdown timer.",
+          title: "Retry At",
+        },
+        ready: {
+          default: false,
+          description: "Whether the service had signalled readiness at the time of this status event.",
+          title: "Ready",
+          type: "boolean",
+        },
+        ready_phase: {
+          anyOf: [{ type: "string" }, { type: "null" }],
+          default: null,
+          description: "Human-readable description of the current readiness phase, or None if not available.",
+          title: "Ready Phase",
+        },
       },
       required: ["resource_name", "role", "status"],
       title: "ServiceStatusData",
@@ -1358,9 +1379,25 @@ const schema21 = {
     exception: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception" },
     exception_type: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception Type" },
     exception_traceback: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Exception Traceback" },
-    retry_at: { anyOf: [{ type: "number" }, { type: "null" }], default: null, title: "Retry At" },
-    ready: { default: false, title: "Ready", type: "boolean" },
-    ready_phase: { anyOf: [{ type: "string" }, { type: "null" }], default: null, title: "Ready Phase" },
+    retry_at: {
+      anyOf: [{ type: "number" }, { type: "null" }],
+      default: null,
+      description:
+        "Unix timestamp when the next restart will be attempted.\n\nPopulated for ``EXHAUSTED_COOLING`` events (the service is in a long cooldown\nand will retry at this time). ``None`` for ``EXHAUSTED_DEAD`` and all other\nstatuses. The frontend uses this to display a live countdown timer.",
+      title: "Retry At",
+    },
+    ready: {
+      default: false,
+      description: "Whether the service had signalled readiness at the time of this status event.",
+      title: "Ready",
+      type: "boolean",
+    },
+    ready_phase: {
+      anyOf: [{ type: "string" }, { type: "null" }],
+      default: null,
+      description: "Human-readable description of the current readiness phase, or None if not available.",
+      title: "Ready Phase",
+    },
   },
   required: ["resource_name", "role", "status"],
   title: "ServiceStatusData",
@@ -2107,7 +2144,12 @@ function validate16(data, { instancePath = "", parentData, parentDataProperty, r
 const schema25 = {
   properties: {
     type: { const: "execution_completed", title: "Type", type: "string" },
-    data: { items: { $ref: "#/$defs/ExecutionCompletedData" }, title: "Data", type: "array" },
+    data: {
+      description: "Executions persisted together in one batch write.",
+      items: { $ref: "#/$defs/ExecutionCompletedData" },
+      title: "Data",
+      type: "array",
+    },
     timestamp: { title: "Timestamp", type: "number" },
   },
   required: ["type", "data", "timestamp"],

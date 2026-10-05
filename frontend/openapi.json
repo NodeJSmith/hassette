@@ -3231,11 +3231,13 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Innermost app-code frame (Tier 1) or the intercepted call's caller frame (Tier 2)."
           },
           "call_site_is_user_code": {
             "type": "boolean",
-            "title": "Call Site Is User Code"
+            "title": "Call Site Is User Code",
+            "description": "``False`` when a Tier 2 call site is library or stdlib code; see ``detected_in_package``."
           },
           "detected_in_package": {
             "anyOf": [
@@ -3246,7 +3248,8 @@
                 "type": "null"
               }
             ],
-            "title": "Detected In Package"
+            "title": "Detected In Package",
+            "description": "Top-level package a non-user Tier 2 call site belongs to (e.g. ``\"requests\"``), else ``None``."
           },
           "callee": {
             "anyOf": [
@@ -3256,7 +3259,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Tier 1 only: the frame just inside the call site \u2014 what the app code called into."
           },
           "primitive": {
             "anyOf": [
@@ -3267,21 +3271,24 @@
                 "type": "null"
               }
             ],
-            "title": "Primitive"
+            "title": "Primitive",
+            "description": "Tier 2 only: the intercepted primitive, e.g. ``\"time.sleep\"``."
           },
           "handlers": {
             "items": {
               "$ref": "#/components/schemas/BlockingHandlerRef"
             },
             "type": "array",
-            "title": "Handlers"
+            "title": "Handlers",
+            "description": "Every handler or job whose execution reached this call site, most recently seen first."
           },
           "instances": {
             "items": {
               "$ref": "#/components/schemas/BlockingInstanceRef"
             },
             "type": "array",
-            "title": "Instances"
+            "title": "Instances",
+            "description": "The app instances these events came from, by index. A request for every instance merges\none call site's events across instances into one finding, since they share the code to fix."
           },
           "event_count": {
             "type": "integer",
@@ -3296,7 +3303,8 @@
                 "type": "null"
               }
             ],
-            "title": "Max Stall Ms"
+            "title": "Max Stall Ms",
+            "description": "Longest stall in milliseconds. ``None`` for Tier 2, which records no duration."
           },
           "avg_stall_ms": {
             "anyOf": [
@@ -3318,7 +3326,8 @@
               "$ref": "#/components/schemas/StackFrame"
             },
             "type": "array",
-            "title": "Latest Stack"
+            "title": "Latest Stack",
+            "description": "The most recent event's captured stack, innermost first. Empty when none was stored."
           }
         },
         "type": "object",
@@ -3343,11 +3352,13 @@
               "$ref": "#/components/schemas/BlockingFinding"
             },
             "type": "array",
-            "title": "Findings"
+            "title": "Findings",
+            "description": "Ordered by most recently seen first."
           },
           "truncated": {
             "type": "boolean",
             "title": "Truncated",
+            "description": "``True`` when the cap on findings was hit: the least recently seen call sites are omitted.",
             "default": false
           }
         },
@@ -3362,7 +3373,8 @@
         "properties": {
           "filename": {
             "type": "string",
-            "title": "Filename"
+            "title": "Filename",
+            "description": "Absolute path of the frame's source file, verbatim from the code object."
           },
           "lineno": {
             "type": "integer",
@@ -3381,11 +3393,13 @@
                 "type": "null"
               }
             ],
-            "title": "Module"
+            "title": "Module",
+            "description": "The frame's module ``__name__``, or ``None`` when unavailable."
           },
           "display_path": {
             "type": "string",
-            "title": "Display Path"
+            "title": "Display Path",
+            "description": "App-code frames relative to their app directory; library frames relative to their\n``site-packages`` root; stdlib frames as ``stdlib/<path>``; anything else absolute."
           }
         },
         "type": "object",
@@ -3410,11 +3424,13 @@
           },
           "id": {
             "type": "integer",
-            "title": "Id"
+            "title": "Id",
+            "description": "Listener or scheduled-job row id."
           },
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "Listener name or job name."
           },
           "handler_method": {
             "type": "string",
@@ -3422,7 +3438,8 @@
           },
           "instance_index": {
             "type": "integer",
-            "title": "Instance Index"
+            "title": "Instance Index",
+            "description": "The app instance that registered this handler."
           }
         },
         "type": "object",
@@ -4989,7 +5006,8 @@
             "$ref": "#/components/schemas/ResourceStatus"
           },
           "role": {
-            "$ref": "#/components/schemas/ResourceRole"
+            "$ref": "#/components/schemas/ResourceRole",
+            "description": "What kind of framework component the service is."
           },
           "ready_phase": {
             "anyOf": [
@@ -5000,7 +5018,8 @@
                 "type": "null"
               }
             ],
-            "title": "Ready Phase"
+            "title": "Ready Phase",
+            "description": "Human-readable description of the current readiness phase, or None if not available."
           },
           "retry_at": {
             "anyOf": [
@@ -5011,7 +5030,8 @@
                 "type": "null"
               }
             ],
-            "title": "Retry At"
+            "title": "Retry At",
+            "description": "Unix timestamp when the next restart will be attempted (cooling state), or None."
           }
         },
         "type": "object",
@@ -5028,7 +5048,8 @@
           "token": {
             "type": "string",
             "maxLength": 4096,
-            "title": "Token"
+            "title": "Token",
+            "description": "Bearer token to exchange for a session cookie.\n\nThe server rejects a value longer than ``maxLength`` with a 422."
           }
         },
         "type": "object",
@@ -5055,7 +5076,8 @@
         "properties": {
           "filename": {
             "type": "string",
-            "title": "Filename"
+            "title": "Filename",
+            "description": "Absolute path of the frame's source file, verbatim from the code object."
           },
           "lineno": {
             "type": "integer",
@@ -5074,7 +5096,8 @@
                 "type": "null"
               }
             ],
-            "title": "Module"
+            "title": "Module",
+            "description": "The frame's module ``__name__``, or ``None`` when unavailable."
           }
         },
         "type": "object",
@@ -5139,16 +5162,19 @@
           "log_queue_drops": {
             "type": "integer",
             "title": "Log Queue Drops",
+            "description": "Log records dropped because the log queue was full \u2014 tune ``logging.log_queue_max``.",
             "default": 0
           },
           "db_write_queue_drops": {
             "type": "integer",
             "title": "Db Write Queue Drops",
+            "description": "Log records dropped because the DB write queue was full, unavailable, or closed.",
             "default": 0
           },
           "log_persistence_active": {
             "type": "boolean",
             "title": "Log Persistence Active",
+            "description": "``False`` when log records are not being persisted, so a ``db_write_queue_drops`` of 0 does not mean\nlogs are being stored.",
             "default": false
           }
         },
@@ -5235,7 +5261,8 @@
               "$ref": "#/components/schemas/UnattributedStall"
             },
             "type": "array",
-            "title": "Recent"
+            "title": "Recent",
+            "description": "The most recent stalls, newest first."
           }
         },
         "type": "object",
@@ -5297,14 +5324,16 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Innermost app-code frame in the stack, if any. Shown as evidence, not attribution."
           },
           "stack": {
             "items": {
               "$ref": "#/components/schemas/StackFrame"
             },
             "type": "array",
-            "title": "Stack"
+            "title": "Stack",
+            "description": "The captured stack, innermost first. Empty when none was stored."
           }
         },
         "type": "object",

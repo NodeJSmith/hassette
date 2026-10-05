@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 MAX_SESSION_TOKEN_LENGTH = 4096
 """Upper bound on the ``token`` field of :class:`SessionRequest`.
@@ -19,11 +19,12 @@ class SessionRequest(BaseModel):
     (``postSession()`` in ``client.ts``) target this exact field name independently.
     """
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     token: str = Field(max_length=MAX_SESSION_TOKEN_LENGTH)
     """Bearer token to exchange for a session cookie.
 
-    Length-capped so the constraint rides in the OpenAPI schema; the server rejects a longer
-    value with a 422.
+    The server rejects a value longer than ``maxLength`` with a 422.
     """
 
 
