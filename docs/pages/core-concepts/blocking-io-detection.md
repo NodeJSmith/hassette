@@ -63,7 +63,7 @@ The entry's last-seen time is the check for a fix: if it stops advancing while t
 
 ## Fixing a Detected Call
 
-Move the blocking work off the loop thread. `asyncio.to_thread` is the standard path for CPU-bound or I/O-bound synchronous helpers:
+Move the blocking work off the loop thread. [`self.task_bucket.run_in_thread`](apps/task-bucket.md#offloading-blocking-code) is the standard path for CPU-bound or I/O-bound synchronous helpers:
 
 ```python
 --8<-- "pages/core-concepts/blocking-io-detection/snippets/async_fix.py"
@@ -71,7 +71,7 @@ Move the blocking work off the loop thread. `asyncio.to_thread` is the standard 
 
 The `_write_reading` method runs on a thread pool worker. The loop thread stays free while the write completes.
 
-For third-party libraries that only expose a synchronous API, `asyncio.to_thread` is still the right wrapper — call the synchronous function from within the thread, not from the handler directly.
+For third-party libraries that only expose a synchronous API, `run_in_thread` is still the right wrapper — call the synchronous function from within the thread, not from the handler directly.
 
 ## Suppressing Detection for a Specific App
 

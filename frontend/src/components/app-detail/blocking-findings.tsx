@@ -144,7 +144,8 @@ export function BlockingFindingsSection({ appKey, scope }: Props) {
       <h3 className={SECTION_LABEL_CLASS}>blocking calls{scope.kind === "app" && " · all instances"}</h3>
       <p className={META_CLASS}>
         these calls ran synchronously on the event loop, so other handlers and timers waited until they returned.{" "}
-        <code className="font-mono">asyncio.to_thread</code> runs a call like this off the loop.
+        <code className="font-mono">self.task_bucket.run_in_thread</code> moves a call like this to a thread pool so the
+        event loop keeps running.
       </p>
       {findings.map((finding, i) => (
         <FindingEntry
