@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from hassette.resources.base import Resource
 
 WAIT_TIMEOUT = 1.0
-"""Deadline for waits expected to succeed; far above the time event-driven readiness takes."""
+"""Deadline for waits expected to succeed, and the outer guard on the timeout test; far above SHORT_TIMEOUT."""
 
 SHORT_TIMEOUT = 0.05
 """Deadline for the wait that is expected to time out."""
@@ -90,7 +90,11 @@ async def test_one_dep_times_out_while_other_succeeds(with_shutdown_event: bool)
     ready_dep.ready_event.set()
     shutdown = asyncio.Event() if with_shutdown_event else None
 
-    result = await wait_for_ready(as_resources(ready_dep, stuck_dep), timeout=SHORT_TIMEOUT, shutdown_event=shutdown)
+    # The outer deadline keeps a regression in wait_for_ready's own timeout from hanging the test.
+    result = await asyncio.wait_for(
+        wait_for_ready(as_resources(ready_dep, stuck_dep), timeout=SHORT_TIMEOUT, shutdown_event=shutdown),
+        timeout=WAIT_TIMEOUT,
+    )
 
     assert result is False
     assert ready_dep.ready_event.is_set()
