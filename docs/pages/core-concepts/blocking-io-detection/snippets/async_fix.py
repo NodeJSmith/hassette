@@ -1,5 +1,3 @@
-import asyncio
-
 from hassette import App, AppConfig
 
 
@@ -18,7 +16,7 @@ class SensorApp(App[SensorAppConfig]):
     async def on_reading(self) -> None:
         state = await self.api.get_state("sensor.outdoor_temperature")
         # Run blocking file I/O on a worker thread — loop stays responsive.
-        await asyncio.to_thread(self._write_reading, str(state))
+        await self.task_bucket.run_in_thread(self._write_reading, str(state))
 
     def _write_reading(self, value: str) -> None:
         """Sync helper — runs on a thread pool worker, not the loop thread."""
