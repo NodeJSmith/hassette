@@ -33,8 +33,12 @@ interface Props {
   appStatus?: AppStatus;
 }
 
-const SEARCH_INPUT_CLASS =
-  "min-w-[var(--size-search-min)] rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0";
+const SEARCH_INPUT_CLASS = cn(
+  "min-w-[var(--size-search-min)] rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5",
+  "font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint",
+  "focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)]",
+  "max-mobile:w-full max-mobile:min-w-0",
+);
 
 function LogSearchInput({ value, onChange }: { value: string; onChange: (next: string) => void }) {
   return (
