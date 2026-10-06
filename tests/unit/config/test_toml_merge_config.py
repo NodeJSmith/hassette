@@ -4,6 +4,7 @@ import textwrap
 from pathlib import Path
 
 from pydantic import SecretStr
+from pydantic_settings import SettingsConfigDict
 
 from hassette import HassetteConfig
 from hassette.config.classes import HassetteTomlConfigSettingsSource
@@ -14,16 +15,18 @@ def make_config_cls(toml_file: Path) -> type[HassetteConfig]:
     """Return a HassetteConfig subclass whose only settings file is `toml_file` (no env files)."""
 
     class MinimalConfig(HassetteConfig):
-        model_config = HassetteConfig.model_config.copy() | {
-            "cli_parse_args": False,
-            "toml_file": [toml_file],
-            "env_file": [],
-        }
+        model_config = HassetteConfig.model_config.copy() | SettingsConfigDict(
+            cli_parse_args=False, toml_file=[toml_file], env_file=[]
+        )
 
         token: SecretStr = SecretStr(TEST_TOKEN)
         run_app_precheck: bool = False
 
     return MinimalConfig
+
+
+def make_source(toml_file: Path) -> HassetteTomlConfigSettingsSource:
+    return HassetteTomlConfigSettingsSource(make_config_cls(toml_file), toml_file=toml_file)
 
 
 def write_toml(path: Path, content: str) -> Path:
@@ -33,9 +36,6 @@ def write_toml(path: Path, content: str) -> Path:
 
 class TestTomlDeepMerge:
     """Tests for deep merge behavior when [hassette.*] and top-level keys coexist."""
-
-    def make_source(self, toml_file: Path) -> HassetteTomlConfigSettingsSource:
-        return HassetteTomlConfigSettingsSource(make_config_cls(toml_file), toml_file=toml_file)
 
     def test_hassette_apps_and_top_level_apps_are_merged(self, tmp_path: Path) -> None:
         """Both [hassette.apps] directory settings and [apps.my_app] definitions survive."""
@@ -50,7 +50,7 @@ class TestTomlDeepMerge:
             class_name = "MyApp"
             """,
         )
-        source = self.make_source(toml_file)
+        source = make_source(toml_file)
 
         assert isinstance(source.toml_data.get("apps"), dict)
         apps = source.toml_data["apps"]
@@ -67,7 +67,7 @@ class TestTomlDeepMerge:
             directory = "my_apps"
             """,
         )
-        source = self.make_source(toml_file)
+        source = make_source(toml_file)
 
         assert source.toml_data["apps"]["directory"] == "my_apps"
 
@@ -80,7 +80,7 @@ class TestTomlDeepMerge:
             directory = "plain_apps"
             """,
         )
-        source = self.make_source(toml_file)
+        source = make_source(toml_file)
 
         assert source.toml_data["apps"]["directory"] == "plain_apps"
 
@@ -96,7 +96,7 @@ class TestTomlDeepMerge:
             batch_size = 500
             """,
         )
-        source = self.make_source(toml_file)
+        source = make_source(toml_file)
 
         db = source.toml_data["database"]
         assert db["retention_days"] == 30
@@ -129,7 +129,7 @@ class TestLocalTomlOverlay:
             """,
         )
 
-        source = HassetteTomlConfigSettingsSource(make_config_cls(base), toml_file=base)
+        source = make_source(base)
 
         assert source.toml_data["base_url"] == "http://localhost:8123"
         assert source.toml_data["database"] == {"retention_days": 30, "batch_size": 500}
@@ -139,7 +139,7 @@ class TestLocalTomlOverlay:
         base = write_toml(tmp_path / "hassette.toml", '[hassette]\nbase_url = "http://shared:8123"\n')
         write_toml(tmp_path / "hassette.local.toml", 'base_url = "http://localhost:8123"\n')
 
-        source = HassetteTomlConfigSettingsSource(make_config_cls(base), toml_file=base)
+        source = make_source(base)
 
         assert source.toml_data["base_url"] == "http://localhost:8123"
 
@@ -178,7 +178,7 @@ class TestLocalTomlOverlay:
         )
         write_toml(tmp_path / "hassette.local.toml", '[apps.my_app.config]\napi_key = "secret"\n')
 
-        source = HassetteTomlConfigSettingsSource(make_config_cls(base), toml_file=base)
+        source = make_source(base)
 
         assert source.toml_data["apps"]["my_app"]["config"] == {"threshold": 5, "api_key": "secret"}
         assert source.toml_data["apps"]["my_app"]["filename"] == "my_app.py"
@@ -187,7 +187,7 @@ class TestLocalTomlOverlay:
         base = tmp_path / "hassette.toml"
         write_toml(tmp_path / "hassette.local.toml", 'base_url = "http://localhost:8123"\n')
 
-        source = HassetteTomlConfigSettingsSource(make_config_cls(base), toml_file=base)
+        source = make_source(base)
 
         assert source.toml_data["base_url"] == "http://localhost:8123"
 
