@@ -3206,7 +3206,7 @@ export interface operations {
     app_activity_api_telemetry_app__app_key__activity_get: {
         parameters: {
             query?: {
-                /** @description App instance index. None returns activity across all instances. */
+                /** @description App instance index. Omit for every instance of the app. */
                 instance_index?: number | null;
                 limit?: number;
                 since?: number | null;
