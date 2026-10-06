@@ -457,9 +457,10 @@ def resolve_cache_keys(app_key: str, manifest: AppManifest) -> list[str]:
 def warn_on_cache_key_collisions(manifests: dict[str, AppManifest]) -> None:
     """Log a WARNING when different apps resolve to the same cache_key.
 
-    Two apps sharing a resolved cache_key intentionally (e.g. one app renamed to preserve
-    its predecessor's cache) is allowed, but is usually a configuration mistake — this
-    surfaces it at config-load time rather than as silent cross-app cache contamination.
+    Sharing a resolved cache_key across apps is usually a configuration mistake, so this surfaces
+    it at config-load time rather than as silent cross-app cache contamination. Intentional sharing
+    is opted into per app with ``cache_shared = true``: the warning is skipped only when every app
+    sharing the key has opted in, and otherwise names the apps that haven't.
     """
     owners_by_resolved_key: dict[str, set[str]] = {}
     for app_key, manifest in manifests.items():
@@ -467,13 +468,19 @@ def warn_on_cache_key_collisions(manifests: dict[str, AppManifest]) -> None:
             owners_by_resolved_key.setdefault(resolved_key, set()).add(app_key)
 
     for resolved_key, owners in owners_by_resolved_key.items():
-        if len(owners) > 1:
-            LOGGER.warning(
-                "Multiple apps resolve to the same cache_key %r: %s. If this is unintentional, "
-                "set an explicit, unique `cache_key` on each app to avoid cache cross-contamination.",
-                resolved_key,
-                sorted(owners),
-            )
+        if len(owners) <= 1:
+            continue
+        not_opted_in = sorted(owner for owner in owners if not manifests[owner].cache_shared)
+        if not not_opted_in:
+            continue
+        LOGGER.warning(
+            "Multiple apps resolve to the same cache_key %r: %s. Apps without `cache_shared = true`: %s. "
+            "If sharing is intentional, set `cache_shared = true` on every app sharing this key; otherwise "
+            "set an explicit, unique `cache_key` on each app to avoid cache cross-contamination.",
+            resolved_key,
+            sorted(owners),
+            not_opted_in,
+        )
 
 
 NESTED_GROUPS: dict[str, type] = {

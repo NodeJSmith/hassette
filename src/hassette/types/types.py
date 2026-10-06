@@ -306,6 +306,7 @@ class RawAppDict(TypedDict, total=False):
     config: dict[str, Any] | list[dict[str, Any]]
     auto_loaded: bool
     cache_key: str
+    cache_shared: bool
 
 
 class AppDict(TypedDict, total=False):
@@ -321,3 +322,4 @@ class AppDict(TypedDict, total=False):
     auto_loaded: bool
     full_path: Required[Path]
     cache_key: str
+    cache_shared: bool

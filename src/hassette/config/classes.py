@@ -148,6 +148,10 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     """Override the cache directory key. When empty (default), App.cache_key computes
     '{app_key}/{index}'. When set, this value is used as-is."""
 
+    cache_shared: bool = Field(default=False)
+    """Mark this app's resolved cache_key as intentionally shared with other apps. The
+    cache_key collision warning is suppressed only when every app sharing the key sets this."""
+
     def __repr__(self) -> str:
         return (
             f"<AppManifest {self.display_name} ({self.class_name})"

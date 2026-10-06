@@ -25,7 +25,21 @@ The default directory is `{data_dir}/{app_key}/{index}/cache/cache.db`. Set `cac
 cache_key = "weather_v1/0"  # keep the cache from before the app was renamed
 ```
 
-When `cache_key` is set, Hassette uses it as-is with no index appended. Two apps that intentionally share a `cache_key` share one cache file; Hassette logs a warning at startup whenever two *different* `app_key` values resolve to the same `cache_key`, intentional or not, since sharing is usually a mistake.
+When `cache_key` is set, Hassette uses it as-is with no index appended. Two apps that resolve to the same `cache_key` share one cache file. Since that's usually a mistake, Hassette logs a warning at startup whenever two *different* `app_key` values resolve to the same `cache_key`.
+
+If the sharing is intentional, set `cache_shared = true` on every app that shares the key:
+
+```toml
+[hassette.apps.weather_display]
+cache_key = "weather/shared"
+cache_shared = true
+
+[hassette.apps.weather_alerts]
+cache_key = "weather/shared"
+cache_shared = true
+```
+
+The warning is skipped only when every app sharing the key opts in. If any of them leaves `cache_shared` unset, the warning still fires and names the apps missing the flag, so a new app that accidentally lands on a shared key is still caught.
 
 ## Lazy Population with `get_or_set`
 
