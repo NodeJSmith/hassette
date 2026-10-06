@@ -104,7 +104,7 @@ class AppFullSnapshot:
     total: int = 0
     status_counts: Mapping[AppStatus, int] = field(default_factory=lambda: dict.fromkeys(APP_STATUS_KEYS, 0))
     """Manifest counts keyed by ``AppStatus``, with every member present. Read-only: stored as a
-    ``MappingProxyType`` over a private copy of whatever mapping was passed in."""
+    ``MappingProxyType`` over a defensive copy of whatever mapping was passed in."""
 
     def __post_init__(self) -> None:
         # frozen=True blocks field reassignment, not mutation of a dict value; wrap a copy so the
