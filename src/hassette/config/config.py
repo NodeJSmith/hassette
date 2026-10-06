@@ -13,6 +13,7 @@ from hassette.config.classes import (
     ExcludeExtrasMixin,
     HassetteTomlConfigSettingsSource,
     local_overlay_paths,
+    toml_paths,
 )
 from hassette.config.defaults import (
     ENV_FILE_LOCATIONS,
@@ -237,10 +238,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     @property
     def toml_files(self) -> set[Path]:
         """Return the existing TOML files that are loaded, including ``*.local.toml`` overlays."""
-        toml_file = self.model_config.get("toml_file")
-        return filter_paths_to_unique_existing(toml_file) | filter_paths_to_unique_existing(
-            local_overlay_paths(toml_file)
-        )
+        base_files = toml_paths(self.model_config.get("toml_file"))
+        return filter_paths_to_unique_existing([*base_files, *local_overlay_paths(base_files)])
 
     def get_watchable_files(self) -> set[Path]:
         """Return a list of files to watch for changes."""

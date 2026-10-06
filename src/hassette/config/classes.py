@@ -64,9 +64,9 @@ def toml_paths(files: PathType | None) -> list[Path]:
     return [Path(f).expanduser() for f in files]
 
 
-def local_overlay_paths(files: PathType | None) -> list[Path]:
+def local_overlay_paths(files: list[Path]) -> list[Path]:
     """Return the local overlay sibling of each TOML file (``hassette.toml`` -> ``hassette.local.toml``)."""
-    return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in toml_paths(files)]
+    return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in files]
 
 
 def hoist_hassette_section(data: dict[str, Any]) -> dict[str, Any]:
@@ -78,6 +78,7 @@ def hoist_hassette_section(data: dict[str, Any]) -> dict[str, Any]:
     top_level = {k: v for k, v in data.items() if k != "hassette"}
     hassette_values = data["hassette"]
 
+    # Diagnostic only: the merge below always lets [hassette] win.
     for key in set(top_level).intersection(hassette_values):
         if not (isinstance(top_level[key], dict) and isinstance(hassette_values[key], dict)):
             LOGGER.warning(

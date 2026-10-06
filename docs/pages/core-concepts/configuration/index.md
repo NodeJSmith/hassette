@@ -33,7 +33,7 @@ When the same setting appears in multiple sources, the higher-precedence source 
 
 ## Local Overrides {#local-overrides}
 
-A `hassette.local.toml` next to `hassette.toml` overrides it on the current machine. It holds values that shouldn't be committed or shared: a development `base_url`, a debug log level, an app setting that only applies to one host. Hassette's own `.gitignore` excludes `*.local.toml`, and a project's `.gitignore` excludes overlays with the same pattern:
+A `hassette.local.toml` next to `hassette.toml` overrides it on the current machine. It holds values that shouldn't be committed or shared: a development `base_url`, a debug log level, an app setting that only applies to one host. The same pattern in a project's `.gitignore` keeps overlays out of version control:
 
 ```gitignore
 *.local.toml
