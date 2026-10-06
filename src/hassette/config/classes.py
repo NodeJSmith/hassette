@@ -65,7 +65,10 @@ def toml_paths(files: PathType | None) -> list[Path]:
 
 
 def local_overlay_paths(files: list[Path]) -> list[Path]:
-    """Return the local overlay sibling of each TOML file (``hassette.toml`` -> ``hassette.local.toml``)."""
+    """Return the local overlay sibling path of each TOML file (``hassette.toml`` -> ``hassette.local.toml``).
+
+    Paths are derived, not checked; callers filter to the overlays that exist.
+    """
     return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in files]
 
 
