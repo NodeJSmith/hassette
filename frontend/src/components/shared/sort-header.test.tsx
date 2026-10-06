@@ -2,7 +2,9 @@ import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { SortHeader, type SortState } from "./sort-header";
+import type { SortState } from "@/utils/sort";
+
+import { SortHeader } from "./sort-header";
 
 describe("SortHeader — sort-only", () => {
   it("renders a sort button", () => {

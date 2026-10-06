@@ -10,12 +10,11 @@
  * generic `waitForCallCount()` — import it directly rather than re-declaring it here.
  */
 
-import type { Mock } from "vitest";
-import { expect } from "vitest";
+import { expect, type Mock } from "vitest";
 
-import type { UseScopedQueryOptions } from "../hooks/use-scoped-query";
-import { useScopedQuery } from "../hooks/use-scoped-query";
-import type { AppStore } from "../state/store";
+import { useScopedQuery, type UseScopedQueryOptions } from "@/hooks/use-scoped-query";
+import type { AppStore } from "@/state/store";
+
 import { renderHookWithProviders, waitForCallCount } from "./query-test-utils";
 
 interface RenderScopedQueryOptions {
@@ -23,8 +22,8 @@ interface RenderScopedQueryOptions {
   hookOptions?: UseScopedQueryOptions;
 }
 
-/** A `vi.fn()`-created fetcher mock matching `useScopedQuery`'s fetcher signature — every test in
- * this file creates one of these and passes it straight to the helpers below. */
+/** A `vi.fn()`-created fetcher mock matching `useScopedQuery`'s fetcher signature — every
+ * `useScopedQuery` test creates one of these and passes it straight to the helpers below. */
 type ScopedFetcherMock<T> = Mock<(since: number | null, signal: AbortSignal) => Promise<T>>;
 
 /**

@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 import { getAllJobs, getAllListeners } from "../api/endpoints";
 import { EmptyState } from "../components/shared/empty-state";
-import { ARIA_SORT_FOR_DIRECTION, SortHeader, type SortState } from "../components/shared/sort-header";
+import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
 import { TableCard } from "../components/shared/table-card";
 import { TableFooter } from "../components/shared/table-footer";
@@ -17,6 +17,7 @@ import { queryKeys } from "../lib/query-keys";
 import { useAppStore } from "../state/store";
 import { pluralize } from "../utils/format";
 import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from "../utils/handler-rows";
+import type { SortState } from "../utils/sort";
 import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<HandlerSortKey>([

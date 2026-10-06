@@ -2,23 +2,23 @@ import { Collapsible as CollapsiblePrimitive } from "radix-ui";
 import { forwardRef, useState } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 
+import type { components } from "@/api/generated-types";
+import { Spinner } from "@/components/shared/spinner";
+import { StatusShape } from "@/components/shared/status-shape";
+import { SystemHealth } from "@/components/shared/system-health";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useManifests } from "@/hooks/use-manifests";
+import { useSidebarHidden } from "@/hooks/use-sidebar-hidden";
 import { cn } from "@/lib/utils";
+import { type AppStatusEntry, useAppStore } from "@/state/store";
+import { appLiveStatus, instanceLiveStatus } from "@/utils/app-data";
+import { appDetailPath, HOME_PATH, NAV_PAGES } from "@/utils/app-routes";
+import { COMPACT_STATUS_SHAPE_SIZE, GROUP_HEADER_STATUS_SHAPE_SIZE, STATUS_SHAPE_SIZE } from "@/utils/constants";
+import { SHORTCUT_HINT } from "@/utils/keyboard";
+import { statusToKind } from "@/utils/status";
 
-import type { components } from "../../api/generated-types";
-import { useManifests } from "../../hooks/use-manifests";
-import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
-import { type AppStatusEntry, useAppStore } from "../../state/store";
-import { appLiveStatus, instanceLiveStatus } from "../../utils/app-data";
-import { appDetailPath, HOME_PATH, NAV_PAGES } from "../../utils/app-routes";
-import { COMPACT_STATUS_SHAPE_SIZE, GROUP_HEADER_STATUS_SHAPE_SIZE, STATUS_SHAPE_SIZE } from "../../utils/constants";
-import { SHORTCUT_HINT } from "../../utils/keyboard";
-import { statusToKind } from "../../utils/status";
-import { Spinner } from "../shared/spinner";
-import { StatusShape } from "../shared/status-shape";
-import { SystemHealth } from "../shared/system-health";
-import { ThemeToggle } from "../shared/theme-toggle";
 import { findDuplicateDisplayNames, GROUP_DEFS, groupAndSortApps, type GroupDef } from "./sidebar-groups";
 import { useGroupOpen } from "./use-group-open";
 
@@ -193,7 +193,6 @@ export function Sidebar({ onOpenPalette, mobileDrawer = false }: SidebarProps = 
   const duplicateDisplayNames = findDuplicateDisplayNames(liveManifests);
   const [search, setSearch] = useState("");
 
-  const version = systemVersion;
   const isFiltering = search.trim().length > 0;
   const filtered = isFiltering
     ? liveManifests.filter(
@@ -231,9 +230,9 @@ export function Sidebar({ onOpenPalette, mobileDrawer = false }: SidebarProps = 
               hassette
             </span>
           </Link>
-          {version !== null && (
+          {systemVersion !== null && (
             <div className="flex flex-nowrap items-center gap-1 px-4 pb-2 font-mono text-xs text-[var(--ink-3)]">
-              <span className="text-[var(--ink-3)]">v{version}</span>
+              <span className="text-[var(--ink-3)]">v{systemVersion}</span>
             </div>
           )}
         </div>
@@ -304,7 +303,7 @@ export function Sidebar({ onOpenPalette, mobileDrawer = false }: SidebarProps = 
             value={search}
             aria-label="Filter apps"
             data-testid="app-filter-input"
-            onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
+            onInput={(e) => setSearch(e.currentTarget.value)}
           />
         </div>
 

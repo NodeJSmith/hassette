@@ -5,9 +5,10 @@ import type {
   AppManifest,
   AppStatus,
   ResourceStatus,
-} from "../api/endpoints";
-import type { SortState } from "../components/shared/sort-header";
-import { type AppStatusEntry, appStatusKey } from "../state/store";
+} from "@/api/endpoints";
+import { type AppStatusEntry, appStatusKey } from "@/state/store";
+import type { SortState } from "@/utils/sort";
+
 import { statusPriority } from "./status-priority";
 
 /** `AppActivity` parts the server computes only for a request with a `since`; `null` otherwise.

@@ -1,7 +1,7 @@
-import type { AppStatus, ResourceStatus } from "../../api/endpoints";
-import type { components } from "../../api/generated-types";
-import type { AppStatusEntry } from "../../state/store";
-import { appLiveStatus } from "../../utils/app-data";
+import type { AppStatus, ResourceStatus } from "@/api/endpoints";
+import type { components } from "@/api/generated-types";
+import type { AppStatusEntry } from "@/state/store";
+import { appLiveStatus } from "@/utils/app-data";
 
 type AppManifest = components["schemas"]["AppSummary"];
 

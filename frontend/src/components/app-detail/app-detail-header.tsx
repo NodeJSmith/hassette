@@ -1,13 +1,12 @@
+import type { AppStatus, ResourceStatus } from "@/api/endpoints";
+import type { components } from "@/api/generated-types";
+import { ActionButtons, getStableInstanceRef } from "@/components/shared/action-buttons";
+import { AlertShell } from "@/components/shared/alert-shell";
+import { ErrorBanner } from "@/components/shared/error-banner";
+import { StatusShape } from "@/components/shared/status-shape";
 import { Badge } from "@/components/ui/badge";
-
-import type { AppStatus, ResourceStatus } from "../../api/endpoints";
-import type { components } from "../../api/generated-types";
-import { BADGE_STATUS_SHAPE_SIZE, HEADING_STATUS_SHAPE_SIZE } from "../../utils/constants";
-import { statusToKind, statusToVariant } from "../../utils/status";
-import { ActionButtons, getStableInstanceRef } from "../shared/action-buttons";
-import { AlertShell } from "../shared/alert-shell";
-import { ErrorBanner } from "../shared/error-banner";
-import { StatusShape } from "../shared/status-shape";
+import { BADGE_STATUS_SHAPE_SIZE, HEADING_STATUS_SHAPE_SIZE } from "@/utils/constants";
+import { statusToKind, statusToVariant } from "@/utils/status";
 
 type AppManifest = components["schemas"]["AppSummary"];
 type InstanceInfo = NonNullable<AppManifest["instances"]>[number];
