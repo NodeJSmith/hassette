@@ -261,3 +261,6 @@ coverage.system.xml
 
 # Resource tracker per-worker results (transient, aggregated at session end)
 .resource-tracker/
+
+# per-machine hassette config overlay
+hassette.local.toml

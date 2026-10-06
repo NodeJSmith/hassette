@@ -4,7 +4,7 @@ Hassette reads `hassette.toml` from every one of these locations that exists, in
 2. `./hassette.toml` (current working directory)
 3. `./config/hassette.toml`
 
-When more than one file exists, they merge and a later file replaces any top-level key or whole `[table]` it sets (tables are not merged key by key).
+When more than one file exists, they merge and a later file replaces any top-level key or whole `[table]` it sets (tables are not merged key by key). Each file's `hassette.local.toml` overlay is then merged on top, key by key — see [Local Overrides](#local-overrides).
 
 Hassette checks the same three locations for `.env` files:
 

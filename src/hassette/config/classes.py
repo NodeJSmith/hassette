@@ -20,38 +20,62 @@ from pydantic_settings.sources import InitSettingsSource, PathType, TomlConfigSe
 from hassette.types.types import is_framework_key
 
 DEFAULT_PATH = Path()
+LOCAL_OVERLAY_INFIX = ".local"
 
 LOGGER = getLogger(__name__)
 
 
 class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
+    """TOML source that hoists the ``[hassette]`` section and applies ``*.local.toml`` overlays.
+
+    The configured TOML files are read first (a later file replaces whole top-level keys of an
+    earlier one). Each file's local overlay sibling (``hassette.toml`` -> ``hassette.local.toml``)
+    is then deep-merged on top, so an overlay can override a single nested key without restating
+    the rest of its table.
+    """
+
     def __init__(self, settings_cls: type[BaseSettings], toml_file: PathType | None = DEFAULT_PATH):
         self.toml_file_path = toml_file if toml_file != DEFAULT_PATH else settings_cls.model_config.get("toml_file")
-        self.toml_data = self._read_files(self.toml_file_path)
+        self.toml_data = hoist_hassette_section(self._read_files(self.toml_file_path))
 
-        if "hassette" not in self.toml_data:
-            # just let the standard class handle it
-            super().__init__(settings_cls, self.toml_file_path)
-            return
-
-        LOGGER.debug("Merging 'hassette' section from TOML config into top level")
-        top_level_keys = set(self.toml_data.keys()) - {"hassette"}
-        hassette_values = self.toml_data.pop("hassette")
-
-        overlapping = top_level_keys.intersection(hassette_values.keys())
-        for key in overlapping:
-            if not (isinstance(self.toml_data[key], dict) and isinstance(hassette_values[key], dict)):
-                LOGGER.warning(
-                    "Key %r found in both top level and 'hassette' section of TOML config, "
-                    "the [hassette] value will be used",
-                    key,
-                )
-
-        self.toml_data = dict(merge({}, self.toml_data, hassette_values))
+        for overlay in local_overlay_paths(self.toml_file_path):
+            if overlay.is_file():
+                LOGGER.debug("Applying local TOML overlay %s", overlay)
+                self.toml_data = dict(merge({}, self.toml_data, hoist_hassette_section(self._read_file(overlay))))
 
         # need to call InitSettingSource directly, as super() expects a file path
         # as the second argument
         InitSettingsSource.__init__(self, settings_cls, self.toml_data)
+
+
+def local_overlay_paths(files: PathType | None) -> list[Path]:
+    """Return the local overlay sibling of each TOML file (``hassette.toml`` -> ``hassette.local.toml``)."""
+    if files is None:
+        return []
+    if isinstance(files, str | PurePath):
+        files = [files]
+    paths = [Path(f).expanduser() for f in files]
+    return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in paths]
+
+
+def hoist_hassette_section(data: dict[str, Any]) -> dict[str, Any]:
+    """Merge a TOML file's ``[hassette]`` section into its top level; ``[hassette]`` values win."""
+    if "hassette" not in data:
+        return data
+
+    LOGGER.debug("Merging 'hassette' section from TOML config into top level")
+    top_level = {k: v for k, v in data.items() if k != "hassette"}
+    hassette_values = data["hassette"]
+
+    for key in set(top_level).intersection(hassette_values):
+        if not (isinstance(top_level[key], dict) and isinstance(hassette_values[key], dict)):
+            LOGGER.warning(
+                "Key %r found in both top level and 'hassette' section of TOML config, "
+                "the [hassette] value will be used",
+                key,
+            )
+
+    return dict(merge({}, top_level, hassette_values))
 
 
 class ExcludeExtrasMixin:

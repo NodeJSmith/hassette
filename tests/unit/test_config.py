@@ -764,6 +764,106 @@ class TestTomlDeepMerge:
         assert db["batch_size"] == 500
 
 
+class TestLocalTomlOverlay:
+    """hassette.local.toml is deep-merged over hassette.toml with higher priority."""
+
+    def write(self, path: Path, content: str) -> Path:
+        path.write_text(textwrap.dedent(content).lstrip(), encoding="utf-8")
+        return path
+
+    def make_config_cls(self, toml_file: Path) -> type[HassetteConfig]:
+        class MinimalConfig(HassetteConfig):
+            model_config = HassetteConfig.model_config.copy() | {
+                "cli_parse_args": False,
+                "toml_file": [toml_file],
+                "env_file": [],
+            }
+
+            token: SecretStr = SecretStr(TEST_TOKEN)
+            run_app_precheck: bool = False
+
+        return MinimalConfig
+
+    def test_local_overrides_base_and_deep_merges(self, tmp_path: Path) -> None:
+        base = self.write(
+            tmp_path / "hassette.toml",
+            """
+            [hassette]
+            base_url = "http://shared:8123"
+
+            [hassette.database]
+            retention_days = 30
+            batch_size = 100
+            """,
+        )
+        self.write(
+            tmp_path / "hassette.local.toml",
+            """
+            [hassette]
+            base_url = "http://localhost:8123"
+
+            [hassette.database]
+            batch_size = 500
+            """,
+        )
+
+        source = HassetteTomlConfigSettingsSource(self.make_config_cls(base), toml_file=base)
+
+        assert source.toml_data["base_url"] == "http://localhost:8123"
+        assert source.toml_data["database"] == {"retention_days": 30, "batch_size": 500}
+
+    def test_local_top_level_key_overrides_base_hassette_section(self, tmp_path: Path) -> None:
+        """Each file's [hassette] section is hoisted before merging, so section style doesn't matter."""
+        base = self.write(tmp_path / "hassette.toml", '[hassette]\nbase_url = "http://shared:8123"\n')
+        self.write(tmp_path / "hassette.local.toml", 'base_url = "http://localhost:8123"\n')
+
+        source = HassetteTomlConfigSettingsSource(self.make_config_cls(base), toml_file=base)
+
+        assert source.toml_data["base_url"] == "http://localhost:8123"
+
+    def test_local_overlay_adds_app_config(self, tmp_path: Path) -> None:
+        base = self.write(
+            tmp_path / "hassette.toml",
+            """
+            [apps.my_app]
+            filename = "my_app.py"
+            class_name = "MyApp"
+            config = {threshold = 5}
+            """,
+        )
+        self.write(tmp_path / "hassette.local.toml", '[apps.my_app.config]\napi_key = "secret"\n')
+
+        source = HassetteTomlConfigSettingsSource(self.make_config_cls(base), toml_file=base)
+
+        assert source.toml_data["apps"]["my_app"]["config"] == {"threshold": 5, "api_key": "secret"}
+        assert source.toml_data["apps"]["my_app"]["filename"] == "my_app.py"
+
+    def test_overlay_without_base_file_is_loaded(self, tmp_path: Path) -> None:
+        base = tmp_path / "hassette.toml"
+        self.write(tmp_path / "hassette.local.toml", 'base_url = "http://localhost:8123"\n')
+
+        source = HassetteTomlConfigSettingsSource(self.make_config_cls(base), toml_file=base)
+
+        assert source.toml_data["base_url"] == "http://localhost:8123"
+
+    def test_overlay_follows_custom_config_file_name(self, tmp_path: Path) -> None:
+        base = self.write(tmp_path / "prod.toml", 'base_url = "http://shared:8123"\n')
+        self.write(tmp_path / "prod.local.toml", 'base_url = "http://localhost:8123"\n')
+
+        source = HassetteTomlConfigSettingsSource(self.make_config_cls(base), toml_file=str(base))
+
+        assert source.toml_data["base_url"] == "http://localhost:8123"
+
+    def test_config_loads_overlay_and_watches_it(self, tmp_path: Path) -> None:
+        base = self.write(tmp_path / "hassette.toml", '[hassette]\nbase_url = "http://shared:8123"\n')
+        local = self.write(tmp_path / "hassette.local.toml", '[hassette]\nbase_url = "http://localhost:8123"\n')
+
+        config = self.make_config_cls(base)()
+
+        assert config.base_url == "http://localhost:8123"
+        assert config.toml_files == {base.resolve(), local.resolve()}
+
+
 def test_bundled_toml_files_have_no_log_level_entries():
     """Regression guard: bundled TOML defaults must not contain *_log_level keys.
 

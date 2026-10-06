@@ -12,12 +12,13 @@ The token is the only required credential. `HASSETTE__TOKEN` supplies it via env
 
 ## Configuration Sources
 
-Hassette loads settings from four sources, applied in this precedence order (highest wins):
+Hassette loads settings from five sources, applied in this precedence order (highest wins):
 
 1. **CLI flags**, arguments passed to `hassette` at startup
 2. **Environment variables**, prefixed with `HASSETTE__`, using `__` as the nested delimiter
 3. **`.env` files**, same key names as environment variables
-4. **`hassette.toml`**, the primary configuration file
+4. **`hassette.local.toml`**, an optional per-machine overlay on `hassette.toml` (see [Local Overrides](#local-overrides))
+5. **`hassette.toml`**, the primary configuration file
 
 When the same setting appears in multiple sources, the higher-precedence source wins.
 
@@ -29,6 +30,43 @@ When the same setting appears in multiple sources, the higher-precedence source 
 
 !!! tip "Docker"
     In Docker, the configuration volume mounts to `/config`, so `/config/hassette.toml` is normally the only config file present.
+
+## Local Overrides {#local-overrides}
+
+A `hassette.local.toml` next to `hassette.toml` overrides it on the current machine. Use it for values that shouldn't be committed or shared: a development `base_url`, a debug log level, an app setting that only applies to one host. Add it to your `.gitignore`:
+
+```gitignore
+hassette.local.toml
+```
+
+The local file deep-merges over the base file: it only needs the keys it changes, and every other key in the same table keeps its value from `hassette.toml`.
+
+```toml
+# hassette.toml — committed
+[hassette]
+base_url = "http://homeassistant.local:8123"
+
+[hassette.logging]
+log_level = "INFO"
+
+[hassette.apps.presence]
+filename = "presence.py"
+class_name = "Presence"
+config = {motion_sensor = "binary_sensor.hall", timeout = 300}
+```
+
+```toml
+# hassette.local.toml — gitignored
+[hassette]
+base_url = "http://localhost:8123"
+
+[hassette.apps.presence.config]
+timeout = 30
+```
+
+The result uses `localhost`, keeps `log_level = "INFO"`, and runs `presence` with the hall sensor and a 30-second timeout. Environment variables, `.env` files, and CLI flags still override both files.
+
+Every config file has its own overlay, named by inserting `.local` before the extension: `/config/hassette.toml` pairs with `/config/hassette.local.toml`, and `--config-file prod.toml` pairs with `prod.local.toml`. Hassette applies overlays after reading all base files, so an overlay always wins. Hassette watches overlays that exist at startup for changes, the same as `hassette.toml`.
 
 ## IDE Support {#ide-support}
 

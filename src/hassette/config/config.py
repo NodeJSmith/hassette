@@ -8,7 +8,12 @@ from pydantic import AliasChoices, Field, PrivateAttr, SecretStr, field_validato
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette import context as ctx
-from hassette.config.classes import AppManifest, ExcludeExtrasMixin, HassetteTomlConfigSettingsSource
+from hassette.config.classes import (
+    AppManifest,
+    ExcludeExtrasMixin,
+    HassetteTomlConfigSettingsSource,
+    local_overlay_paths,
+)
 from hassette.config.defaults import (
     ENV_FILE_LOCATIONS,
     TOML_FILE_LOCATIONS,
@@ -231,8 +236,11 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     @property
     def toml_files(self) -> set[Path]:
-        """Return a list of toml files that Pydantic will check."""
-        return filter_paths_to_unique_existing(self.model_config.get("toml_file", []))
+        """Return the existing TOML files that are loaded, including ``*.local.toml`` overlays."""
+        toml_file = self.model_config.get("toml_file")
+        return filter_paths_to_unique_existing(toml_file) | filter_paths_to_unique_existing(
+            local_overlay_paths(toml_file)
+        )
 
     def get_watchable_files(self) -> set[Path]:
         """Return a list of files to watch for changes."""
