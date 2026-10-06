@@ -1,6 +1,6 @@
 from contextlib import suppress
 from logging import getLogger
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -461,13 +461,17 @@ def warn_on_cache_key_collisions(manifests: dict[str, AppManifest]) -> None:
     it at config-load time rather than as silent cross-app cache contamination. Intentional sharing
     is opted into per app with ``cache_shared = true``. The warning is skipped only when every app
     sharing the key opts in; otherwise it names the apps missing the flag.
+
+    Keys are grouped by their normalized path form, because ``App.cache`` joins ``cache_key`` onto the
+    data dir as a path — spellings like ``a//b`` and ``a/b/.`` land in the same cache directory. The
+    warning reports that normalized form.
     """
-    owners_by_resolved_key: dict[str, set[str]] = {}
+    owners_by_cache_path: dict[str, set[str]] = {}
     for app_key, manifest in manifests.items():
         for resolved_key in resolve_cache_keys(app_key, manifest):
-            owners_by_resolved_key.setdefault(resolved_key, set()).add(app_key)
+            owners_by_cache_path.setdefault(PurePath(resolved_key).as_posix(), set()).add(app_key)
 
-    for resolved_key, owners in owners_by_resolved_key.items():
+    for cache_path, owners in owners_by_cache_path.items():
         if len(owners) <= 1:
             continue
         not_opted_in = sorted(owner for owner in owners if not manifests[owner].cache_shared)
@@ -477,7 +481,7 @@ def warn_on_cache_key_collisions(manifests: dict[str, AppManifest]) -> None:
             "Multiple apps resolve to the same cache_key %r: %s. Apps without `cache_shared = true`: %s. "
             "If sharing is intentional, set `cache_shared = true` on every app sharing this key; otherwise "
             "set an explicit, unique `cache_key` on each app to avoid cache cross-contamination.",
-            resolved_key,
+            cache_path,
             sorted(owners),
             not_opted_in,
         )

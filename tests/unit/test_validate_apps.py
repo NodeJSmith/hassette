@@ -400,3 +400,32 @@ class TestValidateApps:
         warnings = [record for record in caplog.records if "shared-key" in record.message]
         assert len(warnings) == 1, f"Expected one collision WARNING, got: {[r.message for r in caplog.records]}"
         assert "without `cache_shared = true`: ['app_two']" in warnings[0].message
+
+    def test_validate_apps_warns_on_equivalent_cache_key_spellings(
+        self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Keys that differ only in spelling but resolve to the same cache path still collide."""
+        config = self.make_config(
+            tmp_path,
+            directory=app_dir,
+            apps={
+                "app_one": {
+                    "filename": "app_one.py",
+                    "class_name": "AppOne",
+                    "cache_key": "weather/shared",
+                    "cache_shared": True,
+                },
+                "app_two": {
+                    "filename": "app_two.py",
+                    "class_name": "AppTwo",
+                    "cache_key": "weather//shared/.",
+                },
+            },
+        )
+
+        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
+            config.set_validated_app_manifests()
+
+        warnings = [record for record in caplog.records if "weather/shared" in record.message]
+        assert len(warnings) == 1, f"Expected one collision WARNING, got: {[r.message for r in caplog.records]}"
+        assert "without `cache_shared = true`: ['app_two']" in warnings[0].message
