@@ -4,13 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { queryKeys } from "../lib/query-keys";
 import type { ServiceStatusEntry } from "../state/store";
-import {
-  createFrameRef,
-  createServiceInfo,
-  createServiceStatusEntry,
-  createSystemStatus,
-  createUnattributedStall,
-} from "../test/factories";
+import { createFrameRef, createUnattributedStall } from "../test/blocking-fixtures";
+import { createServiceInfo, createServiceStatusEntry, createSystemStatus } from "../test/factories";
 import { createTestQueryClient } from "../test/query-test-utils";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
