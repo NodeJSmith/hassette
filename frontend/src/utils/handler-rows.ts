@@ -1,8 +1,9 @@
-import type { JobData, ListenerData } from "../api/endpoints";
-import type { components } from "../api/generated-types";
-import type { SortState } from "../components/shared/sort-header";
+import type { JobData, ListenerData } from "@/api/endpoints";
+import type { components } from "@/api/generated-types";
+
 import { lastDotSegment } from "./format";
 import { scheduleStatusDisplay } from "./schedule-status";
+import type { SortState } from "./sort";
 
 type ScheduleStatus = components["schemas"]["ScheduleStatus"];
 type ScheduleStatusReason = components["schemas"]["ScheduleStatusReason"];

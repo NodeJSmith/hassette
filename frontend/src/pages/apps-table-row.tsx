@@ -1,23 +1,21 @@
-import type { MouseEvent as ReactMouseEvent } from "react";
-import { useState } from "react";
+import { type MouseEvent as ReactMouseEvent, useState } from "react";
 import { Link } from "wouter";
 
+import { ActionButtons, getStableInstanceRef } from "@/components/shared/action-buttons";
+import { AppLink } from "@/components/shared/app-link";
+import { IconChevron } from "@/components/shared/icons";
+import { MiniSparkline } from "@/components/shared/mini-sparkline";
+import { StatusShape } from "@/components/shared/status-shape";
 import { Badge } from "@/components/ui/badge";
+import { useRelativeTime } from "@/hooks/use-relative-time";
 import { cn } from "@/lib/utils";
-
-import { ActionButtons, getStableInstanceRef } from "../components/shared/action-buttons";
-import { AppLink } from "../components/shared/app-link";
-import { IconChevron } from "../components/shared/icons";
-import { MiniSparkline } from "../components/shared/mini-sparkline";
-import { StatusShape } from "../components/shared/status-shape";
-import { useRelativeTime } from "../hooks/use-relative-time";
-import type { AppStatusEntry } from "../state/store";
-import { appLiveStatus, type AppRow, instanceLiveError, instanceLiveStatus, totalRuns } from "../utils/app-data";
-import { appDetailPath } from "../utils/app-routes";
-import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "../utils/constants";
-import { EMPTY_PLACEHOLDER, formatTimestamp, pluralize } from "../utils/format";
-import { onActivateKeyDown } from "../utils/keyboard";
-import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "../utils/status";
+import type { AppStatusEntry } from "@/state/store";
+import { appLiveStatus, type AppRow, instanceLiveError, instanceLiveStatus, totalRuns } from "@/utils/app-data";
+import { appDetailPath } from "@/utils/app-routes";
+import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "@/utils/constants";
+import { EMPTY_PLACEHOLDER, formatTimestamp, pluralize } from "@/utils/format";
+import { onActivateKeyDown } from "@/utils/keyboard";
+import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "@/utils/status";
 
 /** Links to the app's overview, where its blocking findings are listed. */
 function BlockingBadge({ appKey, count }: { appKey: string; count: number }) {

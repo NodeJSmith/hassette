@@ -1,15 +1,15 @@
 import { useMemo, useState } from "react";
 
+import type { AppStatus, JobData, ListenerData, ResourceStatus } from "@/api/endpoints";
+import { EmptyState } from "@/components/shared/empty-state";
+import { LogTableView, LogTableWithDrawer, useLogTable } from "@/components/shared/log-table";
+import { TableCard } from "@/components/shared/table-card";
+import { TableFooter } from "@/components/shared/table-footer";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/state/store";
+import { parseInstanceParam } from "@/utils/app-routes";
+import { INACTIVE_STATUSES } from "@/utils/status";
 
-import type { AppStatus, JobData, ListenerData, ResourceStatus } from "../../api/endpoints";
-import { useAppStore } from "../../state/store";
-import { parseInstanceParam } from "../../utils/app-routes";
-import { INACTIVE_STATUSES } from "../../utils/status";
-import { EmptyState } from "../shared/empty-state";
-import { LogTableView, LogTableWithDrawer, useLogTable } from "../shared/log-table";
-import { TableCard } from "../shared/table-card";
-import { TableFooter } from "../shared/table-footer";
 import { BlockingFindingsSection } from "./blocking-findings";
 import { ErrorSpotlight } from "./error-spotlight";
 import { HandlerHealthGrid } from "./handler-health-grid";

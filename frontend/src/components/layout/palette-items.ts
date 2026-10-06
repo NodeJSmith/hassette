@@ -1,11 +1,16 @@
-import type { AppManifest, AppStatus, ListenerData, ResourceStatus } from "../../api/endpoints";
-import { reloadApp, stopApp } from "../../api/endpoints";
-import type { AppStatusEntry } from "../../state/store";
-import { appLiveStatus, instanceLiveStatus } from "../../utils/app-data";
-import { appDetailPath, handlerPath, NAV_PAGES } from "../../utils/app-routes";
-import { isFailureStatus, isReloadableStatus } from "../../utils/status";
-
-const DOCS_URL = "https://hassette.readthedocs.io";
+import {
+  type AppManifest,
+  type AppStatus,
+  type ListenerData,
+  reloadApp,
+  type ResourceStatus,
+  stopApp,
+} from "@/api/endpoints";
+import type { AppStatusEntry } from "@/state/store";
+import { appLiveStatus, instanceLiveStatus } from "@/utils/app-data";
+import { appDetailPath, handlerPath, NAV_PAGES } from "@/utils/app-routes";
+import { DOCS_URL } from "@/utils/constants";
+import { isFailureStatus, isReloadableStatus } from "@/utils/status";
 
 export type PaletteItemKind = "page" | "app" | "instance" | "handler" | "action";
 

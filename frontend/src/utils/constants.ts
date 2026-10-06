@@ -27,3 +27,6 @@ export const COMPACT_STATUS_SHAPE_SIZE = 8;
 // Status shape beside a collapsible group header's uppercase micro-label, smaller again than
 // the compact row size so the header reads as a divider rather than another row.
 export const GROUP_HEADER_STATUS_SHAPE_SIZE = 7;
+
+// Root of the published Hassette documentation site.
+export const DOCS_URL = "https://hassette.readthedocs.io";

@@ -3,13 +3,9 @@ import { useState } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import type { SortState } from "@/utils/sort";
 
 import { FilterIcon } from "./filter-icon";
-
-export interface SortState<K extends string = string> {
-  key: K;
-  dir: "asc" | "desc";
-}
 
 const ARROW_FOR_DIRECTION: Record<"asc" | "desc", string> = { asc: " ↑", desc: " ↓" };
 

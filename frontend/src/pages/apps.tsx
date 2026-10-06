@@ -1,27 +1,25 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { ApiError } from "@/api/client";
+import { getAppGrid } from "@/api/endpoints";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "@/components/shared/sort-header";
+import { Spinner } from "@/components/shared/spinner";
+import { StatsStrip, type StatsStripCell } from "@/components/shared/stats-strip";
+import { StatusShape } from "@/components/shared/status-shape";
+import { TableCard } from "@/components/shared/table-card";
+import { TableFooter } from "@/components/shared/table-footer";
+import type { ColumnFilters } from "@/components/shared/table-types";
 import { Button } from "@/components/ui/button";
+import { useDocumentTitle } from "@/hooks/use-document-title";
+import { BREAKPOINT_SIDEBAR, useMediaQuery } from "@/hooks/use-media-query";
+import { useQueryInvalidator } from "@/hooks/use-query-invalidator";
+import { useQueryParams } from "@/hooks/use-query-params";
+import { useScopedQuery } from "@/hooks/use-scoped-query";
+import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
-
-import { ApiError } from "../api/client";
-import { getAppGrid } from "../api/endpoints";
-import { EmptyState } from "../components/shared/empty-state";
-import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "../components/shared/sort-header";
-import { Spinner } from "../components/shared/spinner";
-import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
-import { StatusShape } from "../components/shared/status-shape";
-import { TableCard } from "../components/shared/table-card";
-import { TableFooter } from "../components/shared/table-footer";
-import { type ColumnFilters } from "../components/shared/table-types";
-import { useDocumentTitle } from "../hooks/use-document-title";
-import { BREAKPOINT_SIDEBAR, useMediaQuery } from "../hooks/use-media-query";
-import { useQueryInvalidator } from "../hooks/use-query-invalidator";
-import { useQueryParams } from "../hooks/use-query-params";
-import { useScopedQuery } from "../hooks/use-scoped-query";
-import { queryKeys } from "../lib/query-keys";
-import type { AppStatusEntry } from "../state/store";
-import { useAppStore } from "../state/store";
+import { type AppStatusEntry, useAppStore } from "@/state/store";
 import {
   appLiveStatus,
   type AppRow,
@@ -31,10 +29,11 @@ import {
   sumOrNull,
   toAppRow,
   totalRuns,
-} from "../utils/app-data";
-import { EMPTY_PLACEHOLDER, pluralize } from "../utils/format";
-import { type StatusKind } from "../utils/status";
-import { PRESET_WINDOW_SECONDS } from "../utils/time-window";
+} from "@/utils/app-data";
+import { EMPTY_PLACEHOLDER, pluralize } from "@/utils/format";
+import type { StatusKind } from "@/utils/status";
+import { PRESET_WINDOW_SECONDS } from "@/utils/time-window";
+
 import { AppTableRow } from "./apps-table-row";
 
 const FILTER_OPTIONS = ["all", "running", "failed", "degraded", "stopped", "disabled", "blocked"] as const;
@@ -316,7 +315,7 @@ export function AppsPage() {
       placeholder="search apps…"
       aria-label="Search apps"
       value={search}
-      onInput={(e) => qp.set({ search: (e.target as HTMLInputElement).value || null })}
+      onInput={(e) => qp.set({ search: e.currentTarget.value || null })}
       data-testid="apps-search"
     />
   );

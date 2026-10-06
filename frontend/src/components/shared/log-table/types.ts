@@ -1,6 +1,5 @@
 import type { LogEntry } from "@/api/endpoints";
-
-import type { SortState } from "../sort-header";
+import type { SortState } from "@/utils/sort";
 
 export type ColumnId = "level" | "timestamp" | "app" | "instance" | "execution" | "function" | "module" | "message";
 

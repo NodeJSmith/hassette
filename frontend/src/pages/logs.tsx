@@ -41,7 +41,7 @@ export function LogsPage() {
       aria-label="Search logs"
       value={search}
       onInput={(e) => {
-        setSearch((e.target as HTMLInputElement).value);
+        setSearch(e.currentTarget.value);
       }}
       data-testid="logs-search"
     />

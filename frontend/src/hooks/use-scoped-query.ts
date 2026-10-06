@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery, type UseQueryOptions, type UseQueryResult } from "@tanstack/react-query";
 
-import { useAppStore } from "../state/store";
-import { resolveSince } from "../utils/time-window";
+import { useAppStore } from "@/state/store";
+import { resolveSince } from "@/utils/time-window";
 
 export interface UseScopedQueryOptions<T = unknown> {
   placeholderData?: typeof keepPreviousData;
@@ -51,8 +51,9 @@ export interface UseScopedQueryOptions<T = unknown> {
  *
  * @param baseKey  Stable query key prefix (e.g., `["app-listeners", appKey]`).
  * @param fetcher  Function accepting a `since` epoch-seconds timestamp.
- * @param options  Optional: `placeholderData` for stale-while-revalidate behavior, `waitForUptime`
- *   to opt out of the since-restart blocking gate.
+ * @param options  Optional; see `UseScopedQueryOptions` for details. `placeholderData` for
+ *   stale-while-revalidate behavior, `enabled` to skip the query, `waitForUptime` to opt out of the
+ *   since-restart blocking gate, and `refetchInterval` / `refetchOnMount`, forwarded to `useQuery`.
  * @returns The usual `useQuery` result, plus the fully-resolved `queryKey` (baseKey + preset +
  *   uptime-if-since-restart). This is the single source of truth for "what scope is this query
  *   currently showing" — a caller that needs to detect a scope change (e.g. to invalidate a
@@ -70,23 +71,22 @@ export function useScopedQuery<T>(
   const uptimeSeconds = useAppStore((s) => s.uptimeSeconds);
 
   const preset = urlWindowParam ?? timePreset;
-  const uptime = uptimeSeconds;
   const waitForUptime = options?.waitForUptime ?? true;
 
   // Block fetches for since-restart until the WS connected message provides uptime_seconds,
   // unless the caller opted out via waitForUptime: false.
-  const waitingForUptime = waitForUptime && preset === "since-restart" && uptime === null;
+  const waitingForUptime = waitForUptime && preset === "since-restart" && uptimeSeconds === null;
 
   // Include uptime in the key only for since-restart (where it defines the window boundary).
   // Fixed-window presets omit uptime so cache entries survive reconnects.
-  const queryKey = [...baseKey, preset, ...(preset === "since-restart" ? [uptime] : [])] as const;
+  const queryKey = [...baseKey, preset, ...(preset === "since-restart" ? [uptimeSeconds] : [])] as const;
 
   const result = useQuery<T>({
     queryKey,
     queryFn: ({ signal }) => {
       // Falls back to an all-time window (since=null) when waitForUptime opted out of the blocking
       // gate above and uptime hasn't arrived yet.
-      const since = resolveSince(preset, uptime) ?? null;
+      const since = resolveSince(preset, uptimeSeconds) ?? null;
       return fetcher(since, signal);
     },
     // Picked individually rather than `...options` — a blind spread would also forward
