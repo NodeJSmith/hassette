@@ -43,6 +43,7 @@ from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.execution_models import AppLastError
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
+from hassette.types.types import APP_SOURCE_TIER
 from hassette.web.dependencies import (
     AppKeyPath,
     HassetteDep,
@@ -161,7 +162,7 @@ async def app_activity(
     instance_index: OptionalInstanceIndexQuery = None,
     limit: LimitQuery = DEFAULT_QUERY_LIMIT,
     since: SinceQuery = None,
-    source_tier: SourceTierQuery = "app",
+    source_tier: SourceTierQuery = APP_SOURCE_TIER,
 ) -> list[ActivityFeedEntry]:
     """Recent handler invocations and job executions for a single app, merged and sorted by time."""
     return await telemetry.get_app_recent_activity(
@@ -393,7 +394,9 @@ async def app_grid(
     db_rows = await telemetry.get_all_app_manifests()
     manifest_infos = runtime.overlay_manifest_rows(db_rows)
 
-    summaries = await query_or_none("app summaries", telemetry.get_all_app_summaries(since=since, source_tier="app"))
+    summaries = await query_or_none(
+        "app summaries", telemetry.get_all_app_summaries(since=since, source_tier=APP_SOURCE_TIER)
+    )
 
     per_app_buckets: dict[str, list[tuple[int, int]]] | None = None
     per_app_errors: dict[str, AppLastError] | None = None
@@ -404,11 +407,11 @@ async def app_grid(
                 since,
                 time.time(),
                 num_buckets=DEFAULT_SPARKLINE_BUCKETS,
-                source_tier="app",
+                source_tier=APP_SOURCE_TIER,
             ),
         )
         per_app_errors = await query_or_none(
-            "per-app last errors", telemetry.get_per_app_last_errors(since=since, source_tier="app")
+            "per-app last errors", telemetry.get_per_app_last_errors(since=since, source_tier=APP_SOURCE_TIER)
         )
 
     blocking_counts = await query_or_none(

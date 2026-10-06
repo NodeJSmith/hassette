@@ -8,6 +8,7 @@ from fastapi import Depends, Path, Query, Request
 from hassette_wire import LogLevel, QuerySourceTier
 
 from hassette.schemas.query_constants import MAX_QUERY_LIMIT
+from hassette.types.types import APP_SOURCE_TIER
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -114,7 +115,7 @@ class TelemetryFilters:
 
     instance_index: InstanceIndexQuery = 0
     since: SinceQuery = None
-    source_tier: SourceTierQuery = "app"
+    source_tier: SourceTierQuery = APP_SOURCE_TIER
 
     @property
     def query_kwargs(self) -> TelemetryFilterKwargs:

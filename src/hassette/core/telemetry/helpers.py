@@ -13,7 +13,7 @@ import aiosqlite
 from hassette_wire import QuerySourceTier
 
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
-from hassette.types.types import is_framework_key
+from hassette.types.types import APP_SOURCE_TIER, is_framework_key
 
 # Storage-layer exceptions translated to TelemetryUnavailableError at the read boundary.
 # Named once here so both the execute() chokepoint and the get_all_app_summaries bypass
@@ -29,6 +29,28 @@ DEFAULT_LOG_RECORDS_LIMIT = 100
 DEFAULT_EXECUTION_LOG_LIMIT = 500
 """Default row cap for log records of a single execution (get_log_records_by_execution)."""
 
+# SQL literals for the ``executions`` columns the query mixins filter and label on. Each value
+# is pre-quoted (``SQL_KIND_JOB == "'job'"``) so it interpolates straight into f-string SQL.
+SQL_STATUS_SUCCESS = "'success'"
+SQL_STATUS_ERROR = "'error'"
+SQL_STATUS_CANCELLED = "'cancelled'"
+SQL_STATUS_TIMED_OUT = "'timed_out'"
+
+SQL_FAILED_STATUSES = f"({SQL_STATUS_ERROR}, {SQL_STATUS_TIMED_OUT})"
+"""``IN`` list of ``executions.status`` values counted as failures."""
+
+SQL_KIND_HANDLER = "'handler'"
+SQL_KIND_JOB = "'job'"
+
+SQL_HANDLER_ROW_ID_PREFIX = "'h-'"
+"""Synthetic activity-feed ``row_id`` prefix for handler rows with no ``execution_id``."""
+
+SQL_JOB_ROW_ID_PREFIX = "'j-'"
+"""Synthetic activity-feed ``row_id`` prefix for job rows with no ``execution_id``."""
+
+SQL_NO_FILTER = "1=1"
+"""Always-true ``WHERE`` body used when a query has no optional filter clauses."""
+
 # Exports the package's public constants plus the clause-builders and row converters shared
 # by the query mixins. These are package-internal (not for callers outside
 # hassette.core.telemetry); listing them here marks them as exported so the cross-module
@@ -37,6 +59,16 @@ __all__ = [
     "DEFAULT_EXECUTION_LOG_LIMIT",
     "DEFAULT_LOG_RECORDS_LIMIT",
     "DEFAULT_SESSION_LIST_LIMIT",
+    "SQL_FAILED_STATUSES",
+    "SQL_HANDLER_ROW_ID_PREFIX",
+    "SQL_JOB_ROW_ID_PREFIX",
+    "SQL_KIND_HANDLER",
+    "SQL_KIND_JOB",
+    "SQL_NO_FILTER",
+    "SQL_STATUS_CANCELLED",
+    "SQL_STATUS_ERROR",
+    "SQL_STATUS_SUCCESS",
+    "SQL_STATUS_TIMED_OUT",
     "STORAGE_ERRORS",
     "build_app_summaries",
     "fetch_all_as_dicts",
@@ -149,7 +181,7 @@ def handler_job_union_arms(
     extra_handler_where: str = "",
     extra_job_where: str = "",
     since: float | None = None,
-    source_tier: QuerySourceTier = "app",
+    source_tier: QuerySourceTier = APP_SOURCE_TIER,
     instance_index: int | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Build handler UNION ALL job SQL fragment with merged params.
@@ -203,7 +235,7 @@ def handler_job_union_arms(
         {handler_select}
         FROM executions e_h
         JOIN listeners l ON l.id = e_h.listener_id
-        WHERE e_h.kind = 'handler'
+        WHERE e_h.kind = {SQL_KIND_HANDLER}
           {extra_handler_where}
           {instance_hi_clause}
           {since_hi_clause}
@@ -214,7 +246,7 @@ def handler_job_union_arms(
         {job_select}
         FROM executions e_j
         JOIN scheduled_jobs sj ON sj.id = e_j.job_id
-        WHERE e_j.kind = 'job'
+        WHERE e_j.kind = {SQL_KIND_JOB}
           {extra_job_where}
           {instance_je_clause}
           {since_je_clause}

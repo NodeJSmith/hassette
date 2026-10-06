@@ -4,9 +4,22 @@ from typing import TYPE_CHECKING, Any
 
 from hassette_wire import JobSummary, QuerySourceTier
 
-from hassette.core.telemetry.helpers import row_to_dict, since_clause, source_tier_clause
+from hassette.core.telemetry.helpers import (
+    SQL_FAILED_STATUSES,
+    SQL_KIND_HANDLER,
+    SQL_KIND_JOB,
+    SQL_NO_FILTER,
+    SQL_STATUS_CANCELLED,
+    SQL_STATUS_ERROR,
+    SQL_STATUS_SUCCESS,
+    SQL_STATUS_TIMED_OUT,
+    row_to_dict,
+    since_clause,
+    source_tier_clause,
+)
 from hassette.schemas.listener_models import ListenerSummaryRow, SlowHandlerRecord
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT
+from hassette.types.types import APP_SOURCE_TIER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -27,7 +40,7 @@ class RegistrationQueriesMixin:
         app_key: str | None = None,
         instance_index: int | None = None,
         since: float | None = None,
-        source_tier: QuerySourceTier = "app",
+        source_tier: QuerySourceTier = APP_SOURCE_TIER,
     ) -> list[ListenerSummaryRow]:
         """Return per-listener summaries, optionally filtered to a specific app instance.
 
@@ -57,7 +70,7 @@ class RegistrationQueriesMixin:
                 **since_params,
             }
         else:
-            where_clause = "1=1"
+            where_clause = SQL_NO_FILTER
             params = {**tier_params, **since_params}
 
         query = f"""
@@ -66,8 +79,8 @@ class RegistrationQueriesMixin:
                        e_err.error_traceback, e_err.execution_start_ts,
                        ROW_NUMBER() OVER (PARTITION BY e_err.listener_id ORDER BY e_err.execution_start_ts DESC) AS rn
                 FROM executions e_err
-                WHERE e_err.kind = 'handler'
-                  AND e_err.status IN ('error', 'timed_out') {since_err_clause}
+                WHERE e_err.kind = {SQL_KIND_HANDLER}
+                  AND e_err.status IN {SQL_FAILED_STATUSES} {since_err_clause}
             )
             SELECT
                 l.id AS listener_id,
@@ -90,11 +103,11 @@ class RegistrationQueriesMixin:
                 l.mode,
                 l.backpressure,
                 COUNT(e.rowid) AS total_invocations,
-                SUM(CASE WHEN e.status = 'success' THEN 1 ELSE 0 END) AS successful,
-                SUM(CASE WHEN e.status = 'error' THEN 1 ELSE 0 END) AS failed,
+                SUM(CASE WHEN e.status = {SQL_STATUS_SUCCESS} THEN 1 ELSE 0 END) AS successful,
+                SUM(CASE WHEN e.status = {SQL_STATUS_ERROR} THEN 1 ELSE 0 END) AS failed,
                 SUM(CASE WHEN e.is_di_failure = 1 THEN 1 ELSE 0 END) AS di_failures,
-                SUM(CASE WHEN e.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
-                SUM(CASE WHEN e.status = 'timed_out' THEN 1 ELSE 0 END) AS timed_out,
+                SUM(CASE WHEN e.status = {SQL_STATUS_CANCELLED} THEN 1 ELSE 0 END) AS cancelled,
+                SUM(CASE WHEN e.status = {SQL_STATUS_TIMED_OUT} THEN 1 ELSE 0 END) AS timed_out,
                 SUM(CASE WHEN e.thread_leaked = 1 THEN 1 ELSE 0 END) AS thread_leaked,
                 COALESCE(SUM(e.duration_ms), 0.0) AS total_duration_ms,
                 COALESCE(AVG(e.duration_ms), 0.0) AS avg_duration_ms,
@@ -105,7 +118,7 @@ class RegistrationQueriesMixin:
                 last_err.error_message AS last_error_message,
                 last_err.error_traceback AS last_error_traceback
             FROM listeners l
-            LEFT JOIN executions e ON {join_condition} AND e.kind = 'handler'
+            LEFT JOIN executions e ON {join_condition} AND e.kind = {SQL_KIND_HANDLER}
             LEFT JOIN ranked_errors last_err ON last_err.listener_id = l.id AND last_err.rn = 1
             WHERE {where_clause}
             AND l.removed_at IS NULL
@@ -121,7 +134,7 @@ class RegistrationQueriesMixin:
         app_key: str | None = None,
         instance_index: int | None = None,
         since: float | None = None,
-        source_tier: QuerySourceTier = "app",
+        source_tier: QuerySourceTier = APP_SOURCE_TIER,
     ) -> list[JobSummary]:
         """Return per-job summaries, optionally filtered to a specific app instance.
 
@@ -151,7 +164,7 @@ class RegistrationQueriesMixin:
                 **since_params,
             }
         else:
-            where_clause = "1=1"
+            where_clause = SQL_NO_FILTER
             params = {**tier_params, **since_params}
 
         query = f"""
@@ -160,8 +173,8 @@ class RegistrationQueriesMixin:
                        e_err.error_traceback, e_err.execution_start_ts,
                        ROW_NUMBER() OVER (PARTITION BY e_err.job_id ORDER BY e_err.execution_start_ts DESC) AS rn
                 FROM executions e_err
-                WHERE e_err.kind = 'job'
-                  AND e_err.status IN ('error', 'timed_out') {since_err_clause}
+                WHERE e_err.kind = {SQL_KIND_JOB}
+                  AND e_err.status IN {SQL_FAILED_STATUSES} {since_err_clause}
             )
             SELECT
                 sj.id AS job_id,
@@ -184,10 +197,10 @@ class RegistrationQueriesMixin:
                 sj.schedule_status,
                 sj.schedule_status_reason,
                 COUNT(e.rowid) AS total_executions,
-                SUM(CASE WHEN e.status = 'success' THEN 1 ELSE 0 END) AS successful,
-                SUM(CASE WHEN e.status = 'error' THEN 1 ELSE 0 END) AS failed,
-                SUM(CASE WHEN e.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
-                SUM(CASE WHEN e.status = 'timed_out' THEN 1 ELSE 0 END) AS timed_out,
+                SUM(CASE WHEN e.status = {SQL_STATUS_SUCCESS} THEN 1 ELSE 0 END) AS successful,
+                SUM(CASE WHEN e.status = {SQL_STATUS_ERROR} THEN 1 ELSE 0 END) AS failed,
+                SUM(CASE WHEN e.status = {SQL_STATUS_CANCELLED} THEN 1 ELSE 0 END) AS cancelled,
+                SUM(CASE WHEN e.status = {SQL_STATUS_TIMED_OUT} THEN 1 ELSE 0 END) AS timed_out,
                 SUM(CASE WHEN e.status = 'skipped' THEN 1 ELSE 0 END) AS skipped,
                 SUM(CASE WHEN e.thread_leaked = 1 THEN 1 ELSE 0 END) AS thread_leaked,
                 MAX(e.execution_start_ts) AS last_executed_at,
@@ -200,7 +213,7 @@ class RegistrationQueriesMixin:
                 last_err.execution_start_ts AS last_error_ts,
                 last_err.error_traceback AS last_error_traceback
             FROM scheduled_jobs sj
-            LEFT JOIN executions e ON {join_condition} AND e.kind = 'job'
+            LEFT JOIN executions e ON {join_condition} AND e.kind = {SQL_KIND_JOB}
             LEFT JOIN ranked_errors last_err ON last_err.job_id = sj.id AND last_err.rn = 1
             WHERE {where_clause}
             AND sj.removed_at IS NULL
@@ -216,7 +229,7 @@ class RegistrationQueriesMixin:
         self,
         threshold_ms: float,
         limit: int = DEFAULT_QUERY_LIMIT,
-        source_tier: QuerySourceTier = "app",
+        source_tier: QuerySourceTier = APP_SOURCE_TIER,
     ) -> list[SlowHandlerRecord]:
         """Return handler executions whose duration exceeds threshold_ms.
 
@@ -239,7 +252,7 @@ class RegistrationQueriesMixin:
                 e.source_tier
             FROM executions e
             LEFT JOIN listeners l ON l.id = e.listener_id
-            WHERE e.kind = 'handler'
+            WHERE e.kind = {SQL_KIND_HANDLER}
               AND e.duration_ms > :threshold_ms
               {tier_clause}
             ORDER BY e.duration_ms DESC

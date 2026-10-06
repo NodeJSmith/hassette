@@ -9,7 +9,7 @@ are imported from ``hassette_wire`` directly.
 from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from datetime import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Protocol, Required, TypeAlias, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Any, Final, Literal, Protocol, Required, TypeAlias, TypeVar, runtime_checkable
 
 from typing_extensions import TypeAliasType, TypedDict
 from whenever import Time, TimeDelta, ZonedDateTime
@@ -42,6 +42,11 @@ FRAMEWORK_APP_KEY_PREFIX = "__hassette__."
 The trailing dot distinguishes the prefix from the bare sentinel so that
 ``'__hassette__other'`` is never mistakenly treated as a framework key.
 Use ``is_framework_key()`` rather than comparing against this constant directly."""
+
+APP_SOURCE_TIER: Final = "app"
+"""The ``source_tier`` for user-app telemetry, and the default tier for telemetry queries.
+
+A ``QuerySourceTier`` value: excludes framework-internal listeners, jobs, and executions."""
 
 
 IfExistsPolicy = Literal["error", "skip", "replace"]
