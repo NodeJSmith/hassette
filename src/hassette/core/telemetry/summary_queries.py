@@ -30,6 +30,15 @@ if TYPE_CHECKING:
     from hassette import Hassette
 
 
+# Shared prefix for log-record reads: every log row plus its owning execution's kind and
+# listener/job id (NULL when the record has no execution). Callers append WHERE/ORDER/LIMIT.
+LOG_RECORD_SELECT = """
+    SELECT lr.*, e.kind AS execution_kind, e.listener_id, e.job_id
+    FROM log_records lr
+    LEFT JOIN executions e ON lr.execution_id = e.execution_id
+"""
+
+
 class SummaryQueriesMixin:
     """App-health, session, and log summary query methods, mixed into TelemetryQueryService."""
 
@@ -73,31 +82,28 @@ class SummaryQueriesMixin:
         }
 
         query = f"""
-            WITH agg AS (
-                SELECT
-                    SUM(CASE WHEN e.kind = 'handler' THEN 1 ELSE 0 END) AS total_invocations,
-                    SUM(CASE WHEN e.kind = 'handler' AND e.status = 'error' THEN 1 ELSE 0 END) AS handler_errors,
-                    SUM(CASE WHEN e.kind = 'handler' AND e.status = 'timed_out' THEN 1 ELSE 0 END) AS handler_timed_out,
-                    AVG(CASE WHEN e.kind = 'handler' THEN e.duration_ms END) AS handler_avg_duration_ms,
-                    SUM(CASE WHEN e.kind = 'job' THEN 1 ELSE 0 END) AS total_executions,
-                    SUM(CASE WHEN e.kind = 'job' AND e.status = 'error' THEN 1 ELSE 0 END) AS job_errors,
-                    SUM(CASE WHEN e.kind = 'job' AND e.status = 'timed_out' THEN 1 ELSE 0 END) AS job_timed_out,
-                    -- A skipped job run did no work, so its duration would drag the average down.
-                    AVG(CASE WHEN e.kind = 'job' AND e.status != 'skipped'
-                        THEN e.duration_ms END) AS job_avg_duration_ms,
-                    MAX(e.execution_start_ts) AS last_activity
-                FROM executions e
-                LEFT JOIN listeners l ON l.id = e.listener_id AND e.kind = 'handler'
-                LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id AND e.kind = 'job'
-                WHERE (
-                    (e.kind = 'handler' AND l.app_key = :app_key AND l.instance_index = :instance_index)
-                    OR
-                    (e.kind = 'job' AND sj.app_key = :app_key AND sj.instance_index = :instance_index)
-                )
-                {tier_e_clause}
-                {since_sql}
+            SELECT
+                SUM(CASE WHEN e.kind = 'handler' THEN 1 ELSE 0 END) AS total_invocations,
+                SUM(CASE WHEN e.kind = 'handler' AND e.status = 'error' THEN 1 ELSE 0 END) AS handler_errors,
+                SUM(CASE WHEN e.kind = 'handler' AND e.status = 'timed_out' THEN 1 ELSE 0 END) AS handler_timed_out,
+                AVG(CASE WHEN e.kind = 'handler' THEN e.duration_ms END) AS handler_avg_duration_ms,
+                SUM(CASE WHEN e.kind = 'job' THEN 1 ELSE 0 END) AS total_executions,
+                SUM(CASE WHEN e.kind = 'job' AND e.status = 'error' THEN 1 ELSE 0 END) AS job_errors,
+                SUM(CASE WHEN e.kind = 'job' AND e.status = 'timed_out' THEN 1 ELSE 0 END) AS job_timed_out,
+                -- A skipped job run did no work, so its duration would drag the average down.
+                AVG(CASE WHEN e.kind = 'job' AND e.status != 'skipped'
+                    THEN e.duration_ms END) AS job_avg_duration_ms,
+                MAX(e.execution_start_ts) AS last_activity_ts
+            FROM executions e
+            LEFT JOIN listeners l ON l.id = e.listener_id AND e.kind = 'handler'
+            LEFT JOIN scheduled_jobs sj ON sj.id = e.job_id AND e.kind = 'job'
+            WHERE (
+                (e.kind = 'handler' AND l.app_key = :app_key AND l.instance_index = :instance_index)
+                OR
+                (e.kind = 'job' AND sj.app_key = :app_key AND sj.instance_index = :instance_index)
             )
-            SELECT * FROM agg
+            {tier_e_clause}
+            {since_sql}
         """
         async with self.execute(query, params) as cursor:
             row = await cursor.fetchone()
@@ -113,7 +119,7 @@ class SummaryQueriesMixin:
             job_errors=row_dict["job_errors"] or 0,
             job_timed_out=row_dict["job_timed_out"] or 0,
             job_avg_duration_ms=row_dict["job_avg_duration_ms"],
-            last_activity_ts=row_dict["last_activity"],
+            last_activity_ts=row_dict["last_activity_ts"],
         )
 
     async def get_all_app_summaries(
@@ -147,10 +153,10 @@ class SummaryQueriesMixin:
 
         # Each call binds the same param keys (:source_tier / :since) regardless of alias,
         # so only the first params dict is kept; the rest are discarded as _.
-        tier_e_handler_clause, tier_params = source_tier_clause(source_tier, "e_h")
-        tier_e_job_clause, _ = source_tier_clause(source_tier, "e_j")
-        since_h_clause, since_params = since_clause(since, "e_h.execution_start_ts")
-        since_j_clause, _ = since_clause(since, "e_j.execution_start_ts")
+        tier_handler_clause, tier_params = source_tier_clause(source_tier, "e_h")
+        tier_job_clause, _ = source_tier_clause(source_tier, "e_j")
+        since_handler_clause, since_params = since_clause(since, "e_h.execution_start_ts")
+        since_job_clause, _ = since_clause(since, "e_j.execution_start_ts")
 
         # Count distinct handler/job identities across all instances, not listener rows.
         # Each instance of a multi-instance app registers its own rows under the same
@@ -183,8 +189,8 @@ class SummaryQueriesMixin:
                 MAX(e_h.execution_start_ts) AS last_listener_activity_ts
             FROM listeners l
             JOIN executions e_h ON e_h.listener_id = l.id AND e_h.kind = 'handler'
-                {tier_e_handler_clause}
-                {since_h_clause}
+                {tier_handler_clause}
+                {since_handler_clause}
             GROUP BY l.app_key
         """
         job_act_query = f"""
@@ -198,8 +204,8 @@ class SummaryQueriesMixin:
                 MAX(e_j.execution_start_ts) AS last_job_activity_ts
             FROM scheduled_jobs sj
             JOIN executions e_j ON e_j.job_id = sj.id AND e_j.kind = 'job'
-                {tier_e_job_clause}
-                {since_j_clause}
+                {tier_job_clause}
+                {since_job_clause}
             GROUP BY sj.app_key
         """
         act_params: dict[str, Any] = {**tier_params, **since_params}
@@ -282,15 +288,15 @@ class SummaryQueriesMixin:
             since=since, app_key=app_key, level=level, execution_id=execution_id, source_tier=source_tier
         )
 
-        where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         params["limit"] = limit
 
-        query = (
-            "SELECT lr.*, e.kind AS execution_kind, e.listener_id, e.job_id"
-            " FROM log_records lr"
-            " LEFT JOIN executions e ON lr.execution_id = e.execution_id"
-            f"{where} ORDER BY lr.timestamp DESC, lr.seq DESC LIMIT :limit"
-        )
+        query = f"""
+            {LOG_RECORD_SELECT}
+            {where}
+            ORDER BY lr.timestamp DESC, lr.seq DESC
+            LIMIT :limit
+        """
         return await fetch_all_as_dicts(self.execute(query, params))
 
     async def get_log_records_by_execution(
@@ -300,12 +306,12 @@ class SummaryQueriesMixin:
         limit: int = DEFAULT_EXECUTION_LOG_LIMIT,
     ) -> tuple[list[dict[str, Any]], bool]:
         """Fetch all log records for a single execution, ordered by seq ASC."""
-        query = (
-            "SELECT lr.*, e.kind AS execution_kind, e.listener_id, e.job_id"
-            " FROM log_records lr"
-            " LEFT JOIN executions e ON lr.execution_id = e.execution_id"
-            " WHERE lr.execution_id = :execution_id ORDER BY lr.seq ASC LIMIT :limit"
-        )
+        query = f"""
+            {LOG_RECORD_SELECT}
+            WHERE lr.execution_id = :execution_id
+            ORDER BY lr.seq ASC
+            LIMIT :limit
+        """
         async with self.execute(query, {"execution_id": execution_id, "limit": limit + 1}) as cursor:
             rows = list(await cursor.fetchall())
         truncated = len(rows) > limit

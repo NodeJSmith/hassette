@@ -218,17 +218,17 @@ def handler_job_union_arms(
         deduplicated ``since``/``source_tier`` bind values with the ``instance_index`` value
         when applicable.
     """
-    tier_hi_clause, tier_params = source_tier_clause(source_tier, "e_h")
-    tier_je_clause, _ = source_tier_clause(source_tier, "e_j")
-    since_hi_clause, since_params = since_clause(since, "e_h.execution_start_ts")
-    since_je_clause, _ = since_clause(since, "e_j.execution_start_ts")
+    tier_handler_clause, tier_params = source_tier_clause(source_tier, "e_h")
+    tier_job_clause, _ = source_tier_clause(source_tier, "e_j")
+    since_handler_clause, since_params = since_clause(since, "e_h.execution_start_ts")
+    since_job_clause, _ = since_clause(since, "e_j.execution_start_ts")
 
-    instance_hi_clause = ""
-    instance_je_clause = ""
+    instance_handler_clause = ""
+    instance_job_clause = ""
     instance_params: dict[str, int] = {}
     if instance_index is not None:
-        instance_hi_clause = "AND l.instance_index = :instance_index"
-        instance_je_clause = "AND sj.instance_index = :instance_index"
+        instance_handler_clause = "AND l.instance_index = :instance_index"
+        instance_job_clause = "AND sj.instance_index = :instance_index"
         instance_params = {"instance_index": instance_index}
 
     fragment = f"""
@@ -237,9 +237,9 @@ def handler_job_union_arms(
         JOIN listeners l ON l.id = e_h.listener_id
         WHERE e_h.kind = {SQL_KIND_HANDLER}
           {extra_handler_where}
-          {instance_hi_clause}
-          {since_hi_clause}
-          {tier_hi_clause}
+          {instance_handler_clause}
+          {since_handler_clause}
+          {tier_handler_clause}
 
         UNION ALL
 
@@ -248,9 +248,9 @@ def handler_job_union_arms(
         JOIN scheduled_jobs sj ON sj.id = e_j.job_id
         WHERE e_j.kind = {SQL_KIND_JOB}
           {extra_job_where}
-          {instance_je_clause}
-          {since_je_clause}
-          {tier_je_clause}
+          {instance_job_clause}
+          {since_job_clause}
+          {tier_job_clause}
     """
 
     params: dict[str, Any] = {**since_params, **tier_params, **instance_params}
@@ -270,19 +270,19 @@ def build_app_summaries(
     ``source_tier`` controls whether framework app keys are filtered from the result.
     """
 
-    def _index(rows: Iterable[aiosqlite.Row]) -> dict[str, dict[str, Any]]:
-        dicts = [row_to_dict(r) for r in rows]
-        return {d["app_key"]: d for d in dicts}
+    def index_by_app_key(rows: Iterable[aiosqlite.Row]) -> dict[str, dict[str, Any]]:
+        row_dicts = [row_to_dict(row) for row in rows]
+        return {row_dict["app_key"]: row_dict for row_dict in row_dicts}
 
-    listener_reg = _index(listener_reg_rows)
-    listener_act = _index(listener_act_rows)
-    job_reg = _index(job_reg_rows)
-    job_act = _index(job_act_rows)
+    listener_reg = index_by_app_key(listener_reg_rows)
+    listener_act = index_by_app_key(listener_act_rows)
+    job_reg = index_by_app_key(job_reg_rows)
+    job_act = index_by_app_key(job_act_rows)
 
     all_keys = {
-        k
-        for k in set(listener_reg.keys()) | set(listener_act.keys()) | set(job_reg.keys()) | set(job_act.keys())
-        if source_tier in ("framework", "all") or not is_framework_key(k)
+        key
+        for key in set(listener_reg.keys()) | set(listener_act.keys()) | set(job_reg.keys()) | set(job_act.keys())
+        if source_tier in ("framework", "all") or not is_framework_key(key)
     }
     result: dict[str, AppHealthSummary] = {}
     for app_key in all_keys:
