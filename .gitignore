@@ -263,4 +263,4 @@ coverage.system.xml
 .resource-tracker/
 
 # per-machine hassette config overlay
-hassette.local.toml
+*.local.toml

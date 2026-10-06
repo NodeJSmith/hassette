@@ -1,0 +1,6 @@
+# hassette.local.toml — gitignored
+[hassette]
+base_url = "http://localhost:8123"
+
+[hassette.apps.presence.config]
+timeout = 30

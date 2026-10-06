@@ -36,9 +36,16 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
 
     def __init__(self, settings_cls: type[BaseSettings], toml_file: PathType | None = DEFAULT_PATH):
         self.toml_file_path = toml_file if toml_file != DEFAULT_PATH else settings_cls.model_config.get("toml_file")
-        self.toml_data = hoist_hassette_section(self._read_files(self.toml_file_path))
+        base_files = toml_paths(self.toml_file_path)
 
-        for overlay in local_overlay_paths(self.toml_file_path):
+        # Hoist each file before combining, so a later file replaces an earlier one's logical
+        # top-level table whether either file spells it `[apps]` or `[hassette.apps]`.
+        self.toml_data: dict[str, Any] = {}
+        for path in base_files:
+            if path.is_file():
+                self.toml_data.update(hoist_hassette_section(self._read_file(path)))
+
+        for overlay in local_overlay_paths(base_files):
             if overlay.is_file():
                 LOGGER.debug("Applying local TOML overlay %s", overlay)
                 self.toml_data = dict(merge({}, self.toml_data, hoist_hassette_section(self._read_file(overlay))))
@@ -48,14 +55,18 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
         InitSettingsSource.__init__(self, settings_cls, self.toml_data)
 
 
-def local_overlay_paths(files: PathType | None) -> list[Path]:
-    """Return the local overlay sibling of each TOML file (``hassette.toml`` -> ``hassette.local.toml``)."""
+def toml_paths(files: PathType | None) -> list[Path]:
+    """Normalize a ``toml_file`` setting (one path, a list, or ``None``) to a list of expanded paths."""
     if files is None:
         return []
     if isinstance(files, str | PurePath):
         files = [files]
-    paths = [Path(f).expanduser() for f in files]
-    return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in paths]
+    return [Path(f).expanduser() for f in files]
+
+
+def local_overlay_paths(files: PathType | None) -> list[Path]:
+    """Return the local overlay sibling of each TOML file (``hassette.toml`` -> ``hassette.local.toml``)."""
+    return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in toml_paths(files)]
 
 
 def hoist_hassette_section(data: dict[str, Any]) -> dict[str, Any]:

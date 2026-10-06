@@ -1,0 +1,11 @@
+# hassette.toml — committed
+[hassette]
+base_url = "http://homeassistant.local:8123"
+
+[hassette.logging]
+log_level = "INFO"
+
+[hassette.apps.presence]
+filename = "presence.py"
+class_name = "Presence"
+config = {motion_sensor = "binary_sensor.hall", timeout = 300}
