@@ -265,8 +265,8 @@ class AppRegistry:
                 instances.append(self._info_from_entry(app_key, index, entry, manifest))
 
         return AppStatusSnapshot(
-            instances=instances,
-            only_apps=sorted(self._only_apps),
+            instances=tuple(instances),
+            only_apps=tuple(sorted(self._only_apps)),
         )
 
     def get_full_snapshot(self) -> AppFullSnapshot:
@@ -274,8 +274,8 @@ class AppRegistry:
         manifests = [self.build_manifest_info(app_key, manifest) for app_key, manifest in self._manifests.items()]
 
         return AppFullSnapshot(
-            manifests=manifests,
-            only_apps=sorted(self._only_apps),
+            manifests=tuple(manifests),
+            only_apps=tuple(sorted(self._only_apps)),
             total=len(manifests),
             status_counts=tally_app_statuses(manifests),
         )
@@ -351,7 +351,7 @@ class AppRegistry:
             autostart=manifest.autostart,
             block_reason=block_reason.value if block_reason else None,
             instance_count=len(instances),
-            instances=instances,
+            instances=tuple(instances),
             error_message=error_message,
             error_traceback=error_traceback,
         )

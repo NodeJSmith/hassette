@@ -174,4 +174,4 @@ class TestOnlyAppsConfigFilter(HotReloadTestBase):
         snapshot = self.app_handler.registry.get_full_snapshot()
         statuses = {m.app_key: m.status for m in snapshot.manifests}
         assert statuses[excluded.app_key] == "blocked"
-        assert snapshot.only_apps == sorted([kept_a.app_key, kept_b.app_key])
+        assert snapshot.only_apps == tuple(sorted([kept_a.app_key, kept_b.app_key]))

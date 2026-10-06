@@ -13,7 +13,7 @@ from hassette_wire import AppStatus, ResourceStatus
 APP_STATUS_KEYS = tuple(AppStatus)
 
 
-@dataclass
+@dataclass(frozen=True)
 class AppInstanceInfo:
     """Snapshot of a single app instance for status queries."""
 
@@ -28,15 +28,15 @@ class AppInstanceInfo:
     owner_id: str | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class AppStatusSnapshot:
     """Immutable snapshot of every tracked app instance and its per-instance ``ResourceStatus``.
 
     Instance-level, unlike the app-level ``AppStatus`` on ``AppManifestInfo``.
     """
 
-    instances: list[AppInstanceInfo] = field(default_factory=list)
-    only_apps: list[str] = field(default_factory=list)
+    instances: tuple[AppInstanceInfo, ...] = ()
+    only_apps: tuple[str, ...] = ()
 
     @property
     def total_count(self) -> int:
@@ -67,7 +67,7 @@ class AppStatusSnapshot:
         return {i.app_key for i in self.instances if i.error is None}
 
 
-@dataclass
+@dataclass(frozen=True)
 class AppManifestInfo:
     """Snapshot of a single app manifest with derived runtime status."""
 
@@ -85,7 +85,7 @@ class AppManifestInfo:
     instance_count: int = 0
     """Number of configured instances, including ones not currently tracked (never started, or
     independently stopped) — always ``len(instances)``."""
-    instances: list[AppInstanceInfo] = field(default_factory=list)
+    instances: tuple[AppInstanceInfo, ...] = ()
     """One entry per configured instance. An untracked instance (never started, or independently
     stopped) is a synthetic ``ResourceStatus.STOPPED`` placeholder, not omitted."""
     error_message: str | None = None
@@ -94,12 +94,12 @@ class AppManifestInfo:
     """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class AppFullSnapshot:
     """Full manifest-based snapshot including all configured apps."""
 
-    manifests: list[AppManifestInfo] = field(default_factory=list)
-    only_apps: list[str] = field(default_factory=list)
+    manifests: tuple[AppManifestInfo, ...] = ()
+    only_apps: tuple[str, ...] = ()
     total: int = 0
     status_counts: dict[AppStatus, int] = field(default_factory=lambda: dict.fromkeys(APP_STATUS_KEYS, 0))
     """Manifest counts keyed by ``AppStatus``, with every member present."""

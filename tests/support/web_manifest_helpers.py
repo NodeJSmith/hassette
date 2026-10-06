@@ -65,8 +65,8 @@ def make_full_snapshot(
     manifests = manifests or []
     counts = _tally_statuses(manifests)
     return AppFullSnapshot(
-        manifests=manifests,
-        only_apps=only_apps or [],
+        manifests=tuple(manifests),
+        only_apps=tuple(only_apps or ()),
         total=len(manifests),
         status_counts=counts,
     )
@@ -99,7 +99,7 @@ def make_manifest(
         status=status,
         block_reason=block_reason,
         instance_count=instance_count,
-        instances=instances or [],
+        instances=tuple(instances or ()),
         error_message=error_message,
         error_traceback=error_traceback,
         autostart=autostart,
@@ -129,7 +129,7 @@ def make_app_summary(
         auto_loaded=auto_loaded,
         status=status,
         instance_count=instance_count,
-        instances=instances or [],
+        instances=tuple(instances or ()),
         in_current_config=in_current_config,
     )
 

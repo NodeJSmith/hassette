@@ -253,7 +253,7 @@ def create_hassette_stub(
 
     # App status snapshot (AppStatusSnapshot domain object)
     if old_snapshot is None:
-        old_snapshot = AppStatusSnapshot(instances=[])
+        old_snapshot = AppStatusSnapshot()
     hassette._app_handler.get_status_snapshot.return_value = old_snapshot
 
     if app_action_mocks:

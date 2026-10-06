@@ -37,7 +37,7 @@ class TestOverlayRuntimeState:
         info = results[0]
         assert info.status == "stopped"
         assert info.instance_count == 0
-        assert info.instances == []
+        assert info.instances == ()
         assert info.in_current_config is False
         # Static metadata always comes from the DB row.
         assert info.class_name == "MyApp"

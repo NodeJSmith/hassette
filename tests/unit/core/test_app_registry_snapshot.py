@@ -91,7 +91,7 @@ class TestAppRegistryGetFullSnapshot:
         reg = self.make_registry()
         snap = reg.get_full_snapshot()
         assert snap.total == 0
-        assert snap.manifests == []
+        assert snap.manifests == ()
 
     def test_running_app(self) -> None:
         reg = self.make_registry()

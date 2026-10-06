@@ -110,7 +110,7 @@ def build_manifests() -> list[AppManifestInfo]:
 def build_old_snapshot() -> AppStatusSnapshot:
     """Build the legacy AppStatusSnapshot used to seed mock_hassette."""
     return AppStatusSnapshot(
-        instances=[
+        instances=(
             make_app_instance_info(app_key=APP_KEY_MY_APP, owner_id="MyApp.MyApp[0]"),
             make_app_instance_info(
                 app_key=APP_KEY_NOSOURCE_APP,
@@ -124,7 +124,7 @@ def build_old_snapshot() -> AppStatusSnapshot:
                 error_message=BROKEN_APP_ERROR,
                 error=Exception(BROKEN_APP_ERROR),
             ),
-        ],
+        ),
     )
 
 
