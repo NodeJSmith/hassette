@@ -868,7 +868,8 @@ class WebsocketService(Service):
                 case other:
                     self.logger.debug("Ignoring unknown message type: %s", other)
         except Exception:
-            self.logger.exception("Failed to dispatch message: %s", data)
+            # Only type and id: payloads can echo sensitive values (helper `initial`, entity attributes).
+            self.logger.exception("Failed to dispatch message (type=%s, id=%s)", data.get("type"), data.get("id"))
 
     async def dispatch_hass_event(self, data: "HassEventEnvelopeDict") -> None:
         """Dispatch a Home Assistant event to the event bus."""
