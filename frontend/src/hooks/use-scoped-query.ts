@@ -21,9 +21,9 @@ export interface UseScopedQueryOptions<T = unknown> {
   /**
    * Forwarded to `useQuery`'s own `refetchInterval` — a fixed cadence, or a function of the query
    * that returns a cadence or `false`, so a caller can poll only while its data calls for it (the
-   * Apps grid polls while an enrichment failure is on screen). TanStack stops interval refetches automatically once the
-   * query is disabled (e.g. by `waitForUptime`'s gate), so callers don't need to guard this
-   * themselves.
+   * Apps grid polls while an enrichment failure is on screen). TanStack stops interval refetches
+   * automatically once the query is disabled (e.g. by `waitForUptime`'s gate), so callers don't
+   * need to guard this themselves.
    */
   refetchInterval?: UseQueryOptions<T>["refetchInterval"];
   /**

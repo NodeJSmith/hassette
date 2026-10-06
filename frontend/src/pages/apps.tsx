@@ -32,7 +32,7 @@ import {
   toAppRow,
   totalRuns,
 } from "../utils/app-data";
-import { pluralize } from "../utils/format";
+import { EMPTY_PLACEHOLDER, pluralize } from "../utils/format";
 import { type StatusKind } from "../utils/status";
 import { PRESET_WINDOW_SECONDS } from "../utils/time-window";
 import { AppTableRow } from "./apps-table-row";
@@ -52,7 +52,7 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
 
 const MIN_WINDOW_FOR_RATE_CALC = 60;
 /** How often the grid re-asks while an enrichment failure is on screen; a healthy grid doesn't poll. */
-const FAILED_PART_RETRY_MS = 30_000;
+export const FAILED_PART_RETRY_MS = 30_000;
 const SECONDS_PER_HOUR = 3600;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
@@ -127,10 +127,8 @@ function buildAppsCells(
   }
   const totalHandlers = sumOrNull(apps, (a) => (a.stats ? a.stats.handler_count + a.stats.job_count : null));
   const runsInWindow = sumOrNull(apps, totalRuns);
-  const runsPerHour =
-    runsInWindow !== null && windowSeconds && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC
-      ? runsInWindow / (windowSeconds / SECONDS_PER_HOUR)
-      : null;
+  const hasRateWindow = windowSeconds !== null && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC;
+  const runsPerHour = runsInWindow !== null && hasRateWindow ? runsInWindow / (windowSeconds / SECONDS_PER_HOUR) : null;
 
   const cells: StatsStripCell[] = [
     { label: "total", value: apps.length },
@@ -146,8 +144,8 @@ function buildAppsCells(
     cells.push({ label: "disabled", value: statusCounts.disabled });
   }
 
-  cells.push({ label: "handlers", value: totalHandlers ?? "—" });
-  cells.push({ label: "runs / hr", value: runsPerHour !== null ? runsPerHour.toFixed(1) : "—" });
+  cells.push({ label: "handlers", value: totalHandlers ?? EMPTY_PLACEHOLDER });
+  cells.push({ label: "runs / hr", value: runsPerHour !== null ? runsPerHour.toFixed(1) : EMPTY_PLACEHOLDER });
   return cells;
 }
 

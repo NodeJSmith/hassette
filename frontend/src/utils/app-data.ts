@@ -1,4 +1,4 @@
-import type { AppActivity, AppGridEntry, AppGridResponse } from "../api/endpoints";
+import type { AppActivity, AppGridEntry, AppGridResponse, AppManifest as AppSummary } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 import type { SortState } from "../components/shared/sort-header";
 import { type AppStatusEntry, appStatusKey } from "../state/store";
@@ -22,29 +22,21 @@ const isActivityPart = (key: string): key is keyof AppActivity =>
   Object.prototype.hasOwnProperty.call(ACTIVITY_PART_KEYS, key);
 const ACTIVITY_PARTS = Object.keys(ACTIVITY_PART_KEYS).filter(isActivityPart);
 
-export interface AppRow {
-  app_key: string;
-  class_name: string;
-  display_name: string;
-  filename: string;
-  status: AppStatus;
-  block_reason: string | null;
-  enabled: boolean;
-  auto_loaded: boolean;
-  autostart: boolean;
-  instance_count: number;
-  instances: NonNullable<AppGridEntry["app"]["instances"]>;
-  error_message: string | null;
-  in_current_config: boolean;
-  /** The activity parts are `null` when the server couldn't compute them: the part's query failed,
-   *  or (`activity_buckets`, `last_error`) it only runs for a window and this was an all-time
-   *  request. Render a null part as "—", never as a zero or a healthy value. */
-  stats: AppActivity["stats"];
-  activity_buckets: AppActivity["activity_buckets"];
-  /** `null`: the lookup didn't run or failed. `{ error: null }`: it ran and found no error. */
-  last_error: AppActivity["last_error"];
-  blocking_event_count: AppActivity["blocking_event_count"];
-}
+/** `AppSummary` fields `toAppRow` normalizes (optional on the wire, always present on a row) or drops. */
+type NormalizedAppFields = "block_reason" | "instances" | "error_message" | "error_traceback";
+
+/** An app's summary fields side by side with its activity parts. Plain-copied fields track the
+ *  generated types; only the normalized ones are spelled out. The activity parts are `null` when
+ *  the server couldn't compute them: the part's query failed, or (`activity_buckets`,
+ *  `last_error`) it only runs for a window and this was an all-time request. Render a null part
+ *  as "—", never as a zero or a healthy value. `last_error` `null`: the lookup didn't run or
+ *  failed. `{ error: null }`: it ran and found no error. */
+export type AppRow = Omit<AppSummary, NormalizedAppFields> &
+  AppActivity & {
+    block_reason: string | null;
+    instances: NonNullable<AppSummary["instances"]>;
+    error_message: string | null;
+  };
 
 /**
  * Flatten an app grid entry (`{app, activity}`) into an `AppRow`: the app's fields side by side
@@ -53,24 +45,13 @@ export interface AppRow {
  * not a merge of two sources.
  */
 export function toAppRow({ app, activity }: AppGridEntry): AppRow {
+  const { error_traceback: _traceback, ...fields } = app;
   return {
-    app_key: app.app_key,
-    class_name: app.class_name,
-    display_name: app.display_name,
-    filename: app.filename,
-    status: app.status,
+    ...fields,
     block_reason: app.block_reason ?? null,
-    enabled: app.enabled,
-    auto_loaded: app.auto_loaded,
-    autostart: app.autostart,
-    instance_count: app.instance_count,
     instances: app.instances ?? [],
     error_message: app.error_message ?? null,
-    in_current_config: app.in_current_config,
-    stats: activity.stats,
-    activity_buckets: activity.activity_buckets,
-    last_error: activity.last_error,
-    blocking_event_count: activity.blocking_event_count,
+    ...activity,
   };
 }
 
@@ -125,7 +106,7 @@ export function configStatusOverride(status: AppStatus | ResourceStatus): "disab
  *  own binary model server-side (an instance entry is either running or failed, nothing else),
  *  though the live WS status of an individual instance can transiently be a finer-grained
  *  value (e.g. "starting") that this check doesn't treat as "running". This must be computed
- *  from live data, not read off the cached `row.status`: the dashboard grid query is
+ *  from live data, not read off the cached `row.status`: the app-grid query is
  *  invalidated on execution events, not `app_status_changed`, so a cached `row.status` can be
  *  stale in either direction (still "running" after an instance fails, or still "degraded"
  *  after all instances recover) for as long as no execution event happens to refetch it.

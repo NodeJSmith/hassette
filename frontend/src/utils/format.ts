@@ -19,6 +19,9 @@ export function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+/** Shown in place of a value that is absent or wasn't computed. */
+export const EMPTY_PLACEHOLDER = "—";
+
 /** Format a duration or "—" if null/undefined/zero. Use for averages where 0 means "no data". */
 export function formatDurationOrDash(ms: number | null | undefined): string {
   return ms !== null && ms !== undefined && ms > 0 ? formatDuration(ms) : "—";

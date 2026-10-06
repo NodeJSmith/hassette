@@ -15,7 +15,7 @@ import type { AppStatusEntry } from "../state/store";
 import { appLiveStatus, type AppRow, instanceLiveError, instanceLiveStatus, totalRuns } from "../utils/app-data";
 import { appDetailPath } from "../utils/app-routes";
 import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "../utils/constants";
-import { formatTimestamp, pluralize } from "../utils/format";
+import { EMPTY_PLACEHOLDER, formatTimestamp, pluralize } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";
 import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "../utils/status";
 
@@ -158,7 +158,7 @@ export function AppTableRow({
               {lastErrorTs && <span className="text-muted-foreground"> · {lastErrorLabel}</span>}
             </span>
           ) : (
-            "—"
+            EMPTY_PLACEHOLDER
           )}
         </td>
         {/* Runs + sparkline */}
@@ -166,19 +166,23 @@ export function AppTableRow({
           <div className="inline-flex items-center gap-2">
             {app.activity_buckets === null ? (
               <span className="text-muted-foreground" data-testid="sparkline-unavailable">
-                —
+                {EMPTY_PLACEHOLDER}
               </span>
             ) : (
               <MiniSparkline buckets={app.activity_buckets} height={16} />
             )}
             <span className="font-mono" data-testid="app-runs">
-              {runs ?? "—"}
+              {runs ?? EMPTY_PLACEHOLDER}
             </span>
           </div>
         </td>
         {/* Last fired */}
         <td className={cn("font-mono text-sm text-muted-foreground max-sidebar:hidden", compact && "hidden")}>
-          {lastActivityTs ? <span title={formatTimestamp(lastActivityTs)}>{lastActivityLabel}</span> : "—"}
+          {lastActivityTs ? (
+            <span title={formatTimestamp(lastActivityTs)}>{lastActivityLabel}</span>
+          ) : (
+            EMPTY_PLACEHOLDER
+          )}
         </td>
         {/* Actions */}
         <td
@@ -239,7 +243,7 @@ export function AppTableRow({
                     {instErrorMessage}
                   </span>
                 ) : (
-                  "—"
+                  EMPTY_PLACEHOLDER
                 )}
               </td>
               <td className={cn("max-sidebar:hidden", compact && "hidden")} />
