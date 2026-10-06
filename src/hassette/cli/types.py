@@ -119,3 +119,5 @@ InstanceActionArg = Annotated[
         help="Targets a specific app instance (index or name).",
     ),
 ]
+
+YesArg = Annotated[bool, Parameter(name=["--yes"], help="Skip the confirmation prompt.", negative=[])]

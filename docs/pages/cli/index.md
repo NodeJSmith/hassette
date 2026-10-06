@@ -25,17 +25,17 @@ $ hassette status
 
 ```console
 $ hassette app
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
-┃ App Key         ┃ Status  ┃ Display     ┃ Instances ┃ Invoc/1h ┃ Enabled ┃ File              ┃
-┃                 ┃         ┃ Name        ┃           ┃          ┃         ┃                   ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
-│ config_app      │ running │ ConfigApp   │ 1         │ 0        │ True    │ config_app.py     │
-│ trivial_app     │ running │ TrivialApp  │ 1         │ 0        │ True    │ trivial_app.py    │
-│ bus_handler_app │ running │ BusHandler… │ 1         │ 0        │ True    │ bus_handler_app.py│
-└─────────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴───────────────────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃ App             ┃ Status  ┃ Display     ┃ Instances ┃ Invocations/1h ┃ Enabled ┃ File              ┃
+┃                 ┃         ┃ Name        ┃           ┃                ┃         ┃                   ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ config_app      │ running │ ConfigApp   │ 1         │ 0              │ True    │ config_app.py     │
+│ trivial_app     │ running │ TrivialApp  │ 1         │ 0              │ True    │ trivial_app.py    │
+│ bus_handler_app │ running │ BusHandler… │ 1         │ 0              │ True    │ bus_handler_app.py│
+└─────────────────┴─────────┴─────────────┴───────────┴────────────────┴─────────┴───────────────────┘
 ```
 
-`hassette app` lists every loaded app. The `App Key` column is the identifier other commands take via `--app` — it comes from the `[hassette.apps.<key>]` section name in `hassette.toml`. `Instances` counts running copies of the app; most apps run one. `Invoc/1h` counts how many times the app's handlers ran in the last hour — 0 is normal for apps that react to infrequent events.
+`hassette app` lists every loaded app. The `App` column is the identifier other commands take via `--app` — it comes from the `[hassette.apps.<key>]` section name in `hassette.toml`. `Instances` counts running copies of the app; most apps run one. `Invocations/1h` counts how many times the app's handlers ran in the last hour — 0 is normal for apps that react to infrequent events.
 
 ```console
 $ hassette log --limit 5
@@ -54,7 +54,7 @@ $ hassette log --limit 5
 └─────────┴───────┴─────┴──────────┴─────────────────────┴────────────────────────────┘
 ```
 
-`hassette log` shows the most recent log entries. Rows with blank `App` and `Instance` columns are framework-level logs; app entries fill both. Narrow to a specific app with `--app <key>` (the App Key from the table above), or go back further with `--since 1h`.
+`hassette log` shows the most recent log entries. Rows with blank `App` and `Instance` columns are framework-level logs; app entries fill both. Narrow to a specific app with `--app <key>` (the `App` column from the table above), or go back further with `--since 1h`.
 
 If Hassette isn't running, every command gives the same error:
 

@@ -8,13 +8,13 @@ from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, rend
 
 DASHBOARD_COLUMNS: list[Column] = [
     Column("app_key", "App", max_width=20),
-    Column("status", "Status", max_width=8),
-    Column("total_invocations", "Invoc", max_width=6),
-    Column("total_errors", "Errs", max_width=5),
+    Column("status", "Status", max_width=10),
+    Column("total_invocations", "Invocations", max_width=11),
+    Column("total_errors", "Errors", max_width=6),
     Column("health.handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
     Column("health.job_avg_duration_ms", "Job Avg", max_width=9, formatter=fmt_duration_ms),
     Column("health.last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
-    Column("health.health_status", "Health", max_width=9),
+    Column("health.health_status", "Health", max_width=10),
 ]
 
 
