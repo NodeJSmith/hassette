@@ -145,3 +145,11 @@ class PendingResponses:
                         RetryableConnectionClosedError("WebSocket disconnected", close_code=close_code)
                     )
         self.entries.clear()
+
+
+def command_label(data: dict[str, Any]) -> str:
+    """Name a command by type and id only, for logs and error messages: payload values may be sensitive.
+
+    Exceptions still carry the full payload on ``original_data`` for programmatic inspection.
+    """
+    return f"{data.get('type')!r} (id {data.get('id')})"
