@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { createJob, createListener, createUnifiedRow } from "../test/factories";
+import { createJob, createListener, createUnifiedRow } from "@/test/factories";
+
 import type { HandlerSortKey } from "./handler-rows";
 import { compareHandlerRows, jobToRow, listenerToRow, scheduleStatusLabel } from "./handler-rows";
 import type { SortState } from "./sort";

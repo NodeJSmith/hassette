@@ -1,5 +1,6 @@
-import type { JobData, ListenerData } from "../api/endpoints";
-import type { components } from "../api/generated-types";
+import type { JobData, ListenerData } from "@/api/endpoints";
+import type { components } from "@/api/generated-types";
+
 import { lastDotSegment } from "./format";
 import { scheduleStatusDisplay } from "./schedule-status";
 import type { SortState } from "./sort";

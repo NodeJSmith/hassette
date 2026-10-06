@@ -20,7 +20,7 @@ export function AppLogsPanel({ appKey }: { appKey: string }) {
       aria-label="Search app logs"
       value={search}
       onInput={(e) => {
-        setSearch((e.target as HTMLInputElement).value);
+        setSearch(e.currentTarget.value);
       }}
       data-testid="app-logs-search"
     />

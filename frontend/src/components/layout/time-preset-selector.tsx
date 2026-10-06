@@ -52,7 +52,7 @@ export function TimePresetSelector() {
         <select
           className="min-h-9 cursor-pointer appearance-auto border-none bg-popover px-2 py-1 text-xs font-medium text-foreground/90"
           value={current}
-          onChange={(e) => handlePreset((e.target as HTMLSelectElement).value as TimePreset)}
+          onChange={(e) => handlePreset(e.currentTarget.value as TimePreset)}
           aria-label="Time window"
         >
           {PRESETS.map(({ value, label }) => (

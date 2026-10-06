@@ -1,23 +1,23 @@
+import { getAllJobs, getAllListeners } from "@/api/endpoints";
+import { EmptyState } from "@/components/shared/empty-state";
+import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "@/components/shared/sort-header";
+import { Spinner } from "@/components/shared/spinner";
+import { TableCard } from "@/components/shared/table-card";
+import { TableFooter } from "@/components/shared/table-footer";
+import type { ColumnFilters } from "@/components/shared/table-types";
 import { Button } from "@/components/ui/button";
+import { useDocumentTitle } from "@/hooks/use-document-title";
+import { BREAKPOINT_SIDEBAR, useMediaQuery } from "@/hooks/use-media-query";
+import { useQueryInvalidator } from "@/hooks/use-query-invalidator";
+import { useQueryParams } from "@/hooks/use-query-params";
+import { useScopedQuery } from "@/hooks/use-scoped-query";
+import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/state/store";
+import { pluralize } from "@/utils/format";
+import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from "@/utils/handler-rows";
+import type { SortState } from "@/utils/sort";
 
-import { getAllJobs, getAllListeners } from "../api/endpoints";
-import { EmptyState } from "../components/shared/empty-state";
-import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "../components/shared/sort-header";
-import { Spinner } from "../components/shared/spinner";
-import { TableCard } from "../components/shared/table-card";
-import { TableFooter } from "../components/shared/table-footer";
-import { type ColumnFilters } from "../components/shared/table-types";
-import { useDocumentTitle } from "../hooks/use-document-title";
-import { BREAKPOINT_SIDEBAR, useMediaQuery } from "../hooks/use-media-query";
-import { useQueryInvalidator } from "../hooks/use-query-invalidator";
-import { useQueryParams } from "../hooks/use-query-params";
-import { useScopedQuery } from "../hooks/use-scoped-query";
-import { queryKeys } from "../lib/query-keys";
-import { useAppStore } from "../state/store";
-import { pluralize } from "../utils/format";
-import { compareHandlerRows, type HandlerSortKey, jobToRow, listenerToRow } from "../utils/handler-rows";
-import type { SortState } from "../utils/sort";
 import { HandlerMobileRow, HandlerTableRow } from "./handlers-rows";
 
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<HandlerSortKey>([
@@ -135,7 +135,7 @@ export function HandlersPage() {
       aria-label="Filter by app"
       value={selectedApp}
       onChange={(e) => {
-        qp.set({ app: (e.target as HTMLSelectElement).value || null });
+        qp.set({ app: e.currentTarget.value || null });
       }}
       data-testid="handlers-app-filter"
     >
@@ -167,7 +167,7 @@ export function HandlersPage() {
       placeholder="search handlers…"
       value={search}
       onInput={(e) => {
-        qp.set({ search: (e.target as HTMLInputElement).value || null });
+        qp.set({ search: e.currentTarget.value || null });
       }}
       data-testid="handlers-search"
     />

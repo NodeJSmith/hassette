@@ -146,7 +146,7 @@ export function useLogTable({
         content: (
           <select
             value={filterState.level}
-            onChange={(e) => setLevel((e.target as HTMLSelectElement).value as LevelFilter)}
+            onChange={(e) => setLevel(e.currentTarget.value as LevelFilter)}
             data-testid="filter-level"
           >
             {LEVEL_OPTIONS.map((opt) => (
@@ -165,7 +165,7 @@ export function useLogTable({
             type="text"
             value={filterState.func}
             placeholder="Filter..."
-            onInput={(e) => setFunc((e.target as HTMLInputElement).value)}
+            onInput={(e) => setFunc(e.currentTarget.value)}
             data-testid="filter-fn"
           />
         ),
@@ -199,11 +199,7 @@ export function useLogTable({
               ))}
             </div>
             {filterState.tier !== "framework" && appKeys && appKeys.length > 0 && (
-              <select
-                value={filterState.app}
-                onChange={(e) => setApp((e.target as HTMLSelectElement).value)}
-                data-testid="filter-app"
-              >
+              <select value={filterState.app} onChange={(e) => setApp(e.currentTarget.value)} data-testid="filter-app">
                 <option value="">All apps</option>
                 {appKeys.map((key) => (
                   <option key={key} value={key}>
