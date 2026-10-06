@@ -829,7 +829,9 @@ class WebsocketService(Service):
             try:
                 data = json.loads(raw) if raw else {}
             except json.JSONDecodeError:
-                self.logger.exception("Invalid JSON received: %s", raw)
+                # Length only: the frame is inbound HA data and can carry sensitive values. The
+                # JSONDecodeError message itself names only a position, so the traceback is safe.
+                self.logger.exception("Invalid JSON received (%d chars)", len(raw))
                 return
 
             await self.dispatch(data)
@@ -871,6 +873,7 @@ class WebsocketService(Service):
             # Payloads can echo sensitive values (helper `initial`, entity attributes), and exception
             # messages can quote them (e.g. a pydantic `input_value`), so log the message type and id,
             # the exception type, and the traceback frames -- never the payload or str(exc).
+            # `logger.exception`/`exc_info` would render str(exc), hence the hand-built traceback.
             self.logger.error(
                 "Failed to dispatch message (type=%s, id=%s): %s\nTraceback (most recent call last):\n%s",
                 data.get("type"),

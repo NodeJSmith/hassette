@@ -429,6 +429,24 @@ class TestRawRecvEdgeCases:
 
         dispatch_mock.assert_not_awaited()
 
+    async def test_raw_recv_invalid_json_log_omits_frame_contents(self, websocket_service: WebsocketService) -> None:
+        """raw_recv's invalid-JSON log names the frame length, never the frame contents."""
+        sentinel = "s3cret-sentinel-value"
+        frame = '{"type": "result", "result": {"initial": "' + sentinel + '"'  # truncated frame
+        fake_ws = build_fake_ws()
+        fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.TEXT, data=frame))
+        websocket_service._ws = fake_ws
+        logger_mock = Mock()
+
+        with patch.object(websocket_service, "logger", logger_mock):
+            await websocket_service.raw_recv()
+
+        logger_mock.exception.assert_called_once()
+        msg, *args = logger_mock.exception.call_args.args
+        rendered = msg % tuple(args)
+        assert sentinel not in rendered
+        assert str(len(frame)) in rendered
+
 
 class TestDispatchSuppressesErrors:
     async def test_dispatch_suppresses_exceptions_from_hass_event_handling(
