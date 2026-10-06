@@ -5,8 +5,9 @@ These are pure-data types produced by ``core.AppRegistry`` and consumed by
 removes the ``web → core`` import cycle.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 from hassette_wire import AppStatus, ResourceStatus
 
@@ -101,8 +102,14 @@ class AppFullSnapshot:
     manifests: tuple[AppManifestInfo, ...] = ()
     only_apps: tuple[str, ...] = ()
     total: int = 0
-    status_counts: dict[AppStatus, int] = field(default_factory=lambda: dict.fromkeys(APP_STATUS_KEYS, 0))
-    """Manifest counts keyed by ``AppStatus``, with every member present."""
+    status_counts: Mapping[AppStatus, int] = field(default_factory=lambda: dict.fromkeys(APP_STATUS_KEYS, 0))
+    """Manifest counts keyed by ``AppStatus``, with every member present. Read-only: stored as a
+    ``MappingProxyType`` over a private copy of whatever mapping was passed in."""
+
+    def __post_init__(self) -> None:
+        # frozen=True blocks field reassignment, not mutation of a dict value; wrap a copy so the
+        # caller's dict can't alias into the snapshot either.
+        object.__setattr__(self, "status_counts", MappingProxyType(dict(self.status_counts)))
 
 
 def tally_app_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, int]:

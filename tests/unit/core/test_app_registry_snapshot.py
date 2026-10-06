@@ -8,9 +8,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
-from hassette_wire import ResourceStatus
+from hassette_wire import AppStatus, ResourceStatus
 
 from hassette.core.app_registry import AppRegistry
+from hassette.schemas.app_snapshots import AppFullSnapshot
 from hassette.types.enums import BlockReason
 
 from .conftest import make_app_instance, make_manifest_obj
@@ -92,6 +93,16 @@ class TestAppRegistryGetFullSnapshot:
         snap = reg.get_full_snapshot()
         assert snap.total == 0
         assert snap.manifests == ()
+
+    def test_status_counts_is_read_only_and_detached(self) -> None:
+        """status_counts can't be mutated through the snapshot or through the dict passed in."""
+        counts = dict.fromkeys(AppStatus, 0)
+        snap = AppFullSnapshot(status_counts=counts)
+        counts[AppStatus.RUNNING] = 5
+
+        assert snap.status_counts[AppStatus.RUNNING] == 0
+        with pytest.raises(TypeError):
+            snap.status_counts[AppStatus.RUNNING] = 1  # pyright: ignore[reportIndexIssue]
 
     def test_running_app(self) -> None:
         reg = self.make_registry()

@@ -5,6 +5,7 @@ The `get_full_snapshot()`, blocking, autostart, and manifest-info tests live in
 `test_app_registry_snapshot.py`.
 """
 
+import dataclasses
 from unittest.mock import MagicMock
 
 import pytest
@@ -17,6 +18,16 @@ from .conftest import make_manifest_obj
 
 
 class TestAppStatusSnapshot:
+    def test_snapshot_types_are_frozen(self) -> None:
+        """Snapshot dataclasses reject field assignment after construction."""
+        info = AppInstanceInfo("app1", 0, "app1.0", "App1", ResourceStatus.RUNNING)
+        snapshot = AppStatusSnapshot(instances=(info,))
+
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            info.status = ResourceStatus.FAILED  # pyright: ignore[reportAttributeAccessIssue]
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            snapshot.instances = ()  # pyright: ignore[reportAttributeAccessIssue]
+
     def test_empty_snapshot(self) -> None:
         """Test snapshot with no apps."""
         snapshot = AppStatusSnapshot()
