@@ -21,12 +21,10 @@ from tests.e2e.mock_fixtures.scheduler import build_scheduler_jobs, wire_schedul
 from tests.e2e.mock_fixtures.sessions_config import build_session_list, wire_config, wire_session_telemetry
 from tests.e2e.mock_fixtures.telemetry import (
     build_app_health_summaries,
-    build_error_records,
     build_executions,
     build_job_telemetry,
     build_listener_telemetry,
     wire_app_health_summaries,
-    wire_error_telemetry,
     wire_invocation_telemetry,
     wire_job_telemetry,
     wire_listener_telemetry,
@@ -40,7 +38,6 @@ __all__ = [
     "LISTENER_MY_APP_2_TOTAL_INVOCATIONS",
     "MANUAL_JOB_ID",
     "build_app_health_summaries",
-    "build_error_records",
     "build_executions",
     "build_job_telemetry",
     "build_listener_telemetry",
@@ -51,7 +48,6 @@ __all__ = [
     "wire_app_health_summaries",
     "wire_app_manifest_lookups",
     "wire_config",
-    "wire_error_telemetry",
     "wire_invocation_telemetry",
     "wire_job_telemetry",
     "wire_listener_telemetry",

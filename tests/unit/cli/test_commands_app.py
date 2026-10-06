@@ -490,7 +490,7 @@ def _instance_action_routes(
 class TestCmdAppActionRouting:
     """Routing and messaging behavior shared by start/stop/reload.
 
-    Parametrized across all three actions since the underlying logic (``_run_app_action``)
+    Parametrized across all three actions since the underlying logic (``run_app_action``)
     is one shared implementation — confirmation-prompt behavior differs per action (`start`
     never prompts, `stop`/`reload` do, and `reload`'s name-selector prompt wording is its own
     case), so those tests stay in the per-action classes below instead.

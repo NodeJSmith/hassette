@@ -1652,10 +1652,10 @@
                   "type": "null"
                 }
               ],
-              "description": "App instance index. None returns activity across all instances.",
+              "description": "App instance index. Omit for every instance of the app.",
               "title": "Instance Index"
             },
-            "description": "App instance index. None returns activity across all instances."
+            "description": "App instance index. Omit for every instance of the app."
           },
           {
             "name": "limit",

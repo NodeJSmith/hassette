@@ -166,6 +166,6 @@ def test_server_log_level_names_equal_the_wire_vocabulary() -> None:
     assert set(dependencies.LOG_LEVELS) == set(get_args(LogLevel))
 
 
-@pytest.mark.parametrize("module", [cli_app, apps_route], ids=["cli", "route"])
-def test_action_past_tense_covers_every_app_action(module: Any) -> None:
-    assert set(module._ACTION_PAST_TENSE) == set(get_args(AppAction))
+@pytest.mark.parametrize("past_tense", [cli_app.ACTION_PAST_TENSE, apps_route._ACTION_PAST_TENSE], ids=["cli", "route"])
+def test_action_past_tense_covers_every_app_action(past_tense: dict[AppAction, str]) -> None:
+    assert set(past_tense) == set(get_args(AppAction))

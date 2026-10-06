@@ -17,13 +17,13 @@ HEALTH_FIELD_PATH = "activity.stats.health"
 
 DASHBOARD_COLUMNS: list[Column] = [
     Column("app.app_key", "App", max_width=20),
-    Column("app.status", "Status", max_width=8),
-    Column("activity.stats.total_invocations", "Invoc", max_width=6),
-    Column("activity.stats.total_errors", "Errs", max_width=5),
+    Column("app.status", "Status", max_width=10),
+    Column("activity.stats.total_invocations", "Invocations", max_width=11),
+    Column("activity.stats.total_errors", "Errors", max_width=6),
     Column(f"{HEALTH_FIELD_PATH}.handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
     Column(f"{HEALTH_FIELD_PATH}.job_avg_duration_ms", "Job Avg", max_width=9, formatter=fmt_duration_ms),
     Column(f"{HEALTH_FIELD_PATH}.last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
-    Column(f"{HEALTH_FIELD_PATH}.health_status", "Health", max_width=9),
+    Column(f"{HEALTH_FIELD_PATH}.health_status", "Health", max_width=10),
 ]
 
 

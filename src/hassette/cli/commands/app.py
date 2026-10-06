@@ -1,9 +1,8 @@
 """App-related CLI commands: the ``hassette app`` listing, health, activity, config, source, start/stop/reload."""
 
 import sys
-from typing import Annotated, Any
+from typing import Any
 
-from cyclopts import Parameter
 from hassette_wire import (
     ActivityFeedEntry,
     AppAction,
@@ -16,59 +15,55 @@ from hassette_wire import (
 import hassette.cli.output as cli_output
 from hassette.cli.client import APP_GRID_PATH, make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import (
-    Column,
-    fmt_duration_ms,
-    fmt_relative_time,
-    render_detail,
-    render_detail_dict,
-    render_table,
-)
-from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
+from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg, YesArg
 from hassette.const.misc import SECONDS_PER_HOUR
 
 #: Past-tense verb used in success messages, keyed by action. Lowercase for CLI message
 #: construction; ``hassette.web.routes.apps`` keeps a capitalized copy for its log lines.
-_ACTION_PAST_TENSE: dict[AppAction, str] = {"start": "started", "stop": "stopped", "reload": "reloaded"}
+ACTION_PAST_TENSE: dict[AppAction, str] = {"start": "started", "stop": "stopped", "reload": "reloaded"}
 
 #: Actions that require interactive confirmation before executing. Kept in sync by hand with the
 #: frontend's per-action `ACTIONS` map (``frontend/src/components/shared/action-buttons.tsx``,
 #: `CAN_START`/`CAN_STOP` in ``frontend/src/utils/status.ts``) — no shared source of truth across
 #: the CLI/frontend boundary for "which actions exist and what each one needs."
-_ACTIONS_REQUIRING_CONFIRMATION: frozenset[AppAction] = frozenset({"stop", "reload"})
+ACTIONS_REQUIRING_CONFIRMATION: frozenset[AppAction] = frozenset({"stop", "reload"})
 
-#: Window for ``hassette app``'s activity column, which its "Invoc/<hours>h" header names.
+#: Window for ``hassette app``'s activity column, which its "Invocations/<hours>h" header names.
 APP_LIST_WINDOW_SECONDS = SECONDS_PER_HOUR
 
-APP_LIST_COLUMNS: list[Column] = [
-    Column("app.app_key", "App Key", max_width=20),
-    Column("app.status", "Status", max_width=10),
-    Column("app.display_name", "Display Name", max_width=22),
-    Column("app.instance_count", "Instances", max_width=9),
-    Column("activity.stats.total_invocations", f"Invoc/{APP_LIST_WINDOW_SECONDS // SECONDS_PER_HOUR}h", max_width=8),
-    Column("app.enabled", "Enabled", max_width=7),
-    Column("app.autostart", "Autostart", max_width=9),
-    Column("app.filename", "File", max_width=20),
+APP_LIST_COLUMNS: list[cli_output.Column] = [
+    cli_output.Column("app.app_key", "App", max_width=20),
+    cli_output.Column("app.status", "Status", max_width=10),
+    cli_output.Column("app.display_name", "Display Name", max_width=22),
+    cli_output.Column("app.instance_count", "Instances", max_width=9),
+    cli_output.Column(
+        "activity.stats.total_invocations",
+        f"Invocations/{APP_LIST_WINDOW_SECONDS // SECONDS_PER_HOUR}h",
+        max_width=14,
+    ),
+    cli_output.Column("app.enabled", "Enabled", max_width=7),
+    cli_output.Column("app.autostart", "Autostart", max_width=9),
+    cli_output.Column("app.filename", "File", max_width=20),
 ]
 
-
-APP_HEALTH_COLUMNS: list[Column] = [
-    Column("health_status", "Health", max_width=10),
-    Column("error_rate", "Error Rate", max_width=10),
-    Column("error_rate_class", "Rate Class", max_width=10),
-    Column("handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=fmt_duration_ms),
-    Column("job_avg_duration_ms", "Job Avg", max_width=9, formatter=fmt_duration_ms),
-    Column("last_activity_ts", "Last Active", max_width=11, formatter=fmt_relative_time),
+APP_HEALTH_COLUMNS: list[cli_output.Column] = [
+    cli_output.Column("health_status", "Health", max_width=10),
+    cli_output.Column("error_rate", "Error Rate", max_width=10),
+    cli_output.Column("error_rate_class", "Rate Class", max_width=10),
+    cli_output.Column("handler_avg_duration_ms", "Handler Avg", max_width=11, formatter=cli_output.fmt_duration_ms),
+    cli_output.Column("job_avg_duration_ms", "Job Avg", max_width=9, formatter=cli_output.fmt_duration_ms),
+    cli_output.Column("last_activity_ts", "Last Active", max_width=11, formatter=cli_output.fmt_relative_time),
 ]
-APP_ACTIVITY_COLUMNS: list[Column] = [
-    Column("row_id", "ID", max_width=10),
-    Column("kind", "Kind", max_width=8),
-    Column("status", "Status", max_width=10),
-    Column("app_key", "App", max_width=16),
-    Column("handler_name", "Handler", max_width=22),
-    Column("duration_ms", "Duration", max_width=9, formatter=fmt_duration_ms),
-    Column("timestamp", "When", max_width=11, formatter=fmt_relative_time),
-    Column("error_type", "Error", max_width=16),
+
+APP_ACTIVITY_COLUMNS: list[cli_output.Column] = [
+    cli_output.Column("row_id", "ID", max_width=10),
+    cli_output.Column("kind", "Kind", max_width=8),
+    cli_output.Column("status", "Status", max_width=10),
+    cli_output.Column("app_key", "App", max_width=20),
+    cli_output.Column("handler_name", "Handler", max_width=22),
+    cli_output.Column("duration_ms", "Duration", max_width=9, formatter=cli_output.fmt_duration_ms),
+    cli_output.Column("timestamp", "When", max_width=11, formatter=cli_output.fmt_relative_time),
+    cli_output.Column("error_type", "Error", max_width=16),
 ]
 
 
@@ -82,7 +77,7 @@ def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     params = query_params(since=cli_output.now_epoch() - APP_LIST_WINDOW_SECONDS)
     result = client.get(APP_GRID_PATH, AppGridResponse, params=params)
     cli_output.warn_missing_activity(result)
-    render_table(result.apps, APP_LIST_COLUMNS, json_mode=ctx.json_mode)
+    cli_output.render_table(result.apps, APP_LIST_COLUMNS, json_mode=ctx.json_mode)
 
 
 def cmd_app_health(
@@ -101,7 +96,7 @@ def cmd_app_health(
         source_tier=source_tier,
     )
     result = client.get(f"/api/telemetry/app/{key}/health", AppHealth, params=params)
-    render_detail(result, json_mode=ctx.json_mode)
+    cli_output.render_detail(result, json_mode=ctx.json_mode)
 
 
 # dup-ignore-start: cyclopts derives each command's flags from its signature, so a shared
@@ -114,8 +109,8 @@ def cmd_app_activity(
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
-    # dup-ignore-end
     """Show recent activity for an app (GET /api/telemetry/app/{key}/activity)."""
+    # dup-ignore-end
     client = make_client(ctx)
     params = query_params(
         instance_index=client.resolve_instance_or_none(key, instance),
@@ -124,7 +119,7 @@ def cmd_app_activity(
     )
     raw: list[Any] = client.get(f"/api/telemetry/app/{key}/activity", list, params=params)
     entries = parse_wire_list(ActivityFeedEntry, raw)
-    render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=ctx.json_mode)
+    cli_output.render_table(entries, APP_ACTIVITY_COLUMNS, json_mode=ctx.json_mode)
 
 
 def cmd_app_config(
@@ -143,7 +138,7 @@ def cmd_app_config(
     # Render every field except config_schema, the large machine-oriented blob. Dumping the
     # model (rather than naming fields) keeps new AppConfigResponse fields visible automatically.
     detail = {field: value for field, value in result.model_dump(mode="json").items() if field != "config_schema"}
-    render_detail_dict(detail, "App Config", json_mode=ctx.json_mode)
+    cli_output.render_detail_dict(detail, "App Config", json_mode=ctx.json_mode)
 
 
 def cmd_app_source(
@@ -154,10 +149,10 @@ def cmd_app_source(
     """Show app source code (GET /api/apps/{key}/source)."""
     client = make_client(ctx)
     result = client.get(f"/api/apps/{key}/source", AppSourceResponse)
-    render_detail(result, json_mode=ctx.json_mode)
+    cli_output.render_detail(result, json_mode=ctx.json_mode)
 
 
-def _run_app_action(key: str, action: AppAction, instance: str | None, yes: bool, ctx: CLIContextParam) -> None:
+def run_app_action(key: str, action: AppAction, instance: str | None, yes: bool, ctx: CLIContextParam) -> None:
     """Shared implementation for ``start``/``stop``/``reload``: confirm, POST, render result."""
     client = make_client(ctx)
     index: int | None = None
@@ -169,7 +164,7 @@ def _run_app_action(key: str, action: AppAction, instance: str | None, yes: bool
         index, instance_name = client.resolve_instance_with_name(key, instance)
         instance_label = instance_name if instance_name is not None else instance
 
-    if action in _ACTIONS_REQUIRING_CONFIRMATION and not yes:
+    if action in ACTIONS_REQUIRING_CONFIRMATION and not yes:
         if ctx.json_mode:
             # input() always writes its prompt to stdout, which would corrupt the
             # single-JSON-document stdout contract in --json mode. Require --yes instead of
@@ -196,7 +191,7 @@ def _run_app_action(key: str, action: AppAction, instance: str | None, yes: bool
             highlight=False,
         )
 
-    verb = _ACTION_PAST_TENSE[action]
+    verb = ACTION_PAST_TENSE[action]
     message = f"Instance {instance_label!r} of {key!r} {verb}" if instance_label is not None else f"App {key!r} {verb}"
     detail = {
         "status": result.status,
@@ -205,7 +200,7 @@ def _run_app_action(key: str, action: AppAction, instance: str | None, yes: bool
         "instance_index": result.instance_index,
         "message": message,
     }
-    render_detail_dict(detail, "App Action", json_mode=ctx.json_mode)
+    cli_output.render_detail_dict(detail, "App Action", json_mode=ctx.json_mode)
 
 
 def cmd_app_start(
@@ -215,26 +210,26 @@ def cmd_app_start(
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """Start an app or app instance (POST /api/apps/{key}/start)."""
-    _run_app_action(key, "start", instance, yes=True, ctx=ctx)
+    run_app_action(key, "start", instance, yes=True, ctx=ctx)
 
 
 def cmd_app_stop(
     key: str,
     instance: InstanceActionArg = None,
-    yes: Annotated[bool, Parameter(name=["--yes"], help="Skip the confirmation prompt.", negative=[])] = False,
+    yes: YesArg = False,
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """Stop an app or app instance (POST /api/apps/{key}/stop)."""
-    _run_app_action(key, "stop", instance, yes=yes, ctx=ctx)
+    run_app_action(key, "stop", instance, yes=yes, ctx=ctx)
 
 
 def cmd_app_reload(
     key: str,
     instance: InstanceActionArg = None,
-    yes: Annotated[bool, Parameter(name=["--yes"], help="Skip the confirmation prompt.", negative=[])] = False,
+    yes: YesArg = False,
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
     """Reload an app or app instance (POST /api/apps/{key}/reload)."""
-    _run_app_action(key, "reload", instance, yes=yes, ctx=ctx)
+    run_app_action(key, "reload", instance, yes=yes, ctx=ctx)

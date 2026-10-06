@@ -1,4 +1,4 @@
-"""Listener, job, execution, error, and summary telemetry builders for e2e mock data.
+"""Listener, job, execution, and summary telemetry builders for e2e mock data.
 
 Each ``build_*`` is paired with its ``wire_*`` counterpart immediately below it, so seeding
 one telemetry surface end-to-end (build the data, then wire it onto the mock query service)
@@ -11,8 +11,7 @@ from unittest.mock import AsyncMock
 
 from hassette_wire import Execution, JobSummary
 
-from hassette.schemas.job_models import JobErrorRecord
-from hassette.schemas.listener_models import HandlerErrorRecord, ListenerSummaryRow
+from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
 from tests.e2e.mock_fixtures.constants import (
     APP_KEY_BROKEN_APP,
@@ -27,11 +26,6 @@ from tests.e2e.mock_fixtures.constants import (
 
 T = TypeVar("T")
 
-# source_tier values the telemetry routes pass through to the query service.
-FRAMEWORK_TIER = "framework"
-APP_TIER = "app"
-ALL_TIER = "all"
-
 
 def by_app_key_or_all(items_by_app: Mapping[str, list[T]]) -> Callable[..., list[T]]:
     """Build a side effect that filters per-app telemetry rows by ``app_key``.
@@ -45,19 +39,6 @@ def by_app_key_or_all(items_by_app: Mapping[str, list[T]]) -> Callable[..., list
         if app_key is None:
             return all_items
         return items_by_app.get(app_key, [])
-
-    return side_effect
-
-
-def by_tier(values: Mapping[str, T], *, default_tier: str, fallback: T) -> Callable[..., T]:
-    """Build a side effect that routes on ``source_tier``.
-
-    ``values`` maps a tier name to the rows served for it; any tier without an entry (including
-    ``default_tier``, when the caller omits ``source_tier`` entirely) gets ``fallback``.
-    """
-
-    def side_effect(source_tier: str = default_tier, **_) -> T:
-        return values.get(source_tier, fallback)
 
     return side_effect
 
@@ -393,90 +374,6 @@ def wire_invocation_telemetry(hassette, executions: list[Execution]) -> None:
         return rows[:limit]
 
     hassette._telemetry_query_service.get_executions = AsyncMock(side_effect=executions_side_effect)
-
-
-def build_error_records() -> tuple[list[HandlerErrorRecord | JobErrorRecord], list[HandlerErrorRecord]]:
-    """Build app-tier and framework-tier error records.
-
-    Returns:
-        A ``(app_tier_errors, framework_tier_errors)`` tuple.
-    """
-    app_tier_errors = [
-        HandlerErrorRecord(
-            app_key=APP_KEY_MY_APP,
-            listener_id=42,
-            handler_method="on_light_change",
-            topic="state_changed.light.kitchen",
-            execution_start_ts=TS_RECENT,
-            duration_ms=3.1,
-            source_tier=APP_TIER,
-            error_type="ValueError",
-            error_message="Bad state value",
-        ),
-        JobErrorRecord(
-            app_key=APP_KEY_MY_APP,
-            job_id=7,
-            handler_method="check_lights",
-            job_name="check_lights",
-            execution_start_ts=TS_OLDEST,
-            duration_ms=4.2,
-            source_tier=APP_TIER,
-            error_type="TimeoutError",
-            error_message="Light service unavailable",
-        ),
-        HandlerErrorRecord(
-            app_key=APP_KEY_BROKEN_APP,
-            listener_id=43,
-            handler_method="on_door_open",
-            topic="state_changed.binary_sensor.door",
-            execution_start_ts=TS_OLDER,
-            duration_ms=10.0,
-            source_tier=APP_TIER,
-            error_type="RuntimeError",
-            error_message="Lock service timed out",
-        ),
-        # Orphan error — listener_id is None (handler was deleted)
-        HandlerErrorRecord(
-            app_key=None,
-            listener_id=None,
-            handler_method=None,
-            topic=None,
-            execution_start_ts=TS_OLDEST + 0.5,
-            duration_ms=1.0,
-            source_tier=APP_TIER,
-            error_type="RuntimeError",
-            error_message="Orphan error from deleted listener",
-        ),
-    ]
-    framework_tier_errors = [
-        HandlerErrorRecord(
-            app_key="__hassette__.service_watcher",
-            listener_id=999,
-            handler_method="on_state_change_dispatch",
-            topic="state_changed",
-            execution_start_ts=TS_BASE,
-            duration_ms=1.5,
-            source_tier=FRAMEWORK_TIER,
-            error_type="DispatchError",
-            error_message="Framework dispatch failed",
-        ),
-    ]
-    return app_tier_errors, framework_tier_errors
-
-
-def wire_error_telemetry(
-    hassette,
-    app_tier_errors: list[HandlerErrorRecord | JobErrorRecord],
-    framework_tier_errors: list[HandlerErrorRecord],
-) -> None:
-    """Wire error records with source_tier routing onto the mock telemetry query service."""
-    hassette._telemetry_query_service.get_recent_errors = AsyncMock(
-        side_effect=by_tier(
-            {FRAMEWORK_TIER: framework_tier_errors, APP_TIER: app_tier_errors},
-            default_tier=ALL_TIER,
-            fallback=app_tier_errors + framework_tier_errors,
-        )
-    )
 
 
 def build_app_health_summaries() -> dict[str, AppHealthSummary]:

@@ -1,13 +1,10 @@
 """Shared helpers for telemetry computation and classification used by the JSON API layer."""
 
-from logging import getLogger
 from typing import Protocol
 
 from hassette_wire import AppHealth, ErrorRateClass, HealthStatus
 
 from hassette.schemas.summary_models import AppHealthAggregates
-
-LOGGER = getLogger(__name__)
 
 ERROR_RATE_WARN_THRESHOLD = 5
 ERROR_RATE_BAD_THRESHOLD = 10
@@ -63,14 +60,15 @@ def compute_success_rate(error_rate: float) -> float:
     return 100.0 - error_rate
 
 
-def classify_error_rate(rate: float) -> ErrorRateClass:
+def classify_error_rate(error_rate: float) -> ErrorRateClass:
     """Map an error-rate percentage to a CSS class name.
 
-    Thresholds: <5% = "good", 5-10% = "warn", >=10% = "bad".
+    Below ``ERROR_RATE_WARN_THRESHOLD`` is "good", below ``ERROR_RATE_BAD_THRESHOLD`` is "warn",
+    anything higher is "bad".
     """
-    if rate < ERROR_RATE_WARN_THRESHOLD:
+    if error_rate < ERROR_RATE_WARN_THRESHOLD:
         return "good"
-    if rate < ERROR_RATE_BAD_THRESHOLD:
+    if error_rate < ERROR_RATE_BAD_THRESHOLD:
         return "warn"
     return "bad"
 
@@ -78,8 +76,8 @@ def classify_error_rate(rate: float) -> ErrorRateClass:
 def classify_health_bar(success_rate: float) -> HealthStatus:
     """Map a success-rate percentage to a CSS class name.
 
-    Thresholds: 100% = "excellent", >=95% = "good",
-    >=90% = "warning", <90% = "critical".
+    100% is "excellent", at least ``HEALTH_GOOD_THRESHOLD`` is "good", at least
+    ``HEALTH_WARNING_THRESHOLD`` is "warning", anything lower is "critical".
     """
     if success_rate >= 100:
         return "excellent"
@@ -139,12 +137,5 @@ def format_handler_summary(listener: _ListenerLike) -> str:
     """
     entity_id = extract_entity_from_topic(listener.topic)
     condition = listener.human_description or listener.predicate_description or ""
-    if entity_id:
-        parts = [entity_id]
-        if condition:
-            parts.append(condition)
-        return " ".join(parts)
-    parts = [listener.topic]
-    if condition:
-        parts.append(condition)
-    return " ".join(parts)
+    head = entity_id or listener.topic
+    return f"{head} {condition}" if condition else head

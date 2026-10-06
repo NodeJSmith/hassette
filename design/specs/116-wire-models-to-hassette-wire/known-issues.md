@@ -116,8 +116,8 @@ Acceptance criteria:
 
 ## KI-004: Dead/unreferenced schema models in summary_models.py
 
-Status: partially fixed — #2517 removed `GlobalSummary`, `SessionSummary`, and both `*GlobalStats` types with
-their tests and e2e mock wiring; `HandlerErrorRecord`/`JobErrorRecord` remain, tracked in #2540
+Status: fixed — #2517 removed `GlobalSummary`, `SessionSummary`, and both `*GlobalStats` types with
+their tests and e2e mock wiring; #2543 removed `HandlerErrorRecord`/`JobErrorRecord` (closes #2540)
 Run: 146
 Source: clean-code
 Reason not fixed now: needs-decision

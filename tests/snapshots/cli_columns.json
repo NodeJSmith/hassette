@@ -26,7 +26,7 @@
         "field": "app_key",
         "formatter": null,
         "header": "App",
-        "max_width": 16,
+        "max_width": 20,
         "overflow": "ellipsis"
       },
       {
@@ -106,7 +106,7 @@
       {
         "field": "app.app_key",
         "formatter": null,
-        "header": "App Key",
+        "header": "App",
         "max_width": 20,
         "overflow": "ellipsis"
       },
@@ -134,8 +134,8 @@
       {
         "field": "activity.stats.total_invocations",
         "formatter": null,
-        "header": "Invoc/1h",
-        "max_width": 8,
+        "header": "Invocations/1h",
+        "max_width": 14,
         "overflow": "ellipsis"
       },
       {
@@ -590,21 +590,21 @@
         "field": "app.status",
         "formatter": null,
         "header": "Status",
-        "max_width": 8,
+        "max_width": 10,
         "overflow": "ellipsis"
       },
       {
         "field": "activity.stats.total_invocations",
         "formatter": null,
-        "header": "Invoc",
-        "max_width": 6,
+        "header": "Invocations",
+        "max_width": 11,
         "overflow": "ellipsis"
       },
       {
         "field": "activity.stats.total_errors",
         "formatter": null,
-        "header": "Errs",
-        "max_width": 5,
+        "header": "Errors",
+        "max_width": 6,
         "overflow": "ellipsis"
       },
       {
@@ -632,7 +632,7 @@
         "field": "activity.stats.health.health_status",
         "formatter": null,
         "header": "Health",
-        "max_width": 9,
+        "max_width": 10,
         "overflow": "ellipsis"
       }
     ]

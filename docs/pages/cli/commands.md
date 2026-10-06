@@ -77,14 +77,14 @@ Lists all loaded apps with key, status, display name, instance count, handler in
 
 ```console
 $ hassette app
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
-┃ App Key         ┃ Status  ┃ Display     ┃ Instances ┃ Invoc/1h ┃ Enabled ┃ Autostart ┃ File              ┃
-┃                 ┃         ┃ Name        ┃           ┃          ┃         ┃           ┃                   ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
-│ config_app      │ running │ ConfigApp   │ 1         │ 0        │ True    │ True      │ config_app.py     │
-│ trivial_app     │ running │ TrivialApp  │ 1         │ 0        │ True    │ True      │ trivial_app.py    │
-│ bus_handler_app │ running │ BusHandler… │ 1         │ 0        │ True    │ True      │ bus_handler_app.py│
-└─────────────────┴─────────┴─────────────┴───────────┴──────────┴─────────┴───────────┴───────────────────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━┓
+┃ App             ┃ Status  ┃ Display     ┃ Instances ┃ Invocations/1h ┃ Enabled ┃ Autostart ┃ File              ┃
+┃                 ┃         ┃ Name        ┃           ┃                ┃         ┃           ┃                   ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━┩
+│ config_app      │ running │ ConfigApp   │ 1         │ 0              │ True    │ True      │ config_app.py     │
+│ trivial_app     │ running │ TrivialApp  │ 1         │ 0              │ True    │ True      │ trivial_app.py    │
+│ bus_handler_app │ running │ BusHandler… │ 1         │ 0              │ True    │ True      │ bus_handler_app.py│
+└─────────────────┴─────────┴─────────────┴───────────┴────────────────┴─────────┴───────────┴───────────────────┘
 ```
 
 `--json` prints one object per app with two keys: `app` (the app's identity, status and instances) and `activity` (what it did over the last hour). `activity` has four parts:
@@ -388,13 +388,13 @@ Per-app health status, invocation counts, error counts, average handler and job 
 
 ```console
 $ hassette dashboard
-┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┓
-┃ App             ┃ Status  ┃ Invoc ┃ Errs ┃ Handler Avg ┃ Job Avg ┃ Last Active ┃ Health    ┃
-┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━┩
-│ config_app      │ running │ 0     │ 0    │             │         │             │ excellent │
-│ trivial_app     │ running │ 0     │ 0    │             │         │             │ excellent │
-│ bus_handler_app │ running │ 0     │ 0    │             │         │             │ excellent │
-└─────────────────┴─────────┴───────┴──────┴─────────────┴─────────┴─────────────┴───────────┘
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ App             ┃ Status  ┃ Invocations ┃ Errors ┃ Handler Avg ┃ Job Avg ┃ Last Active ┃ Health    ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━┩
+│ config_app      │ running │ 0           │ 0      │             │         │             │ excellent │
+│ trivial_app     │ running │ 0           │ 0      │             │         │             │ excellent │
+│ bus_handler_app │ running │ 0           │ 0      │             │         │             │ excellent │
+└─────────────────┴─────────┴─────────────┴────────┴─────────────┴─────────┴─────────────┴───────────┘
 ```
 
 `--json` rows have the same `app` and `activity` keys as [`hassette app`](#hassette-app). If the server couldn't compute an app's counts and health, those cells are blank (never `0` or `excellent`) and a warning on stderr names the missing parts. `activity_buckets` and `last_error` only exist for a time window, so they are always `null` here.

@@ -9,8 +9,6 @@ from hassette.commands import ExecuteJob, InvokeHandler
 from hassette.core.execution_record import ExecutionRecord
 from hassette.exceptions import DependencyError, DependencyInjectionError
 from hassette.scheduler.classes import Job
-from hassette.schemas.job_models import JobErrorRecord
-from hassette.schemas.listener_models import HandlerErrorRecord
 from hassette.testing.config import TEST_EPOCH_A
 from hassette.utils.execution import ExecutionResult, track_execution
 from tests.support.factories import make_job_registration, make_listener_registration
@@ -102,43 +100,6 @@ class TestExecutionRecordHandlerNullable:
 
         assert record.listener_id == 99
         assert record.source_tier == "app"
-
-
-class TestHandlerErrorRecordNullableFields:
-    def test_handler_error_record_nullable_fields(self) -> None:
-        """HandlerErrorRecord(listener_id=None, app_key=None, ...) is valid."""
-        record = HandlerErrorRecord(
-            listener_id=None,
-            app_key=None,
-            handler_method=None,
-            topic=None,
-            execution_start_ts=TEST_EPOCH_A,
-            duration_ms=5.0,
-            error_type="ValueError",
-            error_message="something went wrong",
-        )
-
-        assert record.listener_id is None
-        assert record.app_key is None
-        assert record.handler_method is None
-        assert record.topic is None
-
-    def test_job_error_record_nullable_fields(self) -> None:
-        """JobErrorRecord nullable fields for orphan records."""
-        record = JobErrorRecord(
-            job_id=None,
-            app_key=None,
-            job_name=None,
-            handler_method=None,
-            execution_start_ts=TEST_EPOCH_A,
-            duration_ms=5.0,
-            error_type="RuntimeError",
-            error_message="job failed",
-        )
-
-        assert record.job_id is None
-        assert record.app_key is None
-        assert record.handler_method is None
 
 
 class TestExecutionResultIsDiFailure:
