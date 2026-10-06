@@ -399,4 +399,4 @@ class TestValidateApps:
 
         warnings = [record for record in caplog.records if "shared-key" in record.message]
         assert len(warnings) == 1, f"Expected one collision WARNING, got: {[r.message for r in caplog.records]}"
-        assert "without `cache_shared = true`: ['app_two']" in warnings[0].getMessage()
+        assert "without `cache_shared = true`: ['app_two']" in warnings[0].message

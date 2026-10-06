@@ -459,8 +459,8 @@ def warn_on_cache_key_collisions(manifests: dict[str, AppManifest]) -> None:
 
     Sharing a resolved cache_key across apps is usually a configuration mistake, so this surfaces
     it at config-load time rather than as silent cross-app cache contamination. Intentional sharing
-    is opted into per app with ``cache_shared = true``: the warning is skipped only when every app
-    sharing the key has opted in, and otherwise names the apps that haven't.
+    is opted into per app with ``cache_shared = true``. The warning is skipped only when every app
+    sharing the key opts in; otherwise it names the apps missing the flag.
     """
     owners_by_resolved_key: dict[str, set[str]] = {}
     for app_key, manifest in manifests.items():

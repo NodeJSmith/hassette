@@ -1,0 +1,8 @@
+# hassette.toml
+[hassette.apps.weather_display]
+cache_key = "weather/shared"
+cache_shared = true
+
+[hassette.apps.weather_alerts]
+cache_key = "weather/shared"
+cache_shared = true
