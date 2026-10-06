@@ -11,23 +11,6 @@ export const validate = validate10;
 export default validate10;
 const schema11 = {
   $defs: {
-    AppManifestsChangedData: {
-      description:
-        'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed — it is a refetch\nsignal, not a diff. Clients should treat receipt as "manifest status may be\nstale, refetch" rather than inspect the payload.',
-      properties: {},
-      title: "AppManifestsChangedData",
-      type: "object",
-    },
-    AppManifestsChangedWsMessage: {
-      properties: {
-        type: { const: "app_manifests_changed", title: "Type", type: "string" },
-        data: { $ref: "#/$defs/AppManifestsChangedData" },
-        timestamp: { title: "Timestamp", type: "number" },
-      },
-      required: ["type", "data", "timestamp"],
-      title: "AppManifestsChangedWsMessage",
-      type: "object",
-    },
     AppStatusChangedData: {
       description:
         "Payload for an app lifecycle state-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.AppStateChangePayload`` exactly.",
@@ -58,6 +41,23 @@ const schema11 = {
       },
       required: ["type", "data", "timestamp"],
       title: "AppStatusChangedWsMessage",
+      type: "object",
+    },
+    AppsChangedData: {
+      description:
+        'Payload for an app-list refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed — it is a refetch\nsignal, not a diff. Clients should treat receipt as "app status may be\nstale, refetch" rather than inspect the payload.',
+      properties: {},
+      title: "AppsChangedData",
+      type: "object",
+    },
+    AppsChangedWsMessage: {
+      properties: {
+        type: { const: "apps_changed", title: "Type", type: "string" },
+        data: { $ref: "#/$defs/AppsChangedData" },
+        timestamp: { title: "Timestamp", type: "number" },
+      },
+      required: ["type", "data", "timestamp"],
+      title: "AppsChangedWsMessage",
       type: "object",
     },
     ConnectedPayload: {
@@ -227,7 +227,7 @@ const schema11 = {
     { $ref: "#/$defs/ConnectivityWsMessage" },
     { $ref: "#/$defs/ServiceStatusWsMessage" },
     { $ref: "#/$defs/ExecutionCompletedWsMessage" },
-    { $ref: "#/$defs/AppManifestsChangedWsMessage" },
+    { $ref: "#/$defs/AppsChangedWsMessage" },
   ],
 };
 const schema30 = {
@@ -2722,19 +2722,19 @@ function validate19(data, { instancePath = "", parentData, parentDataProperty, r
 }
 const schema28 = {
   properties: {
-    type: { const: "app_manifests_changed", title: "Type", type: "string" },
-    data: { $ref: "#/$defs/AppManifestsChangedData" },
+    type: { const: "apps_changed", title: "Type", type: "string" },
+    data: { $ref: "#/$defs/AppsChangedData" },
     timestamp: { title: "Timestamp", type: "number" },
   },
   required: ["type", "data", "timestamp"],
-  title: "AppManifestsChangedWsMessage",
+  title: "AppsChangedWsMessage",
   type: "object",
 };
 const schema29 = {
   description:
-    'Payload for a manifest refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed — it is a refetch\nsignal, not a diff. Clients should treat receipt as "manifest status may be\nstale, refetch" rather than inspect the payload.',
+    'Payload for an app-list refresh broadcast over WebSocket.\n\nCarries no fields and does not identify which apps changed — it is a refetch\nsignal, not a diff. Clients should treat receipt as "app status may be\nstale, refetch" rather than inspect the payload.',
   properties: {},
-  title: "AppManifestsChangedData",
+  title: "AppsChangedData",
   type: "object",
 };
 function validate22(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
@@ -2774,13 +2774,13 @@ function validate22(data, { instancePath = "", parentData, parentDataProperty, r
             ];
             return false;
           }
-          if ("app_manifests_changed" !== data0) {
+          if ("apps_changed" !== data0) {
             validate22.errors = [
               {
                 instancePath: instancePath + "/type",
                 schemaPath: "#/properties/type/const",
                 keyword: "const",
-                params: { allowedValue: "app_manifests_changed" },
+                params: { allowedValue: "apps_changed" },
                 message: "must be equal to constant",
               },
             ];
@@ -2800,7 +2800,7 @@ function validate22(data, { instancePath = "", parentData, parentDataProperty, r
                 validate22.errors = [
                   {
                     instancePath: instancePath + "/data",
-                    schemaPath: "#/$defs/AppManifestsChangedData/type",
+                    schemaPath: "#/$defs/AppsChangedData/type",
                     keyword: "type",
                     params: { type: "object" },
                     message: "must be object",
@@ -2962,7 +2962,7 @@ function validate10(data, { instancePath = "", parentData, parentDataProperty, r
             vErrors = vErrors === null ? validate19.errors : vErrors.concat(validate19.errors);
             errors = vErrors.length;
           }
-        } else if (tag0 === "app_manifests_changed") {
+        } else if (tag0 === "apps_changed") {
           if (!validate22(data, { instancePath, parentData, parentDataProperty, rootData })) {
             vErrors = vErrors === null ? validate22.errors : vErrors.concat(validate22.errors);
             errors = vErrors.length;

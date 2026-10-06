@@ -26,7 +26,7 @@ from hassette.core.sync_executor import SyncExecutor
 from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
 from hassette.logging_ import (
     LogCaptureHandler,
-    LogEntry,
+    LogRecordEntry,
     _extract_correlation_attrs,  # pyright: ignore[reportPrivateUsage]
     _format_exc_info,  # pyright: ignore[reportPrivateUsage]
 )
@@ -395,15 +395,15 @@ def make_log_entry(
     execution_id: str | None = None,
     instance_name: str | None = None,
     instance_index: int | None = None,
-) -> LogEntry:
-    """Build a `LogEntry`, defaulting every required field to a neutral placeholder.
+) -> LogRecordEntry:
+    """Build a `LogRecordEntry`, defaulting every required field to a neutral placeholder.
 
-    `LogEntry` has seven required constructor fields, most of which are irrelevant to any
+    `LogRecordEntry` has seven required constructor fields, most of which are irrelevant to any
     given assertion, plus six optional fields (`exc_info`, plus five correlation fields).
     Every field is an explicit keyword so callers spell out only what they assert on and
     pyright still checks the rest.
     """
-    return LogEntry(
+    return LogRecordEntry(
         seq=seq,
         timestamp=timestamp,
         level=level,
@@ -476,15 +476,15 @@ def make_log_record(
     return logging.LogRecord(name, level, pathname, lineno, msg, args, exc_info)
 
 
-def build_log_entry(record: logging.LogRecord) -> LogEntry:
-    """Build a LogEntry from a LogRecord using the correlation attrs and formatted traceback.
+def build_log_entry(record: logging.LogRecord) -> LogRecordEntry:
+    """Build a LogRecordEntry from a LogRecord using the correlation attrs and formatted traceback.
 
     Test-only: production `LogCaptureHandler.emit()` only needs `record.created` and builds its
-    broadcast payload directly. This assembles the full `LogEntry` shape for tests that need to
+    broadcast payload directly. This assembles the full `LogRecordEntry` shape for tests that need to
     assert on correlation attrs and message content.
     """
     attrs = _extract_correlation_attrs(record)
-    return LogEntry(
+    return LogRecordEntry(
         timestamp=record.created,
         level=record.levelname,
         logger_name=record.name,
@@ -497,17 +497,17 @@ def build_log_entry(record: logging.LogRecord) -> LogEntry:
 
 
 class RecordingLogCaptureHandler(LogCaptureHandler):
-    """A `LogCaptureHandler` that also records every `LogEntry` it builds, for test assertions.
+    """A `LogCaptureHandler` that also records every `LogRecordEntry` it builds, for test assertions.
 
     Production `LogCaptureHandler` no longer retains captured entries (see `build_log_entry`) —
-    it only broadcasts a hint. Tests that need to inspect the constructed `LogEntry` objects
+    it only broadcasts a hint. Tests that need to inspect the constructed `LogRecordEntry` objects
     (correlation attrs, message content, shutdown-guard behavior) use this subclass as their
     observation seam instead.
     """
 
     def __init__(self) -> None:
         super().__init__()
-        self.captured: list[LogEntry] = []
+        self.captured: list[LogRecordEntry] = []
 
     def emit(self, record: logging.LogRecord) -> None:
         self.captured.append(build_log_entry(record))

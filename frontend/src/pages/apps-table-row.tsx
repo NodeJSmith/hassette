@@ -12,10 +12,10 @@ import { MiniSparkline } from "../components/shared/mini-sparkline";
 import { StatusShape } from "../components/shared/status-shape";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import type { AppStatusEntry } from "../state/store";
-import { appLiveStatus, type AppRow, instanceLiveError, instanceLiveStatus } from "../utils/app-data";
+import { appLiveStatus, type AppRow, instanceLiveError, instanceLiveStatus, totalRuns } from "../utils/app-data";
 import { appDetailPath } from "../utils/app-routes";
 import { APP_ROW_STATUS_SHAPE_SIZE, INSTANCE_ROW_STATUS_SHAPE_SIZE } from "../utils/constants";
-import { formatTimestamp, pluralize } from "../utils/format";
+import { EMPTY_PLACEHOLDER, formatTimestamp, pluralize } from "../utils/format";
 import { onActivateKeyDown } from "../utils/keyboard";
 import { INACTIVE_STATUSES, statusToKind, statusToVariant } from "../utils/status";
 
@@ -48,13 +48,15 @@ export function AppTableRow({
 }) {
   const [errorExpanded, setErrorExpanded] = useState(false);
   const showErrorExpanded = errorExpanded && !!app.error_message;
-  const lastErrorLabel = useRelativeTime(app.last_error_ts ?? null);
-  const lastActivityLabel = useRelativeTime(app.last_activity_ts ?? null);
+  const lastErrorTs = app.last_error?.error?.ts ?? null;
+  const lastActivityTs = app.stats?.health.last_activity_ts ?? null;
+  const lastErrorLabel = useRelativeTime(lastErrorTs);
+  const lastActivityLabel = useRelativeTime(lastActivityTs);
   const status = appLiveStatus(appStatuses, app);
   const kind = statusToKind(status);
   const isMulti = app.instance_count > 1;
   const isDimmed = INACTIVE_STATUSES.has(status);
-  const totalRuns = app.total_invocations + app.total_executions;
+  const runs = totalRuns(app);
 
   return (
     <>
@@ -118,7 +120,10 @@ export function AppTableRow({
           <Badge variant={statusToVariant(status)} size="sm" data-testid="status-pill">
             {status}
           </Badge>
-          {app.blocking_event_count > 0 && <BlockingBadge appKey={app.app_key} count={app.blocking_event_count} />}
+          {/* An uncomputed count (null) shows no badge: the badge only ever reports a positive count. */}
+          {app.blocking_event_count !== null && app.blocking_event_count > 0 && (
+            <BlockingBadge appKey={app.app_key} count={app.blocking_event_count} />
+          )}
           {isMulti && (
             <span
               className={cn("ml-1 font-mono text-xs text-muted-foreground max-sidebar:hidden", compact && "hidden")}
@@ -150,22 +155,34 @@ export function AppTableRow({
           {app.error_message ? (
             <span className="font-mono text-sm text-destructive">
               {app.error_message}
-              {app.last_error_ts && <span className="text-muted-foreground"> · {lastErrorLabel}</span>}
+              {lastErrorTs && <span className="text-muted-foreground"> · {lastErrorLabel}</span>}
             </span>
           ) : (
-            "—"
+            EMPTY_PLACEHOLDER
           )}
         </td>
         {/* Runs + sparkline */}
         <td className={cn("align-middle text-right max-sidebar:hidden", compact && "hidden")}>
           <div className="inline-flex items-center gap-2">
-            <MiniSparkline buckets={app.activity_buckets} height={16} />
-            <span className="font-mono">{totalRuns}</span>
+            {app.activity_buckets === null ? (
+              <span className="text-muted-foreground" data-testid="sparkline-unavailable">
+                {EMPTY_PLACEHOLDER}
+              </span>
+            ) : (
+              <MiniSparkline buckets={app.activity_buckets} height={16} />
+            )}
+            <span className="font-mono" data-testid="app-runs">
+              {runs ?? EMPTY_PLACEHOLDER}
+            </span>
           </div>
         </td>
         {/* Last fired */}
         <td className={cn("font-mono text-sm text-muted-foreground max-sidebar:hidden", compact && "hidden")}>
-          {app.last_activity_ts ? <span title={formatTimestamp(app.last_activity_ts)}>{lastActivityLabel}</span> : "—"}
+          {lastActivityTs ? (
+            <span title={formatTimestamp(lastActivityTs)}>{lastActivityLabel}</span>
+          ) : (
+            EMPTY_PLACEHOLDER
+          )}
         </td>
         {/* Actions */}
         <td
@@ -226,7 +243,7 @@ export function AppTableRow({
                     {instErrorMessage}
                   </span>
                 ) : (
-                  "—"
+                  EMPTY_PLACEHOLDER
                 )}
               </td>
               <td className={cn("max-sidebar:hidden", compact && "hidden")} />

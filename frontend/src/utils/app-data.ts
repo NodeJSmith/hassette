@@ -1,78 +1,90 @@
-import type { DashboardAppGridEntry } from "../api/endpoints";
-import type { components } from "../api/generated-types";
+import type {
+  AppActivity,
+  AppGridEntry,
+  AppGridResponse,
+  AppManifest,
+  AppStatus,
+  ResourceStatus,
+} from "../api/endpoints";
 import type { SortState } from "../components/shared/sort-header";
 import { type AppStatusEntry, appStatusKey } from "../state/store";
 import { statusPriority } from "./status-priority";
 
-type ManifestStatus = components["schemas"]["ManifestStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
+/** `AppActivity` parts the server computes only for a request with a `since`; `null` otherwise.
+ *  Mirrors `WINDOWED_ACTIVITY_PARTS` in `hassette_wire.telemetry`. */
+const WINDOWED_ACTIVITY_PARTS: ReadonlySet<keyof AppActivity> = new Set(["activity_buckets", "last_error"]);
+/** Every `AppActivity` part; a `Record` over the type's keys, so adding a part is a compile error here. */
+const ACTIVITY_PART_KEYS: Record<keyof AppActivity, true> = {
+  stats: true,
+  activity_buckets: true,
+  last_error: true,
+  blocking_event_count: true,
+};
+// `Object.keys` returns `string[]`; this guard narrows it back to the part names without a cast.
+const isActivityPart = (key: string): key is keyof AppActivity =>
+  Object.prototype.hasOwnProperty.call(ACTIVITY_PART_KEYS, key);
+const ACTIVITY_PARTS = Object.keys(ACTIVITY_PART_KEYS).filter(isActivityPart);
 
-export interface AppRow {
-  app_key: string;
-  class_name: string;
-  display_name: string;
-  filename: string;
-  status: ManifestStatus;
-  block_reason: string | null;
-  enabled: boolean;
-  auto_loaded: boolean;
-  autostart: boolean;
-  instance_count: number;
-  instances: NonNullable<DashboardAppGridEntry["instances"]>;
-  error_message: string | null;
-  in_current_config: boolean;
-  handler_count: number;
-  job_count: number;
-  total_invocations: number;
-  total_executions: number;
-  total_errors: number;
-  total_timed_out: number;
-  total_job_errors: number;
-  total_job_timed_out: number;
-  last_activity_ts: number | null;
-  activity_buckets: Array<{ ok: number; err: number }>;
-  last_error_message: string | null;
-  last_error_type: string | null;
-  last_error_ts: number | null;
-  blocking_event_count: number;
-}
+/** `AppSummary` fields `toAppRow` overrides: normalized (optional on the wire, always present on a row) or dropped. */
+type OverriddenAppFields = "block_reason" | "instances" | "error_message" | "error_traceback";
+
+/** An app's summary fields side by side with its activity parts. Plain-copied fields track the
+ *  generated types; only the normalized ones are spelled out. The activity parts are `null` when
+ *  the server couldn't compute them: the part's query failed, or (`activity_buckets`,
+ *  `last_error`) it only runs for a window and this was an all-time request. Render a null part
+ *  as "—", never as a zero or a healthy value. `last_error` `null`: the lookup didn't run or
+ *  failed. `{ error: null }`: it ran and found no error. */
+export type AppRow = Omit<AppManifest, OverriddenAppFields> &
+  AppActivity & {
+    block_reason: string | null;
+    instances: NonNullable<AppManifest["instances"]>;
+    error_message: string | null;
+  };
 
 /**
- * Normalize a dashboard grid entry into an `AppRow`, defaulting the entry's
- * optional enrichment fields (activity buckets, last-error fields, instances)
- * to their empty/null equivalents. The grid endpoint is the sole data source —
- * this is field defaulting, not a merge of two sources.
+ * Flatten an app grid entry (`{app, activity}`) into an `AppRow`: the app's fields side by side
+ * with its activity parts, defaulting the app's optional fields (instances, error fields) to
+ * their empty/null equivalents. The grid endpoint is the sole data source — this is flattening,
+ * not a merge of two sources.
  */
-export function toAppRow(entry: DashboardAppGridEntry): AppRow {
+export function toAppRow({ app, activity }: AppGridEntry): AppRow {
+  // The grid never renders a traceback, so the row drops it.
+  const { error_traceback: _traceback, ...fields } = app;
   return {
-    app_key: entry.app_key,
-    class_name: entry.class_name,
-    display_name: entry.display_name,
-    filename: entry.filename,
-    status: entry.status,
-    block_reason: entry.block_reason ?? null,
-    enabled: entry.enabled,
-    auto_loaded: entry.auto_loaded,
-    autostart: entry.autostart,
-    instance_count: entry.instance_count,
-    instances: entry.instances ?? [],
-    error_message: entry.error_message ?? null,
-    in_current_config: entry.in_current_config,
-    handler_count: entry.handler_count,
-    job_count: entry.job_count,
-    total_invocations: entry.total_invocations,
-    total_executions: entry.total_executions,
-    total_errors: entry.total_errors,
-    total_timed_out: entry.total_timed_out,
-    total_job_errors: entry.total_job_errors,
-    total_job_timed_out: entry.total_job_timed_out,
-    last_activity_ts: entry.health.last_activity_ts,
-    activity_buckets: entry.activity_buckets ?? [],
-    last_error_message: entry.last_error_message ?? null,
-    last_error_type: entry.last_error_type ?? null,
-    last_error_ts: entry.last_error_ts ?? null,
-    blocking_event_count: entry.blocking_event_count,
+    ...fields,
+    block_reason: app.block_reason ?? null,
+    instances: app.instances ?? [],
+    error_message: app.error_message ?? null,
+    ...activity,
   };
+}
+
+/** Sums `pick` over every row, or `null` when any row's value is `null`: a total that skipped
+ *  uncomputed rows would read as a smaller real number. */
+export function sumOrNull(rows: readonly AppRow[], pick: (row: AppRow) => number | null): number | null {
+  let total = 0;
+  for (const row of rows) {
+    const value = pick(row);
+    if (value === null) return null;
+    total += value;
+  }
+  return total;
+}
+
+/** True when some row is missing a part the request asked for, i.e. an enrichment failed. A windowed
+ *  part is only asked for when the response's `since` echo is set; without one, its `null` means
+ *  "not computed", not a failure. */
+export function hasFailedActivityPart(grid: AppGridResponse | undefined): boolean {
+  if (!grid) return false;
+  // The response's `since` echo, not the page's own preset: it states what the server computed.
+  const windowed = grid.since !== null && grid.since !== undefined;
+  const requested = ACTIVITY_PARTS.filter((part) => windowed || !WINDOWED_ACTIVITY_PARTS.has(part));
+  return grid.apps.some(({ activity }) => requested.some((part) => activity[part] === null));
+}
+
+/** Handler invocations plus job executions, or `null` when the row's stats weren't computed. */
+export function totalRuns(row: Pick<AppRow, "stats">): number | null {
+  return row.stats ? row.stats.total_invocations + row.stats.total_executions : null;
 }
 
 export type AppSortKey = "name" | "status" | "error" | "runs" | "last";
@@ -86,7 +98,7 @@ export type AppSortState = SortState<AppSortKey>;
  *  config state. Single source of truth for this rule — `appLiveStatus` and the per-instance
  *  action-button gating in `AppTableRow`/`AppDetailHeader` all call this instead of
  *  reimplementing the `"disabled" | "blocked"` check inline. */
-export function configStatusOverride(status: ManifestStatus | ResourceStatus): "disabled" | "blocked" | undefined {
+export function configStatusOverride(status: AppStatus | ResourceStatus): "disabled" | "blocked" | undefined {
   return status === "disabled" || status === "blocked" ? status : undefined;
 }
 
@@ -98,7 +110,7 @@ export function configStatusOverride(status: ManifestStatus | ResourceStatus): "
  *  own binary model server-side (an instance entry is either running or failed, nothing else),
  *  though the live WS status of an individual instance can transiently be a finer-grained
  *  value (e.g. "starting") that this check doesn't treat as "running". This must be computed
- *  from live data, not read off the cached `row.status`: the dashboard grid query is
+ *  from live data, not read off the cached `row.status`: the app-grid query is
  *  invalidated on execution events, not `app_status_changed`, so a cached `row.status` can be
  *  stale in either direction (still "running" after an instance fails, or still "degraded"
  *  after all instances recover) for as long as no execution event happens to refetch it.
@@ -115,7 +127,7 @@ export function configStatusOverride(status: ManifestStatus | ResourceStatus): "
 export function appLiveStatus(
   appStatuses: Record<string, AppStatusEntry>,
   row: Pick<AppRow, "app_key" | "status"> & { instances?: AppRow["instances"] },
-): ManifestStatus | ResourceStatus {
+): AppStatus | ResourceStatus {
   const override = configStatusOverride(row.status);
   if (override) return override;
   const instances = row.instances ?? [];
@@ -190,14 +202,25 @@ export function compareAppRows(
     }
     case "error":
       return direction * ((hasError(a) ? 0 : 1) - (hasError(b) ? 0 : 1));
-    case "runs": {
-      const aRuns = a.total_invocations + a.total_executions;
-      const bRuns = b.total_invocations + b.total_executions;
-      return direction * (aRuns - bRuns);
-    }
+    case "runs":
+      return compareNullsLast(totalRuns(a), totalRuns(b), direction);
     case "last":
-      return direction * ((a.last_activity_ts ?? 0) - (b.last_activity_ts ?? 0));
+      return compareNullsLast(lastActivitySortValue(a), lastActivitySortValue(b), direction);
     default:
       return 0;
   }
+}
+
+/** `null` (sorted last) when the row's stats weren't computed. An app whose stats were computed but
+ *  that never ran has no `last_activity_ts`, and sorts as the oldest possible activity (0). */
+function lastActivitySortValue(row: AppRow): number | null {
+  return row.stats ? (row.stats.health.last_activity_ts ?? 0) : null;
+}
+
+/** Orders two values by `direction`, with `null` (an uncomputed part) last in either direction. */
+function compareNullsLast(a: number | null, b: number | null, direction: number): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  return direction * (a - b);
 }

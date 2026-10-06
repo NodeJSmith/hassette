@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from hassette.types.enums import DEFAULT_BACKPRESSURE_POLICY, DEFAULT_OVERLAP_MODE
 
 
-class ListenerSummary(BaseModel):
+class ListenerSummaryRow(BaseModel):
     """Per-listener summary returned by ``get_listener_summary()``.
 
     ``failed`` counts only ``'error'`` status; ``timed_out`` and ``cancelled`` are tracked separately.

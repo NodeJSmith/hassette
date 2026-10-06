@@ -34,7 +34,7 @@ from tests.support.helpers import (
 )
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
-from .conftest import AUTH_SESSION_PATH, CONFIG_PATH, make_log_record
+from .conftest import APPS_PATH, AUTH_SESSION_PATH, CONFIG_PATH, make_log_record
 
 _TRUSTED_PEER_IP = "203.0.113.5"
 """Peer address the trusted-proxy tests list in `trusted_proxies` (RFC 5737 doc range)."""
@@ -121,7 +121,7 @@ class TestDefaultDenyNoCredential:
             ("post", "/api/apps/my_app/start"),  # mutation endpoint
             ("get", "/api/apps/my_app/source"),  # source-disclosure endpoint
             ("get", CONFIG_PATH),  # source-disclosure endpoint
-            ("get", "/api/apps"),  # representative non-exempt route
+            ("get", APPS_PATH),  # representative non-exempt route
             ("get", "/api/docs"),  # deliberately no longer exempt (design.md Edge Cases)
             ("get", "/api/openapi.json"),  # deliberately no longer exempt
         ],

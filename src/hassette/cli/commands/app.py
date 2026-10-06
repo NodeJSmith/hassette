@@ -1,4 +1,4 @@
-"""App-related CLI commands: app list, health, activity, config, source, start/stop/reload."""
+"""App-related CLI commands: the ``hassette app`` listing, health, activity, config, source, start/stop/reload."""
 
 import sys
 from typing import Any
@@ -7,15 +7,16 @@ from hassette_wire import (
     ActivityFeedEntry,
     AppAction,
     AppConfigResponse,
+    AppGridResponse,
     AppHealth,
-    AppManifestListResponse,
     AppSourceResponse,
 )
 
 import hassette.cli.output as cli_output
-from hassette.cli.client import make_client, parse_wire_list, query_params
+from hassette.cli.client import APP_GRID_PATH, make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.types import InstanceActionArg, InstanceArg, LimitArg, SinceArg, SourceTierArg, YesArg
+from hassette.const.misc import SECONDS_PER_HOUR
 
 #: Past-tense verb used in success messages, keyed by action. Lowercase for CLI message
 #: construction; ``hassette.web.routes.apps`` keeps a capitalized copy for its log lines.
@@ -27,15 +28,22 @@ ACTION_PAST_TENSE: dict[AppAction, str] = {"start": "started", "stop": "stopped"
 #: the CLI/frontend boundary for "which actions exist and what each one needs."
 ACTIONS_REQUIRING_CONFIRMATION: frozenset[AppAction] = frozenset({"stop", "reload"})
 
+#: Window for ``hassette app``'s activity column, which its "Invocations/<hours>h" header names.
+APP_LIST_WINDOW_SECONDS = SECONDS_PER_HOUR
+
 APP_LIST_COLUMNS: list[cli_output.Column] = [
-    cli_output.Column("app_key", "App", max_width=20),
-    cli_output.Column("status", "Status", max_width=10),
-    cli_output.Column("display_name", "Display Name", max_width=22),
-    cli_output.Column("instance_count", "Instances", max_width=9),
-    cli_output.Column("recent_invocations_1h", "Invocations/1h", max_width=14),
-    cli_output.Column("enabled", "Enabled", max_width=7),
-    cli_output.Column("autostart", "Autostart", max_width=9),
-    cli_output.Column("filename", "File", max_width=20),
+    cli_output.Column("app.app_key", "App", max_width=20),
+    cli_output.Column("app.status", "Status", max_width=10),
+    cli_output.Column("app.display_name", "Display Name", max_width=22),
+    cli_output.Column("app.instance_count", "Instances", max_width=9),
+    cli_output.Column(
+        "activity.stats.total_invocations",
+        f"Invocations/{APP_LIST_WINDOW_SECONDS // SECONDS_PER_HOUR}h",
+        max_width=14,
+    ),
+    cli_output.Column("app.enabled", "Enabled", max_width=7),
+    cli_output.Column("app.autostart", "Autostart", max_width=9),
+    cli_output.Column("app.filename", "File", max_width=20),
 ]
 
 APP_HEALTH_COLUMNS: list[cli_output.Column] = [
@@ -60,10 +68,16 @@ APP_ACTIVITY_COLUMNS: list[cli_output.Column] = [
 
 
 def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
-    """List all apps (GET /api/apps/manifests)."""
+    """List all apps with their invocations over the last hour (GET /api/telemetry/app-grid).
+
+    Reads the app grid rather than ``GET /api/apps`` because the app summary carries no activity:
+    the grid is the one apps-with-activity view, the same the Apps page shows.
+    """
     client = make_client(ctx)
-    result = client.get("/api/apps/manifests", AppManifestListResponse)
-    cli_output.render_table(result.manifests, APP_LIST_COLUMNS, json_mode=ctx.json_mode)
+    params = query_params(since=cli_output.now_epoch() - APP_LIST_WINDOW_SECONDS)
+    result = client.get(APP_GRID_PATH, AppGridResponse, params=params)
+    cli_output.warn_missing_activity(result)
+    cli_output.render_table(result.apps, APP_LIST_COLUMNS, json_mode=ctx.json_mode)
 
 
 def cmd_app_health(

@@ -58,7 +58,6 @@ def wire_telemetry_stubs(hassette: MagicMock) -> None:
     ts.get_blocking_event_counts = AsyncMock(return_value={})
     ts.get_blocking_findings = AsyncMock(return_value=BlockingFindingsResponse(findings=[]))
     ts.get_unattributed_blocking = AsyncMock(return_value=UnattributedBlockingResponse(recent=[]))
-    ts.get_recent_invocations_1h_all_apps = AsyncMock(return_value={})
     ts.get_app_recent_activity = AsyncMock(return_value=[])
     ts.get_all_app_manifests = AsyncMock(return_value=[])
     ts.get_app_manifest = AsyncMock(return_value=None)

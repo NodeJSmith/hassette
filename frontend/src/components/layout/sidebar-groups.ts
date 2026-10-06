@@ -1,10 +1,9 @@
+import type { AppStatus, ResourceStatus } from "../../api/endpoints";
 import type { components } from "../../api/generated-types";
 import type { AppStatusEntry } from "../../state/store";
 import { appLiveStatus } from "../../utils/app-data";
 
-type AppManifest = components["schemas"]["AppManifestResponse"];
-type ManifestStatus = components["schemas"]["ManifestStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
+type AppManifest = components["schemas"]["AppSummary"];
 
 export type GroupKey = "err" | "blocked" | "warn" | "ok" | "stopped" | "disabled";
 
@@ -31,7 +30,7 @@ export const GROUP_DEFS: GroupDef[] = [
 
 /** Legacy frontend-only status value not present in either backend enum — see
  *  `ShuttingDownStatus` in `utils/status.ts` for the full rationale. */
-type StatusGroupKey = ManifestStatus | ResourceStatus | "shutting_down";
+type StatusGroupKey = AppStatus | ResourceStatus | "shutting_down";
 
 const STATUS_TO_GROUP = {
   failed: "err",

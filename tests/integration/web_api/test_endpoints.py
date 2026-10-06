@@ -17,6 +17,8 @@ from tests.support.web_manifest_helpers import make_manifest_db_row
 from tests.support.web_telemetry_helpers import make_listener_summary
 
 from .conftest import (
+    APP_PATH,
+    APPS_PATH,
     CONFIG_PATH,
     HEALTH_PATH,
     get_json,
@@ -34,8 +36,6 @@ HEALTH_READY_PATH = "/api/health/ready"
 APP_START_PATH = "/api/apps/my_app/start"
 APP_STOP_PATH = "/api/apps/my_app/stop"
 APP_RELOAD_PATH = "/api/apps/my_app/reload"
-APP_MANIFEST_PATH = "/api/apps/my_app/manifest"
-APP_MANIFESTS_PATH = "/api/apps/manifests"
 BUS_LISTENERS_PATH = "/api/bus/listeners"
 OPENAPI_PATH = "/api/openapi.json"
 
@@ -157,17 +157,6 @@ class TestSPACatchAll:
 
 
 class TestAppEndpoints:
-    async def test_get_apps(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/apps")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["total"] == 1
-        assert data["running"] == 1
-
-    async def test_get_app_endpoint_removed(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/apps/my_app")
-        assert response.status_code == 404
-
     async def test_start_app(self, client: "AsyncClient") -> None:
         response = await client.post(APP_START_PATH)
         assert response.status_code == 202
@@ -576,15 +565,14 @@ class TestAppInstanceEndpoints:
         assert response.status_code == 404
 
 
-class TestAppManifestEndpoint:
-    async def test_get_manifest_returns_single_manifest(self, client: "AsyncClient", mock_hassette) -> None:
+class TestGetAppEndpoint:
+    async def test_get_app_returns_single_app(self, client: "AsyncClient", mock_hassette) -> None:
         """A DB-only app (no matching in-memory manifest) returns 200, not 404."""
         mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
             return_value=make_manifest_db_row(app_key="my_app", display_name="My App")
         )
-        mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps.return_value = {"my_app": 5}
 
-        response = await client.get(APP_MANIFEST_PATH)
+        response = await client.get(APP_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["app_key"] == "my_app"
@@ -592,65 +580,51 @@ class TestAppManifestEndpoint:
         # No matching in-memory manifest on the stub registry -> stopped, not in current config.
         assert data["status"] == "stopped"
         assert data["in_current_config"] is False
-        assert data["recent_invocations_1h"] == 5
 
-    async def test_get_manifest_returns_404_for_unknown_app(self, client: "AsyncClient", mock_hassette) -> None:
+    async def test_get_app_returns_404_for_unknown_app(self, client: "AsyncClient", mock_hassette) -> None:
         """A genuinely unknown app_key (no DB row at all) still 404s."""
         mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(return_value=None)
 
-        response = await client.get("/api/apps/unknown_app/manifest")
+        response = await client.get("/api/apps/unknown_app")
         assert response.status_code == 404
 
-    async def test_get_manifest_returns_400_for_invalid_key(self, client: "AsyncClient") -> None:
-        response = await client.get("/api/apps/!!invalid/manifest")
+    async def test_get_app_returns_400_for_invalid_key(self, client: "AsyncClient") -> None:
+        response = await client.get("/api/apps/!!invalid")
         assert response.status_code == 400
 
-    async def test_get_manifest_degrades_gracefully_on_telemetry_failure(
-        self, client: "AsyncClient", mock_hassette
-    ) -> None:
-        """A failed Category-C enrichment query (recent_invocations_1h) still returns 200."""
-        mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(
-            return_value=make_manifest_db_row(app_key="my_app")
-        )
-        mock_hassette.telemetry_query_service.get_recent_invocations_1h_all_apps = telemetry_error(message="db down")
-
-        response = await client.get(APP_MANIFEST_PATH)
-        assert response.status_code == 200
-        assert response.json()["recent_invocations_1h"] == 0
-
-    async def test_get_manifest_returns_503_when_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
+    async def test_get_app_returns_503_when_db_unavailable(self, client: "AsyncClient", mock_hassette) -> None:
         """A DB failure on the spine query itself returns 503, not 404."""
         mock_hassette.telemetry_query_service.get_app_manifest = telemetry_error(message="db down")
 
-        response = await client.get(APP_MANIFEST_PATH)
+        response = await client.get(APP_PATH)
         assert response.status_code == 503
 
 
-class TestAppManifestListEndpoint:
-    async def test_get_manifests_includes_db_only_apps(self, client: "AsyncClient", mock_hassette) -> None:
-        """A DB-only app (no matching in-memory manifest) appears in the manifests list."""
+class TestAppListEndpoint:
+    async def test_get_apps_includes_db_only_apps(self, client: "AsyncClient", mock_hassette) -> None:
+        """A DB-only app (no matching in-memory manifest) appears in the app list."""
         mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
             return_value=[make_manifest_db_row(app_key="orphan_app", display_name="Orphan App")]
         )
 
-        response = await client.get(APP_MANIFESTS_PATH)
+        response = await client.get(APPS_PATH)
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 1
         assert data["status_counts"]["stopped"] == 1
-        app_keys = {m["app_key"] for m in data["manifests"]}
+        app_keys = {m["app_key"] for m in data["apps"]}
         assert "orphan_app" in app_keys
-        orphan = next(m for m in data["manifests"] if m["app_key"] == "orphan_app")
+        orphan = next(m for m in data["apps"] if m["app_key"] == "orphan_app")
         assert orphan["display_name"] == "Orphan App"
         assert orphan["status"] == "stopped"
         assert orphan["in_current_config"] is False
 
-    async def test_get_manifests_shows_degraded_status_for_mixed_running_and_failed_instances(
+    async def test_get_apps_shows_degraded_status_for_mixed_running_and_failed_instances(
         self, client: "AsyncClient", mock_hassette, tmp_path: Path
     ) -> None:
         """Full-chain check for KI-001: a real AppRegistry with one running and one failed
         instance for the same app_key must surface as ``status: "degraded"`` in the actual
-        HTTP response body from /api/apps/manifests -- not just at the registry or mapper
+        HTTP response body from /api/apps -- not just at the registry or mapper
         level (see design/specs/096-registry-instance-unification/known-issues.md#KI-001).
         """
         registry = AppRegistry()
@@ -670,11 +644,11 @@ class TestAppManifestListEndpoint:
             return_value=[make_manifest_db_row(app_key=manifest.app_key, display_name="Half Broken")]
         )
 
-        response = await client.get(APP_MANIFESTS_PATH)
+        response = await client.get(APPS_PATH)
 
         assert response.status_code == 200
         data = response.json()
-        entry = next(m for m in data["manifests"] if m["app_key"] == manifest.app_key)
+        entry = next(m for m in data["apps"] if m["app_key"] == manifest.app_key)
         assert entry["status"] == "degraded"
         assert data["status_counts"]["degraded"] == 1
 

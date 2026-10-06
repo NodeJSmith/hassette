@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createInstance, createManifest } from "../test/factories";
+import { createAppSummary, createInstance } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import type { AppDetailTab } from "../utils/app-routes";
@@ -58,20 +58,20 @@ describe("AppDetailPage header", () => {
   });
 
   it("renders app_key in the header", async () => {
-    const manifest = createManifest({ app_key: "test_app", display_name: "Motion Sensor App" });
+    const manifest = createAppSummary({ app_key: "test_app", display_name: "Motion Sensor App" });
     setupApi(manifest);
     const { findByTestId } = renderPage({ key: "test_app" });
     expect((await findByTestId("app-title")).textContent).toContain("test_app");
   });
 
   it("renders action buttons", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByTestId } = renderPage({ key: "test_app" });
     expect(await findByTestId("action-buttons")).toBeDefined();
   });
 
   it("renders error display for failed app with error_message", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       status: "failed",
       error_message: "Module not found: light_controller",
       error_traceback: null,
@@ -82,7 +82,7 @@ describe("AppDetailPage header", () => {
   });
 
   it("does not render error display when app has no error_message", async () => {
-    const manifest = createManifest({ error_message: null });
+    const manifest = createAppSummary({ error_message: null });
     setupApi(manifest);
     const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
     // Wait for data to load before asserting absence
@@ -91,14 +91,14 @@ describe("AppDetailPage header", () => {
   });
 
   it("renders auto-loaded badge when auto_loaded is true", async () => {
-    const manifest = createManifest({ auto_loaded: true });
+    const manifest = createAppSummary({ auto_loaded: true });
     setupApi(manifest);
     const { findByTestId } = renderPage({ key: "test_app" });
     expect(await findByTestId("auto-loaded-badge")).toBeDefined();
   });
 
   it("does not render auto-loaded badge when auto_loaded is false", async () => {
-    const manifest = createManifest({ auto_loaded: false });
+    const manifest = createAppSummary({ auto_loaded: false });
     setupApi(manifest);
     const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
     // Wait for data to load before asserting absence
@@ -107,14 +107,14 @@ describe("AppDetailPage header", () => {
   });
 
   it("renders no-autostart badge when autostart is false", async () => {
-    const manifest = createManifest({ autostart: false });
+    const manifest = createAppSummary({ autostart: false });
     setupApi(manifest);
     const { findByTestId } = renderPage({ key: "test_app" });
     expect(await findByTestId("no-autostart-badge")).toBeDefined();
   });
 
   it("does not render no-autostart badge when autostart is true", async () => {
-    const manifest = createManifest({ autostart: true });
+    const manifest = createAppSummary({ autostart: true });
     setupApi(manifest);
     const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
     await findByTestId("app-title");
@@ -122,7 +122,7 @@ describe("AppDetailPage header", () => {
   });
 
   it("shows filename and class name in subtitle meta", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       app_key: "test_app",
       filename: "apps/test_app.py",
       class_name: "TestApp",
@@ -138,7 +138,7 @@ describe("AppDetailPage header", () => {
     // instance_count=3 but the instances array is sparse (only 0 and 2 are tracked) — index 1
     // is below instance_count so the out-of-range redirect never fires, yet it can't be
     // resolved from the manifest either.
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       app_key: "test_app",
       instance_count: 3,
       instances: [
@@ -163,7 +163,7 @@ describe("AppDetailPage header", () => {
     // omitted. If instance_count fell to 1 here, Stop/Reload would silently fall through
     // to the app-level endpoint and affect every configured instance, not just the one
     // shown on this page.
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       app_key: "test_app",
       instance_count: 2,
       instances: [
@@ -186,7 +186,7 @@ describe("AppDetailPage header", () => {
     // would otherwise make CAN_START show a Start button for an instance page for an app the
     // exclusive-app filter excluded. The backend guards this too (AppLifecycleService rejects
     // starts for blocked apps) — this covers the UI side.
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       app_key: "test_app",
       status: "blocked",
       block_reason: "only_app",
@@ -204,7 +204,7 @@ describe("AppDetailPage header", () => {
   });
 
   it("shows the instance Start button for a stopped instance when the parent app is not blocked", async () => {
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       app_key: "test_app",
       status: "degraded",
       instance_count: 2,
@@ -225,7 +225,7 @@ describe("AppDetailPage header", () => {
     // (CAN_START.disabled is true on purpose), unlike "blocked" which the backend rejects
     // outright. Once that instance is running, the action status must reflect "running" — not
     // freeze on "disabled" and hide Stop/Reload forever.
-    const manifest = createManifest({
+    const manifest = createAppSummary({
       app_key: "test_app",
       status: "disabled",
       instance_count: 2,

@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock
 
 from hassette_wire import Execution, JobSummary
 
-from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
 from tests.e2e.mock_fixtures.constants import (
     APP_KEY_BROKEN_APP,
@@ -43,10 +43,10 @@ def by_app_key_or_all(items_by_app: Mapping[str, list[T]]) -> Callable[..., list
     return side_effect
 
 
-def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
+def build_listener_telemetry() -> dict[str, list[ListenerSummaryRow]]:
     """Build per-app listener summaries for e2e tests."""
     telemetry_listeners_my_app = [
-        ListenerSummary(
+        ListenerSummaryRow(
             listener_id=1,
             handler_method="on_light_change",
             topic="state_changed.light.kitchen",
@@ -74,7 +74,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
             last_error_type="ValueError",
             last_error_message="Bad state value",
         ),
-        ListenerSummary(
+        ListenerSummaryRow(
             listener_id=2,
             handler_method="on_temp_update",
             topic="state_changed.sensor.temperature",
@@ -104,7 +104,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
     ]
     # broken_app listeners — registered before the app failed during init.
     telemetry_listeners_broken_app = [
-        ListenerSummary(
+        ListenerSummaryRow(
             listener_id=3,
             handler_method="on_door_open",
             topic="state_changed.binary_sensor.door",
@@ -134,7 +134,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
     ]
     # nosource_app listeners — empty source fields for testing hidden source display.
     telemetry_listeners_nosource_app = [
-        ListenerSummary(
+        ListenerSummaryRow(
             listener_id=100,
             handler_method="on_event",
             topic="state_changed.switch.fan",
@@ -169,7 +169,7 @@ def build_listener_telemetry() -> dict[str, list[ListenerSummary]]:
     }
 
 
-def wire_listener_telemetry(hassette, listeners_by_app: dict[str, list[ListenerSummary]]) -> None:
+def wire_listener_telemetry(hassette, listeners_by_app: dict[str, list[ListenerSummaryRow]]) -> None:
     """Wire listener summary side effects onto the mock telemetry query service."""
     hassette._telemetry_query_service.get_listener_summary = AsyncMock(side_effect=by_app_key_or_all(listeners_by_app))
 

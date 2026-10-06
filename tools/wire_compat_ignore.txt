@@ -22,11 +22,6 @@ GET /api/apps/{app_key}/config removed the required property `status` from the r
 GET /api/apps/{app_key}/config removed the required property `title` from the response with the `422` status
 GET /api/apps/{app_key}/config the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
 GET /api/apps/{app_key}/config the response property `detail` became optional for the status `422`
-GET /api/apps/{app_key}/manifest removed the required property `code` from the response with the `422` status
-GET /api/apps/{app_key}/manifest removed the required property `status` from the response with the `422` status
-GET /api/apps/{app_key}/manifest removed the required property `title` from the response with the `422` status
-GET /api/apps/{app_key}/manifest the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
-GET /api/apps/{app_key}/manifest the response property `detail` became optional for the status `422`
 GET /api/apps/{app_key}/source removed the required property `code` from the response with the `422` status
 GET /api/apps/{app_key}/source removed the required property `status` from the response with the `422` status
 GET /api/apps/{app_key}/source removed the required property `title` from the response with the `422` status
@@ -72,11 +67,6 @@ GET /api/telemetry/app/{app_key}/listeners removed the required property `status
 GET /api/telemetry/app/{app_key}/listeners removed the required property `title` from the response with the `422` status
 GET /api/telemetry/app/{app_key}/listeners the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
 GET /api/telemetry/app/{app_key}/listeners the response property `detail` became optional for the status `422`
-GET /api/telemetry/dashboard/app-grid removed the required property `code` from the response with the `422` status
-GET /api/telemetry/dashboard/app-grid removed the required property `status` from the response with the `422` status
-GET /api/telemetry/dashboard/app-grid removed the required property `title` from the response with the `422` status
-GET /api/telemetry/dashboard/app-grid the `detail` response's property `type` changed from `array<object>` to `string` for status `422`
-GET /api/telemetry/dashboard/app-grid the response property `detail` became optional for the status `422`
 GET /api/telemetry/execution/{execution_id} removed the required property `code` from the response with the `422` status
 GET /api/telemetry/execution/{execution_id} removed the required property `status` from the response with the `422` status
 GET /api/telemetry/execution/{execution_id} removed the required property `title` from the response with the `422` status
@@ -147,14 +137,8 @@ PUT /api/logs/level the response property `detail` became optional for the statu
 # Both check directions report, so each side's renamed fields appear as "removed".
 GET /api/telemetry/app/{app_key}/health removed the required property `handler_avg_duration_ms` from the response with the `200` status
 GET /api/telemetry/app/{app_key}/health removed the required property `job_avg_duration_ms` from the response with the `200` status
-GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/health` from the response with the `200` status
 GET /api/telemetry/app/{app_key}/health removed the required property `handler_avg_duration` from the response with the `200` status
 GET /api/telemetry/app/{app_key}/health removed the required property `job_avg_duration` from the response with the `200` status
-GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/avg_duration_ms` from the response with the `200` status
-GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/error_rate` from the response with the `200` status
-GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/error_rate_class` from the response with the `200` status
-GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/health_status` from the response with the `200` status
-GET /api/telemetry/dashboard/app-grid removed the required property `apps/items/last_activity_ts` from the response with the `200` status
 
 # #2448 (spec 123): server-defined vocabularies on response fields get real types.
 # ServiceInfoResponse.role drops its "" default and becomes required. The reversed check (new
@@ -167,3 +151,17 @@ GET /api/telemetry/app/{app_key}/jobs the response property `items/schedule_stat
 # the new $ref arm as an anyOf addition.
 GET /api/scheduler/jobs added `#/components/schemas/ScheduleStatusReason` to the `items/schedule_status_reason` response property `anyOf` list for the response status `200`
 GET /api/telemetry/app/{app_key}/jobs added `#/components/schemas/ScheduleStatusReason` to the `items/schedule_status_reason` response property `anyOf` list for the response status `200`
+
+# #2509 (spec 125): apps served at /api/apps and /api/apps/{app_key}; the orphaned AppStatusResponse
+# GET /api/apps is removed; the grid moves to /api/telemetry/app-grid with {app, activity} rows.
+GET /api/apps removed the required property `apps/items/auto_loaded` from the response with the `200` status
+GET /api/apps removed the required property `apps/items/display_name` from the response with the `200` status
+GET /api/apps removed the required property `apps/items/enabled` from the response with the `200` status
+GET /api/apps removed the required property `apps/items/filename` from the response with the `200` status
+GET /api/apps removed the required property `apps/items/index` from the response with the `200` status
+GET /api/apps removed the required property `apps/items/instance_name` from the response with the `200` status
+GET /api/apps removed the required property `failed` from the response with the `200` status
+GET /api/apps removed the required property `running` from the response with the `200` status
+GET /api/apps/manifests api path removed without deprecation
+GET /api/apps/{app_key}/manifest api path removed without deprecation
+GET /api/telemetry/dashboard/app-grid api path removed without deprecation

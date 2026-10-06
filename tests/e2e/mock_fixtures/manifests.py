@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette_wire import ManifestStatus, ResourceStatus
+from hassette_wire import AppStatus, ResourceStatus
 
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from tests.e2e.mock_fixtures.constants import (
@@ -32,7 +32,7 @@ def build_manifests() -> list[AppManifestInfo]:
             class_name="MyApp",
             display_name="My App",
             filename="my_app.py",
-            status=ManifestStatus.RUNNING,
+            status=AppStatus.RUNNING,
             instance_count=1,
             instances=[make_app_instance_info(app_key=APP_KEY_MY_APP, owner_id="MyApp.MyApp[0]")],
         ),
@@ -41,7 +41,7 @@ def build_manifests() -> list[AppManifestInfo]:
             class_name="OtherApp",
             display_name="Other App",
             filename="other_app.py",
-            status=ManifestStatus.STOPPED,
+            status=AppStatus.STOPPED,
             instance_count=0,
         ),
         make_manifest(
@@ -49,7 +49,7 @@ def build_manifests() -> list[AppManifestInfo]:
             class_name="BrokenApp",
             display_name="Broken App",
             filename="broken_app.py",
-            status=ManifestStatus.FAILED,
+            status=AppStatus.FAILED,
             instance_count=1,
             instances=[
                 make_app_instance_info(
@@ -69,7 +69,7 @@ def build_manifests() -> list[AppManifestInfo]:
             display_name="Disabled App",
             filename="disabled_app.py",
             enabled=False,
-            status=ManifestStatus.DISABLED,
+            status=AppStatus.DISABLED,
             instance_count=0,
         ),
         make_manifest(
@@ -77,7 +77,7 @@ def build_manifests() -> list[AppManifestInfo]:
             class_name="NoSourceApp",
             display_name="No Source App",
             filename="nosource_app.py",
-            status=ManifestStatus.RUNNING,
+            status=AppStatus.RUNNING,
             instance_count=1,
             instances=[
                 make_app_instance_info(
@@ -92,7 +92,7 @@ def build_manifests() -> list[AppManifestInfo]:
             class_name="MultiApp",
             display_name="Multi App",
             filename="multi_app.py",
-            status=ManifestStatus.RUNNING,
+            status=AppStatus.RUNNING,
             instance_count=3,
             instances=[
                 make_app_instance_info(
@@ -135,7 +135,7 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
       ``/apps/{key}/config`` and ``/apps/{key}/source``, which read the registry's in-memory
       manifest directly for config schema resolution and source file paths.
     - ``telemetry_query_service.get_all_app_manifests`` / ``get_app_manifest``: the DB spine
-      that ``/apps/manifests`` (list) and ``/apps/{key}/manifest`` (detail) now query instead
+      that ``/apps`` (list) and ``/apps/{key}`` (detail) now query instead
       of the in-memory registry (design/specs/087-db-manifest-union). ``registry.manifests``
       is populated (non-empty) so ``overlay_runtime_state()`` takes the "in current config"
       branch for every seed app, and ``registry.build_manifest_info`` is wired to hand back
@@ -174,8 +174,8 @@ def wire_app_manifest_lookups(hassette, manifests: list[AppManifestInfo]) -> Non
 
     manifest_info_by_key = {manifest.app_key: manifest for manifest in manifests}
 
-    # DB spine mocks — /apps/manifests and the dashboard grid both call
-    # telemetry.get_all_app_manifests(); /apps/{key}/manifest calls telemetry.get_app_manifest().
+    # DB spine mocks — /apps and the app grid both call
+    # telemetry.get_all_app_manifests(); /apps/{key} calls telemetry.get_app_manifest().
     db_rows_by_key = {
         manifest.app_key: make_manifest_db_row(
             app_key=manifest.app_key,

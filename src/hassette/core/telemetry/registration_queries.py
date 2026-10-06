@@ -17,7 +17,7 @@ from hassette.core.telemetry.helpers import (
     since_clause,
     source_tier_clause,
 )
-from hassette.schemas.listener_models import ListenerSummary, SlowHandlerRecord
+from hassette.schemas.listener_models import ListenerSummaryRow, SlowHandlerRecord
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT
 from hassette.types.types import APP_SOURCE_TIER
 
@@ -41,7 +41,7 @@ class RegistrationQueriesMixin:
         instance_index: int | None = None,
         since: float | None = None,
         source_tier: QuerySourceTier = APP_SOURCE_TIER,
-    ) -> list[ListenerSummary]:
+    ) -> list[ListenerSummaryRow]:
         """Return per-listener summaries, optionally filtered to a specific app instance.
 
         When ``app_key`` is ``None``, returns all listeners across all apps (no WHERE filter
@@ -127,7 +127,7 @@ class RegistrationQueriesMixin:
         """
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
-        return [ListenerSummary.model_validate(row_to_dict(row)) for row in rows]
+        return [ListenerSummaryRow.model_validate(row_to_dict(row)) for row in rows]
 
     async def get_job_summary(
         self,

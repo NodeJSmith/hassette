@@ -1,15 +1,15 @@
-import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, type UseQueryOptions, type UseQueryResult } from "@tanstack/react-query";
 
 import { useAppStore } from "../state/store";
 import { resolveSince } from "../utils/time-window";
 
-export interface UseScopedQueryOptions {
+export interface UseScopedQueryOptions<T = unknown> {
   placeholderData?: typeof keepPreviousData;
   /** Skip the query entirely (e.g. the current route has no need for this data). */
   enabled?: boolean;
   /**
    * When false, a `since-restart` query fires immediately with an all-time window
-   * (`since=0`) instead of blocking until the WS connected message provides
+   * (`since=null`) instead of blocking until the WS connected message provides
    * `uptimeSeconds`. The query key still includes uptime, so it refetches with the
    * accurate restart-relative window as soon as uptime arrives.
    *
@@ -19,12 +19,13 @@ export interface UseScopedQueryOptions {
    */
   waitForUptime?: boolean;
   /**
-   * Forwarded to `useQuery`'s own `refetchInterval` — refetch on a fixed cadence while the
-   * query is mounted and enabled. TanStack stops interval refetches automatically once the
-   * query is disabled (e.g. by `waitForUptime`'s gate), so callers don't need to guard this
-   * themselves.
+   * Forwarded to `useQuery`'s own `refetchInterval` — a fixed cadence, or a function of the query
+   * that returns a cadence or `false`, so a caller can poll only while its data calls for it (the
+   * Apps grid polls while an enrichment failure is on screen). TanStack stops interval refetches
+   * automatically once the query is disabled (e.g. by `waitForUptime`'s gate), so callers don't
+   * need to guard this themselves.
    */
-  refetchInterval?: number;
+  refetchInterval?: UseQueryOptions<T>["refetchInterval"];
   /**
    * Forwarded to `useQuery`'s own `refetchOnMount`. TanStack's default (`true`) only refetches
    * on mount if the cached entry is past `staleTime` — a remount inside that window silently
@@ -61,8 +62,8 @@ export interface UseScopedQueryOptions {
  */
 export function useScopedQuery<T>(
   baseKey: readonly unknown[],
-  fetcher: (since: number, signal: AbortSignal) => Promise<T>,
-  options?: UseScopedQueryOptions,
+  fetcher: (since: number | null, signal: AbortSignal) => Promise<T>,
+  options?: UseScopedQueryOptions<T>,
 ): UseQueryResult<T> & { queryKey: readonly unknown[] } {
   const timePreset = useAppStore((s) => s.timePreset);
   const urlWindowParam = useAppStore((s) => s.urlWindowParam);
@@ -83,9 +84,9 @@ export function useScopedQuery<T>(
   const result = useQuery<T>({
     queryKey,
     queryFn: ({ signal }) => {
-      // Falls back to an all-time window (since=0) when waitForUptime opted out of the
-      // blocking gate above and uptime hasn't arrived yet.
-      const since = resolveSince(preset, uptime) ?? 0;
+      // Falls back to an all-time window (since=null) when waitForUptime opted out of the blocking
+      // gate above and uptime hasn't arrived yet.
+      const since = resolveSince(preset, uptime) ?? null;
       return fetcher(since, signal);
     },
     // Picked individually rather than `...options` — a blind spread would also forward

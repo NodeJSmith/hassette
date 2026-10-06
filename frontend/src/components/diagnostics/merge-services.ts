@@ -1,8 +1,8 @@
+import type { ResourceStatus } from "../../api/endpoints";
 import type { components } from "../../api/generated-types";
 import type { ServiceStatusEntry } from "../../state/store";
 
 type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
 type ResourceRole = components["schemas"]["ResourceRole"];
 
 export interface MergedService {

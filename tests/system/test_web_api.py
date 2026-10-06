@@ -37,7 +37,7 @@ async def test_health_endpoint(ha_container: str, tmp_path) -> None:
 
 
 async def test_apps_endpoint(ha_container: str, tmp_path) -> None:
-    """GET /api/apps returns 200 and an AppStatusResponse-shaped JSON body."""
+    """GET /api/apps returns 200 and an AppListResponse-shaped JSON body."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config) as _hassette:
         await wait_for_web_server(base_url)
@@ -48,8 +48,7 @@ async def test_apps_endpoint(ha_container: str, tmp_path) -> None:
         assert r.status_code == 200
         body: dict[str, Any] = r.json()
         assert "total" in body
-        assert "running" in body
-        assert "failed" in body
+        assert "status_counts" in body
         assert "apps" in body
         assert isinstance(body["apps"], list)
 

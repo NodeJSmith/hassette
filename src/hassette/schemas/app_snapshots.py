@@ -8,9 +8,9 @@ removes the ``web → core`` import cycle.
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from hassette_wire import ManifestStatus, ResourceStatus
+from hassette_wire import AppStatus, ResourceStatus
 
-MANIFEST_STATUS_KEYS = tuple(ManifestStatus)
+APP_STATUS_KEYS = tuple(AppStatus)
 
 
 @dataclass
@@ -30,7 +30,10 @@ class AppInstanceInfo:
 
 @dataclass
 class AppStatusSnapshot:
-    """Immutable snapshot of all app states for web UI consumption."""
+    """Immutable snapshot of every tracked app instance and its per-instance ``ResourceStatus``.
+
+    Instance-level, unlike the app-level ``AppStatus`` on ``AppManifestInfo``.
+    """
 
     instances: list[AppInstanceInfo] = field(default_factory=list)
     only_apps: list[str] = field(default_factory=list)
@@ -74,8 +77,8 @@ class AppManifestInfo:
     filename: str
     enabled: bool
     auto_loaded: bool
-    status: ManifestStatus
-    # Placed after `status` (not next to `enabled`, where it sits in AppManifest/AppManifestResponse)
+    status: AppStatus
+    # Placed after `status` (not next to `enabled`, where it sits in AppManifest/AppSummary)
     # because dataclass rules forbid a defaulted field before the non-default `status`.
     autostart: bool = True
     block_reason: str | None = None
@@ -98,11 +101,11 @@ class AppFullSnapshot:
     manifests: list[AppManifestInfo] = field(default_factory=list)
     only_apps: list[str] = field(default_factory=list)
     total: int = 0
-    status_counts: dict[ManifestStatus, int] = field(default_factory=lambda: dict.fromkeys(MANIFEST_STATUS_KEYS, 0))
-    """Manifest counts keyed by ``ManifestStatus``, with every member present."""
+    status_counts: dict[AppStatus, int] = field(default_factory=lambda: dict.fromkeys(APP_STATUS_KEYS, 0))
+    """Manifest counts keyed by ``AppStatus``, with every member present."""
 
 
-def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[ManifestStatus, int]:
+def tally_app_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, int]:
     """Count manifests by status (``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``,
     ``degraded``).
 
@@ -111,7 +114,7 @@ def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[Manife
     and DB-sourced rows overlaid with runtime state, where a future/drifted status value should
     degrade gracefully instead of crashing the response.
     """
-    counts: dict[ManifestStatus, int] = dict.fromkeys(MANIFEST_STATUS_KEYS, 0)
+    counts: dict[AppStatus, int] = dict.fromkeys(APP_STATUS_KEYS, 0)
     for m in manifests:
         if m.status in counts:
             counts[m.status] += 1
@@ -119,10 +122,10 @@ def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[Manife
 
 
 __all__ = [
-    "MANIFEST_STATUS_KEYS",
+    "APP_STATUS_KEYS",
     "AppFullSnapshot",
     "AppInstanceInfo",
     "AppManifestInfo",
     "AppStatusSnapshot",
-    "tally_manifest_statuses",
+    "tally_app_statuses",
 ]

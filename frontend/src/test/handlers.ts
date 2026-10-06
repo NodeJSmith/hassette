@@ -15,19 +15,19 @@ import type { SetupServer } from "msw/node";
 import type { components } from "../api/generated-types";
 import {
   createAppHealth,
-  createManifestList,
+  createAppList,
   createSystemConfig,
   createSystemStatus,
   createTelemetryStatus,
 } from "./factories";
 
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
-type ManifestListResponse = components["schemas"]["AppManifestListResponse"];
+type ManifestListResponse = components["schemas"]["AppListResponse"];
 type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
 type Execution = components["schemas"]["Execution"];
-type DashboardAppGridResponse = components["schemas"]["DashboardAppGridResponse"];
+type AppGridResponse = components["schemas"]["AppGridResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
 type LogEntryResponse = components["schemas"]["LogEntryResponse"];
 type ActionResponse = components["schemas"]["ActionResponse"];
@@ -38,18 +38,18 @@ type BlockingFindingsResponse = components["schemas"]["BlockingFindingsResponse"
 type UnattributedBlockingResponse = components["schemas"]["UnattributedBlockingResponse"];
 
 /** Installs an MSW handler returning the given manifests for the duration of the test. */
-export function withManifests(manifests: components["schemas"]["AppManifestResponse"][], server: SetupServer) {
+export function withManifests(manifests: components["schemas"]["AppSummary"][], server: SetupServer) {
   const statusCounts = manifests.reduce<Record<string, number>>(
     (counts, manifest) => ({ ...counts, [manifest.status]: (counts[manifest.status] ?? 0) + 1 }),
     { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
   );
   server.use(
-    http.get("/api/apps/manifests", () =>
+    http.get("/api/apps", () =>
       HttpResponse.json<ManifestListResponse>(
-        createManifestList({
+        createAppList({
           total: manifests.length,
           status_counts: statusCounts,
-          manifests,
+          apps: manifests,
           only_apps: [],
         }),
       ),
@@ -58,13 +58,13 @@ export function withManifests(manifests: components["schemas"]["AppManifestRespo
 }
 
 export const handlers = [
-  // GET /api/apps/manifests
-  http.get("/api/apps/manifests", () => {
+  // GET /api/apps
+  http.get("/api/apps", () => {
     return HttpResponse.json<ManifestListResponse>(
-      createManifestList({
+      createAppList({
         total: 0,
         status_counts: { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
-        manifests: [],
+        apps: [],
       }),
     );
   }),
@@ -162,9 +162,9 @@ export const handlers = [
     );
   }),
 
-  // GET /api/telemetry/dashboard/app-grid
-  http.get("/api/telemetry/dashboard/app-grid", () => {
-    return HttpResponse.json<DashboardAppGridResponse>({ apps: [] });
+  // GET /api/telemetry/app-grid
+  http.get("/api/telemetry/app-grid", () => {
+    return HttpResponse.json<AppGridResponse>({ apps: [] });
   }),
 
   // GET /api/telemetry/status

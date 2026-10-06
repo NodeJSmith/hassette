@@ -7,10 +7,9 @@ import pytest
 
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.summary_models import AppHealthAggregates
-from tests.support.web_manifest_helpers import make_manifest_db_row
 from tests.support.web_telemetry_helpers import make_execution, make_listener_summary
 
-from .conftest import APP_GRID_PATH, APP_HEALTH_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
+from .conftest import APP_HEALTH_PATH, TELEMETRY_STATUS_PATH, get_json
 
 MOCK_TS = 1_234_567_890.0
 
@@ -181,87 +180,6 @@ class TestTelemetryListeners:
         assert data[0]["dropped_count"] == 0
 
 
-class TestTelemetryDashboard:
-    async def test_app_grid_returns_per_app_health(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """The grid spine is DB-sourced; entries carry both telemetry and manifest metadata."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[make_manifest_db_row(app_key="my_app")]
-        )
-
-        data = await get_json(client, APP_GRID_PATH)
-
-        assert isinstance(data["apps"], list)
-        assert len(data["apps"]) == 1
-        app_entry = data["apps"][0]
-        assert app_entry["app_key"] == "my_app"
-        # No summary for the app: an all-zero health record with no averages. The same record
-        # stands in when the summaries query fails; that "excellent" is a placeholder until spec
-        # 125's degradation marker lets the grid say a part of `activity` is missing.
-        assert app_entry["health"] == {
-            "error_rate": 0.0,
-            "error_rate_class": "good",
-            "health_status": "excellent",
-            "last_activity_ts": None,
-            "handler_avg_duration_ms": None,
-            "job_avg_duration_ms": None,
-        }
-        for loose_field in ("avg_duration_ms", "error_rate", "error_rate_class", "health_status", "last_activity_ts"):
-            assert loose_field not in app_entry
-        assert "status" in app_entry
-        # Manifest metadata fields are present alongside telemetry data.
-        assert app_entry["class_name"] == "MyApp"
-        assert app_entry["filename"] == "my_app.py"
-        assert app_entry["in_current_config"] is False
-
-    async def test_app_grid_includes_db_only_apps(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        """A DB-only app (no matching in-memory manifest) appears in the grid."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[
-                make_manifest_db_row(
-                    app_key="orphan_app",
-                    class_name="OrphanApp",
-                    display_name="Orphan App",
-                    filename="orphan_app.py",
-                )
-            ]
-        )
-
-        data = await get_json(client, APP_GRID_PATH)
-
-        orphan = next(e for e in data["apps"] if e["app_key"] == "orphan_app")
-        assert orphan["status"] == "stopped"
-        assert orphan["in_current_config"] is False
-        assert orphan["instance_count"] == 0
-
-    async def test_app_grid_carries_blocking_event_counts(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """Each entry gets its app's blocking-event count for the requested window; absent apps read 0."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[make_manifest_db_row(app_key="my_app"), make_manifest_db_row(app_key="clean_app")]
-        )
-        mock_hassette.telemetry_query_service.get_blocking_event_counts = AsyncMock(return_value={"my_app": 9})
-
-        data = await get_json(client, f"{APP_GRID_PATH}?since=1700000000.0")
-
-        assert {e["app_key"]: e["blocking_event_count"] for e in data["apps"]} == {"my_app": 9, "clean_app": 0}
-        call = mock_hassette.telemetry_query_service.get_blocking_event_counts.call_args
-        assert call.kwargs == {"since": pytest.approx(1700000000.0)}
-
-    async def test_app_grid_count_failure_reads_zero_and_stays_200(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        """The count is an optional enrichment: its failure alone zeroes it rather than failing the grid."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[make_manifest_db_row(app_key="my_app")]
-        )
-        mock_hassette.telemetry_query_service.get_blocking_event_counts = telemetry_error("count failed")
-
-        data = await get_json(client, APP_GRID_PATH)
-
-        assert data["apps"][0]["blocking_event_count"] == 0
-
-
 class TestTelemetryBlocking:
     @pytest.mark.parametrize(
         ("path", "expected"),
@@ -395,7 +313,7 @@ class TestQueryParamForwarding:
                 {"since": pytest.approx(1700000011.0)},
             ),
             (
-                "/api/telemetry/dashboard/app-grid?since=1700000013.0",
+                "/api/telemetry/app-grid?since=1700000013.0",
                 "get_all_app_summaries",
                 {"since": pytest.approx(1700000013.0)},
             ),

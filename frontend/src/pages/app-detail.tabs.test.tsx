@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createManifest } from "../test/factories";
+import { createAppSummary } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import type { AppDetailTab } from "../utils/app-routes";
@@ -74,73 +74,73 @@ describe("AppDetailPage tabs", () => {
   });
 
   it("renders overview tab by default (no params.tab provided)", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByTestId } = renderPage({ key: "test_app" });
     // OverviewTab is rendered by default
     expect(await findByTestId("overview-tab")).toBeDefined();
   });
 
   it("renders tab strip with Handlers tab", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByRole } = renderPage({ key: "test_app" });
     expect(await findByRole("tab", { name: /handlers/i })).toBeDefined();
   });
 
   it("renders tab strip with Code tab", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByRole } = renderPage({ key: "test_app" });
     expect(await findByRole("tab", { name: /code/i })).toBeDefined();
   });
 
   it("renders tab strip with Logs tab", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByRole } = renderPage({ key: "test_app" });
     expect(await findByRole("tab", { name: /logs/i })).toBeDefined();
   });
 
   it("renders tab strip with Config tab", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByRole } = renderPage({ key: "test_app" });
     expect(await findByRole("tab", { name: /config/i })).toBeDefined();
   });
 
   it("Overview tab is selected by default", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByRole } = renderPage({ key: "test_app" });
     const overviewTab = await findByRole("tab", { name: /overview/i });
     expect(overviewTab.getAttribute("aria-selected")).toBe("true");
   });
 
   it("renders handlers-tab content when Handlers tab is active", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });
     expect(await findByTestId("handlers-tab")).toBeDefined();
   });
 
   // Tab routing via URL — tab is derived from params.tab prop (set by router)
   it("renders CodeTab when params.tab is 'code'", async () => {
-    const manifest = createManifest();
+    const manifest = createAppSummary();
     setupApi(manifest);
     const { findByTestId } = renderPage({ key: "test_app", tab: "code" });
     expect(await findByTestId("code-tab")).toBeDefined();
   });
 
   it("renders ConfigTab when params.tab is 'config'", async () => {
-    const manifest = createManifest();
+    const manifest = createAppSummary();
     setupApi(manifest);
     const { findByTestId } = renderPage({ key: "test_app", tab: "config" });
     expect(await findByTestId("config-tab")).toBeDefined();
   });
 
   it("renders log table content when params.tab is 'logs'", async () => {
-    const manifest = createManifest();
+    const manifest = createAppSummary();
     setupApi(manifest);
     const { findByTestId } = renderPage({ key: "test_app", tab: "logs" });
     expect(await findByTestId("log-table-drawer")).toBeDefined();
   });
 
   it("code tab has aria-selected=true when params.tab is 'code'", async () => {
-    const manifest = createManifest();
+    const manifest = createAppSummary();
     setupApi(manifest);
     const { findByRole } = renderPage({ key: "test_app", tab: "code" });
     const codeTab = await findByRole("tab", { name: /code/i });
@@ -148,7 +148,7 @@ describe("AppDetailPage tabs", () => {
   });
 
   it("overview tab is selected by default when no params.tab provided", async () => {
-    const manifest = createManifest();
+    const manifest = createAppSummary();
     setupApi(manifest);
     const { findByRole } = renderPage({ key: "test_app" });
     const overviewTab = await findByRole("tab", { name: /overview/i });
@@ -156,7 +156,7 @@ describe("AppDetailPage tabs", () => {
   });
 
   it("overview tab appears first in the tab bar", async () => {
-    const manifest = createManifest();
+    const manifest = createAppSummary();
     setupApi(manifest);
     const { findAllByRole } = renderPage({ key: "test_app" });
     const tabs = await findAllByRole("tab");
@@ -164,7 +164,7 @@ describe("AppDetailPage tabs", () => {
   });
 
   it("tab links point to the correct path with instance query param preserved", async () => {
-    const manifest = createManifest();
+    const manifest = createAppSummary();
     setupApi(manifest);
     mockSearchString = "instance=1";
     const { findByRole } = renderPage({ key: "test_app" });
@@ -173,7 +173,7 @@ describe("AppDetailPage tabs", () => {
   });
 
   it("tab links omit instance query param when not set", async () => {
-    const manifest = createManifest();
+    const manifest = createAppSummary();
     setupApi(manifest);
     // no mockSearchString = no instance param
     const { findByRole } = renderPage({ key: "test_app" });
@@ -183,7 +183,7 @@ describe("AppDetailPage tabs", () => {
 
   // "view in code" navigates to /apps/:key/code?line=N instead of mutating signal
   it("onSwitchToCode navigates to code tab with ?line= param", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });
     await findByTestId("handlers-tab");
     // Invoke the callback captured from HandlersTab
@@ -192,7 +192,7 @@ describe("AppDetailPage tabs", () => {
   });
 
   it("onSwitchToCode navigates to code tab without ?line= when line is undefined", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });
     await findByTestId("handlers-tab");
     capturedOnSwitchToCode?.();
@@ -200,7 +200,7 @@ describe("AppDetailPage tabs", () => {
   });
 
   it("onSwitchToCode preserves ?instance= param when navigating to code tab", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     mockSearchString = "instance=1";
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });
     await findByTestId("handlers-tab");
@@ -209,7 +209,7 @@ describe("AppDetailPage tabs", () => {
   });
 
   it("onSwitchToCode drops invalid instance params", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     mockSearchString = "instance=-1";
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });
     await findByTestId("handlers-tab");
@@ -218,14 +218,14 @@ describe("AppDetailPage tabs", () => {
   });
 
   it("passes selectedHandler prop from params.handler to HandlersTab", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers", handler: "listener/42" });
     await findByTestId("handlers-tab");
     expect(capturedSelectedHandler).toBe("listener/42");
   });
 
   it("passes null selectedHandler to HandlersTab when no handler param", async () => {
-    setupApi(createManifest());
+    setupApi(createAppSummary());
     const { findByTestId } = renderPage({ key: "test_app", tab: "handlers" });
     await findByTestId("handlers-tab");
     expect(capturedSelectedHandler).toBeNull();

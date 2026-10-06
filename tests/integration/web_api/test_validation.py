@@ -8,7 +8,7 @@ import pytest
 from hassette.schemas.query_constants import MAX_QUERY_LIMIT
 from hassette.web.routes.logs import RECENT_LOGS_LIMIT_CAP
 
-from .conftest import APP_GRID_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
+from .conftest import APP_GRID_PATH, TELEMETRY_STATUS_PATH, get_json, seed_grid_apps, telemetry_error
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
@@ -118,32 +118,25 @@ class TestTelemetryStatusDropCounterFallback:
         assert data["dropped_filtered"] == 0
 
 
-class TestDashboardAppGridDbErrorFallback:
-    """TelemetryUnavailableError degradation guard on dashboard_app_grid's optional enrichment query.
+class TestAppGridDbErrorFallback:
+    """TelemetryUnavailableError degradation guard on app_grid's optional enrichment query.
 
-    The enrichment query failing must leave the response at 200 with zeroed per-app entries --
+    The enrichment query failing must leave the response at 200 with every entry's ``stats`` null --
     the DB spine query succeeds independently, so every manifest entry still appears.
     """
 
     @pytest.mark.parametrize("message", WRAPPED_STORAGE_ERRORS)
-    async def test_telemetry_unavailable_returns_200_with_zeroed_entries(
+    async def test_telemetry_unavailable_returns_200_with_null_stats(
         self, client: "AsyncClient", mock_hassette: MagicMock, message: str
     ) -> None:
-        """get_all_app_summaries raising falls back to an empty summaries dict, not a 500."""
+        """get_all_app_summaries raising nulls each row's stats rather than reading as zero, healthy data."""
+        seed_grid_apps(mock_hassette, "a", "b")
         mock_hassette.telemetry_query_service.get_all_app_summaries = telemetry_error(message)
 
         data = await get_json(client, APP_GRID_PATH)
 
-        assert "apps" in data
-        for entry in data["apps"]:
-            assert entry["total_invocations"] == 0
-            assert entry["total_errors"] == 0
-            assert entry["handler_count"] == 0
-            assert entry["job_count"] == 0
-            # total_invocations=0 and total_executions=0 -> error_rate=0.0, and a zero-invocation
-            # app is classified "excellent" (not "unknown").
-            assert entry["error_rate"] == 0.0
-            assert entry["health_status"] == "excellent"
+        assert len(data["apps"]) == 2
+        assert all(entry["activity"]["stats"] is None for entry in data["apps"])
 
 
 class TestAppKeyValidation:

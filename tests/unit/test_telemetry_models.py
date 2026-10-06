@@ -2,7 +2,7 @@
 
 from hassette_wire import Execution, JobSummary
 
-from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.summary_models import AppHealthSummary
 from hassette.types.enums import DEFAULT_OVERLAP_MODE
 from tests.support.factories import TEST_SOURCE_LOCATION
@@ -88,7 +88,7 @@ class TestListenerSummary:
             "last_error_type": "ValueError",
             "last_error_message": "bad value",
         }
-        model = ListenerSummary.model_validate(data)
+        model = ListenerSummaryRow.model_validate(data)
         assert model.listener_id == 1
         assert model.human_description == "entity light.kitchen"
         assert model.total_invocations == 10
@@ -123,7 +123,7 @@ class TestListenerSummary:
             "last_error_type": None,
             "last_error_message": None,
         }
-        model = ListenerSummary.model_validate(data)
+        model = ListenerSummaryRow.model_validate(data)
         assert model.human_description is None
         assert model.last_invoked_at is None
 

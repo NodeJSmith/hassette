@@ -28,7 +28,7 @@ from hassette.web.errors import GLOBAL_CODES, PROBLEM_CODES_KEY
 from tests.integration.conftest import make_manifest_mock
 from tests.support.web_manifest_helpers import make_app_instance_info
 
-from .conftest import AUTH_SESSION_PATH, telemetry_error
+from .conftest import APP_GRID_PATH, APPS_PATH, AUTH_SESSION_PATH, telemetry_error
 
 PROBLEM_CONTENT_TYPE = "application/problem+json"
 
@@ -97,9 +97,7 @@ TELEMETRY_DATA_ROUTES = {
     "execution": TelemetryRoute(
         "get_execution_by_id", "/api/telemetry/execution/abc", "/api/telemetry/execution/{execution_id}"
     ),
-    "app-grid": TelemetryRoute(
-        "get_all_app_manifests", "/api/telemetry/dashboard/app-grid", "/api/telemetry/dashboard/app-grid"
-    ),
+    "app-grid": TelemetryRoute("get_all_app_manifests", APP_GRID_PATH, APP_GRID_PATH),
     "app-blocking": TelemetryRoute(
         "get_blocking_findings", "/api/telemetry/app/my_app/blocking", "/api/telemetry/app/{app_key}/blocking"
     ),
@@ -109,7 +107,7 @@ TELEMETRY_DATA_ROUTES = {
     "blocking-unattributed": TelemetryRoute(
         "get_unattributed_blocking", "/api/telemetry/blocking/unattributed", "/api/telemetry/blocking/unattributed"
     ),
-    "manifests": TelemetryRoute("get_all_app_manifests", "/api/apps/manifests", "/api/apps/manifests"),
+    "manifests": TelemetryRoute("get_all_app_manifests", APPS_PATH, APPS_PATH),
     "bus-listeners": TelemetryRoute("get_listener_summary", "/api/bus/listeners", "/api/bus/listeners"),
     "logs-recent": TelemetryRoute("get_log_records", "/api/logs/recent", "/api/logs/recent"),
     "scheduler-jobs": TelemetryRoute("get_job_summary", "/api/scheduler/jobs", "/api/scheduler/jobs"),
@@ -335,31 +333,31 @@ ROUTE_CASES = {
         operation="/api/apps/{app_key}/instances/{index}/stop",
         arrange=raising("stop_instance", ValueError("boom")),
     ),
-    # GET /api/apps/{app_key}/manifest
+    # GET /api/apps/{app_key}
     "manifest-invalid-key": ProblemCase(
         "GET",
-        "/api/apps/1bad/manifest",
+        "/api/apps/1bad",
         400,
         "invalid_app_key",
         "Invalid app_key: '1bad'",
-        operation="/api/apps/{app_key}/manifest",
+        operation="/api/apps/{app_key}",
     ),
     "manifest-telemetry-unavailable": ProblemCase(
         "GET",
-        "/api/apps/my_app/manifest",
+        "/api/apps/my_app",
         503,
         "telemetry_unavailable",
         "Telemetry store unavailable",
-        operation="/api/apps/{app_key}/manifest",
+        operation="/api/apps/{app_key}",
         arrange=manifest_lookup(telemetry_error()),
     ),
     "manifest-app-not-found": ProblemCase(
         "GET",
-        "/api/apps/my_app/manifest",
+        "/api/apps/my_app",
         404,
         "app_not_found",
         "App 'my_app' not found",
-        operation="/api/apps/{app_key}/manifest",
+        operation="/api/apps/{app_key}",
         arrange=manifest_lookup(AsyncMock(return_value=None)),
     ),
     # GET /api/apps/{app_key}/config
@@ -567,7 +565,7 @@ async def test_error_is_problem_body(
 
 class TestMiddlewareErrors:
     async def test_missing_credential_is_not_authenticated(self, auth_client: AsyncClient) -> None:
-        response = await auth_client.get("/api/apps")
+        response = await auth_client.get(APPS_PATH)
 
         assert_problem(response, status=401, code="not_authenticated", detail="Not authenticated")
 
@@ -599,7 +597,7 @@ class TestRoutingErrors:
         assert_problem(response, status=404, code="not_found", detail="Not Found")
 
     async def test_wrong_method_is_method_not_allowed(self, routing_client: AsyncClient) -> None:
-        response = await routing_client.post("/api/apps")
+        response = await routing_client.post(APPS_PATH)
 
         assert_problem(response, status=405, code="method_not_allowed", detail="Method Not Allowed")
         assert response.headers["allow"] == "GET"
@@ -630,7 +628,7 @@ class TestServerErrors:
         transport = ASGITransport(app=app, raise_app_exceptions=False)
         with caplog.at_level(logging.ERROR, logger="hassette.web.errors"):
             async with AsyncClient(transport=transport, base_url="http://test") as ac:
-                response = await ac.get("/api/apps")
+                response = await ac.get(APPS_PATH)
 
         assert_problem(response, status=500, code="internal_error", detail="Internal Server Error")
         assert "secret internals" not in response.text

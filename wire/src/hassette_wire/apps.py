@@ -1,8 +1,8 @@
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
-from hassette_wire.enums import OpenManifestStatus, OpenResourceStatus
+from hassette_wire.enums import OpenAppStatus, OpenResourceStatus
 from hassette_wire.literals import OpenAppAction
 
 
@@ -17,15 +17,16 @@ class AppInstanceResponse(BaseModel):
     owner_id: str | None = None
 
 
-class AppStatusResponse(BaseModel):
-    total: int
-    running: int
-    failed: int
-    apps: list[AppInstanceResponse]
-    only_apps: list[str] = Field(default_factory=list)
+class AppSummary(BaseModel):
+    """What an app is: its config identity, lifecycle status and instances.
 
+    Served by ``GET /api/apps`` (in ``AppListResponse``) and ``GET /api/apps/{app_key}``, and
+    nested as ``app`` in each ``AppGridEntry``. Activity over a time window lives in
+    ``AppActivity``, never here.
+    """
 
-class AppManifestResponse(BaseModel):
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     app_key: str
     class_name: str
     display_name: str
@@ -33,30 +34,25 @@ class AppManifestResponse(BaseModel):
     enabled: bool
     auto_loaded: bool
     autostart: bool = True
-    status: OpenManifestStatus
+    status: OpenAppStatus
     block_reason: str | None = None
-    instance_count: int = Field(
-        default=0,
-        description="Configured instances, including ones not currently tracked (never started, "
-        "or independently stopped). Always len(instances).",
-    )
+    instance_count: int = 0
+    """Number of entries in ``instances``: every configured instance (including untracked ones, never started
+    or independently stopped) plus any still-tracked instance outside the configured range. 0 for DB-only or
+    removed apps. Always len(instances)."""
     instances: list[AppInstanceResponse] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
-    recent_invocations_1h: int = Field(
-        default=0,
-        description="Total handler invocations in the last hour across all instances.",
-    )
-    in_current_config: bool = Field(
-        default=True,
-        description="True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
-    )
+    in_current_config: bool = True
+    """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
 
 
-class AppManifestListResponse(BaseModel):
+class AppListResponse(BaseModel):
+    """Response for ``GET /api/apps``: every app with status counts."""
+
     total: int
-    status_counts: dict[OpenManifestStatus, int] = Field(default_factory=dict)
-    manifests: list[AppManifestResponse]
+    status_counts: dict[OpenAppStatus, int] = Field(default_factory=dict)
+    apps: list[AppSummary]
     only_apps: list[str] = Field(default_factory=list)
 
 

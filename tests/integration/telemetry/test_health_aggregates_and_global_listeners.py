@@ -13,7 +13,7 @@ Covers:
 import pytest
 
 from hassette.core.telemetry.query_service import TelemetryQueryService
-from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.summary_models import AppHealthAggregates
 
 from .helpers import (
@@ -255,7 +255,7 @@ class TestGetListenerSummaryGlobal:
         results = await query_service.get_listener_summary()
 
         assert len(results) == 3
-        assert all(isinstance(r, ListenerSummary) for r in results)
+        assert all(isinstance(r, ListenerSummaryRow) for r in results)
 
         listener_ids = {r.listener_id for r in results}
         assert listener_ids == {listener_id_alpha, listener_id_beta, listener_id_alpha_1}

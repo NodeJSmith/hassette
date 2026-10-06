@@ -6,7 +6,7 @@ Wraps ``httpx2.Client`` (synchronous) with:
 - Pydantic model deserialization
 - Structured error handling (human mode: Rich on stderr; JSON mode: stdout JSON)
 - ``--app`` endpoint routing (global vs. per-app telemetry paths)
-- ``--instance`` name-to-index resolution via manifest lookup
+- ``--instance`` name-to-index resolution via app list lookup
 """
 
 import json
@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Literal, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
-from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstanceResponse, AppManifestListResponse
+from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstanceResponse, AppListResponse
 from pydantic import BaseModel, ValidationError
 from rich.markup import escape
 
@@ -34,6 +34,9 @@ from hassette.exceptions import FatalError
 
 DEFAULT_TIMEOUT = 10.0
 
+APP_GRID_PATH = "/api/telemetry/app-grid"
+APPS_PATH = "/api/apps"
+
 CLI_AUTH_DOCS_URL = "https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token"
 """Where an operator hitting a 401 goes next. The web API credential is a separate concept from
 the Home Assistant long-lived token, and nothing in a 401 hints that a second token even exists
@@ -49,13 +52,13 @@ T = TypeVar("T")
 M = TypeVar("M", bound=BaseModel)
 
 
-def _filter_instances(manifest_list: AppManifestListResponse, app_key: str) -> list[AppInstanceResponse]:
-    """Flatten the instance list for ``app_key`` out of a full manifest list response.
+def _filter_instances(app_list: AppListResponse, app_key: str) -> list[AppInstanceResponse]:
+    """Flatten the instance list for ``app_key`` out of a full app list response.
 
     Shared by :meth:`HassetteCLIClient._fetch_instances` and
     :meth:`HassetteCLIClient._try_fetch_instances` so the filter has one source of truth.
     """
-    return [inst for manifest in manifest_list.manifests if manifest.app_key == app_key for inst in manifest.instances]
+    return [inst for app in app_list.apps if app.app_key == app_key for inst in app.instances]
 
 
 def query_params(**values: Any) -> dict[str, Any]:
@@ -289,9 +292,9 @@ class HassetteCLIClient:
             The deserialized :class:`~hassette_wire.ActionResponse`.
         """
         path = (
-            f"/api/apps/{app_key}/{action}"
+            f"{APPS_PATH}/{app_key}/{action}"
             if instance_index is None
-            else f"/api/apps/{app_key}/instances/{instance_index}/{action}"
+            else f"{APPS_PATH}/{app_key}/instances/{instance_index}/{action}"
         )
         return self.post(path)
 
@@ -339,14 +342,14 @@ class HassetteCLIClient:
         return self.get(path, model, params=params)
 
     def _fetch_instances(self, app_key: str) -> list[AppInstanceResponse]:
-        """Fetch all manifests and return the instance list for ``app_key``."""
-        manifest_list = self.get("/api/apps/manifests", AppManifestListResponse)
-        return _filter_instances(manifest_list, app_key)
+        """Fetch the app list and return the instance list for ``app_key``."""
+        app_list = self.get(APPS_PATH, AppListResponse)
+        return _filter_instances(app_list, app_key)
 
     def _try_fetch_instances(self, app_key: str) -> list[AppInstanceResponse] | None:
         """Best-effort variant of :meth:`_fetch_instances` that never exits the process.
 
-        ``/api/apps/manifests`` returns a 503 ``telemetry_unavailable`` problem when the
+        ``/api/apps`` returns a 503 ``telemetry_unavailable`` problem when the
         telemetry DB is unavailable. Resolving a numeric ``--instance`` selector to its
         canonical name is a purely cosmetic lookup — the mutating start/stop/reload
         action it supports has no telemetry dependency of its own — so a telemetry
@@ -356,7 +359,7 @@ class HassetteCLIClient:
         calling ``sys.exit``.
         """
         try:
-            response = self._client.get("/api/apps/manifests", timeout=self.timeout)
+            response = self._client.get(APPS_PATH, timeout=self.timeout)
         except httpx.RequestError:
             return None
 
@@ -364,11 +367,11 @@ class HassetteCLIClient:
             return None
 
         try:
-            manifest_list = parse_wire(AppManifestListResponse, response.json())
+            app_list = parse_wire(AppListResponse, response.json())
         except (json.JSONDecodeError, ValidationError, UnicodeDecodeError):
             return None
 
-        return _filter_instances(manifest_list, app_key)
+        return _filter_instances(app_list, app_key)
 
     def _instance_not_found(self, app_key: str, instance: str, instances: list[AppInstanceResponse]) -> NoReturn:
         names = ", ".join(repr(inst.instance_name) for inst in instances) if instances else "(none)"
@@ -420,15 +423,15 @@ class HassetteCLIClient:
     def resolve_instance_with_name(self, app_key: str, instance: str) -> tuple[int, str | None]:
         """Resolve an instance selector to its index and, when known, its canonical ``instance_name``.
 
-        For a name selector, this always fetches the manifest — there is no fallback,
+        For a name selector, this always fetches the app list — there is no fallback,
         since without it there is no way to resolve which index the name refers to.
 
-        For a digit selector, the manifest name lookup is best-effort: it resolves to
+        For a digit selector, the app list name lookup is best-effort: it resolves to
         the canonical ``instance_name`` when possible so a caller building a
         human-facing message can report the same instance identity regardless of which
-        selector flavor the operator used, but it tolerates the manifest fetch failing
+        selector flavor the operator used, but it tolerates the app list fetch failing
         outright (e.g. a 503 from a degraded telemetry DB — see
-        :meth:`_try_fetch_instances`) the same way it already tolerates a manifest with
+        :meth:`_try_fetch_instances`) the same way it already tolerates an app list with
         no matching index: both fall back to the raw selector. A numeric selector's
         underlying mutating action (start/stop/reload) has no telemetry dependency of
         its own, so a telemetry outage must not block it.
@@ -441,7 +444,7 @@ class HassetteCLIClient:
             ``(index, instance_name)``. For a name selector, ``instance_name`` is never
             ``None`` — an unmatched name raises instead (see below). For a digit
             selector, ``None`` means "resolved, but unverified against the current
-            manifest" — not "not found": the index is still returned as-is.
+            app list" — not "not found": the index is still returned as-is.
 
         Raises:
             SystemExit: If ``instance`` is a name that doesn't match any known instance.
@@ -460,8 +463,8 @@ class HassetteCLIClient:
                 for inst in instances:
                     if inst.index == index:
                         return inst.index, inst.instance_name
-            # No manifest entry for this index (out-of-range, or a race with a manifest
-            # change), or the manifest fetch itself failed — resolved, not
+            # No app list entry for this index (out-of-range, or a race with an app list
+            # change), or the app list fetch itself failed — resolved, not
             # unverified-as-in-not-found; see Returns above.
             return index, None
 

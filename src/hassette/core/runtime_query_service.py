@@ -7,13 +7,13 @@ import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from hassette_wire import (
-    AppManifestsChangedData,
+    AppsChangedData,
+    AppStatus,
     AppStatusChangedData,
     BootIssueResponse,
     ConnectivityData,
     ExecutionCompletedData,
     LogLevel,
-    ManifestStatus,
     ServiceInfoResponse,
     ServiceStatusData,
     SystemStatusResponse,
@@ -28,7 +28,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.events import Event
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
-from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
+from hassette.schemas.app_snapshots import AppManifestInfo
 from hassette.types import Topic
 from hassette.utils import get_version
 
@@ -124,13 +124,13 @@ class RuntimeQueryService(Resource):
                 name="hassette.rqs.on_execution_completed",
             )
         )
-        # Named for its WS-layer effect (manifest data may have changed), not the backend
-        # event name — see on_app_manifests_changed's docstring.
+        # Named for its WS-layer effect (app data may have changed), not the backend
+        # event name — see on_apps_changed's docstring.
         self._subscriptions.append(
             await self.bus.on(
                 topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
-                handler=self.on_app_manifests_changed,
-                name="hassette.rqs.on_app_manifests_changed",
+                handler=self.on_apps_changed,
+                name="hassette.rqs.on_apps_changed",
             )
         )
 
@@ -203,14 +203,14 @@ class RuntimeQueryService(Resource):
         )
         await self.build_and_broadcast("service_status", payload)
 
-    async def on_app_manifests_changed(self) -> None:
+    async def on_apps_changed(self) -> None:
         """Broadcast a refetch signal after a full app load/reload pass.
 
         The triggering event (``HASSETTE_EVENT_APP_LOAD_COMPLETED``) carries no data — see
-        ``AppManifestsChangedData`` — so this handler declares no ``event`` parameter;
+        ``AppsChangedData`` — so this handler declares no ``event`` parameter;
         ``ParameterInjector`` only injects what a handler's signature actually asks for.
         """
-        await self.build_and_broadcast("app_manifests_changed", AppManifestsChangedData())
+        await self.build_and_broadcast("apps_changed", AppsChangedData())
 
     async def on_ws_connected(self) -> None:
         await self.build_and_broadcast("connectivity", ConnectivityData(connected=True))
@@ -270,9 +270,6 @@ class RuntimeQueryService(Resource):
 
         if completions:
             await self.broadcast_envelope("execution_completed", [c.model_dump() for c in completions])
-
-    def get_app_status_snapshot(self) -> AppStatusSnapshot:
-        return self.hassette.app_handler.get_status_snapshot()
 
     def overlay_manifest_rows(self, db_rows: list[dict[str, Any]]) -> list[AppManifestInfo]:
         """Overlay DB-persisted ``app_manifests`` rows with live runtime state.
@@ -391,7 +388,7 @@ class RuntimeQueryService(Resource):
             )
 
         for manifest in full_snapshot.manifests:
-            if manifest.status == ManifestStatus.BLOCKED and manifest.block_reason:
+            if manifest.status == AppStatus.BLOCKED and manifest.block_reason:
                 issues.append(
                     BootIssueResponse(
                         severity="warn",
@@ -399,7 +396,7 @@ class RuntimeQueryService(Resource):
                         detail=manifest.block_reason,
                     )
                 )
-            elif manifest.status in (ManifestStatus.FAILED, ManifestStatus.DEGRADED) and manifest.error_message:
+            elif manifest.status in (AppStatus.FAILED, AppStatus.DEGRADED) and manifest.error_message:
                 issues.append(
                     BootIssueResponse(
                         severity="err",

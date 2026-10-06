@@ -46,7 +46,7 @@ def test_manifest_insert_params_produces_correct_dict(tmp_path: Path) -> None:
     params = manifest_insert_params(manifest)
 
     # dup-ignore-start: asserts against manifest_insert_params()'s literal output (DB-params layer,
-    # coerces bool -> int for SQLite). Shares field names with mappers.py's manifest_response_fields()
+    # coerces bool -> int for SQLite). Shares field names with mappers.py's app_summary_from()
     # (API-response layer) by coincidence — same source model, different consumer/field subset;
     # extracting a shared dict-builder here would wrongly couple the DB layer to the response layer.
     assert params == {

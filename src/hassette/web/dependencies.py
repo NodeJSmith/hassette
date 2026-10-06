@@ -38,7 +38,7 @@ InstanceIndexQuery = Annotated[
 OptionalInstanceIndexQuery = Annotated[
     int | None, Query(description="App instance index. Omit for every instance of the app.")
 ]
-SinceQuery = Annotated[float | None, Query()]
+SinceQuery = Annotated[float | None, Query(allow_inf_nan=False)]
 SourceTierQuery = Annotated[
     QuerySourceTier,
     Query(

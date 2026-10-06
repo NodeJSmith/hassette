@@ -9,14 +9,14 @@ import hassette_wire
 import pytest
 from hassette_wire import (
     LENIENT_CONTEXT,
-    AppManifestResponse,
+    AppStatus,
     AppStatusChangedData,
+    AppSummary,
     BlockingHandlerRef,
     ExecutionMode,
     ListenerWithSummary,
     LogLevel,
     LogLevelRequest,
-    ManifestStatus,
     ProblemCode,
     ProblemDetail,
     ResourceStatus,
@@ -77,11 +77,11 @@ def test_known_value_still_parses_to_enum_member_under_lenient_context() -> None
 def test_unknown_values_in_list_json_and_nested_models() -> None:
     body = json.dumps([manifest_body("paused", instance_status="hibernating"), manifest_body("running")])
 
-    parsed = TypeAdapter(list[AppManifestResponse]).validate_json(body, context=LENIENT_CONTEXT)
+    parsed = TypeAdapter(list[AppSummary]).validate_json(body, context=LENIENT_CONTEXT)
 
     assert parsed[0].status == UnknownValue("paused")
     assert isinstance(parsed[0].instances[0].status, UnknownValue)
-    assert parsed[1].status is ManifestStatus.RUNNING
+    assert parsed[1].status is AppStatus.RUNNING
     assert parsed[1].instances[0].status is ResourceStatus.RUNNING
 
 
@@ -197,29 +197,29 @@ def test_in_vocabulary_str_subclasses_validate_to_the_known_value(alias: Any, co
 def test_str_mixin_enum_member_validates_by_value() -> None:
     mixin = Enum("Mixin", {"RUNNING": "running", "PAUSED": "paused"}, type=str)
 
-    known = AppManifestResponse.model_validate(manifest_body(mixin.RUNNING), context=LENIENT_CONTEXT)
-    unknown = AppManifestResponse.model_validate(manifest_body(mixin.PAUSED), context=LENIENT_CONTEXT)
+    known = AppSummary.model_validate(manifest_body(mixin.RUNNING), context=LENIENT_CONTEXT)
+    unknown = AppSummary.model_validate(manifest_body(mixin.PAUSED), context=LENIENT_CONTEXT)
 
-    assert known.status is ManifestStatus.RUNNING
+    assert known.status is AppStatus.RUNNING
     assert unknown.status == UnknownValue("paused")
 
 
 def test_member_of_another_enum_validates_by_value() -> None:
-    known = AppManifestResponse.model_validate(manifest_body(ResourceStatus.RUNNING), context=LENIENT_CONTEXT)
-    unknown = AppManifestResponse.model_validate(manifest_body(ResourceStatus.CRASHED), context=LENIENT_CONTEXT)
+    known = AppSummary.model_validate(manifest_body(ResourceStatus.RUNNING), context=LENIENT_CONTEXT)
+    unknown = AppSummary.model_validate(manifest_body(ResourceStatus.CRASHED), context=LENIENT_CONTEXT)
 
-    assert known.status is ManifestStatus.RUNNING
+    assert known.status is AppStatus.RUNNING
     assert type(unknown.status) is UnknownValue
     assert unknown.status == "crashed"
     with pytest.raises(ValidationError):
-        AppManifestResponse.model_validate(manifest_body(ResourceStatus.CRASHED))
+        AppSummary.model_validate(manifest_body(ResourceStatus.CRASHED))
 
 
 def test_json_dump_writes_raw_value_and_lenient_reparse_is_lossless() -> None:
-    parsed = AppManifestResponse.model_validate(manifest_body("paused", "running"), context=LENIENT_CONTEXT)
+    parsed = AppSummary.model_validate(manifest_body("paused", "running"), context=LENIENT_CONTEXT)
 
     dumped = parsed.model_dump_json()
-    reparsed = AppManifestResponse.model_validate_json(dumped, context=LENIENT_CONTEXT)
+    reparsed = AppSummary.model_validate_json(dumped, context=LENIENT_CONTEXT)
 
     assert json.loads(dumped)["status"] == "paused"
     assert json.loads(dumped)["instances"][0]["status"] == "running"
@@ -228,7 +228,7 @@ def test_json_dump_writes_raw_value_and_lenient_reparse_is_lossless() -> None:
 
 
 def test_python_dump_returns_values_unchanged_without_warnings() -> None:
-    parsed = AppManifestResponse.model_validate(manifest_body("paused", "running"), context=LENIENT_CONTEXT)
+    parsed = AppSummary.model_validate(manifest_body("paused", "running"), context=LENIENT_CONTEXT)
 
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -271,9 +271,9 @@ def test_lenient_instances_pass_into_strict_models_unrevalidated() -> None:
     """Pins pydantic's default revalidate_instances='never': strictness is a validation-time check only."""
 
     class Holder(BaseModel):
-        manifest: AppManifestResponse
+        manifest: AppSummary
 
-    lenient = AppManifestResponse.model_validate(manifest_body("paused"), context=LENIENT_CONTEXT)
+    lenient = AppSummary.model_validate(manifest_body("paused"), context=LENIENT_CONTEXT)
 
     held = Holder(manifest=lenient)
     copied = lenient.model_copy(update={"status": UnknownValue("other")})
@@ -287,7 +287,7 @@ def test_lenient_instances_pass_into_strict_models_unrevalidated() -> None:
     [
         str | UnknownValue,
         ResourceStatus,
-        ResourceStatus | ManifestStatus,
+        ResourceStatus | AppStatus,
         ResourceStatus | UnknownValue | None,
         Literal[1, 2] | UnknownValue,
     ],
