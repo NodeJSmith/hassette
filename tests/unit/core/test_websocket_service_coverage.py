@@ -447,6 +447,25 @@ class TestRawRecvEdgeCases:
         assert sentinel not in rendered
         assert str(len(frame)) in rendered
 
+    async def test_raw_recv_drops_non_object_json_without_dispatching(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        """A TEXT frame that is valid JSON but not an object is logged and dropped before dispatch."""
+        fake_ws = build_fake_ws()
+        fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.TEXT, data="[]"))
+        websocket_service._ws = fake_ws
+        dispatch_mock = AsyncMock()
+        websocket_service.dispatch = dispatch_mock
+        logger_mock = Mock()
+
+        with patch.object(websocket_service, "logger", logger_mock):
+            await websocket_service.raw_recv()
+
+        dispatch_mock.assert_not_awaited()
+        logger_mock.warning.assert_called_once()
+        msg, *args = logger_mock.warning.call_args.args
+        assert "list" in msg % tuple(args)
+
 
 class TestDispatchSuppressesErrors:
     async def test_dispatch_suppresses_exceptions_from_hass_event_handling(
