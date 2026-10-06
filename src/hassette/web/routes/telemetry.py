@@ -11,8 +11,9 @@ propagates to ``telemetry_unavailable_handler`` in ``hassette.web.errors``, whic
 """
 
 import time
+from http import HTTPStatus
 from logging import getLogger
-from typing import TYPE_CHECKING, Annotated, Literal
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Query, Response
 from hassette_wire import (
@@ -29,6 +30,7 @@ from hassette_wire import (
     TelemetryStatusResponse,
     UnattributedBlockingResponse,
 )
+from hassette_wire.literals import ExecutionKind
 
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
@@ -61,7 +63,7 @@ router = APIRouter(prefix="/telemetry", tags=["telemetry"])
 @router.get(
     "/status",
     response_model=TelemetryStatusResponse,
-    responses={503: {"model": TelemetryStatusResponse}},
+    responses={HTTPStatus.SERVICE_UNAVAILABLE: {"model": TelemetryStatusResponse}},
 )
 async def telemetry_status(
     hassette: HassetteDep,
@@ -81,7 +83,7 @@ async def telemetry_status(
         await telemetry.check_health()
     except TelemetryUnavailableError:
         LOGGER.warning("Telemetry health check failed", exc_info=True)
-        response.status_code = 503
+        response.status_code = HTTPStatus.SERVICE_UNAVAILABLE
         return TelemetryStatusResponse(degraded=True)
 
     try:
@@ -146,9 +148,7 @@ async def app_listeners(
 async def app_activity(
     app_key: AppKeyPath,
     telemetry: TelemetryDep,
-    instance_index: Annotated[
-        int | None, Query(description="App instance index. None returns activity across all instances.")
-    ] = None,
+    instance_index: OptionalInstanceIndexQuery = None,
     limit: LimitQuery = DEFAULT_QUERY_LIMIT,
     since: SinceQuery = None,
     source_tier: SourceTierQuery = "app",
@@ -230,7 +230,7 @@ async def unattributed_blocking(telemetry: TelemetryDep, since: SinceQuery = Non
 )
 async def list_executions(
     telemetry: TelemetryDep,
-    kind: Annotated[Literal["handler", "job"] | None, Query(description="Filter by kind: 'handler' or 'job'.")] = None,
+    kind: Annotated[ExecutionKind | None, Query(description="Filter by kind: 'handler' or 'job'.")] = None,
     limit: LimitQuery = DEFAULT_QUERY_LIMIT,
     since: SinceQuery = None,
 ) -> list[Execution]:
