@@ -31,7 +31,7 @@ from hassette.core.early_drop_policy import (
 )
 from hassette.core.observer_list import ObserverList
 from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS, SINGLE_ATTEMPT
-from hassette.core.websocket_responses import PendingResponses
+from hassette.core.websocket_responses import PendingResponses, command_label
 from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import (
@@ -733,17 +733,15 @@ class WebsocketService(Service):
 
             try:
                 return await self.send_and_await_response(data, attempt_id, late_reply_command=late_reply_command)
-            # Messages name only the command type and id: payload values may be sensitive
-            # (e.g. input_text.initial on a password-mode helper) and these messages reach logs.
             except TimeoutError:
                 raise ResponseTimeoutError(
-                    f"{command_type!r} (id {attempt_id}): no response within {self.resp_timeout_seconds}s; "
+                    f"{command_label(data)}: no response within {self.resp_timeout_seconds}s; "
                     "the command may or may not have applied",
                     original_data=dict(data),
                 ) from None
             except RetryableConnectionClosedError as exc:
                 raise ResponseLostError(
-                    f"{command_type!r} (id {attempt_id}): connection lost while waiting for a response; "
+                    f"{command_label(data)}: connection lost while waiting for a response; "
                     "the command may or may not have applied",
                     close_code=exc.close_code,
                 ) from exc
@@ -759,8 +757,6 @@ class WebsocketService(Service):
         self._pending.respond_if_necessary(message)
 
     async def _send_json_when_socket_live(self, **data: Any) -> None:
-        self.logger.debug("Sending WebSocket message: %s", data)
-
         if not self._send_ready_event.is_set():
             raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
 
@@ -770,14 +766,17 @@ class WebsocketService(Service):
         if "id" not in data:
             data["id"] = self.get_next_message_id()
 
+        label = command_label(data)
+        self.logger.debug("Sending WebSocket message %s", label)
+
         try:
             await self._ws.send_json(data)
         except ClientConnectionResetError:
-            self.logger.error("WebSocket connection reset by peer")
+            self.logger.error("WebSocket connection reset by peer while sending message %s", label)
             raise
         except Exception as exc:
-            self.logger.exception("Exception when sending message: %s", data)
-            raise FailedMessageError(f"Failed to send message: {data}") from exc
+            self.logger.exception("Exception when sending message %s", label)
+            raise FailedMessageError(f"Failed to send message {label}", original_data=dict(data)) from exc
 
     async def send_json(self, **data: Any) -> None:
         await self._send_json_when_socket_live(**data)
