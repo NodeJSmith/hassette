@@ -5,6 +5,7 @@ The `get_full_snapshot()`, blocking, autostart, and manifest-info tests live in
 `test_app_registry_snapshot.py`.
 """
 
+import dataclasses
 from unittest.mock import MagicMock
 
 import pytest
@@ -17,11 +18,21 @@ from .conftest import make_manifest_obj
 
 
 class TestAppStatusSnapshot:
+    def test_snapshot_types_are_frozen(self) -> None:
+        """Snapshot dataclasses reject field assignment after construction."""
+        info = AppInstanceInfo("app1", 0, "app1.0", "App1", ResourceStatus.RUNNING)
+        snapshot = AppStatusSnapshot(instances=(info,))
+
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            info.status = ResourceStatus.FAILED  # pyright: ignore[reportAttributeAccessIssue]
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            snapshot.instances = ()  # pyright: ignore[reportAttributeAccessIssue]
+
     def test_empty_snapshot(self) -> None:
         """Test snapshot with no apps."""
         snapshot = AppStatusSnapshot()
-        assert snapshot.instances == []
-        assert snapshot.only_apps == []
+        assert snapshot.instances == ()
+        assert snapshot.only_apps == ()
         assert snapshot.total_count == 0
         assert snapshot.running_count == 0
         assert snapshot.failed_count == 0
@@ -35,12 +46,12 @@ class TestAppStatusSnapshot:
         failed = [
             AppInstanceInfo("app3", 0, "app3.0", "App3", ResourceStatus.FAILED, error=Exception("test")),
         ]
-        snapshot = AppStatusSnapshot(instances=running + failed, only_apps=["app1"])
+        snapshot = AppStatusSnapshot(instances=(*running, *failed), only_apps=("app1",))
 
         assert snapshot.running_count == 2
         assert snapshot.failed_count == 1
         assert snapshot.total_count == 3
-        assert snapshot.only_apps == ["app1"]
+        assert snapshot.only_apps == ("app1",)
 
 
 class TestAppRegistry:
@@ -362,8 +373,8 @@ class TestAppRegistry:
         """Test snapshot with no apps."""
         snapshot = registry.get_snapshot()
 
-        assert snapshot.instances == []
-        assert snapshot.only_apps == []
+        assert snapshot.instances == ()
+        assert snapshot.only_apps == ()
 
     def test_get_snapshot_with_running_apps(self, registry: AppRegistry, mock_app: MagicMock) -> None:
         """Test snapshot includes running apps."""
@@ -449,7 +460,7 @@ class TestAppRegistry:
 
         snapshot = registry.get_snapshot()
 
-        assert snapshot.only_apps == ["other_app", "special_app"]
+        assert snapshot.only_apps == ("other_app", "special_app")
 
     def test_get_snapshot_preserves_resource_status(self, registry: AppRegistry) -> None:
         """Test that snapshot uses ResourceStatus directly from app."""

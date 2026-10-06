@@ -1,5 +1,7 @@
 """Unit tests for web/mappers.py — domain-to-response model conversions."""
 
+import dataclasses
+
 import pytest
 from hassette_wire import (
     AppInstanceResponse,
@@ -67,8 +69,7 @@ def test_instance_response_from_copies_all_fields():
 
 def test_instance_response_from_ignores_source_error_attribute():
     """The source's ``error`` Exception attribute has no response field and is dropped."""
-    info = make_instance("app_a", 0, ResourceStatus.FAILED)
-    info.error = ValueError("kaboom")
+    info = dataclasses.replace(make_instance("app_a", 0, ResourceStatus.FAILED), error=ValueError("kaboom"))
 
     result = instance_response_from(info)
 

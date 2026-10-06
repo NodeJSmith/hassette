@@ -69,7 +69,7 @@ def mock_hassette():
         run_web_ui=False,
         cors_origins=(),
         states={"light.kitchen": {"entity_id": "light.kitchen", "state": "on"}},
-        old_snapshot=AppStatusSnapshot(instances=running + failed),
+        old_snapshot=AppStatusSnapshot(instances=(*running, *failed)),
     )
 
 

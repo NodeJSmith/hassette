@@ -94,8 +94,8 @@ def mock_hassette():
 
     # Mock app handler — sync methods need explicit Mock (parent is AsyncMock)
     instance = make_app_instance_info(app_key="my_app")
-    hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[instance]))
-    hassette._app_handler.registry.get_full_snapshot = Mock(return_value=AppFullSnapshot(manifests=[]))
+    hassette._app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=(instance,)))
+    hassette._app_handler.registry.get_full_snapshot = Mock(return_value=AppFullSnapshot())
 
     # Mock scheduler service
     hassette._scheduler_service.get_all_jobs = AsyncMock(return_value=[])
@@ -140,7 +140,7 @@ class TestPreBootstrapAppState:
     """
 
     def test_get_system_status_reports_zero_apps_before_bootstrap(self, runtime: RuntimeQueryService) -> None:
-        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot(instances=[]))
+        runtime.hassette.app_handler.get_status_snapshot = Mock(return_value=AppStatusSnapshot())
 
         status = runtime.get_system_status()
 

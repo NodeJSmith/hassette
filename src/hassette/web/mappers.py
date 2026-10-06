@@ -83,7 +83,7 @@ def app_list_response_from(full: AppFullSnapshot) -> AppListResponse:
         # here. Building from items() (tuples are covariant) lets the key type widen to OpenAppStatus.
         status_counts=dict(full.status_counts.items()),
         apps=[app_summary_from(manifest) for manifest in full.manifests],
-        only_apps=full.only_apps,
+        only_apps=list(full.only_apps),
     )
 
 

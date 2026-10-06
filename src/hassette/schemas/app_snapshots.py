@@ -5,15 +5,16 @@ These are pure-data types produced by ``core.AppRegistry`` and consumed by
 removes the ``web → core`` import cycle.
 """
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 
 from hassette_wire import AppStatus, ResourceStatus
 
 APP_STATUS_KEYS = tuple(AppStatus)
 
 
-@dataclass
+@dataclass(frozen=True)
 class AppInstanceInfo:
     """Snapshot of a single app instance for status queries."""
 
@@ -28,15 +29,21 @@ class AppInstanceInfo:
     owner_id: str | None = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class AppStatusSnapshot:
     """Immutable snapshot of every tracked app instance and its per-instance ``ResourceStatus``.
 
     Instance-level, unlike the app-level ``AppStatus`` on ``AppManifestInfo``.
     """
 
-    instances: list[AppInstanceInfo] = field(default_factory=list)
-    only_apps: list[str] = field(default_factory=list)
+    instances: tuple[AppInstanceInfo, ...] = ()
+    only_apps: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        # frozen=True blocks attribute assignment, not mutation of a passed-in list; copy each
+        # container so the caller's object can't alias into the snapshot.
+        object.__setattr__(self, "instances", tuple(self.instances))
+        object.__setattr__(self, "only_apps", tuple(self.only_apps))
 
     @property
     def total_count(self) -> int:
@@ -67,7 +74,7 @@ class AppStatusSnapshot:
         return {i.app_key for i in self.instances if i.error is None}
 
 
-@dataclass
+@dataclass(frozen=True)
 class AppManifestInfo:
     """Snapshot of a single app manifest with derived runtime status."""
 
@@ -85,7 +92,7 @@ class AppManifestInfo:
     instance_count: int = 0
     """Number of configured instances, including ones not currently tracked (never started, or
     independently stopped) — always ``len(instances)``."""
-    instances: list[AppInstanceInfo] = field(default_factory=list)
+    instances: tuple[AppInstanceInfo, ...] = ()
     """One entry per configured instance. An untracked instance (never started, or independently
     stopped) is a synthetic ``ResourceStatus.STOPPED`` placeholder, not omitted."""
     error_message: str | None = None
@@ -93,16 +100,30 @@ class AppManifestInfo:
     in_current_config: bool = True
     """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
 
+    def __post_init__(self) -> None:
+        # Same defensive copy as AppStatusSnapshot.__post_init__.
+        object.__setattr__(self, "instances", tuple(self.instances))
 
-@dataclass
+
+@dataclass(frozen=True)
 class AppFullSnapshot:
     """Full manifest-based snapshot including all configured apps."""
 
-    manifests: list[AppManifestInfo] = field(default_factory=list)
-    only_apps: list[str] = field(default_factory=list)
+    manifests: tuple[AppManifestInfo, ...] = ()
+    only_apps: tuple[str, ...] = ()
     total: int = 0
-    status_counts: dict[AppStatus, int] = field(default_factory=lambda: dict.fromkeys(APP_STATUS_KEYS, 0))
-    """Manifest counts keyed by ``AppStatus``, with every member present."""
+    status_counts: Mapping[AppStatus, int] = field(
+        default_factory=lambda: dict.fromkeys(APP_STATUS_KEYS, 0), hash=False
+    )
+    """Manifest counts keyed by ``AppStatus``, with every member present. Read-only: stored as a
+    ``MappingProxyType`` over a defensive copy of whatever mapping was passed in. Excluded from
+    ``__hash__`` because ``MappingProxyType`` is unhashable; still compared by ``__eq__``."""
+
+    def __post_init__(self) -> None:
+        # Same defensive copy as AppStatusSnapshot.__post_init__.
+        object.__setattr__(self, "manifests", tuple(self.manifests))
+        object.__setattr__(self, "only_apps", tuple(self.only_apps))
+        object.__setattr__(self, "status_counts", MappingProxyType(dict(self.status_counts)))
 
 
 def tally_app_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, int]:

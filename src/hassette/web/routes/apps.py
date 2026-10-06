@@ -294,8 +294,8 @@ async def get_apps(runtime: RuntimeDep, telemetry: TelemetryDep) -> AppListRespo
     manifest_infos = runtime.overlay_manifest_rows(db_rows)
 
     full_snapshot = AppFullSnapshot(
-        manifests=manifest_infos,
-        only_apps=runtime.get_registry_only_apps(),
+        manifests=tuple(manifest_infos),
+        only_apps=tuple(runtime.get_registry_only_apps()),
         total=len(manifest_infos),
         status_counts=tally_app_statuses(manifest_infos),
     )
