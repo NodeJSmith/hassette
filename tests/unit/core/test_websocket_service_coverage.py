@@ -380,6 +380,16 @@ class TestRecvTaskDeathDuringObserverNotification:
         await asyncio.wait_for(start_task, timeout=1)
 
 
+def feed_frame(service: WebsocketService, msg_type: WSMsgType, data: object) -> AsyncMock:
+    """Make the next raw_recv() receive one frame, and return the mock standing in for dispatch()."""
+    fake_ws = build_fake_ws()
+    fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=msg_type, data=data))
+    service._ws = fake_ws
+    dispatch_mock = AsyncMock()
+    service.dispatch = dispatch_mock
+    return dispatch_mock
+
+
 class TestRawRecvEdgeCases:
     async def test_raw_recv_raises_when_ws_not_established(self, websocket_service: WebsocketService) -> None:
         """raw_recv raises RuntimeError immediately when self._ws is None."""
@@ -390,25 +400,30 @@ class TestRawRecvEdgeCases:
 
     async def test_raw_recv_ignores_binary_frame(self, websocket_service: WebsocketService) -> None:
         """raw_recv logs and returns without dispatching for a BINARY frame."""
-        fake_ws = build_fake_ws()
-        fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.BINARY, data=b"\x00\x01"))
-        websocket_service._ws = fake_ws
-
-        dispatch_mock = AsyncMock()
-        websocket_service.dispatch = dispatch_mock
+        dispatch_mock = feed_frame(websocket_service, WSMsgType.BINARY, b"\x00\x01")
 
         await websocket_service.raw_recv()
 
         dispatch_mock.assert_not_awaited()
 
+    async def test_raw_recv_binary_frame_log_omits_frame_contents(self, websocket_service: WebsocketService) -> None:
+        """raw_recv's binary-frame warning names the frame length, never the frame contents."""
+        sentinel = b"s3cret-sentinel-value"
+        feed_frame(websocket_service, WSMsgType.BINARY, sentinel)
+        logger_mock = Mock()
+
+        with patch.object(websocket_service, "logger", logger_mock):
+            await websocket_service.raw_recv()
+
+        logger_mock.warning.assert_called_once()
+        msg, *args = logger_mock.warning.call_args.args
+        rendered = msg % tuple(args)
+        assert "s3cret-sentinel-value" not in rendered
+        assert str(len(sentinel)) in rendered
+
     async def test_raw_recv_ignores_unexpected_message_type(self, websocket_service: WebsocketService) -> None:
         """raw_recv logs and returns without dispatching or raising for an unhandled frame type."""
-        fake_ws = build_fake_ws()
-        fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.PONG, data=None))
-        websocket_service._ws = fake_ws
-
-        dispatch_mock = AsyncMock()
-        websocket_service.dispatch = dispatch_mock
+        dispatch_mock = feed_frame(websocket_service, WSMsgType.PONG, None)
 
         await websocket_service.raw_recv()
 
@@ -418,16 +433,42 @@ class TestRawRecvEdgeCases:
         self, websocket_service: WebsocketService
     ) -> None:
         """raw_recv catches JSONDecodeError on malformed TEXT frames and skips dispatch."""
-        fake_ws = build_fake_ws()
-        fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.TEXT, data="{not valid json"))
-        websocket_service._ws = fake_ws
-
-        dispatch_mock = AsyncMock()
-        websocket_service.dispatch = dispatch_mock
+        dispatch_mock = feed_frame(websocket_service, WSMsgType.TEXT, "{not valid json")
 
         await websocket_service.raw_recv()
 
         dispatch_mock.assert_not_awaited()
+
+    async def test_raw_recv_invalid_json_log_omits_frame_contents(self, websocket_service: WebsocketService) -> None:
+        """raw_recv's invalid-JSON log names the frame length, never the frame contents."""
+        sentinel = "s3cret-sentinel-value"
+        frame = '{"type": "result", "result": {"initial": "' + sentinel + '"'  # truncated frame
+        feed_frame(websocket_service, WSMsgType.TEXT, frame)
+        logger_mock = Mock()
+
+        with patch.object(websocket_service, "logger", logger_mock):
+            await websocket_service.raw_recv()
+
+        logger_mock.exception.assert_called_once()
+        msg, *args = logger_mock.exception.call_args.args
+        rendered = msg % tuple(args)
+        assert sentinel not in rendered
+        assert str(len(frame)) in rendered
+
+    async def test_raw_recv_drops_non_object_json_without_dispatching(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        """A TEXT frame that is valid JSON but not an object is logged and dropped before dispatch."""
+        dispatch_mock = feed_frame(websocket_service, WSMsgType.TEXT, "[]")
+        logger_mock = Mock()
+
+        with patch.object(websocket_service, "logger", logger_mock):
+            await websocket_service.raw_recv()
+
+        dispatch_mock.assert_not_awaited()
+        logger_mock.warning.assert_called_once()
+        msg, *args = logger_mock.warning.call_args.args
+        assert "list" in msg % tuple(args)
 
 
 class TestDispatchSuppressesErrors:
@@ -442,6 +483,40 @@ class TestDispatchSuppressesErrors:
         websocket_service.dispatch_hass_event = failing_dispatch_hass_event
 
         await websocket_service.dispatch({"type": "event", "event": {}})  # must not raise
+
+    async def test_dispatch_failure_log_omits_message_payload(self, websocket_service: WebsocketService) -> None:
+        """dispatch()'s failure log names the message type, id, and exception type, never payload values.
+
+        The malformed ``time_fired`` makes event parsing raise an exception whose message quotes the raw
+        value, so this also covers the exception text, not just the format arguments.
+        """
+        sentinel = "s3cret-sentinel-value"
+        logger_mock = Mock()
+
+        with patch.object(websocket_service, "logger", logger_mock):
+            await websocket_service.dispatch(
+                {
+                    "type": "event",
+                    "id": 42,
+                    "event": {
+                        "event_type": "state_changed",
+                        "origin": "LOCAL",
+                        "context": {"id": "ctx", "parent_id": None, "user_id": None},
+                        "time_fired": sentinel,
+                        "data": {"entity_id": "input_text.pw", "old_state": None, "new_state": None},
+                    },
+                }
+            )
+
+        logger_mock.exception.assert_not_called()
+        logger_mock.error.assert_called_once()
+        call = logger_mock.error.call_args
+        assert "exc_info" not in call.kwargs
+        msg, *args = call.args
+        rendered = msg % tuple(args)
+        assert sentinel not in rendered
+        assert "'event' (id 42)" in rendered
+        assert "ValueError" in rendered
 
     async def test_dispatch_ignores_unknown_message_type(self, websocket_service: WebsocketService) -> None:
         """dispatch() falls through to the 'other' match case for a type it doesn't recognize."""

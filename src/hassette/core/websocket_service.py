@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import time
 import traceback
@@ -31,6 +30,7 @@ from hassette.core.early_drop_policy import (
 )
 from hassette.core.observer_list import ObserverList
 from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS, SINGLE_ATTEMPT
+from hassette.core.websocket_inbound import log_dispatch_failure, parse_text_frame
 from hassette.core.websocket_responses import PendingResponses, command_label
 from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
@@ -826,17 +826,12 @@ class WebsocketService(Service):
         msg_type, raw = msg.type, msg.data
 
         if msg_type == WSMsgType.TEXT:
-            try:
-                data = json.loads(raw) if raw else {}
-            except json.JSONDecodeError:
-                self.logger.exception("Invalid JSON received: %s", raw)
-                return
-
-            await self.dispatch(data)
+            if (data := parse_text_frame(raw, self.logger)) is not None:
+                await self.dispatch(data)
             return
 
         if msg_type == WSMsgType.BINARY:
-            self.logger.warning("Received binary message, which is not expected: %r", raw)
+            self.logger.warning("Received unexpected binary message (%d bytes)", len(raw))
             return
 
         if msg_type in {WSMsgType.CLOSE, WSMsgType.CLOSED}:
@@ -867,8 +862,8 @@ class WebsocketService(Service):
                     self.respond_if_necessary(data)
                 case other:
                     self.logger.debug("Ignoring unknown message type: %s", other)
-        except Exception:
-            self.logger.exception("Failed to dispatch message: %s", data)
+        except Exception as exc:
+            log_dispatch_failure(self.logger, data, exc)
 
     async def dispatch_hass_event(self, data: "HassEventEnvelopeDict") -> None:
         """Dispatch a Home Assistant event to the event bus."""
