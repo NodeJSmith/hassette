@@ -39,6 +39,12 @@ class AppStatusSnapshot:
     instances: tuple[AppInstanceInfo, ...] = ()
     only_apps: tuple[str, ...] = ()
 
+    def __post_init__(self) -> None:
+        # frozen=True blocks attribute assignment, not mutation of a passed-in list; copy each
+        # container so the caller's object can't alias into the snapshot.
+        object.__setattr__(self, "instances", tuple(self.instances))
+        object.__setattr__(self, "only_apps", tuple(self.only_apps))
+
     @property
     def total_count(self) -> int:
         return len(self.instances)
@@ -94,6 +100,10 @@ class AppManifestInfo:
     in_current_config: bool = True
     """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
 
+    def __post_init__(self) -> None:
+        # Same defensive copy as AppStatusSnapshot.__post_init__.
+        object.__setattr__(self, "instances", tuple(self.instances))
+
 
 @dataclass(frozen=True)
 class AppFullSnapshot:
@@ -102,13 +112,17 @@ class AppFullSnapshot:
     manifests: tuple[AppManifestInfo, ...] = ()
     only_apps: tuple[str, ...] = ()
     total: int = 0
-    status_counts: Mapping[AppStatus, int] = field(default_factory=lambda: dict.fromkeys(APP_STATUS_KEYS, 0))
+    status_counts: Mapping[AppStatus, int] = field(
+        default_factory=lambda: dict.fromkeys(APP_STATUS_KEYS, 0), hash=False
+    )
     """Manifest counts keyed by ``AppStatus``, with every member present. Read-only: stored as a
-    ``MappingProxyType`` over a defensive copy of whatever mapping was passed in."""
+    ``MappingProxyType`` over a defensive copy of whatever mapping was passed in. Excluded from
+    ``__hash__`` because ``MappingProxyType`` is unhashable; still compared by ``__eq__``."""
 
     def __post_init__(self) -> None:
-        # frozen=True blocks field reassignment, not mutation of a dict value; wrap a copy so the
-        # caller's dict can't alias into the snapshot either.
+        # Same defensive copy as AppStatusSnapshot.__post_init__.
+        object.__setattr__(self, "manifests", tuple(self.manifests))
+        object.__setattr__(self, "only_apps", tuple(self.only_apps))
         object.__setattr__(self, "status_counts", MappingProxyType(dict(self.status_counts)))
 
 

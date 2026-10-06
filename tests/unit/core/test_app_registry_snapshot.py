@@ -11,7 +11,7 @@ import pytest
 from hassette_wire import AppStatus, ResourceStatus
 
 from hassette.core.app_registry import AppRegistry
-from hassette.schemas.app_snapshots import AppFullSnapshot
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
 from hassette.types.enums import BlockReason
 
 from .conftest import make_app_instance, make_manifest_obj
@@ -103,6 +103,41 @@ class TestAppRegistryGetFullSnapshot:
         assert snap.status_counts[AppStatus.RUNNING] == 0
         with pytest.raises(TypeError):
             snap.status_counts[AppStatus.RUNNING] = 1  # pyright: ignore[reportIndexIssue]
+
+    def test_sequence_fields_are_copied_to_tuples(self) -> None:
+        """A list passed in by an untyped caller is copied, so mutating it doesn't reach the snapshot."""
+        instance = AppInstanceInfo(
+            app_key="a", index=0, instance_name="a", class_name="A", status=ResourceStatus.RUNNING
+        )
+        instances: list[AppInstanceInfo] = []
+        only_apps: list[str] = []
+        manifests: list[AppManifestInfo] = []
+        status_snap = AppStatusSnapshot(instances=instances, only_apps=only_apps)  # pyright: ignore[reportArgumentType]
+        manifest = AppManifestInfo(
+            app_key="a",
+            class_name="A",
+            display_name="A",
+            filename="a.py",
+            enabled=True,
+            auto_loaded=False,
+            status=AppStatus.RUNNING,
+            instances=instances,  # pyright: ignore[reportArgumentType]
+        )
+        full_snap = AppFullSnapshot(manifests=manifests, only_apps=only_apps)  # pyright: ignore[reportArgumentType]
+
+        instances.append(instance)
+        only_apps.append("a")
+        manifests.append(manifest)
+
+        assert status_snap.instances == ()
+        assert status_snap.only_apps == ()
+        assert manifest.instances == ()
+        assert full_snap.manifests == ()
+        assert full_snap.only_apps == ()
+
+    def test_full_snapshot_is_hashable(self) -> None:
+        """status_counts is a MappingProxyType, so it must be excluded from the frozen dataclass hash."""
+        assert hash(AppFullSnapshot()) == hash(AppFullSnapshot())
 
     def test_running_app(self) -> None:
         reg = self.make_registry()

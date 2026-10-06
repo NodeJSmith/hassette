@@ -129,7 +129,7 @@ def make_app_summary(
         auto_loaded=auto_loaded,
         status=status,
         instance_count=instance_count,
-        instances=tuple(instances or ()),
+        instances=instances or [],
         in_current_config=in_current_config,
     )
 
