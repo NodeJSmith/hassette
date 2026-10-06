@@ -1,10 +1,9 @@
+import type { AppStatus, ResourceStatus } from "../../api/endpoints";
 import type { components } from "../../api/generated-types";
 import type { AppStatusEntry } from "../../state/store";
 import { appLiveStatus } from "../../utils/app-data";
 
 type AppManifest = components["schemas"]["AppSummary"];
-type AppStatus = components["schemas"]["AppStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
 
 export type GroupKey = "err" | "blocked" | "warn" | "ok" | "stopped" | "disabled";
 

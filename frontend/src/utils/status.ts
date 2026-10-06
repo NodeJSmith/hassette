@@ -1,9 +1,8 @@
+import type { AppStatus, ResourceStatus } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 
 export type StatusVariant = "success" | "danger" | "warning" | "neutral";
 
-type AppStatus = components["schemas"]["AppStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
 type ExecutionStatus = components["schemas"]["ExecutionStatus"];
 
 /** Legacy frontend-only status value, not present in either backend enum — kept for

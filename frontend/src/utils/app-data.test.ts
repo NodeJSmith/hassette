@@ -1,13 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import type { AppActivity } from "../api/endpoints";
-import type { components } from "../api/generated-types";
+import type { AppActivity, AppStatus, ResourceStatus } from "../api/endpoints";
 import type { AppStatusEntry } from "../state/store";
 import { createAppActivityStats, createAppGridEntry, createAppHealth, createInstance } from "../test/factories";
 import { appLiveStatus, compareAppRows, hasFailedActivityPart, toAppRow } from "./app-data";
-
-type AppStatus = components["schemas"]["AppStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
 
 const NO_LIVE_STATUSES: Record<string, AppStatusEntry> = {};
 

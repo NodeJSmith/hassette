@@ -1,7 +1,4 @@
-import type { components } from "../api/generated-types";
-
-type AppStatus = components["schemas"]["AppStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
+import type { AppStatus, ResourceStatus } from "../api/endpoints";
 
 type StatusPriorityKey = ResourceStatus | AppStatus | "shutting_down";
 

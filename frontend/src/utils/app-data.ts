@@ -1,11 +1,14 @@
-import type { AppActivity, AppGridEntry, AppGridResponse, AppManifest } from "../api/endpoints";
-import type { components } from "../api/generated-types";
+import type {
+  AppActivity,
+  AppGridEntry,
+  AppGridResponse,
+  AppManifest,
+  AppStatus,
+  ResourceStatus,
+} from "../api/endpoints";
 import type { SortState } from "../components/shared/sort-header";
 import { type AppStatusEntry, appStatusKey } from "../state/store";
 import { statusPriority } from "./status-priority";
-
-type AppStatus = components["schemas"]["AppStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
 
 /** `AppActivity` parts the server computes only for a request with a `since`; `null` otherwise.
  *  Mirrors `WINDOWED_ACTIVITY_PARTS` in `hassette_wire.telemetry`. */

@@ -6,6 +6,8 @@ import { apiFetch, apiPost } from "./client";
 import type { ConfigRecord, SchemaNode } from "./config-view-types";
 import type { components } from "./generated-types";
 
+export type AppStatus = components["schemas"]["AppStatus"];
+export type ResourceStatus = components["schemas"]["ResourceStatus"];
 export type AppManifest = components["schemas"]["AppSummary"];
 export type AppInstance = components["schemas"]["AppInstanceResponse"];
 export type ManifestListResponse = components["schemas"]["AppListResponse"];

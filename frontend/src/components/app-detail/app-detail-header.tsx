@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 
+import type { AppStatus, ResourceStatus } from "../../api/endpoints";
 import type { components } from "../../api/generated-types";
 import { BADGE_STATUS_SHAPE_SIZE, HEADING_STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
@@ -10,8 +11,6 @@ import { StatusShape } from "../shared/status-shape";
 
 type AppManifest = components["schemas"]["AppSummary"];
 type InstanceInfo = NonNullable<AppManifest["instances"]>[number];
-type AppStatus = components["schemas"]["AppStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
 
 interface Props {
   appKey: string;

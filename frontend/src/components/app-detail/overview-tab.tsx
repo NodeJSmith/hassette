@@ -2,8 +2,7 @@ import { useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
-import type { JobData, ListenerData } from "../../api/endpoints";
-import type { components } from "../../api/generated-types";
+import type { AppStatus, JobData, ListenerData, ResourceStatus } from "../../api/endpoints";
 import { useAppStore } from "../../state/store";
 import { parseInstanceParam } from "../../utils/app-routes";
 import { INACTIVE_STATUSES } from "../../utils/status";
@@ -20,8 +19,6 @@ import { OVERVIEW_SECTION_CLASS, SECTION_LABEL_CLASS } from "./overview-section"
 import { isFailing } from "./overview-tab-helpers";
 import { RecentActivitySection } from "./recent-activity-section";
 
-type AppStatus = components["schemas"]["AppStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
 type AppDisplayStatus = AppStatus | ResourceStatus | "unknown";
 
 interface Props {
