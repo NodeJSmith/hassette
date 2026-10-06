@@ -13,12 +13,13 @@ import { http, HttpResponse } from "msw";
 import type { SetupServer } from "msw/node";
 
 import type { components } from "../api/generated-types";
+import { createSystemConfig } from "./config-fixtures";
 import {
   createAppHealth,
   createAppList,
-  createSystemConfig,
   createSystemStatus,
   createTelemetryStatus,
+  ZERO_STATUS_COUNTS,
 } from "./factories";
 
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
@@ -36,12 +37,14 @@ type AppHealth = components["schemas"]["AppHealth"];
 type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 type BlockingFindingsResponse = components["schemas"]["BlockingFindingsResponse"];
 type UnattributedBlockingResponse = components["schemas"]["UnattributedBlockingResponse"];
+type AppSourceResponse = components["schemas"]["AppSourceResponse"];
+type AppConfigResponse = components["schemas"]["AppConfigResponse"];
 
 /** Installs an MSW handler returning the given manifests for the duration of the test. */
 export function withManifests(manifests: components["schemas"]["AppSummary"][], server: SetupServer) {
   const statusCounts = manifests.reduce<Record<string, number>>(
     (counts, manifest) => ({ ...counts, [manifest.status]: (counts[manifest.status] ?? 0) + 1 }),
-    { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
+    { ...ZERO_STATUS_COUNTS },
   );
   server.use(
     http.get("/api/apps", () =>
@@ -63,7 +66,7 @@ export const handlers = [
     return HttpResponse.json<ManifestListResponse>(
       createAppList({
         total: 0,
-        status_counts: { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
+        status_counts: ZERO_STATUS_COUNTS,
         apps: [],
       }),
     );
@@ -156,7 +159,7 @@ export const handlers = [
       {
         status: "accepted",
         job_id: Number(params["id"]),
-        job_name: "test-job",
+        job_name: "test_job",
       },
       { status: 202 },
     );
@@ -179,7 +182,7 @@ export const handlers = [
 
   // GET /api/apps/:app_key/source
   http.get("/api/apps/:app_key/source", ({ params }) => {
-    return HttpResponse.json({
+    return HttpResponse.json<AppSourceResponse>({
       app_key: String(params["app_key"]),
       filename: "test_app.py",
       content: "class TestApp:\n    pass\n",
@@ -189,12 +192,15 @@ export const handlers = [
 
   // GET /api/apps/:app_key/config
   http.get("/api/apps/:app_key/config", ({ params }) => {
-    return HttpResponse.json({
+    return HttpResponse.json<AppConfigResponse>({
       app_key: String(params["app_key"]),
       filename: "test_app.py",
       class_name: "TestApp",
       enabled: true,
+      autostart: true,
       app_config: {},
+      config_toml: "",
+      framework_fields: [],
     });
   }),
 

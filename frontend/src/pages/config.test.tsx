@@ -1,7 +1,7 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
-import { createSystemConfig } from "../test/factories";
+import { createSystemConfig } from "../test/config-fixtures";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
 import { ConfigPage } from "./config";

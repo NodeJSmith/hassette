@@ -3,7 +3,8 @@ import { http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { appStatusKey, type AppStore } from "../state/store";
-import { createAppSummary, createBlockingFinding, createInstance } from "../test/factories";
+import { createBlockingFinding } from "../test/blocking-fixtures";
+import { createAppSummary, createInstance } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";

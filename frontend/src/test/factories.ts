@@ -16,10 +16,12 @@ import type { ServiceStatusEntry } from "../state/store";
 import type { UnifiedRow } from "../utils/handler-rows";
 
 /** Fixed epoch-seconds timestamp shared by factories that need a deterministic time value. */
-const FIXED_TEST_TIMESTAMP = 1700000000;
+export const FIXED_TEST_TIMESTAMP = 1700000000;
+
+/** `status_counts` with every app status at zero. */
+export const ZERO_STATUS_COUNTS = { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 };
 
 type AppSummary = components["schemas"]["AppSummary"];
-type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
 type AppListResponse = components["schemas"]["AppListResponse"];
 type AppGridEntry = components["schemas"]["AppGridEntry"];
 type AppActivity = components["schemas"]["AppActivity"];
@@ -34,64 +36,6 @@ type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
 type Execution = components["schemas"]["Execution"];
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
-type BlockingFinding = components["schemas"]["BlockingFinding"];
-type BlockingFrameRef = components["schemas"]["BlockingFrameRef"];
-type UnattributedStall = components["schemas"]["UnattributedStall"];
-
-export function createFrameRef(overrides: Partial<BlockingFrameRef> = {}): BlockingFrameRef {
-  return {
-    filename: "/apps/calendar_service.py",
-    lineno: 98,
-    function: "get_calendar_events",
-    module: "calendar_service",
-    display_path: "calendar_service.py",
-    ...overrides,
-  } satisfies BlockingFrameRef;
-}
-
-export function createBlockingFinding(overrides: Partial<BlockingFinding> = {}): BlockingFinding {
-  return {
-    app_key: "test_app",
-    tier: "watchdog",
-    call_site: createFrameRef(),
-    call_site_is_user_code: true,
-    detected_in_package: null,
-    callee: createFrameRef({
-      filename: "/venv/lib/python3.13/site-packages/gcsa/events.py",
-      lineno: 5,
-      function: "get_events",
-      module: "gcsa.events",
-      display_path: "gcsa/events.py",
-    }),
-    primitive: null,
-    handlers: [
-      { kind: "job", id: 7, name: "scan_and_schedule", handler_method: "scan_and_schedule", instance_index: 0 },
-    ],
-    instances: [{ index: 0, name: "CarClimate.0" }],
-    event_count: 9,
-    max_stall_ms: 534,
-    avg_stall_ms: 300,
-    last_seen_ts: FIXED_TEST_TIMESTAMP,
-    latest_stack: [
-      { filename: "/usr/local/lib/python3.13/ssl.py", lineno: 1, function: "read", module: "ssl" },
-      { filename: "/apps/calendar_service.py", lineno: 98, function: "get_calendar_events", module: "cal" },
-    ],
-    ...overrides,
-  } satisfies BlockingFinding;
-}
-
-export function createUnattributedStall(overrides: Partial<UnattributedStall> = {}): UnattributedStall {
-  return {
-    detected_ts: FIXED_TEST_TIMESTAMP,
-    tier: "watchdog",
-    reason: "displaced",
-    stall_duration_ms: 5000,
-    primitive: null,
-    app_frame: null,
-    stack: [],
-    ...overrides,
-  } satisfies UnattributedStall;
-}
 
 export function createInstance(overrides: Partial<AppInstanceResponse> = {}): AppInstanceResponse {
   return {
@@ -130,7 +74,7 @@ export function createAppSummary(overrides: Partial<AppSummary> = {}): AppSummar
 export function createAppList(overrides: Partial<AppListResponse> = {}): AppListResponse {
   return {
     total: 1,
-    status_counts: { running: 1, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
+    status_counts: { ...ZERO_STATUS_COUNTS, running: 1 },
     apps: [createAppSummary()],
     only_apps: [],
     ...overrides,
@@ -331,7 +275,7 @@ export function createActivityFeedEntry(overrides: Partial<ActivityFeedEntry> = 
   return {
     row_id: "00000000-0000-0000-0000-000000000001",
     status: "success",
-    timestamp: 1700000100,
+    timestamp: FIXED_TEST_TIMESTAMP + 100,
     app_key: "test_app",
     handler_id: 1,
     handler_name: "on_motion",
@@ -411,146 +355,6 @@ export function createExecution(kind: ExecutionKind, overrides: Partial<Executio
     thread_leaked: false,
     ...overrides,
   } satisfies Execution;
-}
-
-/**
- * Minimal schema used in tests — mirrors the shape produced by the backend's
- * build_config_view for a small HassetteConfig subset.  Only the fields that
- * individual tests assert on need to appear here.
- */
-const MINIMAL_CONFIG_SCHEMA = {
-  type: "object",
-  title: "HassetteConfig",
-  properties: {
-    dev_mode: { type: "boolean", title: "Dev Mode" },
-    base_url: { type: "string", title: "Base Url", ui: { label: "Base URL" } },
-    asyncio_debug_mode: { type: "boolean", title: "Asyncio Debug Mode" },
-    allow_reload_in_prod: { type: "boolean", title: "Allow Reload In Prod" },
-    data_dir: { type: "string", title: "Data Dir", format: "path" },
-    config_dir: { type: "string", title: "Config Dir", format: "path" },
-    token: {
-      anyOf: [{ type: "string", writeOnly: true, format: "password" }, { type: "null" }],
-      title: "Token",
-    },
-    web_api: {
-      type: "object",
-      title: "Web Api",
-      ui: { group_label: "Web API" },
-      properties: {
-        run: { type: "boolean", title: "Run" },
-        run_ui: { type: "boolean", title: "Run Ui", ui: { label: "Run UI" } },
-        ui_hot_reload: { type: "boolean", title: "Ui Hot Reload", ui: { label: "UI Hot Reload" } },
-        host: { type: "string", title: "Host" },
-        port: { type: "integer", title: "Port" },
-        cors_origins: {
-          type: "array",
-          title: "Cors Origins",
-          ui: { label: "CORS Origins" },
-          items: { type: "string" },
-        },
-        job_history_size: { type: "integer", title: "Job History Size" },
-      },
-    },
-    logging: {
-      type: "object",
-      title: "Logging",
-      properties: {
-        log_level: { type: "string", title: "Log Level" },
-        web_api: { type: "string", title: "Web Api" },
-      },
-    },
-    lifecycle: {
-      type: "object",
-      title: "Lifecycle",
-      properties: {
-        startup_timeout_seconds: { type: "integer", title: "Startup Timeout Seconds" },
-        app_startup_timeout_seconds: { type: "integer", title: "App Startup Timeout Seconds" },
-        app_shutdown_timeout_seconds: { type: "integer", title: "App Shutdown Timeout Seconds" },
-      },
-    },
-    apps: {
-      type: "object",
-      title: "Apps",
-      properties: {
-        autodetect: { type: "boolean", title: "Autodetect" },
-        directory: { type: "string", title: "Directory", format: "path" },
-      },
-    },
-    scheduler: {
-      type: "object",
-      title: "Scheduler",
-      properties: {
-        min_delay_seconds: { type: "number", title: "Min Delay Seconds" },
-        max_delay_seconds: { type: "number", title: "Max Delay Seconds" },
-        default_delay_seconds: { type: "number", title: "Default Delay Seconds" },
-      },
-    },
-    file_watcher: {
-      type: "object",
-      title: "File Watcher",
-      properties: {
-        watch_files: { type: "boolean", title: "Watch Files" },
-        debounce_milliseconds: { type: "integer", title: "Debounce Milliseconds" },
-      },
-    },
-  },
-};
-
-/** Default config values to use in test fixtures. */
-const DEFAULT_CONFIG_VALUES: Record<string, unknown> = {
-  dev_mode: false,
-  base_url: "",
-  asyncio_debug_mode: false,
-  allow_reload_in_prod: false,
-  data_dir: "/home/user/.hassette/data",
-  config_dir: "/home/user/.hassette",
-  token: null,
-  web_api: {
-    run: true,
-    run_ui: true,
-    ui_hot_reload: false,
-    host: "0.0.0.0",
-    port: 8126,
-    cors_origins: [],
-    job_history_size: 1000,
-  },
-  logging: {
-    log_level: "INFO",
-    web_api: "INFO",
-  },
-  lifecycle: {
-    startup_timeout_seconds: 30,
-    app_startup_timeout_seconds: 20,
-    app_shutdown_timeout_seconds: 10,
-  },
-  apps: {
-    autodetect: true,
-    directory: "/home/user/apps",
-  },
-  scheduler: {
-    min_delay_seconds: 1,
-    max_delay_seconds: 30,
-    default_delay_seconds: 15,
-  },
-  file_watcher: {
-    watch_files: true,
-    debounce_milliseconds: 3000,
-  },
-};
-
-/**
- * Build a ConfigSchemaResponse test fixture.
- *
- * Pass value-level overrides as a partial Record to merge into config_values.
- * Pass schemaOverrides to replace the entire config_schema.
- */
-export function createSystemConfig(
-  valueOverrides: Record<string, unknown> = {},
-  schemaOverrides?: Record<string, unknown>,
-): ConfigSchemaResponse {
-  const config_values = { ...DEFAULT_CONFIG_VALUES, ...valueOverrides };
-  const config_schema = schemaOverrides ?? MINIMAL_CONFIG_SCHEMA;
-  return { config_schema, config_values } satisfies ConfigSchemaResponse;
 }
 
 /** A service as the REST `/api/services` seed reports it. */
