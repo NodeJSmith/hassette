@@ -843,7 +843,7 @@ class WebsocketService(Service):
             return
 
         if msg_type == WSMsgType.BINARY:
-            self.logger.warning("Received binary message, which is not expected: %r", raw)
+            self.logger.warning("Received unexpected binary message (%d bytes)", len(raw))
             return
 
         if msg_type in {WSMsgType.CLOSE, WSMsgType.CLOSED}:
