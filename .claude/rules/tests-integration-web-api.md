@@ -28,7 +28,7 @@ paths:
 ## File-local helpers
 
 Each of these collapses one file's repeated arrange/act shape; they stay file-local because no
-second file drives the same endpoint.
+second file needs them.
 
 - `test_api_app_config.py` — `get_app_config(...)`, `get_global_config(...)`, `manifest_entry(...)`, `config_toml_section(...)`
 - `test_api_app_source.py` — `get_app_source(client, mock_hassette, *, app_dir, full_path)`

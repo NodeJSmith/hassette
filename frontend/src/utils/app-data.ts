@@ -1,4 +1,4 @@
-import type { AppActivity, AppGridEntry, AppGridResponse, AppManifest as AppSummary } from "../api/endpoints";
+import type { AppActivity, AppGridEntry, AppGridResponse, AppManifest } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 import type { SortState } from "../components/shared/sort-header";
 import { type AppStatusEntry, appStatusKey } from "../state/store";
@@ -22,8 +22,8 @@ const isActivityPart = (key: string): key is keyof AppActivity =>
   Object.prototype.hasOwnProperty.call(ACTIVITY_PART_KEYS, key);
 const ACTIVITY_PARTS = Object.keys(ACTIVITY_PART_KEYS).filter(isActivityPart);
 
-/** `AppSummary` fields `toAppRow` normalizes (optional on the wire, always present on a row) or drops. */
-type NormalizedAppFields = "block_reason" | "instances" | "error_message" | "error_traceback";
+/** `AppSummary` fields `toAppRow` overrides: normalized (optional on the wire, always present on a row) or dropped. */
+type OverriddenAppFields = "block_reason" | "instances" | "error_message" | "error_traceback";
 
 /** An app's summary fields side by side with its activity parts. Plain-copied fields track the
  *  generated types; only the normalized ones are spelled out. The activity parts are `null` when
@@ -31,10 +31,10 @@ type NormalizedAppFields = "block_reason" | "instances" | "error_message" | "err
  *  `last_error`) it only runs for a window and this was an all-time request. Render a null part
  *  as "—", never as a zero or a healthy value. `last_error` `null`: the lookup didn't run or
  *  failed. `{ error: null }`: it ran and found no error. */
-export type AppRow = Omit<AppSummary, NormalizedAppFields> &
+export type AppRow = Omit<AppManifest, OverriddenAppFields> &
   AppActivity & {
     block_reason: string | null;
-    instances: NonNullable<AppSummary["instances"]>;
+    instances: NonNullable<AppManifest["instances"]>;
     error_message: string | null;
   };
 
@@ -45,6 +45,7 @@ export type AppRow = Omit<AppSummary, NormalizedAppFields> &
  * not a merge of two sources.
  */
 export function toAppRow({ app, activity }: AppGridEntry): AppRow {
+  // The grid never renders a traceback, so the row drops it.
   const { error_traceback: _traceback, ...fields } = app;
   return {
     ...fields,

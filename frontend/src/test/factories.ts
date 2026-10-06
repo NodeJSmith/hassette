@@ -188,13 +188,13 @@ export function createAppGridEntry(
   } satisfies AppGridEntry;
 }
 
-/** Grid entry for `app_key` (and optionally `status`), everything else defaulted. */
-export function gridEntry(app_key: string, status?: AppSummary["status"]): AppGridEntry {
-  return createAppGridEntry({ app: status === undefined ? { app_key } : { app_key, status } });
+/** Grid entry for `appKey` (and optionally `status`), everything else defaulted. */
+export function createGridEntryFor(appKey: string, status?: AppSummary["status"]): AppGridEntry {
+  return createAppGridEntry({ app: status === undefined ? { app_key: appKey } : { app_key: appKey, status } });
 }
 
-/** Body of an `/apps/grid` response holding `entries`. */
-export function appGridResponse(...entries: AppGridEntry[]): { apps: AppGridEntry[] } {
+/** Body of a `GET /api/telemetry/app-grid` response holding `entries` (no `since` echo). */
+export function createAppGridResponse(...entries: AppGridEntry[]): { apps: AppGridEntry[] } {
   return { apps: entries };
 }
 

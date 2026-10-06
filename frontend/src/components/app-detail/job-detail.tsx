@@ -12,7 +12,7 @@ import { isExecutionDefined, useJobExecution } from "../../hooks/use-scoped-exec
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
-import { formatTriggerDetail } from "../../utils/format";
+import { EMPTY_PLACEHOLDER, formatTriggerDetail } from "../../utils/format";
 import { scheduleStatusDisplay } from "../../utils/schedule-status";
 import { handlerKindLabel } from "../../utils/status";
 import type { DetailStatsCell } from "../shared/detail-stats";
@@ -161,7 +161,7 @@ function resolveLastCell(
 ): LastCellDisplay {
   if (statusText) return { value: statusText, fieldLabel: "Schedule" };
   if (nextRunSummary) return { value: nextRunSummary, fieldLabel: "Next" };
-  return { value: lastExecutedLabel || "—", fieldLabel: "Last" };
+  return { value: lastExecutedLabel || EMPTY_PLACEHOLDER, fieldLabel: "Last" };
 }
 
 function buildJobStatsCells(job: JobData, lastExecutedLabel: string, nextRunSummary: string | null): DetailStatsCell[] {

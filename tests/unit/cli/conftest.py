@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
 import pytest
-from hassette_wire import AppGridEntry
+from hassette_wire import AppActivity, AppGridEntry
 from rich.console import Console
 
 import hassette.cli.output as output_module
@@ -25,6 +25,7 @@ SINCE_EPOCH = 1_700_000_000.0
 NOW_EPOCH = 1_748_000_000.0
 REMOTE_SERVER_URL = "https://example.com/hassette"
 REMOTE_SERVER_URL_BARE = "https://example.com"
+# Spelled out rather than imported from ``hassette.cli.client`` so a route rename there fails these tests.
 APP_GRID_ENDPOINT = "/api/telemetry/app-grid"
 APPS_ENDPOINT = "/api/apps"
 
@@ -425,5 +426,7 @@ def grid_body(
 
 def grid_body_with_null_parts(*parts: str, since: float | None = NOW_EPOCH - SECONDS_PER_HOUR) -> dict[str, Any]:
     """Grid body with one row whose ``activity`` parts named in ``parts`` are ``None``."""
+    unknown = set(parts) - set(AppActivity.model_fields)
+    assert not unknown, f"not AppActivity parts: {sorted(unknown)}"
     activity = make_app_activity(total_invocations=INVOCATIONS_SENTINEL).model_copy(update=dict.fromkeys(parts))
     return grid_body([make_app_grid_entry(activity=activity)], since=since)

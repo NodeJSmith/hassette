@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { AppLink } from "../components/shared/app-link";
 import { useRelativeTime } from "../hooks/use-relative-time";
 import { handlerPath } from "../utils/app-routes";
-import { formatDurationOrDash, formatRate, MS_PER_SECOND } from "../utils/format";
+import { EMPTY_PLACEHOLDER, formatDurationOrDash, formatRate, MS_PER_SECOND } from "../utils/format";
 import type { UnifiedRow } from "../utils/handler-rows";
 import { scheduleStatusLabel } from "../utils/handler-rows";
 
@@ -101,7 +101,7 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
           {row.name}
         </AppLink>
       </td>
-      <td className="font-mono text-sm">{row.trigger ?? "—"}</td>
+      <td className="font-mono text-sm">{row.trigger ?? EMPTY_PLACEHOLDER}</td>
       <td className="font-mono text-sm">{row.runs}</td>
       <td
         className={cn("font-mono text-sm", row.failed > 0 && "text-destructive")}
@@ -132,7 +132,7 @@ export function HandlerTableRow({ row }: HandlerRowProps) {
         className={cn("font-mono text-sm", isOverdue && "text-[var(--status-warning)]")}
         data-emphasis={isOverdue ? "warning" : undefined}
       >
-        {nextRunDisplay ?? "—"}
+        {nextRunDisplay ?? EMPTY_PLACEHOLDER}
       </td>
     </tr>
   );

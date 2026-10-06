@@ -354,8 +354,11 @@ def last_error_part(err: AppLastError | None) -> LastErrorResult:
     )
 
 
-async def optional_query(label: str, query: Awaitable[ResultT]) -> ResultT | None:
-    """Await an enrichment query, answering ``None`` and logging a warning if telemetry is unavailable."""
+async def query_or_none(label: str, query: Awaitable[ResultT]) -> ResultT | None:
+    """Await an enrichment query, or answer ``None`` if it raises ``TelemetryUnavailableError``.
+
+    ``label`` names the query in the warning logged (with its traceback) on that failure.
+    """
     try:
         return await query
     except TelemetryUnavailableError:
@@ -390,12 +393,12 @@ async def app_grid(
     db_rows = await telemetry.get_all_app_manifests()
     manifest_infos = runtime.overlay_manifest_rows(db_rows)
 
-    summaries = await optional_query("app summaries", telemetry.get_all_app_summaries(since=since, source_tier="app"))
+    summaries = await query_or_none("app summaries", telemetry.get_all_app_summaries(since=since, source_tier="app"))
 
     per_app_buckets: dict[str, list[tuple[int, int]]] | None = None
     per_app_errors: dict[str, AppLastError] | None = None
     if since is not None:
-        per_app_buckets = await optional_query(
+        per_app_buckets = await query_or_none(
             "per-app activity buckets",
             telemetry.get_per_app_activity_buckets(
                 since,
@@ -404,11 +407,11 @@ async def app_grid(
                 source_tier="app",
             ),
         )
-        per_app_errors = await optional_query(
+        per_app_errors = await query_or_none(
             "per-app last errors", telemetry.get_per_app_last_errors(since=since, source_tier="app")
         )
 
-    blocking_counts = await optional_query(
+    blocking_counts = await query_or_none(
         "per-app blocking-event counts", telemetry.get_blocking_event_counts(since=since)
     )
 

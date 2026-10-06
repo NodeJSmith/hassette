@@ -565,7 +565,7 @@ async def test_error_is_problem_body(
 
 class TestMiddlewareErrors:
     async def test_missing_credential_is_not_authenticated(self, auth_client: AsyncClient) -> None:
-        response = await auth_client.get("/api/apps")
+        response = await auth_client.get(APPS_PATH)
 
         assert_problem(response, status=401, code="not_authenticated", detail="Not authenticated")
 
@@ -597,7 +597,7 @@ class TestRoutingErrors:
         assert_problem(response, status=404, code="not_found", detail="Not Found")
 
     async def test_wrong_method_is_method_not_allowed(self, routing_client: AsyncClient) -> None:
-        response = await routing_client.post("/api/apps")
+        response = await routing_client.post(APPS_PATH)
 
         assert_problem(response, status=405, code="method_not_allowed", detail="Method Not Allowed")
         assert response.headers["allow"] == "GET"
@@ -628,7 +628,7 @@ class TestServerErrors:
         transport = ASGITransport(app=app, raise_app_exceptions=False)
         with caplog.at_level(logging.ERROR, logger="hassette.web.errors"):
             async with AsyncClient(transport=transport, base_url="http://test") as ac:
-                response = await ac.get("/api/apps")
+                response = await ac.get(APPS_PATH)
 
         assert_problem(response, status=500, code="internal_error", detail="Internal Server Error")
         assert "secret internals" not in response.text

@@ -4,7 +4,12 @@ import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { appStatusKey, useAppStore } from "../state/store";
-import { appGridResponse, createAppActivityStats, createAppGridEntry, gridEntry } from "../test/factories";
+import {
+  createAppActivityStats,
+  createAppGridEntry,
+  createAppGridResponse,
+  createGridEntryFor,
+} from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { server } from "../test/server";
@@ -60,13 +65,13 @@ describe("AppsPage", () => {
     // Regression test for design/specs/018-dashboard-without-ha: the apps page must render
     // even when the WS never connects (uptimeSeconds stays null), not spin forever on the
     // default since-restart preset.
-    server.use(http.get(APP_GRID_URL, () => HttpResponse.json(appGridResponse(gridEntry("my_app")))));
+    server.use(http.get(APP_GRID_URL, () => HttpResponse.json(createAppGridResponse(createGridEntryFor("my_app")))));
     const { findByTestId } = renderWithAppState(<AppsPage />);
     expect(await findByTestId("app-row-my_app")).toBeDefined();
   });
 
   it("renders 'apps' heading when data loads", async () => {
-    server.use(http.get(APP_GRID_URL, () => HttpResponse.json(appGridResponse(createAppGridEntry()))));
+    server.use(http.get(APP_GRID_URL, () => HttpResponse.json(createAppGridResponse(createAppGridEntry()))));
     const { findByRole } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
     expect(await findByRole("heading", { name: /apps/i })).toBeDefined();
   });
@@ -74,7 +79,9 @@ describe("AppsPage", () => {
   it("renders stats strip with counts", async () => {
     server.use(
       http.get(APP_GRID_URL, () =>
-        HttpResponse.json(appGridResponse(gridEntry("a", "running"), gridEntry("b", "disabled"))),
+        HttpResponse.json(
+          createAppGridResponse(createGridEntryFor("a", "running"), createGridEntryFor("b", "disabled")),
+        ),
       ),
     );
     const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -91,11 +98,11 @@ describe("AppsPage", () => {
     server.use(
       http.get(APP_GRID_URL, () =>
         HttpResponse.json(
-          appGridResponse(
-            gridEntry("a", "running"),
-            gridEntry("b", "running"),
-            gridEntry("c", "running"),
-            gridEntry("d", "disabled"),
+          createAppGridResponse(
+            createGridEntryFor("a", "running"),
+            createGridEntryFor("b", "running"),
+            createGridEntryFor("c", "running"),
+            createGridEntryFor("d", "disabled"),
           ),
         ),
       ),
@@ -152,7 +159,7 @@ describe("AppsPage", () => {
     server.use(
       http.get(APP_GRID_URL, ({ request }) => {
         urls.push(request.url);
-        return HttpResponse.json(appGridResponse(gridEntry("my_app")));
+        return HttpResponse.json(createAppGridResponse(createGridEntryFor("my_app")));
       }),
     );
     const { findByTestId } = renderWithAppState(<AppsPage />);
@@ -168,7 +175,7 @@ describe("AppsPage", () => {
         calls++;
         // The second fetch (the new window) never resolves, so the first response stays as placeholder data.
         if (calls > 1) return new Promise(() => {});
-        return HttpResponse.json(appGridResponse(gridEntry("my_app")));
+        return HttpResponse.json(createAppGridResponse(createGridEntryFor("my_app")));
       }),
     );
     const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -252,7 +259,7 @@ describe("AppsPage", () => {
   });
 
   it("does not render legacy filter pills", async () => {
-    server.use(http.get(APP_GRID_URL, () => HttpResponse.json(appGridResponse(createAppGridEntry()))));
+    server.use(http.get(APP_GRID_URL, () => HttpResponse.json(createAppGridResponse(createAppGridEntry()))));
     const { findByRole, queryByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
     // Wait for data to load before asserting absence
     await findByRole("heading", { name: /apps/i });
@@ -262,7 +269,9 @@ describe("AppsPage", () => {
   it("renders app rows in the table", async () => {
     server.use(
       http.get(APP_GRID_URL, () =>
-        HttpResponse.json(appGridResponse(gridEntry("app_a", "running"), gridEntry("app_b", "running"))),
+        HttpResponse.json(
+          createAppGridResponse(createGridEntryFor("app_a", "running"), createGridEntryFor("app_b", "running")),
+        ),
       ),
     );
     const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -271,7 +280,7 @@ describe("AppsPage", () => {
   });
 
   it("renders search input above the table", async () => {
-    server.use(http.get(APP_GRID_URL, () => HttpResponse.json(appGridResponse(createAppGridEntry()))));
+    server.use(http.get(APP_GRID_URL, () => HttpResponse.json(createAppGridResponse(createAppGridEntry()))));
     const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
     const search = await findByTestId("apps-search");
     expect(search).toBeDefined();
@@ -286,7 +295,9 @@ describe("AppsPage", () => {
   it("renders record count in the table footer", async () => {
     server.use(
       http.get(APP_GRID_URL, () =>
-        HttpResponse.json(appGridResponse(gridEntry("app_a", "running"), gridEntry("app_b", "running"))),
+        HttpResponse.json(
+          createAppGridResponse(createGridEntryFor("app_a", "running"), createGridEntryFor("app_b", "running")),
+        ),
       ),
     );
     const { findByText } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -297,7 +308,12 @@ describe("AppsPage", () => {
     mockSearch = "search=motion";
     server.use(
       http.get(APP_GRID_URL, () =>
-        HttpResponse.json(appGridResponse(gridEntry("motion_lights", "running"), gridEntry("alarm_app", "running"))),
+        HttpResponse.json(
+          createAppGridResponse(
+            createGridEntryFor("motion_lights", "running"),
+            createGridEntryFor("alarm_app", "running"),
+          ),
+        ),
       ),
     );
     const { findByText } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -306,7 +322,9 @@ describe("AppsPage", () => {
 
   describe("STATUS column filter", () => {
     it("renders a filter button on the STATUS column header", async () => {
-      server.use(http.get(APP_GRID_URL, () => HttpResponse.json(appGridResponse(gridEntry("app_a", "running")))));
+      server.use(
+        http.get(APP_GRID_URL, () => HttpResponse.json(createAppGridResponse(createGridEntryFor("app_a", "running")))),
+      );
       const { findByRole } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
       // SortHeader renders filter button with data-testid="filter-btn" when filterContent is provided
       const filterBtn = await findByRole("button", { name: /filter status/i });
@@ -317,7 +335,12 @@ describe("AppsPage", () => {
       const user = userEvent.setup();
       server.use(
         http.get(APP_GRID_URL, () =>
-          HttpResponse.json(appGridResponse(gridEntry("running_app", "running"), gridEntry("failed_app", "failed"))),
+          HttpResponse.json(
+            createAppGridResponse(
+              createGridEntryFor("running_app", "running"),
+              createGridEntryFor("failed_app", "failed"),
+            ),
+          ),
         ),
       );
       const { findByRole, findByText } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -333,7 +356,12 @@ describe("AppsPage", () => {
       mockSearch = "filter=failed";
       server.use(
         http.get(APP_GRID_URL, () =>
-          HttpResponse.json(appGridResponse(gridEntry("running_app", "running"), gridEntry("failed_app", "failed"))),
+          HttpResponse.json(
+            createAppGridResponse(
+              createGridEntryFor("running_app", "running"),
+              createGridEntryFor("failed_app", "failed"),
+            ),
+          ),
         ),
       );
       const { findByTestId, queryByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -347,7 +375,12 @@ describe("AppsPage", () => {
       mockSearch = "search=motion";
       server.use(
         http.get(APP_GRID_URL, () =>
-          HttpResponse.json(appGridResponse(gridEntry("motion_lights", "running"), gridEntry("alarm_app", "running"))),
+          HttpResponse.json(
+            createAppGridResponse(
+              createGridEntryFor("motion_lights", "running"),
+              createGridEntryFor("alarm_app", "running"),
+            ),
+          ),
         ),
       );
       const { findByTestId, queryByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
@@ -359,7 +392,9 @@ describe("AppsPage", () => {
   describe("query param: sort/dir", () => {
     it("reads sort key from URL — defaults to status when absent", async () => {
       mockSearch = "";
-      server.use(http.get(APP_GRID_URL, () => HttpResponse.json(appGridResponse(gridEntry("app_a", "running")))));
+      server.use(
+        http.get(APP_GRID_URL, () => HttpResponse.json(createAppGridResponse(createGridEntryFor("app_a", "running")))),
+      );
       const { findByTestId } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
       expect(await findByTestId("app-row-app_a")).toBeDefined();
     });
@@ -368,14 +403,22 @@ describe("AppsPage", () => {
   describe("empty state when filters produce zero results", () => {
     it("names the active filter in the empty state message", async () => {
       mockSearch = "filter=failed";
-      server.use(http.get(APP_GRID_URL, () => HttpResponse.json(appGridResponse(gridEntry("running_app", "running")))));
+      server.use(
+        http.get(APP_GRID_URL, () =>
+          HttpResponse.json(createAppGridResponse(createGridEntryFor("running_app", "running"))),
+        ),
+      );
       const { findByText } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
       expect(await findByText(/no apps match status: failed/i)).toBeDefined();
     });
 
     it("provides a clear filters button in the empty state", async () => {
       mockSearch = "filter=failed";
-      server.use(http.get(APP_GRID_URL, () => HttpResponse.json(appGridResponse(gridEntry("running_app", "running")))));
+      server.use(
+        http.get(APP_GRID_URL, () =>
+          HttpResponse.json(createAppGridResponse(createGridEntryFor("running_app", "running"))),
+        ),
+      );
       const { findByRole } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
       expect(await findByRole("button", { name: /clear filters/i })).toBeDefined();
     });
@@ -383,7 +426,11 @@ describe("AppsPage", () => {
     it("clicking clear filters calls navigate to reset filter and search", async () => {
       const user = userEvent.setup();
       mockSearch = "filter=failed";
-      server.use(http.get(APP_GRID_URL, () => HttpResponse.json(appGridResponse(gridEntry("running_app", "running")))));
+      server.use(
+        http.get(APP_GRID_URL, () =>
+          HttpResponse.json(createAppGridResponse(createGridEntryFor("running_app", "running"))),
+        ),
+      );
       const { findByRole } = renderWithAppState(<AppsPage />, STATE_WITH_UPTIME);
       const btn = await findByRole("button", { name: /clear filters/i });
       await user.click(btn);

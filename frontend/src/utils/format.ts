@@ -24,12 +24,12 @@ export const EMPTY_PLACEHOLDER = "—";
 
 /** Format a duration or "—" if null/undefined/zero. Use for averages where 0 means "no data". */
 export function formatDurationOrDash(ms: number | null | undefined): string {
-  return ms !== null && ms !== undefined && ms > 0 ? formatDuration(ms) : "—";
+  return ms !== null && ms !== undefined && ms > 0 ? formatDuration(ms) : EMPTY_PLACEHOLDER;
 }
 
 /** Format a duration or "—" if null/undefined. Use for min/max where 0 is a valid value. */
 export function formatOptionalDuration(ms: number | null | undefined): string {
-  return ms !== null && ms !== undefined ? formatDuration(ms) : "—";
+  return ms !== null && ms !== undefined ? formatDuration(ms) : EMPTY_PLACEHOLDER;
 }
 
 /** Pluralize a label based on count (e.g., pluralize(1, "entry", "entries") → "1 entry"). */
@@ -73,7 +73,7 @@ export function formatTriggerDetail(detail: string): string {
  * identical across rows in a session — the suffix is what varies and is worth showing.
  */
 export function truncateId(id: string | null | undefined): string {
-  if (!id) return "—";
+  if (!id) return EMPTY_PLACEHOLDER;
   if (id.length <= 8) return id;
   return "…" + id.slice(-8);
 }
@@ -134,7 +134,7 @@ export function lastDotSegment(s: string): string {
  * total is 0.
  */
 export function formatRate(failed: number, total: number): string {
-  if (total <= 0) return "—";
+  if (total <= 0) return EMPTY_PLACEHOLDER;
   const fixed = ((failed / total) * 100).toFixed(1);
   return (fixed.endsWith(".0") ? fixed.slice(0, -2) : fixed) + "%";
 }

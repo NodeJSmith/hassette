@@ -4,7 +4,7 @@ import { useQueryInvalidator } from "../../hooks/use-query-invalidator";
 import { isExecutionDefined, useAppExecution } from "../../hooks/use-scoped-execution";
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
-import { formatOptionalDuration } from "../../utils/format";
+import { EMPTY_PLACEHOLDER, formatOptionalDuration } from "../../utils/format";
 import { StatsStrip, type StatsStripCell } from "../shared/stats-strip";
 
 interface OverviewHealthStripProps {
@@ -47,7 +47,7 @@ export function OverviewHealthStrip({ appKey, resolvedInstanceIndex, handlerCoun
 function formatErrorRate(isError: boolean, errorRate: number | null): string {
   // A failed request reads "unavailable", so a telemetry outage never passes for an idle app.
   if (isError) return "unavailable";
-  if (errorRate === null) return "—";
+  if (errorRate === null) return EMPTY_PLACEHOLDER;
   const rounded = Math.round(errorRate);
   // Rounding never hides the difference from the extremes: a rate that rounds to 0 reads "<1%"
   // (some runs failed), and one that rounds to 100 reads ">99%" (some runs succeeded).
