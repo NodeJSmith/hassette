@@ -1,4 +1,4 @@
-"""App-related CLI commands: app list, health, activity, config, source, start/stop/reload."""
+"""App-related CLI commands: the ``hassette app`` listing, health, activity, config, source, start/stop/reload."""
 
 import sys
 from typing import Annotated, Any
@@ -14,7 +14,7 @@ from hassette_wire import (
 )
 
 import hassette.cli.output as cli_output
-from hassette.cli.client import make_client, parse_wire_list, query_params
+from hassette.cli.client import APP_GRID_PATH, make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import (
     Column,
@@ -37,7 +37,7 @@ _ACTION_PAST_TENSE: dict[AppAction, str] = {"start": "started", "stop": "stopped
 #: the CLI/frontend boundary for "which actions exist and what each one needs."
 _ACTIONS_REQUIRING_CONFIRMATION: frozenset[AppAction] = frozenset({"stop", "reload"})
 
-#: Window for ``hassette app``'s activity column, which its "Invoc/1h" header names.
+#: Window for ``hassette app``'s activity column, which its "Invoc/<hours>h" header names.
 APP_LIST_WINDOW_SECONDS = SECONDS_PER_HOUR
 
 APP_LIST_COLUMNS: list[Column] = [
@@ -45,7 +45,7 @@ APP_LIST_COLUMNS: list[Column] = [
     Column("app.status", "Status", max_width=10),
     Column("app.display_name", "Display Name", max_width=22),
     Column("app.instance_count", "Instances", max_width=9),
-    Column("activity.stats.total_invocations", "Invoc/1h", max_width=8),
+    Column("activity.stats.total_invocations", f"Invoc/{APP_LIST_WINDOW_SECONDS // SECONDS_PER_HOUR}h", max_width=8),
     Column("app.enabled", "Enabled", max_width=7),
     Column("app.autostart", "Autostart", max_width=9),
     Column("app.filename", "File", max_width=20),
@@ -80,7 +80,7 @@ def cmd_app(*, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
     """
     client = make_client(ctx)
     params = query_params(since=cli_output.now_epoch() - APP_LIST_WINDOW_SECONDS)
-    result = client.get("/api/telemetry/app-grid", AppGridResponse, params=params)
+    result = client.get(APP_GRID_PATH, AppGridResponse, params=params)
     cli_output.warn_missing_activity(result)
     render_table(result.apps, APP_LIST_COLUMNS, json_mode=ctx.json_mode)
 

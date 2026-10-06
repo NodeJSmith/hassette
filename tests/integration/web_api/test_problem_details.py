@@ -28,7 +28,7 @@ from hassette.web.errors import GLOBAL_CODES, PROBLEM_CODES_KEY
 from tests.integration.conftest import make_manifest_mock
 from tests.support.web_manifest_helpers import make_app_instance_info
 
-from .conftest import AUTH_SESSION_PATH, telemetry_error
+from .conftest import APP_GRID_PATH, APPS_PATH, AUTH_SESSION_PATH, telemetry_error
 
 PROBLEM_CONTENT_TYPE = "application/problem+json"
 
@@ -97,7 +97,7 @@ TELEMETRY_DATA_ROUTES = {
     "execution": TelemetryRoute(
         "get_execution_by_id", "/api/telemetry/execution/abc", "/api/telemetry/execution/{execution_id}"
     ),
-    "app-grid": TelemetryRoute("get_all_app_manifests", "/api/telemetry/app-grid", "/api/telemetry/app-grid"),
+    "app-grid": TelemetryRoute("get_all_app_manifests", APP_GRID_PATH, APP_GRID_PATH),
     "app-blocking": TelemetryRoute(
         "get_blocking_findings", "/api/telemetry/app/my_app/blocking", "/api/telemetry/app/{app_key}/blocking"
     ),
@@ -107,7 +107,7 @@ TELEMETRY_DATA_ROUTES = {
     "blocking-unattributed": TelemetryRoute(
         "get_unattributed_blocking", "/api/telemetry/blocking/unattributed", "/api/telemetry/blocking/unattributed"
     ),
-    "manifests": TelemetryRoute("get_all_app_manifests", "/api/apps", "/api/apps"),
+    "manifests": TelemetryRoute("get_all_app_manifests", APPS_PATH, APPS_PATH),
     "bus-listeners": TelemetryRoute("get_listener_summary", "/api/bus/listeners", "/api/bus/listeners"),
     "logs-recent": TelemetryRoute("get_log_records", "/api/logs/recent", "/api/logs/recent"),
     "scheduler-jobs": TelemetryRoute("get_job_summary", "/api/scheduler/jobs", "/api/scheduler/jobs"),

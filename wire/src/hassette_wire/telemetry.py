@@ -23,7 +23,13 @@ from hassette_wire.literals import (
 
 WINDOWED_ACTIVITY_PARTS: frozenset[str] = frozenset({"activity_buckets", "last_error"})
 """``AppActivity`` parts the server computes only for a request with a ``since``; ``None`` in every row
-otherwise. Mirrored in ``frontend/src/utils/app-data.ts``."""
+otherwise. Mirrored in ``frontend/src/utils/app-data.ts``; ``tests/unit/test_frontend_windowed_parts_parity.py``
+fails when the two drift."""
+
+
+def requested_activity_parts(*, windowed: bool) -> list[str]:
+    """``AppActivity`` parts the server computes: every part when ``windowed``, else the unwindowed ones."""
+    return [name for name in AppActivity.model_fields if windowed or name not in WINDOWED_ACTIVITY_PARTS]
 
 
 class Execution(BaseModel):
@@ -344,8 +350,13 @@ class AppActivity(BaseModel):
 class AppGridEntry(BaseModel):
     """One Apps grid row: an app joined with its activity, in a single server-side query."""
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     app: AppSummary
+    """What the app is: identity, lifecycle status and instances."""
+
     activity: AppActivity
+    """What the app did over the grid's window; each part is ``None`` when it wasn't computed."""
 
 
 class AppGridResponse(BaseModel):

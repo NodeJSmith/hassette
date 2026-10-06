@@ -553,7 +553,7 @@ class TestOneHourInvocationWindow:
     async def test_summary_total_invocations_counts_app_tier_handlers_in_last_hour(
         self, query_service: TelemetryQueryService, db: DbFixture
     ) -> None:
-        """With since = now - 1h, total_invocations is the per-app count `hassette app list` shows as Invoc/1h.
+        """With since = now - 1h, total_invocations is the per-app count `hassette app` shows as Invoc/1h.
 
         Counts only app-tier handler executions started inside the window: job executions,
         framework-tier executions, and anything older than an hour are excluded.

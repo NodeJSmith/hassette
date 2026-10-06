@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from typing import Any
 
-from hassette_wire import WINDOWED_ACTIVITY_PARTS, AppActivity, AppGridResponse, CliFormat, ResourceStatus
+from hassette_wire import AppGridResponse, CliFormat, ResourceStatus, requested_activity_parts
 from pydantic import BaseModel
 from rich.console import Console, OverflowMethod
 from rich.markup import escape
@@ -268,8 +268,11 @@ def warn_missing_activity(grid: AppGridResponse) -> None:
     clean. No-op for an empty grid or when every requested part is present.
     """
     windowed = grid.since is not None  # the echo of the request's since: what the server actually computed
-    parts = [part for part in AppActivity.model_fields if windowed or part not in WINDOWED_ACTIVITY_PARTS]
-    missing = [part for part in parts if any(getattr(row.activity, part) is None for row in grid.apps)]
+    missing = [
+        part
+        for part in requested_activity_parts(windowed=windowed)
+        if any(getattr(row.activity, part) is None for row in grid.apps)
+    ]
     if missing:
         stderr_console.print(
             f"[yellow]Warning:[/yellow] partial data, the server could not compute: {escape(', '.join(missing))}",

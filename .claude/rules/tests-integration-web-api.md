@@ -20,7 +20,8 @@ paths:
 - `get_json(client, url, *, expect_status=200)` — GET, assert the status, return the decoded body. Replaces the `response = await client.get(...)` / `assert response.status_code == ...` / `data = response.json()` triple. Tests needing the `Response` itself (headers, `.text`, cookies) still call `client.get` directly.
 - `telemetry_error(message=DB_LOCKED_MSG)` — an `AsyncMock` raising `TelemetryUnavailableError`; assign it onto the query-service method under test so the method name stays greppable at the call site.
 - `DB_LOCKED_MSG` — the stand-in storage failure message DB-degradation tests raise.
-- `HEALTH_PATH`, `APP_HEALTH_PATH`, `APP_GRID_PATH`, `TELEMETRY_STATUS_PATH`, `CONFIG_PATH`, `AUTH_SESSION_PATH` — route paths hit by tests in more than one file; import these rather than redefining the literal locally.
+- `seed_grid_apps(mock_hassette, *app_keys)` — make the app grid's DB spine return one manifest row per app key.
+- `HEALTH_PATH`, `APP_HEALTH_PATH`, `APP_GRID_PATH`, `APP_PATH`, `APPS_PATH`, `TELEMETRY_STATUS_PATH`, `CONFIG_PATH`, `AUTH_SESSION_PATH` — route paths hit by tests in more than one file; import these rather than redefining the literal locally.
 - `set_websocket_state(mock_hassette, *, connected, ever_connected)` / `set_app_status_snapshot(mock_hassette, *, running, failed)` — drive the health/system-status inputs.
 - `make_log_record(seq, **kw)` (local, deliberately — see `# factory-local:` annotation) — builds a raw log record dict for log-endpoint tests; derives `timestamp` from `seq` so ordering tests get distinct, predictable timestamps. Shadows `tests.support.factories.make_log_record`, which uses a fixed `timestamp=0.0` default and does not fit this file's ordering tests.
 
@@ -36,6 +37,7 @@ second file drives the same endpoint.
 - `test_problem_details.py` — `ProblemCase`, `assert_problem(...)`, `declared_codes(...)`, and the `ROUTE_CASES` table (one case per error-coverage row and code)
 - `test_dashboard_api.py` — `get_health_with_status(client, mock_hassette, **status_fields)`
 - `test_telemetry.py` — `assert_forwarded_to_service(...)`, `LISTENER_DEFAULTS`
+- `test_app_grid.py` — `seed_grid_enrichments(...)`, `grid_summary_records(...)`, `grid_summary_warnings(...)`
 - `test_telemetry_route.py` — `make_live_job(db_id, name, **kw)`, `get_enriched_job_row(...)`
 - `test_trigger_job.py` — `post_trigger(...)`, `make_registered_job(...)`
 - `test_ws_endpoint.py` — `subscribed_ws(client, **subscribe_data)`, `put_message(...)`, `expect_message(ws, type)`

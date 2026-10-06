@@ -15,7 +15,7 @@ from hassette.schemas.app_snapshots import (
     AppInstanceInfo,
     AppManifestInfo,
     AppStatusSnapshot,
-    tally_manifest_statuses,
+    tally_app_statuses,
 )
 from hassette.types.enums import BlockReason
 from hassette.utils.app_utils import is_valid_instance_name
@@ -277,7 +277,7 @@ class AppRegistry:
             manifests=manifests,
             only_apps=sorted(self._only_apps),
             total=len(manifests),
-            status_counts=tally_manifest_statuses(manifests),
+            status_counts=tally_app_statuses(manifests),
         )
 
     def build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:

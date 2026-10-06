@@ -48,6 +48,8 @@ class AppSummary(BaseModel):
 
 
 class AppListResponse(BaseModel):
+    """Response for ``GET /api/apps``: every app with status counts."""
+
     total: int
     status_counts: dict[OpenAppStatus, int] = Field(default_factory=dict)
     apps: list[AppSummary]

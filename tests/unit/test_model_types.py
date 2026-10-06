@@ -212,11 +212,11 @@ class TestExecutionStatus:
 
 
 class TestAppStatus:
-    def test_rejects_value_outside_six_value_set(self) -> None:
+    def test_rejects_value_outside_app_status_set(self) -> None:
         with pytest.raises(ValidationError):
             minimal_app_summary(status="unknown")
 
-    def test_accepts_all_six_values(self) -> None:
+    def test_accepts_every_app_status(self) -> None:
         for value in AppStatus:
             assert minimal_app_summary(status=value).status == value
 
@@ -240,10 +240,10 @@ class TestAppStatus:
 
 
 class TestInCurrentConfig:
-    def test_app_manifest_response_defaults_to_true(self) -> None:
+    def test_app_summary_defaults_to_true(self) -> None:
         assert minimal_app_summary().in_current_config is True
 
-    def test_app_manifest_response_round_trips_false(self) -> None:
+    def test_app_summary_round_trips_false(self) -> None:
         assert minimal_app_summary(in_current_config=False).in_current_config is False
 
 

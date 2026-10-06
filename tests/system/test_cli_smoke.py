@@ -108,7 +108,7 @@ async def test_telemetry_status_deserializes(ha_container: str, tmp_path: Path) 
 
 
 async def test_dashboard_deserializes(ha_container: str, tmp_path: Path) -> None:
-    """GET /api/telemetry/app-grid deserializes to AppGridResponse."""
+    """`hassette dashboard` reads GET /api/telemetry/app-grid, which deserializes to AppGridResponse."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)

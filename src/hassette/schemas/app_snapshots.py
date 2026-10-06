@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 
 from hassette_wire import AppStatus, ResourceStatus
 
-MANIFEST_STATUS_KEYS = tuple(AppStatus)
+APP_STATUS_KEYS = tuple(AppStatus)
 
 
 @dataclass
@@ -101,11 +101,11 @@ class AppFullSnapshot:
     manifests: list[AppManifestInfo] = field(default_factory=list)
     only_apps: list[str] = field(default_factory=list)
     total: int = 0
-    status_counts: dict[AppStatus, int] = field(default_factory=lambda: dict.fromkeys(MANIFEST_STATUS_KEYS, 0))
+    status_counts: dict[AppStatus, int] = field(default_factory=lambda: dict.fromkeys(APP_STATUS_KEYS, 0))
     """Manifest counts keyed by ``AppStatus``, with every member present."""
 
 
-def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, int]:
+def tally_app_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppStatus, int]:
     """Count manifests by status (``running``, ``failed``, ``stopped``, ``disabled``, ``blocked``,
     ``degraded``).
 
@@ -114,7 +114,7 @@ def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppSta
     and DB-sourced rows overlaid with runtime state, where a future/drifted status value should
     degrade gracefully instead of crashing the response.
     """
-    counts: dict[AppStatus, int] = dict.fromkeys(MANIFEST_STATUS_KEYS, 0)
+    counts: dict[AppStatus, int] = dict.fromkeys(APP_STATUS_KEYS, 0)
     for m in manifests:
         if m.status in counts:
             counts[m.status] += 1
@@ -122,10 +122,10 @@ def tally_manifest_statuses(manifests: Iterable[AppManifestInfo]) -> dict[AppSta
 
 
 __all__ = [
-    "MANIFEST_STATUS_KEYS",
+    "APP_STATUS_KEYS",
     "AppFullSnapshot",
     "AppInstanceInfo",
     "AppManifestInfo",
     "AppStatusSnapshot",
-    "tally_manifest_statuses",
+    "tally_app_statuses",
 ]

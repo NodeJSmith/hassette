@@ -16,9 +16,8 @@ from hassette.cli.client import HassetteCLIClient
 from hassette.config.config import HassetteConfig
 from hassette.config.models import WebApiConfig
 from tests.support.web_manifest_helpers import make_app_list_response, make_app_summary
-from tests.unit.cli.conftest import REMOTE_SERVER_URL, capture_stderr, make_cli_config
+from tests.unit.cli.conftest import APPS_ENDPOINT, REMOTE_SERVER_URL, capture_stderr, make_cli_config
 
-MANIFESTS_ENDPOINT = "/api/apps"
 BUS_LISTENERS_ENDPOINT = "/api/bus/listeners"
 CRASH_ENDPOINT = "/api/crash"
 HEALTH_ENDPOINT = "/api/health"
@@ -101,32 +100,32 @@ def make_raw_body_client(
     )
 
 
-def make_manifest_list(instances: list[AppInstanceResponse], app_key: str = "my_app") -> AppListResponse:
-    """Wrap ``instances`` in a single-app manifest list, as ``/api/apps`` returns it."""
-    manifest = make_app_summary(app_key=app_key, instance_count=len(instances), instances=instances)
-    return make_app_list_response(manifests=[manifest])
+def make_app_list(instances: list[AppInstanceResponse], app_key: str = "my_app") -> AppListResponse:
+    """Wrap ``instances`` in a single-app list, as ``/api/apps`` returns it."""
+    app = make_app_summary(app_key=app_key, instance_count=len(instances), instances=instances)
+    return make_app_list_response(apps=[app])
 
 
 def url_capturing_client(
-    manifest_instances: list[AppInstanceResponse] | None = None,
+    app_list_instances: list[AppInstanceResponse] | None = None,
 ) -> tuple[HassetteCLIClient, list[str]]:
     """Build a default-target client plus the list its request URLs are recorded into.
 
-    Every request answers with an empty JSON array, except that when ``manifest_instances`` is
-    given, ``/api/apps`` serves those instances as a single-app manifest list so the
+    Every request answers with an empty JSON array, except that when ``app_list_instances`` is
+    given, ``/api/apps`` serves those instances as a single-app list so the
     instance-name lookup can resolve. The empty array is enough for the downstream listener call,
     since the routing tests assert on the recorded URL rather than the payload.
     """
-    manifest_body = (
-        make_manifest_list(manifest_instances).model_dump_json().encode() if manifest_instances is not None else None
+    app_list_body = (
+        make_app_list(app_list_instances).model_dump_json().encode() if app_list_instances is not None else None
     )
     captured_urls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         url = str(request.url)
         captured_urls.append(url)
-        if manifest_body is not None and MANIFESTS_ENDPOINT in url:
-            return httpx.Response(200, content=manifest_body, headers={"content-type": "application/json"})
+        if app_list_body is not None and APPS_ENDPOINT in url:
+            return httpx.Response(200, content=app_list_body, headers={"content-type": "application/json"})
         return httpx.Response(200, content=b"[]", headers={"content-type": "application/json"})
 
     transport = httpx.MockTransport(handler)
@@ -614,7 +613,7 @@ class TestInstanceRouting:
 
     def test_stopped_instance_still_resolves_by_name(self) -> None:
         """A configured instance that isn't currently tracked (e.g. independently stopped)
-        still appears in the manifest's instance list and resolves normally — the CLI does
+        still appears in the app list's instance list and resolves normally — the CLI does
         not filter by status, so a stopped instance stays addressable by name.
         """
         instances = [

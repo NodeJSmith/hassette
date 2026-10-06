@@ -11,13 +11,13 @@ propagates to ``telemetry_unavailable_handler`` in ``hassette.web.errors``, whic
 """
 
 import time
-from dataclasses import dataclass, fields
+from collections.abc import Awaitable
+from dataclasses import dataclass
 from logging import getLogger
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeVar
 
 from fastapi import APIRouter, Query, Response
 from hassette_wire import (
-    WINDOWED_ACTIVITY_PARTS,
     ActivityBucket,
     ActivityFeedEntry,
     AppActivity,
@@ -34,6 +34,7 @@ from hassette_wire import (
     ProblemCode,
     TelemetryStatusResponse,
     UnattributedBlockingResponse,
+    requested_activity_parts,
 )
 
 from hassette.exceptions import TelemetryUnavailableError
@@ -58,6 +59,8 @@ from hassette.web.telemetry_helpers import build_app_health
 from hassette.web.utils import enrich_jobs_with_live_data
 
 LOGGER = getLogger(__name__)
+
+ResultT = TypeVar("ResultT")
 
 NO_TELEMETRY_SUMMARY = AppHealthSummary(handler_count=0, job_count=0, aggregates=AppHealthAggregates.empty())
 """The summary of an app with no telemetry rows in the window: zero counts, no averages."""
@@ -292,83 +295,6 @@ async def get_execution(
     return await telemetry.get_execution_by_id(execution_id)
 
 
-@router.get(
-    "/app-grid",
-    response_model=AppGridResponse,
-    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
-)
-async def app_grid(
-    runtime: RuntimeDep,
-    telemetry: TelemetryDep,
-    since: SinceQuery = None,
-) -> AppGridResponse:
-    """Every app joined with its activity over ``since``, for the Apps grid.
-
-    The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
-    failure) and overlaid with live runtime state via
-    ``RuntimeQueryService.overlay_manifest_rows()``. Each telemetry enrichment below is one
-    all-apps query that fills one ``AppActivity`` part. A query that raises
-    ``TelemetryUnavailableError`` leaves its part ``None`` in every row and the response continues at
-    200, with one summary warning naming the failed parts; any other error is a bug and returns 500
-    — see ``.claude/rules/web-api.md``. ``activity_buckets`` and ``last_error`` only run for a
-    window, so they are ``None`` when ``since`` is ``None``.
-
-    Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
-    not the manifest-driven app grid.
-    """
-    db_rows = await telemetry.get_all_app_manifests()
-    manifest_infos = runtime.overlay_manifest_rows(db_rows)
-
-    summaries: dict[str, AppHealthSummary] | None = None
-    try:
-        summaries = await telemetry.get_all_app_summaries(since=since, source_tier="app")
-    except TelemetryUnavailableError:
-        LOGGER.warning("Failed to fetch app summaries for the app grid", exc_info=True)
-
-    per_app_buckets: dict[str, list[tuple[int, int]]] | None = None
-    per_app_errors: dict[str, AppLastError] | None = None
-    if since is not None:
-        try:
-            per_app_buckets = await telemetry.get_per_app_activity_buckets(
-                since,
-                time.time(),
-                num_buckets=DEFAULT_SPARKLINE_BUCKETS,
-                source_tier="app",
-            )
-        except TelemetryUnavailableError:
-            LOGGER.warning("Failed to fetch per-app activity buckets", exc_info=True)
-        try:
-            per_app_errors = await telemetry.get_per_app_last_errors(since=since, source_tier="app")
-        except TelemetryUnavailableError:
-            LOGGER.warning("Failed to fetch per-app last errors", exc_info=True)
-
-    blocking_counts: dict[str, int] | None = None
-    try:
-        blocking_counts = await telemetry.get_blocking_event_counts(since=since)
-    except TelemetryUnavailableError:
-        LOGGER.warning("Failed to fetch per-app blocking-event counts", exc_info=True)
-
-    enrichments = GridEnrichments(
-        stats=summaries,
-        activity_buckets=per_app_buckets,
-        last_error=per_app_errors,
-        blocking_event_count=blocking_counts,
-    )
-    entries = [
-        AppGridEntry(app=app_summary_from(manifest), activity=enrichments.activity_for(manifest.app_key))
-        for manifest in manifest_infos
-    ]
-
-    failed = enrichments.failed_parts(windowed=since is not None)
-    if failed:
-        LOGGER.warning(
-            "App grid served without these activity parts: %s",
-            ", ".join(failed),
-            extra={"failed_parts": failed, "since": since},
-        )
-    return AppGridResponse(apps=entries, since=since)
-
-
 @dataclass(frozen=True)
 class GridEnrichments:
     """The four all-apps enrichment results behind ``AppActivity``, one field per part, named after it.
@@ -385,11 +311,7 @@ class GridEnrichments:
 
     def failed_parts(self, *, windowed: bool) -> list[str]:
         """Parts whose query ran (every part when ``windowed``, else the unwindowed ones) and failed."""
-        return [
-            f.name
-            for f in fields(self)
-            if getattr(self, f.name) is None and (windowed or f.name not in WINDOWED_ACTIVITY_PARTS)
-        ]
+        return [part for part in requested_activity_parts(windowed=windowed) if getattr(self, part) is None]
 
     def activity_for(self, app_key: str) -> AppActivity:
         """Build one app's ``activity``.
@@ -430,3 +352,82 @@ def last_error_part(err: AppLastError | None) -> LastErrorResult:
     return LastErrorResult(
         error=LastError(error_message=err.error_message, error_type=err.error_type, ts=err.timestamp)
     )
+
+
+async def optional_query(label: str, query: Awaitable[ResultT]) -> ResultT | None:
+    """Await an enrichment query, answering ``None`` and logging a warning if telemetry is unavailable."""
+    try:
+        return await query
+    except TelemetryUnavailableError:
+        LOGGER.warning("Failed to fetch %s for the app grid", label, exc_info=True)
+        return None
+
+
+@router.get(
+    "/app-grid",
+    response_model=AppGridResponse,
+    responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
+)
+async def app_grid(
+    runtime: RuntimeDep,
+    telemetry: TelemetryDep,
+    since: SinceQuery = None,
+) -> AppGridResponse:
+    """Every app joined with its activity over ``since``, for the Apps grid.
+
+    The app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on
+    failure) and overlaid with live runtime state via
+    ``RuntimeQueryService.overlay_manifest_rows()``. Each telemetry enrichment below is one
+    all-apps query that fills one ``AppActivity`` part. A query that raises
+    ``TelemetryUnavailableError`` leaves its part ``None`` in every row and the response continues at
+    200, with one summary warning naming the failed parts; any other error is a bug and returns 500
+    — see ``.claude/rules/web-api.md``. ``activity_buckets`` and ``last_error`` only run for a
+    window, so they are ``None`` when ``since`` is ``None``.
+
+    Always uses ``source_tier='app'`` — framework actors are shown via FrameworkHealth,
+    not the manifest-driven app grid.
+    """
+    db_rows = await telemetry.get_all_app_manifests()
+    manifest_infos = runtime.overlay_manifest_rows(db_rows)
+
+    summaries = await optional_query("app summaries", telemetry.get_all_app_summaries(since=since, source_tier="app"))
+
+    per_app_buckets: dict[str, list[tuple[int, int]]] | None = None
+    per_app_errors: dict[str, AppLastError] | None = None
+    if since is not None:
+        per_app_buckets = await optional_query(
+            "per-app activity buckets",
+            telemetry.get_per_app_activity_buckets(
+                since,
+                time.time(),
+                num_buckets=DEFAULT_SPARKLINE_BUCKETS,
+                source_tier="app",
+            ),
+        )
+        per_app_errors = await optional_query(
+            "per-app last errors", telemetry.get_per_app_last_errors(since=since, source_tier="app")
+        )
+
+    blocking_counts = await optional_query(
+        "per-app blocking-event counts", telemetry.get_blocking_event_counts(since=since)
+    )
+
+    enrichments = GridEnrichments(
+        stats=summaries,
+        activity_buckets=per_app_buckets,
+        last_error=per_app_errors,
+        blocking_event_count=blocking_counts,
+    )
+    entries = [
+        AppGridEntry(app=app_summary_from(manifest), activity=enrichments.activity_for(manifest.app_key))
+        for manifest in manifest_infos
+    ]
+
+    failed = enrichments.failed_parts(windowed=since is not None)
+    if failed:
+        LOGGER.warning(
+            "App grid served without these activity parts: %s",
+            ", ".join(failed),
+            extra={"failed_parts": failed, "since": since},
+        )
+    return AppGridResponse(apps=entries, since=since)

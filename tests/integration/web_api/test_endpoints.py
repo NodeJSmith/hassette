@@ -17,6 +17,8 @@ from tests.support.web_manifest_helpers import make_manifest_db_row
 from tests.support.web_telemetry_helpers import make_listener_summary
 
 from .conftest import (
+    APP_PATH,
+    APPS_PATH,
     CONFIG_PATH,
     HEALTH_PATH,
     get_json,
@@ -34,8 +36,6 @@ HEALTH_READY_PATH = "/api/health/ready"
 APP_START_PATH = "/api/apps/my_app/start"
 APP_STOP_PATH = "/api/apps/my_app/stop"
 APP_RELOAD_PATH = "/api/apps/my_app/reload"
-APP_PATH = "/api/apps/my_app"
-APPS_PATH = "/api/apps"
 BUS_LISTENERS_PATH = "/api/bus/listeners"
 OPENAPI_PATH = "/api/openapi.json"
 
@@ -565,7 +565,7 @@ class TestAppInstanceEndpoints:
         assert response.status_code == 404
 
 
-class TestAppEndpoint:
+class TestGetAppEndpoint:
     async def test_get_app_returns_single_app(self, client: "AsyncClient", mock_hassette) -> None:
         """A DB-only app (no matching in-memory manifest) returns 200, not 404."""
         mock_hassette.telemetry_query_service.get_app_manifest = AsyncMock(

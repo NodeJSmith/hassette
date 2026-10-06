@@ -14,18 +14,18 @@ from hassette_wire import (
     ResourceStatus,
 )
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, tally_manifest_statuses
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, tally_app_statuses
 from hassette.testing.config import DEFAULT_TEST_APP_KEY, TEST_ISO_TIMESTAMP
 
 
 def _tally_statuses(manifests: Sequence[AppManifestInfo | AppSummary]) -> dict[str, int]:
     """Count manifests by status.
 
-    Delegates to ``tally_manifest_statuses()`` (schemas.app_snapshots), which only needs
+    Delegates to ``tally_app_statuses()`` (schemas.app_snapshots), which only needs
     ``.status`` on each item — safe for ``AppSummary`` too despite the narrower
     ``Iterable[AppManifestInfo]`` type hint.
     """
-    return tally_manifest_statuses(manifests)  # pyright: ignore[reportArgumentType]
+    return tally_app_statuses(manifests)  # pyright: ignore[reportArgumentType]
 
 
 def make_app_instance_info(
@@ -158,13 +158,13 @@ def make_manifest_db_row(app_key: str = DEFAULT_TEST_APP_KEY, **overrides: Any) 
 
 
 def make_app_list_response(
-    manifests: list[AppSummary] | None = None,
+    apps: list[AppSummary] | None = None,
 ) -> AppListResponse:
-    """Build an AppListResponse from a list of manifests."""
-    manifests = manifests or []
-    counts = _tally_statuses(manifests)
+    """Build an AppListResponse from a list of app summaries."""
+    apps = apps or []
+    counts = _tally_statuses(apps)
     return AppListResponse(
-        apps=manifests,
-        total=len(manifests),
+        apps=apps,
+        total=len(apps),
         status_counts=counts,
     )

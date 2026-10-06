@@ -7,9 +7,8 @@ import pytest
 
 from hassette.schemas.query_constants import MAX_QUERY_LIMIT
 from hassette.web.routes.logs import RECENT_LOGS_LIMIT_CAP
-from tests.support.web_manifest_helpers import make_manifest_db_row
 
-from .conftest import APP_GRID_PATH, TELEMETRY_STATUS_PATH, get_json, telemetry_error
+from .conftest import APP_GRID_PATH, TELEMETRY_STATUS_PATH, get_json, seed_grid_apps, telemetry_error
 
 if TYPE_CHECKING:
     from httpx2 import AsyncClient
@@ -131,9 +130,7 @@ class TestAppGridDbErrorFallback:
         self, client: "AsyncClient", mock_hassette: MagicMock, message: str
     ) -> None:
         """get_all_app_summaries raising nulls each row's stats rather than reading as zero, healthy data."""
-        mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
-            return_value=[make_manifest_db_row(app_key="a"), make_manifest_db_row(app_key="b")]
-        )
+        seed_grid_apps(mock_hassette, "a", "b")
         mock_hassette.telemetry_query_service.get_all_app_summaries = telemetry_error(message)
 
         data = await get_json(client, APP_GRID_PATH)

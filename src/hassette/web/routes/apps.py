@@ -22,7 +22,7 @@ from hassette.app.app_config import AppConfig
 from hassette.config.classes import AppManifest
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.schemas.app_config_shape import normalize_app_config
-from hassette.schemas.app_snapshots import AppFullSnapshot, tally_manifest_statuses
+from hassette.schemas.app_snapshots import AppFullSnapshot, tally_app_statuses
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.config_view import deref_schema, mask_app_config, mask_values, resolve_app_config_cls
 from hassette.web.dependencies import HassetteDep, RuntimeDep, TelemetryDep
@@ -297,7 +297,7 @@ async def get_apps(runtime: RuntimeDep, telemetry: TelemetryDep) -> AppListRespo
         manifests=manifest_infos,
         only_apps=runtime.get_registry_only_apps(),
         total=len(manifest_infos),
-        status_counts=tally_manifest_statuses(manifest_infos),
+        status_counts=tally_app_statuses(manifest_infos),
     )
     return app_list_response_from(full_snapshot)
 

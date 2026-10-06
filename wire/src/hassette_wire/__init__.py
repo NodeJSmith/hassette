@@ -92,6 +92,7 @@ from hassette_wire.telemetry import (
     LastErrorResult,
     ListenerWithSummary,
     TelemetryStatusResponse,
+    requested_activity_parts,
 )
 from hassette_wire.ws import (
     AppsChangedData,
@@ -191,4 +192,5 @@ __all__ = [
     "UnattributedStall",
     "UnknownValue",
     "WsServerMessage",
+    "requested_activity_parts",
 ]

@@ -927,7 +927,9 @@ export interface components {
          * @description One Apps grid row: an app joined with its activity, in a single server-side query.
          */
         AppGridEntry: {
+            /** @description What the app is: identity, lifecycle status and instances. */
             app: components["schemas"]["AppSummary"];
+            /** @description What the app did over the grid's window; each part is ``None`` when it wasn't computed. */
             activity: components["schemas"]["AppActivity"];
         };
         /**
@@ -1000,7 +1002,10 @@ export interface components {
             /** Owner Id */
             owner_id?: string | null;
         };
-        /** AppListResponse */
+        /**
+         * AppListResponse
+         * @description Response for ``GET /api/apps``: every app with status counts.
+         */
         AppListResponse: {
             /** Total */
             total: number;

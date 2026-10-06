@@ -10,18 +10,28 @@ from unittest.mock import MagicMock, patch
 
 import httpx2 as httpx
 import pytest
+from hassette_wire import AppGridEntry
 from rich.console import Console
 
 import hassette.cli.output as output_module
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.context import CLIContext
 from hassette.config.config import HassetteConfig
+from hassette.const.misc import SECONDS_PER_HOUR
 from hassette.testing import make_test_config
+from tests.support.web_response_helpers import make_app_activity, make_app_grid_entry, make_app_grid_response
 
 SINCE_EPOCH = 1_700_000_000.0
 NOW_EPOCH = 1_748_000_000.0
 REMOTE_SERVER_URL = "https://example.com/hassette"
 REMOTE_SERVER_URL_BARE = "https://example.com"
+APP_GRID_ENDPOINT = "/api/telemetry/app-grid"
+APPS_ENDPOINT = "/api/apps"
+
+#: Invocation count a grid row carries in tests that assert on whether the count is rendered.
+INVOCATIONS_SENTINEL = 42
+#: Prefix of the stderr line ``warn_missing_activity`` prints for activity parts the server couldn't compute.
+PARTIAL_DATA_WARNING = "Warning"
 
 #: Console width for captured output. Rich defaults a non-terminal console to 80 columns, which
 #: re-truncates cells that pipe mode is supposed to render in full (see ``_build_table``: a
@@ -401,3 +411,19 @@ def cli_client_factory() -> CLIClientFactory:
     of using this fixture — the fixture's config is fixed at ``HassetteConfig(token=None)``.
     """
     return CLIClientFactory()
+
+
+def grid_body(
+    entries: list[AppGridEntry] | None = None, *, since: float | None = NOW_EPOCH - SECONDS_PER_HOUR
+) -> dict[str, Any]:
+    """JSON body for a mocked ``GET /api/telemetry/app-grid`` response.
+
+    ``since`` is the echo of the request's window; it defaults to the hour ``hassette app`` asks for.
+    """
+    return make_app_grid_response(entries, since=since).model_dump(mode="json")
+
+
+def grid_body_with_null_parts(*parts: str, since: float | None = NOW_EPOCH - SECONDS_PER_HOUR) -> dict[str, Any]:
+    """Grid body with one row whose ``activity`` parts named in ``parts`` are ``None``."""
+    activity = make_app_activity(total_invocations=INVOCATIONS_SENTINEL).model_copy(update=dict.fromkeys(parts))
+    return grid_body([make_app_grid_entry(activity=activity)], since=since)

@@ -1,14 +1,11 @@
 """Degraded App Demo.
 
-Multi-instance demo app used to reproduce `AppStatus.DEGRADED` for documentation
-screenshots. One instance starts normally; the other is configured to crash during
+Multi-instance demo app, not a real automation, used to reproduce `AppStatus.DEGRADED` for
+documentation screenshots. One instance starts normally; the other is configured to crash during
 `on_initialize()`. `AppRegistry.build_manifest_info()` computes "degraded" whenever an app has
-both a running instance and a failed one — this app exists solely to put it in that state on
-demand.
-
-NOT a real automation — this exists solely to populate the UI with a representative "degraded"
-app for screenshots. `autostart = false` in hassette.toml: it does nothing useful running
-continuously, so it's started via the API only when a degraded-status screenshot is needed.
+both a running instance and a failed one. `autostart = false` in hassette.toml: it does nothing
+useful running continuously, so it's started via the API only when a degraded-status screenshot
+is needed.
 """
 
 from pydantic_settings import SettingsConfigDict

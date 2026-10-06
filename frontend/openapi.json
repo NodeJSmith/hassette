@@ -2947,10 +2947,12 @@
       "AppGridEntry": {
         "properties": {
           "app": {
-            "$ref": "#/components/schemas/AppSummary"
+            "$ref": "#/components/schemas/AppSummary",
+            "description": "What the app is: identity, lifecycle status and instances."
           },
           "activity": {
-            "$ref": "#/components/schemas/AppActivity"
+            "$ref": "#/components/schemas/AppActivity",
+            "description": "What the app did over the grid's window; each part is ``None`` when it wasn't computed."
           }
         },
         "type": "object",
@@ -3166,7 +3168,8 @@
           "total",
           "apps"
         ],
-        "title": "AppListResponse"
+        "title": "AppListResponse",
+        "description": "Response for ``GET /api/apps``: every app with status counts."
       },
       "AppSourceResponse": {
         "properties": {

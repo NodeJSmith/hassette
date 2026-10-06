@@ -710,7 +710,7 @@ class TestServiceStatusMapping:
         assert data["ready_phase"] is None
 
 
-class TestAppManifestsChanged:
+class TestAppsChanged:
     async def test_on_apps_changed_broadcasts_signal(self, runtime: RuntimeQueryService) -> None:
         """A full app load/reload pass broadcasts an empty-payload refetch signal."""
         broadcast_calls: list[dict] = []
