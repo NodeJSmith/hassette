@@ -6,9 +6,22 @@ from typing import TYPE_CHECKING, Any
 from hassette_wire import ActivityFeedEntry, Execution, QuerySourceTier
 
 from hassette.const.misc import SECONDS_PER_HOUR
-from hassette.core.telemetry.helpers import handler_job_union_arms, row_to_dict, since_clause, source_tier_clause
+from hassette.core.telemetry.helpers import (
+    SQL_FAILED_STATUSES,
+    SQL_HANDLER_ROW_ID_PREFIX,
+    SQL_JOB_ROW_ID_PREFIX,
+    SQL_KIND_HANDLER,
+    SQL_KIND_JOB,
+    SQL_NO_FILTER,
+    SQL_STATUS_SUCCESS,
+    handler_job_union_arms,
+    row_to_dict,
+    since_clause,
+    source_tier_clause,
+)
 from hassette.schemas.execution_models import AppLastError
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
+from hassette.types.types import APP_SOURCE_TIER
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -67,7 +80,7 @@ class ExecutionQueriesMixin:
             clauses.append("e.kind = :kind")
             params["kind"] = kind
 
-        where = " AND ".join(clauses) if clauses else "1=1"
+        where = " AND ".join(clauses) if clauses else SQL_NO_FILTER
         query = f"""
             SELECT {_EXECUTION_SELECT_COLUMNS}
             FROM executions e
@@ -118,9 +131,9 @@ class ExecutionQueriesMixin:
             List of :class:`ActivityFeedEntry` sorted by ``timestamp`` descending.
         """
         # row_id carries the execution_id UUID, falling back to 'h-'/'j-' + rowid for older rows.
-        handler_select = """
+        handler_select = f"""
             SELECT
-                COALESCE(e_h.execution_id, 'h-' || CAST(e_h.rowid AS TEXT)) AS row_id,
+                COALESCE(e_h.execution_id, {SQL_HANDLER_ROW_ID_PREFIX} || CAST(e_h.rowid AS TEXT)) AS row_id,
                 e_h.status,
                 e_h.execution_start_ts AS timestamp,
                 l.app_key,
@@ -128,11 +141,11 @@ class ExecutionQueriesMixin:
                 l.handler_method AS handler_name,
                 e_h.duration_ms,
                 e_h.error_type,
-                'handler' AS kind
+                {SQL_KIND_HANDLER} AS kind
         """
-        job_select = """
+        job_select = f"""
             SELECT
-                COALESCE(e_j.execution_id, 'j-' || CAST(e_j.rowid AS TEXT)) AS row_id,
+                COALESCE(e_j.execution_id, {SQL_JOB_ROW_ID_PREFIX} || CAST(e_j.rowid AS TEXT)) AS row_id,
                 e_j.status,
                 e_j.execution_start_ts AS timestamp,
                 sj.app_key,
@@ -140,7 +153,7 @@ class ExecutionQueriesMixin:
                 sj.handler_method AS handler_name,
                 e_j.duration_ms,
                 e_j.error_type,
-                'job' AS kind
+                {SQL_KIND_JOB} AS kind
         """
         union_fragment, union_params = handler_job_union_arms(
             handler_select,
@@ -177,7 +190,7 @@ class ExecutionQueriesMixin:
         since: float,
         now: float,
         num_buckets: int = DEFAULT_SPARKLINE_BUCKETS,
-        source_tier: QuerySourceTier = "app",
+        source_tier: QuerySourceTier = APP_SOURCE_TIER,
     ) -> dict[str, list[tuple[int, int]]]:
         """Return bucketed ok/err counts per app_key for sparkline charts.
 
@@ -211,8 +224,8 @@ class ExecutionQueriesMixin:
 
         query = f"""
             SELECT app_key, bucket_idx,
-                SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS ok,
-                SUM(CASE WHEN status IN ('error', 'timed_out') THEN 1 ELSE 0 END) AS err
+                SUM(CASE WHEN status = {SQL_STATUS_SUCCESS} THEN 1 ELSE 0 END) AS ok,
+                SUM(CASE WHEN status IN {SQL_FAILED_STATUSES} THEN 1 ELSE 0 END) AS err
             FROM (
                 {union_fragment}
             ) combined
@@ -246,7 +259,7 @@ class ExecutionQueriesMixin:
     async def get_per_app_last_errors(
         self,
         since: float | None = None,
-        source_tier: QuerySourceTier = "app",
+        source_tier: QuerySourceTier = APP_SOURCE_TIER,
     ) -> dict[str, AppLastError]:
         """Return the most recent error per app_key.
 
@@ -259,8 +272,8 @@ class ExecutionQueriesMixin:
         union_fragment, union_params = handler_job_union_arms(
             handler_select,
             job_select,
-            extra_handler_where="AND e_h.status IN ('error', 'timed_out')",
-            extra_job_where="AND e_j.status IN ('error', 'timed_out')",
+            extra_handler_where=f"AND e_h.status IN {SQL_FAILED_STATUSES}",
+            extra_job_where=f"AND e_j.status IN {SQL_FAILED_STATUSES}",
             since=since,
             source_tier=source_tier,
         )
@@ -287,7 +300,7 @@ class ExecutionQueriesMixin:
 
     async def get_recent_invocations_1h_all_apps(
         self,
-        source_tier: QuerySourceTier = "app",
+        source_tier: QuerySourceTier = APP_SOURCE_TIER,
     ) -> dict[str, int]:
         """Return handler invocation counts per app_key in the last hour.
 
@@ -301,7 +314,7 @@ class ExecutionQueriesMixin:
             SELECT l.app_key, COUNT(e.rowid) AS invocation_count
             FROM executions e
             JOIN listeners l ON l.id = e.listener_id
-            WHERE e.kind = 'handler'
+            WHERE e.kind = {SQL_KIND_HANDLER}
               AND e.execution_start_ts >= :since
               {tier_clause}
             GROUP BY l.app_key

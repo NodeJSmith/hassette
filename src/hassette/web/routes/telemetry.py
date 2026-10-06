@@ -35,6 +35,7 @@ from hassette_wire.literals import ExecutionKind
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
+from hassette.types.types import APP_SOURCE_TIER
 from hassette.web.dependencies import (
     AppKeyPath,
     HassetteDep,
@@ -151,7 +152,7 @@ async def app_activity(
     instance_index: OptionalInstanceIndexQuery = None,
     limit: LimitQuery = DEFAULT_QUERY_LIMIT,
     since: SinceQuery = None,
-    source_tier: SourceTierQuery = "app",
+    source_tier: SourceTierQuery = APP_SOURCE_TIER,
 ) -> list[ActivityFeedEntry]:
     """Recent handler invocations and job executions for a single app, merged and sorted by time."""
     return await telemetry.get_app_recent_activity(
@@ -310,7 +311,7 @@ async def dashboard_app_grid(
     manifest_infos = runtime.overlay_manifest_rows(db_rows)
 
     try:
-        summaries = await telemetry.get_all_app_summaries(since=since, source_tier="app")
+        summaries = await telemetry.get_all_app_summaries(since=since, source_tier=APP_SOURCE_TIER)
     except TelemetryUnavailableError:
         LOGGER.warning("Failed to fetch app summaries for dashboard grid", exc_info=True)
         summaries = {}
@@ -324,12 +325,12 @@ async def dashboard_app_grid(
                 since,
                 now,
                 num_buckets=DEFAULT_SPARKLINE_BUCKETS,
-                source_tier="app",
+                source_tier=APP_SOURCE_TIER,
             )
         except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app activity buckets", exc_info=True)
         try:
-            per_app_errors = await telemetry.get_per_app_last_errors(since=since, source_tier="app")
+            per_app_errors = await telemetry.get_per_app_last_errors(since=since, source_tier=APP_SOURCE_TIER)
         except TelemetryUnavailableError:
             LOGGER.warning("Failed to fetch per-app last errors", exc_info=True)
 
