@@ -867,9 +867,17 @@ class WebsocketService(Service):
                     self.respond_if_necessary(data)
                 case other:
                     self.logger.debug("Ignoring unknown message type: %s", other)
-        except Exception:
-            # Only type and id: payloads can echo sensitive values (helper `initial`, entity attributes).
-            self.logger.exception("Failed to dispatch message (type=%s, id=%s)", data.get("type"), data.get("id"))
+        except Exception as exc:
+            # Payloads can echo sensitive values (helper `initial`, entity attributes), and exception
+            # messages can quote them (e.g. a pydantic `input_value`), so log the message type and id,
+            # the exception type, and the traceback frames -- never the payload or str(exc).
+            self.logger.error(
+                "Failed to dispatch message (type=%s, id=%s): %s\nTraceback (most recent call last):\n%s",
+                data.get("type"),
+                data.get("id"),
+                type(exc).__name__,
+                "".join(traceback.format_tb(exc.__traceback__)).rstrip(),
+            )
 
     async def dispatch_hass_event(self, data: "HassEventEnvelopeDict") -> None:
         """Dispatch a Home Assistant event to the event bus."""

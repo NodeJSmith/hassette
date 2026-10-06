@@ -444,26 +444,39 @@ class TestDispatchSuppressesErrors:
         await websocket_service.dispatch({"type": "event", "event": {}})  # must not raise
 
     async def test_dispatch_failure_log_omits_message_payload(self, websocket_service: WebsocketService) -> None:
-        """dispatch()'s failure log names only the message type and id, never payload values."""
+        """dispatch()'s failure log names the message type, id, and exception type, never payload values.
+
+        The malformed ``time_fired`` makes event parsing raise an exception whose message quotes the raw
+        value, so this also covers the exception text, not just the format arguments.
+        """
         sentinel = "s3cret-sentinel-value"
-
-        def failing_respond(_data):
-            raise RuntimeError("boom")
-
-        websocket_service.respond_if_necessary = failing_respond
         logger_mock = Mock()
 
         with patch.object(websocket_service, "logger", logger_mock):
             await websocket_service.dispatch(
-                {"type": "result", "id": 42, "success": True, "result": {"mode": "password", "initial": sentinel}}
+                {
+                    "type": "event",
+                    "id": 42,
+                    "event": {
+                        "event_type": "state_changed",
+                        "origin": "LOCAL",
+                        "context": {"id": "ctx", "parent_id": None, "user_id": None},
+                        "time_fired": sentinel,
+                        "data": {"entity_id": "input_text.pw", "old_state": None, "new_state": None},
+                    },
+                }
             )
 
-        logger_mock.exception.assert_called_once()
-        msg, *args = logger_mock.exception.call_args.args
+        logger_mock.exception.assert_not_called()
+        logger_mock.error.assert_called_once()
+        call = logger_mock.error.call_args
+        assert "exc_info" not in call.kwargs
+        msg, *args = call.args
         rendered = msg % tuple(args)
         assert sentinel not in rendered
-        assert "result" in rendered
-        assert "42" in rendered
+        assert "type=event" in rendered
+        assert "id=42" in rendered
+        assert "ValueError" in rendered
 
     async def test_dispatch_ignores_unknown_message_type(self, websocket_service: WebsocketService) -> None:
         """dispatch() falls through to the 'other' match case for a type it doesn't recognize."""
