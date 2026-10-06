@@ -556,7 +556,7 @@ Each factory:
 - Uses TypeScript `satisfies` so missing required fields from `generated-types.ts` cause compile errors
 
 ```ts
-import { createAppGridEntry, createHandlerError } from "../../test/factories";
+import { createAppGridEntry, createLogEntry } from "../../test/factories";
 
 // Minimal — uses all defaults
 const app = createAppGridEntry();
@@ -565,10 +565,10 @@ const app = createAppGridEntry();
 const failedApp = createAppGridEntry({ app: { status: "failed" } });
 // A part whose enrichment failed or didn't run is null
 const unknownStats = createAppGridEntry({ activity: { stats: null } });
-const err = createHandlerError({ error_type: "TimeoutError", app_key: "my_app" });
+const entry = createLogEntry({ level: "ERROR", app_key: "my_app" });
 ```
 
-Available factories: `createManifest`, `createManifestList`, `createAppGridEntry`, `createAppActivity`, `createAppActivityStats`, `createListener`, `createJob`, `createHealthData`, `createKpis`, `createHandlerError`, `createJobError`, `createLogEntry`, `createSession`, `createTelemetryStatus`.
+The full set is the `create*` exports in `src/test/factories.ts`.
 
 ### Render Helper
 
