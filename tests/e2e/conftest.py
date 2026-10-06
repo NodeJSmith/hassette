@@ -39,7 +39,7 @@ from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 if TYPE_CHECKING:
-    from hassette.logging_ import LogEntry
+    from hassette.logging_ import LogRecordEntry
 
 # Shared viewport constants for e2e tests.
 # Mobile height 812 = iPhone X (safe-area / notch testing).
@@ -250,8 +250,8 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
         source_tier: str | None = None,
     ) -> list[dict]:
         # dup-ignore-end
-        entries: list[LogEntry] = handler.captured
-        # LogEntryResponse.id is a DB-only concept LogEntry doesn't carry (it's the in-memory
+        entries: list[LogRecordEntry] = handler.captured
+        # LogEntryResponse.id is a DB-only concept LogRecordEntry doesn't carry (it's the in-memory
         # pre-persistence capture). seq is already a unique, monotonic per-session counter, so it
         # stands in for id here — this buffer is the only "database" e2e tests have.
         result = [{**e.to_dict(), "id": e.seq} for e in entries]

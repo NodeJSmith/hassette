@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { ApiError } from "../api/client";
-import { getDashboardAppGrid } from "../api/endpoints";
+import { getAppGrid } from "../api/endpoints";
 import { EmptyState } from "../components/shared/empty-state";
 import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "../components/shared/sort-header";
 import { Spinner } from "../components/shared/spinner";
@@ -22,8 +22,17 @@ import { useScopedQuery } from "../hooks/use-scoped-query";
 import { queryKeys } from "../lib/query-keys";
 import type { AppStatusEntry } from "../state/store";
 import { useAppStore } from "../state/store";
-import { appLiveStatus, type AppRow, type AppSortState, compareAppRows, toAppRow } from "../utils/app-data";
-import { pluralize } from "../utils/format";
+import {
+  appLiveStatus,
+  type AppRow,
+  type AppSortState,
+  compareAppRows,
+  hasFailedActivityPart,
+  sumOrNull,
+  toAppRow,
+  totalRuns,
+} from "../utils/app-data";
+import { EMPTY_PLACEHOLDER, pluralize } from "../utils/format";
 import { type StatusKind } from "../utils/status";
 import { PRESET_WINDOW_SECONDS } from "../utils/time-window";
 import { AppTableRow } from "./apps-table-row";
@@ -42,6 +51,8 @@ const FILTER_TONES: Record<FilterId, StatusKind | null> = {
 };
 
 const MIN_WINDOW_FOR_RATE_CALC = 60;
+/** How often the grid re-asks while an enrichment failure is on screen; a healthy grid doesn't poll. */
+export const FAILED_PART_RETRY_MS = 30_000;
 const SECONDS_PER_HOUR = 3600;
 const VALID_SORT_KEYS: ReadonlySet<string> = new Set<AppSortState["key"]>(["name", "status", "error", "runs", "last"]);
 
@@ -110,16 +121,14 @@ function buildAppsCells(
   const statusCounts: Record<string, number> = Object.fromEntries(
     FILTER_OPTIONS.filter((f) => f !== "all").map((f) => [f, 0]),
   );
-  let totalHandlers = 0;
-  let totalRuns = 0;
   for (const a of apps) {
     const live = appLiveStatus(appStatuses, a);
     if (live in statusCounts) statusCounts[live]++;
-    totalHandlers += a.handler_count + a.job_count;
-    totalRuns += a.total_invocations + a.total_executions;
   }
-  const runsPerHour =
-    windowSeconds && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC ? totalRuns / (windowSeconds / SECONDS_PER_HOUR) : null;
+  const totalHandlers = sumOrNull(apps, (a) => (a.stats ? a.stats.handler_count + a.stats.job_count : null));
+  const runsInWindow = sumOrNull(apps, totalRuns);
+  const hasRateWindow = windowSeconds !== null && windowSeconds >= MIN_WINDOW_FOR_RATE_CALC;
+  const runsPerHour = runsInWindow !== null && hasRateWindow ? runsInWindow / (windowSeconds / SECONDS_PER_HOUR) : null;
 
   const cells: StatsStripCell[] = [
     { label: "total", value: apps.length },
@@ -135,8 +144,8 @@ function buildAppsCells(
     cells.push({ label: "disabled", value: statusCounts.disabled });
   }
 
-  cells.push({ label: "handlers", value: totalHandlers });
-  cells.push({ label: "runs / hr", value: runsPerHour !== null ? runsPerHour.toFixed(1) : "—" });
+  cells.push({ label: "handlers", value: totalHandlers ?? EMPTY_PLACEHOLDER });
+  cells.push({ label: "runs / hr", value: runsPerHour !== null ? runsPerHour.toFixed(1) : EMPTY_PLACEHOLDER });
   return cells;
 }
 
@@ -194,16 +203,20 @@ export function AppsPage() {
     data: gridData,
     error: gridError,
     isPending: gridLoading,
-  } = useScopedQuery(queryKeys.dashboardAppGrid(), (since, signal) => getDashboardAppGrid(since, signal), {
+    isPlaceholderData: gridIsPlaceholder,
+  } = useScopedQuery(queryKeys.appGrid(), (since, signal) => getAppGrid(since, signal), {
     // The apps list must render even when HA/WS is unreachable (design/specs/018-dashboard-without-ha) —
     // don't block on uptimeSeconds like other scoped views. Falls back to an all-time window until
     // uptime arrives, then refetches with the accurate restart-relative window.
     waitForUptime: false,
     // Keep the table populated during that refetch instead of dropping to the full-page spinner.
     placeholderData: keepPreviousData,
+    // Otherwise the grid only refetches on execution events, so a transient failure's "—" cells
+    // could stay on a quiet system indefinitely.
+    refetchInterval: (query) => (hasFailedActivityPart(query.state.data) ? FAILED_PART_RETRY_MS : false),
   });
 
-  useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.dashboardAppGrid());
+  useQueryInvalidator(executionCompleted, (events) => events !== null, queryKeys.appGrid());
 
   const isCompact = useMediaQuery(BREAKPOINT_SIDEBAR);
   const qp = useQueryParams();
@@ -236,8 +249,10 @@ export function AppsPage() {
 
   const allApps = (gridData?.apps ?? []).map(toAppRow);
 
+  // The window the rows' runs cover. Placeholder rows (kept on screen while a new window refetches)
+  // cover the previous window, so no rate is computed from them: runs/hr reads "—" until the refetch lands.
   let windowSeconds: number | null = null;
-  if (uptimeSeconds !== null) {
+  if (uptimeSeconds !== null && !gridIsPlaceholder) {
     windowSeconds =
       effectiveTimePreset === "since-restart" ? uptimeSeconds : PRESET_WINDOW_SECONDS[effectiveTimePreset];
   }

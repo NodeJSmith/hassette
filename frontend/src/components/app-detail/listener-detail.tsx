@@ -6,7 +6,7 @@ import { isExecutionDefined, useListenerExecution } from "../../hooks/use-scoped
 import { useScopedQuery } from "../../hooks/use-scoped-query";
 import { queryKeys } from "../../lib/query-keys";
 import { DETAIL_FETCH_LIMIT } from "../../utils/constants";
-import { formatRate, lastDotSegment, MS_PER_SECOND } from "../../utils/format";
+import { EMPTY_PLACEHOLDER, formatRate, lastDotSegment, MS_PER_SECOND } from "../../utils/format";
 import { handlerKindLabel } from "../../utils/status";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
@@ -40,7 +40,7 @@ function buildListenerStatsCells(listener: ListenerData, lastInvokedLabel: strin
     total: listener.total_invocations,
     failed: listener.failed,
     avgDurationMs: listener.avg_duration_ms,
-    lastValue: lastInvokedLabel || "—",
+    lastValue: lastInvokedLabel || EMPTY_PLACEHOLDER,
     timedOut: listener.timed_out,
     cancelled: listener.cancelled,
     threadLeaked: listener.thread_leaked,

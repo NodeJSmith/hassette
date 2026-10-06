@@ -18,10 +18,12 @@ import type { UnifiedRow } from "../utils/handler-rows";
 /** Fixed epoch-seconds timestamp shared by factories that need a deterministic time value. */
 const FIXED_TEST_TIMESTAMP = 1700000000;
 
-type AppManifestResponse = components["schemas"]["AppManifestResponse"];
+type AppSummary = components["schemas"]["AppSummary"];
 type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
-type AppManifestListResponse = components["schemas"]["AppManifestListResponse"];
-type DashboardAppGridEntry = components["schemas"]["DashboardAppGridEntry"];
+type AppListResponse = components["schemas"]["AppListResponse"];
+type AppGridEntry = components["schemas"]["AppGridEntry"];
+type AppActivity = components["schemas"]["AppActivity"];
+type AppActivityStats = components["schemas"]["AppActivityStats"];
 type AppHealth = components["schemas"]["AppHealth"];
 type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
@@ -105,7 +107,7 @@ export function createInstance(overrides: Partial<AppInstanceResponse> = {}): Ap
   } satisfies AppInstanceResponse;
 }
 
-export function createManifest(overrides: Partial<AppManifestResponse> = {}): AppManifestResponse {
+export function createAppSummary(overrides: Partial<AppSummary> = {}): AppSummary {
   return {
     app_key: "test_app",
     class_name: "TestApp",
@@ -120,20 +122,19 @@ export function createManifest(overrides: Partial<AppManifestResponse> = {}): Ap
     instances: [],
     error_message: null,
     error_traceback: null,
-    recent_invocations_1h: 0,
     in_current_config: true,
     ...overrides,
-  } satisfies AppManifestResponse;
+  } satisfies AppSummary;
 }
 
-export function createManifestList(overrides: Partial<AppManifestListResponse> = {}): AppManifestListResponse {
+export function createAppList(overrides: Partial<AppListResponse> = {}): AppListResponse {
   return {
     total: 1,
     status_counts: { running: 1, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 },
-    manifests: [createManifest()],
+    apps: [createAppSummary()],
     only_apps: [],
     ...overrides,
-  } satisfies AppManifestListResponse;
+  } satisfies AppListResponse;
 }
 
 export function createAppHealth(overrides: Partial<AppHealth> = {}): AppHealth {
@@ -148,12 +149,8 @@ export function createAppHealth(overrides: Partial<AppHealth> = {}): AppHealth {
   } satisfies AppHealth;
 }
 
-export function createAppGridEntry(overrides: Partial<DashboardAppGridEntry> = {}): DashboardAppGridEntry {
+export function createAppActivityStats(overrides: Partial<AppActivityStats> = {}): AppActivityStats {
   return {
-    app_key: "test_app",
-    status: "running",
-    display_name: "Test App",
-    instance_count: 1,
     handler_count: 3,
     job_count: 2,
     total_invocations: 10,
@@ -167,23 +164,38 @@ export function createAppGridEntry(overrides: Partial<DashboardAppGridEntry> = {
       last_activity_ts: FIXED_TEST_TIMESTAMP,
       handler_avg_duration_ms: 50,
     }),
-    activity_buckets: [],
-    blocking_event_count: 0,
-    last_error_message: null,
-    last_error_type: null,
-    last_error_ts: null,
-    class_name: "TestApp",
-    filename: "test_app.py",
-    enabled: true,
-    auto_loaded: false,
-    autostart: true,
-    block_reason: null,
-    instances: [],
-    error_message: null,
-    error_traceback: null,
-    in_current_config: true,
     ...overrides,
-  } satisfies DashboardAppGridEntry;
+  } satisfies AppActivityStats;
+}
+
+/** Every part computed by default; pass a part as `null` to model an enrichment that failed or didn't run. */
+export function createAppActivity(overrides: Partial<AppActivity> = {}): AppActivity {
+  return {
+    stats: createAppActivityStats(),
+    activity_buckets: [],
+    last_error: { error: null },
+    blocking_event_count: 0,
+    ...overrides,
+  } satisfies AppActivity;
+}
+
+export function createAppGridEntry(
+  overrides: { app?: Partial<AppSummary>; activity?: Partial<AppActivity> } = {},
+): AppGridEntry {
+  return {
+    app: createAppSummary(overrides.app),
+    activity: createAppActivity(overrides.activity),
+  } satisfies AppGridEntry;
+}
+
+/** Grid entry for `appKey` (and optionally `status`), everything else defaulted. */
+export function createGridEntryFor(appKey: string, status?: AppSummary["status"]): AppGridEntry {
+  return createAppGridEntry({ app: status === undefined ? { app_key: appKey } : { app_key: appKey, status } });
+}
+
+/** Body of a `GET /api/telemetry/app-grid` response holding `entries` (no `since` echo). */
+export function createAppGridResponse(...entries: AppGridEntry[]): { apps: AppGridEntry[] } {
+  return { apps: entries };
 }
 
 export function createListener(overrides: Partial<ListenerWithSummary> = {}): ListenerWithSummary {

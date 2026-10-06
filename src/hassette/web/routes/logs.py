@@ -9,7 +9,13 @@ from fastapi import APIRouter, Query, Request
 from hassette_wire import LogEntryResponse, LogLevelRequest, LogLevelResponse, ProblemCode
 
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
-from hassette.web.dependencies import VALID_LOG_LEVEL_NAMES, VALID_SOURCE_TIERS, TelemetryDep, is_log_level
+from hassette.web.dependencies import (
+    VALID_LOG_LEVEL_NAMES,
+    VALID_SOURCE_TIERS,
+    SinceQuery,
+    TelemetryDep,
+    is_log_level,
+)
 from hassette.web.errors import WebApiError, problem_responses
 
 LOGGER = getLogger(__name__)
@@ -58,7 +64,7 @@ async def get_logs(
     limit: Annotated[int, Query(ge=1, le=RECENT_LOGS_LIMIT_CAP)] = RECENT_LOGS_DEFAULT_LIMIT,
     app_key: Annotated[str | None, Query()] = None,
     level: Annotated[str | None, Query()] = None,
-    since: Annotated[float | None, Query()] = None,
+    since: SinceQuery = None,
     execution_id: Annotated[str | None, Query()] = None,
     source_tier: Annotated[
         str | None,

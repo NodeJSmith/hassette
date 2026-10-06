@@ -18,9 +18,10 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from typing import Any
 
-from hassette_wire import CliFormat, ResourceStatus
+from hassette_wire import AppGridResponse, CliFormat, ResourceStatus, requested_activity_parts
 from pydantic import BaseModel
 from rich.console import Console, OverflowMethod
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from whenever import Instant, OffsetDateTime, PlainDateTime
@@ -256,6 +257,27 @@ def render_table(
         table.add_row(*row)
 
     stdout_console.print(table)
+
+
+def warn_missing_activity(grid: AppGridResponse) -> None:
+    """Print a one-line stderr warning naming the ``activity`` parts the server couldn't compute.
+
+    A part is ``None`` when its enrichment failed, or when it didn't run: ``activity_buckets`` and
+    ``last_error`` only run for a window, so they are named only when the response's ``since`` echo
+    says the request had one. Goes to stderr in both modes, so table and JSON output on stdout stay
+    clean. No-op for an empty grid or when every requested part is present.
+    """
+    windowed = grid.since is not None  # the echo of the request's since: what the server actually computed
+    missing = [
+        part
+        for part in requested_activity_parts(windowed=windowed)
+        if any(getattr(row.activity, part) is None for row in grid.apps)
+    ]
+    if missing:
+        stderr_console.print(
+            f"[yellow]Warning:[/yellow] partial data, the server could not compute: {escape(', '.join(missing))}",
+            highlight=False,
+        )
 
 
 def render_detail(

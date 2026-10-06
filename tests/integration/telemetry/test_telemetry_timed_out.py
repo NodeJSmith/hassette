@@ -18,7 +18,7 @@ from .helpers import (
 
 class TestListenerSummaryTimedOut:
     async def test_listener_summary_counts_timed_out(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
-        """Verify timed_out is a separate bucket in ListenerSummary."""
+        """Verify timed_out is a separate bucket in ListenerSummaryRow."""
         db_svc, session_id = db
         listener_id = await insert_listener(db_svc)
         await insert_invocation(db_svc, listener_id, session_id, status="success")

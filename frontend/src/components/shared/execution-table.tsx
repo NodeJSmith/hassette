@@ -18,7 +18,7 @@ import type { components } from "../../api/generated-types";
 import { useRovingTabIndex } from "../../hooks/use-roving-tab-index";
 import { executionPath, type HandlerKind } from "../../utils/app-routes";
 import { STATUS_SHAPE_SIZE } from "../../utils/constants";
-import { formatDuration, formatRelativeTime, formatTimestamp } from "../../utils/format";
+import { EMPTY_PLACEHOLDER, formatDuration, formatRelativeTime, formatTimestamp } from "../../utils/format";
 import { onActivateKeyDown } from "../../utils/keyboard";
 import { executionStatusKind, STATUS_TONE_CLASSES, type StatusKind, TIMED_OUT_LABEL } from "../../utils/status";
 import { EmptyState } from "./empty-state";
@@ -124,7 +124,7 @@ const columns: ColumnDef<ExecutionRecord, unknown>[] = [
       headerClassName: "[overflow-wrap:anywhere] max-mobile:hidden",
       cellClassName: "font-mono text-xs [overflow-wrap:anywhere] max-mobile:hidden",
     },
-    cell: ({ row }) => row.original.execution_id ?? "—",
+    cell: ({ row }) => row.original.execution_id ?? EMPTY_PLACEHOLDER,
   },
   {
     id: "duration",

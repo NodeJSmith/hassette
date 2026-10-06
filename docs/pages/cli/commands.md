@@ -73,7 +73,7 @@ Read this value with `log_persistence_active`; the counter changes only while pe
 
 ## `hassette app`
 
-Lists all loaded apps with key, status, display name, instance count, recent invocation counts, enabled state, autostart setting, and source file. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml` — the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance at index 0, but the same class can run multiple times with different configs.
+Lists all loaded apps with key, status, display name, instance count, handler invocations over the last hour, enabled state, autostart setting, and source file. The app key is the `[hassette.apps.<key>]` section name from `hassette.toml`, and it is the identifier every `--app` flag takes. An instance is one running copy of an app class; most apps run a single instance at index 0, but the same class can run multiple times with different configs.
 
 ```console
 $ hassette app
@@ -87,18 +87,27 @@ $ hassette app
 └─────────────────┴─────────┴─────────────┴───────────┴────────────────┴─────────┴───────────┴───────────────────┘
 ```
 
+`--json` prints one object per app with two keys: `app` (the app's identity, status and instances) and `activity` (what it did over the last hour). `activity` has four parts:
+
+- `stats`: run and error counts, plus the health rating.
+- `activity_buckets`: run and error counts per time slice, as drawn in the web UI's sparkline.
+- `last_error`: the most recent error, if any.
+- `blocking_event_count`: how many times the app's code [blocked the event loop](#hassette-blocking).
+
+A part is `null` when the server couldn't compute it. The table shows that as a blank cell rather than `0`, and a one-line warning on stderr names the missing parts.
+
 ### Subcommands
 
-| Subcommand                    | Description                 | API endpoint                            |
-| ----------------------------- | --------------------------- | --------------------------------------- |
-| `hassette app`                | Lists all apps.             | `GET /api/apps/manifests`               |
-| `hassette app health <key>`   | Health metrics for one app. | `GET /api/telemetry/app/{key}/health`   |
-| `hassette app activity <key>` | Recent activity feed.       | `GET /api/telemetry/app/{key}/activity` |
-| `hassette app config <key>`   | Resolved configuration.     | `GET /api/apps/{key}/config`            |
-| `hassette app source <key>`   | Source file path.           | `GET /api/apps/{key}/source`            |
-| `hassette app start <key>`    | Starts an app or instance.  | `POST /api/apps/{key}/start`            |
-| `hassette app stop <key>`     | Stops an app or instance.   | `POST /api/apps/{key}/stop`             |
-| `hassette app reload <key>`   | Reloads an app or instance. | `POST /api/apps/{key}/reload`           |
+| Subcommand                    | Description                 | API endpoint                                    |
+| ----------------------------- | --------------------------- | ----------------------------------------------- |
+| `hassette app`                | Lists all apps.             | `GET /api/telemetry/app-grid` (last hour)       |
+| `hassette app health <key>`   | Health metrics for one app. | `GET /api/telemetry/app/{key}/health`           |
+| `hassette app activity <key>` | Recent activity feed.       | `GET /api/telemetry/app/{key}/activity`         |
+| `hassette app config <key>`   | Resolved configuration.     | `GET /api/apps/{key}/config`                    |
+| `hassette app source <key>`   | Source file contents.       | `GET /api/apps/{key}/source`                    |
+| `hassette app start <key>`    | Starts an app or instance.  | `POST /api/apps/{key}/start`                    |
+| `hassette app stop <key>`     | Stops an app or instance.   | `POST /api/apps/{key}/stop`                     |
+| `hassette app reload <key>`   | Reloads an app or instance. | `POST /api/apps/{key}/reload`                   |
 
 The CLI routes `start`/`stop`/`reload` with `--instance` to a different endpoint: `POST /api/apps/{key}/instances/{index}/{start,stop,reload}` instead of the app-level path shown above.
 
@@ -179,7 +188,7 @@ hassette app config my-app
 
 ### `hassette app source <key>`
 
-The source file path for an app.
+The source of an app: its filename, line count, and full file contents.
 
 ```bash
 hassette app source my-app
@@ -375,7 +384,7 @@ The Stall column shows how long the loop was held. A [Tier 2](../core-concepts/b
 
 ## `hassette dashboard`
 
-Per-app health status, invocation counts, error counts, average handler and job duration, and last activity, across all of an app's instances. Mirrors the dashboard grid in the web UI. An average is blank when nothing of that kind ran.
+Per-app health status, invocation counts, error counts, average handler and job duration, and last activity, across all of an app's instances. Mirrors the app grid on the web UI's Apps page, with counts over all retained history. Use it for the long view; `hassette app` covers the last hour, and `hassette app health` breaks down one app. An average is blank when nothing of that kind ran.
 
 ```console
 $ hassette dashboard
@@ -388,7 +397,9 @@ $ hassette dashboard
 └─────────────────┴─────────┴─────────────┴────────┴─────────────┴─────────┴─────────────┴───────────┘
 ```
 
-**API endpoint:** `GET /api/telemetry/dashboard/app-grid`
+`--json` rows have the same `app` and `activity` keys as [`hassette app`](#hassette-app). If the server couldn't compute an app's counts and health, those cells are blank (never `0` or `excellent`) and a warning on stderr names the missing parts. `activity_buckets` and `last_error` only exist for a time window, so they are always `null` here.
+
+**API endpoint:** `GET /api/telemetry/app-grid`
 
 ## `hassette config`
 
@@ -411,11 +422,12 @@ $ hassette telemetry
 │  dropped_overflow        0      │
 │  dropped_exhausted       0      │
 │  dropped_shutdown        0      │
+│  dropped_filtered        0      │
 │  error_handler_failures  0      │
 ╰─────────────────────────────────╯
 ```
 
-All-zero counters indicate the telemetry pipeline is healthy and no records have been lost.
+`dropped_filtered` counts routine framework records skipped by sampling, so it grows on a healthy instance. The other counters should stay at zero: a non-zero `dropped_*` value means records were lost, and `error_handler_failures` counts error handlers that raised or timed out.
 
 When the telemetry database is unreachable, the endpoint returns HTTP 503 with `degraded: true`. The command treats that as a valid status — it prints the response and exits 0, so scripts can read the degraded state instead of catching a CLI error.
 

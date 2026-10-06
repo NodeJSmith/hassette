@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import type { ResourceStatus } from "../api/endpoints";
 import type { components } from "../api/generated-types";
 import type { ConnectedPayload as WsConnectedPayload, WsExecutionCompletedPayload } from "../api/ws-types";
 import { getStoredValue, setStoredValue } from "../utils/local-storage";
@@ -27,7 +28,6 @@ function isBoolean(v: unknown): v is boolean {
   return typeof v === "boolean";
 }
 
-type ResourceStatus = components["schemas"]["ResourceStatus"];
 type ResourceRole = components["schemas"]["ResourceRole"];
 
 export interface AppStatusEntry {

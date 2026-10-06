@@ -222,7 +222,7 @@ SINCE_WINDOW_ERROR_ROWS: tuple[dict[str, Any], ...] = (
 def assert_no_last_error(row: Any) -> None:
     """Assert every ``last_error_*`` field the row exposes is None.
 
-    ``JobSummary`` exposes ``last_error_ts`` and ``ListenerSummary`` doesn't, so this checks that
+    ``JobSummary`` exposes ``last_error_ts`` and ``ListenerSummaryRow`` doesn't, so this checks that
     one only when present — same accommodation ``assert_last_error_row_coherence`` makes.
     """
     assert row.last_error_type is None
@@ -282,7 +282,7 @@ async def assert_last_error_row_coherence(
     assert row.last_error_type == newest["error_type"]
     assert row.last_error_message == newest["error_message"]
     assert row.last_error_traceback == newest["error_traceback"]
-    # JobSummary exposes last_error_ts; ListenerSummary doesn't declare the field at all —
+    # JobSummary exposes last_error_ts; ListenerSummaryRow doesn't declare the field at all —
     # check it whenever the returned row actually has it, rather than asking every caller
     # to remember which query type does.
     if hasattr(row, "last_error_ts"):

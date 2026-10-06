@@ -1,12 +1,10 @@
 """Execution-level telemetry query methods against the unified executions table."""
 
-import time
 from typing import TYPE_CHECKING, Any
 
 from hassette_wire import ActivityFeedEntry, Execution, QuerySourceTier
 
-from hassette.const.misc import SECONDS_PER_HOUR
-from hassette.core.telemetry.helpers import handler_job_union_arms, row_to_dict, since_clause, source_tier_clause
+from hassette.core.telemetry.helpers import handler_job_union_arms, row_to_dict, since_clause
 from hassette.schemas.execution_models import AppLastError
 from hassette.schemas.query_constants import DEFAULT_QUERY_LIMIT, DEFAULT_SPARKLINE_BUCKETS
 
@@ -284,32 +282,6 @@ class ExecutionQueriesMixin:
             row["app_key"]: AppLastError(row["error_message"] or "", row["error_type"], row["execution_start_ts"])
             for row in rows
         }
-
-    async def get_recent_invocations_1h_all_apps(
-        self,
-        source_tier: QuerySourceTier = "app",
-    ) -> dict[str, int]:
-        """Return handler invocation counts per app_key in the last hour.
-
-        Returns:
-            Dict mapping app_key to invocation count. Apps with zero invocations are omitted.
-        """
-        one_hour_ago = time.time() - SECONDS_PER_HOUR
-        tier_clause, tier_params = source_tier_clause(source_tier, "e")
-
-        query = f"""
-            SELECT l.app_key, COUNT(e.rowid) AS invocation_count
-            FROM executions e
-            JOIN listeners l ON l.id = e.listener_id
-            WHERE e.kind = 'handler'
-              AND e.execution_start_ts >= :since
-              {tier_clause}
-            GROUP BY l.app_key
-        """
-        params: dict[str, Any] = {"since": one_hour_ago, **tier_params}
-        async with self.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
-        return {row[0]: int(row[1]) for row in rows}
 
     async def check_execution_predates_retention_cutoff(self, execution_id: str, cutoff: float) -> bool:
         """Check if an execution predates the retention cutoff.

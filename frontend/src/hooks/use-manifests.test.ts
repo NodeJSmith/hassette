@@ -8,18 +8,18 @@
 import { describe, expect, it, vi } from "vitest";
 
 import * as endpoints from "../api/endpoints";
-import { createManifest, createManifestList } from "../test/factories";
+import { createAppList, createAppSummary } from "../test/factories";
 import { createTestQueryClient, renderHookWithProviders } from "../test/query-test-utils";
 import { useManifests } from "./use-manifests";
 
 describe("useManifests", () => {
-  it("returns AppManifest[] unwrapped from ManifestListResponse.manifests", async () => {
+  it("returns AppManifest[] unwrapped from ManifestListResponse.apps", async () => {
     const manifests = [
-      createManifest({ app_key: "app_a", display_name: "App A" }),
-      createManifest({ app_key: "app_b", display_name: "App B" }),
+      createAppSummary({ app_key: "app_a", display_name: "App A" }),
+      createAppSummary({ app_key: "app_b", display_name: "App B" }),
     ];
     vi.spyOn(endpoints, "getAppManifests").mockResolvedValue(
-      createManifestList({ total: 2, status_counts: { running: 2 }, manifests }),
+      createAppList({ total: 2, status_counts: { running: 2 }, apps: manifests }),
     );
 
     const { result } = renderHookWithProviders(() => useManifests());
@@ -55,10 +55,10 @@ describe("useManifests", () => {
     vi.spyOn(endpoints, "getAppManifests").mockImplementation(() => {
       callCount++;
       return Promise.resolve(
-        createManifestList({
+        createAppList({
           total: 1,
           status_counts: { running: 1 },
-          manifests: [createManifest({ app_key: "shared_app" })],
+          apps: [createAppSummary({ app_key: "shared_app" })],
         }),
       );
     });

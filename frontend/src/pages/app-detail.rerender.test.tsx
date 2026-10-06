@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WsExecutionCompletedPayload } from "../api/ws-types";
 import type { ExecutionKind } from "../components/shared/execution-table";
 import { appStatusKey, useAppStore } from "../state/store";
-import { createManifest } from "../test/factories";
+import { createAppSummary } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import { AppDetailPage } from "./app-detail";
@@ -57,7 +57,7 @@ function makeExecution(appKey: string, kind: ExecutionKind): WsExecutionComplete
 
 /** Renders the overview tab and waits for the initial load to settle. */
 async function renderSettled() {
-  setupApi(createManifest({ app_key: "test_app" }));
+  setupApi(createAppSummary({ app_key: "test_app" }));
   const view = renderWithAppState(<AppDetailPage params={{ key: "test_app" }} />, {
     storeOverrides: { uptimeSeconds: 120 },
   });

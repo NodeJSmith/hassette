@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 
+import type { AppStatus, ResourceStatus } from "../../api/endpoints";
 import type { components } from "../../api/generated-types";
 import { BADGE_STATUS_SHAPE_SIZE, HEADING_STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { statusToKind, statusToVariant } from "../../utils/status";
@@ -8,14 +9,12 @@ import { AlertShell } from "../shared/alert-shell";
 import { ErrorBanner } from "../shared/error-banner";
 import { StatusShape } from "../shared/status-shape";
 
-type AppManifest = components["schemas"]["AppManifestResponse"];
+type AppManifest = components["schemas"]["AppSummary"];
 type InstanceInfo = NonNullable<AppManifest["instances"]>[number];
-type ManifestStatus = components["schemas"]["ManifestStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
 
 interface Props {
   appKey: string;
-  liveStatus: ManifestStatus | ResourceStatus | "unknown";
+  liveStatus: AppStatus | ResourceStatus | "unknown";
   manifest: AppManifest | undefined;
   // currentInstance is resolvedInstanceIndex looked up against the manifest's (possibly
   // sparse) instances array — undefined when that lookup misses (e.g. an out-of-range URL

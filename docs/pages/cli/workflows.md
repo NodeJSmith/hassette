@@ -80,7 +80,7 @@ The dashboard shows every app's invocation count, error count, average handler a
 hassette listener --app garage_door
 ```
 
-This lists every listener registered by `garage_door` with per-listener invocation counts and failure rates. Find the row with a non-zero `Fail` value and note its `ID`.
+This lists every listener registered by `garage_door` with per-listener invocation, success, and failure counts. Find the row with a non-zero `Fail` value and note its `ID`.
 
 **4. View invocation history**
 
@@ -131,7 +131,7 @@ hassette listener --app remote_control --instance office
 hassette listener --app remote_control --instance 0
 ```
 
-`--instance` requires `--app`. The `log` command does not support `--instance`.
+`--instance` needs an app: `--app` on `listener` and `job`, or the app key on `app health` and `app activity`. The `log` command does not support `--instance`.
 
 ## Comparing Time Windows
 
@@ -164,10 +164,10 @@ hassette listener 42 --since 24h
 
 Every command accepts `--json` and writes structured JSON to stdout. Pipe it to `jq` for filtering and scripting — the JSON contains every field the server returns; see [Commands](commands.md) for each command's output. The scripts below are bash; adapt the pattern to whatever runs your monitoring.
 
-**Extract failing apps:**
+**Extract failing apps** (each row's `app` and `activity` keys are described under [`hassette app`](commands.md#hassette-app)):
 
 ```bash
-hassette dashboard --json | jq '.[] | select(.health.health_status != "excellent") | .app_key'
+hassette dashboard --json | jq '.[] | select(.activity.stats.health.health_status != "excellent") | .app.app_key'
 ```
 
 **Count total handler failures across all listeners:**

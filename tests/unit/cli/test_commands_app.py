@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import ActionResponse, AppInstanceResponse, AppManifestListResponse
+from hassette_wire import ActionResponse, AppInstanceResponse, AppListResponse, AppStatus
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
@@ -25,19 +25,32 @@ from hassette.cli.commands.app import (
 )
 from hassette.cli.context import CLIContext
 from hassette.cli.output import now_epoch
-from tests.support.web_manifest_helpers import make_manifest_list_response, make_manifest_response
+from hassette.const.misc import SECONDS_PER_HOUR
+from tests.support.web_manifest_helpers import make_app_list_response, make_app_summary
 from tests.support.web_response_helpers import (
+    make_app_activity,
     make_app_config_response,
+    make_app_grid_entry,
+    make_app_grid_response,
     make_app_health,
     make_app_source_response,
 )
 from tests.support.web_telemetry_helpers import make_activity_feed_entry
 from tests.unit.cli.conftest import (
+    APP_GRID_ENDPOINT,
+    APPS_ENDPOINT,
+    INVOCATIONS_SENTINEL,
+    NOW_EPOCH,
+    PARTIAL_DATA_WARNING,
     SINCE_EPOCH,
     CLIClientFactory,
     CommandRunner,
     capture_json_stdout,
+    fixed_now,
+    grid_body,
+    grid_body_with_null_parts,
     make_post_spy,
+    resolve_path,
 )
 
 runner = CommandRunner("hassette.cli.commands.app.make_client")
@@ -56,48 +69,100 @@ _ACTION_CASES = [
 
 
 class TestCmdApp:
-    def test_calls_manifests_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """Bare app command fetches from GET /api/apps/manifests."""
-        manifest = make_manifest_response()
-        data = make_manifest_list_response([manifest])
-        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
-        spy = runner.spy(client, cmd_app)
+    def test_reads_grid_over_the_last_hour(self, cli_client_factory: CLIClientFactory) -> None:
+        """Bare app command reads GET /api/telemetry/app-grid with since = now - 1h on the CLI's clock."""
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid_body())])
+        with patch("hassette.cli.output.now_epoch", fixed_now):
+            spy = runner.spy(client, cmd_app)
 
-        assert "/api/apps/manifests" in spy.paths
+        assert spy.params_for("app-grid")["since"] == pytest.approx(NOW_EPOCH - SECONDS_PER_HOUR)
 
-    def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
-        """App renders a table with app_key and status columns."""
-        manifest = make_manifest_response(app_key="my_app", status="running", display_name="My App")
-        data = make_manifest_list_response([manifest])
-        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
+    def test_human_mode_renders_app_and_hour_invocations(self, cli_client_factory: CLIClientFactory) -> None:
+        """The table shows app fields and activity.total_invocations under Invoc/1h."""
+        entry = make_app_grid_entry(
+            app=make_app_summary(app_key="my_app", status=AppStatus.RUNNING, display_name="My App"),
+            activity=make_app_activity(total_invocations=INVOCATIONS_SENTINEL),
+        )
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid_body([entry]))])
         output = runner.stdout(client, cmd_app)
         assert "my_app" in output
         assert "running" in output
+        assert str(INVOCATIONS_SENTINEL) in output
 
-    def test_json_mode_outputs_manifests_list(self, cli_client_factory: CLIClientFactory) -> None:
-        """App --json outputs the manifests list as a JSON array."""
-        manifest = make_manifest_response(app_key="my_app")
-        data = make_manifest_list_response([manifest])
-        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
+    def test_json_mode_outputs_app_activity_rows(self, cli_client_factory: CLIClientFactory) -> None:
+        """App --json outputs the grid rows as a JSON array of {app, activity}."""
+        entry = make_app_grid_entry(app=make_app_summary(app_key="my_app"))
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid_body([entry]))])
 
         parsed = runner.json_output(client, cmd_app)
         assert isinstance(parsed, list)
-        assert parsed[0]["app_key"] == "my_app"
+        assert set(parsed[0]) == {"app", "activity"}
+        assert parsed[0]["app"]["app_key"] == "my_app"
 
     def test_empty_result_shows_no_results(self, cli_client_factory: CLIClientFactory) -> None:
-        """App renders a no-results message when manifests list is empty."""
-        data = make_manifest_list_response([])
-        client = cli_client_factory.build_with_routes([("GET", "/api/apps/manifests", 200, data.model_dump())])
+        """App renders a no-results message when the grid is empty."""
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid_body([]))])
         assert "No results" in runner.stderr(client, cmd_app)
 
+    def test_null_stats_renders_a_blank_invocations_cell(self, cli_client_factory: CLIClientFactory) -> None:
+        """A row whose stats didn't compute shows a blank Invoc/1h cell, never a count."""
+        client = cli_client_factory.build_with_routes(
+            [("GET", APP_GRID_ENDPOINT, 200, grid_body_with_null_parts("stats"))]
+        )
+        output = runner.stdout(client, cmd_app)
+        assert "test_app" in output
+        assert str(INVOCATIONS_SENTINEL) not in output
+        assert " 0 " not in output
+
+    def test_missing_parts_warn_on_stderr_by_field_name(self, cli_client_factory: CLIClientFactory) -> None:
+        """Every null part is named, windowed ones included, since the command sends a since."""
+        body = grid_body_with_null_parts("stats", "last_error", "blocking_event_count")
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, body)])
+
+        # Two runs on purpose: the runner captures one stream per invocation.
+        assert "stats, last_error, blocking_event_count" in runner.stderr(client, cmd_app)
+        assert "last_error" not in runner.stdout(client, cmd_app)
+
+    def test_missing_parts_warn_in_json_mode_without_touching_stdout(
+        self, cli_client_factory: CLIClientFactory
+    ) -> None:
+        client = cli_client_factory.build_with_routes(
+            [("GET", APP_GRID_ENDPOINT, 200, grid_body_with_null_parts("activity_buckets"))]
+        )
+        assert "activity_buckets" in runner.stderr(client, cmd_app, ctx=CLIContext(json_mode=True))
+        assert runner.json_output(client, cmd_app)[0]["activity"]["activity_buckets"] is None
+
+    def test_windowed_parts_warn_only_when_the_since_echo_says_a_window_was_requested(
+        self, cli_client_factory: CLIClientFactory
+    ) -> None:
+        """An all-time echo (since=None) means buckets and last error never ran, so their nulls aren't failures."""
+        activity = make_app_activity().model_copy(update={"activity_buckets": None, "last_error": None})
+        body = make_app_grid_response([make_app_grid_entry(activity=activity)], since=None).model_dump(mode="json")
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, body)])
+        assert PARTIAL_DATA_WARNING not in runner.stderr(client, cmd_app)
+
+    def test_fully_successful_grid_prints_no_warning(self, cli_client_factory: CLIClientFactory) -> None:
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid_body())])
+        assert PARTIAL_DATA_WARNING not in runner.stderr(client, cmd_app)
+
+    def test_empty_grid_prints_no_warning(self, cli_client_factory: CLIClientFactory) -> None:
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid_body([]))])
+        assert PARTIAL_DATA_WARNING not in runner.stderr(client, cmd_app)
+
     def test_app_list_columns_defined(self) -> None:
-        """APP_LIST_COLUMNS includes the key per-app fields."""
+        """APP_LIST_COLUMNS reads app fields from `app` and the hour's invocations from `activity`."""
         field_names = [c.field for c in APP_LIST_COLUMNS]
-        assert "app_key" in field_names
-        assert "status" in field_names
-        assert "display_name" in field_names
-        assert "instance_count" in field_names
-        assert "autostart" in field_names
+        assert "app.app_key" in field_names
+        assert "app.status" in field_names
+        assert "app.display_name" in field_names
+        assert "app.instance_count" in field_names
+        assert "app.autostart" in field_names
+        assert "activity.stats.total_invocations" in field_names
+
+    def test_app_list_column_paths_resolve_on_a_populated_row(self) -> None:
+        """No column is blank because its path is stale: each one reads a value from a full row."""
+        row = make_app_grid_entry().model_dump(mode="json")
+        assert {c.field for c in APP_LIST_COLUMNS if resolve_path(row, c.field) is None} == set()
 
     def test_app_list_columns_count_is_compact(self) -> None:
         """APP_LIST_COLUMNS uses at most 8 columns for readability."""
@@ -138,11 +203,11 @@ class TestCmdAppHealth:
             class_name="MyApp",
             status="running",  # pyright: ignore[reportArgumentType]
         )
-        manifest_resp = make_manifest_response(app_key="my-app", instances=[instance_resp])
-        manifest_list = AppManifestListResponse(total=1, status_counts={"running": 1}, manifests=[manifest_resp])
+        app_summary = make_app_summary(app_key="my-app", instances=[instance_resp])
+        app_list = AppListResponse(total=1, status_counts={"running": 1}, apps=[app_summary])
         client = cli_client_factory.build_with_routes(
             [
-                ("GET", "/api/apps/manifests", 200, manifest_list.model_dump()),
+                ("GET", APPS_ENDPOINT, 200, app_list.model_dump()),
                 ("GET", "/api/telemetry/app/my-app/health", 200, health.model_dump()),
             ]
         )
@@ -370,11 +435,11 @@ def _instance(index: int, name: str, app_key: str = "my_app") -> AppInstanceResp
     )
 
 
-def _manifest_route(instances: list[AppInstanceResponse], app_key: str = "my_app") -> tuple[str, str, int, Any]:
-    """Route entry for ``GET /api/apps/manifests``, used to resolve instance names."""
-    manifest_resp = make_manifest_response(app_key=app_key, instances=instances)
-    manifest_list = make_manifest_list_response([manifest_resp])
-    return ("GET", "/api/apps/manifests", 200, manifest_list.model_dump())
+def apps_route(instances: list[AppInstanceResponse], app_key: str = "my_app") -> tuple[str, str, int, Any]:
+    """Route entry for ``GET /api/apps``, used to resolve instance names."""
+    app_summary = make_app_summary(app_key=app_key, instances=instances)
+    app_list = make_app_list_response([app_summary])
+    return ("GET", APPS_ENDPOINT, 200, app_list.model_dump())
 
 
 def _instance_action_routes(
@@ -384,18 +449,18 @@ def _instance_action_routes(
     instances: list[AppInstanceResponse] | None = None,
     requested_index: int = 1,
     confirmed_index: int | None = None,
-    manifest_status: int = 200,
-    manifest_detail: str = "",
+    apps_status: int = 200,
+    apps_detail: str = "",
     action_status: int = 200,
     action_detail: str = "",
 ) -> list[tuple[str, str, int, Any]]:
-    """Route pair for an instance-scoped app action: the manifest lookup plus the action POST.
+    """Route pair for an instance-scoped app action: the app list lookup plus the action POST.
 
     ``instances`` defaults to a single instance at ``requested_index`` named ``inst{index}``;
-    pass an explicit list to exercise multi-instance manifests or an index that resolves to no
+    pass an explicit list to exercise multi-instance app lists or an index that resolves to no
     entry. ``confirmed_index`` is the index the server echoes back, defaulting to
     ``requested_index`` — pass a different value to exercise the mismatch warning. A non-200
-    ``manifest_status`` or ``action_status`` makes that route fail with the matching
+    ``apps_status`` or ``action_status`` makes that route fail with the matching
     ``*_detail`` as its error body instead of returning its normal successful payload.
     """
     if instances is None:
@@ -403,10 +468,10 @@ def _instance_action_routes(
     if confirmed_index is None:
         confirmed_index = requested_index
 
-    if manifest_status != 200:
-        manifest_route = ("GET", "/api/apps/manifests", manifest_status, {"detail": manifest_detail})
+    if apps_status != 200:
+        apps_response_route = ("GET", APPS_ENDPOINT, apps_status, {"detail": apps_detail})
     else:
-        manifest_route = _manifest_route(instances, app_key=app_key)
+        apps_response_route = apps_route(instances, app_key=app_key)
 
     action_path = f"/api/apps/{app_key}/instances/{requested_index}/{action}"
     if action_status != 200:
@@ -419,7 +484,7 @@ def _instance_action_routes(
             _action_response(app_key=app_key, action=action, instance_index=confirmed_index).model_dump(),
         )
 
-    return [manifest_route, action_route]
+    return [apps_response_route, action_route]
 
 
 class TestCmdAppActionRouting:
@@ -501,7 +566,7 @@ class TestCmdAppActionRouting:
     def test_success_message_falls_back_to_raw_selector_when_instance_unresolvable(
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
-        """A numeric --instance with no matching manifest entry falls back to the raw selector."""
+        """A numeric --instance with no matching app list entry falls back to the raw selector."""
         client = cli_client_factory.build_with_routes(
             _instance_action_routes(action, instances=[_instance(0, "inst0")], requested_index=5)
         )
@@ -509,16 +574,16 @@ class TestCmdAppActionRouting:
         assert parsed["message"] == f"Instance '5' of 'my_app' {verb}"
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
-    def test_numeric_instance_succeeds_when_manifest_fetch_returns_503(
+    def test_numeric_instance_succeeds_when_app_list_fetch_returns_503(
         self, cli_client_factory: CLIClientFactory, cmd, action: str, verb: str, extra: dict[str, Any]
     ) -> None:
-        """A numeric --instance still succeeds when /api/apps/manifests 503s (telemetry outage).
+        """A numeric --instance still succeeds when /api/apps 503s (telemetry outage).
 
-        The manifest lookup is a best-effort name resolution — the mutating action itself
+        The app list lookup is a best-effort name resolution — the mutating action itself
         has no telemetry dependency, so a degraded telemetry DB must not block it.
         """
         client = cli_client_factory.build_with_routes(
-            _instance_action_routes(action, manifest_status=503, manifest_detail="Telemetry store unavailable")
+            _instance_action_routes(action, apps_status=503, apps_detail="Telemetry store unavailable")
         )
         parsed = runner.json_output(client, cmd, "my_app", instance="1", **extra)
         assert parsed["message"] == f"Instance '1' of 'my_app' {verb}"
@@ -627,7 +692,7 @@ class TestCmdAppStop:
     def test_error_on_instance_out_of_range(self, cli_client_factory: CLIClientFactory) -> None:
         """Stop against an out-of-range instance index surfaces the 404 via the HTTP error path.
 
-        The out-of-range index (9) has no matching manifest entry, so name resolution falls back
+        The out-of-range index (9) has no matching app list entry, so name resolution falls back
         to the raw selector rather than blocking client-side — range validation stays the
         server's authoritative job (see ``_require_valid_instance_index``).
         """

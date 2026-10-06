@@ -162,7 +162,7 @@ describe("useScopedQuery", () => {
     // dup-ignore-end
   });
 
-  it("fetches immediately with since=0 when waitForUptime is false and uptime is unavailable", async () => {
+  it("fetches immediately with since=null (all-time) when waitForUptime is false and uptime is unavailable", async () => {
     const fetcher = vi.fn().mockResolvedValue("data");
     // uptimeSeconds defaults to null
 
@@ -173,7 +173,7 @@ describe("useScopedQuery", () => {
 
     await waitForCallCount(fetcher, 1);
 
-    expect(fetcher).toHaveBeenCalledWith(0, expect.any(AbortSignal));
+    expect(fetcher).toHaveBeenCalledWith(null, expect.any(AbortSignal));
 
     await vi.waitFor(() => {
       expect(result.current.isPending).toBe(false);
@@ -181,13 +181,13 @@ describe("useScopedQuery", () => {
   });
 
   it("refetches with the accurate window once uptime arrives when waitForUptime is false", async () => {
-    const fetcher = vi.fn<(since: number, signal: AbortSignal) => Promise<string>>().mockResolvedValue("data");
+    const fetcher = vi.fn<(since: number | null, signal: AbortSignal) => Promise<string>>().mockResolvedValue("data");
 
     await renderAndWaitForFirstFetch("test-no-wait-refetch", fetcher, {
       storeOverrides: { timePreset: "since-restart" },
       hookOptions: { waitForUptime: false },
     });
-    expect(fetcher).toHaveBeenCalledWith(0, expect.any(AbortSignal));
+    expect(fetcher).toHaveBeenCalledWith(null, expect.any(AbortSignal));
 
     act(() => {
       useAppStore.setState({ uptimeSeconds: 300 });

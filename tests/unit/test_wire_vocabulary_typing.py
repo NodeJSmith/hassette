@@ -9,12 +9,12 @@ from hassette_wire import (
     LENIENT_CONTEXT,
     ActionResponse,
     AppAction,
-    AppManifestListResponse,
+    AppListResponse,
+    AppStatus,
     JobSummary,
     LogLevel,
     LogLevelRequest,
     LogLevelResponse,
-    ManifestStatus,
     ResourceRole,
     ScheduleStatus,
     ScheduleStatusReason,
@@ -50,8 +50,8 @@ def action_body(**overrides: Any) -> dict[str, Any]:
     return {"app_key": "lights", "action": "start", "instance_index": None} | overrides
 
 
-def manifest_list_body(status_counts: dict[str, int]) -> dict[str, Any]:
-    return {"total": 0, "status_counts": status_counts, "manifests": []}
+def app_list_body(status_counts: dict[str, int]) -> dict[str, Any]:
+    return {"total": 0, "status_counts": status_counts, "apps": []}
 
 
 # (model, body builder, field, out-of-vocabulary value) for every newly typed open field.
@@ -113,22 +113,22 @@ def test_service_info_role_rejects_the_old_empty_string_sentinel() -> None:
         ServiceInfoResponse.model_validate(service_info_body(role=""))
 
 
-def test_status_counts_keys_parse_to_manifest_status() -> None:
-    parsed = AppManifestListResponse.model_validate(manifest_list_body({"running": 2, "failed": 1}))
+def test_status_counts_keys_parse_to_app_status() -> None:
+    parsed = AppListResponse.model_validate(app_list_body({"running": 2, "failed": 1}))
 
-    assert parsed.status_counts == {ManifestStatus.RUNNING: 2, ManifestStatus.FAILED: 1}
-    assert all(isinstance(key, ManifestStatus) for key in parsed.status_counts)
+    assert parsed.status_counts == {AppStatus.RUNNING: 2, AppStatus.FAILED: 1}
+    assert all(isinstance(key, AppStatus) for key in parsed.status_counts)
 
 
 def test_status_counts_unknown_key_is_rejected_strictly() -> None:
     with pytest.raises(ValidationError):
-        AppManifestListResponse.model_validate(manifest_list_body({"running": 2, "paused": 1}))
+        AppListResponse.model_validate(app_list_body({"running": 2, "paused": 1}))
 
 
 def test_status_counts_unknown_key_parses_leniently_and_round_trips() -> None:
-    body = manifest_list_body({"running": 2, "paused": 1})
+    body = app_list_body({"running": 2, "paused": 1})
 
-    parsed = AppManifestListResponse.model_validate(body, context=LENIENT_CONTEXT)
+    parsed = AppListResponse.model_validate(body, context=LENIENT_CONTEXT)
 
     unknown_keys = [key for key in parsed.status_counts if isinstance(key, UnknownValue)]
     assert unknown_keys == ["paused"]

@@ -17,6 +17,6 @@ export function useManifests() {
   return useQuery({
     queryKey: queryKeys.manifests(),
     queryFn: getAppManifests,
-    select: (data): AppManifest[] => data.manifests,
+    select: (data): AppManifest[] => data.apps,
   });
 }

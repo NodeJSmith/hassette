@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from typing import TYPE_CHECKING, Any
 
-from hassette_wire import ManifestStatus, ResourceStatus
+from hassette_wire import AppStatus, ResourceStatus
 
 from hassette.core.app_factory import AppFactory
 from hassette.schemas.app_snapshots import (
@@ -15,7 +15,7 @@ from hassette.schemas.app_snapshots import (
     AppInstanceInfo,
     AppManifestInfo,
     AppStatusSnapshot,
-    tally_manifest_statuses,
+    tally_app_statuses,
 )
 from hassette.types.enums import BlockReason
 from hassette.utils.app_utils import is_valid_instance_name
@@ -277,7 +277,7 @@ class AppRegistry:
             manifests=manifests,
             only_apps=sorted(self._only_apps),
             total=len(manifests),
-            status_counts=tally_manifest_statuses(manifests),
+            status_counts=tally_app_statuses(manifests),
         )
 
     def build_manifest_info(self, app_key: str, manifest: "AppManifest") -> AppManifestInfo:
@@ -302,17 +302,17 @@ class AppRegistry:
         has_failed = any(entry.status == ResourceStatus.FAILED for entry in entries.values())
 
         if not manifest.enabled:
-            status = ManifestStatus.DISABLED
+            status = AppStatus.DISABLED
         elif app_key in self._blocked_apps:
-            status = ManifestStatus.BLOCKED
+            status = AppStatus.BLOCKED
         elif has_running and has_failed:
-            status = ManifestStatus.DEGRADED
+            status = AppStatus.DEGRADED
         elif has_running:
-            status = ManifestStatus.RUNNING
+            status = AppStatus.RUNNING
         elif has_failed:
-            status = ManifestStatus.FAILED
+            status = AppStatus.FAILED
         else:
-            status = ManifestStatus.STOPPED
+            status = AppStatus.STOPPED
 
         configured_count = len(AppFactory.normalize_configs(manifest.app_config))
         all_indices = sorted(set(entries) | set(range(configured_count)))
@@ -393,7 +393,7 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
     - If present: status/instances are derived from the registry's live state via
       ``build_manifest_info()`` (priority: disabled > blocked > degraded > running > failed >
       stopped), and ``in_current_config`` is ``True``.
-    - If absent (a DB-only / removed app): status defaults to ``ManifestStatus.STOPPED`` with
+    - If absent (a DB-only / removed app): status defaults to ``AppStatus.STOPPED`` with
       zero instances, and ``in_current_config`` is ``False``.
 
     Static metadata (``class_name``, ``display_name``, ``filename``, ``autostart``,
@@ -440,7 +440,7 @@ def overlay_runtime_state(db_rows: list[dict[str, Any]], registry: AppRegistry) 
         else:
             info = AppManifestInfo(
                 app_key=app_key,
-                status=ManifestStatus.STOPPED,
+                status=AppStatus.STOPPED,
                 enabled=bool(db_row["enabled"]),
                 in_current_config=False,
                 **static_fields,

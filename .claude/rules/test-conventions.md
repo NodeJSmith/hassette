@@ -43,12 +43,12 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
 - `make_hass_event(event_type=..., data=..., origin=...)` — `Event` carrying a `HassPayload` (Home Assistant origin)
 - `make_mock_parent(**kw)` — `MagicMock` standing in for an owning App resource
 - `make_change_set(**buckets)` — `ChangeSet` from plain iterables, every unlisted bucket defaulting to empty
-- `make_log_entry(**kw)` — `hassette.logging_.LogEntry` with every required field defaulted (distinct from the web-layer `make_log_entry_response()`)
+- `make_log_entry(**kw)` — `hassette.logging_.LogRecordEntry` with every required field defaulted (distinct from the web-layer `make_log_entry_response()`)
 - `make_closing_task_bucket()` — task_bucket stub whose `spawn()` closes coroutines instead of scheduling them (contrast `make_task_bucket()` in `helpers.py`, which spawns real tasks)
 - `make_bus_service_with_mock_executor(hassette, registration_id=...)` — `(BusService, executor mock)` wired to a stubbed task bucket
 - `make_scheduler_service_with_mock_executor(hassette, registration_id=...)` — `(SchedulerService, executor mock)`, job queue stubbed too
 - `make_log_record(**kw)` — `logging.LogRecord` with keyword defaults (name, level, pathname, lineno, msg, args, exc_info)
-- `build_log_entry(record)` — `LogEntry` built from a `LogRecord` with correlation attrs and formatted traceback
+- `build_log_entry(record)` — `LogRecordEntry` built from a `LogRecord` with correlation attrs and formatted traceback
 - `make_recording_log_capture_handler()` — `RecordingLogCaptureHandler` for observing `LogCaptureHandler.emit()`
 - `make_execution_record(*, kind="handler", session_id=1, ...)` — `ExecutionRecord` for a handler or job execution
 - `make_sync_executor(*, max_workers=2)` — standalone `SyncExecutor` for tests that need `run_in_thread`

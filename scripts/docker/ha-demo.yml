@@ -61,6 +61,8 @@ services:
     volumes:
       - "../../frontend:/app/frontend"
       - "/app/frontend/node_modules"
+      # vite.config.ts reads the hassette version from the root pyproject.toml.
+      - "../../pyproject.toml:/app/pyproject.toml:ro"
     environment:
       VITE_PROXY_TARGET: "http://hassette:8126"
     depends_on:

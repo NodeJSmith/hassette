@@ -156,10 +156,8 @@ def manifest_insert_params(manifest: AppManifest) -> dict[str, Any]:
         A dict of named parameters ready for ``db.execute()``.
     """
     # dup-ignore-start: DB-params layer output, asserted against verbatim by
-    # tests/unit/core/test_manifest_repository.py. Shares field names with
-    # hassette.web.mappers.manifest_response_fields() (API-response layer) by coincidence — same
-    # source model, different consumer/field subset; coupling the two layers to satisfy the
-    # checker would be the wrong direction.
+    # tests/unit/core/test_manifest_repository.py. Why it overlaps app_summary_from() on purpose:
+    # see the comment there.
     return {
         "app_key": manifest.app_key,
         "class_name": manifest.class_name,

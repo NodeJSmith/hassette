@@ -12,17 +12,14 @@ response model directly, with no domain source to convert (e.g.
 Enum coercion note
 ------------------
 ``AppInstanceInfo.status`` is a ``ResourceStatus`` enum (``StrEnum``), and
-``AppManifestInfo.status`` is a ``ManifestStatus`` enum (``StrEnum``). Pydantic coerces both
+``AppManifestInfo.status`` is an ``AppStatus`` enum (``StrEnum``). Pydantic coerces both
 directly — pass the enum value as-is.
 """
 
-from typing import Any
-
 from hassette_wire import (
     AppInstanceResponse,
-    AppManifestListResponse,
-    AppManifestResponse,
-    AppStatusResponse,
+    AppListResponse,
+    AppSummary,
     ConnectedPayload,
     ListenerKind,
     ListenerWithSummary,
@@ -30,8 +27,8 @@ from hassette_wire import (
     SystemStatusResponse,
 )
 
-from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot
-from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo
+from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.live_counts import LiveCounts
 from hassette.types.enums import Topic
 from hassette.web.telemetry_helpers import format_handler_summary
@@ -52,78 +49,40 @@ def instance_response_from(info: AppInstanceInfo) -> AppInstanceResponse:
     return AppInstanceResponse.model_validate(info, from_attributes=True)
 
 
-def app_status_response_from(snapshot: AppStatusSnapshot) -> AppStatusResponse:
-    """Convert an ``AppStatusSnapshot`` to ``AppStatusResponse``."""
-    apps = [instance_response_from(info) for info in snapshot.instances]
-    return AppStatusResponse(
-        total=snapshot.total_count,
-        running=snapshot.running_count,
-        failed=snapshot.failed_count,
-        apps=apps,
-        only_apps=snapshot.only_apps,
-    )
-
-
-def manifest_response_fields(manifest: AppManifestInfo) -> dict[str, Any]:
-    """Common ``AppManifestInfo`` -> response fields shared by ``AppManifestResponse`` and
-    ``DashboardAppGridEntry``.
-
-    Both response models mirror this exact field set from the manifest snapshot. Extracted so
-    the two call sites (here and ``dashboard_app_grid``) can't drift apart as the fields evolve.
-    """
+def app_summary_from(manifest: AppManifestInfo) -> AppSummary:
+    """Convert an ``AppManifestInfo`` snapshot to ``AppSummary``."""
     # dup-ignore-start: API-response layer output. Shares field names with
     # hassette.core.telemetry.insert_params.manifest_insert_params() (DB-params layer, asserted
     # against verbatim by tests/unit/core/test_manifest_repository.py) by coincidence — same
     # source model, different consumer/field subset; coupling the two layers to satisfy the
     # checker would be the wrong direction.
-    return {
-        "app_key": manifest.app_key,
-        "class_name": manifest.class_name,
-        "display_name": manifest.display_name,
-        "filename": manifest.filename,
-        "enabled": manifest.enabled,
-        "auto_loaded": manifest.auto_loaded,
-        "autostart": manifest.autostart,
-        "status": manifest.status,
-        "block_reason": manifest.block_reason,
-        "instance_count": manifest.instance_count,
-        "instances": [instance_response_from(inst) for inst in manifest.instances],
-        "error_message": manifest.error_message,
-        "error_traceback": manifest.error_traceback,
-        "in_current_config": manifest.in_current_config,
-    }
+    return AppSummary(
+        app_key=manifest.app_key,
+        class_name=manifest.class_name,
+        display_name=manifest.display_name,
+        filename=manifest.filename,
+        enabled=manifest.enabled,
+        auto_loaded=manifest.auto_loaded,
+        autostart=manifest.autostart,
+        status=manifest.status,
+        block_reason=manifest.block_reason,
+        instance_count=manifest.instance_count,
+        instances=[instance_response_from(inst) for inst in manifest.instances],
+        error_message=manifest.error_message,
+        error_traceback=manifest.error_traceback,
+        in_current_config=manifest.in_current_config,
+    )
     # dup-ignore-end
 
 
-def app_manifest_response_from(manifest: AppManifestInfo, recent_invocations_1h: int = 0) -> AppManifestResponse:
-    """Convert an ``AppManifestInfo`` snapshot to ``AppManifestResponse``.
-
-    ``recent_invocations_1h`` is not part of the manifest snapshot itself. It comes from a
-    separate enrichment query that degrades on its own (see "Optional queries and probes" in
-    ``.claude/rules/web-api.md``), so it's accepted here rather than read off ``manifest``,
-    defaulting to 0 when the caller has no count for this app.
-    """
-    return AppManifestResponse(**manifest_response_fields(manifest), recent_invocations_1h=recent_invocations_1h)
-
-
-def app_manifest_list_response_from(
-    full: AppFullSnapshot, invocations_by_key: dict[str, int] | None = None
-) -> AppManifestListResponse:
-    """Convert an ``AppFullSnapshot`` to ``AppManifestListResponse``.
-
-    ``invocations_by_key`` maps ``app_key`` to its ``recent_invocations_1h`` count; an app absent
-    from the mapping (including when the mapping itself is omitted) defaults to 0.
-    """
-    invocations_by_key = invocations_by_key or {}
-    return AppManifestListResponse(
+def app_list_response_from(full: AppFullSnapshot) -> AppListResponse:
+    """Convert an ``AppFullSnapshot`` to ``AppListResponse``."""
+    return AppListResponse(
         total=full.total,
-        # Not dict(full.status_counts): dict keys are invariant, so pyright rejects dict[ManifestStatus, int]
-        # here. Building from items() (tuples are covariant) lets the key type widen to OpenManifestStatus.
+        # Not dict(full.status_counts): dict keys are invariant, so pyright rejects dict[AppStatus, int]
+        # here. Building from items() (tuples are covariant) lets the key type widen to OpenAppStatus.
         status_counts=dict(full.status_counts.items()),
-        manifests=[
-            app_manifest_response_from(manifest, invocations_by_key.get(manifest.app_key, 0))
-            for manifest in full.manifests
-        ],
+        apps=[app_summary_from(manifest) for manifest in full.manifests],
         only_apps=full.only_apps,
     )
 
@@ -168,10 +127,10 @@ def event_name_from_topic(topic: str) -> str:
 
 
 def to_listener_with_summary(
-    listener: ListenerSummary,
+    listener: ListenerSummaryRow,
     live_counts: dict[int, LiveCounts] | None = None,
 ) -> ListenerWithSummary:
-    """Convert a ``ListenerSummary`` to a ``ListenerWithSummary`` response model.
+    """Convert a ``ListenerSummaryRow`` to a ``ListenerWithSummary`` response model.
 
     Copies every field from the summary and appends a computed
     ``handler_summary`` string via :func:`~hassette.web.telemetry_helpers.format_handler_summary`.
@@ -186,7 +145,7 @@ def to_listener_with_summary(
             ``LiveCounts(0, 0, 0)``.
     """
     suppressed, dropped, backpressure_dropped = (live_counts or {}).get(listener.listener_id, LiveCounts(0, 0, 0))
-    # Every ListenerSummary field has a same-named field on ListenerWithSummary, so splatting
+    # Every ListenerSummaryRow field has a same-named field on ListenerWithSummary, so splatting
     # model_dump() copies them 1:1. The six fields below have no source attribute (they are
     # computed or sourced from live_counts) and are passed as explicit keyword arguments, so
     # pyright checks their types and the constructor validates every field — a bad value raises.

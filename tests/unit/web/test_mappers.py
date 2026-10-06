@@ -3,25 +3,22 @@
 import pytest
 from hassette_wire import (
     AppInstanceResponse,
-    AppManifestListResponse,
-    AppStatusResponse,
+    AppListResponse,
+    AppStatus,
     ConnectedPayload,
     ListenerWithSummary,
     LivenessResponse,
-    ManifestStatus,
     ReadinessResponse,
     ResourceStatus,
     SystemStatusResponse,
 )
 from pydantic import ValidationError
 
-from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
-from hassette.schemas.listener_models import ListenerSummary
+from hassette.schemas.app_snapshots import AppInstanceInfo
+from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.live_counts import LiveCounts
 from hassette.web.mappers import (
-    app_manifest_list_response_from,
-    app_manifest_response_from,
-    app_status_response_from,
+    app_list_response_from,
     connected_payload_from,
     instance_response_from,
     readiness_response_from,
@@ -80,183 +77,90 @@ def test_instance_response_from_ignores_source_error_attribute():
 
 
 def test_listener_summary_fields_are_subset_of_response():
-    """Every ListenerSummary field exists on ListenerWithSummary, with one documented exception.
+    """Every ListenerSummaryRow field exists on ListenerWithSummary, with one documented exception.
 
-    Guards the from_attributes mapper: a field added to ListenerSummary but
+    Guards the from_attributes mapper: a field added to ListenerSummaryRow but
     missing from ListenerWithSummary would silently drop instead of surfacing.
     ``entity_id`` is the one intentional exception — the mapper consumes it (falling
     back to the topic's last segment when unset) to populate ``target`` instead of
     copying it through 1:1.
     """
     consumed_by_mapper = {"entity_id"}
-    summary_fields = set(ListenerSummary.model_fields)
+    summary_fields = set(ListenerSummaryRow.model_fields)
     response_fields = set(ListenerWithSummary.model_fields)
     missing = summary_fields - response_fields - consumed_by_mapper
-    assert not missing, f"ListenerSummary fields not present on ListenerWithSummary: {missing}"
+    assert not missing, f"ListenerSummaryRow fields not present on ListenerWithSummary: {missing}"
 
 
-def test_app_status_response_from_merges_running_and_failed():
-    """Snapshot with 2 running + 1 failed produces response with 3 apps."""
-    running = [
-        make_instance("app_a", 0, ResourceStatus.RUNNING),
-        make_instance("app_b", 0, ResourceStatus.RUNNING),
-    ]
-    failed = [
-        make_instance("app_c", 0, ResourceStatus.FAILED),
-    ]
-    snapshot = AppStatusSnapshot(instances=running + failed)
-
-    result = app_status_response_from(snapshot)
-
-    assert isinstance(result, AppStatusResponse)
-    assert result.total == 3
-    assert result.running == 2
-    assert result.failed == 1
-    assert len(result.apps) == 3
-    app_keys = {app.app_key for app in result.apps}
-    assert app_keys == {"app_a", "app_b", "app_c"}
-
-
-def test_app_status_response_from_empty_snapshot():
-    """No apps produces empty list."""
-    snapshot = AppStatusSnapshot()
-
-    result = app_status_response_from(snapshot)
-
-    assert isinstance(result, AppStatusResponse)
-    assert result.total == 0
-    assert result.running == 0
-    assert result.failed == 0
-    assert result.apps == []
-
-
-def test_app_status_response_from_preserves_only_apps():
-    """only_apps field is propagated from snapshot."""
-    snapshot = AppStatusSnapshot(only_apps=["special_app"])
-
-    result = app_status_response_from(snapshot)
-
-    assert result.only_apps == ["special_app"]
-
-
-def test_app_status_response_from_coerces_resource_status_enum():
-    """AppInstanceInfo.status (ResourceStatus enum) → string in response."""
-    running = [make_instance("app_a", 0, ResourceStatus.RUNNING)]
-    snapshot = AppStatusSnapshot(instances=running)
-
-    result = app_status_response_from(snapshot)
-
-    assert result.apps[0].status == "running"
-    assert isinstance(result.apps[0].status, str)
-
-
-def test_app_manifest_list_response_from_builds_nested_instances():
+def test_app_list_response_from_builds_nested_instances():
     """Verify nested AppInstanceResponse objects are built correctly."""
     inst0 = make_instance("app_a", 0, ResourceStatus.RUNNING)
     inst1 = make_instance("app_a", 1, ResourceStatus.RUNNING)
-    manifest = make_manifest("app_a", status=ManifestStatus.RUNNING, instances=[inst0, inst1], instance_count=2)
+    manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst0, inst1], instance_count=2)
     full = make_full_snapshot([manifest])
 
-    result = app_manifest_list_response_from(full)
+    result = app_list_response_from(full)
 
-    assert isinstance(result, AppManifestListResponse)
-    assert len(result.manifests) == 1
-    app_manifest_resp = result.manifests[0]
-    assert app_manifest_resp.app_key == "app_a"
-    assert len(app_manifest_resp.instances) == 2
-    assert app_manifest_resp.instances[0].app_key == "app_a"
-    assert app_manifest_resp.instances[0].index == 0
-    assert app_manifest_resp.instances[1].index == 1
+    assert isinstance(result, AppListResponse)
+    assert len(result.apps) == 1
+    app_summary = result.apps[0]
+    assert app_summary.app_key == "app_a"
+    assert len(app_summary.instances) == 2
+    assert app_summary.instances[0].app_key == "app_a"
+    assert app_summary.instances[0].index == 0
+    assert app_summary.instances[1].index == 1
 
 
-def test_app_manifest_list_response_from_coerces_resource_status_enum():
+def test_app_list_response_from_coerces_resource_status_enum():
     """AppInstanceInfo.status (ResourceStatus enum) → string in response."""
     inst = make_instance("app_a", 0, ResourceStatus.RUNNING)
-    manifest = make_manifest("app_a", status=ManifestStatus.RUNNING, instances=[inst], instance_count=1)
+    manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst], instance_count=1)
     full = make_full_snapshot([manifest])
 
-    result = app_manifest_list_response_from(full)
+    result = app_list_response_from(full)
 
-    assert result.manifests[0].instances[0].status == "running"
-    assert isinstance(result.manifests[0].instances[0].status, str)
+    assert result.apps[0].instances[0].status == "running"
+    assert isinstance(result.apps[0].instances[0].status, str)
 
 
 @pytest.mark.parametrize(
     ("manifest_kwargs", "response_attr", "expected"),
     [
-        pytest.param({"status": ManifestStatus.STOPPED}, "status", "stopped", id="status_stopped"),
+        pytest.param({"status": AppStatus.STOPPED}, "status", "stopped", id="status_stopped"),
         pytest.param({"autostart": True}, "autostart", True, id="autostart_true"),
         pytest.param({"autostart": False}, "autostart", False, id="autostart_false"),
         pytest.param({"in_current_config": True}, "in_current_config", True, id="in_current_config_true"),
         pytest.param({"in_current_config": False}, "in_current_config", False, id="in_current_config_false"),
     ],
 )
-def test_app_manifest_list_response_from_passes_manifest_field_through(
-    manifest_kwargs: dict[str, ManifestStatus | bool], response_attr: str, expected: bool | str
+def test_app_list_response_from_passes_manifest_field_through(
+    manifest_kwargs: dict[str, AppStatus | bool], response_attr: str, expected: bool | str
 ):
-    """Single-value manifest fields are carried from AppManifestInfo to AppManifestResponse.
+    """Single-value manifest fields are carried from AppManifestInfo to AppSummary.
 
-    The ``status`` case also covers the ManifestStatus enum being coerced to its string value;
+    The ``status`` case also covers the AppStatus enum being coerced to its string value;
     the boolean cases are plain identity pass-through.
     """
     manifest = make_manifest("app_a", **manifest_kwargs)
     full = make_full_snapshot([manifest])
 
-    result = app_manifest_list_response_from(full)
+    result = app_list_response_from(full)
 
-    assert getattr(result.manifests[0], response_attr) == expected
-
-
-def test_app_manifest_response_from_defaults_recent_invocations_to_zero():
-    """recent_invocations_1h defaults to 0 when the caller passes no count."""
-    manifest = make_manifest("app_a")
-
-    result = app_manifest_response_from(manifest)
-
-    assert result.recent_invocations_1h == 0
+    assert getattr(result.apps[0], response_attr) == expected
 
 
-def test_app_manifest_response_from_uses_given_recent_invocations():
-    """recent_invocations_1h is set from the explicit argument."""
-    manifest = make_manifest("app_a")
-
-    result = app_manifest_response_from(manifest, recent_invocations_1h=7)
-
-    assert result.recent_invocations_1h == 7
-
-
-def test_app_manifest_list_response_from_looks_up_invocations_by_app_key():
-    """Each manifest's recent_invocations_1h is looked up from invocations_by_key by app_key."""
-    manifests = [make_manifest("app_a"), make_manifest("app_b")]
-    full = make_full_snapshot(manifests)
-
-    result = app_manifest_list_response_from(full, invocations_by_key={"app_a": 3})
-
-    by_key = {m.app_key: m.recent_invocations_1h for m in result.manifests}
-    assert by_key == {"app_a": 3, "app_b": 0}
-
-
-def test_app_manifest_list_response_from_defaults_invocations_to_zero_when_omitted():
-    """Omitting invocations_by_key entirely defaults every manifest's count to 0."""
-    full = make_full_snapshot([make_manifest("app_a")])
-
-    result = app_manifest_list_response_from(full)
-
-    assert result.manifests[0].recent_invocations_1h == 0
-
-
-def test_app_manifest_list_response_from_preserves_counts():
+def test_app_list_response_from_preserves_counts():
     """Aggregate counts from AppFullSnapshot pass through."""
     manifests = [
-        make_manifest("app_a", status=ManifestStatus.RUNNING),
-        make_manifest("app_b", status=ManifestStatus.FAILED),
-        make_manifest("app_c", status=ManifestStatus.STOPPED),
-        make_manifest("app_d", status=ManifestStatus.DISABLED),
-        make_manifest("app_e", status=ManifestStatus.BLOCKED),
+        make_manifest("app_a", status=AppStatus.RUNNING),
+        make_manifest("app_b", status=AppStatus.FAILED),
+        make_manifest("app_c", status=AppStatus.STOPPED),
+        make_manifest("app_d", status=AppStatus.DISABLED),
+        make_manifest("app_e", status=AppStatus.BLOCKED),
     ]
     full = make_full_snapshot(manifests)
 
-    result = app_manifest_list_response_from(full)
+    result = app_list_response_from(full)
 
     assert result.total == 5
     assert result.status_counts["running"] == 1
@@ -310,7 +214,7 @@ def test_connected_payload_from_no_session_id():
 
 
 def test_to_listener_with_summary_passes_through_last_error_traceback():
-    """last_error_traceback from ListenerSummary passes through to ListenerWithSummary."""
+    """last_error_traceback from ListenerSummaryRow passes through to ListenerWithSummary."""
     traceback_text = "Traceback (most recent call last):\n  File test.py, line 1\nValueError: oops"
     summary = make_listener_summary(
         last_error_type="ValueError",
@@ -324,7 +228,7 @@ def test_to_listener_with_summary_passes_through_last_error_traceback():
 
 
 def test_to_listener_with_summary_none_traceback_when_no_error():
-    """last_error_traceback is None when ListenerSummary has no error."""
+    """last_error_traceback is None when ListenerSummaryRow has no error."""
     summary = make_listener_summary()
 
     result = to_listener_with_summary(summary)
@@ -344,7 +248,7 @@ def test_to_listener_with_summary_mode_passthrough():
 def test_to_listener_with_summary_thread_leaked_passthrough():
     """thread_leaked passes through from the DB summary to the response model (#1049 parity).
 
-    Guards the listener-only mapper layer: a field added to ListenerSummary but not copied
+    Guards the listener-only mapper layer: a field added to ListenerSummaryRow but not copied
     here would be silently 0 in the API.
     """
     summary = make_listener_summary(thread_leaked=4)
@@ -412,7 +316,7 @@ def test_to_listener_with_summary_backpressure_passthrough():
 
 
 def test_to_listener_with_summary_backpressure_defaults_to_block():
-    """Backpressure defaults to 'block' when ListenerSummary has no override."""
+    """Backpressure defaults to 'block' when ListenerSummaryRow has no override."""
     summary = make_listener_summary()
 
     result = to_listener_with_summary(summary)

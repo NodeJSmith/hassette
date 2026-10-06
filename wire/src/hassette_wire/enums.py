@@ -90,8 +90,8 @@ class ResourceStatus(StrEnum):
 OpenResourceStatus = Annotated[ResourceStatus | UnknownValue, LenientValue("ResourceStatus")]
 
 
-class ManifestStatus(StrEnum):
-    """Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``)."""
+class AppStatus(StrEnum):
+    """An app's overall lifecycle status across its instances (distinct from the per-instance ``ResourceStatus``)."""
 
     DISABLED = "disabled"
     """The app is disabled in configuration and will not start."""
@@ -112,7 +112,7 @@ class ManifestStatus(StrEnum):
     """The app has no tracked instances (not started, or intentionally stopped)."""
 
 
-OpenManifestStatus = Annotated[ManifestStatus | UnknownValue, LenientValue("ManifestStatus")]
+OpenAppStatus = Annotated[AppStatus | UnknownValue, LenientValue("AppStatus")]
 
 
 class ExecutionStatus(StrEnum):

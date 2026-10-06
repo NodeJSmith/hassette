@@ -22,7 +22,7 @@ import { ThemeToggle } from "../shared/theme-toggle";
 import { findDuplicateDisplayNames, GROUP_DEFS, groupAndSortApps, type GroupDef } from "./sidebar-groups";
 import { useGroupOpen } from "./use-group-open";
 
-type AppManifest = components["schemas"]["AppManifestResponse"];
+type AppManifest = components["schemas"]["AppSummary"];
 
 // Up/down accordion chevron — distinct from IconChevron (right/down disclosure pattern).
 function SidebarChevron({ open, className }: { open: boolean; className?: string }) {

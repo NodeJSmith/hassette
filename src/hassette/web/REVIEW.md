@@ -23,7 +23,7 @@ query to return an empty or default body hides an outage from the caller (see
 
 ## Mapper Layer Coverage
 `src/hassette/web/mappers.py` has explicit mapper functions for domain-to-response
-conversions (e.g., `app_manifest_response_from`, `to_listener_with_summary`).
+conversions (e.g., `app_summary_from`, `to_listener_with_summary`).
 When a new response model that converts a domain object is added to
 `hassette_wire`, is there a corresponding mapper — or does the
 route inline the conversion? Models constructed directly without a domain source

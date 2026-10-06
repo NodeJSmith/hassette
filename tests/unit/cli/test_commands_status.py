@@ -7,11 +7,20 @@ from hassette.cli.commands.status import (
     cmd_telemetry,
 )
 from tests.support.web_response_helpers import (
-    make_dashboard_app_grid_response,
+    make_app_grid_entry,
+    make_app_grid_response,
     make_system_status_response,
     make_telemetry_status_response,
 )
-from tests.unit.cli.conftest import CLIClientFactory, CommandRunner
+from tests.unit.cli.conftest import (
+    APP_GRID_ENDPOINT,
+    INVOCATIONS_SENTINEL,
+    PARTIAL_DATA_WARNING,
+    CLIClientFactory,
+    CommandRunner,
+    grid_body_with_null_parts,
+    resolve_path,
+)
 
 runner = CommandRunner("hassette.cli.commands.status.make_client")
 
@@ -115,21 +124,17 @@ class TestCmdTelemetry:
 
 class TestCmdDashboard:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
-        """Dashboard command fetches from GET /api/telemetry/dashboard/app-grid."""
-        grid = make_dashboard_app_grid_response()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
-        )
+        """Dashboard command fetches from GET the app-grid endpoint."""
+        grid = make_app_grid_response()
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid.model_dump())])
         spy = runner.spy(client, cmd_dashboard)
 
-        assert any("/api/telemetry/dashboard/app-grid" in p for p in spy.paths)
+        assert any(APP_GRID_ENDPOINT in p for p in spy.paths)
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Dashboard command renders a table with app rows."""
-        grid = make_dashboard_app_grid_response()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
-        )
+        grid = make_app_grid_response()
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid.model_dump())])
         output = runner.stdout(client, cmd_dashboard)
         # Table headers must always be visible
         assert "App" in output
@@ -139,23 +144,50 @@ class TestCmdDashboard:
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """Dashboard --json outputs the apps list as JSON array."""
-        grid = make_dashboard_app_grid_response()
-        client = cli_client_factory.build_with_routes(
-            [("GET", "/api/telemetry/dashboard/app-grid", 200, grid.model_dump())]
-        )
+        grid = make_app_grid_response()
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, grid.model_dump())])
 
         parsed = runner.json_output(client, cmd_dashboard)
         assert isinstance(parsed, list)
-        assert parsed[0]["app_key"] == "test_app"
+        assert set(parsed[0]) == {"app", "activity"}
+        assert parsed[0]["app"]["app_key"] == "test_app"
+
+    def test_null_stats_renders_blank_cells_not_healthy(self, cli_client_factory: CLIClientFactory) -> None:
+        """A row whose stats didn't compute shows blank count and health cells, never 0 or excellent."""
+        client = cli_client_factory.build_with_routes(
+            [("GET", APP_GRID_ENDPOINT, 200, grid_body_with_null_parts("stats", since=None))]
+        )
+
+        output = runner.stdout(client, cmd_dashboard)
+        assert "excellent" not in output
+        assert str(INVOCATIONS_SENTINEL) not in output
+
+    def test_missing_stats_warns_on_stderr(self, cli_client_factory: CLIClientFactory) -> None:
+        body = grid_body_with_null_parts("stats", "blocking_event_count", since=None)
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, body)])
+
+        assert "stats, blocking_event_count" in runner.stderr(client, cmd_dashboard)
+
+    def test_unrequested_windowed_parts_do_not_warn(self, cli_client_factory: CLIClientFactory) -> None:
+        """The dashboard sends no since, so null buckets and last error are expected, not a failure."""
+        body = grid_body_with_null_parts("activity_buckets", "last_error", since=None)
+        client = cli_client_factory.build_with_routes([("GET", APP_GRID_ENDPOINT, 200, body)])
+
+        assert PARTIAL_DATA_WARNING not in runner.stderr(client, cmd_dashboard)
 
     def test_dashboard_columns_defined(self) -> None:
         """DASHBOARD_COLUMNS includes the core per-app fields."""
         field_names = [c.field for c in DASHBOARD_COLUMNS]
-        assert "app_key" in field_names
-        assert "health.health_status" in field_names
-        assert "health.handler_avg_duration_ms" in field_names
-        assert "health.job_avg_duration_ms" in field_names
-        assert "health.last_activity_ts" in field_names
+        assert "app.app_key" in field_names
+        assert "activity.stats.health.health_status" in field_names
+        assert "activity.stats.health.handler_avg_duration_ms" in field_names
+        assert "activity.stats.health.job_avg_duration_ms" in field_names
+        assert "activity.stats.health.last_activity_ts" in field_names
+
+    def test_dashboard_column_paths_resolve_on_a_populated_row(self) -> None:
+        """No column is blank because its path is stale: each one reads a value from a full row."""
+        row = make_app_grid_entry().model_dump(mode="json")
+        assert {c.field for c in DASHBOARD_COLUMNS if resolve_path(row, c.field) is None} == set()
 
     def test_dashboard_columns_count_is_compact(self) -> None:
         """Dashboard uses at most 8 columns for readability in 80-col terminals."""

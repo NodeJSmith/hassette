@@ -104,56 +104,56 @@
     ],
     "APP_LIST_COLUMNS": [
       {
-        "field": "app_key",
+        "field": "app.app_key",
         "formatter": null,
         "header": "App",
         "max_width": 20,
         "overflow": "ellipsis"
       },
       {
-        "field": "status",
+        "field": "app.status",
         "formatter": null,
         "header": "Status",
         "max_width": 10,
         "overflow": "ellipsis"
       },
       {
-        "field": "display_name",
+        "field": "app.display_name",
         "formatter": null,
         "header": "Display Name",
         "max_width": 22,
         "overflow": "ellipsis"
       },
       {
-        "field": "instance_count",
+        "field": "app.instance_count",
         "formatter": null,
         "header": "Instances",
         "max_width": 9,
         "overflow": "ellipsis"
       },
       {
-        "field": "recent_invocations_1h",
+        "field": "activity.stats.total_invocations",
         "formatter": null,
         "header": "Invocations/1h",
         "max_width": 14,
         "overflow": "ellipsis"
       },
       {
-        "field": "enabled",
+        "field": "app.enabled",
         "formatter": null,
         "header": "Enabled",
         "max_width": 7,
         "overflow": "ellipsis"
       },
       {
-        "field": "autostart",
+        "field": "app.autostart",
         "formatter": null,
         "header": "Autostart",
         "max_width": 9,
         "overflow": "ellipsis"
       },
       {
-        "field": "filename",
+        "field": "app.filename",
         "formatter": null,
         "header": "File",
         "max_width": 20,
@@ -580,56 +580,56 @@
   "status": {
     "DASHBOARD_COLUMNS": [
       {
-        "field": "app_key",
+        "field": "app.app_key",
         "formatter": null,
         "header": "App",
         "max_width": 20,
         "overflow": "ellipsis"
       },
       {
-        "field": "status",
+        "field": "app.status",
         "formatter": null,
         "header": "Status",
         "max_width": 10,
         "overflow": "ellipsis"
       },
       {
-        "field": "total_invocations",
+        "field": "activity.stats.total_invocations",
         "formatter": null,
         "header": "Invocations",
         "max_width": 11,
         "overflow": "ellipsis"
       },
       {
-        "field": "total_errors",
+        "field": "activity.stats.total_errors",
         "formatter": null,
         "header": "Errors",
         "max_width": 6,
         "overflow": "ellipsis"
       },
       {
-        "field": "health.handler_avg_duration_ms",
+        "field": "activity.stats.health.handler_avg_duration_ms",
         "formatter": "fmt_duration_ms",
         "header": "Handler Avg",
         "max_width": 11,
         "overflow": "ellipsis"
       },
       {
-        "field": "health.job_avg_duration_ms",
+        "field": "activity.stats.health.job_avg_duration_ms",
         "formatter": "fmt_duration_ms",
         "header": "Job Avg",
         "max_width": 9,
         "overflow": "ellipsis"
       },
       {
-        "field": "health.last_activity_ts",
+        "field": "activity.stats.health.last_activity_ts",
         "formatter": "fmt_relative_time",
         "header": "Last Active",
         "max_width": 11,
         "overflow": "ellipsis"
       },
       {
-        "field": "health.health_status",
+        "field": "activity.stats.health.health_status",
         "formatter": null,
         "header": "Health",
         "max_width": 10,

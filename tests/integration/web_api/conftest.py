@@ -15,7 +15,7 @@ from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
 from tests.support.problem_codes import checking_handler
-from tests.support.web_manifest_helpers import make_app_instance_info
+from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 _SEED_TIMESTAMP = "2024-01-01T00:00:00"
@@ -27,7 +27,9 @@ DB_LOCKED_MSG = "database is locked"
 # only needs to change here.
 HEALTH_PATH = "/api/health"
 APP_HEALTH_PATH = "/api/telemetry/app/my_app/health"
-APP_GRID_PATH = "/api/telemetry/dashboard/app-grid"
+APP_GRID_PATH = "/api/telemetry/app-grid"
+APP_PATH = "/api/apps/my_app"
+APPS_PATH = "/api/apps"
 TELEMETRY_STATUS_PATH = "/api/telemetry/status"
 CONFIG_PATH = "/api/config"
 AUTH_SESSION_PATH = "/api/auth/session"
@@ -175,6 +177,13 @@ def telemetry_error(message: str = DB_LOCKED_MSG) -> AsyncMock:
     method name at the call site so the arrange step stays greppable.
     """
     return AsyncMock(side_effect=TelemetryUnavailableError(message))
+
+
+def seed_grid_apps(mock_hassette: MagicMock, *app_keys: str) -> None:
+    """Make the app grid's DB spine return one manifest row per app key."""
+    mock_hassette.telemetry_query_service.get_all_app_manifests = AsyncMock(
+        return_value=[make_manifest_db_row(app_key=key) for key in app_keys]
+    )
 
 
 def set_websocket_state(mock_hassette: MagicMock, *, connected: bool, ever_connected: bool) -> None:

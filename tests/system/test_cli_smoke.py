@@ -15,9 +15,9 @@ from typing import Any
 
 import pytest
 from hassette_wire import (
-    AppManifestListResponse,
+    AppGridResponse,
+    AppListResponse,
     ConfigSchemaResponse,
-    DashboardAppGridResponse,
     JobSummary,
     ListenerWithSummary,
     LogEntryResponse,
@@ -108,27 +108,27 @@ async def test_telemetry_status_deserializes(ha_container: str, tmp_path: Path) 
 
 
 async def test_dashboard_deserializes(ha_container: str, tmp_path: Path) -> None:
-    """GET /api/telemetry/dashboard/app-grid deserializes to DashboardAppGridResponse."""
+    """`hassette dashboard` reads GET /api/telemetry/app-grid, which deserializes to AppGridResponse."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
         with _cli_client(config) as client:
-            result = await asyncio.to_thread(client.get, "/api/telemetry/dashboard/app-grid", DashboardAppGridResponse)
+            result = await asyncio.to_thread(client.get, "/api/telemetry/app-grid", AppGridResponse)
 
-    assert isinstance(result, DashboardAppGridResponse)
+    assert isinstance(result, AppGridResponse)
     assert isinstance(result.apps, list)
 
 
-async def test_app_manifests_non_empty(ha_container: str, tmp_path: Path) -> None:
-    """GET /api/apps/manifests deserializes and has a non-empty manifests list."""
+async def test_app_list_non_empty(ha_container: str, tmp_path: Path) -> None:
+    """GET /api/apps deserializes and has a non-empty app list."""
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
         with _cli_client(config) as client:
-            result = await asyncio.to_thread(client.get, "/api/apps/manifests", AppManifestListResponse)
+            result = await asyncio.to_thread(client.get, "/api/apps", AppListResponse)
 
-    assert isinstance(result, AppManifestListResponse)
-    assert len(result.manifests) > 0
+    assert isinstance(result, AppListResponse)
+    assert len(result.apps) > 0
 
 
 async def test_listeners_deserializes(ha_container: str, tmp_path: Path) -> None:

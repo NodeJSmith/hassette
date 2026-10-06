@@ -60,7 +60,7 @@ _RECORD_FIELDS = (
 
 
 @dataclass
-class LogEntry:
+class LogRecordEntry:
     """A single captured log record."""
 
     seq: int
@@ -158,8 +158,8 @@ class LogCaptureHandler(logging.Handler):
             fn = self._broadcast_fn
             loop = self._loop
             # LogHintWsMessage carries no log data — clients that want the new record fetch it
-            # via the REST API. Keeps the broadcast payload independent of LogEntry's shape, and
-            # avoids building a full LogEntry (message formatting, traceback rendering) here.
+            # via the REST API. Keeps the broadcast payload independent of LogRecordEntry's shape, and
+            # avoids building a full LogRecordEntry (message formatting, traceback rendering) here.
             payload = {"type": "log_hint", "timestamp": record.created}
 
             def _schedule_broadcast() -> None:

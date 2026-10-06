@@ -1,9 +1,6 @@
-import type { components } from "../api/generated-types";
+import type { AppStatus, ResourceStatus } from "../api/endpoints";
 
-type ManifestStatus = components["schemas"]["ManifestStatus"];
-type ResourceStatus = components["schemas"]["ResourceStatus"];
-
-type StatusPriorityKey = ResourceStatus | ManifestStatus | "shutting_down";
+type StatusPriorityKey = ResourceStatus | AppStatus | "shutting_down";
 
 /**
  * Canonical status priority ordering. Lower number = more severe / worse.

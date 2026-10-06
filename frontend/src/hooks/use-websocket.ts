@@ -153,12 +153,12 @@ export function useWebSocket(): void {
             // Intentionally ignored — not consumed by the frontend UI.
             break;
 
-          case "app_manifests_changed":
+          case "apps_changed":
             // Signal-only message (no payload) — a full app load/reload pass completed.
             // Refetch every manifest-backed query instead of trusting whatever's cached.
             void queryClient.invalidateQueries({ queryKey: queryKeys.manifests() });
             void queryClient.invalidateQueries({ queryKey: queryKeys.manifest.prefix() });
-            void queryClient.invalidateQueries({ queryKey: queryKeys.dashboardAppGrid() });
+            void queryClient.invalidateQueries({ queryKey: queryKeys.appGrid() });
             void queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus() });
             break;
 

@@ -9,16 +9,19 @@ from typing import Any
 import pytest
 from hassette_wire import (
     ActivityFeedEntry,
+    AppActivity,
+    AppActivityStats,
+    AppGridResponse,
     AppHealth,
     AppInstanceResponse,
-    AppManifestResponse,
-    DashboardAppGridEntry,
+    AppStatus,
+    AppSummary,
     Execution,
     ExecutionCompletedData,
     ExecutionStatus,
+    LastErrorResult,
     ListenerWithSummary,
     LogEntryResponse,
-    ManifestStatus,
     ResourceRole,
     ResourceStatus,
     ServiceInfoResponse,
@@ -27,6 +30,7 @@ from hassette_wire import (
 from pydantic import ValidationError
 
 from hassette.schemas.log_models import LogRecord
+from tests.support.web_response_helpers import make_app_activity
 
 STANDARD_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 
@@ -57,10 +61,10 @@ def minimal_execution(**overrides: Any) -> Execution:
     )
 
 
-def minimal_manifest_response(**overrides: Any) -> AppManifestResponse:
-    """AppManifestResponse with only its required fields set."""
+def minimal_app_summary(**overrides: Any) -> AppSummary:
+    """AppSummary with only its required fields set."""
     return build(
-        AppManifestResponse,
+        AppSummary,
         {
             "app_key": "my_app",
             "class_name": "MyApp",
@@ -69,26 +73,6 @@ def minimal_manifest_response(**overrides: Any) -> AppManifestResponse:
             "enabled": True,
             "auto_loaded": False,
             "status": "stopped",
-        },
-        overrides,
-    )
-
-
-def minimal_grid_entry(**overrides: Any) -> DashboardAppGridEntry:
-    """DashboardAppGridEntry with only its required fields set."""
-    return build(
-        DashboardAppGridEntry,
-        {
-            "app_key": "my_app",
-            "status": "running",
-            "display_name": "My App",
-            "handler_count": 0,
-            "job_count": 0,
-            "total_invocations": 0,
-            "total_errors": 0,
-            "total_executions": 0,
-            "total_job_errors": 0,
-            "health": minimal_app_health(),
         },
         overrides,
     )
@@ -227,88 +211,72 @@ class TestExecutionStatus:
         assert isinstance(data["status"], str)
 
 
-class TestManifestStatus:
-    def test_rejects_value_outside_six_value_set(self) -> None:
+class TestAppStatus:
+    def test_rejects_value_outside_app_status_set(self) -> None:
         with pytest.raises(ValidationError):
-            minimal_manifest_response(status="unknown")
+            minimal_app_summary(status="unknown")
 
-    def test_accepts_all_six_values(self) -> None:
-        for value in ManifestStatus:
-            assert minimal_manifest_response(status=value).status == value
+    def test_accepts_every_app_status(self) -> None:
+        for value in AppStatus:
+            assert minimal_app_summary(status=value).status == value
 
     def test_is_str_enum_with_expected_members(self) -> None:
-        assert set(ManifestStatus) == {
-            ManifestStatus.DISABLED,
-            ManifestStatus.BLOCKED,
-            ManifestStatus.DEGRADED,
-            ManifestStatus.RUNNING,
-            ManifestStatus.FAILED,
-            ManifestStatus.STOPPED,
+        assert set(AppStatus) == {
+            AppStatus.DISABLED,
+            AppStatus.BLOCKED,
+            AppStatus.DEGRADED,
+            AppStatus.RUNNING,
+            AppStatus.FAILED,
+            AppStatus.STOPPED,
         }
-        assert ManifestStatus.RUNNING == "running"
-        assert isinstance(ManifestStatus.RUNNING, str)
-
-    def test_rejects_on_dashboard_grid_entry(self) -> None:
-        with pytest.raises(ValidationError):
-            minimal_grid_entry(status="active")  # not a valid ManifestStatus
+        assert AppStatus.RUNNING == "running"
+        assert isinstance(AppStatus.RUNNING, str)
 
     def test_autostart_defaults_to_true_when_omitted(self) -> None:
-        assert minimal_manifest_response().autostart is True
+        assert minimal_app_summary().autostart is True
 
     def test_autostart_round_trips_false(self) -> None:
-        assert minimal_manifest_response(autostart=False).autostart is False
+        assert minimal_app_summary(autostart=False).autostart is False
 
 
 class TestInCurrentConfig:
-    def test_app_manifest_response_defaults_to_true(self) -> None:
-        assert minimal_manifest_response().in_current_config is True
+    def test_app_summary_defaults_to_true(self) -> None:
+        assert minimal_app_summary().in_current_config is True
 
-    def test_app_manifest_response_round_trips_false(self) -> None:
-        assert minimal_manifest_response(in_current_config=False).in_current_config is False
-
-    def test_dashboard_app_grid_entry_defaults_to_true(self) -> None:
-        assert minimal_grid_entry().in_current_config is True
-
-    def test_dashboard_app_grid_entry_round_trips_false(self) -> None:
-        assert minimal_grid_entry(in_current_config=False).in_current_config is False
+    def test_app_summary_round_trips_false(self) -> None:
+        assert minimal_app_summary(in_current_config=False).in_current_config is False
 
 
-class TestDashboardAppGridEntryManifestFields:
-    def test_manifest_metadata_fields_have_defaults(self) -> None:
-        """DashboardAppGridEntry must be constructible without any manifest metadata fields."""
-        obj = minimal_grid_entry()
-        assert obj.class_name == ""
-        assert obj.filename == ""
-        assert obj.enabled is True
-        assert obj.auto_loaded is False
-        assert obj.autostart is True
-        assert obj.block_reason is None
-        assert obj.instances == []
-        assert obj.error_message is None
-        assert obj.error_traceback is None
+class TestAppGridResponse:
+    def test_since_defaults_to_all_time(self) -> None:
+        assert AppGridResponse(apps=[]).since is None
 
-    def test_manifest_metadata_fields_round_trip(self) -> None:
-        instance = minimal_instance_response()
-        obj = minimal_grid_entry(
-            class_name="MyApp",
-            filename="my_app.py",
-            enabled=False,
-            auto_loaded=True,
-            autostart=False,
-            block_reason="disabled by config",
-            instances=[instance],
-            error_message="boom",
-            error_traceback="Traceback...",
-        )
-        assert obj.class_name == "MyApp"
-        assert obj.filename == "my_app.py"
-        assert obj.enabled is False
-        assert obj.auto_loaded is True
-        assert obj.autostart is False
-        assert obj.block_reason == "disabled by config"
-        assert obj.instances == [instance]
-        assert obj.error_message == "boom"
-        assert obj.error_traceback == "Traceback..."
+
+class TestAppActivity:
+    @pytest.mark.parametrize("part", ["stats", "activity_buckets", "last_error", "blocking_event_count"])
+    def test_a_missing_part_key_fails_validation(self, part: str) -> None:
+        """Every part is required-nullable: an absent key can't read as "not computed"."""
+        body = {"stats": None, "activity_buckets": None, "last_error": None, "blocking_event_count": None}
+        del body[part]
+        with pytest.raises(ValidationError):
+            AppActivity.model_validate(body)
+
+    def test_explicit_nulls_validate(self) -> None:
+        body = {"stats": None, "activity_buckets": None, "last_error": None, "blocking_event_count": None}
+        assert AppActivity.model_validate(body).stats is None
+
+    @pytest.mark.parametrize("field", ["total_timed_out", "total_job_timed_out"])
+    def test_stats_timeout_counts_are_required(self, field: str) -> None:
+        """A missing count fails validation instead of reading as a real zero inside a populated part."""
+        body = make_app_activity().model_dump(mode="json")["stats"]
+        del body[field]
+        with pytest.raises(ValidationError):
+            AppActivityStats.model_validate(body)
+
+    def test_last_error_result_requires_its_error_key(self) -> None:
+        """``{error: null}`` (ran, found none) must be sent explicitly, never inferred from ``{}``."""
+        with pytest.raises(ValidationError):
+            LastErrorResult.model_validate({})
 
 
 class TestResourceStatus:
