@@ -401,6 +401,23 @@ class TestRawRecvEdgeCases:
 
         dispatch_mock.assert_not_awaited()
 
+    async def test_raw_recv_binary_frame_log_omits_frame_contents(self, websocket_service: WebsocketService) -> None:
+        """raw_recv's binary-frame warning names the frame length, never the frame contents."""
+        sentinel = b"s3cret-sentinel-value"
+        fake_ws = build_fake_ws()
+        fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.BINARY, data=sentinel))
+        websocket_service._ws = fake_ws
+        logger_mock = Mock()
+
+        with patch.object(websocket_service, "logger", logger_mock):
+            await websocket_service.raw_recv()
+
+        logger_mock.warning.assert_called_once()
+        msg, *args = logger_mock.warning.call_args.args
+        rendered = msg % tuple(args)
+        assert "s3cret-sentinel-value" not in rendered
+        assert str(len(sentinel)) in rendered
+
     async def test_raw_recv_ignores_unexpected_message_type(self, websocket_service: WebsocketService) -> None:
         """raw_recv logs and returns without dispatching or raising for an unhandled frame type."""
         fake_ws = build_fake_ws()
