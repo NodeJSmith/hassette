@@ -42,7 +42,7 @@ With `env_prefix="MYAPP_"`, the field `api_key` reads from `MYAPP_API_KEY`. Fiel
 Every `AppConfig` includes four built-in fields. Two identify and log the app:
 
 - `instance_name`: a string that uniquely identifies one running instance of the app. Defaults to an empty string; Hassette derives a display name from the class name when it is not set.
-- `log_level`: controls the logging verbosity for this app's logger. Defaults to `"INFO"` when not set; it does not inherit the global `logging.apps` level.
+- `log_level`: controls the logging verbosity for this app's logger. When not set, the app inherits the global `logging.apps` level from `[hassette.logging]` in `hassette.toml`.
 
 The other two, `forgotten_await_behavior` and `blocking_io_behavior`, override the global developer settings for one app. See [Developer Settings](configuration.md#developer-settings).
 

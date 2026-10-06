@@ -1,9 +1,7 @@
 from hassette_wire import LogLevel
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from hassette.config.defaults import ENV_FILE_LOCATIONS
-from hassette.config.helpers import log_level_default_factory
 from hassette.types.enums import BlockingIOBehavior, ForgottenAwaitBehavior
 
 
@@ -27,8 +25,10 @@ class AppConfig(BaseSettings):
     instance_name: str = ""
     """Name for the instance of the app."""
 
-    log_level: LogLevel = Field(default_factory=log_level_default_factory)
-    """Log level for the app instance. Defaults to INFO if not provided."""
+    log_level: LogLevel | None = None
+    """Log level for the app instance.
+
+    When ``None`` (default), the global ``logging.apps`` level from ``hassette.toml`` is used."""
 
     forgotten_await_behavior: ForgottenAwaitBehavior | None = None
     """Per-app control for forgotten-await detection behavior.

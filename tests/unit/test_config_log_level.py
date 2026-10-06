@@ -18,6 +18,7 @@ from hassette_wire import LogLevel
 from hassette.api.api import Api
 from hassette.api.sync import ApiSyncFacade
 from hassette.app.app import App
+from hassette.app.app_config import AppConfig
 from hassette.bus.bus import Bus
 from hassette.core.api_resource import ApiResource
 from hassette.core.app_handler import AppHandler
@@ -134,6 +135,27 @@ def test_api_resource_does_not_return_global_log_level() -> None:
     resource.hassette.config.logging.api = "DEBUG"
     assert resource.config_log_level == "DEBUG"
     assert resource.config_log_level != resource.hassette.config.logging.log_level
+
+
+def stub_app(app_config: AppConfig, apps_level: LogLevel) -> App:
+    """Create an App with only its app_config and a mock hassette whose global logging.apps is set."""
+    app = App.__new__(App)
+    app.hassette = make_mock_hassette(sealed=False, logging={"log_level": "INFO", "apps": apps_level})
+    app.app_config = app_config
+    return app
+
+
+def test_app_without_log_level_inherits_global_apps_level() -> None:
+    """An app with no explicit log_level resolves to the global logging.apps level."""
+    app = stub_app(AppConfig(), apps_level="DEBUG")
+    assert app.app_config.log_level is None
+    assert app.config_log_level == "DEBUG"
+
+
+def test_app_explicit_log_level_overrides_global_apps_level() -> None:
+    """An app's explicit log_level wins over the global logging.apps level."""
+    app = stub_app(AppConfig(log_level="WARNING"), apps_level="DEBUG")
+    assert app.config_log_level == "WARNING"
 
 
 @pytest.mark.parametrize("cls", ALL_OVERRIDE_CLASSES, ids=[c.__name__ for c in ALL_OVERRIDE_CLASSES])

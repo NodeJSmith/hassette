@@ -145,8 +145,8 @@ def coerce_log_level(value: str | LogLevel | None, fallback: LogLevel) -> LogLev
 def log_level_default_factory(data: dict[str, LogLevel | None]) -> LogLevel:
     """Default factory for log level fields.
 
-    Returns the log_level from the data dictionary if present, otherwise
-    falls back to the environment variable-based log level.
+    Returns the already-validated sibling ``log_level`` field from the data dictionary
+    if present, otherwise falls back to ``"INFO"``.
 
     Args:
         data: Dictionary containing field values during model initialization.
