@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import time
 import traceback
@@ -31,6 +30,7 @@ from hassette.core.early_drop_policy import (
 )
 from hassette.core.observer_list import ObserverList
 from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS, SINGLE_ATTEMPT
+from hassette.core.websocket_inbound import log_dispatch_failure, parse_text_frame
 from hassette.core.websocket_responses import PendingResponses, command_label
 from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
@@ -826,20 +826,8 @@ class WebsocketService(Service):
         msg_type, raw = msg.type, msg.data
 
         if msg_type == WSMsgType.TEXT:
-            try:
-                data = json.loads(raw) if raw else {}
-            except json.JSONDecodeError:
-                # Length only: the frame is inbound HA data and can carry sensitive values. The
-                # JSONDecodeError message itself names only a position, so the traceback is safe.
-                self.logger.exception("Invalid JSON received (%d chars)", len(raw))
-                return
-
-            if not isinstance(data, dict):
-                # Valid JSON but not a message object (e.g. `[]`); dispatch() requires a dict.
-                self.logger.warning("Non-object JSON received (%s, %d chars)", type(data).__name__, len(raw))
-                return
-
-            await self.dispatch(data)
+            if (data := parse_text_frame(raw, self.logger)) is not None:
+                await self.dispatch(data)
             return
 
         if msg_type == WSMsgType.BINARY:
@@ -875,17 +863,7 @@ class WebsocketService(Service):
                 case other:
                     self.logger.debug("Ignoring unknown message type: %s", other)
         except Exception as exc:
-            # Payloads can echo sensitive values (helper `initial`, entity attributes), and exception
-            # messages can quote them (e.g. a pydantic `input_value`), so log the message type and id,
-            # the exception type, and the traceback frames -- never the payload or str(exc).
-            # `logger.exception`/`exc_info` would render str(exc), hence the hand-built traceback.
-            self.logger.error(
-                "Failed to dispatch message (type=%s, id=%s): %s\nTraceback (most recent call last):\n%s",
-                data.get("type"),
-                data.get("id"),
-                type(exc).__name__,
-                "".join(traceback.format_tb(exc.__traceback__)).rstrip(),
-            )
+            log_dispatch_failure(self.logger, data, exc)
 
     async def dispatch_hass_event(self, data: "HassEventEnvelopeDict") -> None:
         """Dispatch a Home Assistant event to the event bus."""
