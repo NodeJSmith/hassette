@@ -4,11 +4,13 @@ Targets branches not already exercised by test_ws_connection_state.py,
 test_websocket_readiness_events.py, and tests/integration/websocket/:
 cleanup() teardown branches, make_connection()'s tenacity retry wrapper,
 subscribe_events() payload construction, connect_ws()'s non-refused error path,
+_send_json_when_socket_live()'s send-failure redaction,
 raw_recv()'s binary/unexpected-type branches, respond_if_necessary()'s guard
 branches, and a handful of one-line property delegations.
 """
 
 import asyncio
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -24,6 +26,8 @@ from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
 from .conftest import cleanup_disconnected, run_cleanup
+
+SECRET_VALUE = "hunter2-do-not-log"
 
 
 class TestTimeoutAndLogLevelProperties:
@@ -513,3 +517,43 @@ class TestAuthenticateUnexpectedResponse:
 
         with pytest.raises(RuntimeError, match="Unexpected authentication response"):
             await websocket_service.authenticate()
+
+
+class TestSendJsonFailureRedaction:
+    """Send-failure logs and errors name only the command type and id, never payload values."""
+
+    @pytest.fixture
+    def failing_socket(self, websocket_service: WebsocketService) -> WebsocketService:
+        fake_ws = build_fake_ws()
+        fake_ws.send_json = AsyncMock(side_effect=RuntimeError("boom"))
+        websocket_service._ws = fake_ws
+        websocket_service._send_ready_event.set()
+        return websocket_service
+
+    async def test_failed_message_error_omits_payload_values(self, failing_socket: WebsocketService) -> None:
+        with pytest.raises(FailedMessageError) as exc_info:
+            await failing_socket.send_json(
+                type="input_text/create", id=42, name="vault", mode="password", initial=SECRET_VALUE
+            )
+
+        exc = exc_info.value
+        assert str(exc) == "Failed to send message 'input_text/create' (id 42)"
+        assert SECRET_VALUE not in str(exc)
+        assert exc.code is None
+        assert exc.original_data is not None
+        assert exc.original_data["initial"] == SECRET_VALUE
+
+    async def test_send_logs_omit_payload_values(
+        self, failing_socket: WebsocketService, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        caplog.set_level(logging.DEBUG, logger=failing_socket.logger.name)
+
+        with pytest.raises(FailedMessageError):
+            await failing_socket.send_json(type="input_text/create", id=42, mode="password", initial=SECRET_VALUE)
+
+        ws_records = [r for r in caplog.records if r.name == failing_socket.logger.name]
+        assert any(r.levelno == logging.ERROR for r in ws_records), "expected the send failure to be logged"
+        assert any(r.levelno == logging.DEBUG for r in ws_records), "expected the send attempt to be logged"
+        for record in ws_records:
+            assert SECRET_VALUE not in record.getMessage()
+            assert "input_text/create" in record.getMessage()

@@ -759,8 +759,6 @@ class WebsocketService(Service):
         self._pending.respond_if_necessary(message)
 
     async def _send_json_when_socket_live(self, **data: Any) -> None:
-        self.logger.debug("Sending WebSocket message: %s", data)
-
         if not self._send_ready_event.is_set():
             raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
 
@@ -770,14 +768,22 @@ class WebsocketService(Service):
         if "id" not in data:
             data["id"] = self.get_next_message_id()
 
+        # Logs and error messages name only the command type and id: payload values may be
+        # sensitive (e.g. input_text.initial on a password-mode helper).
+        command_type = data.get("type")
+        message_id = data["id"]
+        self.logger.debug("Sending WebSocket message %r (id %s)", command_type, message_id)
+
         try:
             await self._ws.send_json(data)
         except ClientConnectionResetError:
             self.logger.error("WebSocket connection reset by peer")
             raise
         except Exception as exc:
-            self.logger.exception("Exception when sending message: %s", data)
-            raise FailedMessageError(f"Failed to send message: {data}") from exc
+            self.logger.exception("Exception when sending message %r (id %s)", command_type, message_id)
+            raise FailedMessageError(
+                f"Failed to send message {command_type!r} (id {message_id})", original_data=dict(data)
+            ) from exc
 
     async def send_json(self, **data: Any) -> None:
         await self._send_json_when_socket_live(**data)
