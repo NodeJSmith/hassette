@@ -7,6 +7,8 @@
  * - Accepts `Partial<T>` overrides for flexible per-test customization.
  *
  * Use these instead of per-file factory functions to avoid duplication.
+ * Blocking-finding factories live in `blocking-fixtures.ts`; config-page
+ * fixtures live in `config-fixtures.ts`.
  */
 
 import type { components } from "../api/generated-types";
@@ -19,7 +21,14 @@ import type { UnifiedRow } from "../utils/handler-rows";
 export const FIXED_TEST_TIMESTAMP = 1700000000;
 
 /** `status_counts` with every app status at zero. */
-export const ZERO_STATUS_COUNTS = { running: 0, failed: 0, stopped: 0, disabled: 0, blocked: 0, degraded: 0 };
+export const ZERO_STATUS_COUNTS = Object.freeze({
+  running: 0,
+  failed: 0,
+  stopped: 0,
+  disabled: 0,
+  blocked: 0,
+  degraded: 0,
+});
 
 type AppSummary = components["schemas"]["AppSummary"];
 type AppListResponse = components["schemas"]["AppListResponse"];

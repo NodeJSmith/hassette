@@ -44,7 +44,7 @@ type AppConfigResponse = components["schemas"]["AppConfigResponse"];
 export function withManifests(manifests: components["schemas"]["AppSummary"][], server: SetupServer) {
   const statusCounts = manifests.reduce<Record<string, number>>(
     (counts, manifest) => ({ ...counts, [manifest.status]: (counts[manifest.status] ?? 0) + 1 }),
-    { ...ZERO_STATUS_COUNTS },
+    ZERO_STATUS_COUNTS,
   );
   server.use(
     http.get("/api/apps", () =>
