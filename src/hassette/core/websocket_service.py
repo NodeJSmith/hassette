@@ -834,6 +834,11 @@ class WebsocketService(Service):
                 self.logger.exception("Invalid JSON received (%d chars)", len(raw))
                 return
 
+            if not isinstance(data, dict):
+                # Valid JSON but not a message object (e.g. `[]`); dispatch() requires a dict.
+                self.logger.warning("Non-object JSON received (%s, %d chars)", type(data).__name__, len(raw))
+                return
+
             await self.dispatch(data)
             return
 
