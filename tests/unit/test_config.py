@@ -821,6 +821,29 @@ class TestLocalTomlOverlay:
 
         assert source.toml_data["base_url"] == "http://localhost:8123"
 
+    def test_later_base_file_replaces_earlier_table_across_section_styles(self, tmp_path: Path) -> None:
+        """Base files are hoisted one at a time, so a later `[apps]` replaces an earlier `[hassette.apps]`."""
+        first = self.write(
+            tmp_path / "first.toml",
+            """
+            [hassette.apps.old_app]
+            filename = "old_app.py"
+            class_name = "OldApp"
+            """,
+        )
+        second = self.write(
+            tmp_path / "second.toml",
+            """
+            [apps.new_app]
+            filename = "new_app.py"
+            class_name = "NewApp"
+            """,
+        )
+
+        source = HassetteTomlConfigSettingsSource(self.make_config_cls(first), toml_file=[first, second])
+
+        assert set(source.toml_data["apps"]) == {"new_app"}
+
     def test_local_overlay_adds_app_config(self, tmp_path: Path) -> None:
         base = self.write(
             tmp_path / "hassette.toml",
@@ -854,13 +877,20 @@ class TestLocalTomlOverlay:
 
         assert source.toml_data["base_url"] == "http://localhost:8123"
 
-    def test_config_loads_overlay_and_watches_it(self, tmp_path: Path) -> None:
+    def test_config_loads_overlay(self, tmp_path: Path) -> None:
+        base = self.write(tmp_path / "hassette.toml", '[hassette]\nbase_url = "http://shared:8123"\n')
+        self.write(tmp_path / "hassette.local.toml", '[hassette]\nbase_url = "http://localhost:8123"\n')
+
+        config = self.make_config_cls(base)()
+
+        assert config.base_url == "http://localhost:8123"
+
+    def test_config_toml_files_include_existing_overlay(self, tmp_path: Path) -> None:
         base = self.write(tmp_path / "hassette.toml", '[hassette]\nbase_url = "http://shared:8123"\n')
         local = self.write(tmp_path / "hassette.local.toml", '[hassette]\nbase_url = "http://localhost:8123"\n')
 
         config = self.make_config_cls(base)()
 
-        assert config.base_url == "http://localhost:8123"
         assert config.toml_files == {base.resolve(), local.resolve()}
 
 
