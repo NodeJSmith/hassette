@@ -7,7 +7,7 @@ import { BUNDLE_VERSION, initialState, useAppStore } from "./store";
 /** A server version that never equals the bundle's. */
 const OTHER_VERSION = "999.0.0";
 
-/** Defaults to the bundle's own version, so a payload only signals an update when overridden. */
+/** Defaults to the bundle's own version, so the data only signals an update when overridden. */
 function createConnectedData(overrides: Partial<ConnectedData> = {}): ConnectedData {
   return {
     uptime_seconds: 42,
@@ -142,7 +142,7 @@ describe("useAppStore", () => {
       expect(useAppStore.getState().logHintVersion).toBe(versionBefore);
     });
 
-    it("sets systemVersion from payload, falling back to null when omitted", () => {
+    it("sets systemVersion from the connected data, falling back to null when omitted", () => {
       useAppStore.getState().handleWsConnected(createConnectedData({ version: undefined }), false);
       expect(useAppStore.getState().systemVersion).toBeNull();
 
@@ -150,7 +150,7 @@ describe("useAppStore", () => {
       expect(useAppStore.getState().systemVersion).toBe("9.9.9");
     });
 
-    it("sets uptimeSeconds from the payload", () => {
+    it("sets uptimeSeconds from the connected data", () => {
       useAppStore.getState().handleWsConnected(createConnectedData({ uptime_seconds: 123 }), false);
       expect(useAppStore.getState().uptimeSeconds).toBe(123);
     });

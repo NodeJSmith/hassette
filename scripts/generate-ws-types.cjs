@@ -28,8 +28,7 @@ const BANNER = `/* @generated from ws-schema.json — do not edit by hand.
  * Or: uv run python scripts/export_schemas.py --types
  */`;
 
-const COMPAT_ALIASES = `
-export type WsExecutionCompletedPayload = ExecutionCompletedData;
+const TRAILER = `
 
 // ExecutionStatus is also defined in generated-types.ts (from OpenAPI).
 // Both are generated from the same Python enum via export_schemas.py --types.
@@ -96,7 +95,7 @@ async function main() {
     "export type $1 = Record<string, never>;",
   );
 
-  const output = `${BANNER}\n\n${tsWithEmptyTypesFixed}${COMPAT_ALIASES}`;
+  const output = `${BANNER}\n\n${tsWithEmptyTypesFixed}${TRAILER}`;
   fs.writeFileSync(OUTPUT_PATH, output);
   console.log(`Wrote ${OUTPUT_PATH}`);
 }

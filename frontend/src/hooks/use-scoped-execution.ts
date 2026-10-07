@@ -1,4 +1,4 @@
-import type { WsExecutionCompletedPayload } from "../api/ws-types";
+import type { ExecutionCompletedData } from "../api/ws-types";
 import type { ExecutionKind } from "../components/shared/execution-table";
 import { useAppStore } from "../state/store";
 
@@ -19,28 +19,26 @@ import { useAppStore } from "../state/store";
  * Callers pair the result with `useQueryInvalidator(execution, isExecutionDefined, key)`: the
  * scoping already happened in the selector, so the filter only checks definedness.
  */
-function useScopedExecution(
-  match: (event: WsExecutionCompletedPayload) => boolean,
-): WsExecutionCompletedPayload | undefined {
+function useScopedExecution(match: (event: ExecutionCompletedData) => boolean): ExecutionCompletedData | undefined {
   return useAppStore((s) => s.executionCompleted?.find(match));
 }
 
 /** Shared `useQueryInvalidator` filter for the scoped-execution hooks below — see their docstrings. */
-export function isExecutionDefined(execution: WsExecutionCompletedPayload | undefined): boolean {
+export function isExecutionDefined(execution: ExecutionCompletedData | undefined): boolean {
   return execution !== undefined;
 }
 
 /** This app's first completion in the latest batch, optionally narrowed to one completion kind. */
-export function useAppExecution(appKey: string, kind?: ExecutionKind): WsExecutionCompletedPayload | undefined {
+export function useAppExecution(appKey: string, kind?: ExecutionKind): ExecutionCompletedData | undefined {
   return useScopedExecution((e) => e.app_key === appKey && (kind === undefined || e.kind === kind));
 }
 
 /** This job's first completion in the latest batch. */
-export function useJobExecution(jobId: number): WsExecutionCompletedPayload | undefined {
+export function useJobExecution(jobId: number): ExecutionCompletedData | undefined {
   return useScopedExecution((e) => e.kind === "job" && e.job_id === jobId);
 }
 
 /** This listener's first completion in the latest batch. */
-export function useListenerExecution(listenerId: number): WsExecutionCompletedPayload | undefined {
+export function useListenerExecution(listenerId: number): ExecutionCompletedData | undefined {
   return useScopedExecution((e) => e.kind === "handler" && e.listener_id === listenerId);
 }

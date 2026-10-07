@@ -91,8 +91,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     try:
         # Send initial connection info (includes uptime_seconds for time-window filtering)
         status = runtime.get_system_status()
-        data = connected_data_from(status)
-        await websocket.send_json({"type": "connected", "data": data.model_dump(), "timestamp": time.time()})
+        connected = connected_data_from(status)
+        await websocket.send_json({"type": "connected", "data": connected.model_dump(), "timestamp": time.time()})
         async with anyio.create_task_group() as tg:
             tg.start_soon(_read_client, websocket, ws_state)
             tg.start_soon(_send_from_queue, websocket, queue, ws_state)

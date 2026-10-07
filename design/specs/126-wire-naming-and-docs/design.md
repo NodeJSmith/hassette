@@ -149,3 +149,5 @@ Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the
 - Ship-time challenge also rewrote the `retention_expired` docstrings (wire model and `routes/executions.py`), which over-claimed deletion, and four pre-existing schema docstrings that used the server-internal term "DB-only" (`AppSummary.instance_count`/`in_current_config`, `JobSummary.schedule_status`/`next_run`), so the published schema is readable without server internals.
 
 ## Addendum
+
+- 2026-10-07 (clean-code gate, same PR): the hand-written `WsExecutionCompletedPayload` alias that `scripts/generate-ws-types.cjs` appended to `ws-types.ts` was removed and its frontend users moved to `ExecutionCompletedData`, since it kept the retired `Payload` suffix alive on the frontend.

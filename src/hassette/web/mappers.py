@@ -1,7 +1,7 @@
-"""Mapping functions from core domain objects to web response models.
+"""Mapping functions from core domain objects to wire models.
 
 Each function converts a domain type (from ``hassette.schemas``) to the
-appropriate Pydantic response model from ``hassette_wire``. Web routes
+appropriate Pydantic wire model from ``hassette_wire``. Web routes
 call these instead of receiving pre-mapped response objects from
 ``RuntimeQueryService`` — except where a service already builds a wire
 response model directly, with no domain source to convert (e.g.
@@ -39,14 +39,14 @@ TOPIC_KIND_MAP: dict[str, ListenerKind] = {
 }
 
 
-def app_instance_from(info: AppInstanceInfo) -> AppInstance:
+def app_instance_from(instance: AppInstanceInfo) -> AppInstance:
     """Convert a single ``AppInstanceInfo`` to ``AppInstance``.
 
     Every ``AppInstance`` field has a same-named attribute on ``AppInstanceInfo``, so
     ``from_attributes`` copies them directly. The source's extra ``error``
     attribute is ignored.
     """
-    return AppInstance.model_validate(info, from_attributes=True)
+    return AppInstance.model_validate(instance, from_attributes=True)
 
 
 def app_summary_from(manifest: AppManifestInfo) -> AppSummary:

@@ -12,7 +12,7 @@
  */
 
 import type { components } from "../api/generated-types";
-import type { WsExecutionCompletedPayload } from "../api/ws-types";
+import type { ExecutionCompletedData } from "../api/ws-types";
 import type { ExecutionKind } from "../components/shared/execution-table";
 import type { ServiceStatusEntry } from "../state/store";
 import type { UnifiedRow } from "../utils/handler-rows";
@@ -296,8 +296,8 @@ export function createActivityFeedEntry(overrides: Partial<ActivityFeedEntry> = 
 }
 
 export function createExecutionCompletedPayload(
-  overrides: Partial<WsExecutionCompletedPayload> = {},
-): WsExecutionCompletedPayload {
+  overrides: Partial<ExecutionCompletedData> = {},
+): ExecutionCompletedData {
   return {
     kind: "job",
     job_id: 1,
@@ -308,7 +308,7 @@ export function createExecutionCompletedPayload(
     error_type: null,
     thread_leaked: false,
     ...overrides,
-  } satisfies WsExecutionCompletedPayload;
+  } satisfies ExecutionCompletedData;
 }
 
 export function createTelemetryStatus(overrides: Partial<TelemetryStatusResponse> = {}): TelemetryStatusResponse {

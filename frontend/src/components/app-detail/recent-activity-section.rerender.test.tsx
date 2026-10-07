@@ -4,7 +4,7 @@ import { Profiler } from "react";
 import { describe, expect, it } from "vitest";
 
 import type { components } from "../../api/generated-types";
-import type { WsExecutionCompletedPayload } from "../../api/ws-types";
+import type { ExecutionCompletedData } from "../../api/ws-types";
 import { useAppStore } from "../../state/store";
 import { createExecutionCompletedPayload } from "../../test/factories";
 import { renderWithAppState } from "../../test/render-helpers";
@@ -17,7 +17,7 @@ type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 const APP_KEY = "test_app";
 const OTHER_APP_KEY = "other_app";
 
-function makeExecution(appKey: string, kind: ExecutionKind): WsExecutionCompletedPayload {
+function makeExecution(appKey: string, kind: ExecutionKind): ExecutionCompletedData {
   return createExecutionCompletedPayload({ kind, app_key: appKey });
 }
 

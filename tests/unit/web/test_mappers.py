@@ -206,7 +206,7 @@ def test_connected_data_from_uptime_seconds_from_status():
 
 
 def test_connected_data_from_no_session_id():
-    """ConnectedData no longer carries session_id."""
+    """ConnectedData has no session_id field."""
     status = make_system_status()
 
     result = connected_data_from(status)

@@ -1,7 +1,7 @@
 import { act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { WsExecutionCompletedPayload } from "../api/ws-types";
+import type { ExecutionCompletedData } from "../api/ws-types";
 import type { ExecutionKind } from "../components/shared/execution-table";
 import { appStatusKey, useAppStore } from "../state/store";
 import { createAppSummary } from "../test/factories";
@@ -51,7 +51,7 @@ vi.mock("../components/shared/spinner", async () => (await import("./app-detail.
 
 vi.mock("../hooks/use-correct-url", () => ({ useCorrectUrl: () => vi.fn() }));
 
-function makeExecution(appKey: string, kind: ExecutionKind): WsExecutionCompletedPayload {
+function makeExecution(appKey: string, kind: ExecutionKind): ExecutionCompletedData {
   return { kind, app_key: appKey, instance_index: 0, status: "success", duration_ms: 5 };
 }
 

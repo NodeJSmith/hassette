@@ -182,8 +182,6 @@ export interface AppsChangedWsMessage {
  */
 export type AppsChangedData = Record<string, never>;
 
-export type WsExecutionCompletedPayload = ExecutionCompletedData;
-
 // ExecutionStatus is also defined in generated-types.ts (from OpenAPI).
 // Both are generated from the same Python enum via export_schemas.py --types.
 // CI enforces freshness of both files atomically.

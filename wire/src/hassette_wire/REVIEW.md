@@ -21,7 +21,7 @@ exist in this package? Were the generated artifacts regenerated with it?
 
 ## Class Naming
 `wire/tests/test_naming.py` enforces the WS suffixes (`Data` payloads,
-`WsMessage` envelopes) and the retired ones. Review decides what it can't:
+`WsMessage` envelopes) and the forbidden ones. Review decides what it can't:
 is each new or renamed HTTP type a record (a bare noun wherever it appears)
 or another HTTP body (`Response`/`Request`), per the rule in the package
 docstring (`__init__.py`)? Does the name collide with a public `hassette`

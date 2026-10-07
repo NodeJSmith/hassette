@@ -389,22 +389,22 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
 class TestServiceInfoExtension:
     def test_service_info_has_role_ready_phase_retry_at(self) -> None:
         """ServiceInfo has role, ready_phase, retry_at fields."""
-        resp = ServiceInfo(
+        service_info = ServiceInfo(
             name="WebSocketService",
             status="running",
             role=ResourceRole.SERVICE,
             ready_phase="connected",
             retry_at=STUB_TIMESTAMP,
         )
-        assert resp.role is ResourceRole.SERVICE
-        assert resp.ready_phase == "connected"
-        assert resp.retry_at == STUB_TIMESTAMP
+        assert service_info.role is ResourceRole.SERVICE
+        assert service_info.ready_phase == "connected"
+        assert service_info.retry_at == STUB_TIMESTAMP
 
     def test_service_info_defaults(self) -> None:
         """ServiceInfo defaults ready_phase/retry_at to None when omitted."""
-        resp = ServiceInfo(name="SomeService", status="running", role=ResourceRole.SERVICE)
-        assert resp.ready_phase is None
-        assert resp.retry_at is None
+        service_info = ServiceInfo(name="SomeService", status="running", role=ResourceRole.SERVICE)
+        assert service_info.ready_phase is None
+        assert service_info.retry_at is None
 
     def test_get_system_status_populates_service_info_fields(self) -> None:
         """get_system_status() populates role, ready_phase, retry_at on ServiceInfo objects.

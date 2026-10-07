@@ -1,6 +1,6 @@
 """The mechanical half of the class-naming rule in the ``hassette_wire`` package docstring.
 
-Pinned here: no export uses a retired suffix, the ``*WsMessage`` exports are exactly the members of
+Pinned here: no export uses a forbidden suffix, the ``*WsMessage`` exports are exactly the members of
 ``WsServerMessage``, each is discriminated by a ``type`` Literal, and ``*Data`` is exactly the set of WS
 payloads. Left to review (``REVIEW.md``): whether an HTTP body is a record (bare noun) or an envelope
 (``*Response``/``*Request``), and collisions with public ``hassette`` names, which this package can't import.
@@ -13,7 +13,7 @@ import hassette_wire
 import pytest
 from pydantic import BaseModel
 
-RETIRED_SUFFIXES = ("Payload", "WithSummary")
+FORBIDDEN_SUFFIXES = ("Payload", "WithSummary")
 
 EXPORTED_MODELS = {
     name: obj
@@ -44,8 +44,8 @@ def payload_model(message: type[BaseModel]) -> type[BaseModel]:
 
 
 @pytest.mark.parametrize("name", sorted(EXPORTED_MODELS))
-def test_no_export_uses_a_retired_suffix(name: str) -> None:
-    assert not name.endswith(RETIRED_SUFFIXES)
+def test_no_export_uses_a_forbidden_suffix(name: str) -> None:
+    assert not name.endswith(FORBIDDEN_SUFFIXES)
 
 
 def test_ws_message_exports_match_server_message_union_members() -> None:
