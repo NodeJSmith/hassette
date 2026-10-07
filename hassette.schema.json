@@ -344,6 +344,12 @@
           "description": "Override the cache directory key. When empty (default), App.cache_key computes\n'{app_key}/{index}'. When set, this value is used as-is.",
           "title": "Cache Key",
           "type": "string"
+        },
+        "cache_shared": {
+          "default": false,
+          "description": "Mark this app's resolved cache_key as intentionally shared with other apps. The\ncache_key collision warning is suppressed only when every app sharing the key sets this.",
+          "title": "Cache Shared",
+          "type": "boolean"
         }
       },
       "required": [
@@ -1225,6 +1231,10 @@
         "cache_key": {
           "title": "Cache Key",
           "type": "string"
+        },
+        "cache_shared": {
+          "title": "Cache Shared",
+          "type": "boolean"
         }
       },
       "required": [
