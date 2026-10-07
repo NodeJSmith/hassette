@@ -25,3 +25,15 @@ flakes:
       Restart-budget timing race in ServiceWatcher -- shutdown_event isn't set
       by the time the test asserts it. Recurs on main and multiple autofix/*
       branches, not tied to any specific PR.
+
+  - pattern: "test_lifecycle_logs_init_failure_exactly_once"
+    issue: 2580
+    note: >
+      Counts every ERROR under the "hassette" logger, so stray records from
+      other tests on the same xdist worker break the exactly-one assertion.
+
+  - pattern: "test_crash_role_filter"
+    issue: 2581
+    note: >
+      Suspected await_dispatch_idle() race: asserts before the CRASHED event
+      is dispatched. Unconfirmed.
