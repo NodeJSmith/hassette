@@ -214,3 +214,92 @@ class TestLocalTomlOverlay:
         config = make_config_cls(base)()
 
         assert config.toml_files == {base.resolve(), local.resolve()}
+
+
+def make_aliased_config_cls(files: list[Path]) -> type[HassetteConfig]:
+    """Like `make_config_cls`, but keeps HassetteConfig's own `token` field and its aliases."""
+
+    class AliasedConfig(HassetteConfig):
+        model_config = HassetteConfig.model_config.copy() | SettingsConfigDict(
+            cli_parse_args=False, toml_file=files, env_file=[]
+        )
+
+        run_app_precheck: bool = False
+
+    return AliasedConfig
+
+
+class TestAliasCanonicalization:
+    """Each file's alias spellings are canonicalized before layers merge, so the later layer wins."""
+
+    def test_overlay_alias_overrides_base_field_name(self, tmp_path: Path) -> None:
+        base = write_toml(tmp_path / "hassette.toml", 'token = "BASE"\n')
+        write_toml(tmp_path / "hassette.local.toml", 'ha_token = "LOCAL"\n')
+
+        config = make_aliased_config_cls([base])()
+
+        assert config.token is not None
+        assert config.token.get_secret_value() == "LOCAL"
+
+    def test_overlay_app_config_alias_overrides_base_config(self, tmp_path: Path) -> None:
+        base = write_toml(
+            tmp_path / "hassette.toml",
+            """
+            [apps.my_app]
+            filename = "my_app.py"
+            class_name = "MyApp"
+            config = {a = 1}
+            """,
+        )
+        write_toml(tmp_path / "hassette.local.toml", "[apps.my_app]\napp_config = {a = 2}\n")
+
+        source = HassetteTomlConfigSettingsSource(make_aliased_config_cls([base]), toml_file=base)
+
+        entry = source.toml_data["apps"]["my_app"]
+        assert entry["config"] == {"a": 2}
+        assert "app_config" not in entry
+
+    def test_later_base_file_alias_wins(self, tmp_path: Path) -> None:
+        first = write_toml(tmp_path / "first.toml", 'token = "FIRST"\n')
+        second = write_toml(tmp_path / "second.toml", 'ha_token = "SECOND"\n')
+
+        config = make_aliased_config_cls([first, second])()
+
+        assert config.token is not None
+        assert config.token.get_secret_value() == "SECOND"
+
+    def test_hassette_section_alias_beats_top_level_spelling(self, tmp_path: Path) -> None:
+        toml_file = write_toml(tmp_path / "hassette.toml", 'token = "TOP"\n[hassette]\nha_token = "SECTION"\n')
+
+        config = make_aliased_config_cls([toml_file])()
+
+        assert config.token is not None
+        assert config.token.get_secret_value() == "SECTION"
+
+    def test_both_spellings_in_one_table_follow_alias_order(self, tmp_path: Path) -> None:
+        """When one table has several spellings, the first in the field's alias order is kept."""
+        toml_file = write_toml(tmp_path / "hassette.toml", 'ha_token = "ALIAS"\ntoken = "CANONICAL"\n')
+
+        source = HassetteTomlConfigSettingsSource(make_aliased_config_cls([toml_file]), toml_file=toml_file)
+
+        assert source.toml_data["token"] == "CANONICAL"
+        assert "ha_token" not in source.toml_data
+
+    def test_hassette_apps_section_entries_are_canonicalized(self, tmp_path: Path) -> None:
+        base = write_toml(
+            tmp_path / "hassette.toml",
+            """
+            [hassette.apps.my_app]
+            file_name = "my_app.py"
+            class = "MyApp"
+            app_config = {a = 1}
+            """,
+        )
+
+        source = HassetteTomlConfigSettingsSource(make_aliased_config_cls([base]), toml_file=base)
+
+        assert source.toml_data["apps"]["my_app"] == {
+            "filename": "my_app.py",
+            "class_name": "MyApp",
+            "config": {"a": 1},
+        }
