@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env -S uv run
 """Lint guard: keep ``state_manager.pyi``'s typed domain properties in sync with the state models.
 
 ``StateManager`` serves ``self.states.<domain>`` dynamically through ``__getattr__``, so the only
@@ -6,28 +6,31 @@ static typing for those accessors is the hand-written ``state_manager.pyi`` stub
 ties the stub to the models: a new state class with its own ``domain: Literal["..."]`` works at
 runtime but is invisible to IDEs and pyright until someone remembers to add a stub property.
 
-The expected set of stub properties is built from two sources, both read via AST (no import):
+The expected set of stub properties is built from two sources:
 
-    1. Every ``domain: Literal["<name>"]`` field on a class under ``src/hassette/models/states/``
-       — each one is a domain ``__getattr__`` resolves, typed as that class.
-    2. Every ``@property`` defined explicitly on ``StateManager`` in ``state_manager.py`` whose
-       return annotation is ``DomainStates[...]`` (the narrowed sensor-shape accessors).
+    1. The runtime state catalog (``hassette.models.states.catalog``) that ``__getattr__`` resolves
+       against — each registered domain, typed as its state class. Importing the package runs the
+       same ``BaseState`` registration the framework does, so no registration rule is re-derived here.
+    2. Every ``@property`` defined explicitly on ``StateManager`` in ``state_manager.py`` (read via
+       AST) whose return annotation is ``DomainStates[...]`` (the narrowed sensor-shape accessors).
 
 The actual set is every ``@property`` on ``StateManager`` in the stub returning
 ``DomainStates[...]``. A property missing from either side, or typed with a different state class,
 is reported.
 
 Usage:
-    python tools/check_state_manager_stub.py
+    uv run python tools/check_state_manager_stub.py
 """
 
 import ast
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 from lint_helpers import REPO_ROOT, run_check
 
-STATES_DIR = REPO_ROOT / "src" / "hassette" / "models" / "states"
+from hassette.models.states import catalog
+
 STATE_MANAGER_DIR = REPO_ROOT / "src" / "hassette" / "state_manager"
 STUB_PATH = STATE_MANAGER_DIR / "state_manager.pyi"
 SOURCE_PATH = STATE_MANAGER_DIR / "state_manager.py"
@@ -35,46 +38,10 @@ SOURCE_PATH = STATE_MANAGER_DIR / "state_manager.py"
 CLASS_NAME = "StateManager"
 CONTAINER_NAME = "DomainStates"
 
-# Classes under STATES_DIR whose `domain` field is a generic declaration, not a registered domain.
-# Any other class with a non-`Literal["..."]` `domain` annotation (an alias, a bare `str`, ...)
-# fails the check instead of silently dropping out of the expected set.
-NON_DOMAIN_CLASSES = frozenset({"BaseState", "StateKey"})
 
-
-def model_domains(states_dir: Path) -> dict[str, str]:
-    """Return ``{domain: state class name}`` for every ``domain: Literal["..."]`` under ``states_dir``."""
-    domains: dict[str, str] = {}
-    for path in sorted(states_dir.rglob("*.py")):
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        for class_node in ast.walk(tree):
-            if not isinstance(class_node, ast.ClassDef):
-                continue
-            if class_node.name in NON_DOMAIN_CLASSES:
-                continue
-            for stmt in class_node.body:
-                domain = literal_domain(stmt)
-                if domain is not None:
-                    domains[domain] = class_node.name
-    return domains
-
-
-def literal_domain(stmt: ast.stmt) -> str | None:
-    """Return ``"x"`` for a ``domain: Literal["x"]`` class-body annotation, None for non-``domain`` statements.
-
-    Any other ``domain`` annotation (a type alias, a multi-value or non-string ``Literal``, ...) raises,
-    since resolving it would need an import and skipping it would hide the domain from the check.
-    """
-    if not (isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == "domain"):
-        return None
-    ann = stmt.annotation
-    if (
-        isinstance(ann, ast.Subscript)
-        and dotted_tail(ann.value) == "Literal"
-        and isinstance(ann.slice, ast.Constant)
-        and isinstance(ann.slice.value, str)
-    ):
-        return ann.slice.value
-    raise SystemExit(f"ERROR: unsupported domain annotation `{ast.unparse(ann)}` at line {stmt.lineno}")
+def catalog_domains() -> dict[str, str]:
+    """Return ``{domain: state class name}`` from the runtime catalog ``StateManager.__getattr__`` resolves against."""
+    return {str(key.domain): cls.__name__ for key, cls in catalog.snapshot_catalog().items()}
 
 
 def dotted_tail(node: ast.expr) -> str | None:
@@ -130,10 +97,14 @@ def container_arg(returns: ast.expr) -> str | None:
 
 
 def check_stub(
-    stub_path: Path, states_dir: Path = STATES_DIR, source_path: Path = SOURCE_PATH
+    stub_path: Path, model_props: Mapping[str, str] | None = None, source_path: Path = SOURCE_PATH
 ) -> list[tuple[int, str]]:
-    """Compare the stub's typed domain properties against the models and explicit source properties."""
-    model_props = model_domains(states_dir)
+    """Compare the stub's typed domain properties against the catalog and explicit source properties.
+
+    ``model_props`` maps domain to state class name; it defaults to the runtime catalog.
+    """
+    if model_props is None:
+        model_props = catalog_domains()
     _, source_props = domain_state_properties(source_path)
     for name, (lineno, state_class) in source_props.items():
         if name in model_props and model_props[name] != state_class:
@@ -141,7 +112,7 @@ def check_stub(
                 f"ERROR: {source_path}:{lineno} property `{name}` typed {state_class}, "
                 f"but the `{name}` state model is {model_props[name]}"
             )
-    expected = model_props | {name: state_class for name, (_, state_class) in source_props.items()}
+    expected = {**model_props, **{name: state_class for name, (_, state_class) in source_props.items()}}
     class_lineno, actual = domain_state_properties(stub_path)
 
     violations = [
