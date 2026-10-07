@@ -371,8 +371,11 @@ describe("ConfigSchemaView", () => {
 
     it("renders every section expanded by default", () => {
       const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ foo: "x" }} />);
-      expect(getByTestId("config-toggle-general").getAttribute("aria-expanded")).toBe("true");
-      expect(getByTestId("config-field-foo")).toBeDefined();
+      const toggle = getByTestId("config-toggle-general");
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      const fieldsId = toggle.getAttribute("aria-controls");
+      expect(fieldsId).toBeTruthy();
+      expect(getByTestId("config-field-foo").parentElement?.id).toBe(fieldsId);
     });
 
     it("collapses the field list on click and keeps the header visible", async () => {

@@ -288,7 +288,8 @@ export function AppDetailPage({ params }: Props) {
       )}
       {activeTab === "config" && (
         <TabPanel id="config">
-          <ConfigTab appKey={appKey} />
+          {/* Keyed on appKey so section collapse state doesn't carry over between apps. */}
+          <ConfigTab key={appKey} appKey={appKey} />
         </TabPanel>
       )}
     </div>

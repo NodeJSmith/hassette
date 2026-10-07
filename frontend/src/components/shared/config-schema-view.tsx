@@ -10,6 +10,9 @@
  * field is a single row — human label, machine key, optional help popover, and the value —
  * with the field type implied by how the value renders rather than spelled out.
  *
+ * Each section header is a toggle that collapses or expands its field list. Sections start
+ * expanded; the open/closed state is local to each section and resets on remount.
+ *
  * Labels: ui.label when set, otherwise the humanized field name. Help text from the schema
  * description, revealed on demand via the info popover. Group titles from ui.group_label,
  * otherwise the humanized key.
@@ -19,7 +22,7 @@
  * The value is already masked server-side; the schema marker controls the visual style.
  */
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -387,6 +390,7 @@ interface SectionProps {
 
 function ConfigSection({ title, fields }: SectionProps) {
   const [open, setOpen] = useState(true);
+  const fieldsId = useId();
   if (fields.length === 0) return null;
 
   const slug = title
@@ -404,6 +408,7 @@ function ConfigSection({ title, fields }: SectionProps) {
               className={CONFIG_SECTION_TOGGLE_CLASS}
               onClick={() => setOpen((v) => !v)}
               aria-expanded={open}
+              aria-controls={fieldsId}
               data-testid={`config-toggle-${slug}`}
             >
               <IconChevron open={open} />
@@ -415,7 +420,7 @@ function ConfigSection({ title, fields }: SectionProps) {
           </span>
         </div>
         {open && (
-          <div className={CONFIG_FIELDS_CLASS}>
+          <div id={fieldsId} className={CONFIG_FIELDS_CLASS}>
             {fields.map(({ key, node, value }) => (
               <ConfigFieldRow key={key} fieldKey={key} node={node} value={value} />
             ))}
