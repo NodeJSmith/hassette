@@ -35,6 +35,11 @@ SOURCE_PATH = STATE_MANAGER_DIR / "state_manager.py"
 CLASS_NAME = "StateManager"
 CONTAINER_NAME = "DomainStates"
 
+# Classes under STATES_DIR whose `domain` field is a generic declaration, not a registered domain.
+# Any other class with a non-`Literal["..."]` `domain` annotation (an alias, a bare `str`, ...)
+# fails the check instead of silently dropping out of the expected set.
+NON_DOMAIN_CLASSES = frozenset({"BaseState", "StateKey"})
+
 
 def model_domains(states_dir: Path) -> dict[str, str]:
     """Return ``{domain: state class name}`` for every ``domain: Literal["..."]`` under ``states_dir``."""
@@ -44,6 +49,8 @@ def model_domains(states_dir: Path) -> dict[str, str]:
         for class_node in ast.walk(tree):
             if not isinstance(class_node, ast.ClassDef):
                 continue
+            if class_node.name in NON_DOMAIN_CLASSES:
+                continue
             for stmt in class_node.body:
                 domain = literal_domain(stmt)
                 if domain is not None:
@@ -52,15 +59,21 @@ def model_domains(states_dir: Path) -> dict[str, str]:
 
 
 def literal_domain(stmt: ast.stmt) -> str | None:
-    """Return ``"x"`` for a ``domain: Literal["x"]`` class-body annotation, else None."""
+    """Return ``"x"`` for a ``domain: Literal["x"]`` class-body annotation, None for non-``domain`` statements.
+
+    Any other ``domain`` annotation (a type alias, a multi-value or non-string ``Literal``, ...) raises,
+    since resolving it would need an import and skipping it would hide the domain from the check.
+    """
     if not (isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == "domain"):
         return None
     ann = stmt.annotation
-    if not (isinstance(ann, ast.Subscript) and dotted_tail(ann.value) == "Literal"):
-        return None
-    if isinstance(ann.slice, ast.Constant) and isinstance(ann.slice.value, str):
+    if (
+        isinstance(ann, ast.Subscript)
+        and dotted_tail(ann.value) == "Literal"
+        and isinstance(ann.slice, ast.Constant)
+        and isinstance(ann.slice.value, str)
+    ):
         return ann.slice.value
-    # A multi-value or non-string Literal would otherwise drop out of the expected set silently.
     raise SystemExit(f"ERROR: unsupported domain annotation `{ast.unparse(ann)}` at line {stmt.lineno}")
 
 
