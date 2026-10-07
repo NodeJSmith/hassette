@@ -18,6 +18,6 @@ class MyApp(App[MyAppConfig]):
         self.logger.info("My configured brightness is %r (type %s)", brightness, type(brightness))
 
         # 2025-10-13 18:57:45.495 INFO hassette.MyApp.0.on_initialize:13 - self.app_manifest=<AppManifest MyApp (MyApp) - enabled=True file=my_app.py>
-        # 2025-10-13 18:57:45.495 INFO hassette.MyApp.0.on_initialize:14 - self.app_config=MyAppConfig(instance_name='MyApp.0', log_level='INFO', entity='light.kitchen', brightness=200)
+        # 2025-10-13 18:57:45.495 INFO hassette.MyApp.0.on_initialize:14 - self.app_config=MyAppConfig(instance_name='MyApp.0', log_level=None, entity='light.kitchen', brightness=200)
         # 2025-10-13 18:57:45.495 INFO hassette.MyApp.0.on_initialize:17 - My configured entity is 'light.kitchen' (type <class 'str'>)
         # 2025-10-13 18:57:45.495 INFO hassette.MyApp.0.on_initialize:19 - My configured brightness is 200 (type <class 'int'>)

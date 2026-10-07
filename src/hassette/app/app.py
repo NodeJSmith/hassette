@@ -176,11 +176,8 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
 
     @property
     def config_log_level(self) -> LogLevel:
-        """Return the log level from the config for this resource."""
-        try:
-            return self.app_config.log_level
-        except AttributeError:
-            return self.hassette.config.logging.apps
+        """Return the app's own log level, falling back to the global ``logging.apps`` level."""
+        return self.app_config.log_level or self.hassette.config.logging.apps
 
     @property
     def app_key(self) -> str:
