@@ -6,7 +6,7 @@ Verifies:
 - an injected DummyCache (via the `cache=` constructor parameter) is used directly --
   no AsyncCache is constructed
 - App.cleanup() closes the cache, and propagates a close() exception rather than swallowing it
-- AppSync.before_initialize() calls super() so cache init fires for sync apps too
+- the framework-owned _framework_before_hooks() step initializes the cache for App and AppSync
 - default_cache_ttl resolution chain: class attribute -> HassetteConfig.default_cache_ttl -> None
 """
 
@@ -102,7 +102,7 @@ class TestDummyCacheInjection:
         assert not isinstance(app.cache, AsyncCache)
 
     async def test_injected_dummy_cache_skips_initialize(self, tmp_path: Path, dummy_cache: DummyCache) -> None:
-        """before_initialize() only calls initialize() on a real AsyncCache -- DummyCache injection skips it."""
+        """_framework_before_hooks() only calls initialize() on a real AsyncCache -- DummyCache injection skips it."""
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         dummy_cache.initialize = AsyncMock(wraps=dummy_cache.initialize)  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -114,7 +114,7 @@ class TestDummyCacheInjection:
             cache=dummy_cache,
         )
 
-        await app.before_initialize()
+        await app._framework_before_hooks()
 
         dummy_cache.initialize.assert_not_awaited()  # pyright: ignore[reportAttributeAccessIssue]
 
@@ -156,9 +156,9 @@ class TestCleanupClosesCache:
             await app.cleanup()
 
 
-class TestAppSyncBeforeInitializeCallsSuper:
-    async def test_before_initialize_calls_super_and_initializes_cache(self, tmp_path: Path) -> None:
-        """AppSync.before_initialize must call super() first so cache init fires for sync apps."""
+class TestAppSyncCacheInitialization:
+    async def test_framework_before_hooks_initializes_cache(self, tmp_path: Path) -> None:
+        """AppSync inherits App's framework-owned cache initialization."""
         hassette = make_mock_hassette(data_dir=tmp_path, sealed=False)
         svc = make_sync_executor()
         hassette._sync_executor = svc
@@ -168,7 +168,7 @@ class TestAppSyncBeforeInitializeCallsSuper:
         app.cache.initialize = AsyncMock(wraps=app.cache.initialize)  # pyright: ignore[reportAttributeAccessIssue]
 
         try:
-            await app.before_initialize()
+            await app._framework_before_hooks()
             app.cache.initialize.assert_awaited_once()  # pyright: ignore[reportAttributeAccessIssue]
         finally:
             await app.cache.close()

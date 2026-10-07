@@ -575,11 +575,23 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
         if self.hassette.shutdown_event.is_set():
             mark_not_ready(self, "shutdown requested during dependency wait")
             return
-        await run_hooks(self, [self.before_initialize, self.on_initialize, self.after_initialize])
+        await run_hooks(
+            self, [self._framework_before_hooks, self.before_initialize, self.on_initialize, self.after_initialize]
+        )
         for child in self.children:
             if child.status not in (ResourceStatus.STARTING, ResourceStatus.RUNNING):
                 await child.initialize()
         await handle_running(self)
+
+    async def _framework_before_hooks(self) -> None:
+        """Framework-owned setup that runs before ``before_initialize()``.
+
+        Subclasses inside the framework override this for setup that must happen regardless of
+        how a user overrides the lifecycle hooks, so those hooks stay empty and never need a
+        ``super()`` call. It runs inside the same ``run_hooks()`` call as the user hooks, so a
+        failure here is handled exactly like a hook failure.
+        """
+        pass
 
     async def before_initialize(self) -> None:
         """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
