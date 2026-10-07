@@ -36,7 +36,7 @@ When the same setting appears in multiple sources, the higher-precedence source 
 A `hassette.local.toml` next to `hassette.toml` overrides it on the current machine. It holds values that shouldn't be committed or shared: a development `base_url`, a debug log level, an app setting that only applies to one host. The same pattern in a project's `.gitignore` keeps overlays out of version control:
 
 ```gitignore
-*.local.toml
+--8<-- "pages/core-concepts/configuration/snippets/local_override.gitignore"
 ```
 
 The local file deep-merges over the base file: it only needs the keys it changes, and every other key in the same table keeps its value from `hassette.toml`.
