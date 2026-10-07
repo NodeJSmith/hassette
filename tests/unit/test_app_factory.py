@@ -460,6 +460,14 @@ class OverrideOnlyConfig(AppConfig):
     log_level: str | None = "DEBUG"
 
 
+class DelayMixin:
+    off_delay: int = 30
+
+
+class MixinOnlyConfig(DelayMixin, AppConfig):
+    pass
+
+
 class CamelCaseConfig(AppConfig):
     model_config = SettingsConfigDict(alias_generator=to_camel)
 
@@ -529,6 +537,17 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         with pytest.warns(UserWarning, match="'log_lebel' \\(did you mean 'log_level'\\?\\)"):
             factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(OverrideOnlyConfig))
+
+        mock_registry.register_app.assert_called_once()
+
+    def test_config_with_mixin_fields_warns_on_typo(
+        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """Fields contributed by a plain mixin make the config typed, so a typo against them warns."""
+        config = {"instance_name": "test_instance", "off_dealy": 5}
+
+        with pytest.warns(UserWarning, match="'off_dealy' \\(did you mean 'off_delay'\\?\\)"):
+            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(MixinOnlyConfig))
 
         mock_registry.register_app.assert_called_once()
 
