@@ -272,13 +272,13 @@ def warn_unrecognized_config_keys(
 
 
 def declares_own_fields(config_cls: type[AppConfig]) -> bool:
-    """Whether a class between ``config_cls`` and ``AppConfig`` declares a field, new or overriding an inherited one."""
-    return any(
-        name in config_cls.model_fields
-        for klass in config_cls.__mro__
-        if issubclass(klass, AppConfig) and klass is not AppConfig
-        for name in inspect.get_annotations(klass)
-    )
+    """Whether a class ahead of ``AppConfig`` in the MRO declares a field, new or overriding an inherited one.
+
+    Plain mixins count too: pydantic collects field annotations from every class in the MRO.
+    """
+    mro = config_cls.__mro__
+    own_classes = mro[: mro.index(AppConfig)]
+    return any(name in config_cls.model_fields for klass in own_classes for name in inspect.get_annotations(klass))
 
 
 def accepted_config_keys(config_cls: type[AppConfig]) -> list[str]:
