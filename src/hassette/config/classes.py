@@ -330,6 +330,10 @@ def unsafe_cache_path_reason(value: str) -> str | None:
     by the app keys that default cache keys are derived from.
     """
     parsed = PurePath(value)
+    if not parsed.parts:
+        # "" and "." resolve to data_dir itself; an empty app key would also turn "{app_key}/{index}"
+        # into the absolute "/{index}".
+        return "must name a subdirectory of data_dir (not be empty or '.')"
     if parsed.is_absolute():
         return "must be a relative path"
     if ".." in parsed.parts:
