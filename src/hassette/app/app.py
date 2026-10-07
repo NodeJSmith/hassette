@@ -219,6 +219,7 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         """Return the current date and time."""
         return date_utils.now()
 
+    @final
     async def _framework_before_hooks(self) -> None:
         """Initialize the cache (open connections, create schema, check integrity).
 
@@ -286,7 +287,6 @@ class AppSync(App[AppConfigT]):
     @final
     async def before_initialize(self) -> None:
         """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc."""
-        await super().before_initialize()
         await self.task_bucket.run_in_thread(self.before_initialize_sync)
 
     @final
