@@ -89,6 +89,9 @@ def dotted_tail(node: ast.expr) -> str | None:
 def domain_state_properties(path: Path) -> tuple[int, dict[str, tuple[int, str]]]:
     """Return ``StateManager``'s line and ``{name: (lineno, state class)}`` for its ``DomainStates[...]`` properties.
 
+    The class line anchors "missing property" violations, which have no property line of their own;
+    only the stub caller needs it.
+
     Handles both a bare annotation (the stub) and a string annotation (``state_manager.py`` quotes
     its forward references). The state class is the last dotted component, so ``states.LightState``
     and ``LightState`` compare equal.
