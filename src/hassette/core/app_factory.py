@@ -1,8 +1,11 @@
 """App factory for creating app instances with config validation."""
 
+from difflib import get_close_matches
 from logging import getLogger
 from typing import TYPE_CHECKING
+from warnings import warn
 
+from hassette.app.app_config import AppConfig
 from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.utils.app_utils import (
     class_already_loaded,
@@ -15,7 +18,7 @@ from hassette.utils.app_utils import (
 from hassette.utils.exception_utils import get_short_traceback
 
 if TYPE_CHECKING:
-    from hassette import AppConfig, Hassette
+    from hassette import Hassette
     from hassette.app import App
     from hassette.config.classes import AppManifest
     from hassette.core.app_registry import AppRegistry
@@ -142,6 +145,7 @@ class AppFactory:
 
         try:
             validated = app_class.app_config_cls.model_validate(config_dict)
+            warn_unrecognized_config_keys(app_key, manifest, instance_name, config_dict, validated)
             app_instance = app_class(
                 hassette=self.hassette,
                 app_config=validated,
@@ -199,3 +203,42 @@ class AppFactory:
     def normalize_configs(app_config: dict | list[dict] | None) -> list[dict]:
         """Ensure app_config is a list of dicts."""
         return normalize_app_config(app_config)
+
+
+def warn_unrecognized_config_keys(
+    app_key: str,
+    manifest: "AppManifest",
+    instance_name: str,
+    config_dict: dict,
+    validated: AppConfig,
+) -> None:
+    """Warn about config keys a typed ``AppConfig`` subclass absorbed as extras.
+
+    ``AppConfig`` allows extras so a bare ``App[AppConfig]`` can take arbitrary config. A subclass
+    that declares its own fields signals the app expects a known shape, so a leftover extra there
+    is almost always a typo that would otherwise leave the intended field silently at its default.
+
+    Only keys from the instance's own config are considered: pydantic-settings also folds
+    unrecognized ``.env`` entries into ``model_extra``, and those are not the user's app config.
+    """
+    config_cls = type(validated)
+    declares_own_fields = not set(config_cls.model_fields) <= set(AppConfig.model_fields)
+    if not declares_own_fields or not validated.model_extra:
+        return
+
+    unrecognized = [key for key in validated.model_extra if key in config_dict]
+    if not unrecognized:
+        return
+
+    lines = []
+    for key in unrecognized:
+        matches = get_close_matches(key, config_cls.model_fields.keys(), n=1, cutoff=0.5)
+        lines.append(f"  {key!r} (did you mean {matches[0]!r}?)" if matches else f"  {key!r}")
+
+    msg = (
+        f"{config_cls.__name__} - {manifest.display_name} ({app_key}, instance {instance_name!r}) - "
+        "Unrecognized configuration key(s) don't match any declared field:\n"
+        + "\n".join(lines)
+        + f"\nCheck the spelling against the fields declared on {config_cls.__name__}."
+    )
+    warn(msg, stacklevel=2)

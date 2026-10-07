@@ -40,6 +40,15 @@ ERROR hassette — Failed to load app 'MyApp' due to bad configuration
 
 Set the missing field in `hassette.toml` or via an environment variable.
 
+**Config value has no effect.** If your config class declares its own fields, a key in `hassette.toml` that doesn't match any of them is kept as an extra attribute, and the field you meant keeps its default. Hassette logs a warning naming the key and, when one is close, the field you probably meant:
+
+```
+UserWarning: MyAppConfig - My App (my_app, instance 'MyApp.0') - Unrecognized configuration key(s) don't match any declared field:
+  'off_dealy' (did you mean 'off_delay'?)
+```
+
+Fix the spelling in `hassette.toml`. A bare `AppConfig` with no fields of its own never warns, since every key is meant as an extra there.
+
 **Diagnosing without blocking startup.** Set `allow_startup_if_app_precheck_fails = true` in `hassette.toml`. This logs the same errors but lets healthy apps start. The broken app still won't run. Remove this setting once the problem is fixed.
 
 ## Forgotten `await` {#forgotten-await}
