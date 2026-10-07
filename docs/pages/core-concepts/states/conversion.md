@@ -123,12 +123,12 @@ When no registered converter exists, the registry tries the target type's constr
 fallback. A successful constructor call does not register the pair — each miss goes through the constructor directly. Custom converters registered via `register_simple_type_converter` or `@register_type_converter_fn` are added normally.
 
 !!! warning
-    For tuple `value_type` declarations, a value that is already an instance of any type
-    in the tuple is returned unchanged. Only otherwise are the types tried in order, first
-    success winning. Every value from Home Assistant arrives as a string, so a tuple that
-    includes `str` — in any position — never converts anything: `(int, float, str)` and
-    `(str, int, float)` both leave `"42"` as the string `"42"`. A tuple whose other types
-    should be coerced excludes `str`.
+    For tuple `value_type` declarations, order matters. A string value — every raw value
+    from Home Assistant — is tried against each type in the order declared, and the first
+    successful conversion wins. `(int, float, str)` turns `"42"` into `42` and `"4.5"` into
+    `4.5`, falling back to the string only when neither number parses; `(str, int, float)`
+    keeps `"42"` as a string because `str` matches first. A value that is not a string and
+    is already an instance of a type in the tuple is returned unchanged.
 
 ### Built-in Converters
 
