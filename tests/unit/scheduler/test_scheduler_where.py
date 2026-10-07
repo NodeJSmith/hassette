@@ -151,6 +151,14 @@ class TestBuildPredicateInvoker:
         with pytest.raises(DependencyInjectionError, match="\\*args"):
             _build_predicate_invoker(pred)
 
+    def test_positional_only_predicate_error_does_not_blame_di(self) -> None:
+        def pred(_value, /) -> bool:
+            return True
+
+        with pytest.raises(DependencyInjectionError, match="positional-only parameter: _value") as exc:
+            _build_predicate_invoker(pred)
+        assert "dependency injection" not in str(exc.value)
+
     def test_invoker_resolves_kwargs_for_annotated_predicate(self) -> None:
         def pred(job: Job) -> bool:
             return job.name == "test"
