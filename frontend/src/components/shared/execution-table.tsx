@@ -251,6 +251,7 @@ function ExecutionRow({ row, kind, href, tabIndex, onSelect, onOpenDetail }: Exe
     <TableRow
       className={cn(
         "transition-colors",
+        // Inset the ring: rows stack flush, so an outward ring would bleed into the neighbouring rows.
         "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2",
         href && "cursor-pointer hover:bg-muted [&:hover_td:last-child]:text-primary",
       )}

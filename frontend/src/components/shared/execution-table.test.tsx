@@ -282,6 +282,15 @@ describe("ExecutionTable", () => {
     expect(mockNavigate).toHaveBeenCalledWith(EXPECTED_DETAIL_PATH);
   });
 
+  it("gives rows a visible keyboard focus outline", () => {
+    const { getByTestId } = render(
+      <ExecutionTable records={[createExecution("job")]} kind="job" tableId={INCIDENTAL_TABLE_ID} />,
+    );
+    const { className } = getByTestId("execution-row");
+    expect(className).toContain("focus-visible:outline-solid");
+    expect(className).toContain("focus-visible:outline-primary");
+  });
+
   it("renders no detail affordances or navigation when handler props are not set", async () => {
     const user = userEvent.setup();
     const { getByTestId, queryByLabelText, queryByTestId } = render(
