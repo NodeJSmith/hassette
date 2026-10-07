@@ -283,11 +283,8 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
             return v
         if is_framework_key(v):
             raise ValueError(f"cache_key {v!r} uses a framework-reserved prefix")
-        parsed = PurePath(v)
-        if parsed.is_absolute():
-            raise ValueError(f"cache_key {v!r} must be a relative path")
-        if ".." in parsed.parts:
-            raise ValueError(f"cache_key {v!r} must not contain parent-directory traversal")
+        if reason := unsafe_cache_path_reason(v):
+            raise ValueError(f"cache_key {v!r} {reason}")
         return v
 
     def validate_model_extra(self) -> None:
@@ -324,3 +321,17 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
         # so we can just set the default instance name
         if not self.app_config:
             self.app_config = [{"instance_name": f"{self.class_name}.0"}]
+
+
+def unsafe_cache_path_reason(value: str) -> str | None:
+    """Return why *value* can't be used as a cache path under ``data_dir``, or None if it is safe.
+
+    This is the single definition of a safe cache path, shared by explicit ``cache_key`` values and
+    by the app keys that default cache keys are derived from.
+    """
+    parsed = PurePath(value)
+    if parsed.is_absolute():
+        return "must be a relative path"
+    if ".." in parsed.parts:
+        return "must not contain parent-directory traversal"
+    return None

@@ -261,6 +261,48 @@ class TestValidateApps:
             assert len(result) == 1, f"Expected 1 app, got {len(result)}"
             assert "manual_app" in result, "Expected to find 'manual_app' in detected apps"
 
+    @pytest.mark.parametrize(
+        ("app_key", "reason"),
+        [
+            ("../../elsewhere", "path separators"),
+            ("bar/../foo", "path separators"),
+            ("nested/key", "path separators"),
+            ("/abs/path", "path separators"),
+            ("win\\style", "path separators"),
+            ("..", "parent-directory traversal"),
+        ],
+    )
+    def test_validate_apps_rejects_path_unsafe_app_key(
+        self, tmp_path: Path, app_dir: Path, app_key: str, reason: str
+    ) -> None:
+        """App keys that would escape or alias a cache directory are rejected, naming the key and its source."""
+        config = self.make_config(
+            tmp_path,
+            directory=app_dir,
+            apps={app_key: {"filename": "my_app.py", "class_name": "MyApp"}},
+        )
+
+        with context.use_hassette_config(config), pytest.raises(ValueError, match=reason) as exc_info:
+            config.set_validated_app_manifests()
+
+        message = str(exc_info.value)
+        assert repr(app_key) in message, f"Expected the error to name the key {app_key!r}, got: {message}"
+        assert str(app_dir / "my_app.py") in message, f"Expected the error to name the source file, got: {message}"
+
+    @pytest.mark.parametrize("app_key", ["my_app", "my-app", "test_apps.my_module.MyApp", "a..b"])
+    def test_validate_apps_accepts_ordinary_app_keys(self, tmp_path: Path, app_dir: Path, app_key: str) -> None:
+        """Plain and dotted (autodetect-style) app keys pass validation."""
+        config = self.make_config(
+            tmp_path,
+            directory=app_dir,
+            apps={app_key: {"filename": "my_app.py", "class_name": "MyApp"}},
+        )
+
+        with context.use_hassette_config(config):
+            config.set_validated_app_manifests()
+
+        assert app_key in config.apps.manifests, f"Expected {app_key!r} in manifests, got {list(config.apps.manifests)}"
+
     def test_validate_apps_warns_on_cache_key_collision(
         self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
