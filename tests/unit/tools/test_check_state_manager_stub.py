@@ -4,12 +4,16 @@ Pin what the guard reports: a catalog domain with no stub property, a stub prope
 domain, and a stub property typed with the wrong state class. Explicit ``DomainStates`` properties
 on the runtime ``StateManager`` (the narrowed sensor accessors) count as expected stub entries, and
 properties not returning ``DomainStates`` are ignored on both sides.
+
+The real stub is checked against the real catalog by the ``check-state-manager-stub`` hook in a fresh
+process, not here: test modules register their own ``BaseState`` subclasses into the process-global
+catalog at import time, so an in-process check would see test-only domains.
 """
 
 from pathlib import Path
 
 import pytest
-from check_state_manager_stub import STUB_PATH, catalog_domains, check_stub
+from check_state_manager_stub import check_stub
 
 CATALOG = {"light": "LightState", "switch": "SwitchState"}
 
@@ -67,10 +71,6 @@ def test_extra_stub_property_reported(tmp_path: Path) -> None:
 def test_wrong_state_class_reported(tmp_path: Path) -> None:
     stub = MATCHING_STUB.replace("DomainStates[states.SwitchState]", "DomainStates[states.LightState]")
     assert run(tmp_path, stub) == [(7, "property `switch` typed LightState, expected SwitchState")]
-
-
-def test_real_stub_matches_runtime_catalog() -> None:
-    assert check_stub(STUB_PATH, catalog_domains()) == []
 
 
 def test_union_state_class_reported_as_mismatch(tmp_path: Path) -> None:
