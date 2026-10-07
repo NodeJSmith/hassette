@@ -68,3 +68,30 @@ class TestConstructorFallbackCache:
 
         with pytest.raises(UnableToConvertValueError):
             TYPE_REGISTRY.convert("hello", Strict)
+
+
+@pytest.mark.parametrize(
+    ("value", "to_type", "expected", "expected_type"),
+    [
+        ("42", (int, float, str), 42, int),
+        ("4.5", (int, float, str), 4.5, float),
+        ("abc", (int, float, str), "abc", str),
+        ("42", (str, int, float), "42", str),
+        ("abc", (str, type(None)), "abc", str),
+        (None, (str, type(None)), None, type(None)),
+        (4.5, (int, float), 4.5, float),
+        (3, (float, int), 3, int),
+    ],
+)
+def test_tuple_conversion_tries_types_in_order_for_strings(
+    value: object, to_type: tuple[type, ...], expected: object, expected_type: type
+) -> None:
+    """Strings walk the tuple in declared order; already-typed non-strings short-circuit."""
+    result = TYPE_REGISTRY.convert(value, to_type)
+    assert result == expected
+    assert type(result) is expected_type
+
+
+def test_tuple_conversion_raises_when_no_type_matches() -> None:
+    with pytest.raises(UnableToConvertValueError):
+        TYPE_REGISTRY.convert("abc", (int, float))
