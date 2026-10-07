@@ -12,7 +12,7 @@ An app block requires two fields: `filename` and `class_name`. `filename` is the
 --8<-- "pages/core-concepts/configuration/snippets/single_instance.toml"
 ```
 
-The app key (`presence` here) also names the app's [cache directory](../cache/index.md#instance-scoped-directories), so it must be a single path segment. Letters, digits, `_`, `-`, and `.` are all fine, and dotted keys like `my_apps.presence.PresenceApp` work. Keys that are empty, contain `/` or `\`, or are exactly `.` or `..` are rejected at startup. The key `__hassette__` and keys starting with `__hassette__.` are reserved for the framework.
+The app key (`presence` here) also names the app's [cache directory](../cache/index.md#instance-scoped-directories), so it must be a single path segment. Letters, digits, `_`, `-`, and `.` are all fine, and dotted keys like `my_apps.presence.PresenceApp` work. Keys that are empty, contain `/` or `\`, start with a Windows drive letter like `C:`, or are exactly `.` or `..` are rejected at startup. The key `__hassette__` and keys starting with `__hassette__.` are reserved for the framework.
 
 `enabled` disables the app without removing the config block when set to `false`. `autostart` controls whether the app starts when Hassette starts — it defaults to `true`. `display_name` sets a friendly label for logs; it defaults to the app key (`presence` in the block above).
 

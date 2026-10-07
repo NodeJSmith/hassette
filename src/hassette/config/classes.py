@@ -1,6 +1,6 @@
 from copy import deepcopy
 from logging import getLogger
-from pathlib import Path, PurePath
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import Any
 from warnings import warn
 
@@ -329,13 +329,15 @@ def unsafe_cache_path_reason(value: str) -> str | None:
     This is the single definition of a safe cache path, shared by explicit ``cache_key`` values and
     by the app keys that default cache keys are derived from.
     """
-    parsed = PurePath(value)
-    if not parsed.parts:
+    # Parse under both flavors so the verdict doesn't depend on the host OS: a value like "C:" or "\\x" is
+    # an ordinary name on POSIX but drive- or root-anchored on Windows, where joining it discards data_dir.
+    posix, windows = PurePosixPath(value), PureWindowsPath(value)
+    if not posix.parts:
         # "" and "." resolve to data_dir itself; an empty app key would also turn "{app_key}/{index}"
         # into the absolute "/{index}".
         return "must name a subdirectory of data_dir (not be empty or '.')"
-    if parsed.is_absolute():
+    if posix.anchor or windows.anchor:
         return "must be a relative path"
-    if ".." in parsed.parts:
+    if ".." in posix.parts or ".." in windows.parts:
         return "must not contain parent-directory traversal"
     return None
