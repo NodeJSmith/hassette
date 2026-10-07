@@ -26,9 +26,10 @@ from hassette.core.retention_targets import (
     build_tier_where,
 )
 from hassette.exceptions import SchemaVersionError, WriteQueueUnavailableError
-from hassette.resources.lifecycle import create_lifecycle_task, hooks_pool_remaining, mark_not_ready, mark_ready
+from hassette.resources.lifecycle import create_lifecycle_task, mark_not_ready, mark_ready
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.resources.shutdown_budget import hooks_pool_remaining
 from hassette.types.enums import RestartType
 from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
 

@@ -13,7 +13,7 @@ from hassette.types.types import CoroLikeT
 if typing.TYPE_CHECKING:
     from hassette_wire import ResourceRole
 
-    from hassette.resources.lifecycle import ShutdownBudget
+    from hassette.resources.shutdown_budget import ShutdownBudget
 
 LOGGER = getLogger(__name__)
 

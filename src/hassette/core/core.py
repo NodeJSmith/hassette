@@ -18,15 +18,9 @@ from hassette.conversion import STATE_REGISTRY, TYPE_REGISTRY, StateRegistry, Ty
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import (
-    COORDINATOR_MARGIN_FRACTION,
-    children_budget_remaining,
-    elapsed_since,
-    handle_stop,
-    mark_not_ready,
-    start,
-)
+from hassette.resources.lifecycle import handle_stop, mark_not_ready, start
 from hassette.resources.operations import finalize_shutdown_report, shutdown_batch
+from hassette.resources.shutdown_budget import COORDINATOR_MARGIN_FRACTION, children_budget_remaining, elapsed_since
 from hassette.resources.teardown import (
     TeardownCause,
     TeardownReport,

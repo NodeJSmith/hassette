@@ -19,10 +19,11 @@ import pytest
 from hassette_wire import ResourceStatus
 
 from hassette.exceptions import LifecycleReentryError, RestartRefusedError
-from hassette.resources import lifecycle
+from hassette.resources import lifecycle, shutdown_budget
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import compute_shutdown_budget, start
+from hassette.resources.lifecycle import start
 from hassette.resources.operations import ordered_children_for_shutdown
+from hassette.resources.shutdown_budget import compute_shutdown_budget
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.task_bucket import make_task_factory
 from hassette.testing import wait_for
@@ -727,7 +728,7 @@ def test_compute_shutdown_budget_reserves_nonzero_hooks_pool_for_small_timeouts(
     little work it does, because ``asyncio.timeout(0)`` is already expired.
     """
     now = 100.0
-    budget = lifecycle.compute_shutdown_budget(2.0, now)
+    budget = shutdown_budget.compute_shutdown_budget(2.0, now)
 
     assert budget.hooks_pool_deadline > now, "the hooks pool must not collapse to 0"
 
@@ -739,7 +740,7 @@ def test_compute_shutdown_budget_honors_configured_task_cancel_ceiling():
     was previously reported as ``TASKS_PENDING`` even though it completed on time.
     """
     now = 100.0
-    budget = lifecycle.compute_shutdown_budget(30.0, now, task_cancel_ceiling=5.0)
+    budget = shutdown_budget.compute_shutdown_budget(30.0, now, task_cancel_ceiling=5.0)
 
     assert budget.task_cancel_seconds == 5.0
 
@@ -750,11 +751,11 @@ async def test_children_budget_remaining_single_wave_returns_floor_when_over_bud
     """
     loop = asyncio.get_running_loop()
     past_deadline = loop.time() - 5.0
-    budget = lifecycle.ShutdownBudget(
+    budget = shutdown_budget.ShutdownBudget(
         hooks_pool_deadline=past_deadline,
         task_cancel_seconds=1.0,
         cleanup_seconds=0.5,
-        children_floor_seconds=lifecycle.CHILDREN_FLOOR_SECONDS,
+        children_floor_seconds=shutdown_budget.CHILDREN_FLOOR_SECONDS,
         body_deadline=past_deadline,
         total_deadline=loop.time() + 30.0,
     )
@@ -764,8 +765,8 @@ async def test_children_budget_remaining_single_wave_returns_floor_when_over_bud
     parent = SimpleParent(hassette_stub)
     parent._shutdown_budget = budget
 
-    result = lifecycle.children_budget_remaining(parent)
-    assert result == lifecycle.CHILDREN_FLOOR_SECONDS
+    result = shutdown_budget.children_budget_remaining(parent)
+    assert result == shutdown_budget.CHILDREN_FLOOR_SECONDS
 
 
 async def test_children_budget_remaining_single_wave_benefits_from_slack():
@@ -777,10 +778,10 @@ async def test_children_budget_remaining_single_wave_benefits_from_slack():
     loop = asyncio.get_running_loop()
     parent._shutdown_budget = compute_shutdown_budget(30.0, loop.time())
 
-    result = lifecycle.children_budget_remaining(parent)
+    result = shutdown_budget.children_budget_remaining(parent)
     # Body deadline is ~27s from now (30 - 10% margin), and children floor is 1.0s.
     # The remaining time is much larger than the floor.
-    assert result > lifecycle.CHILDREN_FLOOR_SECONDS
+    assert result > shutdown_budget.CHILDREN_FLOOR_SECONDS
 
 
 async def test_children_budget_remaining_multi_wave_divides_across_waves():
@@ -795,7 +796,7 @@ async def test_children_budget_remaining_multi_wave_divides_across_waves():
     parent._shutdown_budget = compute_shutdown_budget(30.0, loop.time())
 
     remaining = parent._shutdown_budget.body_deadline - loop.time()
-    result = lifecycle.children_budget_remaining(parent, waves_left=7)
+    result = shutdown_budget.children_budget_remaining(parent, waves_left=7)
     # Should be approximately remaining / 7, not the full remaining time.
     assert result == pytest.approx(remaining / 7, abs=0.1)
 
@@ -810,7 +811,7 @@ async def test_children_budget_remaining_multi_wave_uses_wave_floor_when_over_bu
     parent = SimpleParent(hassette_stub)
     loop = asyncio.get_running_loop()
     past_deadline = loop.time() - 5.0
-    parent._shutdown_budget = lifecycle.ShutdownBudget(
+    parent._shutdown_budget = shutdown_budget.ShutdownBudget(
         hooks_pool_deadline=past_deadline,
         task_cancel_seconds=1.0,
         cleanup_seconds=0.5,
@@ -819,13 +820,13 @@ async def test_children_budget_remaining_multi_wave_uses_wave_floor_when_over_bu
         total_deadline=loop.time() + 30.0,
     )
 
-    result = lifecycle.children_budget_remaining(parent, waves_left=7)
-    assert result == lifecycle.CHILDREN_WAVE_FLOOR_SECONDS
+    result = shutdown_budget.children_budget_remaining(parent, waves_left=7)
+    assert result == shutdown_budget.CHILDREN_WAVE_FLOOR_SECONDS
     # Worst-case total overrun from 7 waves: 6 * 0.1 + 1.0 = 1.6s (the final wave
     # falls back to CHILDREN_FLOOR_SECONDS via waves_left=1), well within the
     # 3s margin (10% of 30s).
-    worst_case = (7 - 1) * lifecycle.CHILDREN_WAVE_FLOOR_SECONDS + lifecycle.CHILDREN_FLOOR_SECONDS
-    assert worst_case < 30.0 * lifecycle.COORDINATOR_MARGIN_FRACTION
+    worst_case = (7 - 1) * shutdown_budget.CHILDREN_WAVE_FLOOR_SECONDS + shutdown_budget.CHILDREN_FLOOR_SECONDS
+    assert worst_case < 30.0 * shutdown_budget.COORDINATOR_MARGIN_FRACTION
 
 
 class _ObserveTimer:
@@ -921,7 +922,7 @@ async def test_shutdown_coordinator_bounds_body_wait_by_remaining_budget(monkeyp
         assert report.is_restart_safe is False
         # Correct behavior passes total_deadline_remaining() -- the shared deadline minus
         # whatever the observe phase actually consumed, clamped to zero the same way production
-        # clamps it (lifecycle.py's total_deadline_remaining()). With this test's fixed
+        # clamps it (shutdown_budget.py's total_deadline_remaining()). With this test's fixed
         # `observe_seconds`/`total_timeout_seconds` the clamp never actually engages -- it exists
         # so this expectation stays correct (rather than going negative) if scheduling delays ever
         # push the real observe-phase sleep past the total budget. The bug this guards against

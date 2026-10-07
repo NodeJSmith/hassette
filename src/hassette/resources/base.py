@@ -8,14 +8,10 @@ from hassette_wire import LogLevel, ResourceRole, ResourceStatus, SourceTier
 
 from hassette.exceptions import CannotOverrideFinalError
 from hassette.resources.lifecycle import (
-    CLEANUP_SECONDS,
-    TASK_CANCEL_SECONDS,
     cancel,
-    children_budget_remaining,
     coordinate_initialize,
     coordinate_shutdown,
     create_service_status_event,
-    elapsed_since,
     handle_failed,
     handle_running,
     handle_starting,
@@ -27,6 +23,12 @@ from hassette.resources.operations import (
     ordered_children_for_shutdown,
     run_hooks,
     shutdown_batch,
+)
+from hassette.resources.shutdown_budget import (
+    CLEANUP_SECONDS,
+    TASK_CANCEL_SECONDS,
+    children_budget_remaining,
+    elapsed_since,
 )
 from hassette.resources.teardown import (
     TeardownCause,
