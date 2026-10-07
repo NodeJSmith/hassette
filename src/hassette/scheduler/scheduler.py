@@ -664,8 +664,8 @@ class Scheduler(Resource):
             TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
                 ``where`` is (or contains) an async callable.
             SchedulerNameRequiredError: If ``name`` is empty.
-            DependencyInjectionError: If a predicate's signature is incompatible with
-                DI (e.g. ``*args`` or positional-only parameters).
+            DependencyInjectionError: If a predicate's signature has ``*args`` or
+                positional-only parameters.
         """
         if not name:
             raise SchedulerNameRequiredError(callable_name(func), str(trigger))
@@ -1284,8 +1284,8 @@ def _build_predicate_invoker(predicate: "SchedulerPredicate") -> CallableInvoker
 
     Raises:
         TypeError: If the predicate is async.
-        DependencyInjectionError: If the signature is invalid for DI (e.g. ``*args``
-            or positional-only parameters).
+        DependencyInjectionError: If the signature has ``*args`` or positional-only
+            parameters.
     """
     if is_async_callable(predicate):
         raise TypeError(f"Scheduler predicates must be synchronous; got async callable {predicate!r}")

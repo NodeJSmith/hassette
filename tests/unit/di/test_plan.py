@@ -6,6 +6,7 @@ from typing import Annotated
 
 import pytest
 
+from hassette.bus.injection import ParameterInjector
 from hassette.di import AnnotatedMatcher, AnnotationDetails, TypeMatcher, build_injection_plan, validate_di_signature
 from hassette.events import Event, RawStateChangeEvent
 from hassette.exceptions import DependencyInjectionError
@@ -39,6 +40,35 @@ class TestValidateDiSignature:
         sig = get_typed_signature(handler)
         with pytest.raises(DependencyInjectionError):
             validate_di_signature(sig)
+
+    def test_plain_var_positional_error_does_not_blame_di(self):
+        """A signature with no D.* annotations still gets rejected, without mentioning DI."""
+
+        def handler(*args):
+            pass
+
+        sig = get_typed_signature(handler)
+        with pytest.raises(DependencyInjectionError, match=r"signatures cannot have a \*args parameter: args") as exc:
+            validate_di_signature(sig)
+        assert "dependency injection" not in str(exc.value)
+
+    def test_plain_positional_only_error_does_not_blame_di(self):
+        def handler(value, /):
+            pass
+
+        sig = get_typed_signature(handler)
+        with pytest.raises(DependencyInjectionError, match="cannot have a positional-only parameter: value") as exc:
+            validate_di_signature(sig)
+        assert "dependency injection" not in str(exc.value)
+
+    def test_parameter_injector_wraps_plain_handler_error_without_blaming_di(self):
+        def handler(*args):
+            pass
+
+        sig = get_typed_signature(handler)
+        with pytest.raises(DependencyInjectionError, match="Handler 'handler' has an invalid signature") as exc:
+            ParameterInjector("handler", sig)
+        assert "dependency injection" not in str(exc.value)
 
 
 class TestBuildInjectionPlan:

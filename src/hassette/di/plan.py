@@ -9,7 +9,11 @@ from .types import InjectionParam, ParameterMatcher
 
 
 def validate_di_signature(signature: Signature) -> None:
-    """Validate that a signature with DI doesn't have incompatible parameter types.
+    """Validate that a handler or predicate signature can be called with keyword arguments only.
+
+    Every bus handler and scheduler ``where=`` predicate goes through this check, whether or not
+    its signature uses ``D.*`` dependency injection annotations, because the invoker passes all
+    arguments by keyword.
 
     Raises:
         DependencyInjectionError: If signature has VAR_POSITIONAL (*args) or
@@ -18,12 +22,12 @@ def validate_di_signature(signature: Signature) -> None:
     for param in signature.parameters.values():
         if param.kind == Parameter.VAR_POSITIONAL:
             raise DependencyInjectionError(
-                f"Handler with dependency injection cannot have *args parameter: {param.name}"
+                f"Handler and predicate signatures cannot have a *args parameter: {param.name}"
             )
 
         if param.kind == Parameter.POSITIONAL_ONLY:
             raise DependencyInjectionError(
-                f"Handler with dependency injection cannot have positional-only parameter: {param.name}"
+                f"Handler and predicate signatures cannot have a positional-only parameter: {param.name}"
             )
 
 

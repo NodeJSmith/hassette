@@ -30,7 +30,7 @@ class ParameterInjector:
             signature: The handler's signature.
 
         Raises:
-            DependencyInjectionError: If the signature is invalid for DI.
+            DependencyInjectionError: If the signature has ``*args`` or positional-only parameters.
         """
         self.handler_name = handler_name
         self.signature = signature
@@ -38,9 +38,7 @@ class ParameterInjector:
         try:
             plan = build_injection_plan(signature, [AnnotatedMatcher(source_type=Event), TypeMatcher(Event)])
         except Exception as exc:
-            raise DependencyInjectionError(
-                f"Handler '{handler_name}' has invalid signature for dependency injection: {exc}"
-            ) from exc
+            raise DependencyInjectionError(f"Handler '{handler_name}' has an invalid signature: {exc}") from exc
 
         self.invoker = CallableInvoker(plan)
         self.conversion_map = {param.name: (param.target_type, param.converter) for param in plan}

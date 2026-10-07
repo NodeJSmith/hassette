@@ -227,8 +227,8 @@ class SchedulerSyncFacade(Resource):
             TypeError: If ``trigger`` does not implement ``TriggerProtocol``, or if
                 ``where`` is (or contains) an async callable.
             SchedulerNameRequiredError: If ``name`` is empty.
-            DependencyInjectionError: If a predicate's signature is incompatible with
-                DI (e.g. ``*args`` or positional-only parameters).
+            DependencyInjectionError: If a predicate's signature has ``*args`` or
+                positional-only parameters.
         """
         return self.task_bucket.run_sync(
             self._scheduler.schedule(
