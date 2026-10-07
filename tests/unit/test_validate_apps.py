@@ -31,6 +31,31 @@ def app_dir(tmp_path: Path) -> Path:
     return path
 
 
+def make_two_apps(
+    *,
+    cache_key_one: str | None = None,
+    cache_key_two: str | None = None,
+    shared_one: bool = False,
+    shared_two: bool = False,
+) -> dict[str, Any]:
+    """Build an `apps` config with two single-instance apps, `app_one` and `app_two`.
+
+    `cache_key`/`cache_shared` are only set on an app when given, so omitted values exercise the defaults.
+    """
+    apps: dict[str, Any] = {}
+    for app_key, class_name, cache_key, cache_shared in (
+        ("app_one", "AppOne", cache_key_one, shared_one),
+        ("app_two", "AppTwo", cache_key_two, shared_two),
+    ):
+        app: dict[str, Any] = {"filename": f"{app_key}.py", "class_name": class_name}
+        if cache_key is not None:
+            app["cache_key"] = cache_key
+        if cache_shared:
+            app["cache_shared"] = True
+        apps[app_key] = app
+    return apps
+
+
 class TestValidateApps:
     """Test the validate_apps function."""
 
@@ -261,52 +286,35 @@ class TestValidateApps:
             assert len(result) == 1, f"Expected 1 app, got {len(result)}"
             assert "manual_app" in result, "Expected to find 'manual_app' in detected apps"
 
+    def warning_messages(
+        self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture, apps: dict[str, Any]
+    ) -> list[str]:
+        """Validate `apps` and return the messages of every WARNING the config module logged."""
+        config = self.make_config(tmp_path, directory=app_dir, apps=apps)
+        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
+            config.set_validated_app_manifests()
+        return [record.message for record in caplog.records]
+
     def test_validate_apps_warns_on_cache_key_collision(
         self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Two apps with different app_key but the same explicit cache_key log a WARNING."""
-        config = self.make_config(
-            tmp_path,
-            directory=app_dir,
-            apps={
-                "app_one": {
-                    "filename": "app_one.py",
-                    "class_name": "AppOne",
-                    "cache_key": "shared-key",
-                },
-                "app_two": {
-                    "filename": "app_two.py",
-                    "class_name": "AppTwo",
-                    "cache_key": "shared-key",
-                },
-            },
+        messages = self.warning_messages(
+            tmp_path, app_dir, caplog, make_two_apps(cache_key_one="shared-key", cache_key_two="shared-key")
         )
 
-        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
-            config.set_validated_app_manifests()
-
-        assert any("shared-key" in record.message for record in caplog.records), (
-            f"Expected a WARNING mentioning the colliding cache_key, got: {[r.message for r in caplog.records]}"
+        assert any("shared-key" in message for message in messages), (
+            f"Expected a WARNING mentioning the colliding cache_key, got: {messages}"
         )
 
     def test_validate_apps_no_warning_when_cache_keys_unique(
         self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Apps with distinct (or default) cache_keys produce no collision warning."""
-        config = self.make_config(
-            tmp_path,
-            directory=app_dir,
-            apps={
-                "app_one": {"filename": "app_one.py", "class_name": "AppOne"},
-                "app_two": {"filename": "app_two.py", "class_name": "AppTwo"},
-            },
-        )
+        messages = self.warning_messages(tmp_path, app_dir, caplog, make_two_apps())
 
-        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
-            config.set_validated_app_manifests()
-
-        assert not any("cache_key" in record.message for record in caplog.records), (
-            f"Expected no cache_key collision warning, got: {[r.message for r in caplog.records]}"
+        assert not any("cache_key" in message for message in messages), (
+            f"Expected no cache_key collision warning, got: {messages}"
         )
 
     def test_validate_apps_warns_on_multi_instance_default_key_collision(
@@ -316,116 +324,63 @@ class TestValidateApps:
         app's explicit cache_key — the collision check must expand multi-instance app_config
         lists to each instance's resolved key, not just check the manifest as a whole.
         """
-        config = self.make_config(
-            tmp_path,
-            directory=app_dir,
-            apps={
-                "weather": {
-                    "filename": "weather.py",
-                    "class_name": "Weather",
-                    "config": [{"city": "nyc"}, {"city": "sf"}],
-                },
-                "other_app": {
-                    "filename": "other_app.py",
-                    "class_name": "OtherApp",
-                    "cache_key": "weather/1",
-                },
+        apps = {
+            "weather": {
+                "filename": "weather.py",
+                "class_name": "Weather",
+                "config": [{"city": "nyc"}, {"city": "sf"}],
             },
-        )
+            "other_app": {
+                "filename": "other_app.py",
+                "class_name": "OtherApp",
+                "cache_key": "weather/1",
+            },
+        }
+        messages = self.warning_messages(tmp_path, app_dir, caplog, apps)
 
-        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
-            config.set_validated_app_manifests()
-
-        assert any("weather/1" in record.message for record in caplog.records), (
-            f"Expected a WARNING mentioning the colliding cache_key 'weather/1', "
-            f"got: {[r.message for r in caplog.records]}"
+        assert any("weather/1" in message for message in messages), (
+            f"Expected a WARNING mentioning the colliding cache_key 'weather/1', got: {messages}"
         )
 
     def test_validate_apps_no_warning_when_all_sharers_opt_in(
         self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Apps that share a cache_key and all set cache_shared = true produce no collision warning."""
-        config = self.make_config(
-            tmp_path,
-            directory=app_dir,
-            apps={
-                "app_one": {
-                    "filename": "app_one.py",
-                    "class_name": "AppOne",
-                    "cache_key": "shared-key",
-                    "cache_shared": True,
-                },
-                "app_two": {
-                    "filename": "app_two.py",
-                    "class_name": "AppTwo",
-                    "cache_key": "shared-key",
-                    "cache_shared": True,
-                },
-            },
+        apps = make_two_apps(cache_key_one="shared-key", cache_key_two="shared-key", shared_one=True, shared_two=True)
+        messages = self.warning_messages(tmp_path, app_dir, caplog, apps)
+
+        assert not any("shared-key" in message for message in messages), (
+            f"Expected no cache_key collision warning, got: {messages}"
         )
 
-        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
+    def test_cache_shared_reaches_manifest(self, tmp_path: Path, app_dir: Path) -> None:
+        """`cache_shared = true` in config is carried onto the validated manifest."""
+        apps = make_two_apps(cache_key_one="shared-key", cache_key_two="shared-key", shared_one=True, shared_two=True)
+        config = self.make_config(tmp_path, directory=app_dir, apps=apps)
+
+        with context.use_hassette_config(config):
             config.set_validated_app_manifests()
 
         assert all(manifest.cache_shared for manifest in config.apps.manifests.values())
-        assert not any("shared-key" in record.message for record in caplog.records), (
-            f"Expected no cache_key collision warning, got: {[r.message for r in caplog.records]}"
-        )
 
     def test_validate_apps_warns_on_partial_cache_shared_opt_in(
         self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """If only some sharers opt in, the warning still fires and names the apps missing the flag."""
-        config = self.make_config(
-            tmp_path,
-            directory=app_dir,
-            apps={
-                "app_one": {
-                    "filename": "app_one.py",
-                    "class_name": "AppOne",
-                    "cache_key": "shared-key",
-                    "cache_shared": True,
-                },
-                "app_two": {
-                    "filename": "app_two.py",
-                    "class_name": "AppTwo",
-                    "cache_key": "shared-key",
-                },
-            },
-        )
+        apps = make_two_apps(cache_key_one="shared-key", cache_key_two="shared-key", shared_one=True)
+        messages = self.warning_messages(tmp_path, app_dir, caplog, apps)
 
-        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
-            config.set_validated_app_manifests()
-
-        warnings = [record for record in caplog.records if "shared-key" in record.message]
-        assert len(warnings) == 1, f"Expected one collision WARNING, got: {[r.message for r in caplog.records]}"
-        assert "without `cache_shared = true`: ['app_two']" in warnings[0].message
+        warnings = [message for message in messages if "shared-key" in message]
+        assert len(warnings) == 1, f"Expected one collision WARNING, got: {messages}"
+        assert "without `cache_shared = true`: ['app_two']" in warnings[0]
 
     def test_validate_apps_warns_on_equivalent_cache_key_spellings(
         self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Keys that differ only in spelling but resolve to the same cache path still collide."""
-        config = self.make_config(
-            tmp_path,
-            directory=app_dir,
-            apps={
-                "app_one": {
-                    "filename": "app_one.py",
-                    "class_name": "AppOne",
-                    "cache_key": "weather/shared",
-                    "cache_shared": True,
-                },
-                "app_two": {
-                    "filename": "app_two.py",
-                    "class_name": "AppTwo",
-                    "cache_key": "weather//shared/.",
-                },
-            },
-        )
+        apps = make_two_apps(cache_key_one="weather/shared", cache_key_two="weather//shared/.", shared_one=True)
+        messages = self.warning_messages(tmp_path, app_dir, caplog, apps)
 
-        with context.use_hassette_config(config), caplog.at_level("WARNING", logger="hassette.config.config"):
-            config.set_validated_app_manifests()
-
-        warnings = [record for record in caplog.records if "weather/shared" in record.message]
-        assert len(warnings) == 1, f"Expected one collision WARNING, got: {[r.message for r in caplog.records]}"
-        assert "without `cache_shared = true`: ['app_two']" in warnings[0].message
+        warnings = [message for message in messages if "weather/shared" in message]
+        assert len(warnings) == 1, f"Expected one collision WARNING, got: {messages}"
+        assert "without `cache_shared = true`: ['app_two']" in warnings[0]
