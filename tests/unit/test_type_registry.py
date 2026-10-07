@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 import pytest
 
 from hassette import TYPE_REGISTRY
@@ -95,3 +97,13 @@ def test_tuple_conversion_tries_types_in_order_for_strings(
 def test_tuple_conversion_raises_when_no_type_matches() -> None:
     with pytest.raises(UnableToConvertValueError):
         TYPE_REGISTRY.convert("abc", (int, float))
+
+
+class _Mode(StrEnum):
+    CLEANING = "cleaning"
+
+
+def test_tuple_conversion_keeps_already_typed_str_subclass() -> None:
+    """A str subclass that already matches a tuple member is not re-converted to a plain str."""
+    result = TYPE_REGISTRY.convert(_Mode.CLEANING, (str, _Mode))
+    assert type(result) is _Mode
