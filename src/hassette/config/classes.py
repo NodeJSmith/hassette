@@ -1,6 +1,6 @@
 from copy import deepcopy
 from logging import getLogger
-from pathlib import Path, PurePath
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import Any
 from warnings import warn
 
@@ -287,11 +287,8 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
             return v
         if is_framework_key(v):
             raise ValueError(f"cache_key {v!r} uses a framework-reserved prefix")
-        parsed = PurePath(v)
-        if parsed.is_absolute():
-            raise ValueError(f"cache_key {v!r} must be a relative path")
-        if ".." in parsed.parts:
-            raise ValueError(f"cache_key {v!r} must not contain parent-directory traversal")
+        if reason := unsafe_cache_path_reason(v):
+            raise ValueError(f"cache_key {v!r} {reason}")
         return v
 
     def validate_model_extra(self) -> None:
@@ -328,3 +325,23 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
         # so we can just set the default instance name
         if not self.app_config:
             self.app_config = [{"instance_name": f"{self.class_name}.0"}]
+
+
+def unsafe_cache_path_reason(value: str) -> str | None:
+    """Return why *value* can't be used as a cache path under ``data_dir``, or None if it is safe.
+
+    This is the single definition of a safe cache path, shared by explicit ``cache_key`` values and
+    by the app keys that default cache keys are derived from.
+    """
+    # Parse under both flavors so the verdict doesn't depend on the host OS: a value like "C:" or "\\x" is
+    # an ordinary name on POSIX but drive- or root-anchored on Windows, where joining it discards data_dir.
+    posix, windows = PurePosixPath(value), PureWindowsPath(value)
+    if not posix.parts:
+        # "" and "." resolve to data_dir itself; an empty app key would also turn "{app_key}/{index}"
+        # into the absolute "/{index}".
+        return "must name a subdirectory of data_dir (not be empty or '.')"
+    if posix.anchor or windows.anchor:
+        return "must be a relative path"
+    if ".." in posix.parts or ".." in windows.parts:
+        return "must not contain parent-directory traversal"
+    return None

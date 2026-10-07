@@ -14,6 +14,7 @@ from hassette.config.classes import (
     HassetteTomlConfigSettingsSource,
     local_overlay_paths,
     toml_paths,
+    unsafe_cache_path_reason,
 )
 from hassette.config.defaults import (
     ENV_FILE_LOCATIONS,
@@ -440,11 +441,27 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                     f"(reserved prefix: '{FRAMEWORK_APP_KEY_PREFIX}'). "
                     f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
                 )
+            if reason := unsafe_app_key_reason(k):
+                raise ValueError(
+                    f"App key {k!r} {reason}; app keys are used as cache directory names. "
+                    f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
+                )
             app_manifest_dict[k] = AppManifest.model_validate(v)
 
         self.apps.manifests = app_manifest_dict
 
         warn_on_cache_key_collisions(app_manifest_dict)
+
+
+def unsafe_app_key_reason(app_key: str) -> str | None:
+    r"""Return why *app_key* can't be used as a cache directory name, or None if it is safe.
+
+    The default cache key is ``{app_key}/{index}``, so an app key must be a single path segment
+    (no ``/`` or ``\``) and must also pass the same checks as an explicit ``cache_key``.
+    """
+    if "/" in app_key or "\\" in app_key:
+        return "must not contain path separators ('/' or '\\')"
+    return unsafe_cache_path_reason(app_key)
 
 
 def resolve_cache_keys(app_key: str, manifest: AppManifest) -> list[str]:
