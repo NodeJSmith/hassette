@@ -164,11 +164,11 @@ class TypeRegistry:
         Returns:
             The converted value.
         """
-        # handle tuple: strings (every raw HA value) are tried against each type in declared
-        # order, first success winning; any other value already matching a member is kept
-        # as-is so an already-typed value is never lossily re-converted.
+        # handle tuple: plain strings (every raw HA value) are tried against each type in
+        # declared order, first success winning; any other value already matching a member,
+        # including str subclasses like StrEnum, is kept as-is so it is never lossily re-converted.
         if isinstance(to_type, tuple):
-            if not isinstance(value, str) and isinstance(value, to_type):
+            if type(value) is not str and isinstance(value, to_type):
                 return value
 
             for tt in to_type:

@@ -127,8 +127,9 @@ fallback. A successful constructor call does not register the pair — each miss
     from Home Assistant — is tried against each type in the order declared, and the first
     successful conversion wins. `(int, float, str)` turns `"42"` into `42` and `"4.5"` into
     `4.5`, falling back to the string only when neither number parses; `(str, int, float)`
-    keeps `"42"` as a string because `str` matches first. A value that is not a string and
-    is already an instance of a type in the tuple is returned unchanged.
+    keeps `"42"` as a string because `str` matches first. Any other value that is already
+    an instance of a type in the tuple, including a `str` subclass such as a `StrEnum`
+    member, is returned unchanged.
 
 ### Built-in Converters
 
