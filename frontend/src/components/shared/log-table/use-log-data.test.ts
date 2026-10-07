@@ -16,11 +16,14 @@ import { HINT_DEBOUNCE_MS, HINT_MAX_WAIT_MS, PERIODIC_RESYNC_MS, useLogData } fr
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 const LOGS_ENDPOINT = "/api/logs/recent";
-/** Hint spacing for the sustained-burst tests — under `HINT_DEBOUNCE_MS`, so only the maxWait cap fires. */
+/** Hint spacing for the sustained-burst tests. Must stay under `HINT_DEBOUNCE_MS` (so only the maxWait cap
+ * fires) and divide `HINT_MAX_WAIT_MS` evenly (so a hint lands as each maxWait timer fires and re-arms it
+ * immediately — otherwise refetches come every maxWait + spacing, and the derived minimum overcounts). */
 const HINT_BURST_SPACING_MS = 100;
-/** Design AC#5: 10+ hints within this window coalesce into one refetch. */
-const AC5_BURST_WINDOW_MS = 100;
-const AC5_HINT_SPACING_MS = 10;
+/** Design AC#5: hints sent every `COALESCE_HINT_SPACING_MS` across `COALESCE_BURST_WINDOW_MS` (10+ hints)
+ * coalesce into one refetch. */
+const COALESCE_BURST_WINDOW_MS = 100;
+const COALESCE_HINT_SPACING_MS = 10;
 
 function seedState(preset: TimePreset = "1h"): void {
   useAppStore.setState({
@@ -43,6 +46,17 @@ async function triggerHintAndWaitFor(assertion: () => void): Promise<void> {
   sendHint();
   await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
   await vi.waitFor(assertion);
+}
+
+/** Sends one hint every `spacingMs` until the hints span at least `spanMs`, and returns the total time
+ * advanced. N hints span only `(N - 1) * spacingMs`, hence the extra hint. */
+async function sendHintBurst(spanMs: number, spacingMs: number): Promise<number> {
+  const hints = Math.ceil(spanMs / spacingMs) + 1;
+  for (let i = 0; i < hints; i++) {
+    sendHint();
+    await vi.advanceTimersByTimeAsync(spacingMs);
+  }
+  return hints * spacingMs;
 }
 
 /** A promise plus its own `resolve`, so a test can control exactly when a mocked fetch settles —
@@ -99,11 +113,7 @@ describe("useLogData", () => {
     await renderLoaded();
     expect(getCount()).toBe(1);
 
-    const hints = AC5_BURST_WINDOW_MS / AC5_HINT_SPACING_MS + 1;
-    for (let i = 0; i < hints; i++) {
-      sendHint();
-      await vi.advanceTimersByTimeAsync(AC5_HINT_SPACING_MS);
-    }
+    await sendHintBurst(COALESCE_BURST_WINDOW_MS, COALESCE_HINT_SPACING_MS);
     await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
     await vi.waitFor(() => expect(getCount()).toBe(2));
 
@@ -118,13 +128,10 @@ describe("useLogData", () => {
     await renderLoaded();
     expect(getCount()).toBe(1);
 
-    // Each hint resets the debounce timer, so only the maxWait cap can force a refetch through.
-    const hints = Math.ceil((2 * HINT_MAX_WAIT_MS) / HINT_BURST_SPACING_MS) + 1;
-    for (let i = 0; i < hints; i++) {
-      sendHint();
-      await vi.advanceTimersByTimeAsync(HINT_BURST_SPACING_MS);
-    }
-    const minRefetches = Math.floor((hints * HINT_BURST_SPACING_MS) / HINT_MAX_WAIT_MS);
+    // Each hint resets the debounce timer, so only the maxWait cap can force a refetch through —
+    // at least once per full HINT_MAX_WAIT_MS elapsed during the burst.
+    const elapsed = await sendHintBurst(2 * HINT_MAX_WAIT_MS, HINT_BURST_SPACING_MS);
+    const minRefetches = Math.floor(elapsed / HINT_MAX_WAIT_MS);
     await vi.waitFor(() => expect(getCount()).toBeGreaterThanOrEqual(1 + minRefetches));
   });
 
@@ -154,11 +161,7 @@ describe("useLogData", () => {
 
     // Hints spaced under HINT_DEBOUNCE_MS, so only the maxWait cap fires — and it must not cancel
     // in-flight call #2 (invalidateQueries' default cancelRefetch: true would starve it forever).
-    const hints = (3 * HINT_MAX_WAIT_MS) / HINT_BURST_SPACING_MS + 1;
-    for (let i = 0; i < hints; i++) {
-      sendHint();
-      await vi.advanceTimersByTimeAsync(HINT_BURST_SPACING_MS);
-    }
+    await sendHintBurst(3 * HINT_MAX_WAIT_MS, HINT_BURST_SPACING_MS);
     // Flush the last hint's debounce timer so no stray fetch confounds the assertions below.
     await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
     expect(callIndex).toBe(2);
