@@ -319,9 +319,9 @@ class TestWebSocketEdgeCases:
 
         mock_ws.receive_json = AsyncMock(side_effect=_block)
 
-        mock_payload = MagicMock()
-        mock_payload.model_dump.return_value = {"entity_count": 0}
-        with patch("hassette.web.routes.ws.connected_payload_from", return_value=mock_payload):
+        mock_data = MagicMock()
+        mock_data.model_dump.return_value = {"entity_count": 0}
+        with patch("hassette.web.routes.ws.connected_data_from", return_value=mock_data):
             task = asyncio.create_task(websocket_endpoint(mock_ws))
             await blocked.wait()
             assert not task.done(), "endpoint should be blocked waiting for messages"

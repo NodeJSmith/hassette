@@ -14,7 +14,7 @@
 import { act } from "@testing-library/react";
 import { expect, vi } from "vitest";
 
-import type { ConnectedPayload } from "../api/ws-types";
+import type { ConnectedData } from "../api/ws-types";
 import { useWebSocket } from "../hooks/use-websocket";
 import { useAppStore } from "../state/store";
 import { createTestQueryClient, renderHookWithProviders } from "./query-test-utils";
@@ -73,10 +73,7 @@ export function renderWebSocketHook() {
  * that need to install a spy between render and connect (e.g. to observe the connect event
  * itself, not just its aftermath).
  */
-export function simulateConnected(
-  ws: MockWebSocket,
-  overrides: Partial<ConnectedPayload> & { timestamp?: number } = {},
-) {
+export function simulateConnected(ws: MockWebSocket, overrides: Partial<ConnectedData> & { timestamp?: number } = {}) {
   const { timestamp = 1000, ...data } = overrides;
   act(() => {
     ws.simulateOpen();
@@ -92,7 +89,7 @@ export function simulateConnected(
  * Renders `useWebSocket` and immediately connects it (open + "connected" message) — the
  * combination most tests need before exercising post-connect behavior.
  */
-export function renderConnectedWebSocketHook(overrides: Partial<ConnectedPayload> & { timestamp?: number } = {}) {
+export function renderConnectedWebSocketHook(overrides: Partial<ConnectedData> & { timestamp?: number } = {}) {
   const result = renderWebSocketHook();
   simulateConnected(result.ws, overrides);
   return result;
@@ -128,10 +125,7 @@ export function expectReconnectAfterBackoff() {
  * `useWebSocket` creates in response. Requires `vi.useFakeTimers()` to already be active.
  * Returns the newly connected MockWebSocket.
  */
-export function reconnectWebSocket(
-  ws: MockWebSocket,
-  overrides: Partial<ConnectedPayload> & { timestamp?: number } = {},
-) {
+export function reconnectWebSocket(ws: MockWebSocket, overrides: Partial<ConnectedData> & { timestamp?: number } = {}) {
   act(() => {
     ws.onclose?.();
   });

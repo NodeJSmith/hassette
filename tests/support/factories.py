@@ -380,7 +380,7 @@ def make_change_set(
     )
 
 
-def make_log_entry(
+def make_log_record_entry(
     *,
     seq: int = 1,
     timestamp: float = 0.0,

@@ -7,9 +7,9 @@ from hassette_wire.literals import OpenExecutionKind
 
 
 class AppStatusChangedData(BaseModel):
-    """Payload for an app lifecycle state-change event broadcast over WebSocket.
+    """An app instance changed lifecycle status.
 
-    Mirrors ``events.hassette.AppStateChangePayload`` exactly.
+    The ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.
     """
 
     app_key: str
@@ -39,9 +39,9 @@ class AppsChangedData(BaseModel):
 
 
 class ServiceStatusData(BaseModel):
-    """Payload for an internal service status-change event broadcast over WebSocket.
+    """A framework service changed lifecycle status.
 
-    Mirrors ``events.hassette.ServiceStatusPayload``.
+    The ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -66,7 +66,12 @@ class ServiceStatusData(BaseModel):
     """Human-readable description of the current readiness phase, or None if not available."""
 
 
-class ConnectedPayload(BaseModel):
+class ConnectedData(BaseModel):
+    """Server state sent once, as the first message after a WebSocket connection opens.
+
+    ``version`` is the server's hassette version; a client can compare it with its own to detect an upgrade.
+    """
+
     uptime_seconds: float
     entity_count: int
     app_count: int
@@ -74,35 +79,50 @@ class ConnectedPayload(BaseModel):
 
 
 class AppStatusChangedWsMessage(BaseModel):
+    """Envelope for ``AppStatusChangedData``."""
+
     type: Literal["app_status_changed"]
     data: AppStatusChangedData
     timestamp: float
 
 
 class LogHintWsMessage(BaseModel):
+    """New log records exist; refetch them over HTTP.
+
+    Carries no records. Sent only to clients that subscribed to logs.
+    """
+
     type: Literal["log_hint"]
     timestamp: float
 
 
 class ConnectedWsMessage(BaseModel):
+    """Envelope for ``ConnectedData``."""
+
     type: Literal["connected"]
-    data: ConnectedPayload
+    data: ConnectedData
     timestamp: float
 
 
 class ConnectivityWsMessage(BaseModel):
+    """Envelope for ``ConnectivityData``."""
+
     type: Literal["connectivity"]
     data: ConnectivityData
     timestamp: float
 
 
 class ServiceStatusWsMessage(BaseModel):
+    """Envelope for ``ServiceStatusData``."""
+
     type: Literal["service_status"]
     data: ServiceStatusData
     timestamp: float
 
 
 class AppsChangedWsMessage(BaseModel):
+    """Envelope for ``AppsChangedData``."""
+
     type: Literal["apps_changed"]
     data: AppsChangedData
     timestamp: float
@@ -127,6 +147,8 @@ class ExecutionCompletedData(BaseModel):
 
 
 class ExecutionCompletedWsMessage(BaseModel):
+    """Envelope for a batch of ``ExecutionCompletedData``."""
+
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     type: Literal["execution_completed"]

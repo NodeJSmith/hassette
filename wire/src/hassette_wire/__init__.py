@@ -6,6 +6,18 @@ message uses: request/response bodies, WS payloads, and the vocabulary they're b
 package, and the HA companion integration — import from the package root
 (``from hassette_wire import JobSummary``), not from a submodule.
 
+Class names follow the role a type plays, so a new type's name follows from the rule:
+
+- A type describing one domain object (an app, instance, health, activity, source, job, listener,
+  execution, log entry, finding, frame, service, boot issue) is a bare noun wherever it appears,
+  returned alone, in a list, or nested. The row type of a list endpoint is also a record
+  (``AppGridEntry``, ``ActivityFeedEntry``), even when it composes other records.
+- Everything else served over HTTP ends in ``Response`` or ``Request``: collections, aggregate
+  views that bundle several things for one endpoint, probes, and acknowledgements.
+- A WebSocket payload ends in ``Data``; the envelope carrying it ends in ``WsMessage``.
+- ``ProblemDetail`` keeps its RFC 9457 name.
+- No wire class reuses a public ``hassette`` name.
+
 A wire field added after the first published ``hassette-wire`` release must be optional with a
 default, so a client built against a newer release — one that already expects the field — can
 still parse a response from a server still running the older release that hasn't added it yet.
@@ -26,9 +38,9 @@ review, not CI.
 from hassette_wire.apps import (
     ActionResponse,
     AppConfigResponse,
-    AppInstanceResponse,
+    AppInstance,
     AppListResponse,
-    AppSourceResponse,
+    AppSource,
     AppSummary,
 )
 from hassette_wire.auth import MAX_SESSION_TOKEN_LENGTH, SessionRequest, SessionResponse
@@ -57,10 +69,10 @@ from hassette_wire.enums import (
     ScheduleStatusReason,
 )
 from hassette_wire.health import (
-    BootIssueResponse,
+    BootIssue,
     LivenessResponse,
     ReadinessResponse,
-    ServiceInfoResponse,
+    ServiceInfo,
     SystemStatusResponse,
 )
 from hassette_wire.lenient import LENIENT_CONTEXT, UnknownValue
@@ -74,7 +86,7 @@ from hassette_wire.literals import (
     SourceTier,
     SystemHealthStatus,
 )
-from hassette_wire.logs import LogEntryResponse, LogLevelRequest, LogLevelResponse, LogsByExecutionResponse
+from hassette_wire.logs import LogEntry, LogLevelRequest, LogLevelResponse, LogsByExecutionResponse
 from hassette_wire.problems import ProblemCode, ProblemDetail
 from hassette_wire.telemetry import (
     WINDOWED_ACTIVITY_PARTS,
@@ -90,7 +102,7 @@ from hassette_wire.telemetry import (
     JobTriggerResponse,
     LastError,
     LastErrorResult,
-    ListenerWithSummary,
+    ListenerSummary,
     TelemetryStatusResponse,
     requested_activity_parts,
 )
@@ -99,7 +111,7 @@ from hassette_wire.ws import (
     AppsChangedWsMessage,
     AppStatusChangedData,
     AppStatusChangedWsMessage,
-    ConnectedPayload,
+    ConnectedData,
     ConnectedWsMessage,
     ConnectivityData,
     ConnectivityWsMessage,
@@ -125,9 +137,9 @@ __all__ = [
     "AppGridEntry",
     "AppGridResponse",
     "AppHealth",
-    "AppInstanceResponse",
+    "AppInstance",
     "AppListResponse",
-    "AppSourceResponse",
+    "AppSource",
     "AppStatus",
     "AppStatusChangedData",
     "AppStatusChangedWsMessage",
@@ -141,11 +153,11 @@ __all__ = [
     "BlockingHandlerRef",
     "BlockingInstanceRef",
     "BlockingTier",
-    "BootIssueResponse",
+    "BootIssue",
     "CliFormat",
     "CliFormatStyle",
     "ConfigSchemaResponse",
-    "ConnectedPayload",
+    "ConnectedData",
     "ConnectedWsMessage",
     "ConnectivityData",
     "ConnectivityWsMessage",
@@ -161,9 +173,9 @@ __all__ = [
     "LastError",
     "LastErrorResult",
     "ListenerKind",
-    "ListenerWithSummary",
+    "ListenerSummary",
     "LivenessResponse",
-    "LogEntryResponse",
+    "LogEntry",
     "LogHintWsMessage",
     "LogLevel",
     "LogLevelRequest",
@@ -177,7 +189,7 @@ __all__ = [
     "ResourceStatus",
     "ScheduleStatus",
     "ScheduleStatusReason",
-    "ServiceInfoResponse",
+    "ServiceInfo",
     "ServiceStatusData",
     "ServiceStatusWsMessage",
     "SessionRequest",

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { ConnectedPayload } from "../api/ws-types";
+import type { ConnectedData } from "../api/ws-types";
 import { expectLogHintVersionIncrementedBy } from "../test/websocket-test-utils";
 import { BUNDLE_VERSION, initialState, useAppStore } from "./store";
 
@@ -8,12 +8,12 @@ import { BUNDLE_VERSION, initialState, useAppStore } from "./store";
 const OTHER_VERSION = "999.0.0";
 
 /** Defaults to the bundle's own version, so a payload only signals an update when overridden. */
-function createConnectedPayload(overrides: Partial<ConnectedPayload> = {}): ConnectedPayload {
+function createConnectedData(overrides: Partial<ConnectedData> = {}): ConnectedData {
   return {
     uptime_seconds: 42,
     version: BUNDLE_VERSION,
     ...overrides,
-  } as ConnectedPayload;
+  } as ConnectedData;
 }
 
 describe("initialState", () => {
@@ -35,8 +35,8 @@ describe("useAppStore", () => {
 
   describe("handleWsConnected", () => {
     it("flags serverUpdated when a reconnect reports a version other than the bundle's", () => {
-      useAppStore.getState().handleWsConnected(createConnectedPayload(), false);
-      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: OTHER_VERSION }), true);
+      useAppStore.getState().handleWsConnected(createConnectedData(), false);
+      useAppStore.getState().handleWsConnected(createConnectedData({ version: OTHER_VERSION }), true);
 
       expect(useAppStore.getState().serverUpdated).toBe(true);
     });
@@ -44,13 +44,13 @@ describe("useAppStore", () => {
     it("flags serverUpdated when the first connect already reports a different version", () => {
       // The tab loaded an old bundle while the socket was down and the server was upgraded:
       // the first version it ever sees is already newer than the bundle.
-      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: OTHER_VERSION }), false);
+      useAppStore.getState().handleWsConnected(createConnectedData({ version: OTHER_VERSION }), false);
 
       expect(useAppStore.getState().serverUpdated).toBe(true);
     });
 
     it("does not flag serverUpdated when the server reports the bundle's version", () => {
-      useAppStore.getState().handleWsConnected(createConnectedPayload(), false);
+      useAppStore.getState().handleWsConnected(createConnectedData(), false);
 
       expect(useAppStore.getState().serverUpdated).toBe(false);
     });
@@ -60,14 +60,14 @@ describe("useAppStore", () => {
       ["no version", undefined],
       ["an unknown version", "unknown"],
     ])("does not flag serverUpdated for a connect reporting %s", (_, version) => {
-      useAppStore.getState().handleWsConnected(createConnectedPayload({ version }), false);
+      useAppStore.getState().handleWsConnected(createConnectedData({ version }), false);
 
       expect(useAppStore.getState().serverUpdated).toBe(false);
     });
 
     it("keeps serverUpdated set after a later connect reports the bundle's version again", () => {
-      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: OTHER_VERSION }), false);
-      useAppStore.getState().handleWsConnected(createConnectedPayload(), true);
+      useAppStore.getState().handleWsConnected(createConnectedData({ version: OTHER_VERSION }), false);
+      useAppStore.getState().handleWsConnected(createConnectedData(), true);
 
       expect(useAppStore.getState().serverUpdated).toBe(true);
     });
@@ -91,7 +91,7 @@ describe("useAppStore", () => {
         },
       });
 
-      useAppStore.getState().handleWsConnected(createConnectedPayload(), false);
+      useAppStore.getState().handleWsConnected(createConnectedData(), false);
 
       const state = useAppStore.getState();
       expect(state.connection).toBe("connected");
@@ -118,7 +118,7 @@ describe("useAppStore", () => {
         },
       });
 
-      useAppStore.getState().handleWsConnected(createConnectedPayload(), true);
+      useAppStore.getState().handleWsConnected(createConnectedData(), true);
 
       const state = useAppStore.getState();
       expect(state.connection).toBe("connected");
@@ -129,7 +129,7 @@ describe("useAppStore", () => {
     it("on first connect, does not bump logHintVersion", () => {
       const versionBefore = useAppStore.getState().logHintVersion;
 
-      useAppStore.getState().handleWsConnected(createConnectedPayload(), false);
+      useAppStore.getState().handleWsConnected(createConnectedData(), false);
 
       expect(useAppStore.getState().logHintVersion).toBe(versionBefore);
     });
@@ -137,21 +137,21 @@ describe("useAppStore", () => {
     it("on reconnect, does not bump logHintVersion (use-websocket's invalidateQueries covers logs)", () => {
       const versionBefore = useAppStore.getState().logHintVersion;
 
-      useAppStore.getState().handleWsConnected(createConnectedPayload(), true);
+      useAppStore.getState().handleWsConnected(createConnectedData(), true);
 
       expect(useAppStore.getState().logHintVersion).toBe(versionBefore);
     });
 
     it("sets systemVersion from payload, falling back to null when omitted", () => {
-      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: undefined }), false);
+      useAppStore.getState().handleWsConnected(createConnectedData({ version: undefined }), false);
       expect(useAppStore.getState().systemVersion).toBeNull();
 
-      useAppStore.getState().handleWsConnected(createConnectedPayload({ version: "9.9.9" }), false);
+      useAppStore.getState().handleWsConnected(createConnectedData({ version: "9.9.9" }), false);
       expect(useAppStore.getState().systemVersion).toBe("9.9.9");
     });
 
     it("sets uptimeSeconds from the payload", () => {
-      useAppStore.getState().handleWsConnected(createConnectedPayload({ uptime_seconds: 123 }), false);
+      useAppStore.getState().handleWsConnected(createConnectedData({ uptime_seconds: 123 }), false);
       expect(useAppStore.getState().uptimeSeconds).toBe(123);
     });
   });

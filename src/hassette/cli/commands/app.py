@@ -9,7 +9,7 @@ from hassette_wire import (
     AppConfigResponse,
     AppGridResponse,
     AppHealth,
-    AppSourceResponse,
+    AppSource,
 )
 
 import hassette.cli.output as cli_output
@@ -148,7 +148,7 @@ def cmd_app_source(
 ) -> None:
     """Show app source code (GET /api/apps/{key}/source)."""
     client = make_client(ctx)
-    result = client.get(f"/api/apps/{key}/source", AppSourceResponse)
+    result = client.get(f"/api/apps/{key}/source", AppSource)
     cli_output.render_detail(result, json_mode=ctx.json_mode)
 
 

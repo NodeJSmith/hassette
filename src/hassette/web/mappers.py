@@ -17,12 +17,12 @@ directly — pass the enum value as-is.
 """
 
 from hassette_wire import (
-    AppInstanceResponse,
+    AppInstance,
     AppListResponse,
     AppSummary,
-    ConnectedPayload,
+    ConnectedData,
     ListenerKind,
-    ListenerWithSummary,
+    ListenerSummary,
     ReadinessResponse,
     SystemStatusResponse,
 )
@@ -39,14 +39,14 @@ TOPIC_KIND_MAP: dict[str, ListenerKind] = {
 }
 
 
-def instance_response_from(info: AppInstanceInfo) -> AppInstanceResponse:
-    """Convert a single ``AppInstanceInfo`` to ``AppInstanceResponse``.
+def app_instance_from(info: AppInstanceInfo) -> AppInstance:
+    """Convert a single ``AppInstanceInfo`` to ``AppInstance``.
 
-    Every response field has a same-named attribute on ``AppInstanceInfo``, so
+    Every ``AppInstance`` field has a same-named attribute on ``AppInstanceInfo``, so
     ``from_attributes`` copies them directly. The source's extra ``error``
     attribute is ignored.
     """
-    return AppInstanceResponse.model_validate(info, from_attributes=True)
+    return AppInstance.model_validate(info, from_attributes=True)
 
 
 def app_summary_from(manifest: AppManifestInfo) -> AppSummary:
@@ -67,7 +67,7 @@ def app_summary_from(manifest: AppManifestInfo) -> AppSummary:
         status=manifest.status,
         block_reason=manifest.block_reason,
         instance_count=manifest.instance_count,
-        instances=[instance_response_from(inst) for inst in manifest.instances],
+        instances=[app_instance_from(inst) for inst in manifest.instances],
         error_message=manifest.error_message,
         error_traceback=manifest.error_traceback,
         in_current_config=manifest.in_current_config,
@@ -95,13 +95,13 @@ def readiness_response_from(status: SystemStatusResponse) -> ReadinessResponse:
     return ReadinessResponse(status=status.status, ready=status.status == "ok")
 
 
-def connected_payload_from(status: SystemStatusResponse) -> ConnectedPayload:
-    """Build a ``ConnectedPayload`` from a ``SystemStatusResponse``.
+def connected_data_from(status: SystemStatusResponse) -> ConnectedData:
+    """Build a ``ConnectedData`` from a ``SystemStatusResponse``.
 
     ``uptime_seconds`` is sourced from ``SystemStatusResponse.uptime_seconds``, which
     is computed from the same ``_start_time`` used by ``GET /health``.
     """
-    return ConnectedPayload(
+    return ConnectedData(
         uptime_seconds=status.uptime_seconds,
         entity_count=status.entity_count,
         app_count=status.app_count,
@@ -126,11 +126,11 @@ def event_name_from_topic(topic: str) -> str:
     return topic.rsplit(".", 1)[-1]
 
 
-def to_listener_with_summary(
-    listener: ListenerSummaryRow,
+def listener_summary_from(
+    row: ListenerSummaryRow,
     live_counts: dict[int, LiveCounts] | None = None,
-) -> ListenerWithSummary:
-    """Convert a ``ListenerSummaryRow`` to a ``ListenerWithSummary`` response model.
+) -> ListenerSummary:
+    """Convert a ``ListenerSummaryRow`` to a ``ListenerSummary`` wire model.
 
     Copies every field from the summary and appends a computed
     ``handler_summary`` string via :func:`~hassette.web.telemetry_helpers.format_handler_summary`.
@@ -139,21 +139,21 @@ def to_listener_with_summary(
     :func:`event_name_from_topic`.
 
     Args:
-        listener: The persisted listener summary from the telemetry DB.
+        row: The persisted listener summary from the telemetry DB.
         live_counts: Live execution counts keyed by listener ``db_id``, sourced from the bus's
             in-memory guards. A listener with no live guard (e.g. retired) defaults to
             ``LiveCounts(0, 0, 0)``.
     """
-    suppressed, dropped, backpressure_dropped = (live_counts or {}).get(listener.listener_id, LiveCounts(0, 0, 0))
-    # Every ListenerSummaryRow field has a same-named field on ListenerWithSummary, so splatting
+    suppressed, dropped, backpressure_dropped = (live_counts or {}).get(row.listener_id, LiveCounts(0, 0, 0))
+    # Every ListenerSummaryRow field has a same-named field on ListenerSummary, so splatting
     # model_dump() copies them 1:1. The six fields below have no source attribute (they are
     # computed or sourced from live_counts) and are passed as explicit keyword arguments, so
     # pyright checks their types and the constructor validates every field — a bad value raises.
-    return ListenerWithSummary(
-        **listener.model_dump(),
-        listener_kind=listener_kind_from_topic(listener.topic),
-        handler_summary=format_handler_summary(listener),
-        target=listener.entity_id or event_name_from_topic(listener.topic),
+    return ListenerSummary(
+        **row.model_dump(),
+        listener_kind=listener_kind_from_topic(row.topic),
+        handler_summary=format_handler_summary(row),
+        target=row.entity_id or event_name_from_topic(row.topic),
         suppressed_count=suppressed,
         dropped_count=dropped,
         backpressure_dropped_count=backpressure_dropped,

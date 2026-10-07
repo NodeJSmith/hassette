@@ -9,7 +9,7 @@ from typing import Any
 
 import httpx2 as httpx
 import pytest
-from hassette_wire import ActionResponse, AppInstanceResponse, AppListResponse
+from hassette_wire import ActionResponse, AppInstance, AppListResponse
 from pydantic import BaseModel
 
 from hassette.cli.client import HassetteCLIClient
@@ -100,14 +100,14 @@ def make_raw_body_client(
     )
 
 
-def make_app_list(instances: list[AppInstanceResponse], app_key: str = "my_app") -> AppListResponse:
+def make_app_list(instances: list[AppInstance], app_key: str = "my_app") -> AppListResponse:
     """Wrap ``instances`` in a single-app list, as ``/api/apps`` returns it."""
     app = make_app_summary(app_key=app_key, instance_count=len(instances), instances=instances)
     return make_app_list_response(apps=[app])
 
 
 def url_capturing_client(
-    app_list_instances: list[AppInstanceResponse] | None = None,
+    app_list_instances: list[AppInstance] | None = None,
 ) -> tuple[HassetteCLIClient, list[str]]:
     """Build a default-target client plus the list its request URLs are recorded into.
 
@@ -576,12 +576,8 @@ class TestInstanceRouting:
 
     def test_name_instance_resolves_to_index(self) -> None:
         instances = [
-            AppInstanceResponse(
-                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"
-            ),
-            AppInstanceResponse(
-                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="running"
-            ),
+            AppInstance(app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"),
+            AppInstance(app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="running"),
         ]
         client, captured_urls = url_capturing_client(instances)
         route_listeners(client, app_key="my_app", instance="office")
@@ -589,9 +585,7 @@ class TestInstanceRouting:
 
     def test_unknown_instance_name_exits_nonzero(self) -> None:
         instances = [
-            AppInstanceResponse(
-                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"
-            ),
+            AppInstance(app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"),
         ]
         client, _ = url_capturing_client(instances)
         with pytest.raises(SystemExit) as exc_info:
@@ -617,12 +611,8 @@ class TestInstanceRouting:
         not filter by status, so a stopped instance stays addressable by name.
         """
         instances = [
-            AppInstanceResponse(
-                app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"
-            ),
-            AppInstanceResponse(
-                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"
-            ),
+            AppInstance(app_key="my_app", index=0, instance_name="default", class_name="MyApp", status="running"),
+            AppInstance(app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"),
         ]
         client, captured_urls = url_capturing_client(instances)
         route_listeners(client, app_key="my_app", instance="office")
@@ -634,12 +624,8 @@ class TestInstanceRouting:
         rejects the ambiguous selector and tells the operator to use --instance <index>.
         """
         instances = [
-            AppInstanceResponse(
-                app_key="my_app", index=0, instance_name="office", class_name="MyApp", status="running"
-            ),
-            AppInstanceResponse(
-                app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"
-            ),
+            AppInstance(app_key="my_app", index=0, instance_name="office", class_name="MyApp", status="running"),
+            AppInstance(app_key="my_app", index=1, instance_name="office", class_name="MyApp", status="stopped"),
         ]
         client, _ = url_capturing_client(instances)
         with capture_stderr() as buf, pytest.raises(SystemExit) as exc_info:

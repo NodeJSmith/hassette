@@ -13,18 +13,18 @@ from hassette_wire import (
     AppActivityStats,
     AppGridResponse,
     AppHealth,
-    AppInstanceResponse,
+    AppInstance,
     AppStatus,
     AppSummary,
     Execution,
     ExecutionCompletedData,
     ExecutionStatus,
     LastErrorResult,
-    ListenerWithSummary,
-    LogEntryResponse,
+    ListenerSummary,
+    LogEntry,
     ResourceRole,
     ResourceStatus,
-    ServiceInfoResponse,
+    ServiceInfo,
     SystemStatusResponse,
 )
 from pydantic import ValidationError
@@ -78,10 +78,10 @@ def minimal_app_summary(**overrides: Any) -> AppSummary:
     )
 
 
-def minimal_instance_response(**overrides: Any) -> AppInstanceResponse:
-    """AppInstanceResponse with only its required fields set."""
+def minimal_app_instance(**overrides: Any) -> AppInstance:
+    """AppInstance with only its required fields set."""
     return build(
-        AppInstanceResponse,
+        AppInstance,
         {
             "app_key": "my_app",
             "index": 0,
@@ -109,10 +109,10 @@ def minimal_app_health(**overrides: Any) -> AppHealth:
     )
 
 
-def minimal_listener_with_summary(**overrides: Any) -> ListenerWithSummary:
-    """ListenerWithSummary with only its required fields set."""
+def minimal_listener_summary(**overrides: Any) -> ListenerSummary:
+    """ListenerSummary with only its required fields set."""
     return build(
-        ListenerWithSummary,
+        ListenerSummary,
         {
             "listener_id": 1,
             "app_key": "my_app",
@@ -137,10 +137,10 @@ def minimal_log_record(**overrides: Any) -> LogRecord:
     )
 
 
-def minimal_log_entry_response(**overrides: Any) -> LogEntryResponse:
-    """LogEntryResponse with only its required fields set."""
+def minimal_log_entry(**overrides: Any) -> LogEntry:
+    """LogEntry with only its required fields set."""
     return build(
-        LogEntryResponse,
+        LogEntry,
         {
             "id": 1,
             "seq": 1,
@@ -282,18 +282,18 @@ class TestAppActivity:
 class TestResourceStatus:
     def test_accepts_all_nine_resource_status_values(self) -> None:
         for value in ResourceStatus:
-            assert minimal_instance_response(status=value).status == value
+            assert minimal_app_instance(status=value).status == value
 
     def test_rejects_value_not_in_resource_status(self) -> None:
         with pytest.raises(ValidationError):
-            minimal_instance_response(status="active")
+            minimal_app_instance(status="active")
 
     def test_rejects_value_not_in_resource_status_on_service_info(self) -> None:
         with pytest.raises(ValidationError):
-            ServiceInfoResponse(name="bus", status="active", role=ResourceRole.SERVICE)
+            ServiceInfo(name="bus", status="active", role=ResourceRole.SERVICE)
 
     def test_accepts_running_on_service_info(self) -> None:
-        obj = ServiceInfoResponse(name="bus", status=ResourceStatus.RUNNING, role=ResourceRole.SERVICE)
+        obj = ServiceInfo(name="bus", status=ResourceStatus.RUNNING, role=ResourceRole.SERVICE)
         assert obj.status == ResourceStatus.RUNNING
 
     def test_accepts_transient_states(self) -> None:
@@ -303,7 +303,7 @@ class TestResourceStatus:
             ResourceStatus.STOPPING,
             ResourceStatus.EXHAUSTED_COOLING,
         ):
-            assert minimal_instance_response(status=value).status == value
+            assert minimal_app_instance(status=value).status == value
 
 
 class TestHealthStatus:
@@ -329,14 +329,14 @@ class TestErrorRateClass:
 class TestListenerKind:
     def test_rejects_custom(self) -> None:
         with pytest.raises(ValidationError):
-            minimal_listener_with_summary(listener_kind="custom")  # not in the 3-value set
+            minimal_listener_summary(listener_kind="custom")  # not in the 3-value set
 
     def test_accepts_all_three_values(self) -> None:
         for value in ("state change", "service call", "event"):
-            assert minimal_listener_with_summary(listener_kind=value).listener_kind == value
+            assert minimal_listener_summary(listener_kind=value).listener_kind == value
 
     def test_default_is_event(self) -> None:
-        assert minimal_listener_with_summary(topic="some.custom.topic").listener_kind == "event"
+        assert minimal_listener_summary(topic="some.custom.topic").listener_kind == "event"
 
 
 class TestLogLevelType:
@@ -349,21 +349,21 @@ class TestLogLevelType:
         for level in STANDARD_LOG_LEVELS:
             assert minimal_log_record(level=level).level == level
 
-    def test_rejects_warn_on_log_entry_response(self) -> None:
+    def test_rejects_warn_on_log_entry(self) -> None:
         with pytest.raises(ValidationError):
-            minimal_log_entry_response(level="WARN")
+            minimal_log_entry(level="WARN")
 
-    def test_rejects_bogus_source_tier_on_log_entry_response(self) -> None:
+    def test_rejects_bogus_source_tier_on_log_entry(self) -> None:
         with pytest.raises(ValidationError):
-            minimal_log_entry_response(source_tier="bogus")
+            minimal_log_entry(source_tier="bogus")
 
-    def test_accepts_valid_source_tiers_on_log_entry_response(self) -> None:
+    def test_accepts_valid_source_tiers_on_log_entry(self) -> None:
         for tier in ("app", "framework", None):
-            assert minimal_log_entry_response(source_tier=tier).source_tier == tier
+            assert minimal_log_entry(source_tier=tier).source_tier == tier
 
-    def test_accepts_all_five_standard_levels_on_log_entry_response(self) -> None:
+    def test_accepts_all_five_standard_levels_on_log_entry(self) -> None:
         for level in STANDARD_LOG_LEVELS:
-            assert minimal_log_entry_response(level=level).level == level
+            assert minimal_log_entry(level=level).level == level
 
 
 class TestWebSocketPayloadStatus:

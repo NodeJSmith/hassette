@@ -6,7 +6,7 @@ from logging import getLogger
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request
-from hassette_wire import LogEntryResponse, LogLevelRequest, LogLevelResponse, ProblemCode
+from hassette_wire import LogEntry, LogLevelRequest, LogLevelResponse, ProblemCode
 
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.dependencies import (
@@ -56,7 +56,7 @@ def validate_source_tier(source_tier: str | None) -> str | None:
 
 @router.get(
     "/logs/recent",
-    response_model=list[LogEntryResponse],
+    response_model=list[LogEntry],
     responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
 )
 async def get_logs(
@@ -74,7 +74,7 @@ async def get_logs(
             "includes everything: the log viewer is a raw feed, not an app-author-facing metric."
         ),
     ] = None,
-) -> list[LogEntryResponse]:
+) -> list[LogEntry]:
     """Return recent log records from the database with optional filtering."""
     level = validate_log_level(level)
     source_tier = validate_source_tier(source_tier)
@@ -86,7 +86,7 @@ async def get_logs(
         execution_id=execution_id,
         source_tier=source_tier,
     )
-    return [LogEntryResponse.model_validate(r) for r in raw]
+    return [LogEntry.model_validate(r) for r in raw]
 
 
 @router.put("/logs/level", response_model=LogLevelResponse)

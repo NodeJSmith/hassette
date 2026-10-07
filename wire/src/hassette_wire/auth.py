@@ -12,12 +12,7 @@ shape.
 
 
 class SessionRequest(BaseModel):
-    """Request body for POST /api/auth/session.
-
-    The pinned wire contract for the login exchange (design.md's Middleware and routing
-    section): ``{"token": "<bearer-token>"}``. The backend (this route) and the frontend
-    (``postSession()`` in ``client.ts``) target this exact field name independently.
-    """
+    """Request body for ``POST /api/auth/session``: exchanges a bearer token for a session cookie."""
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
@@ -29,11 +24,10 @@ class SessionRequest(BaseModel):
 
 
 class SessionResponse(BaseModel):
-    """Response for POST /api/auth/session on a correct token.
+    """Response for ``POST /api/auth/session`` when the token is accepted.
 
-    The session cookie itself travels via the ``Set-Cookie`` response header, minted by
-    ``mint_session_cookie()`` — this body just confirms success for callers that inspect
-    the JSON payload rather than only the status code.
+    The session cookie arrives in the ``Set-Cookie`` response header; this body only confirms
+    success.
     """
 
     status: Literal["ok"] = "ok"

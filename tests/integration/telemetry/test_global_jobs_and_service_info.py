@@ -1,10 +1,10 @@
-"""Tests for global jobs endpoint and ServiceInfoResponse extension.
+"""Tests for global jobs endpoint and ServiceInfo extension.
 
 Covers:
 - get_job_summary() returns jobs from multiple apps when app_key is None
 - GET /api/scheduler/jobs enriches with live heap data when available
 - GET /api/scheduler/jobs returns DB-only data on scheduler failure (degraded)
-- ServiceInfoResponse includes role, ready_phase, retry_at when available
+- ServiceInfo includes role, ready_phase, retry_at when available
 """
 
 import time
@@ -17,7 +17,7 @@ from hassette_wire import (
     ResourceStatus,
     ScheduleStatus,
     ScheduleStatusReason,
-    ServiceInfoResponse,
+    ServiceInfo,
 )
 from httpx2 import ASGITransport, AsyncClient
 
@@ -386,10 +386,10 @@ class TestGlobalJobsEndpointDegradedOnHeapFailure:
         assert data[0]["next_run"] is None
 
 
-class TestServiceInfoResponseExtension:
-    def test_service_info_response_has_role_ready_phase_retry_at(self) -> None:
-        """ServiceInfoResponse has role, ready_phase, retry_at fields."""
-        resp = ServiceInfoResponse(
+class TestServiceInfoExtension:
+    def test_service_info_has_role_ready_phase_retry_at(self) -> None:
+        """ServiceInfo has role, ready_phase, retry_at fields."""
+        resp = ServiceInfo(
             name="WebSocketService",
             status="running",
             role=ResourceRole.SERVICE,
@@ -400,14 +400,14 @@ class TestServiceInfoResponseExtension:
         assert resp.ready_phase == "connected"
         assert resp.retry_at == STUB_TIMESTAMP
 
-    def test_service_info_response_defaults(self) -> None:
-        """ServiceInfoResponse defaults ready_phase/retry_at to None when omitted."""
-        resp = ServiceInfoResponse(name="SomeService", status="running", role=ResourceRole.SERVICE)
+    def test_service_info_defaults(self) -> None:
+        """ServiceInfo defaults ready_phase/retry_at to None when omitted."""
+        resp = ServiceInfo(name="SomeService", status="running", role=ResourceRole.SERVICE)
         assert resp.ready_phase is None
         assert resp.retry_at is None
 
     def test_get_system_status_populates_service_info_fields(self) -> None:
-        """get_system_status() populates role, ready_phase, retry_at on ServiceInfoResponse objects.
+        """get_system_status() populates role, ready_phase, retry_at on ServiceInfo objects.
 
         Covers both a service with a ready phase and no pending retry, and a second cooling-down
         service with a retry timestamp and no ready phase.

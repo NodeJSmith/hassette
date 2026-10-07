@@ -10,7 +10,7 @@ from hassette_wire import (
     AppGridEntry,
     AppGridResponse,
     AppHealth,
-    AppSourceResponse,
+    AppSource,
     AppSummary,
     ConfigSchemaResponse,
     LastErrorResult,
@@ -215,14 +215,14 @@ def make_app_config_response(
     )
 
 
-def make_app_source_response(
+def make_app_source(
     app_key: str = DEFAULT_TEST_APP_KEY,
     filename: str = "test_app.py",
     content: str = "class TestApp:\n    pass\n",
     line_count: int = 2,
-) -> AppSourceResponse:
-    """Build an AppSourceResponse with sensible defaults."""
-    return AppSourceResponse(
+) -> AppSource:
+    """Build an AppSource with sensible defaults."""
+    return AppSource(
         app_key=app_key,
         filename=filename,
         content=content,

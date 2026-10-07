@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Annotated
 
 import uuid_utils
 from fastapi import APIRouter, Query
-from hassette_wire import LogEntryResponse, LogsByExecutionResponse, ProblemCode
+from hassette_wire import LogEntry, LogsByExecutionResponse, ProblemCode
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.exceptions import TelemetryUnavailableError
@@ -87,5 +87,5 @@ async def get_execution_logs(
         else:
             retention_expired = await check_retention_expired_uuid4(telemetry, execution_id, cutoff)
 
-    log_entries = [LogEntryResponse.model_validate(r) for r in records]
+    log_entries = [LogEntry.model_validate(r) for r in records]
     return LogsByExecutionResponse(records=log_entries, truncated=truncated, retention_expired=retention_expired)

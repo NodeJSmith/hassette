@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from hassette_wire import Execution, ListenerWithSummary
+from hassette_wire import Execution, ListenerSummary
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
@@ -66,5 +66,5 @@ def cmd_listener(
         instance=instance,
         extra_params=query_params(since=since, source_tier=source_tier),
     )
-    listeners = parse_wire_list(ListenerWithSummary, raw)
+    listeners = parse_wire_list(ListenerSummary, raw)
     render_table(listeners, LISTENER_LIST_COLUMNS, json_mode=ctx.json_mode)

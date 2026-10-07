@@ -1,8 +1,6 @@
-"""Blocking-IO findings: the read side of the ``blocking_events`` telemetry table.
+"""Blocking-IO findings: calls that blocked the event loop, grouped by the app code to fix.
 
-``StackFrame`` is also the persisted frame shape: the server stores a JSON list of them on each
-``blocking_events`` row, innermost frame first, and serves the same objects back in expanded stacks.
-Whether a frame is user code is decided by the server at read time, never stored.
+Stacks are lists of ``StackFrame``, innermost frame first.
 """
 
 from typing import Annotated, Literal
@@ -75,7 +73,8 @@ class BlockingFinding(BaseModel):
     """One thing to fix: every attributed blocking event at the same app call site, grouped.
 
     ``call_site`` is ``None`` when no app-code frame was captured for these events (no stack
-    captured, or the row predates structured frames); such findings are grouped per handler instead.
+    captured, or the event was recorded without structured frames); such findings are grouped per handler
+    instead.
     """
 
     model_config = ConfigDict(use_attribute_docstrings=True)
@@ -134,7 +133,7 @@ class UnattributedStall(BaseModel):
 
 
 class UnattributedBlockingResponse(BaseModel):
-    """Loop stalls that no app is credited with, for the diagnostics page."""
+    """Loop stalls that no app is credited with."""
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 

@@ -116,10 +116,7 @@ OpenAppStatus = Annotated[AppStatus | UnknownValue, LenientValue("AppStatus")]
 
 
 class ExecutionStatus(StrEnum):
-    """Status values for handler invocations and job executions.
-
-    Must stay in sync with the ``executions.status`` CHECK constraint.
-    """
+    """How a handler invocation or job execution ended."""
 
     SUCCESS = "success"
     ERROR = "error"

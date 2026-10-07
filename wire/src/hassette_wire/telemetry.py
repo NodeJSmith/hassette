@@ -33,11 +33,9 @@ def requested_activity_parts(*, windowed: bool) -> list[str]:
 
 
 class Execution(BaseModel):
-    """Unified execution record returned by queries against the ``executions`` table.
+    """One run of a handler or scheduled job.
 
-    Replaces the split ``HandlerInvocation`` / ``JobExecution`` models.
-    ``kind`` discriminates between handler invocations and job executions.
-    Handler-only fields (``trigger_context_id``, ``trigger_origin``) default to
+    ``kind`` says which. Handler-only fields (``trigger_context_id``, ``trigger_origin``) are
     ``None`` for job executions.
     """
 
@@ -122,7 +120,7 @@ class ActivityFeedEntry(BaseModel):
 
 
 class JobSummary(BaseModel):
-    """Per-job summary returned by ``get_job_summary()``.
+    """One scheduled job's registration and its execution totals.
 
     ``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``
     are tracked separately.
@@ -229,8 +227,8 @@ class AppHealth(BaseModel):
     """Mean job execution duration excluding skipped runs; null when no job ran or every job run was skipped."""
 
 
-class ListenerWithSummary(BaseModel):
-    """Listener metrics enriched with human-readable handler summary."""
+class ListenerSummary(BaseModel):
+    """One bus listener's registration and its invocation totals."""
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 

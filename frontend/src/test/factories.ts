@@ -36,17 +36,17 @@ type AppGridEntry = components["schemas"]["AppGridEntry"];
 type AppActivity = components["schemas"]["AppActivity"];
 type AppActivityStats = components["schemas"]["AppActivityStats"];
 type AppHealth = components["schemas"]["AppHealth"];
-type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
+type ListenerSummary = components["schemas"]["ListenerSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
-type LogEntryResponse = components["schemas"]["LogEntryResponse"];
+type LogEntry = components["schemas"]["LogEntry"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
-type AppInstanceResponse = components["schemas"]["AppInstanceResponse"];
+type AppInstance = components["schemas"]["AppInstance"];
 type Execution = components["schemas"]["Execution"];
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
-type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
+type ServiceInfo = components["schemas"]["ServiceInfo"];
 
-export function createInstance(overrides: Partial<AppInstanceResponse> = {}): AppInstanceResponse {
+export function createInstance(overrides: Partial<AppInstance> = {}): AppInstance {
   return {
     app_key: "test_app",
     index: 0,
@@ -57,7 +57,7 @@ export function createInstance(overrides: Partial<AppInstanceResponse> = {}): Ap
     error_traceback: null,
     owner_id: null,
     ...overrides,
-  } satisfies AppInstanceResponse;
+  } satisfies AppInstance;
 }
 
 export function createAppSummary(overrides: Partial<AppSummary> = {}): AppSummary {
@@ -151,7 +151,7 @@ export function createAppGridResponse(...entries: AppGridEntry[]): { apps: AppGr
   return { apps: entries };
 }
 
-export function createListener(overrides: Partial<ListenerWithSummary> = {}): ListenerWithSummary {
+export function createListener(overrides: Partial<ListenerSummary> = {}): ListenerSummary {
   return {
     listener_id: 1,
     app_key: "test_app",
@@ -193,7 +193,7 @@ export function createListener(overrides: Partial<ListenerWithSummary> = {}): Li
     target: null,
     last_error_traceback: null,
     ...overrides,
-  } satisfies ListenerWithSummary;
+  } satisfies ListenerSummary;
 }
 
 export function createUnifiedRow(overrides: Partial<UnifiedRow> = {}): UnifiedRow {
@@ -264,7 +264,7 @@ export function createJob(overrides: Partial<JobSummary> = {}): JobSummary {
   } satisfies JobSummary;
 }
 
-export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEntryResponse {
+export function createLogEntry(overrides: Partial<LogEntry> = {}): LogEntry {
   return {
     id: 1,
     seq: 1,
@@ -277,7 +277,7 @@ export function createLogEntry(overrides: Partial<LogEntryResponse> = {}): LogEn
     exc_info: null,
     app_key: null,
     ...overrides,
-  } satisfies LogEntryResponse;
+  } satisfies LogEntry;
 }
 
 export function createActivityFeedEntry(overrides: Partial<ActivityFeedEntry> = {}): ActivityFeedEntry {
@@ -367,7 +367,7 @@ export function createExecution(kind: ExecutionKind, overrides: Partial<Executio
 }
 
 /** A service as the REST `/api/services` seed reports it. */
-export function createServiceInfo(overrides: Partial<ServiceInfoResponse> = {}): ServiceInfoResponse {
+export function createServiceInfo(overrides: Partial<ServiceInfo> = {}): ServiceInfo {
   return {
     name: "bus",
     status: "running",
@@ -375,7 +375,7 @@ export function createServiceInfo(overrides: Partial<ServiceInfoResponse> = {}):
     ready_phase: null,
     retry_at: null,
     ...overrides,
-  } satisfies ServiceInfoResponse;
+  } satisfies ServiceInfo;
 }
 
 /** A service as the live WS status stream reports it — richer than the REST seed. */

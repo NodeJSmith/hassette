@@ -863,7 +863,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppSourceResponse"
+                  "$ref": "#/components/schemas/AppSource"
                 }
               }
             }
@@ -1101,7 +1101,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/LogEntryResponse"
+                    "$ref": "#/components/schemas/LogEntry"
                   },
                   "title": "Response Get Logs Api Logs Recent Get"
                 }
@@ -1322,7 +1322,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ListenerWithSummary"
+                    "$ref": "#/components/schemas/ListenerSummary"
                   },
                   "title": "Response Get Listener Metrics Api Bus Listeners Get"
                 }
@@ -1586,7 +1586,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ListenerWithSummary"
+                    "$ref": "#/components/schemas/ListenerSummary"
                   },
                   "title": "Response App Listeners Api Telemetry App  App Key  Listeners Get"
                 }
@@ -2942,7 +2942,7 @@
           "framework_fields"
         ],
         "title": "AppConfigResponse",
-        "description": "Response model for GET /apps/{app_key}/config."
+        "description": "An app's configuration, served by ``GET /api/apps/{app_key}/config``.\n\nBundles the current config values, their TOML rendering, and the app config's JSON schema."
       },
       "AppGridEntry": {
         "properties": {
@@ -3067,7 +3067,7 @@
         "title": "AppHealth",
         "description": "Health of an app over a time window: one app instance, or all instances of an app.\n\nComputed over every execution in the window, including those of handlers and jobs removed since."
       },
-      "AppInstanceResponse": {
+      "AppInstance": {
         "properties": {
           "app_key": {
             "type": "string",
@@ -3130,7 +3130,8 @@
           "class_name",
           "status"
         ],
-        "title": "AppInstanceResponse"
+        "title": "AppInstance",
+        "description": "One configured instance of an app and its lifecycle status.\n\nNested in ``AppSummary.instances``. ``index`` is the instance's position in the app's config;\n``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None``\nunless ``status`` is ``failed``."
       },
       "AppListResponse": {
         "properties": {
@@ -3171,7 +3172,7 @@
         "title": "AppListResponse",
         "description": "Response for ``GET /api/apps``: every app with status counts."
       },
-      "AppSourceResponse": {
+      "AppSource": {
         "properties": {
           "app_key": {
             "type": "string",
@@ -3197,8 +3198,8 @@
           "content",
           "line_count"
         ],
-        "title": "AppSourceResponse",
-        "description": "Response model for GET /apps/{app_key}/source."
+        "title": "AppSource",
+        "description": "An app's Python source file, served by ``GET /api/apps/{app_key}/source``."
       },
       "AppStatus": {
         "type": "string",
@@ -3266,7 +3267,7 @@
           },
           "instances": {
             "items": {
-              "$ref": "#/components/schemas/AppInstanceResponse"
+              "$ref": "#/components/schemas/AppInstance"
             },
             "type": "array",
             "title": "Instances"
@@ -3456,7 +3457,7 @@
           "latest_stack"
         ],
         "title": "BlockingFinding",
-        "description": "One thing to fix: every attributed blocking event at the same app call site, grouped.\n\n``call_site`` is ``None`` when no app-code frame was captured for these events (no stack\ncaptured, or the row predates structured frames); such findings are grouped per handler instead."
+        "description": "One thing to fix: every attributed blocking event at the same app call site, grouped.\n\n``call_site`` is ``None`` when no app-code frame was captured for these events (no stack\ncaptured, or the event was recorded without structured frames); such findings are grouped per handler\ninstead."
       },
       "BlockingFindingsResponse": {
         "properties": {
@@ -3591,7 +3592,7 @@
         "title": "BlockingInstanceRef",
         "description": "An app instance whose events are part of a finding."
       },
-      "BootIssueResponse": {
+      "BootIssue": {
         "properties": {
           "severity": {
             "type": "string",
@@ -3616,8 +3617,8 @@
           "label",
           "detail"
         ],
-        "title": "BootIssueResponse",
-        "description": "A boot-time issue entry in the system status response."
+        "title": "BootIssue",
+        "description": "A problem found while the server started, listed in ``SystemStatusResponse.boot_issues``."
       },
       "ConfigSchemaResponse": {
         "properties": {
@@ -3817,7 +3818,7 @@
           "error_message"
         ],
         "title": "Execution",
-        "description": "Unified execution record returned by queries against the ``executions`` table.\n\nReplaces the split ``HandlerInvocation`` / ``JobExecution`` models.\n``kind`` discriminates between handler invocations and job executions.\nHandler-only fields (``trigger_context_id``, ``trigger_origin``) default to\n``None`` for job executions."
+        "description": "One run of a handler or scheduled job.\n\n``kind`` says which. Handler-only fields (``trigger_context_id``, ``trigger_origin``) are\n``None`` for job executions."
       },
       "ExecutionMode": {
         "type": "string",
@@ -3840,7 +3841,7 @@
           "skipped"
         ],
         "title": "ExecutionStatus",
-        "description": "Status values for handler invocations and job executions.\n\nMust stay in sync with the ``executions.status`` CHECK constraint."
+        "description": "How a handler invocation or job execution ended."
       },
       "JobSummary": {
         "properties": {
@@ -4174,7 +4175,7 @@
           "schedule_status"
         ],
         "title": "JobSummary",
-        "description": "Per-job summary returned by ``get_job_summary()``.\n\n``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``\nare tracked separately.\nInvariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``."
+        "description": "One scheduled job's registration and its execution totals.\n\n``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``\nare tracked separately.\nInvariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``."
       },
       "JobTriggerResponse": {
         "properties": {
@@ -4253,7 +4254,7 @@
         "title": "LastErrorResult",
         "description": "The outcome of the last-error lookup for one app."
       },
-      "ListenerWithSummary": {
+      "ListenerSummary": {
         "properties": {
           "listener_id": {
             "type": "integer",
@@ -4540,8 +4541,8 @@
           "di_failures",
           "cancelled"
         ],
-        "title": "ListenerWithSummary",
-        "description": "Listener metrics enriched with human-readable handler summary."
+        "title": "ListenerSummary",
+        "description": "One bus listener's registration and its invocation totals."
       },
       "LivenessResponse": {
         "properties": {
@@ -4556,7 +4557,7 @@
         "title": "LivenessResponse",
         "description": "Response model for GET /api/health/live."
       },
-      "LogEntryResponse": {
+      "LogEntry": {
         "properties": {
           "id": {
             "type": "integer",
@@ -4728,7 +4729,8 @@
           "logger_name",
           "message"
         ],
-        "title": "LogEntryResponse"
+        "title": "LogEntry",
+        "description": "One captured log record.\n\n``id`` identifies the stored record; ``seq`` orders records emitted by one server run. ``app_key``\nand ``instance_*`` are set for records an app emitted and ``None`` for framework records.\n``execution_*``, ``listener_id`` and ``job_id`` are set only for records emitted while a handler or\njob was running."
       },
       "LogLevelRequest": {
         "properties": {
@@ -4780,18 +4782,20 @@
         "properties": {
           "records": {
             "items": {
-              "$ref": "#/components/schemas/LogEntryResponse"
+              "$ref": "#/components/schemas/LogEntry"
             },
             "type": "array",
             "title": "Records"
           },
           "truncated": {
             "type": "boolean",
-            "title": "Truncated"
+            "title": "Truncated",
+            "description": "``True`` when the execution emitted more records than the request's limit; the rest are omitted."
           },
           "retention_expired": {
             "type": "boolean",
-            "title": "Retention Expired"
+            "title": "Retention Expired",
+            "description": "``True`` when ``records`` is empty because the execution's logs are past the retention window and\nwere deleted, rather than because it logged nothing."
           }
         },
         "type": "object",
@@ -4801,7 +4805,7 @@
           "retention_expired"
         ],
         "title": "LogsByExecutionResponse",
-        "description": "Response for GET /api/executions/{execution_id}."
+        "description": "The log records one handler or job execution emitted, served by ``GET /api/executions/{execution_id}``."
       },
       "ProblemCode": {
         "type": "string",
@@ -4940,7 +4944,7 @@
         "title": "ScheduleStatusReason",
         "description": "Qualifies a ``ScheduleStatus`` when the status alone does not explain the job's state.\n\nAbsent when the status needs no qualification."
       },
-      "ServiceInfoResponse": {
+      "ServiceInfo": {
         "properties": {
           "name": {
             "type": "string",
@@ -4984,8 +4988,8 @@
           "status",
           "role"
         ],
-        "title": "ServiceInfoResponse",
-        "description": "Structured info for one internal service."
+        "title": "ServiceInfo",
+        "description": "One framework service and its lifecycle status, listed in ``SystemStatusResponse.services``."
       },
       "SessionRequest": {
         "properties": {
@@ -5001,7 +5005,7 @@
           "token"
         ],
         "title": "SessionRequest",
-        "description": "Request body for POST /api/auth/session.\n\nThe pinned wire contract for the login exchange (design.md's Middleware and routing\nsection): ``{\"token\": \"<bearer-token>\"}``. The backend (this route) and the frontend\n(``postSession()`` in ``client.ts``) target this exact field name independently."
+        "description": "Request body for ``POST /api/auth/session``: exchanges a bearer token for a session cookie."
       },
       "SessionResponse": {
         "properties": {
@@ -5014,7 +5018,7 @@
         },
         "type": "object",
         "title": "SessionResponse",
-        "description": "Response for POST /api/auth/session on a correct token.\n\nThe session cookie itself travels via the ``Set-Cookie`` response header, minted by\n``mint_session_cookie()`` \u2014 this body just confirms success for callers that inspect\nthe JSON payload rather than only the status code."
+        "description": "Response for ``POST /api/auth/session`` when the token is accepted.\n\nThe session cookie arrives in the ``Set-Cookie`` response header; this body only confirms\nsuccess."
       },
       "StackFrame": {
         "properties": {
@@ -5086,7 +5090,7 @@
           },
           "services": {
             "items": {
-              "$ref": "#/components/schemas/ServiceInfoResponse"
+              "$ref": "#/components/schemas/ServiceInfo"
             },
             "type": "array",
             "title": "Services"
@@ -5098,7 +5102,7 @@
           },
           "boot_issues": {
             "items": {
-              "$ref": "#/components/schemas/BootIssueResponse"
+              "$ref": "#/components/schemas/BootIssue"
             },
             "type": "array",
             "title": "Boot Issues"
@@ -5131,7 +5135,8 @@
           "entity_count",
           "app_count"
         ],
-        "title": "SystemStatusResponse"
+        "title": "SystemStatusResponse",
+        "description": "Overall server health, served by ``GET /api/health``."
       },
       "TelemetryStatusResponse": {
         "properties": {
@@ -5214,7 +5219,7 @@
           "recent"
         ],
         "title": "UnattributedBlockingResponse",
-        "description": "Loop stalls that no app is credited with, for the diagnostics page."
+        "description": "Loop stalls that no app is credited with."
       },
       "UnattributedStall": {
         "properties": {

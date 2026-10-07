@@ -1,7 +1,7 @@
 {
   "$defs": {
     "AppStatusChangedData": {
-      "description": "Payload for an app lifecycle state-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.AppStateChangePayload`` exactly.",
+      "description": "An app instance changed lifecycle status.\n\nThe ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.",
       "properties": {
         "app_key": {
           "title": "App Key",
@@ -95,6 +95,7 @@
       "type": "object"
     },
     "AppStatusChangedWsMessage": {
+      "description": "Envelope for ``AppStatusChangedData``.",
       "properties": {
         "type": {
           "const": "app_status_changed",
@@ -124,6 +125,7 @@
       "type": "object"
     },
     "AppsChangedWsMessage": {
+      "description": "Envelope for ``AppsChangedData``.",
       "properties": {
         "type": {
           "const": "apps_changed",
@@ -146,7 +148,8 @@
       "title": "AppsChangedWsMessage",
       "type": "object"
     },
-    "ConnectedPayload": {
+    "ConnectedData": {
+      "description": "Server state sent once, as the first message after a WebSocket connection opens.\n\n``version`` is the server's hassette version; a client can compare it with its own to detect an upgrade.",
       "properties": {
         "uptime_seconds": {
           "title": "Uptime Seconds",
@@ -171,10 +174,11 @@
         "entity_count",
         "app_count"
       ],
-      "title": "ConnectedPayload",
+      "title": "ConnectedData",
       "type": "object"
     },
     "ConnectedWsMessage": {
+      "description": "Envelope for ``ConnectedData``.",
       "properties": {
         "type": {
           "const": "connected",
@@ -182,7 +186,7 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/ConnectedPayload"
+          "$ref": "#/$defs/ConnectedData"
         },
         "timestamp": {
           "title": "Timestamp",
@@ -212,6 +216,7 @@
       "type": "object"
     },
     "ConnectivityWsMessage": {
+      "description": "Envelope for ``ConnectivityData``.",
       "properties": {
         "type": {
           "const": "connectivity",
@@ -313,6 +318,7 @@
       "type": "object"
     },
     "ExecutionCompletedWsMessage": {
+      "description": "Envelope for a batch of ``ExecutionCompletedData``.",
       "properties": {
         "type": {
           "const": "execution_completed",
@@ -341,7 +347,7 @@
       "type": "object"
     },
     "ExecutionStatus": {
-      "description": "Status values for handler invocations and job executions.\n\nMust stay in sync with the ``executions.status`` CHECK constraint.",
+      "description": "How a handler invocation or job execution ended.",
       "enum": [
         "success",
         "error",
@@ -353,6 +359,7 @@
       "type": "string"
     },
     "LogHintWsMessage": {
+      "description": "New log records exist; refetch them over HTTP.\n\nCarries no records. Sent only to clients that subscribed to logs.",
       "properties": {
         "type": {
           "const": "log_hint",
@@ -401,7 +408,7 @@
       "type": "string"
     },
     "ServiceStatusData": {
-      "description": "Payload for an internal service status-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.ServiceStatusPayload``.",
+      "description": "A framework service changed lifecycle status.\n\nThe ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.",
       "properties": {
         "resource_name": {
           "title": "Resource Name",
@@ -502,6 +509,7 @@
       "type": "object"
     },
     "ServiceStatusWsMessage": {
+      "description": "Envelope for ``ServiceStatusData``.",
       "properties": {
         "type": {
           "const": "service_status",

@@ -894,7 +894,9 @@ export interface components {
         };
         /**
          * AppConfigResponse
-         * @description Response model for GET /apps/{app_key}/config.
+         * @description An app's configuration, served by ``GET /api/apps/{app_key}/config``.
+         *
+         *     Bundles the current config values, their TOML rendering, and the app config's JSON schema.
          */
         AppConfigResponse: {
             /** App Key */
@@ -984,8 +986,15 @@ export interface components {
              */
             job_avg_duration_ms: number | null;
         };
-        /** AppInstanceResponse */
-        AppInstanceResponse: {
+        /**
+         * AppInstance
+         * @description One configured instance of an app and its lifecycle status.
+         *
+         *     Nested in ``AppSummary.instances``. ``index`` is the instance's position in the app's config;
+         *     ``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None``
+         *     unless ``status`` is ``failed``.
+         */
+        AppInstance: {
             /** App Key */
             app_key: string;
             /** Index */
@@ -1019,10 +1028,10 @@ export interface components {
             only_apps?: string[];
         };
         /**
-         * AppSourceResponse
-         * @description Response model for GET /apps/{app_key}/source.
+         * AppSource
+         * @description An app's Python source file, served by ``GET /api/apps/{app_key}/source``.
          */
-        AppSourceResponse: {
+        AppSource: {
             /** App Key */
             app_key: string;
             /** Filename */
@@ -1076,7 +1085,7 @@ export interface components {
              */
             instance_count: number;
             /** Instances */
-            instances?: components["schemas"]["AppInstanceResponse"][];
+            instances?: components["schemas"]["AppInstance"][];
             /** Error Message */
             error_message?: string | null;
             /** Error Traceback */
@@ -1104,7 +1113,8 @@ export interface components {
          * @description One thing to fix: every attributed blocking event at the same app call site, grouped.
          *
          *     ``call_site`` is ``None`` when no app-code frame was captured for these events (no stack
-         *     captured, or the row predates structured frames); such findings are grouped per handler instead.
+         *     captured, or the event was recorded without structured frames); such findings are grouped per handler
+         *     instead.
          */
         BlockingFinding: {
             /** App Key */
@@ -1243,10 +1253,10 @@ export interface components {
             name?: string | null;
         };
         /**
-         * BootIssueResponse
-         * @description A boot-time issue entry in the system status response.
+         * BootIssue
+         * @description A problem found while the server started, listed in ``SystemStatusResponse.boot_issues``.
          */
-        BootIssueResponse: {
+        BootIssue: {
             /**
              * Severity
              * @enum {string}
@@ -1278,11 +1288,9 @@ export interface components {
         };
         /**
          * Execution
-         * @description Unified execution record returned by queries against the ``executions`` table.
+         * @description One run of a handler or scheduled job.
          *
-         *     Replaces the split ``HandlerInvocation`` / ``JobExecution`` models.
-         *     ``kind`` discriminates between handler invocations and job executions.
-         *     Handler-only fields (``trigger_context_id``, ``trigger_origin``) default to
+         *     ``kind`` says which. Handler-only fields (``trigger_context_id``, ``trigger_origin``) are
          *     ``None`` for job executions.
          */
         Execution: {
@@ -1389,15 +1397,13 @@ export interface components {
         ExecutionMode: "single" | "restart" | "queued" | "parallel";
         /**
          * ExecutionStatus
-         * @description Status values for handler invocations and job executions.
-         *
-         *     Must stay in sync with the ``executions.status`` CHECK constraint.
+         * @description How a handler invocation or job execution ended.
          * @enum {string}
          */
         ExecutionStatus: "success" | "error" | "cancelled" | "timed_out" | "skipped";
         /**
          * JobSummary
-         * @description Per-job summary returned by ``get_job_summary()``.
+         * @description One scheduled job's registration and its execution totals.
          *
          *     ``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``
          *     are tracked separately.
@@ -1620,10 +1626,10 @@ export interface components {
             error: components["schemas"]["LastError"] | null;
         };
         /**
-         * ListenerWithSummary
-         * @description Listener metrics enriched with human-readable handler summary.
+         * ListenerSummary
+         * @description One bus listener's registration and its invocation totals.
          */
-        ListenerWithSummary: {
+        ListenerSummary: {
             /** Listener Id */
             listener_id: number;
             /** App Key */
@@ -1765,8 +1771,16 @@ export interface components {
              */
             status: "live";
         };
-        /** LogEntryResponse */
-        LogEntryResponse: {
+        /**
+         * LogEntry
+         * @description One captured log record.
+         *
+         *     ``id`` identifies the stored record; ``seq`` orders records emitted by one server run. ``app_key``
+         *     and ``instance_*`` are set for records an app emitted and ``None`` for framework records.
+         *     ``execution_*``, ``listener_id`` and ``job_id`` are set only for records emitted while a handler or
+         *     job was running.
+         */
+        LogEntry: {
             /** Id */
             id: number;
             /** Seq */
@@ -1833,14 +1847,21 @@ export interface components {
         };
         /**
          * LogsByExecutionResponse
-         * @description Response for GET /api/executions/{execution_id}.
+         * @description The log records one handler or job execution emitted, served by ``GET /api/executions/{execution_id}``.
          */
         LogsByExecutionResponse: {
             /** Records */
-            records: components["schemas"]["LogEntryResponse"][];
-            /** Truncated */
+            records: components["schemas"]["LogEntry"][];
+            /**
+             * Truncated
+             * @description ``True`` when the execution emitted more records than the request's limit; the rest are omitted.
+             */
             truncated: boolean;
-            /** Retention Expired */
+            /**
+             * Retention Expired
+             * @description ``True`` when ``records`` is empty because the execution's logs are past the retention window and
+             *     were deleted, rather than because it logged nothing.
+             */
             retention_expired: boolean;
         };
         /**
@@ -1922,10 +1943,10 @@ export interface components {
          */
         ScheduleStatusReason: "legacy_unknown" | "trigger_error";
         /**
-         * ServiceInfoResponse
-         * @description Structured info for one internal service.
+         * ServiceInfo
+         * @description One framework service and its lifecycle status, listed in ``SystemStatusResponse.services``.
          */
-        ServiceInfoResponse: {
+        ServiceInfo: {
             /** Name */
             name: string;
             status: components["schemas"]["ResourceStatus"];
@@ -1944,11 +1965,7 @@ export interface components {
         };
         /**
          * SessionRequest
-         * @description Request body for POST /api/auth/session.
-         *
-         *     The pinned wire contract for the login exchange (design.md's Middleware and routing
-         *     section): ``{"token": "<bearer-token>"}``. The backend (this route) and the frontend
-         *     (``postSession()`` in ``client.ts``) target this exact field name independently.
+         * @description Request body for ``POST /api/auth/session``: exchanges a bearer token for a session cookie.
          */
         SessionRequest: {
             /**
@@ -1961,11 +1978,10 @@ export interface components {
         };
         /**
          * SessionResponse
-         * @description Response for POST /api/auth/session on a correct token.
+         * @description Response for ``POST /api/auth/session`` when the token is accepted.
          *
-         *     The session cookie itself travels via the ``Set-Cookie`` response header, minted by
-         *     ``mint_session_cookie()`` — this body just confirms success for callers that inspect
-         *     the JSON payload rather than only the status code.
+         *     The session cookie arrives in the ``Set-Cookie`` response header; this body only confirms
+         *     success.
          */
         SessionResponse: {
             /**
@@ -1995,7 +2011,10 @@ export interface components {
              */
             module?: string | null;
         };
-        /** SystemStatusResponse */
+        /**
+         * SystemStatusResponse
+         * @description Overall server health, served by ``GET /api/health``.
+         */
         SystemStatusResponse: {
             /**
              * Status
@@ -2013,14 +2032,14 @@ export interface components {
             /** App Count */
             app_count: number;
             /** Services */
-            services?: components["schemas"]["ServiceInfoResponse"][];
+            services?: components["schemas"]["ServiceInfo"][];
             /**
              * Version
              * @default
              */
             version: string;
             /** Boot Issues */
-            boot_issues?: components["schemas"]["BootIssueResponse"][];
+            boot_issues?: components["schemas"]["BootIssue"][];
             /**
              * Log Queue Drops
              * @description Log records dropped because the log queue was full — tune ``logging.log_queue_max``.
@@ -2076,7 +2095,7 @@ export interface components {
         };
         /**
          * UnattributedBlockingResponse
-         * @description Loop stalls that no app is credited with, for the diagnostics page.
+         * @description Loop stalls that no app is credited with.
          */
         UnattributedBlockingResponse: {
             /**
@@ -2749,7 +2768,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AppSourceResponse"];
+                    "application/json": components["schemas"]["AppSource"];
                 };
             };
             /** @description `invalid_app_key`: the app key is not a valid app key */
@@ -2864,7 +2883,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LogEntryResponse"][];
+                    "application/json": components["schemas"]["LogEntry"][];
                 };
             };
             /** @description Validation Error */
@@ -2984,7 +3003,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ListenerWithSummary"][];
+                    "application/json": components["schemas"]["ListenerSummary"][];
                 };
             };
             /** @description Validation Error */
@@ -3127,7 +3146,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ListenerWithSummary"][];
+                    "application/json": components["schemas"]["ListenerSummary"][];
                 };
             };
             /** @description Validation Error */

@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 import type { ResourceStatus } from "../api/endpoints";
 import type { components } from "../api/generated-types";
-import type { ConnectedPayload as WsConnectedPayload, WsExecutionCompletedPayload } from "../api/ws-types";
+import type { ConnectedData, WsExecutionCompletedPayload } from "../api/ws-types";
 import { getStoredValue, setStoredValue } from "../utils/local-storage";
 import { isTheme } from "../utils/theme";
 
@@ -118,7 +118,7 @@ export interface AppStore extends TelemetryHealth {
   incrementLogHint: () => void;
 
   // --- composite actions ---
-  handleWsConnected: (data: WsConnectedPayload, isReconnect: boolean) => void;
+  handleWsConnected: (data: ConnectedData, isReconnect: boolean) => void;
 }
 
 /**

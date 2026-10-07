@@ -8,8 +8,8 @@ from hassette_wire import (
     Execution,
     ExecutionMode,
     ExecutionStatus,
-    ListenerWithSummary,
-    LogEntryResponse,
+    ListenerSummary,
+    LogEntry,
     LogsByExecutionResponse,
     SourceTier,
 )
@@ -44,7 +44,7 @@ def make_activity_feed_entry(
     )
 
 
-def make_listener_summary(
+def make_listener_summary_row(
     listener_id: int = 1,
     app_key: str = DEFAULT_TEST_APP_KEY,
     instance_index: int = 0,
@@ -83,7 +83,7 @@ def make_listener_summary(
     """Build a ListenerSummaryRow with sensible defaults.
 
     ``ListenerSummaryRow`` is what ``get_listener_summary()`` returns — the DB-side model routes
-    consume. For the response-side model the routes emit, see ``make_listener_with_summary``.
+    consume. For the response-side model the routes emit, see ``make_listener_summary``.
     """
     return ListenerSummaryRow(
         listener_id=listener_id,
@@ -123,7 +123,7 @@ def make_listener_summary(
     )
 
 
-def make_listener_with_summary(
+def make_listener_summary(
     listener_id: int = 1,
     app_key: str = DEFAULT_TEST_APP_KEY,
     instance_index: int = 0,
@@ -138,9 +138,9 @@ def make_listener_with_summary(
     last_error_type: str | None = None,
     last_error_message: str | None = None,
     target: str | None = None,
-) -> ListenerWithSummary:
-    """Build a ListenerWithSummary with sensible defaults."""
-    return ListenerWithSummary(
+) -> ListenerSummary:
+    """Build a ListenerSummary with sensible defaults."""
+    return ListenerSummary(
         listener_id=listener_id,
         app_key=app_key,
         instance_index=instance_index,
@@ -185,7 +185,7 @@ def make_execution(
     )
 
 
-def make_log_entry_response(
+def make_log_entry(
     id: int = 1,
     seq: int = 1,
     timestamp: float = TEST_EPOCH_B,
@@ -200,9 +200,9 @@ def make_log_entry_response(
     instance_name: str | None = None,
     instance_index: int | None = 0,
     source_tier: str | None = "app",
-) -> LogEntryResponse:
-    """Build a LogEntryResponse with sensible defaults."""
-    return LogEntryResponse(
+) -> LogEntry:
+    """Build a LogEntry with sensible defaults."""
+    return LogEntry(
         id=id,
         seq=seq,
         timestamp=timestamp,
@@ -221,13 +221,13 @@ def make_log_entry_response(
 
 
 def make_logs_by_execution_response(
-    records: list[LogEntryResponse] | None = None,
+    records: list[LogEntry] | None = None,
     truncated: bool = False,
     retention_expired: bool = False,
 ) -> LogsByExecutionResponse:
     """Build a LogsByExecutionResponse with sensible defaults."""
     if records is None:
-        records = [make_log_entry_response()]
+        records = [make_log_entry()]
     return LogsByExecutionResponse(
         records=records,
         truncated=truncated,

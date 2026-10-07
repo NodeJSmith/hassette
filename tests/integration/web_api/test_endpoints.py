@@ -14,7 +14,7 @@ from hassette.web.config_view import MASK_SENTINEL
 from tests.integration.conftest import make_manifest_mock
 from tests.support.helpers import create_app_manifest
 from tests.support.web_manifest_helpers import make_manifest_db_row
-from tests.support.web_telemetry_helpers import make_listener_summary
+from tests.support.web_telemetry_helpers import make_listener_summary_row
 
 from .conftest import (
     APP_PATH,
@@ -687,11 +687,11 @@ class TestBusEndpoints:
         response = await client.get("/api/bus/metrics")
         assert response.status_code == 404
 
-    async def test_get_listener_metrics_returns_listener_with_summary(
+    async def test_get_listener_metrics_returns_listener_summary(
         self, mock_hassette: MagicMock, client: "AsyncClient"
     ) -> None:
-        """Endpoint returns ListenerWithSummary schema with once as int and handler_summary populated."""
-        sample = make_listener_summary(
+        """Endpoint returns ListenerSummary schema with once as int and handler_summary populated."""
+        sample = make_listener_summary_row(
             once=1,
             source_location="test_app.py:10",
             total_invocations=5,
@@ -716,10 +716,10 @@ class TestBusEndpoints:
         # once must be int, not bool
         assert entry["once"] == 1
         assert isinstance(entry["once"], int)
-        # handler_summary must be populated by to_listener_with_summary
+        # handler_summary must be populated by listener_summary_from
         assert "handler_summary" in entry
         assert entry["handler_summary"] != ""
-        # ListenerWithSummary-specific fields present
+        # ListenerSummary-specific fields present
         assert "source_location" in entry
         assert "human_description" in entry
         # timed_out is tracked separately from failed (not aggregated into it)

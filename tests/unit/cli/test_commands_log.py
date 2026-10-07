@@ -9,7 +9,7 @@ from hassette.cli.commands.log import (
     cmd_execution,
     cmd_log,
 )
-from tests.support.web_telemetry_helpers import make_log_entry_response, make_logs_by_execution_response
+from tests.support.web_telemetry_helpers import make_log_entry, make_logs_by_execution_response
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
 runner = CommandRunner("hassette.cli.commands.log.make_client")
@@ -21,7 +21,7 @@ class TestCmdLog:
     @pytest.fixture
     def logs_client(self, cli_client_factory: CLIClientFactory) -> HassetteCLIClient:
         """A client serving one default log entry from /api/logs/recent."""
-        entry = make_log_entry_response()
+        entry = make_log_entry()
         return cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
 
     def test_calls_logs_recent_endpoint(self, logs_client: HassetteCLIClient) -> None:
@@ -69,7 +69,7 @@ class TestCmdLog:
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Log renders a table with timestamp, level, and message."""
-        entry = make_log_entry_response(level="INFO", message="System started", app_key="my_app")
+        entry = make_log_entry(level="INFO", message="System started", app_key="my_app")
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
         output = runner.stdout(client, cmd_log)
 
@@ -78,7 +78,7 @@ class TestCmdLog:
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """Log --json outputs the log entries as a JSON array."""
-        entry = make_log_entry_response(message="Hello world", level="WARNING")
+        entry = make_log_entry(message="Hello world", level="WARNING")
         client = cli_client_factory.build_with_routes([("GET", "/api/logs/recent", 200, [entry.model_dump()])])
 
         parsed = runner.json_output(client, cmd_log)
@@ -131,7 +131,7 @@ class TestCmdExecution:
 
     def test_extracts_records_from_wrapper(self, cli_client_factory: CLIClientFactory) -> None:
         """Execution renders the records list from the LogsByExecutionResponse wrapper."""
-        entry = make_log_entry_response(message="Handler invoked", level="DEBUG")
+        entry = make_log_entry(message="Handler invoked", level="DEBUG")
         response_obj = make_logs_by_execution_response(records=[entry])
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-1", 200, response_obj.model_dump())]
@@ -143,7 +143,7 @@ class TestCmdExecution:
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Execution renders a table with log entry columns."""
-        entry = make_log_entry_response(level="ERROR", message="Something failed")
+        entry = make_log_entry(level="ERROR", message="Something failed")
         response_obj = make_logs_by_execution_response(records=[entry])
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-2", 200, response_obj.model_dump())]
@@ -154,7 +154,7 @@ class TestCmdExecution:
 
     def test_json_mode_outputs_records_list(self, cli_client_factory: CLIClientFactory) -> None:
         """Execution --json outputs the records list as a JSON array."""
-        entry = make_log_entry_response(message="Executed ok", level="INFO")
+        entry = make_log_entry(message="Executed ok", level="INFO")
         response_obj = make_logs_by_execution_response(records=[entry])
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/executions/exec-3", 200, response_obj.model_dump())]

@@ -134,10 +134,16 @@ Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
+- [x] Implementation and tests committed
+- [x] Docs (none needed in `docs/pages/`: no page names a renamed class; internal pointers in `.claude/rules/`, `tests/TESTING.md` and the `REVIEW.md` files updated)
 - [ ] Ship-time challenge
 
 **Calls made during the build:**
+- No type reclassified under D1 beyond the ledger's lists: every remaining bare noun (`AppActivityStats`, `LastError`, `LastErrorResult`, `ActivityBucket`, the `Blocking*Ref` types, `UnattributedStall`) describes one domain object, and every remaining `*Response`/`*Request` is an envelope, aggregate, probe or acknowledgement.
+- Mapper names: `instance_response_from`→`app_instance_from`, `connected_payload_from`→`connected_data_from`, `to_listener_with_summary`→`listener_summary_from`: the `<type>_from` shape the other mappers in `mappers.py` already use. `ServiceInfo`, `LogEntry`, `AppSource` and `BootIssue` have no named builder (constructed inline in `runtime_query_service.py` and the routes; `collect_boot_issues` already names its result), so nothing else to rename.
+- Test factories follow their types too: `make_listener_summary` (built `ListenerSummaryRow`)→`make_listener_summary_row`, freeing it for the wire factory (`make_listener_with_summary`→`make_listener_summary`); `make_log_entry` (built `LogRecordEntry`)→`make_log_record_entry`, freeing it for `make_log_entry_response`→`make_log_entry`; `make_app_source_response`→`make_app_source`. A name reused for a different type would otherwise mislead, but pyright and the factory return types catch any caller left on the old meaning, and every caller was checked.
+- Local names and aliases carrying the old vocabulary were renamed with their types (`payload`→`data` in `routes/ws.py`, the `*Payload` import aliases in `tests/unit/test_ws_models.py` and `frontend/src/state/store.ts`, test class names), so a grep for an old name finds only frozen history.
+- `LogsByExecutionResponse` gained attribute docstrings for `truncated` and `retention_expired` (and `use_attribute_docstrings`), since D8's rewrite would otherwise have left the one HTTP body whose flags a client can't interpret from names alone.
+- `tools/check_wire_compat.py` passes against v0.55.0 with no new ignore lines: schema component renames don't register as breaking in its diff, so the breaks are carried by the `feat!` footer (D9) alone.
 
 ## Addendum

@@ -483,7 +483,7 @@ class TestBuildManifestInfoStatusDerivation:
         The fallback has to cover more than a missing key. A non-string or empty configured
         ``instance_name`` -- an explicit ``null`` in the user's config, say -- must not flow
         through as-is: ``AppInstanceInfo.instance_name`` is a required ``str``, and the eventual
-        ``AppInstanceResponse`` Pydantic mapping would raise a validation error on anything else,
+        ``AppInstance`` Pydantic mapping would raise a validation error on anything else,
         turning the status endpoint into a 500.
         """
         manifest = make_manifest_obj("my_app", app_config=app_config)

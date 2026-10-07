@@ -7,7 +7,7 @@ import pytest
 
 from hassette.schemas.live_counts import LiveCounts
 from hassette.schemas.summary_models import AppHealthAggregates
-from tests.support.web_telemetry_helpers import make_execution, make_listener_summary
+from tests.support.web_telemetry_helpers import make_execution, make_listener_summary_row
 
 from .conftest import APP_HEALTH_PATH, TELEMETRY_STATUS_PATH, get_json
 
@@ -112,7 +112,7 @@ class TestTelemetryListeners:
     async def test_returns_summaries_with_handler_descriptions(self, client: "AsyncClient", mock_hassette) -> None:
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
             return_value=[
-                make_listener_summary(
+                make_listener_summary_row(
                     **LISTENER_DEFAULTS,
                     listener_id=1,
                     total_invocations=50,
@@ -136,7 +136,7 @@ class TestTelemetryListeners:
         """The endpoint surfaces persisted mode and live suppressed/dropped counts."""
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
             return_value=[
-                make_listener_summary(
+                make_listener_summary_row(
                     **LISTENER_DEFAULTS,
                     listener_id=7,
                     mode="single",
@@ -169,7 +169,7 @@ class TestTelemetryListeners:
     async def test_listener_with_no_live_guard_reports_zero_counts(self, client: "AsyncClient", mock_hassette) -> None:
         """A listener absent from the live snapshot (retired) reports zero counts."""
         mock_hassette.telemetry_query_service.get_listener_summary = AsyncMock(
-            return_value=[make_listener_summary(**LISTENER_DEFAULTS, listener_id=7, mode="restart")]
+            return_value=[make_listener_summary_row(**LISTENER_DEFAULTS, listener_id=7, mode="restart")]
         )
         mock_hassette.bus_service.live_execution_counts = MagicMock(return_value={})
 

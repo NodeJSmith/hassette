@@ -1,14 +1,14 @@
-"""Unit tests for web/mappers.py — domain-to-response model conversions."""
+"""Unit tests for web/mappers.py — domain-to-wire model conversions."""
 
 import dataclasses
 
 import pytest
 from hassette_wire import (
-    AppInstanceResponse,
+    AppInstance,
     AppListResponse,
     AppStatus,
-    ConnectedPayload,
-    ListenerWithSummary,
+    ConnectedData,
+    ListenerSummary,
     LivenessResponse,
     ReadinessResponse,
     ResourceStatus,
@@ -20,14 +20,14 @@ from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.schemas.listener_models import ListenerSummaryRow
 from hassette.schemas.live_counts import LiveCounts
 from hassette.web.mappers import (
+    app_instance_from,
     app_list_response_from,
-    connected_payload_from,
-    instance_response_from,
+    connected_data_from,
+    listener_summary_from,
     readiness_response_from,
-    to_listener_with_summary,
 )
 from tests.support.web_manifest_helpers import make_full_snapshot, make_manifest
-from tests.support.web_telemetry_helpers import make_listener_summary
+from tests.support.web_telemetry_helpers import make_listener_summary_row
 
 
 def make_instance(app_key: str, index: int, status: ResourceStatus) -> AppInstanceInfo:
@@ -41,8 +41,8 @@ def make_instance(app_key: str, index: int, status: ResourceStatus) -> AppInstan
     )
 
 
-def test_instance_response_from_copies_all_fields():
-    """Every response field is copied from the source AppInstanceInfo by name."""
+def test_app_instance_from_copies_all_fields():
+    """Every AppInstance field is copied from the source AppInstanceInfo by name."""
     info = AppInstanceInfo(
         app_key="app_a",
         index=2,
@@ -54,9 +54,9 @@ def test_instance_response_from_copies_all_fields():
         owner_id="owner-1",
     )
 
-    result = instance_response_from(info)
+    result = app_instance_from(info)
 
-    assert isinstance(result, AppInstanceResponse)
+    assert isinstance(result, AppInstance)
     assert result.app_key == "app_a"
     assert result.index == 2
     assert result.instance_name == "app_a.2"
@@ -67,34 +67,34 @@ def test_instance_response_from_copies_all_fields():
     assert result.owner_id == "owner-1"
 
 
-def test_instance_response_from_ignores_source_error_attribute():
-    """The source's ``error`` Exception attribute has no response field and is dropped."""
+def test_app_instance_from_ignores_source_error_attribute():
+    """The source's ``error`` Exception attribute has no AppInstance field and is dropped."""
     info = dataclasses.replace(make_instance("app_a", 0, ResourceStatus.FAILED), error=ValueError("kaboom"))
 
-    result = instance_response_from(info)
+    result = app_instance_from(info)
 
     assert not hasattr(result, "error")
     assert result.status is ResourceStatus.FAILED
 
 
-def test_listener_summary_fields_are_subset_of_response():
-    """Every ListenerSummaryRow field exists on ListenerWithSummary, with one documented exception.
+def test_listener_summary_row_fields_are_subset_of_wire_model():
+    """Every ListenerSummaryRow field exists on ListenerSummary, with one documented exception.
 
     Guards the from_attributes mapper: a field added to ListenerSummaryRow but
-    missing from ListenerWithSummary would silently drop instead of surfacing.
+    missing from ListenerSummary would silently drop instead of surfacing.
     ``entity_id`` is the one intentional exception — the mapper consumes it (falling
     back to the topic's last segment when unset) to populate ``target`` instead of
     copying it through 1:1.
     """
     consumed_by_mapper = {"entity_id"}
     summary_fields = set(ListenerSummaryRow.model_fields)
-    response_fields = set(ListenerWithSummary.model_fields)
-    missing = summary_fields - response_fields - consumed_by_mapper
-    assert not missing, f"ListenerSummaryRow fields not present on ListenerWithSummary: {missing}"
+    wire_fields = set(ListenerSummary.model_fields)
+    missing = summary_fields - wire_fields - consumed_by_mapper
+    assert not missing, f"ListenerSummaryRow fields not present on ListenerSummary: {missing}"
 
 
 def test_app_list_response_from_builds_nested_instances():
-    """Verify nested AppInstanceResponse objects are built correctly."""
+    """Verify nested AppInstance objects are built correctly."""
     inst0 = make_instance("app_a", 0, ResourceStatus.RUNNING)
     inst1 = make_instance("app_a", 1, ResourceStatus.RUNNING)
     manifest = make_manifest("app_a", status=AppStatus.RUNNING, instances=[inst0, inst1], instance_count=2)
@@ -184,181 +184,181 @@ def make_system_status(**overrides) -> SystemStatusResponse:
     return SystemStatusResponse(**defaults)
 
 
-def test_connected_payload_from_uses_system_status_fields():
+def test_connected_data_from_uses_system_status_fields():
     """entity_count, app_count, and uptime_seconds come from SystemStatusResponse."""
     status = make_system_status(entity_count=100, app_count=5, uptime_seconds=300.0)
 
-    result = connected_payload_from(status)
+    result = connected_data_from(status)
 
-    assert isinstance(result, ConnectedPayload)
+    assert isinstance(result, ConnectedData)
     assert result.entity_count == 100
     assert result.app_count == 5
     assert result.uptime_seconds == 300.0
 
 
-def test_connected_payload_from_uptime_seconds_from_status():
+def test_connected_data_from_uptime_seconds_from_status():
     """uptime_seconds is derived from SystemStatusResponse, not a separate parameter."""
     status = make_system_status(uptime_seconds=42.5)
 
-    result = connected_payload_from(status)
+    result = connected_data_from(status)
 
     assert result.uptime_seconds == 42.5
 
 
-def test_connected_payload_from_no_session_id():
-    """ConnectedPayload no longer carries session_id."""
+def test_connected_data_from_no_session_id():
+    """ConnectedData no longer carries session_id."""
     status = make_system_status()
 
-    result = connected_payload_from(status)
+    result = connected_data_from(status)
 
     assert not hasattr(result, "session_id")
 
 
-def test_to_listener_with_summary_passes_through_last_error_traceback():
-    """last_error_traceback from ListenerSummaryRow passes through to ListenerWithSummary."""
+def test_listener_summary_from_passes_through_last_error_traceback():
+    """last_error_traceback from ListenerSummaryRow passes through to ListenerSummary."""
     traceback_text = "Traceback (most recent call last):\n  File test.py, line 1\nValueError: oops"
-    summary = make_listener_summary(
+    summary = make_listener_summary_row(
         last_error_type="ValueError",
         last_error_message="oops",
         last_error_traceback=traceback_text,
     )
 
-    result = to_listener_with_summary(summary)
+    result = listener_summary_from(summary)
 
     assert result.last_error_traceback == traceback_text
 
 
-def test_to_listener_with_summary_none_traceback_when_no_error():
+def test_listener_summary_from_none_traceback_when_no_error():
     """last_error_traceback is None when ListenerSummaryRow has no error."""
-    summary = make_listener_summary()
+    summary = make_listener_summary_row()
 
-    result = to_listener_with_summary(summary)
+    result = listener_summary_from(summary)
 
     assert result.last_error_traceback is None
 
 
-def test_to_listener_with_summary_mode_passthrough():
+def test_listener_summary_from_mode_passthrough():
     """Mode passes through from the DB summary to the response model."""
-    summary = make_listener_summary(mode="queued")
+    summary = make_listener_summary_row(mode="queued")
 
-    result = to_listener_with_summary(summary)
+    result = listener_summary_from(summary)
 
     assert result.mode == "queued"
 
 
-def test_to_listener_with_summary_thread_leaked_passthrough():
+def test_listener_summary_from_thread_leaked_passthrough():
     """thread_leaked passes through from the DB summary to the response model (#1049 parity).
 
     Guards the listener-only mapper layer: a field added to ListenerSummaryRow but not copied
     here would be silently 0 in the API.
     """
-    summary = make_listener_summary(thread_leaked=4)
+    summary = make_listener_summary_row(thread_leaked=4)
 
-    result = to_listener_with_summary(summary)
+    result = listener_summary_from(summary)
 
     assert result.thread_leaked == 4
 
 
-def test_to_listener_with_summary_merges_live_counts_by_db_id():
+def test_listener_summary_from_merges_live_counts_by_db_id():
     """suppressed/dropped/backpressure_dropped come from the live snapshot keyed by listener db_id."""
-    summary = make_listener_summary(listener_id=42)
+    summary = make_listener_summary_row(listener_id=42)
 
-    result = to_listener_with_summary(summary, {42: LiveCounts(suppressed=3, dropped=5, backpressure_dropped=0)})
+    result = listener_summary_from(summary, {42: LiveCounts(suppressed=3, dropped=5, backpressure_dropped=0)})
 
     assert result.suppressed_count == 3
     assert result.dropped_count == 5
     assert result.backpressure_dropped_count == 0
 
 
-def test_to_listener_with_summary_defaults_counts_to_zero_when_no_live_guard():
+def test_listener_summary_from_defaults_counts_to_zero_when_no_live_guard():
     """A listener absent from the live snapshot (retired) reports zero counts."""
-    summary = make_listener_summary(listener_id=42)
+    summary = make_listener_summary_row(listener_id=42)
 
-    result = to_listener_with_summary(summary, {99: LiveCounts(suppressed=1, dropped=1, backpressure_dropped=0)})
+    result = listener_summary_from(summary, {99: LiveCounts(suppressed=1, dropped=1, backpressure_dropped=0)})
 
     assert result.suppressed_count == 0
     assert result.dropped_count == 0
     assert result.backpressure_dropped_count == 0
 
 
-def test_to_listener_with_summary_backpressure_dropped_flows_into_backpressure_dropped_count():
+def test_listener_summary_from_backpressure_dropped_flows_into_backpressure_dropped_count():
     """backpressure_dropped > 0 on a live guard flows into backpressure_dropped_count; suppressed/dropped unchanged."""
-    summary = make_listener_summary(listener_id=10)
+    summary = make_listener_summary_row(listener_id=10)
 
-    result = to_listener_with_summary(summary, {10: LiveCounts(suppressed=2, dropped=1, backpressure_dropped=7)})
+    result = listener_summary_from(summary, {10: LiveCounts(suppressed=2, dropped=1, backpressure_dropped=7)})
 
     assert result.backpressure_dropped_count == 7
     assert result.suppressed_count == 2
     assert result.dropped_count == 1
 
 
-def test_to_listener_with_summary_raises_on_wrong_typed_computed_value():
+def test_listener_summary_from_raises_on_wrong_typed_computed_value():
     """A bad live-counts value makes the constructor raise instead of silently passing through.
 
     ``model_copy(update=...)`` skips validation, so this only proves the current code path
-    validates once the function builds via ``ListenerWithSummary(...)`` directly.
+    validates once the function builds via ``ListenerSummary(...)`` directly.
     """
-    summary = make_listener_summary(listener_id=42)
+    summary = make_listener_summary_row(listener_id=42)
 
     bad_counts = {
         42: LiveCounts(suppressed="not-a-number", dropped=0, backpressure_dropped=0)  # pyright: ignore[reportArgumentType]
     }
     with pytest.raises(ValidationError):
-        to_listener_with_summary(summary, bad_counts)
+        listener_summary_from(summary, bad_counts)
 
 
-def test_to_listener_with_summary_backpressure_passthrough():
+def test_listener_summary_from_backpressure_passthrough():
     """Backpressure policy passes through from the DB summary to the response model."""
-    summary = make_listener_summary(backpressure="drop_newest")
+    summary = make_listener_summary_row(backpressure="drop_newest")
 
-    result = to_listener_with_summary(summary)
+    result = listener_summary_from(summary)
 
     assert result.backpressure == "drop_newest"
 
 
-def test_to_listener_with_summary_backpressure_defaults_to_block():
+def test_listener_summary_from_backpressure_defaults_to_block():
     """Backpressure defaults to 'block' when ListenerSummaryRow has no override."""
-    summary = make_listener_summary()
+    summary = make_listener_summary_row()
 
-    result = to_listener_with_summary(summary)
+    result = listener_summary_from(summary)
 
     assert result.backpressure == "block"
 
 
-def test_to_listener_with_summary_min_max_none_passthrough():
+def test_listener_summary_from_min_max_none_passthrough():
     """min_duration_ms and max_duration_ms pass through as None (no invocations)."""
-    summary = make_listener_summary(min_duration_ms=None, max_duration_ms=None)
+    summary = make_listener_summary_row(min_duration_ms=None, max_duration_ms=None)
 
-    result = to_listener_with_summary(summary)
+    result = listener_summary_from(summary)
 
     assert result.min_duration_ms is None
     assert result.max_duration_ms is None
 
 
-def test_to_listener_with_summary_min_max_numeric_passthrough():
+def test_listener_summary_from_min_max_numeric_passthrough():
     """min_duration_ms and max_duration_ms pass through as numeric values."""
-    summary = make_listener_summary(min_duration_ms=5.0, max_duration_ms=100.0, total_invocations=3)
+    summary = make_listener_summary_row(min_duration_ms=5.0, max_duration_ms=100.0, total_invocations=3)
 
-    result = to_listener_with_summary(summary)
+    result = listener_summary_from(summary)
 
     assert result.min_duration_ms == 5.0
     assert result.max_duration_ms == 100.0
 
 
-def test_to_listener_with_summary_target_uses_entity_id_when_present():
+def test_listener_summary_from_target_uses_entity_id_when_present():
     """Target is the entity ID for state/attribute listeners."""
-    summary = make_listener_summary(entity_id="light.kitchen", topic="hass.event.state_changed")
+    summary = make_listener_summary_row(entity_id="light.kitchen", topic="hass.event.state_changed")
 
-    result = to_listener_with_summary(summary)
+    result = listener_summary_from(summary)
 
     assert result.target == "light.kitchen"
 
 
-def test_to_listener_with_summary_target_falls_back_to_topic_last_segment():
+def test_listener_summary_from_target_falls_back_to_topic_last_segment():
     """Target falls back to the topic's last segment when entity_id is None (event listeners)."""
-    summary = make_listener_summary(entity_id=None, topic="hassette.event.service_status")
+    summary = make_listener_summary_row(entity_id=None, topic="hassette.event.service_status")
 
-    result = to_listener_with_summary(summary)
+    result = listener_summary_from(summary)
 
     assert result.target == "service_status"
 
