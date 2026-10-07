@@ -481,7 +481,7 @@ def test_accepted_config_keys_follow_pydantic_lookup(
     assert not (absent & keys)
 
 
-class TestUnrecognizedConfigKeyWarning:
+class TestAppFactoryUnrecognizedConfigKeyWarning:
     def test_bare_app_config_does_not_warn_on_extras(
         self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
     ):

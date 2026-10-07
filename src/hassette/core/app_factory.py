@@ -156,7 +156,13 @@ class AppFactory:
 
         try:
             validated = app_class.app_config_cls.model_validate(config_dict)
-            warn_unrecognized_config_keys(app_key, manifest, instance_name, config_dict, validated)
+            warn_unrecognized_config_keys(
+                app_key=app_key,
+                manifest=manifest,
+                instance_name=instance_name,
+                config_dict=config_dict,
+                validated=validated,
+            )
             app_instance = app_class(
                 hassette=self.hassette,
                 app_config=validated,
@@ -263,12 +269,12 @@ def accepted_config_keys(config_cls: type[AppConfig]) -> list[str]:
     A field with an alias is populated by that alias, not by its attribute name, unless the model
     enables ``validate_by_name``; suggesting the attribute name there would point at another extra.
     """
-    config = config_cls.model_config
+    model_config = config_cls.model_config
     # Pydantic's two switches: aliases are honored unless ``validate_by_alias=False``; attribute names are
     # honored for aliased fields only when ``validate_by_name`` (or its older spelling ``populate_by_name``)
     # is set. Turning aliases off makes the attribute name the only key that works.
-    by_alias = config.get("validate_by_alias", True)
-    by_name = config.get("validate_by_name", False) or config.get("populate_by_name", False)
+    by_alias = model_config.get("validate_by_alias", True)
+    by_name = model_config.get("validate_by_name", False) or model_config.get("populate_by_name", False)
 
     keys: list[str] = []
     for name, field in config_cls.model_fields.items():
