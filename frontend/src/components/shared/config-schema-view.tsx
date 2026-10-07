@@ -33,7 +33,10 @@ import { IconChevron } from "./icons";
 
 const CONFIG_GROUPS_CLASS = "flex flex-col gap-5";
 const CONFIG_SECTION_CLASS = "min-w-0";
-const CONFIG_SECTION_HEAD_CLASS = "flex items-baseline gap-2 border-b border-[var(--border-subtle)] px-4 py-3";
+const CONFIG_SECTION_HEAD_CLASS = "flex items-baseline gap-2 px-4 py-3";
+const CONFIG_SECTION_HEAD_OPEN_CLASS = "border-b border-[var(--border-subtle)]";
+const CONFIG_SECTION_TOGGLE_CLASS =
+  "inline-flex cursor-pointer items-center gap-2 border-none bg-transparent p-0 text-inherit hover:text-primary";
 const CONFIG_SECTION_TITLE_CLASS =
   "m-0 text-[length:var(--text-body)] font-semibold tracking-[-0.01em] text-foreground";
 const CONFIG_SECTION_COUNT_CLASS = "font-mono text-xs text-foreground-faint";
@@ -383,6 +386,7 @@ interface SectionProps {
 }
 
 function ConfigSection({ title, fields }: SectionProps) {
+  const [open, setOpen] = useState(true);
   if (fields.length === 0) return null;
 
   const slug = title
@@ -393,17 +397,30 @@ function ConfigSection({ title, fields }: SectionProps) {
   return (
     <section className={CONFIG_SECTION_CLASS} data-testid={`config-section-${slug}`}>
       <Card variant="config">
-        <div className={CONFIG_SECTION_HEAD_CLASS}>
-          <h3 className={CONFIG_SECTION_TITLE_CLASS}>{title}</h3>
+        <div className={cn(CONFIG_SECTION_HEAD_CLASS, open && CONFIG_SECTION_HEAD_OPEN_CLASS)}>
+          <h3 className={CONFIG_SECTION_TITLE_CLASS}>
+            <button
+              type="button"
+              className={CONFIG_SECTION_TOGGLE_CLASS}
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              data-testid={`config-toggle-${slug}`}
+            >
+              <IconChevron open={open} />
+              {title}
+            </button>
+          </h3>
           <span className={CONFIG_SECTION_COUNT_CLASS}>
             {fields.length} {fields.length === 1 ? "field" : "fields"}
           </span>
         </div>
-        <div className={CONFIG_FIELDS_CLASS}>
-          {fields.map(({ key, node, value }) => (
-            <ConfigFieldRow key={key} fieldKey={key} node={node} value={value} />
-          ))}
-        </div>
+        {open && (
+          <div className={CONFIG_FIELDS_CLASS}>
+            {fields.map(({ key, node, value }) => (
+              <ConfigFieldRow key={key} fieldKey={key} node={node} value={value} />
+            ))}
+          </div>
+        )}
       </Card>
     </section>
   );
