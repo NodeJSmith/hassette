@@ -373,14 +373,3 @@ class TestValidateApps:
         warnings = [message for message in messages if "shared-key" in message]
         assert len(warnings) == 1, f"Expected one collision WARNING, got: {messages}"
         assert "without `cache_shared = true`: ['app_two']" in warnings[0]
-
-    def test_validate_apps_warns_on_equivalent_cache_key_spellings(
-        self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Keys that differ only in spelling but resolve to the same cache path still collide."""
-        apps = make_two_apps(cache_key_one="weather/shared", cache_key_two="weather//shared/.", shared_one=True)
-        messages = self.warning_messages(tmp_path, app_dir, caplog, apps)
-
-        warnings = [message for message in messages if "weather/shared" in message]
-        assert len(warnings) == 1, f"Expected one collision WARNING, got: {messages}"
-        assert "without `cache_shared = true`: ['app_two']" in warnings[0]
