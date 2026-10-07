@@ -20,12 +20,13 @@ consumer, or does it point at server functions, files, or tables that do not
 exist in this package? Were the generated artifacts regenerated with it?
 
 ## Class Naming
-Does every new or renamed class follow the naming rule in the package
-docstring (`__init__.py`)? A record is a bare noun wherever it appears;
-other HTTP bodies end in `Response`/`Request`; WS payloads end in `Data`
-and their envelopes in `WsMessage`. Does the name collide with a public
-`hassette` name? A rename changes the published schema component names, so
-is the PR marked breaking?
+`wire/tests/test_naming.py` enforces the WS suffixes (`Data` payloads,
+`WsMessage` envelopes) and the retired ones. Review decides what it can't:
+is each new or renamed HTTP type a record (a bare noun wherever it appears)
+or another HTTP body (`Response`/`Request`), per the rule in the package
+docstring (`__init__.py`)? Does the name collide with a public `hassette`
+name? A rename changes the published schema component names, so is the PR
+marked breaking?
 
 ## Shared Vocabulary Is Published
 A member added to an enum in `enums.py` or a value added to a Literal in

@@ -67,7 +67,7 @@ async def get_execution_logs(
     whether retention has expired.
 
     Returns 422 if the execution_id is not a valid UUID. Returns an empty record list
-    with ``retention_expired=True`` if logs have been purged by retention policy.
+    with ``retention_expired=True`` if the execution is older than the log retention window.
     """
     try:
         uuid_utils.UUID(execution_id)

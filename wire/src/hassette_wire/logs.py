@@ -40,8 +40,8 @@ class LogsByExecutionResponse(BaseModel):
     truncated: bool
     """``True`` when the execution emitted more records than the request's limit; the rest are omitted."""
     retention_expired: bool
-    """``True`` when ``records`` is empty because the execution's logs are past the retention window and
-    were deleted, rather than because it logged nothing."""
+    """``True`` when ``records`` is empty and the execution is older than the server's log retention window:
+    its records may have been deleted, or it may never have logged."""
 
 
 class LogLevelRequest(BaseModel):

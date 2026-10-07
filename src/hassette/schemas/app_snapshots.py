@@ -98,7 +98,8 @@ class AppManifestInfo:
     error_message: str | None = None
     error_traceback: str | None = None
     in_current_config: bool = True
-    """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
+    """True if the app is present in the currently-loaded config; False for an app known only from recorded
+    history, such as one removed from the config."""
 
     def __post_init__(self) -> None:
         # Same defensive copy as AppStatusSnapshot.__post_init__.

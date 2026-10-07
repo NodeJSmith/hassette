@@ -44,14 +44,17 @@ class AppSummary(BaseModel):
     status: OpenAppStatus
     block_reason: str | None = None
     instance_count: int = 0
-    """Number of entries in ``instances``: every configured instance (including untracked ones, never started
-    or independently stopped) plus any still-tracked instance outside the configured range. 0 for DB-only or
-    removed apps. Always len(instances)."""
+    """Number of entries in ``instances``: every configured instance, including ones never started or
+    independently stopped, plus any instance still running beyond the configured count (e.g. after the config
+    was reduced). Always len(instances).
+
+    0 when ``in_current_config`` is ``False``."""
     instances: list[AppInstance] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
     in_current_config: bool = True
-    """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
+    """True if the app is present in the currently-loaded config; False for an app known only from recorded
+    history, such as one removed from the config."""
 
 
 class AppListResponse(BaseModel):

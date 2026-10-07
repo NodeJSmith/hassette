@@ -347,7 +347,7 @@ export interface paths {
          *     whether retention has expired.
          *
          *     Returns 422 if the execution_id is not a valid UUID. Returns an empty record list
-         *     with ``retention_expired=True`` if logs have been purged by retention policy.
+         *     with ``retention_expired=True`` if the execution is older than the log retention window.
          */
         get: operations["get_execution_logs_api_executions__execution_id__get"];
         put?: never;
@@ -1078,9 +1078,11 @@ export interface components {
             block_reason?: string | null;
             /**
              * Instance Count
-             * @description Number of entries in ``instances``: every configured instance (including untracked ones, never started
-             *     or independently stopped) plus any still-tracked instance outside the configured range. 0 for DB-only or
-             *     removed apps. Always len(instances).
+             * @description Number of entries in ``instances``: every configured instance, including ones never started or
+             *     independently stopped, plus any instance still running beyond the configured count (e.g. after the config
+             *     was reduced). Always len(instances).
+             *
+             *     0 when ``in_current_config`` is ``False``.
              * @default 0
              */
             instance_count: number;
@@ -1092,7 +1094,8 @@ export interface components {
             error_traceback?: string | null;
             /**
              * In Current Config
-             * @description True if the app is present in the currently-loaded config; False for DB-only/removed apps.
+             * @description True if the app is present in the currently-loaded config; False for an app known only from recorded
+             *     history, such as one removed from the config.
              * @default true
              */
             in_current_config: boolean;
@@ -1497,9 +1500,8 @@ export interface components {
              */
             group?: string | null;
             /**
-             * @description Whether the job will run again on its own. Persisted at registration and every status
-             *     transition; live enrichment overlays the current in-process value, so a DB-only degraded
-             *     response still reflects the last persisted status.
+             * @description Whether the job will run again on its own: its live status while it is registered with the running
+             *     scheduler, otherwise the last status the server recorded for it.
              */
             schedule_status: components["schemas"]["ScheduleStatus"];
             /**
@@ -1509,10 +1511,13 @@ export interface components {
             schedule_status_reason?: components["schemas"]["ScheduleStatusReason"] | null;
             /**
              * Next Run
-             * @description Unix epoch seconds of the next scheduled fire time (unjittered); live-only — always
-             *     ``None`` in a DB-only response, and ``None`` for every status except ``scheduled`` with
-             *     live timing available. A ``None`` value no longer implies the job is done; see
-             *     ``schedule_status``/``schedule_status_reason`` for the reason timing is unavailable.
+             * @description Unix epoch seconds of the next scheduled fire time (unjittered). ``None`` when:
+             *
+             *     - the job is not registered with the running scheduler,
+             *     - the server could not read live scheduler state, or
+             *     - ``schedule_status`` is anything other than ``scheduled``.
+             *
+             *     ``None`` does not mean the job is done; ``schedule_status`` and ``schedule_status_reason`` say why.
              */
             next_run?: number | null;
             /**
@@ -1859,8 +1864,8 @@ export interface components {
             truncated: boolean;
             /**
              * Retention Expired
-             * @description ``True`` when ``records`` is empty because the execution's logs are past the retention window and
-             *     were deleted, rather than because it logged nothing.
+             * @description ``True`` when ``records`` is empty and the execution is older than the server's log retention window:
+             *     its records may have been deleted, or it may never have logged.
              */
             retention_expired: boolean;
         };
