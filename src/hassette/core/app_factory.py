@@ -25,6 +25,9 @@ SUGGESTION_CUTOFF = 0.5
 
 Looser than difflib's 0.6 default: a wrong guess costs a glance, a missing one leaves the user hunting."""
 
+INSTANCE_NAME_KEY = "instance_name"
+"""Config key the factory reads literally to name each instance, whatever alias the config class gives the field."""
+
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.app import App
@@ -144,7 +147,7 @@ class AppFactory:
             config_dict: The raw config dict for this instance
             app_class: The already-loaded app class to instantiate
         """
-        instance_name = config_dict.get("instance_name")
+        instance_name = config_dict.get(INSTANCE_NAME_KEY)
         if not is_valid_instance_name(instance_name):
             self.registry.record_failure(
                 app_key, index, ValueError(f"App {app_key} instance {index} is missing instance_name")
@@ -234,7 +237,8 @@ def warn_unrecognized_config_keys(
     if not declares_own_fields or not validated.model_extra:
         return
 
-    unrecognized = [key for key in validated.model_extra if key in config_dict]
+    # ``instance_name`` is required under its literal name, so it can land in extras when an alias renames the field.
+    unrecognized = [key for key in validated.model_extra if key in config_dict and key != INSTANCE_NAME_KEY]
     if not unrecognized:
         return
 
