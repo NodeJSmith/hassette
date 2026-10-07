@@ -47,6 +47,7 @@ def make_bus_service(
         logger=svc.logger,
         make_synthetic_event=make_synthetic_state_event,
         compute_elapsed=compute_elapsed,
+        record_predicate_failure=svc._record_predicate_failure,
     )
     svc._dispatch_pending = 0
     svc._dispatch_idle_event = asyncio.Event()

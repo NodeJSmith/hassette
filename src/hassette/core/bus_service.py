@@ -116,6 +116,7 @@ class BusService(Service):
             logger=self.logger,
             make_synthetic_event=make_synthetic_state_event,
             compute_elapsed=compute_elapsed,
+            record_predicate_failure=self._record_predicate_failure,
         )
 
         self._removal_callbacks = {}

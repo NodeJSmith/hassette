@@ -1,5 +1,6 @@
 """Duration hold lifecycle manager for state-change listeners."""
 
+import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -36,6 +37,7 @@ class DurationHoldManager:
         logger: "logging.Logger",
         make_synthetic_event: "Callable[[str, HassStateDict], Event[Any]]",
         compute_elapsed: "Callable[[HassStateDict, DurationConfig], float]",
+        record_predicate_failure: "Callable[[Listener, str, Event[Any], Exception, float], None]",
     ) -> None:
         """Initialize the DurationHoldManager.
 
@@ -56,6 +58,10 @@ class DurationHoldManager:
             compute_elapsed: Computes how long an entity has been in its current state,
                 reading HA-specific fields from the state dict. Injected from core so the
                 bus kernel does not import HA event types.
+            record_predicate_failure: Records a raising predicate as a failed execution and
+                routes it to the listener's (or app-level) error handler. Takes
+                ``(listener, topic, event, exc, start_ts)``. Injected from ``BusService`` so the
+                duration-hold paths share the main dispatch path's failure handling.
         """
         self.executor = executor
         self.config_resolver = config_resolver
@@ -66,6 +72,7 @@ class DurationHoldManager:
         self.logger = logger
         self.make_synthetic_event = make_synthetic_event
         self.compute_elapsed = compute_elapsed
+        self.record_predicate_failure = record_predicate_failure
         self._duration_timers_active: int = 0
 
     @property
@@ -78,22 +85,33 @@ class DurationHoldManager:
         if self._duration_timers_active > 0:
             self._duration_timers_active -= 1
 
-    def hold_matches(self, listener: Listener, event: Any) -> bool:
+    def hold_matches(self, listener: Listener, event: "Event[Any]") -> bool:
         """Check hold predicates (state-value only) against an event.
 
         Falls back to ``listener.matches()`` when no hold predicate is set.
-        Catches predicate exceptions here because the duration-hold path has no
-        executor access for telemetry recording — a raising predicate logs and
-        returns False so the spawned timer task doesn't crash.
+        A raising predicate is recorded via ``record_predicate_failure`` (error
+        ``ExecutionRecord`` + error-handler routing, same as the main dispatch path)
+        and treated as a non-match so the spawned timer task doesn't crash.
         """
         hold_pred = listener.duration_config.hold_predicate if listener.duration_config else None
+        predicate_start = time.time()
         try:
             if hold_pred is None:
                 return listener.matches(event)
             return hold_pred(event)
-        except Exception:
+        except Exception as exc:
             self.logger.exception("Predicate raised in hold_matches for %s; treating as non-match", listener)
+            self.safe_record_predicate_failure(listener, event.topic, event, exc, predicate_start)
             return False
+
+    def safe_record_predicate_failure(
+        self, listener: Listener, topic: str, event: "Event[Any]", exc: Exception, start_ts: float
+    ) -> None:
+        """Call ``record_predicate_failure``, logging (not raising) if recording itself fails."""
+        try:
+            self.record_predicate_failure(listener, topic, event, exc, start_ts)
+        except Exception:
+            self.logger.exception("Failed to record predicate failure for %s", listener)
 
     async def immediate_fire_task(self, listener: Listener) -> None:
         """Fire a handler immediately with the current entity state.
@@ -104,7 +122,11 @@ class DurationHoldManager:
 
         Error contract: any exception → log at WARNING; immediate fire becomes a no-op.
         ``state_reader`` handles state-read errors; the outer try/except catches
-        everything else (synthetic event build, predicate match, dispatch).
+        everything else (synthetic event build, predicate match, dispatch). Once the
+        synthetic event exists, the failure is also recorded via
+        ``record_predicate_failure`` (error ``ExecutionRecord`` + error-handler routing).
+        A failure building the synthetic event itself is log-only, since error
+        handlers require an event.
         """
         duration_config = listener.duration_config
         entity_id = duration_config.entity_id if duration_config else None
@@ -120,6 +142,8 @@ class DurationHoldManager:
         if current_state is None:
             return
 
+        synthetic_event: Event[Any] | None = None
+        attempt_start = time.time()
         try:
             synthetic_event = self.make_synthetic_event(entity_id, current_state)
             if not listener.matches(synthetic_event):
@@ -172,6 +196,8 @@ class DurationHoldManager:
                 listener.topic,
                 exc_info=exc,
             )
+            if synthetic_event is not None:
+                self.safe_record_predicate_failure(listener, synthetic_event.topic, synthetic_event, exc, attempt_start)
 
     def start_remaining_duration_timer(
         self,
