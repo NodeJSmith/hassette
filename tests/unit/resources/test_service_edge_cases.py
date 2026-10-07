@@ -23,10 +23,11 @@ from hassette_wire import ResourceStatus
 
 from hassette.exceptions import FatalError, RestartRefusedError
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import compute_shutdown_budget, start
+from hassette.resources.lifecycle import start
 from hassette.resources.operations import restart
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
+from hassette.resources.shutdown_budget import compute_shutdown_budget
 from hassette.resources.teardown import TeardownCause
 from hassette.testing import wait_for
 from tests.support.factories import wire_dependent_resource

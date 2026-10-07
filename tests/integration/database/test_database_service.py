@@ -13,7 +13,7 @@ from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core import database_service as database_service_module
 from hassette.core.database_service import DatabaseService
 from hassette.core.database_write_queue import detach_write_queue
-from hassette.resources.lifecycle import compute_shutdown_budget
+from hassette.resources.shutdown_budget import compute_shutdown_budget
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.integration.database.conftest import seed_app_executions
 from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, async_noop, seed_listener_for_fk

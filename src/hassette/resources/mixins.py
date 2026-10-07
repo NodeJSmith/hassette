@@ -13,7 +13,7 @@ from hassette.types.types import CoroLikeT
 if typing.TYPE_CHECKING:
     from hassette_wire import ResourceRole
 
-    from hassette.resources.lifecycle import ShutdownBudget
+    from hassette.resources.shutdown_budget import ShutdownBudget
 
 LOGGER = getLogger(__name__)
 
@@ -194,7 +194,7 @@ class LifecycleMixin(_LifecycleHostP):
     """Pre-computed budget allocation for the current shutdown attempt.
 
     Set once by ``_run_shutdown_coordinator()`` (``hassette.resources.lifecycle``) via
-    ``compute_shutdown_budget()`` before any shutdown stage runs. Each stage reads its own
+    ``shutdown_budget.compute_shutdown_budget()`` before any shutdown stage runs. Each stage reads its own
     field (hooks read ``hooks_pool_deadline``, task-cancel reads ``task_cancel_seconds``, etc.)
     instead of computing a fraction of a shrinking remainder. ``None`` means no shutdown
     attempt has set a budget yet (e.g. a direct ``cleanup()`` call outside the normal

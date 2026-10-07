@@ -13,13 +13,8 @@ from contextlib import suppress
 from hassette_wire import ResourceRole
 
 from hassette.exceptions import RestartRefusedError
-from hassette.resources.lifecycle import (
-    create_lifecycle_task,
-    handle_failed,
-    hooks_pool_remaining,
-    reject_lifecycle_reentry,
-    start,
-)
+from hassette.resources.lifecycle import create_lifecycle_task, handle_failed, reject_lifecycle_reentry, start
+from hassette.resources.shutdown_budget import hooks_pool_remaining
 from hassette.resources.teardown import TeardownCause, TeardownReport, add_teardown_evidence, merge_teardown_reports
 from hassette.utils.service_utils import wait_for_ready
 

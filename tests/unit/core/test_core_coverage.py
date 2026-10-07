@@ -23,7 +23,7 @@ from hassette.core.core import Hassette
 from hassette.exceptions import AppPrecheckFailedError, FatalError
 from hassette.logging_ import HassetteQueueHandler, LogPersistenceHandler
 from hassette.resources.base import Resource
-from hassette.resources.lifecycle import COORDINATOR_MARGIN_FRACTION, compute_shutdown_budget
+from hassette.resources.shutdown_budget import COORDINATOR_MARGIN_FRACTION, compute_shutdown_budget
 from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import wait_for
 from hassette.utils.url_utils import build_rest_url, build_ws_url

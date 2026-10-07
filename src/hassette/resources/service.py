@@ -15,11 +15,11 @@ from hassette.resources.lifecycle import (
     handle_running,
     handle_starting,
     handle_stop,
-    hooks_pool_remaining,
     mark_not_ready,
 )
 from hassette.resources.operations import run_hooks
 from hassette.resources.restart import RestartSpec
+from hassette.resources.shutdown_budget import hooks_pool_remaining
 from hassette.resources.teardown import TeardownCause, TeardownReport, merge_teardown_reports
 
 
