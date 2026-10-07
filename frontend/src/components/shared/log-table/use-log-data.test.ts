@@ -16,6 +16,11 @@ import { HINT_DEBOUNCE_MS, HINT_MAX_WAIT_MS, PERIODIC_RESYNC_MS, useLogData } fr
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 const LOGS_ENDPOINT = "/api/logs/recent";
+/** Hint spacing for the sustained-burst tests — under `HINT_DEBOUNCE_MS`, so only the maxWait cap fires. */
+const HINT_BURST_SPACING_MS = 100;
+/** Design AC#5: 10+ hints within this window coalesce into one refetch. */
+const AC5_BURST_WINDOW_MS = 100;
+const AC5_HINT_SPACING_MS = 10;
 
 function seedState(preset: TimePreset = "1h"): void {
   useAppStore.setState({
@@ -94,11 +99,11 @@ describe("useLogData", () => {
     await renderLoaded();
     expect(getCount()).toBe(1);
 
-    for (let i = 0; i < 12; i++) {
+    const hints = AC5_BURST_WINDOW_MS / AC5_HINT_SPACING_MS + 1;
+    for (let i = 0; i < hints; i++) {
       sendHint();
-      await vi.advanceTimersByTimeAsync(10);
+      await vi.advanceTimersByTimeAsync(AC5_HINT_SPACING_MS);
     }
-    // All 12 hints landed within 120ms — well inside the 200ms debounce window each hint resets.
     await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
     await vi.waitFor(() => expect(getCount()).toBe(2));
 
@@ -113,15 +118,14 @@ describe("useLogData", () => {
     await renderLoaded();
     expect(getCount()).toBe(1);
 
-    // One hint every 100ms for over a second — each hint resets the debounce timer, so only the
-    // maxWait cap can force a refetch through.
-    for (let i = 0; i < 11; i++) {
+    // Each hint resets the debounce timer, so only the maxWait cap can force a refetch through.
+    const hints = Math.ceil((2 * HINT_MAX_WAIT_MS) / HINT_BURST_SPACING_MS) + 1;
+    for (let i = 0; i < hints; i++) {
       sendHint();
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(HINT_BURST_SPACING_MS);
     }
-    // 1100ms elapsed >= 2 * HINT_MAX_WAIT_MS, so at least 2 maxWait-triggered refetches must have
-    // landed on top of the initial fetch.
-    await vi.waitFor(() => expect(getCount()).toBeGreaterThanOrEqual(3));
+    const minRefetches = Math.floor((hints * HINT_BURST_SPACING_MS) / HINT_MAX_WAIT_MS);
+    await vi.waitFor(() => expect(getCount()).toBeGreaterThanOrEqual(1 + minRefetches));
   });
 
   it("does not cancel a slow in-flight fetch under sustained hints (starvation regression)", async () => {
@@ -148,20 +152,14 @@ describe("useLogData", () => {
     await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
     await vi.waitFor(() => expect(callIndex).toBe(2));
 
-    // Continuous hints across several maxWait windows while the slow fetch is still pending —
-    // each hint resets the debounce timer (spaced well under HINT_DEBOUNCE_MS), so only the
-    // maxWait cap can force a subsequent invalidate through, repeatedly, while call #2 is
-    // in-flight. `invalidateQueries`'s default `cancelRefetch: true` would abort call #2 on the
-    // first of these and replace it with a fresh (fast, "later-response") fetch — starving out
-    // the slow response forever, since re-resolving an aborted request's promise afterward has no
-    // effect on what the query cache ends up holding.
-    for (let i = 0; i < 16; i++) {
+    // Hints spaced under HINT_DEBOUNCE_MS, so only the maxWait cap fires — and it must not cancel
+    // in-flight call #2 (invalidateQueries' default cancelRefetch: true would starve it forever).
+    const hints = (3 * HINT_MAX_WAIT_MS) / HINT_BURST_SPACING_MS + 1;
+    for (let i = 0; i < hints; i++) {
       sendHint();
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(HINT_BURST_SPACING_MS);
     }
-    // Flush the final hint's still-pending debounce timer while the slow fetch is still
-    // unresolved, so no leftover timer from the burst fires later and confounds the assertions
-    // below with a legitimate, unrelated extra fetch.
+    // Flush the last hint's debounce timer so no stray fetch confounds the assertions below.
     await vi.advanceTimersByTimeAsync(HINT_DEBOUNCE_MS);
     expect(callIndex).toBe(2);
 
@@ -195,11 +193,11 @@ describe("useLogData", () => {
     ];
     const second = [createLogEntry({ id: 2, message: "second", execution_kind: "handler" })];
 
-    let call = 0;
+    let callIndex = 0;
     server.use(
       http.get(LOGS_ENDPOINT, () => {
-        call += 1;
-        return HttpResponse.json(call === 1 ? first : second);
+        callIndex += 1;
+        return HttpResponse.json(callIndex === 1 ? first : second);
       }),
     );
 
@@ -238,6 +236,7 @@ describe("useLogData", () => {
     await vi.advanceTimersByTimeAsync(HINT_MAX_WAIT_MS + PERIODIC_RESYNC_MS);
     expect(getCount()).toBe(1);
   });
+
   it("toasts once per outage, not on every failed periodic refetch, and re-arms after recovery", async () => {
     let failing = true;
     server.use(
