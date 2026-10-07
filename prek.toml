@@ -291,6 +291,15 @@ files = '^src/.*\.py$'
 stages = ["pre-commit", "pre-push"]
 
 [[repos.hooks]]
+id = "check-state-manager-stub"
+name = "Check state_manager.pyi domain properties match the state models"
+language = "system"
+entry = "tools/check_state_manager_stub.py"
+pass_filenames = false
+files = '^(src/hassette/(models/states/|state_manager/state_manager\.pyi?$)|tools/check_state_manager_stub\.py$)'
+stages = ["pre-push"]
+
+[[repos.hooks]]
 id = "check-test-factories"
 name = "Check test factory shadowing"
 language = "system"
