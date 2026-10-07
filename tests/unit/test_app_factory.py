@@ -546,7 +546,7 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         msg = str(record[0].message)
         assert "did you mean" not in msg
-        assert "nested value" in msg
+        assert "value went unused" in msg
         mock_registry.register_app.assert_called_once()
 
     def test_typed_config_aliased_instance_name_does_not_warn(

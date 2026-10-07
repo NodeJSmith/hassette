@@ -251,6 +251,14 @@ def warn_unrecognized_config_keys(
     accepted_keys = accepted_config_keys(config_cls)
     lines = []
     for key in unrecognized:
+        if key in accepted_keys:
+            # An accepted key left in extras either heads an ``AliasPath`` whose nested value is missing, or lost to
+            # an earlier ``AliasChoices`` source present in the same config. Suggesting the key itself would be noise.
+            lines.append(
+                f"  {key!r} (accepted key, but its value went unused: check the nested path, or whether "
+                "another alias for the same field took precedence)"
+            )
+            continue
         matches = get_close_matches(key, accepted_keys, n=1, cutoff=SUGGESTION_CUTOFF)
         lines.append(f"  {key!r} (did you mean {matches[0]!r}?)" if matches else f"  {key!r}")
 
