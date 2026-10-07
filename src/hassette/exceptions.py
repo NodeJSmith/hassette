@@ -359,9 +359,11 @@ class DependencyError(HassetteError):
 
 
 class DependencyInjectionError(DependencyError):
-    """Raised when dependency injection fails due to invalid handler signature or annotations.
+    """Raised when a handler or predicate signature or its annotations can't be used.
 
-    This exception indicates a user error in handler definition, such as:
+    The signature checks apply to every bus handler and scheduler ``where=`` predicate,
+    whether or not it uses ``D.*`` annotations. This exception indicates a user error
+    in the callable's definition, such as:
     - Using invalid parameter types (*args, positional-only)
     - Missing required type annotations
     - Incompatible annotation types
