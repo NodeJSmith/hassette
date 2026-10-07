@@ -115,7 +115,7 @@ class Service(Resource):
         if self.hassette.shutdown_event.is_set():
             mark_not_ready(self, "shutdown requested during dependency wait")
             return
-        await run_hooks(self, [self.before_initialize, self.on_initialize])
+        await run_hooks(self, [self._framework_before_hooks, self.before_initialize, self.on_initialize])
         self._serve_task = self.task_bucket.spawn(self._serve_wrapper(), name=f"service:serve:{self.class_name}")
         await run_hooks(self, [self.after_initialize])
         for child in self.children:

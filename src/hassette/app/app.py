@@ -219,13 +219,12 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
         """Return the current date and time."""
         return date_utils.now()
 
-    async def before_initialize(self) -> None:
-        """Optional: prepare to accept new work, allocate sockets, queues, temp files, etc.
+    async def _framework_before_hooks(self) -> None:
+        """Initialize the cache (open connections, create schema, check integrity).
 
-        Initializes the cache (opens connections, creates schema, checks integrity) when
-        it is a real ``AsyncCache``. When a cache was injected via the constructor (e.g. a
-        ``DummyCache`` in tests), initialization is skipped -- ``DummyCache.initialize()``
-        is a no-op, but the guard avoids the call entirely for clarity.
+        Runs before ``before_initialize()`` so the cache is ready no matter how a subclass
+        overrides the user lifecycle hooks. An injected non-``AsyncCache`` (e.g. a ``DummyCache``
+        in tests) is used as-is.
         """
         if isinstance(self.cache, AsyncCache):
             await self.cache.initialize()

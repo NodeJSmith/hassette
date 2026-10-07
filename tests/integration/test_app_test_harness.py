@@ -175,6 +175,24 @@ async def test_auto_tmpdir_created_and_cleaned():
     assert not data_dir.exists(), f"tmpdir {data_dir} was not cleaned up"
 
 
+async def test_cache_usable_when_before_initialize_override_skips_super():
+    """Cache initialization is framework-owned: overriding before_initialize without super() keeps self.cache usable."""
+    cached: list[object] = []
+
+    class NoSuperApp(App[SensorConfig]):
+        async def before_initialize(self) -> None:
+            pass
+
+        async def on_initialize(self) -> None:
+            await self.cache.set("key", "value")
+            cached.append(await self.cache.get("key"))
+
+    async with AppTestHarness(NoSuperApp, config={}) as harness:
+        assert harness.app.status == ResourceStatus.RUNNING
+
+    assert cached == ["value"]
+
+
 async def test_simulate_state_change_triggers_handler():
     """simulate_state_change fires the bus handler and it completes before the call returns."""
     async with AppTestHarness(SensorApp, config={}) as harness:
