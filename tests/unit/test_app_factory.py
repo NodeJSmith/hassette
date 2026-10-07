@@ -535,6 +535,20 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         assert "'off_delay' (did you mean 'delay'?)" in str(record[0].message)
 
+    def test_typed_config_incomplete_alias_path_does_not_suggest_itself(
+        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """A correctly spelled alias-path head whose nested value is missing warns without suggesting itself."""
+        config = {"instance_name": "test_instance", "timing": []}
+
+        with pytest.warns(UserWarning, match="'timing'") as record:
+            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(AliasChoicesConfig))
+
+        msg = str(record[0].message)
+        assert "did you mean" not in msg
+        assert "nested value" in msg
+        mock_registry.register_app.assert_called_once()
+
     def test_typed_config_aliased_instance_name_does_not_warn(
         self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
     ):
