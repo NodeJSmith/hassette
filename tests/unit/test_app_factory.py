@@ -4,6 +4,7 @@ from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
+from pydantic import Field
 
 from hassette import AppConfig
 from hassette.core.app_factory import AppFactory
@@ -441,6 +442,10 @@ class MotionLightConfig(AppConfig):
     off_delay: int = 30
 
 
+class AliasedDelayConfig(AppConfig):
+    off_delay: int = Field(default=30, alias="delay")
+
+
 class TestUnrecognizedConfigKeyWarning:
     def test_bare_app_config_does_not_warn_on_extras(
         self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
@@ -483,6 +488,17 @@ class TestUnrecognizedConfigKeyWarning:
 
         assert "did you mean" not in str(record[0].message)
         mock_registry.register_app.assert_called_once()
+
+    def test_typed_config_suggests_alias_not_field_name(
+        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """An aliased field is populated by its alias, so the suggestion names the alias, not the attribute."""
+        config = {"instance_name": "test_instance", "off_delay": 5}
+
+        with pytest.warns(UserWarning, match="Unrecognized configuration key") as record:
+            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(AliasedDelayConfig))
+
+        assert "'off_delay' (did you mean 'delay'?)" in str(record[0].message)
 
     def test_typed_config_all_keys_recognized_does_not_warn(
         self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
