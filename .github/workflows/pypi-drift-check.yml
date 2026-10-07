@@ -3,7 +3,9 @@ name: PyPI Drift Check
 # Structural sibling of docker-drift-check.yml and ha-version-drift.yml — all three share
 # tools/release/drift_check.py for the compare/dedup logic. Each workflow still fetches its own
 # current/latest values (the sources of truth differ too much to share) and keeps its own issue
-# title/body/labels, since those differ per check too.
+# title/body/labels, since those differ per check too. Like ha-version-drift.yml, this workflow
+# auto-closes its tracking issue on resync (#2564); docker-drift-check.yml still has no
+# equivalent branch.
 on:
     schedule:
         - cron: "0 12 * * *" # daily at noon UTC
@@ -89,3 +91,18 @@ jobs:
             - name: Existing drift issue
               if: steps.drift.outputs.drift == 'true' && steps.drift.outputs.existing-issue != ''
               run: echo "Issue #${{ steps.drift.outputs.existing-issue }} already open for this drift"
+
+            # existing-issue is populated by drift_check.py regardless of drift, so no extra
+            # `gh issue list` lookup is needed here.
+            - name: Close stale tracking issue on resync
+              if: steps.drift.outputs.drift == 'false' && steps.drift.outputs.existing-issue != ''
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  EXISTING: ${{ steps.drift.outputs.existing-issue }}
+                  PYPI_VERSION: ${{ steps.drift.outputs.latest }}
+              run: |
+                  set -euo pipefail
+
+                  gh issue close "$EXISTING" --repo "$GITHUB_REPOSITORY" \
+                      --comment "GitHub release now matches PyPI (v${PYPI_VERSION}). Closing automatically."
+                  echo "Closed stale drift issue #${EXISTING}"

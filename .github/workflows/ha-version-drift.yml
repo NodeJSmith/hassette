@@ -14,9 +14,10 @@ concurrency:
 #
 # Structural sibling of pypi-drift-check.yml and docker-drift-check.yml — shares
 # tools/release/drift_check.py for the compare/dedup logic. Unlike the other two, this workflow
-# also updates the tracking issue on repeat drift and auto-closes it once the pin catches up
-# (last two steps below) — that behavior is specific to this workflow and isn't part of the
-# shared script (see #1474).
+# also updates the tracking issue on repeat drift (last two steps below) — that behavior is
+# specific to this workflow and isn't part of the shared script (see #1474). It also
+# auto-closes the issue once the pin catches up, a behavior pypi-drift-check.yml now shares
+# too (#2564); docker-drift-check.yml still has neither.
 jobs:
     check-drift:
         runs-on: ubuntu-latest
@@ -104,8 +105,9 @@ jobs:
                       --body "Still behind: pinned \`$PINNED\`, latest \`$LATEST\` (checked $(date -u +%Y-%m-%d))"
                   echo "Updated existing issue #${EXISTING}"
 
-            # Not part of the shared script: pypi/docker have no equivalent "auto-close on
-            # resync" branch, so this stays as a documented per-workflow extension (see #1474).
+            # Not part of the shared script: docker-drift-check.yml has no equivalent
+            # "auto-close on resync" branch, so this stays as a documented per-workflow
+            # extension (see #1474). pypi-drift-check.yml now has its own copy (#2564).
             # existing-issue is populated by drift_check.py regardless of drift, so no extra
             # `gh issue list` lookup is needed here.
             - name: Close stale tracking issue on resync
