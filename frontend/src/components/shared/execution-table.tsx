@@ -249,7 +249,11 @@ interface ExecutionRowProps {
 function ExecutionRow({ row, kind, href, tabIndex, onSelect, onOpenDetail }: ExecutionRowProps) {
   return (
     <TableRow
-      className={cn("transition-colors", href && "cursor-pointer hover:bg-muted [&:hover_td:last-child]:text-primary")}
+      className={cn(
+        "transition-colors",
+        "focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2",
+        href && "cursor-pointer hover:bg-muted [&:hover_td:last-child]:text-primary",
+      )}
       data-testid={kind === "handler" ? "invocation-row" : "execution-row"}
       tabIndex={tabIndex}
       role="row"
