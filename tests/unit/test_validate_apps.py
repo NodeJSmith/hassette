@@ -270,6 +270,8 @@ class TestValidateApps:
             ("/abs/path", "path separators"),
             ("win\\style", "path separators"),
             ("..", "parent-directory traversal"),
+            ("", "subdirectory"),
+            (".", "subdirectory"),
         ],
     )
     def test_validate_apps_rejects_path_unsafe_app_key(

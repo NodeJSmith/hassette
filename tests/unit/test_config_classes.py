@@ -219,6 +219,10 @@ class TestAppManifestCacheKey:
         with pytest.raises(ValidationError, match="parent-directory traversal"):
             make_manifest(cache_key="valid/../escape")
 
+    def test_cache_key_rejects_data_dir_itself(self) -> None:
+        with pytest.raises(ValidationError, match="subdirectory"):
+            make_manifest(cache_key=".")
+
     def test_cache_key_accepts_custom_value(self) -> None:
         manifest = make_manifest(cache_key="my-custom-key")
         assert manifest.cache_key == "my-custom-key"
