@@ -5,6 +5,9 @@ from logging import getLogger
 from typing import TYPE_CHECKING
 from warnings import warn
 
+from pydantic import AliasChoices, AliasPath
+from pydantic.fields import FieldInfo
+
 from hassette.app.app_config import AppConfig
 from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.utils.app_utils import (
@@ -230,9 +233,10 @@ def warn_unrecognized_config_keys(
     if not unrecognized:
         return
 
+    accepted_keys = accepted_config_keys(config_cls)
     lines = []
     for key in unrecognized:
-        matches = get_close_matches(key, config_cls.model_fields.keys(), n=1, cutoff=0.5)
+        matches = get_close_matches(key, accepted_keys, n=1, cutoff=0.5)
         lines.append(f"  {key!r} (did you mean {matches[0]!r}?)" if matches else f"  {key!r}")
 
     msg = (
@@ -242,3 +246,37 @@ def warn_unrecognized_config_keys(
         + f"\nCheck the spelling against the fields declared on {config_cls.__name__}."
     )
     warn(msg, stacklevel=2)
+
+
+def accepted_config_keys(config_cls: type[AppConfig]) -> list[str]:
+    """Return the top-level keys ``config_cls`` actually populates its fields from.
+
+    A field with an alias is populated by that alias, not by its attribute name, unless the model
+    enables ``validate_by_name``; suggesting the attribute name there would point at another extra.
+    """
+    by_alias = config_cls.model_config.get("validate_by_alias", True)
+    by_name = (
+        config_cls.model_config.get("validate_by_name", False)
+        or config_cls.model_config.get("populate_by_name", False)
+        or not by_alias
+    )
+    keys: list[str] = []
+    for name, field in config_cls.model_fields.items():
+        aliases = field_alias_keys(field) if by_alias else []
+        if not aliases or by_name:
+            keys.append(name)
+        keys.extend(aliases)
+    return keys
+
+
+def field_alias_keys(field: FieldInfo) -> list[str]:
+    """Top-level config keys a field's validation alias (or plain alias) accepts."""
+    alias = field.validation_alias if field.validation_alias is not None else field.alias
+    choices = alias.choices if isinstance(alias, AliasChoices) else [alias]
+    keys: list[str] = []
+    for choice in choices:
+        if isinstance(choice, str):
+            keys.append(choice)
+        elif isinstance(choice, AliasPath) and isinstance(choice.path[0], str):
+            keys.append(choice.path[0])
+    return keys
