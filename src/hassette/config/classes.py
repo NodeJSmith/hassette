@@ -38,17 +38,20 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
         self.toml_file_path = toml_file if toml_file != DEFAULT_PATH else settings_cls.model_config.get("toml_file")
         base_files = toml_paths(self.toml_file_path)
 
-        # Hoist each file before combining, so a later file replaces an earlier one's logical
-        # top-level table whether either file spells it `[apps]` or `[hassette.apps]`.
+        # Normalize each file before combining, so a later file replaces an earlier one's logical
+        # top-level table whether either file spells it `[apps]` or `[hassette.apps]`, and a later
+        # field value wins whichever alias (`token` vs `ha_token`) either file uses.
         self.toml_data: dict[str, Any] = {}
         for path in base_files:
             if path.is_file():
-                self.toml_data.update(hoist_hassette_section(self._read_file(path)))
+                self.toml_data.update(normalize_toml_file(settings_cls, self._read_file(path)))
 
         for overlay in local_overlay_paths(base_files):
             if overlay.is_file():
                 LOGGER.debug("Applying local TOML overlay %s", overlay)
-                self.toml_data = dict(merge({}, self.toml_data, hoist_hassette_section(self._read_file(overlay))))
+                self.toml_data = dict(
+                    merge({}, self.toml_data, normalize_toml_file(settings_cls, self._read_file(overlay)))
+                )
 
         # need to call InitSettingSource directly, as super() expects a file path
         # as the second argument
@@ -72,14 +75,55 @@ def local_overlay_paths(files: list[Path]) -> list[Path]:
     return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in files]
 
 
-def hoist_hassette_section(data: dict[str, Any]) -> dict[str, Any]:
-    """Merge a TOML file's ``[hassette]`` section into its top level; ``[hassette]`` values win."""
+def alias_groups(model: type[BaseModel]) -> list[tuple[str, ...]]:
+    """Return each multi-spelling field's string aliases in pydantic's lookup order; the first is canonical."""
+    groups: list[tuple[str, ...]] = []
+    for info in model.model_fields.values():
+        alias = info.validation_alias or info.alias
+        choices = alias.choices if isinstance(alias, AliasChoices) else (alias,)
+        names = tuple(c for c in choices if isinstance(c, str))
+        if len(names) > 1:
+            groups.append(names)
+    return groups
+
+
+def canonicalize_aliases(data: dict[str, Any], groups: list[tuple[str, ...]]) -> dict[str, Any]:
+    """Rewrite alias keys to each group's canonical spelling; if several are present, the first in order wins."""
+    out = dict(data)
+    for group in groups:
+        present = [k for k in group if k in out]
+        if present and present != [group[0]]:
+            value = out[present[0]]
+            for key in present:
+                del out[key]
+            out[group[0]] = value
+    return out
+
+
+def canonicalize_table(settings_cls: type[BaseSettings], data: dict[str, Any]) -> dict[str, Any]:
+    """Canonicalize a table's top-level field aliases and the keys of each app entry under ``apps``."""
+    out = canonicalize_aliases(data, alias_groups(settings_cls))
+    apps = out.get("apps")
+    if isinstance(apps, dict):
+        manifest_groups = alias_groups(AppManifest)
+        out["apps"] = {
+            k: canonicalize_aliases(v, manifest_groups) if isinstance(v, dict) else v for k, v in apps.items()
+        }
+    return out
+
+
+def normalize_toml_file(settings_cls: type[BaseSettings], data: dict[str, Any]) -> dict[str, Any]:
+    """Canonicalize one TOML file's aliases, then merge its ``[hassette]`` section into its top level.
+
+    Canonicalizing per file (before any layering) means a later file or overlay always overrides an
+    earlier one regardless of which alias each spells. Within a file, ``[hassette]`` values win.
+    """
+    top_level = canonicalize_table(settings_cls, {k: v for k, v in data.items() if k != "hassette"})
     if "hassette" not in data:
-        return data
+        return top_level
 
     LOGGER.debug("Merging 'hassette' section from TOML config into top level")
-    top_level = {k: v for k, v in data.items() if k != "hassette"}
-    hassette_values = data["hassette"]
+    hassette_values = canonicalize_table(settings_cls, data["hassette"])
 
     # Diagnostic only: the merge below always lets [hassette] win.
     for key in set(top_level).intersection(hassette_values):
