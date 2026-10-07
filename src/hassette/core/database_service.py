@@ -352,14 +352,12 @@ class DatabaseService(Service):
             self.logger.warning("Startup size failsafe check failed; continuing without cleanup", exc_info=True)
 
         self._db_write_queue = asyncio.Queue(maxsize=self.hassette.config.database.write_queue_max)
-        # Bypass the loop's global task factory so the worker is not tracked by
-        # any TaskBucket. A bare asyncio.create_task() falls through to the root
-        # Hassette bucket via make_task_factory(); the root bucket's cancel_all()
-        # runs before wave-based child shutdown begins, killing the worker before
-        # on_shutdown() can drain the queue — producing two 10s stalls per test
-        # (one in each downstream wave that tries to submit() a write to the dead
-        # worker). The worker's lifecycle is managed by on_shutdown() (drain-and-close) and
-        # _force_terminal() (hard cancel on the total-shutdown-timeout path).
+        # Bypass the loop's global task factory so the worker is not tracked by any TaskBucket. A bare
+        # asyncio.create_task() falls through to the root Hassette bucket via make_task_factory(); the root
+        # bucket's cancel_all() runs before wave-based child shutdown begins, killing the worker before
+        # on_shutdown() can drain the queue — producing two 10s stalls per test (one in each downstream wave
+        # that tries to submit() a write to the dead worker). The worker's lifecycle is managed by
+        # on_shutdown() (drain-and-close) and _force_terminal() (hard cancel on the total-shutdown-timeout path).
         self._db_worker_task = create_lifecycle_task(
             run_write_queue_worker(self), name=f"db_write_worker:{self.unique_name}"
         )
