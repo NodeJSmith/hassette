@@ -219,6 +219,16 @@ class TestAppManifestCacheKey:
         with pytest.raises(ValidationError, match="parent-directory traversal"):
             make_manifest(cache_key="valid/../escape")
 
+    @pytest.mark.parametrize("cache_key", ["C:", "C:evil", "C:\\evil", "\\\\server\\share\\evil", "\\evil"])
+    def test_cache_key_rejects_windows_anchored_path(self, cache_key: str) -> None:
+        """Drive- or root-anchored Windows paths are rejected on every host, since they discard data_dir on Windows."""
+        with pytest.raises(ValidationError, match="relative path"):
+            make_manifest(cache_key=cache_key)
+
+    def test_cache_key_rejects_backslash_parent_traversal(self) -> None:
+        with pytest.raises(ValidationError, match="parent-directory traversal"):
+            make_manifest(cache_key="valid\\..\\escape")
+
     def test_cache_key_rejects_data_dir_itself(self) -> None:
         with pytest.raises(ValidationError, match="subdirectory"):
             make_manifest(cache_key=".")

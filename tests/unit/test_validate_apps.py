@@ -270,6 +270,7 @@ class TestValidateApps:
             ("/abs/path", "path separators"),
             ("win\\style", "path separators"),
             ("..", "parent-directory traversal"),
+            ("C:", "relative path"),
             ("", "subdirectory"),
             (".", "subdirectory"),
         ],
