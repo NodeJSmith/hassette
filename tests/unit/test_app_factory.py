@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from pydantic import AliasChoices, AliasPath, Field
+from pydantic.alias_generators import to_camel
 from pydantic_settings import SettingsConfigDict
 
 from hassette import AppConfig
@@ -451,6 +452,12 @@ class ByNameDelayConfig(AliasedDelayConfig):
     model_config = SettingsConfigDict(validate_by_name=True)
 
 
+class CamelCaseConfig(AppConfig):
+    model_config = SettingsConfigDict(alias_generator=to_camel)
+
+    off_delay: int = 30
+
+
 class AliasChoicesConfig(AppConfig):
     off_delay: int = Field(default=30, validation_alias=AliasChoices("delay", AliasPath("timing", 0)))
 
@@ -527,6 +534,17 @@ class TestUnrecognizedConfigKeyWarning:
             factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(AliasedDelayConfig))
 
         assert "'off_delay' (did you mean 'delay'?)" in str(record[0].message)
+
+    def test_typed_config_aliased_instance_name_does_not_warn(
+        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """The framework requires the literal instance_name key, so it never warns, even under an alias generator."""
+        config = {"instance_name": "test_instance", "offDelay": 5}
+
+        factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(CamelCaseConfig))
+
+        mock_registry.register_app.assert_called_once()
+        mock_registry.record_failure.assert_not_called()
 
     def test_typed_config_all_keys_recognized_does_not_warn(
         self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
