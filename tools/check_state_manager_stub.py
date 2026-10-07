@@ -117,15 +117,15 @@ def check_stub(
     stub_path: Path, states_dir: Path = STATES_DIR, source_path: Path = SOURCE_PATH
 ) -> list[tuple[int, str]]:
     """Compare the stub's typed domain properties against the models and explicit source properties."""
-    expected = model_domains(states_dir)
+    model_props = model_domains(states_dir)
     _, source_props = domain_state_properties(source_path)
     for name, (lineno, state_class) in source_props.items():
-        if name in expected and expected[name] != state_class:
+        if name in model_props and model_props[name] != state_class:
             raise SystemExit(
                 f"ERROR: {source_path}:{lineno} property `{name}` typed {state_class}, "
-                f"but the `{name}` state model is {expected[name]}"
+                f"but the `{name}` state model is {model_props[name]}"
             )
-    expected = expected | {name: state_class for name, (_, state_class) in source_props.items()}
+    expected = model_props | {name: state_class for name, (_, state_class) in source_props.items()}
     class_lineno, actual = domain_state_properties(stub_path)
 
     violations = [
