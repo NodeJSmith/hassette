@@ -4,10 +4,11 @@ from typing import cast
 from unittest.mock import Mock, patch
 
 import pytest
-from pydantic import Field
+from pydantic import AliasChoices, AliasPath, Field
+from pydantic_settings import SettingsConfigDict
 
 from hassette import AppConfig
-from hassette.core.app_factory import AppFactory
+from hassette.core.app_factory import AppFactory, accepted_config_keys
 from hassette.core.app_registry import AppRegistry
 
 
@@ -444,6 +445,33 @@ class MotionLightConfig(AppConfig):
 
 class AliasedDelayConfig(AppConfig):
     off_delay: int = Field(default=30, alias="delay")
+
+
+class ByNameDelayConfig(AliasedDelayConfig):
+    model_config = SettingsConfigDict(validate_by_name=True)
+
+
+class AliasChoicesConfig(AppConfig):
+    off_delay: int = Field(default=30, validation_alias=AliasChoices("delay", AliasPath("timing", 0)))
+
+
+@pytest.mark.parametrize(
+    ("config_cls", "expected", "absent"),
+    [
+        (MotionLightConfig, {"off_delay"}, set()),
+        (AliasedDelayConfig, {"delay"}, {"off_delay"}),
+        (ByNameDelayConfig, {"delay", "off_delay"}, set()),
+        (AliasChoicesConfig, {"delay", "timing"}, {"off_delay"}),
+    ],
+)
+def test_accepted_config_keys_follow_pydantic_lookup(
+    config_cls: type[AppConfig], expected: set[str], absent: set[str]
+) -> None:
+    """Suggestion candidates are the keys pydantic actually reads, not always the attribute names."""
+    keys = set(accepted_config_keys(config_cls))
+
+    assert expected <= keys
+    assert not (absent & keys)
 
 
 class TestUnrecognizedConfigKeyWarning:

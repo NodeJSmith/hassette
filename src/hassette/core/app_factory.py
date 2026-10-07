@@ -20,6 +20,11 @@ from hassette.utils.app_utils import (
 )
 from hassette.utils.exception_utils import get_short_traceback
 
+SUGGESTION_CUTOFF = 0.5
+"""``difflib`` similarity a declared key needs to be offered as a "did you mean" suggestion.
+
+Looser than difflib's 0.6 default: a wrong guess costs a glance, a missing one leaves the user hunting."""
+
 if TYPE_CHECKING:
     from hassette import Hassette
     from hassette.app import App
@@ -225,7 +230,7 @@ def warn_unrecognized_config_keys(
     unrecognized ``.env`` entries into ``model_extra``, and those are not the user's app config.
     """
     config_cls = type(validated)
-    declares_own_fields = not set(config_cls.model_fields) <= set(AppConfig.model_fields)
+    declares_own_fields = bool(set(config_cls.model_fields) - set(AppConfig.model_fields))
     if not declares_own_fields or not validated.model_extra:
         return
 
@@ -236,7 +241,7 @@ def warn_unrecognized_config_keys(
     accepted_keys = accepted_config_keys(config_cls)
     lines = []
     for key in unrecognized:
-        matches = get_close_matches(key, accepted_keys, n=1, cutoff=0.5)
+        matches = get_close_matches(key, accepted_keys, n=1, cutoff=SUGGESTION_CUTOFF)
         lines.append(f"  {key!r} (did you mean {matches[0]!r}?)" if matches else f"  {key!r}")
 
     msg = (
@@ -254,18 +259,22 @@ def accepted_config_keys(config_cls: type[AppConfig]) -> list[str]:
     A field with an alias is populated by that alias, not by its attribute name, unless the model
     enables ``validate_by_name``; suggesting the attribute name there would point at another extra.
     """
-    by_alias = config_cls.model_config.get("validate_by_alias", True)
-    by_name = (
-        config_cls.model_config.get("validate_by_name", False)
-        or config_cls.model_config.get("populate_by_name", False)
-        or not by_alias
-    )
+    config = config_cls.model_config
+    # Pydantic's two switches: aliases are honored unless ``validate_by_alias=False``; attribute names are
+    # honored for aliased fields only when ``validate_by_name`` (or its older spelling ``populate_by_name``)
+    # is set. Turning aliases off makes the attribute name the only key that works.
+    by_alias = config.get("validate_by_alias", True)
+    by_name = config.get("validate_by_name", False) or config.get("populate_by_name", False)
+
     keys: list[str] = []
     for name, field in config_cls.model_fields.items():
         aliases = field_alias_keys(field) if by_alias else []
-        if not aliases or by_name:
-            keys.append(name)
+        if not aliases:
+            keys.append(name)  # unaliased field, or aliases disabled: the attribute name is the key
+            continue
         keys.extend(aliases)
+        if by_name:
+            keys.append(name)
     return keys
 
 
