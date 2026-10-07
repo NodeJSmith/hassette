@@ -56,12 +56,21 @@ def literal_domain(stmt: ast.stmt) -> str | None:
     if not (isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name) and stmt.target.id == "domain"):
         return None
     ann = stmt.annotation
-    if not (isinstance(ann, ast.Subscript) and isinstance(ann.value, ast.Name) and ann.value.id == "Literal"):
+    if not (isinstance(ann, ast.Subscript) and dotted_tail(ann.value) == "Literal"):
         return None
     if isinstance(ann.slice, ast.Constant) and isinstance(ann.slice.value, str):
         return ann.slice.value
     # A multi-value or non-string Literal would otherwise drop out of the expected set silently.
     raise SystemExit(f"ERROR: unsupported domain annotation `{ast.unparse(ann)}` at line {stmt.lineno}")
+
+
+def dotted_tail(node: ast.expr) -> str | None:
+    """Return ``X`` for a bare ``X`` or qualified ``a.b.X`` name reference, else None."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return None
 
 
 def domain_state_properties(path: Path) -> tuple[int, dict[str, tuple[int, str]]]:
@@ -99,7 +108,9 @@ def container_arg(returns: ast.expr) -> str | None:
         return None
     if returns.value.id != CONTAINER_NAME:
         return None
-    return ast.unparse(returns.slice).rsplit(".", 1)[-1]
+    # Anything but a single class reference (e.g. a union) keeps its full source text, so it can
+    # never compare equal to an expected class name and surfaces as a mismatch.
+    return dotted_tail(returns.slice) or ast.unparse(returns.slice)
 
 
 def check_stub(
@@ -108,7 +119,13 @@ def check_stub(
     """Compare the stub's typed domain properties against the models and explicit source properties."""
     expected = model_domains(states_dir)
     _, source_props = domain_state_properties(source_path)
-    expected.update({name: state_class for name, (_, state_class) in source_props.items()})
+    for name, (lineno, state_class) in source_props.items():
+        if name in expected and expected[name] != state_class:
+            raise SystemExit(
+                f"ERROR: {source_path}:{lineno} property `{name}` typed {state_class}, "
+                f"but the `{name}` state model is {expected[name]}"
+            )
+    expected = expected | {name: state_class for name, (_, state_class) in source_props.items()}
     class_lineno, actual = domain_state_properties(stub_path)
 
     violations = [

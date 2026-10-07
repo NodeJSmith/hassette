@@ -93,3 +93,36 @@ def test_multi_value_domain_literal_fails_loudly(tmp_path: Path) -> None:
     (states_dir / "models.py").write_text('class FooState(BaseState):\n    domain: Literal["a", "b"]\n')
     with pytest.raises(SystemExit, match="unsupported domain annotation"):
         check_stub(tmp_path / "unused.pyi", states_dir=states_dir)
+
+
+def test_qualified_literal_domain_is_recognized(tmp_path: Path) -> None:
+    models = MODELS + 'class FanState(BaseState):\n    domain: typing.Literal["fan"]\n'
+    states_dir = tmp_path / "states"
+    states_dir.mkdir()
+    (states_dir / "models.py").write_text(models)
+    source = tmp_path / "state_manager.py"
+    source.write_text(SOURCE)
+    stub_path = tmp_path / "state_manager.pyi"
+    stub_path.write_text(MATCHING_STUB)
+    assert check_stub(stub_path, states_dir=states_dir, source_path=source) == [
+        (1, "missing property `fan` -> DomainStates[states.FanState]")
+    ]
+
+
+def test_union_state_class_reported_as_mismatch(tmp_path: Path) -> None:
+    stub = MATCHING_STUB.replace(
+        "DomainStates[states.LightState]", "DomainStates[states.SwitchState | states.LightState]"
+    )
+    assert run(tmp_path, stub) == [
+        (5, "property `light` typed states.SwitchState | states.LightState, expected LightState")
+    ]
+
+
+def test_source_property_conflicting_with_model_fails_loudly(tmp_path: Path) -> None:
+    states_dir = tmp_path / "states"
+    states_dir.mkdir()
+    (states_dir / "models.py").write_text(MODELS)
+    source = tmp_path / "state_manager.py"
+    source.write_text(SOURCE + '\n    @property\n    def light(self) -> "DomainStates[states.SwitchState]": ...\n')
+    with pytest.raises(SystemExit, match="property `light` typed SwitchState"):
+        check_stub(tmp_path / "unused.pyi", states_dir=states_dir, source_path=source)
