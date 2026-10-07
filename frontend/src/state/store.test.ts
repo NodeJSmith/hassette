@@ -11,9 +11,11 @@ const OTHER_VERSION = "999.0.0";
 function createConnectedData(overrides: Partial<ConnectedData> = {}): ConnectedData {
   return {
     uptime_seconds: 42,
+    entity_count: 0,
+    app_count: 0,
     version: BUNDLE_VERSION,
     ...overrides,
-  } as ConnectedData;
+  };
 }
 
 describe("initialState", () => {
