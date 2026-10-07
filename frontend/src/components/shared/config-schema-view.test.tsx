@@ -360,4 +360,46 @@ describe("ConfigSchemaView", () => {
       expect(getByTestId("config-field-some_value").querySelector("button[aria-expanded]")).toBeNull();
     });
   });
+
+  describe("section collapse toggle", () => {
+    const schema: SchemaNode = {
+      type: "object",
+      properties: {
+        foo: { type: "string", title: "Foo" },
+      },
+    };
+
+    it("renders every section expanded by default", () => {
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ foo: "x" }} />);
+      expect(getByTestId("config-toggle-general").getAttribute("aria-expanded")).toBe("true");
+      expect(getByTestId("config-field-foo")).toBeDefined();
+    });
+
+    it("collapses the field list on click and keeps the header visible", async () => {
+      const user = userEvent.setup();
+      const { getByTestId, queryByTestId, getByText } = render(
+        <ConfigSchemaView schema={schema} values={{ foo: "x" }} />,
+      );
+      const toggle = getByTestId("config-toggle-general");
+
+      await user.click(toggle);
+
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
+      expect(queryByTestId("config-field-foo")).toBeNull();
+      expect(getByText("General")).toBeDefined();
+      expect(getByText("1 field")).toBeDefined();
+    });
+
+    it("re-expands the field list on a second click", async () => {
+      const user = userEvent.setup();
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ foo: "x" }} />);
+      const toggle = getByTestId("config-toggle-general");
+
+      await user.click(toggle);
+      await user.click(toggle);
+
+      expect(toggle.getAttribute("aria-expanded")).toBe("true");
+      expect(getByTestId("config-field-foo")).toBeDefined();
+    });
+  });
 });
