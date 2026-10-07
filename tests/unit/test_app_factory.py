@@ -452,6 +452,14 @@ class ByNameDelayConfig(AliasedDelayConfig):
     model_config = SettingsConfigDict(validate_by_name=True)
 
 
+class ExplicitNoNameConfig(AliasedDelayConfig):
+    model_config = SettingsConfigDict(populate_by_name=True, validate_by_name=False)
+
+
+class OverrideOnlyConfig(AppConfig):
+    log_level: str | None = "DEBUG"
+
+
 class CamelCaseConfig(AppConfig):
     model_config = SettingsConfigDict(alias_generator=to_camel)
 
@@ -468,6 +476,7 @@ class AliasChoicesConfig(AppConfig):
         (MotionLightConfig, {"off_delay"}, set()),
         (AliasedDelayConfig, {"delay"}, {"off_delay"}),
         (ByNameDelayConfig, {"delay", "off_delay"}, set()),
+        (ExplicitNoNameConfig, {"delay"}, {"off_delay"}),
         (AliasChoicesConfig, {"delay", "timing"}, {"off_delay"}),
     ],
 )
@@ -511,6 +520,17 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
         mock_registry.register_app.assert_called_once()
         validated = mock_app_class.call_args.kwargs["app_config"]
         assert validated.off_delay == 30
+
+    def test_config_overriding_only_inherited_fields_warns_on_typo(
+        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+    ):
+        """Redeclaring an inherited field is still a typed schema, so a typo against it warns."""
+        config = {"instance_name": "test_instance", "log_lebel": "INFO"}
+
+        with pytest.warns(UserWarning, match="'log_lebel' \\(did you mean 'log_level'\\?\\)"):
+            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(OverrideOnlyConfig))
+
+        mock_registry.register_app.assert_called_once()
 
     def test_typed_config_unrelated_key_warns_without_suggestion(
         self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
