@@ -19,8 +19,8 @@ from hassette_wire import (
     AppListResponse,
     ConfigSchemaResponse,
     JobSummary,
-    ListenerWithSummary,
-    LogEntryResponse,
+    ListenerSummary,
+    LogEntry,
     SystemStatusResponse,
     TelemetryStatusResponse,
 )
@@ -132,17 +132,17 @@ async def test_app_list_non_empty(ha_container: str, tmp_path: Path) -> None:
 
 
 async def test_listeners_deserializes(ha_container: str, tmp_path: Path) -> None:
-    """GET /api/bus/listeners deserializes to list[ListenerWithSummary]."""
+    """GET /api/bus/listeners deserializes to list[ListenerSummary]."""
     config, base_url = _web_config_with_bus_app(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
         with _cli_client(config) as client:
             raw: list[Any] = await asyncio.to_thread(client.get, "/api/bus/listeners", list)
 
-    listeners = [ListenerWithSummary.model_validate(e) for e in raw]
+    listeners = [ListenerSummary.model_validate(e) for e in raw]
     assert isinstance(listeners, list)
     for listener in listeners:
-        assert isinstance(listener, ListenerWithSummary)
+        assert isinstance(listener, ListenerSummary)
 
 
 async def test_listener_app_filter_returns_subset(ha_container: str, tmp_path: Path) -> None:
@@ -152,7 +152,7 @@ async def test_listener_app_filter_returns_subset(ha_container: str, tmp_path: P
         await wait_for_web_server(base_url)
         with _cli_client(config) as client:
             all_raw: list[Any] = await asyncio.to_thread(client.get, "/api/bus/listeners", list)
-            all_listeners = [ListenerWithSummary.model_validate(e) for e in all_raw]
+            all_listeners = [ListenerSummary.model_validate(e) for e in all_raw]
 
             if not all_listeners:
                 pytest.skip("No listeners registered — BusHandlerApp may not have started in time")
@@ -164,7 +164,7 @@ async def test_listener_app_filter_returns_subset(ha_container: str, tmp_path: P
                 f"/api/telemetry/app/{app_key}/listeners",
                 list,
             )
-            filtered = [ListenerWithSummary.model_validate(e) for e in filtered_raw]
+            filtered = [ListenerSummary.model_validate(e) for e in filtered_raw]
 
     assert len(filtered) > 0
     assert len(filtered) <= len(all_listeners)
@@ -179,7 +179,7 @@ async def test_listener_instance_filter(ha_container: str, tmp_path: Path) -> No
         await wait_for_web_server(base_url)
         with _cli_client(config) as client:
             all_raw: list[Any] = await asyncio.to_thread(client.get, "/api/bus/listeners", list)
-            all_listeners = [ListenerWithSummary.model_validate(e) for e in all_raw]
+            all_listeners = [ListenerSummary.model_validate(e) for e in all_raw]
 
             if not all_listeners:
                 pytest.skip("No listeners registered — BusHandlerApp may not have started in time")
@@ -192,7 +192,7 @@ async def test_listener_instance_filter(ha_container: str, tmp_path: Path) -> No
                 list,
                 {"instance_index": 0},
             )
-            instance_listeners = [ListenerWithSummary.model_validate(e) for e in instance_raw]
+            instance_listeners = [ListenerSummary.model_validate(e) for e in instance_raw]
 
     assert isinstance(instance_listeners, list)
     for listener in instance_listeners:
@@ -214,18 +214,18 @@ async def test_jobs_deserializes(ha_container: str, tmp_path: Path) -> None:
 
 
 async def test_logs_respects_limit(ha_container: str, tmp_path: Path) -> None:
-    """GET /api/logs/recent?limit=10 returns ≤10 entries and deserializes to LogEntryResponse."""
+    """GET /api/logs/recent?limit=10 returns ≤10 entries and deserializes to LogEntry."""
     config, base_url = make_web_system_config(ha_container, tmp_path)
     async with startup_context(config):
         await wait_for_web_server(base_url)
         with _cli_client(config) as client:
             raw: list[Any] = await asyncio.to_thread(client.get, "/api/logs/recent", list, {"limit": 10})
 
-    entries = [LogEntryResponse.model_validate(e) for e in raw]
+    entries = [LogEntry.model_validate(e) for e in raw]
     assert isinstance(entries, list)
     assert len(entries) <= 10
     for entry in entries:
-        assert isinstance(entry, LogEntryResponse)
+        assert isinstance(entry, LogEntry)
 
 
 def test_wrong_port_exits_with_code_2(tmp_path: Path) -> None:

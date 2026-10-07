@@ -25,19 +25,19 @@ import {
 type SystemStatusResponse = components["schemas"]["SystemStatusResponse"];
 type ManifestListResponse = components["schemas"]["AppListResponse"];
 type ConfigSchemaResponse = components["schemas"]["ConfigSchemaResponse"];
-type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
+type ListenerSummary = components["schemas"]["ListenerSummary"];
 type JobSummary = components["schemas"]["JobSummary"];
 type Execution = components["schemas"]["Execution"];
 type AppGridResponse = components["schemas"]["AppGridResponse"];
 type TelemetryStatusResponse = components["schemas"]["TelemetryStatusResponse"];
-type LogEntryResponse = components["schemas"]["LogEntryResponse"];
+type LogEntry = components["schemas"]["LogEntry"];
 type ActionResponse = components["schemas"]["ActionResponse"];
 type ActivityFeedEntry = components["schemas"]["ActivityFeedEntry"];
 type AppHealth = components["schemas"]["AppHealth"];
 type JobTriggerResponse = components["schemas"]["JobTriggerResponse"];
 type BlockingFindingsResponse = components["schemas"]["BlockingFindingsResponse"];
 type UnattributedBlockingResponse = components["schemas"]["UnattributedBlockingResponse"];
-type AppSourceResponse = components["schemas"]["AppSourceResponse"];
+type AppSource = components["schemas"]["AppSource"];
 type AppConfigResponse = components["schemas"]["AppConfigResponse"];
 
 /** Installs an MSW handler returning the given manifests for the duration of the test. */
@@ -104,7 +104,7 @@ export const handlers = [
 
   // GET /api/telemetry/app/:app_key/listeners
   http.get("/api/telemetry/app/:app_key/listeners", () => {
-    return HttpResponse.json<ListenerWithSummary[]>([]);
+    return HttpResponse.json<ListenerSummary[]>([]);
   }),
 
   // GET /api/telemetry/app/:app_key/jobs
@@ -177,12 +177,12 @@ export const handlers = [
 
   // GET /api/logs/recent
   http.get("/api/logs/recent", () => {
-    return HttpResponse.json<LogEntryResponse[]>([]);
+    return HttpResponse.json<LogEntry[]>([]);
   }),
 
   // GET /api/apps/:app_key/source
   http.get("/api/apps/:app_key/source", ({ params }) => {
-    return HttpResponse.json<AppSourceResponse>({
+    return HttpResponse.json<AppSource>({
       app_key: String(params["app_key"]),
       filename: "test_app.py",
       content: "class TestApp:\n    pass\n",
@@ -206,7 +206,7 @@ export const handlers = [
 
   // GET /api/bus/listeners
   http.get("/api/bus/listeners", () => {
-    return HttpResponse.json<ListenerWithSummary[]>([]);
+    return HttpResponse.json<ListenerSummary[]>([]);
   }),
 
   // GET /api/config

@@ -17,8 +17,8 @@ Telemetry DB query-result models are split by domain across sibling modules:
 - ``log_models.py`` — log records and blocking events
 
 Served models, WS payloads, and the live system-status snapshot are defined only in
-``hassette_wire`` — see that package for ``SystemStatusResponse``, ``ServiceInfoResponse``,
-``BootIssueResponse``, and the WS event payload models.
+``hassette_wire`` — see that package for ``SystemStatusResponse``, ``ServiceInfo``,
+``BootIssue``, and the WS event payload models.
 """
 
 from hassette.schemas.app_snapshots import AppFullSnapshot, AppInstanceInfo, AppManifestInfo, AppStatusSnapshot

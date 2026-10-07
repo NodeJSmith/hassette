@@ -88,7 +88,6 @@ ignore = [
     "DTZ005", # call-datetime-now-without-tzinfo (DTZ005)
     "DTZ007", # call-datetime-strptime-without-zone (DTZ007)
     "D100",   # undocumented-public-module
-    "D101",   # undocumented-public-class
     "D102",   # undocumented-public-method — burn down incrementally
     "D103",   # undocumented-public-function — burn down incrementally
     "D104",   # undocumented-public-package
@@ -116,6 +115,9 @@ unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
 [lint.per-file-ignores]
+# D101 is enforced only under wire/src (the `!` negates the glob): class docstrings there are emitted
+# into the published wire schemas.
+"!wire/src/**" = ["D101"]  # undocumented-public-class
 "tests/**/*.py" = [
     "S101",   # assert usage
     "S104",   # binding to all interfaces (test fixtures)

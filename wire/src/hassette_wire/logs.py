@@ -1,9 +1,17 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.literals import LogLevel, OpenExecutionKind, SourceTier
 
 
-class LogEntryResponse(BaseModel):
+class LogEntry(BaseModel):
+    """One captured log record.
+
+    ``id`` identifies the stored record; ``seq`` orders records emitted by one server run. ``app_key``
+    and ``instance_*`` are set for records an app emitted and ``None`` for framework records.
+    ``execution_*``, ``listener_id`` and ``job_id`` are set only for records emitted while a handler or
+    job was running.
+    """
+
     id: int
     seq: int
     timestamp: float
@@ -24,11 +32,16 @@ class LogEntryResponse(BaseModel):
 
 
 class LogsByExecutionResponse(BaseModel):
-    """Response for GET /api/executions/{execution_id}."""
+    """The log records one handler or job execution emitted, served by ``GET /api/executions/{execution_id}``."""
 
-    records: list[LogEntryResponse]
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
+    records: list[LogEntry]
     truncated: bool
+    """``True`` when the execution emitted more records than the request's limit; the rest are omitted."""
     retention_expired: bool
+    """``True`` when ``records`` is empty and the execution is older than the server's log retention window:
+    its records may have been deleted, or it may never have logged."""
 
 
 class LogLevelRequest(BaseModel):

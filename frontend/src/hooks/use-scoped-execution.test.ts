@@ -1,16 +1,16 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { WsExecutionCompletedPayload } from "../api/ws-types";
+import type { ExecutionCompletedData } from "../api/ws-types";
 import { useAppStore } from "../state/store";
 import { createExecutionCompletedPayload } from "../test/factories";
 import { useAppExecution, useJobExecution, useListenerExecution } from "./use-scoped-execution";
 
-function handlerCompletion(appKey: string, listenerId: number): WsExecutionCompletedPayload {
+function handlerCompletion(appKey: string, listenerId: number): ExecutionCompletedData {
   return createExecutionCompletedPayload({ kind: "handler", app_key: appKey, listener_id: listenerId, job_id: null });
 }
 
-function jobCompletion(appKey: string, jobId: number): WsExecutionCompletedPayload {
+function jobCompletion(appKey: string, jobId: number): ExecutionCompletedData {
   return createExecutionCompletedPayload({ kind: "job", app_key: appKey, job_id: jobId });
 }
 
@@ -24,7 +24,7 @@ function renderCounted<T>(hook: () => T) {
   return { ...view, counter };
 }
 
-function publish(...events: WsExecutionCompletedPayload[]) {
+function publish(...events: ExecutionCompletedData[]) {
   act(() => {
     useAppStore.getState().setExecutionCompleted(events);
   });

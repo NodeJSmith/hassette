@@ -19,6 +19,15 @@ that set `use_attribute_docstrings=True` are emitted into
 consumer, or does it point at server functions, files, or tables that do not
 exist in this package? Were the generated artifacts regenerated with it?
 
+## Class Naming
+`wire/tests/test_naming.py` enforces the WS suffixes (`Data` payloads,
+`WsMessage` envelopes) and the forbidden ones. Review decides what it can't:
+is each new or renamed HTTP type a record (a bare noun wherever it appears)
+or another HTTP body (`Response`/`Request`), per the rule in the package
+docstring (`__init__.py`)? Does the name collide with a public `hassette`
+name? A rename changes the published schema component names, so is the PR
+marked breaking?
+
 ## Shared Vocabulary Is Published
 A member added to an enum in `enums.py` or a value added to a Literal in
 `literals.py` reaches every client immediately. Is the new value something a
@@ -38,6 +47,6 @@ value to either one? If so, it's a breaking change and needs a
 
 ## Duplicated Defaults
 This package cannot import `hassette`, so `JobSummary.mode`,
-`ListenerWithSummary.mode`, and `ListenerWithSummary.backpressure` spell their
+`ListenerSummary.mode`, and `ListenerSummary.backpressure` spell their
 defaults out. Do they still equal `DEFAULT_OVERLAP_MODE` and
 `DEFAULT_BACKPRESSURE_POLICY` in `src/hassette/types/enums.py`?

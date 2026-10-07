@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from hassette_wire import (
-    AppInstanceResponse,
+    AppInstance,
     AppListResponse,
     AppStatus,
     AppSummary,
@@ -116,7 +116,7 @@ def make_app_summary(
     auto_loaded: bool = False,
     status: AppStatus = AppStatus.RUNNING,
     instance_count: int = 1,
-    instances: list[AppInstanceResponse] | None = None,
+    instances: list[AppInstance] | None = None,
     in_current_config: bool = True,
 ) -> AppSummary:
     """Build an AppSummary with sensible defaults."""

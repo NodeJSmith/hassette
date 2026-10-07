@@ -8,7 +8,7 @@ from hassette.cli.commands.listener import (
     LISTENER_LIST_COLUMNS,
     cmd_listener,
 )
-from tests.support.web_telemetry_helpers import make_execution, make_listener_with_summary
+from tests.support.web_telemetry_helpers import make_execution, make_listener_summary
 from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
 
 runner = CommandRunner("hassette.cli.commands.listener.make_client")
@@ -20,7 +20,7 @@ LISTENER_42_EXECUTIONS_ENDPOINT = "/api/telemetry/listener/42/executions"
 class TestCmdListener:
     def test_calls_global_listeners_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener (no --app) fetches from GET /api/bus/listeners."""
-        listener = make_listener_with_summary()
+        listener = make_listener_summary()
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         spy = runner.spy(client, cmd_listener)
 
@@ -28,7 +28,7 @@ class TestCmdListener:
 
     def test_app_flag_routes_to_per_app_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener --app my-app fetches from /api/telemetry/app/my-app/listeners."""
-        listener = make_listener_with_summary(app_key="my-app")
+        listener = make_listener_summary(app_key="my-app")
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/listeners", 200, [listener.model_dump()])]
         )
@@ -38,7 +38,7 @@ class TestCmdListener:
 
     def test_app_and_instance_passes_instance_index(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener --app my-app --instance 0 passes instance_index=0 as a query param."""
-        listener = make_listener_with_summary(app_key="my-app", instance_index=0)
+        listener = make_listener_summary(app_key="my-app", instance_index=0)
         client = cli_client_factory.build_with_routes(
             [("GET", "/api/telemetry/app/my-app/listeners", 200, [listener.model_dump()])]
         )
@@ -56,7 +56,7 @@ class TestCmdListener:
 
     def test_source_tier_passed_as_param(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener --source-tier app passes source_tier=app as a query param."""
-        listener = make_listener_with_summary()
+        listener = make_listener_summary()
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         spy = runner.spy(client, cmd_listener, source_tier="app")
 
@@ -64,7 +64,7 @@ class TestCmdListener:
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener renders a table with listener_id and target."""
-        listener = make_listener_with_summary(listener_id=42, target="light.kitchen")
+        listener = make_listener_summary(listener_id=42, target="light.kitchen")
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
         output = runner.stdout(client, cmd_listener)
 
@@ -74,7 +74,7 @@ class TestCmdListener:
 
     def test_json_mode_outputs_list(self, cli_client_factory: CLIClientFactory) -> None:
         """Listener --json outputs the listener list as a JSON array."""
-        listener = make_listener_with_summary(listener_id=7)
+        listener = make_listener_summary(listener_id=7)
         client = cli_client_factory.build_with_routes([("GET", "/api/bus/listeners", 200, [listener.model_dump()])])
 
         parsed = runner.json_output(client, cmd_listener)

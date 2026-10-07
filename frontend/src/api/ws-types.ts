@@ -29,21 +29,22 @@ export type ResourceStatus =
  */
 export type ResourceRole = "core" | "base" | "service" | "resource" | "app" | "unknown";
 /**
- * Status values for handler invocations and job executions.
- *
- * Must stay in sync with the ``executions.status`` CHECK constraint.
+ * How a handler invocation or job execution ended.
  */
 export type ExecutionStatus = "success" | "error" | "cancelled" | "timed_out" | "skipped";
 
+/**
+ * Envelope for ``AppStatusChangedData``.
+ */
 export interface AppStatusChangedWsMessage {
   type: "app_status_changed";
   data: AppStatusChangedData;
   timestamp: number;
 }
 /**
- * Payload for an app lifecycle state-change event broadcast over WebSocket.
+ * An app instance changed lifecycle status.
  *
- * Mirrors ``events.hassette.AppStateChangePayload`` exactly.
+ * The ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.
  */
 export interface AppStatusChangedData {
   app_key: string;
@@ -56,21 +57,37 @@ export interface AppStatusChangedData {
   exception_type?: string | null;
   exception_traceback?: string | null;
 }
+/**
+ * New log records exist; refetch them over HTTP.
+ *
+ * Carries no records. Sent only to clients that subscribed to logs.
+ */
 export interface LogHintWsMessage {
   type: "log_hint";
   timestamp: number;
 }
+/**
+ * Envelope for ``ConnectedData``.
+ */
 export interface ConnectedWsMessage {
   type: "connected";
-  data: ConnectedPayload;
+  data: ConnectedData;
   timestamp: number;
 }
-export interface ConnectedPayload {
+/**
+ * Server state sent once, as the first message after a WebSocket connection opens.
+ *
+ * ``version`` is the server's hassette version; a client can compare it with its own to detect an upgrade.
+ */
+export interface ConnectedData {
   uptime_seconds: number;
   entity_count: number;
   app_count: number;
   version?: string;
 }
+/**
+ * Envelope for ``ConnectivityData``.
+ */
 export interface ConnectivityWsMessage {
   type: "connectivity";
   data: ConnectivityData;
@@ -82,15 +99,18 @@ export interface ConnectivityWsMessage {
 export interface ConnectivityData {
   connected: boolean;
 }
+/**
+ * Envelope for ``ServiceStatusData``.
+ */
 export interface ServiceStatusWsMessage {
   type: "service_status";
   data: ServiceStatusData;
   timestamp: number;
 }
 /**
- * Payload for an internal service status-change event broadcast over WebSocket.
+ * A framework service changed lifecycle status.
  *
- * Mirrors ``events.hassette.ServiceStatusPayload``.
+ * The ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.
  */
 export interface ServiceStatusData {
   resource_name: string;
@@ -117,6 +137,9 @@ export interface ServiceStatusData {
    */
   ready_phase?: string | null;
 }
+/**
+ * Envelope for a batch of ``ExecutionCompletedData``.
+ */
 export interface ExecutionCompletedWsMessage {
   type: "execution_completed";
   /**
@@ -142,6 +165,9 @@ export interface ExecutionCompletedData {
   job_id?: number | null;
   thread_leaked?: boolean;
 }
+/**
+ * Envelope for ``AppsChangedData``.
+ */
 export interface AppsChangedWsMessage {
   type: "apps_changed";
   data: AppsChangedData;
@@ -155,8 +181,6 @@ export interface AppsChangedWsMessage {
  * stale, refetch" rather than inspect the payload.
  */
 export type AppsChangedData = Record<string, never>;
-
-export type WsExecutionCompletedPayload = ExecutionCompletedData;
 
 // ExecutionStatus is also defined in generated-types.ts (from OpenAPI).
 // Both are generated from the same Python enum via export_schemas.py --types.

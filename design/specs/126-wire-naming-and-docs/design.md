@@ -1,7 +1,7 @@
 # Design: Apply the wire naming rule and consumer docstrings
 
 **Date:** 2026-10-04
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 
 ## Summary
@@ -134,10 +134,20 @@ Any compat-ignore lines come from `tools/check_wire_compat.py`'s output, and the
 
 ## Build
 
-- [ ] Implementation and tests committed
-- [ ] Docs
-- [ ] Ship-time challenge
+- [x] Implementation and tests committed
+- [x] Docs (none needed in `docs/pages/`: no page names a renamed class; internal pointers in `.claude/rules/`, `tests/TESTING.md` and the `REVIEW.md` files updated)
+- [x] Ship-time challenge
 
 **Calls made during the build:**
+- No type reclassified under D1 beyond the ledger's lists: every remaining bare noun (`AppActivityStats`, `LastError`, `LastErrorResult`, `ActivityBucket`, the `Blocking*Ref` types, `UnattributedStall`) describes one domain object, and every remaining `*Response`/`*Request` is an envelope, aggregate, probe or acknowledgement.
+- Mapper names: `instance_response_from`→`app_instance_from`, `connected_payload_from`→`connected_data_from`, `to_listener_with_summary`→`listener_summary_from`: the `<type>_from` shape the other mappers in `mappers.py` already use. `ServiceInfo`, `LogEntry`, `AppSource` and `BootIssue` have no named builder (constructed inline in `runtime_query_service.py` and the routes; `collect_boot_issues` already names its result), so nothing else to rename.
+- Test factories follow their types too: `make_listener_summary` (built `ListenerSummaryRow`)→`make_listener_summary_row`, freeing it for the wire factory (`make_listener_with_summary`→`make_listener_summary`); `make_log_entry` (built `LogRecordEntry`)→`make_log_record_entry`, freeing it for `make_log_entry_response`→`make_log_entry`; `make_app_source_response`→`make_app_source`. Every caller in this branch was checked. A branch opened before this change is guarded unevenly: a stale `from tests.support.factories import make_log_entry` fails with ImportError (the name moved modules), but a stale `make_listener_summary` caller keeps both name and module, and is caught by pyright only where the result is typed. Passed into an untyped mock, it silently gets the wire type, whose fields are a superset of the row's. Accepted at the ship-time challenge: the exposure is limited to open branches that build listener-summary rows.
+- Local names and aliases carrying the old vocabulary were renamed with their types (`payload`→`data` in `routes/ws.py`, the `*Payload` import aliases in `tests/unit/test_ws_models.py` and `frontend/src/state/store.ts`, test class names), so a grep for an old name finds only frozen history.
+- `LogsByExecutionResponse` gained attribute docstrings for `truncated` and `retention_expired` (and `use_attribute_docstrings`), since D8's rewrite would otherwise have left the one HTTP body whose flags a client can't interpret from names alone.
+- `tools/check_wire_compat.py` passes against v0.55.0 with no new ignore lines: schema component renames don't register as breaking in its diff, so the breaks are carried by the `feat!` footer (D9) alone. Accepted at the ship-time challenge: the wire bytes don't change, so the break is to import and generated type names, which fail loudly; the PR body must end with that one footer.
+- `wire/tests/test_naming.py` pins the mechanical half of D1 (no export ends in a retired `Payload`/`WithSummary` suffix; every `*WsMessage` export is in `WsServerMessage`, has a `type` Literal, and carries a `*Data` payload; every `*Data` export is such a payload), added at the ship-time challenge, following D8's rule that a machine checks what it can. Record-vs-envelope classification and `hassette` name collisions stay with review; the `REVIEW.md` question now asks only those.
+- Ship-time challenge also rewrote the `retention_expired` docstrings (wire model and `routes/executions.py`), which over-claimed deletion, and four pre-existing schema docstrings that used the server-internal term "DB-only" (`AppSummary.instance_count`/`in_current_config`, `JobSummary.schedule_status`/`next_run`), so the published schema is readable without server internals.
 
 ## Addendum
+
+- 2026-10-07 (clean-code gate, same PR): the hand-written `WsExecutionCompletedPayload` alias that `scripts/generate-ws-types.cjs` appended to `ws-types.ts` was removed and its frontend users moved to `ExecutionCompletedData`, since it kept the retired `Payload` suffix alive on the frontend.

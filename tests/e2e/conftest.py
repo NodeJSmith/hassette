@@ -251,7 +251,7 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
     ) -> list[dict]:
         # dup-ignore-end
         entries: list[LogRecordEntry] = handler.captured
-        # LogEntryResponse.id is a DB-only concept LogRecordEntry doesn't carry (it's the in-memory
+        # LogEntry.id is a DB-only concept LogRecordEntry doesn't carry (it's the in-memory
         # pre-persistence capture). seq is already a unique, monotonic per-session counter, so it
         # stands in for id here — this buffer is the only "database" e2e tests have.
         result = [{**e.to_dict(), "id": e.seq} for e in entries]

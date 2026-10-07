@@ -3,7 +3,7 @@
 from typing import Any
 from unittest.mock import MagicMock
 
-from hassette_wire import BootIssueResponse, SystemStatusResponse
+from hassette_wire import BootIssue, SystemStatusResponse
 from httpx2 import AsyncClient
 
 from .conftest import HEALTH_PATH, get_json
@@ -45,7 +45,7 @@ class TestVersionInHealth:
             entity_count=0,
             app_count=0,
             version="1.0.0",
-            boot_issues=[BootIssueResponse(severity="warn", label="App blocked", detail="my_app: import error")],
+            boot_issues=[BootIssue(severity="warn", label="App blocked", detail="my_app: import error")],
         )
 
         assert "boot_issues" in data

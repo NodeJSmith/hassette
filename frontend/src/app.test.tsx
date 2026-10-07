@@ -15,7 +15,7 @@ import { server } from "./test/server";
 import { LOGIN_PATH } from "./utils/app-routes";
 
 type AppManifest = components["schemas"]["AppSummary"];
-type ListenerWithSummary = components["schemas"]["ListenerWithSummary"];
+type ListenerSummary = components["schemas"]["ListenerSummary"];
 
 const SELECTORS = {
   hamburger: "[data-testid='hamburger']",
@@ -466,7 +466,7 @@ describe("App — command palette", () => {
     const user = userEvent.setup();
     server.use(
       http.get("/api/bus/listeners", () =>
-        HttpResponse.json<ListenerWithSummary[]>([
+        HttpResponse.json<ListenerSummary[]>([
           createListener({ listener_id: 42, app_key: "my_app", handler_method: "on_state_change" }),
         ]),
       ),
@@ -483,7 +483,7 @@ describe("App — command palette", () => {
     server.use(
       http.get("/api/bus/listeners", () => {
         callCount++;
-        return HttpResponse.json<ListenerWithSummary[]>([]);
+        return HttpResponse.json<ListenerSummary[]>([]);
       }),
     );
     seedManifests([createAppSummary({ app_key: "garage_app", display_name: "Garage App", status: "running" })]);

@@ -7,7 +7,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hassette_wire import ActionResponse, AppInstanceResponse, AppListResponse, AppStatus
+from hassette_wire import ActionResponse, AppInstance, AppListResponse, AppStatus
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.app import (
@@ -33,7 +33,7 @@ from tests.support.web_response_helpers import (
     make_app_grid_entry,
     make_app_grid_response,
     make_app_health,
-    make_app_source_response,
+    make_app_source,
 )
 from tests.support.web_telemetry_helpers import make_activity_feed_entry
 from tests.unit.cli.conftest import (
@@ -196,7 +196,7 @@ class TestCmdAppHealth:
     def test_instance_name_resolution(self, cli_client_factory: CLIClientFactory) -> None:
         """App health --instance office resolves the name to an index."""
         health = make_app_health()
-        instance_resp = AppInstanceResponse(
+        instance_resp = AppInstance(
             app_key="my-app",
             index=2,
             instance_name="office",
@@ -392,7 +392,7 @@ class TestCmdAppConfig:
 class TestCmdAppSource:
     def test_calls_correct_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
         """App source fetches from GET /api/apps/{key}/source."""
-        src = make_app_source_response(app_key="my-app")
+        src = make_app_source(app_key="my-app")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
         spy = runner.spy(client, cmd_app_source, "my-app")
 
@@ -400,14 +400,14 @@ class TestCmdAppSource:
 
     def test_human_mode_renders_panel(self, cli_client_factory: CLIClientFactory) -> None:
         """App source renders a detail panel showing filename and content."""
-        src = make_app_source_response(app_key="my-app", filename="my_app.py", content="class MyApp: pass\n")
+        src = make_app_source(app_key="my-app", filename="my_app.py", content="class MyApp: pass\n")
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
         output = runner.stdout(client, cmd_app_source, "my-app")
         assert "my_app.py" in output
 
     def test_json_mode_outputs_valid_json(self, cli_client_factory: CLIClientFactory) -> None:
         """App source --json outputs a JSON object with content field."""
-        src = make_app_source_response(app_key="my-app", content="class MyApp: pass\n", line_count=1)
+        src = make_app_source(app_key="my-app", content="class MyApp: pass\n", line_count=1)
         client = cli_client_factory.build_with_routes([("GET", "/api/apps/my-app/source", 200, src.model_dump())])
 
         parsed = runner.json_output(client, cmd_app_source, "my-app")
@@ -425,8 +425,8 @@ def _action_response(
     return ActionResponse(app_key=app_key, action=action, instance_index=instance_index)
 
 
-def _instance(index: int, name: str, app_key: str = "my_app") -> AppInstanceResponse:
-    return AppInstanceResponse(
+def _instance(index: int, name: str, app_key: str = "my_app") -> AppInstance:
+    return AppInstance(
         app_key=app_key,
         index=index,
         instance_name=name,
@@ -435,7 +435,7 @@ def _instance(index: int, name: str, app_key: str = "my_app") -> AppInstanceResp
     )
 
 
-def apps_route(instances: list[AppInstanceResponse], app_key: str = "my_app") -> tuple[str, str, int, Any]:
+def apps_route(instances: list[AppInstance], app_key: str = "my_app") -> tuple[str, str, int, Any]:
     """Route entry for ``GET /api/apps``, used to resolve instance names."""
     app_summary = make_app_summary(app_key=app_key, instances=instances)
     app_list = make_app_list_response([app_summary])
@@ -446,7 +446,7 @@ def _instance_action_routes(
     action: str,
     *,
     app_key: str = "my_app",
-    instances: list[AppInstanceResponse] | None = None,
+    instances: list[AppInstance] | None = None,
     requested_index: int = 1,
     confirmed_index: int | None = None,
     apps_status: int = 200,

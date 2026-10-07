@@ -9,23 +9,23 @@ import type { components } from "./generated-types";
 export type AppStatus = components["schemas"]["AppStatus"];
 export type ResourceStatus = components["schemas"]["ResourceStatus"];
 export type AppManifest = components["schemas"]["AppSummary"];
-export type AppInstance = components["schemas"]["AppInstanceResponse"];
+export type AppInstance = components["schemas"]["AppInstance"];
 export type ManifestListResponse = components["schemas"]["AppListResponse"];
-export type ListenerData = components["schemas"]["ListenerWithSummary"];
+export type ListenerData = components["schemas"]["ListenerSummary"];
 export type AppGridEntry = components["schemas"]["AppGridEntry"];
 export type AppActivity = components["schemas"]["AppActivity"];
 export type AppGridResponse = components["schemas"]["AppGridResponse"];
 export type JobData = components["schemas"]["JobSummary"];
 export type ExecutionData = components["schemas"]["Execution"];
 export type TelemetryStatus = components["schemas"]["TelemetryStatusResponse"];
-export type LogEntry = components["schemas"]["LogEntryResponse"];
+export type LogEntry = components["schemas"]["LogEntry"];
 // The config schema rides in a `dict[str, Any]` field, so the generated type is a bare
 // index signature. Narrow it to `SchemaNode` here — the single boundary where the config
 // view's shape is asserted — so consumers read typed fields without per-call-site casts.
 export type AppConfigData = Omit<components["schemas"]["AppConfigResponse"], "config_schema"> & {
   config_schema?: SchemaNode | null;
 };
-export type AppSourceData = components["schemas"]["AppSourceResponse"];
+export type AppSourceData = components["schemas"]["AppSource"];
 export type ActivityFeedEntryData = components["schemas"]["ActivityFeedEntry"];
 export type AppHealthData = components["schemas"]["AppHealth"];
 export type ActionResponse = components["schemas"]["ActionResponse"];
@@ -35,7 +35,7 @@ export type SystemConfig = Omit<components["schemas"]["ConfigSchemaResponse"], "
   config_values: ConfigRecord;
 };
 export type SystemStatus = components["schemas"]["SystemStatusResponse"];
-export type BootIssue = components["schemas"]["BootIssueResponse"];
+export type BootIssue = components["schemas"]["BootIssue"];
 export type BlockingFindingsData = components["schemas"]["BlockingFindingsResponse"];
 export type BlockingFinding = components["schemas"]["BlockingFinding"];
 export type StackFrame = components["schemas"]["StackFrame"];

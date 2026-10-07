@@ -18,7 +18,7 @@ from hassette_wire import (
     ResourceRole,
     ScheduleStatus,
     ScheduleStatusReason,
-    ServiceInfoResponse,
+    ServiceInfo,
     ServiceStatusData,
     UnknownValue,
 )
@@ -58,7 +58,7 @@ def app_list_body(status_counts: dict[str, int]) -> dict[str, Any]:
 OPEN_FIELDS = [
     (JobSummary, job_summary_body, "schedule_status", "paused"),
     (JobSummary, job_summary_body, "schedule_status_reason", "user_paused"),
-    (ServiceInfoResponse, service_info_body, "role", "plugin"),
+    (ServiceInfo, service_info_body, "role", "plugin"),
     (ServiceStatusData, service_status_body, "role", "plugin"),
     (ActionResponse, action_body, "action", "pause"),
 ]
@@ -105,12 +105,12 @@ def test_service_info_role_is_required() -> None:
     del body["role"]
 
     with pytest.raises(ValidationError, match="role"):
-        ServiceInfoResponse.model_validate(body)
+        ServiceInfo.model_validate(body)
 
 
 def test_service_info_role_rejects_the_old_empty_string_sentinel() -> None:
     with pytest.raises(ValidationError):
-        ServiceInfoResponse.model_validate(service_info_body(role=""))
+        ServiceInfo.model_validate(service_info_body(role=""))
 
 
 def test_status_counts_keys_parse_to_app_status() -> None:

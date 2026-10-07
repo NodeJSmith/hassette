@@ -14,13 +14,13 @@ from hassette_wire import (
     AppSummary,
     BlockingHandlerRef,
     ExecutionMode,
-    ListenerWithSummary,
+    ListenerSummary,
     LogLevel,
     LogLevelRequest,
     ProblemCode,
     ProblemDetail,
     ResourceStatus,
-    ServiceInfoResponse,
+    ServiceInfo,
     SessionRequest,
     SourceTier,
     SystemStatusResponse,
@@ -241,14 +241,14 @@ def test_python_dump_returns_values_unchanged_without_warnings() -> None:
 
 @pytest.mark.parametrize("mode", ["json", "python"])
 def test_dumping_an_out_of_vocabulary_str_that_bypassed_validation_still_warns(mode: str) -> None:
-    bypassed = ServiceInfoResponse.model_construct(name="svc", status="bogus")
+    bypassed = ServiceInfo.model_construct(name="svc", status="bogus")
 
     with pytest.warns(UserWarning, match="Expected `enum`"):
         bypassed.model_dump(mode=mode)
 
 
 def test_strict_python_dump_keeps_enum_members() -> None:
-    listener = ListenerWithSummary.model_validate(
+    listener = ListenerSummary.model_validate(
         {
             "listener_id": 1,
             "app_key": "a",

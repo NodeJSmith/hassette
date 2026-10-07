@@ -4,10 +4,10 @@ import dataclasses
 from dataclasses import asdict
 
 import pytest
-from hassette_wire import AppStatusChangedData as AppStatusChangedPayload
 from hassette_wire import (
+    AppStatusChangedData,
     AppStatusChangedWsMessage,
-    ConnectedPayload,
+    ConnectedData,
     ConnectedWsMessage,
     ConnectivityWsMessage,
     ExecutionCompletedData,
@@ -16,10 +16,10 @@ from hassette_wire import (
     LogHintWsMessage,
     ResourceRole,
     ResourceStatus,
+    ServiceStatusData,
     ServiceStatusWsMessage,
     WsServerMessage,
 )
-from hassette_wire import ServiceStatusData as WsServiceStatusPayload
 from pydantic import TypeAdapter
 
 from hassette.events.hassette import AppStateChangePayload, ExecutionCompletedPayload, ServiceStatusPayload
@@ -34,12 +34,12 @@ def validate_envelope(msg_type: str, data: object) -> WsServerMessage:
     return MESSAGE_ADAPTER.validate_python({"type": msg_type, "data": data, "timestamp": TEST_TIMESTAMP})
 
 
-class TestAppStatusChangedPayloadMatchesDataclass:
-    """Verify AppStatusChangedPayload mirrors events.hassette.AppStateChangePayload."""
+class TestAppStatusChangedDataMatchesDataclass:
+    """Verify AppStatusChangedData mirrors events.hassette.AppStateChangePayload."""
 
     def test_field_names_match(self) -> None:
         dataclass_fields = {f.name for f in dataclasses.fields(AppStateChangePayload)}
-        assert dataclass_fields == set(AppStatusChangedPayload.model_fields)
+        assert dataclass_fields == set(AppStatusChangedData.model_fields)
 
     def test_all_fields_present(self) -> None:
         dataclass_instance = AppStateChangePayload(
@@ -54,31 +54,30 @@ class TestAppStatusChangedPayloadMatchesDataclass:
             exception_traceback=None,
         )
         serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
-        payload = AppStatusChangedPayload.model_validate(serialized)
-        assert payload.app_key == "my_app"
-        assert payload.index == 0
-        assert payload.status == "running"
-        assert payload.instance_name == "my_app_0"
-        assert payload.class_name == "MyApp"
+        data = AppStatusChangedData.model_validate(serialized)
+        assert data.app_key == "my_app"
+        assert data.index == 0
+        assert data.status == "running"
+        assert data.instance_name == "my_app_0"
+        assert data.class_name == "MyApp"
 
     def test_optional_fields_default_to_none(self) -> None:
-        payload = AppStatusChangedPayload(app_key="test", index=0, status="running")
-        assert payload.previous_status is None
-        assert payload.instance_name is None
-        assert payload.class_name is None
-        assert payload.exception is None
-        assert payload.exception_type is None
-        assert payload.exception_traceback is None
+        data = AppStatusChangedData(app_key="test", index=0, status="running")
+        assert data.previous_status is None
+        assert data.instance_name is None
+        assert data.class_name is None
+        assert data.exception is None
+        assert data.exception_type is None
+        assert data.exception_traceback is None
 
 
-class TestServiceStatusPayloadMatchesDataclass:
-    """Verify WsServiceStatusPayload mirrors events.hassette.ServiceStatusPayload."""
+class TestServiceStatusDataMatchesDataclass:
+    """Verify ServiceStatusData mirrors events.hassette.ServiceStatusPayload."""
 
     def test_field_names_match(self) -> None:
-        # `role`'s type is intentionally narrowed (ResourceRole -> str) at the conversion
-        # site; only the field name is shared, not the type.
+        # Only the field names are compared: the wire model types `role` as an open vocabulary.
         dataclass_fields = {f.name for f in dataclasses.fields(ServiceStatusPayload)}
-        assert dataclass_fields == set(WsServiceStatusPayload.model_fields)
+        assert dataclass_fields == set(ServiceStatusData.model_fields)
 
     def test_all_fields_present(self) -> None:
         dataclass_instance = ServiceStatusPayload(
@@ -90,22 +89,22 @@ class TestServiceStatusPayloadMatchesDataclass:
             ready_phase="connected",
         )
         serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
-        payload = WsServiceStatusPayload.model_validate(serialized)
-        assert payload.resource_name == "telemetry"
-        assert payload.ready is True
-        assert payload.ready_phase == "connected"
+        data = ServiceStatusData.model_validate(serialized)
+        assert data.resource_name == "telemetry"
+        assert data.ready is True
+        assert data.ready_phase == "connected"
 
 
-class TestConnectedPayloadIncludesUptimeSeconds:
-    """Verify ConnectedPayload includes uptime_seconds field."""
+class TestConnectedDataIncludesUptimeSeconds:
+    """Verify ConnectedData includes uptime_seconds field."""
 
     def test_uptime_seconds_present(self) -> None:
-        payload = ConnectedPayload(uptime_seconds=123.4, entity_count=10, app_count=3)
-        assert payload.uptime_seconds == 123.4
+        data = ConnectedData(uptime_seconds=123.4, entity_count=10, app_count=3)
+        assert data.uptime_seconds == 123.4
 
     def test_uptime_seconds_zero(self) -> None:
-        payload = ConnectedPayload(uptime_seconds=0.0, entity_count=10, app_count=3)
-        assert payload.uptime_seconds == 0.0
+        data = ConnectedData(uptime_seconds=0.0, entity_count=10, app_count=3)
+        assert data.uptime_seconds == 0.0
 
 
 class TestWsServerMessageDiscriminates:
@@ -228,7 +227,7 @@ class TestCompletionWsMessages:
         assert msg.data[1].error_type == "ValueError"
 
 
-class TestExecutionCompletedPayloadStatusIsClosedEnum:
+class TestExecutionCompletedDataStatusIsClosedEnum:
     """Regression guard for the untyped ``ExecutionCompletedPayload.status: str`` producer chain.
 
     Before this fix, ``ExecutionRecord``/``ExecutionCompletedPayload``/``from_record()`` all
@@ -267,28 +266,28 @@ class TestServiceStatusDataRetryAt:
 
     def test_service_status_data_includes_retry_at(self) -> None:
         """ServiceStatusData accepts retry_at as an optional float field."""
-        payload = WsServiceStatusPayload(
+        data = ServiceStatusData(
             resource_name="my_service",
             role="service",
             status="exhausted_cooling",
             retry_at=1714000000.0,
         )
-        assert payload.retry_at == 1714000000.0
+        assert data.retry_at == 1714000000.0
 
     def test_service_status_data_retry_at_defaults_to_none(self) -> None:
         """retry_at defaults to None when not provided."""
-        payload = WsServiceStatusPayload(
+        data = ServiceStatusData(
             resource_name="my_service",
             role="service",
             status="running",
         )
-        assert payload.retry_at is None
+        assert data.retry_at is None
 
     def test_service_status_exhausted_dead_serialization(self) -> None:
         """EXHAUSTED_DEAD status serializes correctly in WebSocket messages."""
         msg = ServiceStatusWsMessage(
             type="service_status",
-            data=WsServiceStatusPayload(
+            data=ServiceStatusData(
                 resource_name="dead_service",
                 role="service",
                 status="exhausted_dead",
@@ -305,7 +304,7 @@ class TestServiceStatusDataRetryAt:
         retry_timestamp = 1714000300.0
         msg = ServiceStatusWsMessage(
             type="service_status",
-            data=WsServiceStatusPayload(
+            data=ServiceStatusData(
                 resource_name="cooling_service",
                 role="service",
                 status="exhausted_cooling",
@@ -317,8 +316,8 @@ class TestServiceStatusDataRetryAt:
         assert dumped["data"]["status"] == "exhausted_cooling"
         assert dumped["data"]["retry_at"] == retry_timestamp
 
-    def test_service_status_payload_mirrors_event_dataclass_retry_at(self) -> None:
-        """WsServiceStatusPayload mirrors ServiceStatusPayload.retry_at field."""
+    def test_service_status_data_mirrors_event_dataclass_retry_at(self) -> None:
+        """ServiceStatusData mirrors ServiceStatusPayload.retry_at field."""
         dataclass_instance = ServiceStatusPayload(
             resource_name="cooling_service",
             role=ResourceRole.SERVICE,
@@ -328,8 +327,8 @@ class TestServiceStatusDataRetryAt:
             ready_phase=None,
         )
         serialized = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(dataclass_instance).items()}
-        payload = WsServiceStatusPayload.model_validate(serialized)
-        assert payload.status == "exhausted_cooling"
-        assert payload.retry_at == 1714000300.0
-        assert payload.ready is False
-        assert payload.ready_phase is None
+        data = ServiceStatusData.model_validate(serialized)
+        assert data.status == "exhausted_cooling"
+        assert data.retry_at == 1714000300.0
+        assert data.ready is False
+        assert data.ready_phase is None

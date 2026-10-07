@@ -7,16 +7,16 @@ from hassette_wire.enums import OpenResourceRole, OpenResourceStatus
 from hassette_wire.literals import OpenBootIssueSeverity, OpenSystemHealthStatus
 
 
-class BootIssueResponse(BaseModel):
-    """A boot-time issue entry in the system status response."""
+class BootIssue(BaseModel):
+    """A problem found while the server started, listed in ``SystemStatusResponse.boot_issues``."""
 
     severity: OpenBootIssueSeverity
     label: str
     detail: str
 
 
-class ServiceInfoResponse(BaseModel):
-    """Structured info for one internal service."""
+class ServiceInfo(BaseModel):
+    """One framework service and its lifecycle status, listed in ``SystemStatusResponse.services``."""
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 
@@ -31,6 +31,8 @@ class ServiceInfoResponse(BaseModel):
 
 
 class SystemStatusResponse(BaseModel):
+    """Overall server health, served by ``GET /api/health``."""
+
     model_config = ConfigDict(use_attribute_docstrings=True)
 
     status: OpenSystemHealthStatus
@@ -39,9 +41,9 @@ class SystemStatusResponse(BaseModel):
     uptime_seconds: Annotated[float, CliFormat("uptime")]
     entity_count: int
     app_count: int
-    services: Annotated[list[ServiceInfoResponse], CliFormat("services")] = Field(default_factory=list)
+    services: Annotated[list[ServiceInfo], CliFormat("services")] = Field(default_factory=list)
     version: str = ""
-    boot_issues: list[BootIssueResponse] = Field(default_factory=list)
+    boot_issues: list[BootIssue] = Field(default_factory=list)
     log_queue_drops: int = 0
     """Log records dropped because the log queue was full — tune ``logging.log_queue_max``."""
 

@@ -141,7 +141,7 @@ GET /api/telemetry/app/{app_key}/health removed the required property `handler_a
 GET /api/telemetry/app/{app_key}/health removed the required property `job_avg_duration` from the response with the `200` status
 
 # #2448 (spec 123): server-defined vocabularies on response fields get real types.
-# ServiceInfoResponse.role drops its "" default and becomes required. The reversed check (new
+# ServiceInfo.role (then ServiceInfoResponse) drops its "" default and becomes required. The reversed check (new
 # client, old server) phrases that as the property having "become optional" on the old side.
 GET /api/health the response property `services/items/role` became optional for the status `200`
 # JobSummary.schedule_status drops its "scheduled" default and becomes required (same phrasing).

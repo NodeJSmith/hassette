@@ -33,11 +33,9 @@ def requested_activity_parts(*, windowed: bool) -> list[str]:
 
 
 class Execution(BaseModel):
-    """Unified execution record returned by queries against the ``executions`` table.
+    """One run of a handler or scheduled job.
 
-    Replaces the split ``HandlerInvocation`` / ``JobExecution`` models.
-    ``kind`` discriminates between handler invocations and job executions.
-    Handler-only fields (``trigger_context_id``, ``trigger_origin``) default to
+    ``kind`` says which. Handler-only fields (``trigger_context_id``, ``trigger_origin``) are
     ``None`` for job executions.
     """
 
@@ -122,7 +120,7 @@ class ActivityFeedEntry(BaseModel):
 
 
 class JobSummary(BaseModel):
-    """Per-job summary returned by ``get_job_summary()``.
+    """One scheduled job's registration and its execution totals.
 
     ``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``
     are tracked separately.
@@ -167,17 +165,19 @@ class JobSummary(BaseModel):
     group: str | None = None
     """Scheduler group name, persisted at registration."""
     schedule_status: OpenScheduleStatus
-    """Whether the job will run again on its own. Persisted at registration and every status
-    transition; live enrichment overlays the current in-process value, so a DB-only degraded
-    response still reflects the last persisted status."""
+    """Whether the job will run again on its own: its live status while it is registered with the running
+    scheduler, otherwise the last status the server recorded for it."""
     schedule_status_reason: OpenScheduleStatusReason | None = None
     """Qualifies ``schedule_status`` when the status alone does not explain the job's state.
     ``None`` for a clean status with no override."""
     next_run: Annotated[float | None, CliFormat("relative_time")] = None
-    """Unix epoch seconds of the next scheduled fire time (unjittered); live-only — always
-    ``None`` in a DB-only response, and ``None`` for every status except ``scheduled`` with
-    live timing available. A ``None`` value no longer implies the job is done; see
-    ``schedule_status``/``schedule_status_reason`` for the reason timing is unavailable."""
+    """Unix epoch seconds of the next scheduled fire time (unjittered). ``None`` when:
+
+    - the job is not registered with the running scheduler,
+    - the server could not read live scheduler state, or
+    - ``schedule_status`` is anything other than ``scheduled``.
+
+    ``None`` does not mean the job is done; ``schedule_status`` and ``schedule_status_reason`` say why."""
     fire_at: float | None = None
     """Unix epoch seconds of the live job's dispatch time; live-only. Equals
     ``next_run`` when no jitter is configured."""
@@ -229,8 +229,8 @@ class AppHealth(BaseModel):
     """Mean job execution duration excluding skipped runs; null when no job ran or every job run was skipped."""
 
 
-class ListenerWithSummary(BaseModel):
-    """Listener metrics enriched with human-readable handler summary."""
+class ListenerSummary(BaseModel):
+    """One bus listener's registration and its invocation totals."""
 
     model_config = ConfigDict(use_attribute_docstrings=True)
 

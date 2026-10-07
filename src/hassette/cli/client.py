@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Literal, NoReturn, TypeVar, overload
 
 import httpx2 as httpx
-from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstanceResponse, AppListResponse
+from hassette_wire import LENIENT_CONTEXT, ActionResponse, AppAction, AppInstance, AppListResponse
 from pydantic import BaseModel, ValidationError
 from rich.markup import escape
 
@@ -52,7 +52,7 @@ T = TypeVar("T")
 M = TypeVar("M", bound=BaseModel)
 
 
-def _filter_instances(app_list: AppListResponse, app_key: str) -> list[AppInstanceResponse]:
+def _filter_instances(app_list: AppListResponse, app_key: str) -> list[AppInstance]:
     """Flatten the instance list for ``app_key`` out of a full app list response.
 
     Shared by :meth:`HassetteCLIClient._fetch_instances` and
@@ -341,12 +341,12 @@ class HassetteCLIClient:
 
         return self.get(path, model, params=params)
 
-    def _fetch_instances(self, app_key: str) -> list[AppInstanceResponse]:
+    def _fetch_instances(self, app_key: str) -> list[AppInstance]:
         """Fetch the app list and return the instance list for ``app_key``."""
         app_list = self.get(APPS_PATH, AppListResponse)
         return _filter_instances(app_list, app_key)
 
-    def _try_fetch_instances(self, app_key: str) -> list[AppInstanceResponse] | None:
+    def _try_fetch_instances(self, app_key: str) -> list[AppInstance] | None:
         """Best-effort variant of :meth:`_fetch_instances` that never exits the process.
 
         ``/api/apps`` returns a 503 ``telemetry_unavailable`` problem when the
@@ -373,13 +373,11 @@ class HassetteCLIClient:
 
         return _filter_instances(app_list, app_key)
 
-    def _instance_not_found(self, app_key: str, instance: str, instances: list[AppInstanceResponse]) -> NoReturn:
+    def _instance_not_found(self, app_key: str, instance: str, instances: list[AppInstance]) -> NoReturn:
         names = ", ".join(repr(inst.instance_name) for inst in instances) if instances else "(none)"
         self.error_usage(f"Instance {instance!r} not found for app {app_key!r}. Available instances: {names}")
 
-    def _find_by_name(
-        self, app_key: str, instances: list[AppInstanceResponse], name: str
-    ) -> AppInstanceResponse | None:
+    def _find_by_name(self, app_key: str, instances: list[AppInstance], name: str) -> AppInstance | None:
         """Return the instance whose ``instance_name`` matches ``name``, or ``None``.
 
         Config validation permits two configured instances to share an ``instance_name`` —

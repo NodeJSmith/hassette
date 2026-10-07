@@ -31,7 +31,7 @@ from hassette_wire import (
     JobSummary,
     LastError,
     LastErrorResult,
-    ListenerWithSummary,
+    ListenerSummary,
     ProblemCode,
     TelemetryStatusResponse,
     UnattributedBlockingResponse,
@@ -57,7 +57,7 @@ from hassette.web.dependencies import (
     TelemetryFiltersDep,
 )
 from hassette.web.errors import problem_responses
-from hassette.web.mappers import app_summary_from, to_listener_with_summary
+from hassette.web.mappers import app_summary_from, listener_summary_from
 from hassette.web.telemetry_helpers import build_app_health
 from hassette.web.utils import enrich_jobs_with_live_data
 
@@ -136,7 +136,7 @@ async def app_health(
 
 @router.get(
     "/app/{app_key}/listeners",
-    response_model=list[ListenerWithSummary],
+    response_model=list[ListenerSummary],
     responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
 )
 async def app_listeners(
@@ -144,11 +144,11 @@ async def app_listeners(
     telemetry: TelemetryDep,
     hassette: HassetteDep,
     filters: TelemetryFiltersDep,
-) -> list[ListenerWithSummary]:
+) -> list[ListenerSummary]:
     """Listener metrics with human-readable handler summaries."""
     listeners = await telemetry.get_listener_summary(app_key=app_key, **filters.query_kwargs)
     live_counts = hassette.bus_service.live_execution_counts()
-    return [to_listener_with_summary(ls, live_counts) for ls in listeners]
+    return [listener_summary_from(row, live_counts) for row in listeners]
 
 
 @router.get(

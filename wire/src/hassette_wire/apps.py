@@ -6,7 +6,14 @@ from hassette_wire.enums import OpenAppStatus, OpenResourceStatus
 from hassette_wire.literals import OpenAppAction
 
 
-class AppInstanceResponse(BaseModel):
+class AppInstance(BaseModel):
+    """One configured instance of an app and its lifecycle status.
+
+    Nested in ``AppSummary.instances``. ``index`` is the instance's position in the app's config;
+    ``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None``
+    unless ``status`` is ``failed``.
+    """
+
     app_key: str
     index: int
     instance_name: str
@@ -37,14 +44,17 @@ class AppSummary(BaseModel):
     status: OpenAppStatus
     block_reason: str | None = None
     instance_count: int = 0
-    """Number of entries in ``instances``: every configured instance (including untracked ones, never started
-    or independently stopped) plus any still-tracked instance outside the configured range. 0 for DB-only or
-    removed apps. Always len(instances)."""
-    instances: list[AppInstanceResponse] = Field(default_factory=list)
+    """Number of entries in ``instances``: every configured instance, including ones never started or
+    independently stopped, plus any instance still running beyond the configured count (e.g. after the config
+    was reduced). Always len(instances).
+
+    0 when ``in_current_config`` is ``False``."""
+    instances: list[AppInstance] = Field(default_factory=list)
     error_message: str | None = None
     error_traceback: str | None = None
     in_current_config: bool = True
-    """True if the app is present in the currently-loaded config; False for DB-only/removed apps."""
+    """True if the app is present in the currently-loaded config; False for an app known only from recorded
+    history, such as one removed from the config."""
 
 
 class AppListResponse(BaseModel):
@@ -72,7 +82,10 @@ class ActionResponse(BaseModel):
 
 
 class AppConfigResponse(BaseModel):
-    """Response model for GET /apps/{app_key}/config."""
+    """An app's configuration, served by ``GET /api/apps/{app_key}/config``.
+
+    Bundles the current config values, their TOML rendering, and the app config's JSON schema.
+    """
 
     app_key: str
     filename: str
@@ -85,8 +98,8 @@ class AppConfigResponse(BaseModel):
     framework_fields: list[str]
 
 
-class AppSourceResponse(BaseModel):
-    """Response model for GET /apps/{app_key}/source."""
+class AppSource(BaseModel):
+    """An app's Python source file, served by ``GET /api/apps/{app_key}/source``."""
 
     app_key: str
     filename: str

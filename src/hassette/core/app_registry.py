@@ -220,7 +220,7 @@ class AppRegistry:
         if index < len(configs):
             # AppInstanceInfo.instance_name is a required str -- a config value of `None` or
             # some other non-string (e.g. `instance_name = false`, or explicit YAML/TOML null)
-            # must not pass through here, or the eventual AppInstanceResponse Pydantic mapping
+            # must not pass through here, or the eventual AppInstance Pydantic mapping
             # raises a validation error and turns the status endpoint into a 500 precisely when
             # it should be reporting the configuration failure. is_valid_instance_name() is the
             # same check AppFactory.create_instances() uses to decide whether to even attempt

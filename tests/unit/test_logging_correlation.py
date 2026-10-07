@@ -13,7 +13,7 @@ import structlog
 
 from hassette.context import CURRENT_EXECUTION_ID
 from hassette.logging_ import CorrelationFilter, LogRecordEntry, add_execution_id
-from tests.support.factories import make_log_entry, make_log_record, make_recording_log_capture_handler
+from tests.support.factories import make_log_record, make_log_record_entry, make_recording_log_capture_handler
 from tests.support.helpers import first_json_record_containing
 from tests.unit.conftest import LoggingPipelineFixture
 
@@ -93,16 +93,16 @@ class TestCorrelationFilterSeqIncrements:
         logger_b.removeHandler(handler_b)
 
 
-class TestLogEntryToDictIncludesSeq:
+class TestLogRecordEntryToDictIncludesSeq:
     """to_dict() includes the seq field."""
 
     def test_to_dict_contains_seq(self) -> None:
-        d = make_log_entry(seq=42).to_dict()
+        d = make_log_record_entry(seq=42).to_dict()
         assert d["seq"] == 42
 
     def test_to_dict_seq_position(self) -> None:
         """Seq should be present alongside timestamp in the dict."""
-        d = make_log_entry(seq=7, timestamp=1000.0).to_dict()
+        d = make_log_record_entry(seq=7, timestamp=1000.0).to_dict()
         assert "seq" in d
         assert "timestamp" in d
 
@@ -188,12 +188,12 @@ class TestAddExecutionIdProcessor:
             CURRENT_EXECUTION_ID.reset(token)
 
 
-class TestLogEntryCorrelationFields:
+class TestLogRecordEntryCorrelationFields:
     """LogRecordEntry dataclass includes correlation fields."""
 
     @pytest.mark.parametrize("field", ["execution_id", "instance_name", "instance_index"])
-    def test_log_entry_correlation_field_defaults_to_none(self, field: str) -> None:
-        # Constructs LogRecordEntry directly rather than via make_log_entry(): the subject here is the
+    def test_log_record_entry_correlation_field_defaults_to_none(self, field: str) -> None:
+        # Constructs LogRecordEntry directly rather than via make_log_record_entry(): the subject here is the
         # dataclass's own default for each optional field, and the factory passes every optional
         # field explicitly, which would assert the factory's default instead.
         entry = LogRecordEntry(
@@ -203,11 +203,11 @@ class TestLogEntryCorrelationFields:
         assert getattr(entry, field) is None
 
     def test_to_dict_includes_execution_id(self) -> None:
-        d = make_log_entry(execution_id="exec-abc").to_dict()
+        d = make_log_record_entry(execution_id="exec-abc").to_dict()
         assert d["execution_id"] == "exec-abc"
 
     def test_to_dict_includes_instance_name(self) -> None:
-        d = make_log_entry(instance_name="MyApp.0", instance_index=0).to_dict()
+        d = make_log_record_entry(instance_name="MyApp.0", instance_index=0).to_dict()
         assert d["instance_name"] == "MyApp.0"
         assert d["instance_index"] == 0
 

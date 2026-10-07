@@ -2,7 +2,7 @@ import type { ResourceStatus } from "../../api/endpoints";
 import type { components } from "../../api/generated-types";
 import type { ServiceStatusEntry } from "../../state/store";
 
-type ServiceInfoResponse = components["schemas"]["ServiceInfoResponse"];
+type ServiceInfo = components["schemas"]["ServiceInfo"];
 type ResourceRole = components["schemas"]["ResourceRole"];
 
 export interface MergedService {
@@ -15,7 +15,7 @@ export interface MergedService {
 }
 
 export function mergeServices(
-  httpServices: ServiceInfoResponse[],
+  httpServices: ServiceInfo[],
   wsStatus: Record<string, ServiceStatusEntry>,
 ): MergedService[] {
   const merged = new Map<string, MergedService>();

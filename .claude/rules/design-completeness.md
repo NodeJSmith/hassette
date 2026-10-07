@@ -35,7 +35,7 @@ A change requires frontend updates when ANY of these are true:
 - New validation errors are added that users might encounter through the UI
 
 Frontend changes include:
-- Backend: adding fields to the response model (e.g., `ListenerWithSummary` in `wire/src/hassette_wire/`)
+- Backend: adding fields to the response model (e.g., `ListenerSummary` in `wire/src/hassette_wire/`)
 - Regenerating the OpenAPI/WebSocket schemas and all frontend types: `uv run python scripts/export_schemas.py --types` (see `.claude/rules/frontend-worktree.md`)
 - Updating the UI component to display the new data
 

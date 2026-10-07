@@ -13,7 +13,7 @@ const schema11 = {
   $defs: {
     AppStatusChangedData: {
       description:
-        "Payload for an app lifecycle state-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.AppStateChangePayload`` exactly.",
+        "An app instance changed lifecycle status.\n\nThe ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.",
       properties: {
         app_key: { title: "App Key", type: "string" },
         index: { title: "Index", type: "integer" },
@@ -34,6 +34,7 @@ const schema11 = {
       type: "object",
     },
     AppStatusChangedWsMessage: {
+      description: "Envelope for ``AppStatusChangedData``.",
       properties: {
         type: { const: "app_status_changed", title: "Type", type: "string" },
         data: { $ref: "#/$defs/AppStatusChangedData" },
@@ -51,6 +52,7 @@ const schema11 = {
       type: "object",
     },
     AppsChangedWsMessage: {
+      description: "Envelope for ``AppsChangedData``.",
       properties: {
         type: { const: "apps_changed", title: "Type", type: "string" },
         data: { $ref: "#/$defs/AppsChangedData" },
@@ -60,7 +62,9 @@ const schema11 = {
       title: "AppsChangedWsMessage",
       type: "object",
     },
-    ConnectedPayload: {
+    ConnectedData: {
+      description:
+        "Server state sent once, as the first message after a WebSocket connection opens.\n\n``version`` is the server's hassette version; a client can compare it with its own to detect an upgrade.",
       properties: {
         uptime_seconds: { title: "Uptime Seconds", type: "number" },
         entity_count: { title: "Entity Count", type: "integer" },
@@ -68,13 +72,14 @@ const schema11 = {
         version: { default: "", title: "Version", type: "string" },
       },
       required: ["uptime_seconds", "entity_count", "app_count"],
-      title: "ConnectedPayload",
+      title: "ConnectedData",
       type: "object",
     },
     ConnectedWsMessage: {
+      description: "Envelope for ``ConnectedData``.",
       properties: {
         type: { const: "connected", title: "Type", type: "string" },
-        data: { $ref: "#/$defs/ConnectedPayload" },
+        data: { $ref: "#/$defs/ConnectedData" },
         timestamp: { title: "Timestamp", type: "number" },
       },
       required: ["type", "data", "timestamp"],
@@ -89,6 +94,7 @@ const schema11 = {
       type: "object",
     },
     ConnectivityWsMessage: {
+      description: "Envelope for ``ConnectivityData``.",
       properties: {
         type: { const: "connectivity", title: "Type", type: "string" },
         data: { $ref: "#/$defs/ConnectivityData" },
@@ -117,6 +123,7 @@ const schema11 = {
       type: "object",
     },
     ExecutionCompletedWsMessage: {
+      description: "Envelope for a batch of ``ExecutionCompletedData``.",
       properties: {
         type: { const: "execution_completed", title: "Type", type: "string" },
         data: {
@@ -132,13 +139,14 @@ const schema11 = {
       type: "object",
     },
     ExecutionStatus: {
-      description:
-        "Status values for handler invocations and job executions.\n\nMust stay in sync with the ``executions.status`` CHECK constraint.",
+      description: "How a handler invocation or job execution ended.",
       enum: ["success", "error", "cancelled", "timed_out", "skipped"],
       title: "ExecutionStatus",
       type: "string",
     },
     LogHintWsMessage: {
+      description:
+        "New log records exist; refetch them over HTTP.\n\nCarries no records. Sent only to clients that subscribed to logs.",
       properties: {
         type: { const: "log_hint", title: "Type", type: "string" },
         timestamp: { title: "Timestamp", type: "number" },
@@ -171,7 +179,7 @@ const schema11 = {
     },
     ServiceStatusData: {
       description:
-        "Payload for an internal service status-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.ServiceStatusPayload``.",
+        "A framework service changed lifecycle status.\n\nThe ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.",
       properties: {
         resource_name: { title: "Resource Name", type: "string" },
         role: { $ref: "#/$defs/ResourceRole" },
@@ -209,6 +217,7 @@ const schema11 = {
       type: "object",
     },
     ServiceStatusWsMessage: {
+      description: "Envelope for ``ServiceStatusData``.",
       properties: {
         type: { const: "service_status", title: "Type", type: "string" },
         data: { $ref: "#/$defs/ServiceStatusData" },
@@ -231,6 +240,8 @@ const schema11 = {
   ],
 };
 const schema30 = {
+  description:
+    "New log records exist; refetch them over HTTP.\n\nCarries no records. Sent only to clients that subscribed to logs.",
   properties: {
     type: { const: "log_hint", title: "Type", type: "string" },
     timestamp: { title: "Timestamp", type: "number" },
@@ -240,6 +251,7 @@ const schema30 = {
   type: "object",
 };
 const schema12 = {
+  description: "Envelope for ``AppStatusChangedData``.",
   properties: {
     type: { const: "app_status_changed", title: "Type", type: "string" },
     data: { $ref: "#/$defs/AppStatusChangedData" },
@@ -251,7 +263,7 @@ const schema12 = {
 };
 const schema13 = {
   description:
-    "Payload for an app lifecycle state-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.AppStateChangePayload`` exactly.",
+    "An app instance changed lifecycle status.\n\nThe ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.",
   properties: {
     app_key: { title: "App Key", type: "string" },
     index: { title: "Index", type: "integer" },
@@ -977,9 +989,10 @@ function validate11(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 const schema16 = {
+  description: "Envelope for ``ConnectedData``.",
   properties: {
     type: { const: "connected", title: "Type", type: "string" },
-    data: { $ref: "#/$defs/ConnectedPayload" },
+    data: { $ref: "#/$defs/ConnectedData" },
     timestamp: { title: "Timestamp", type: "number" },
   },
   required: ["type", "data", "timestamp"],
@@ -987,6 +1000,8 @@ const schema16 = {
   type: "object",
 };
 const schema17 = {
+  description:
+    "Server state sent once, as the first message after a WebSocket connection opens.\n\n``version`` is the server's hassette version; a client can compare it with its own to detect an upgrade.",
   properties: {
     uptime_seconds: { title: "Uptime Seconds", type: "number" },
     entity_count: { title: "Entity Count", type: "integer" },
@@ -994,7 +1009,7 @@ const schema17 = {
     version: { default: "", title: "Version", type: "string" },
   },
   required: ["uptime_seconds", "entity_count", "app_count"],
-  title: "ConnectedPayload",
+  title: "ConnectedData",
   type: "object",
 };
 function validate14(data, { instancePath = "", parentData, parentDataProperty, rootData = data } = {}) {
@@ -1066,7 +1081,7 @@ function validate14(data, { instancePath = "", parentData, parentDataProperty, r
                   validate14.errors = [
                     {
                       instancePath: instancePath + "/data",
-                      schemaPath: "#/$defs/ConnectedPayload/required",
+                      schemaPath: "#/$defs/ConnectedData/required",
                       keyword: "required",
                       params: { missingProperty: missing1 },
                       message: "must have required property '" + missing1 + "'",
@@ -1080,7 +1095,7 @@ function validate14(data, { instancePath = "", parentData, parentDataProperty, r
                       validate14.errors = [
                         {
                           instancePath: instancePath + "/data/uptime_seconds",
-                          schemaPath: "#/$defs/ConnectedPayload/properties/uptime_seconds/type",
+                          schemaPath: "#/$defs/ConnectedData/properties/uptime_seconds/type",
                           keyword: "type",
                           params: { type: "number" },
                           message: "must be number",
@@ -1100,7 +1115,7 @@ function validate14(data, { instancePath = "", parentData, parentDataProperty, r
                         validate14.errors = [
                           {
                             instancePath: instancePath + "/data/entity_count",
-                            schemaPath: "#/$defs/ConnectedPayload/properties/entity_count/type",
+                            schemaPath: "#/$defs/ConnectedData/properties/entity_count/type",
                             keyword: "type",
                             params: { type: "integer" },
                             message: "must be integer",
@@ -1120,7 +1135,7 @@ function validate14(data, { instancePath = "", parentData, parentDataProperty, r
                           validate14.errors = [
                             {
                               instancePath: instancePath + "/data/app_count",
-                              schemaPath: "#/$defs/ConnectedPayload/properties/app_count/type",
+                              schemaPath: "#/$defs/ConnectedData/properties/app_count/type",
                               keyword: "type",
                               params: { type: "integer" },
                               message: "must be integer",
@@ -1139,7 +1154,7 @@ function validate14(data, { instancePath = "", parentData, parentDataProperty, r
                             validate14.errors = [
                               {
                                 instancePath: instancePath + "/data/version",
-                                schemaPath: "#/$defs/ConnectedPayload/properties/version/type",
+                                schemaPath: "#/$defs/ConnectedData/properties/version/type",
                                 keyword: "type",
                                 params: { type: "string" },
                                 message: "must be string",
@@ -1159,7 +1174,7 @@ function validate14(data, { instancePath = "", parentData, parentDataProperty, r
                 validate14.errors = [
                   {
                     instancePath: instancePath + "/data",
-                    schemaPath: "#/$defs/ConnectedPayload/type",
+                    schemaPath: "#/$defs/ConnectedData/type",
                     keyword: "type",
                     params: { type: "object" },
                     message: "must be object",
@@ -1205,6 +1220,7 @@ function validate14(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 const schema18 = {
+  description: "Envelope for ``ConnectivityData``.",
   properties: {
     type: { const: "connectivity", title: "Type", type: "string" },
     data: { $ref: "#/$defs/ConnectivityData" },
@@ -1359,6 +1375,7 @@ function validate15(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 const schema20 = {
+  description: "Envelope for ``ServiceStatusData``.",
   properties: {
     type: { const: "service_status", title: "Type", type: "string" },
     data: { $ref: "#/$defs/ServiceStatusData" },
@@ -1370,7 +1387,7 @@ const schema20 = {
 };
 const schema21 = {
   description:
-    "Payload for an internal service status-change event broadcast over WebSocket.\n\nMirrors ``events.hassette.ServiceStatusPayload``.",
+    "A framework service changed lifecycle status.\n\nThe ``exception*`` fields describe the error that caused the change, and are ``None`` when no error did.",
   properties: {
     resource_name: { title: "Resource Name", type: "string" },
     role: { $ref: "#/$defs/ResourceRole" },
@@ -2142,6 +2159,7 @@ function validate16(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 const schema25 = {
+  description: "Envelope for a batch of ``ExecutionCompletedData``.",
   properties: {
     type: { const: "execution_completed", title: "Type", type: "string" },
     data: {
@@ -2175,8 +2193,7 @@ const schema26 = {
   type: "object",
 };
 const schema27 = {
-  description:
-    "Status values for handler invocations and job executions.\n\nMust stay in sync with the ``executions.status`` CHECK constraint.",
+  description: "How a handler invocation or job execution ended.",
   enum: ["success", "error", "cancelled", "timed_out", "skipped"],
   title: "ExecutionStatus",
   type: "string",
@@ -2721,6 +2738,7 @@ function validate19(data, { instancePath = "", parentData, parentDataProperty, r
   return errors === 0;
 }
 const schema28 = {
+  description: "Envelope for ``AppsChangedData``.",
   properties: {
     type: { const: "apps_changed", title: "Type", type: "string" },
     data: { $ref: "#/$defs/AppsChangedData" },

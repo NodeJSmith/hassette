@@ -10,11 +10,11 @@ from hassette_wire import (
     AppsChangedData,
     AppStatus,
     AppStatusChangedData,
-    BootIssueResponse,
+    BootIssue,
     ConnectivityData,
     ExecutionCompletedData,
     LogLevel,
-    ServiceInfoResponse,
+    ServiceInfo,
     ServiceStatusData,
     SystemStatusResponse,
 )
@@ -323,7 +323,7 @@ class RuntimeQueryService(Resource):
             app_count = 0
 
         services = [
-            ServiceInfoResponse(
+            ServiceInfo(
                 name=child.class_name,
                 status=child.status,
                 role=child.role,
@@ -361,15 +361,15 @@ class RuntimeQueryService(Resource):
             log_persistence_active=self.hassette.is_log_persistence_active(),
         )
 
-    def collect_boot_issues(self) -> list[BootIssueResponse]:
+    def collect_boot_issues(self) -> list[BootIssue]:
         """Collect boot-time issues from blocked apps, failed app instances, and pending bootstrap.
 
-        Returns a list of ``BootIssueResponse`` objects derived from:
+        Returns a list of ``BootIssue`` objects derived from:
         - App bootstrap not yet released while at least one autostart app is configured — severity ``warn``
         - Apps that are blocked (e.g. import error, pre-check failure) — severity ``warn``
         - Apps that failed to start — severity ``err``
         """
-        issues: list[BootIssueResponse] = []
+        issues: list[BootIssue] = []
         try:
             full_snapshot = self.hassette.app_handler.registry.get_full_snapshot()
         except (AttributeError, RuntimeError):
@@ -377,7 +377,7 @@ class RuntimeQueryService(Resource):
 
         if not self.is_bootstrap_released() and any(manifest.autostart for manifest in full_snapshot.manifests):
             issues.append(
-                BootIssueResponse(
+                BootIssue(
                     severity="warn",
                     label="Apps pending on Home Assistant",
                     detail=(
@@ -390,7 +390,7 @@ class RuntimeQueryService(Resource):
         for manifest in full_snapshot.manifests:
             if manifest.status == AppStatus.BLOCKED and manifest.block_reason:
                 issues.append(
-                    BootIssueResponse(
+                    BootIssue(
                         severity="warn",
                         label=f"App blocked: {manifest.display_name}",
                         detail=manifest.block_reason,
@@ -398,7 +398,7 @@ class RuntimeQueryService(Resource):
                 )
             elif manifest.status in (AppStatus.FAILED, AppStatus.DEGRADED) and manifest.error_message:
                 issues.append(
-                    BootIssueResponse(
+                    BootIssue(
                         severity="err",
                         label=f"App failed: {manifest.display_name}",
                         detail=manifest.error_message,

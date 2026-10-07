@@ -13,7 +13,7 @@ from hassette_wire import (
     AppAction,
     AppConfigResponse,
     AppListResponse,
-    AppSourceResponse,
+    AppSource,
     AppSummary,
     ProblemCode,
 )
@@ -504,7 +504,7 @@ def _build_app_config_view(
 
 @router.get(
     "/apps/{app_key}/source",
-    response_model=AppSourceResponse,
+    response_model=AppSource,
     responses=problem_responses(
         *APP_KEY_CODES,
         ProblemCode.APP_NOT_FOUND,
@@ -513,7 +513,7 @@ def _build_app_config_view(
         ProblemCode.SOURCE_NOT_FOUND,
     ),
 )
-async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSourceResponse:
+async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSource:
     """Return the source code of the app file for the given app key."""
     _validate_app_key(app_key)
     manifest = hassette.app_handler.registry.get_manifest(app_key)
@@ -548,7 +548,7 @@ async def get_app_source(app_key: str, hassette: HassetteDep) -> AppSourceRespon
         LOGGER.warning("Failed to read source for app %s", app_key, exc_info=True)
         raise WebApiError(ProblemCode.SOURCE_UNAVAILABLE, "Failed to read app source") from exc
 
-    return AppSourceResponse(
+    return AppSource(
         app_key=app_key,
         filename=manifest.filename,
         content=content,
