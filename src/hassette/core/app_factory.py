@@ -1,5 +1,6 @@
 """App factory for creating app instances with config validation."""
 
+import inspect
 from difflib import get_close_matches
 from logging import getLogger
 from typing import TYPE_CHECKING
@@ -239,8 +240,7 @@ def warn_unrecognized_config_keys(
     unrecognized ``.env`` entries into ``model_extra``, and those are not the user's app config.
     """
     config_cls = type(validated)
-    declares_own_fields = bool(set(config_cls.model_fields) - set(AppConfig.model_fields))
-    if not declares_own_fields or not validated.model_extra:
+    if not declares_own_fields(config_cls) or not validated.model_extra:
         return
 
     # ``instance_name`` is required under its literal name, so it can land in extras when an alias renames the field.
@@ -271,6 +271,16 @@ def warn_unrecognized_config_keys(
     warn(msg, stacklevel=2)
 
 
+def declares_own_fields(config_cls: type[AppConfig]) -> bool:
+    """Whether a class between ``config_cls`` and ``AppConfig`` declares a field, new or overriding an inherited one."""
+    return any(
+        name in config_cls.model_fields
+        for klass in config_cls.__mro__
+        if issubclass(klass, AppConfig) and klass is not AppConfig
+        for name in inspect.get_annotations(klass)
+    )
+
+
 def accepted_config_keys(config_cls: type[AppConfig]) -> list[str]:
     """Return the top-level keys ``config_cls`` actually populates its fields from.
 
@@ -280,9 +290,10 @@ def accepted_config_keys(config_cls: type[AppConfig]) -> list[str]:
     model_config = config_cls.model_config
     # Pydantic's two switches: aliases are honored unless ``validate_by_alias=False``; attribute names are
     # honored for aliased fields only when ``validate_by_name`` (or its older spelling ``populate_by_name``)
-    # is set. Turning aliases off makes the attribute name the only key that works.
+    # is set; an explicit ``validate_by_name`` wins over the legacy flag. Turning aliases off makes the attribute
+    # name the only key that works.
     by_alias = model_config.get("validate_by_alias", True)
-    by_name = model_config.get("validate_by_name", False) or model_config.get("populate_by_name", False)
+    by_name = model_config.get("validate_by_name", model_config.get("populate_by_name", False))
 
     keys: list[str] = []
     for name, field in config_cls.model_fields.items():
