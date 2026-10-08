@@ -7,7 +7,7 @@ import traceback
 import typing
 from collections.abc import Awaitable, Callable
 from contextvars import Token
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, fields
 from typing import ClassVar
 
 import structlog.contextvars
@@ -43,6 +43,24 @@ if typing.TYPE_CHECKING:
 
 _TIMEOUT_WARN_SUPPRESS_SECS = 60.0
 _TIMEOUT_WARN_CACHE_MAX = 1000
+
+
+@dataclass(frozen=True)
+class ExecutionContext:
+    """Correlation fields identifying one handler or job execution.
+
+    Built at the call site (``execute_handler``/``execute_job``) and passed whole to
+    ``CommandExecutor.bind_execution_context``, which binds every field as a structlog
+    contextvar. A new correlation field is added here and bound there; callers that don't
+    set it are unaffected. ``unbind_execution_context`` unbinds every field by name.
+    """
+
+    app_key: str | None
+    instance_index: int
+    instance_name: str | None
+    execution_kind: str | None = None
+    listener_id: int | None = None
+    job_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -410,28 +428,12 @@ class CommandExecutor(Service):
         """Enqueue a record, dropping and logging if the queue is full. Delegates to execution_pipeline."""
         execution_pipeline.enqueue_record(self, record)
 
-    def bind_execution_context(
-        self,
-        app_key: str | None,
-        instance_index: int,
-        instance_name: str | None,
-        *,
-        execution_kind: str | None = None,
-        listener_id: int | None = None,
-        job_id: int | None = None,
-    ) -> tuple[str, Token[str | None]]:
+    def bind_execution_context(self, context: ExecutionContext) -> tuple[str, Token[str | None]]:
         """Set CURRENT_EXECUTION_ID and bind structlog context vars for the duration of an execution."""
         execution_id = str(uuid_utils.uuid7())
         token = CURRENT_EXECUTION_ID.set(execution_id)
-        resolved_app_key = app_key or None
-        structlog.contextvars.bind_contextvars(
-            app_key=resolved_app_key,
-            instance_name=instance_name,
-            instance_index=instance_index,
-            execution_kind=execution_kind,
-            listener_id=listener_id,
-            job_id=job_id,
-        )
+        resolved_app_key = context.app_key or None
+        structlog.contextvars.bind_contextvars(**asdict(context) | {"app_key": resolved_app_key})
         # Capture the owning task identity so a cross-thread reader can confirm this marker
         # names the task actually frozen on the loop, not a displaced one. This runs inside an
         # execute_handler/execute_job task in production; guard the no-running-loop case so a
@@ -444,10 +446,10 @@ class CommandExecutor(Service):
         # watchdog reads a fully-formed snapshot of the execution now holding the loop thread.
         self.current_execution = ExecutionMarker(
             app_key=resolved_app_key,
-            instance_name=instance_name,
+            instance_name=context.instance_name,
             execution_id=execution_id,
             started_at=time.monotonic(),
-            instance_index=instance_index,
+            instance_index=context.instance_index,
             task_id=id(current_task) if current_task is not None else None,
         )
         return execution_id, token
@@ -463,18 +465,18 @@ class CommandExecutor(Service):
         """
         self.current_execution = None
         CURRENT_EXECUTION_ID.reset(token)
-        structlog.contextvars.unbind_contextvars(
-            "app_key", "instance_name", "instance_index", "execution_kind", "listener_id", "job_id"
-        )
+        structlog.contextvars.unbind_contextvars(*(field.name for field in fields(ExecutionContext)))
 
     async def execute_handler(self, cmd: InvokeHandler) -> None:
         """Execute a listener handler invocation and queue the result record."""
         execution_id, token = self.bind_execution_context(
-            cmd.listener.identity.app_key,
-            cmd.listener.identity.instance_index,
-            cmd.listener.identity.instance_name,
-            execution_kind="handler",
-            listener_id=cmd.listener_id,
+            ExecutionContext(
+                app_key=cmd.listener.identity.app_key,
+                instance_index=cmd.listener.identity.instance_index,
+                instance_name=cmd.listener.identity.instance_name,
+                execution_kind="handler",
+                listener_id=cmd.listener_id,
+            )
         )
         try:
 
@@ -517,11 +519,13 @@ class CommandExecutor(Service):
     async def execute_job(self, cmd: ExecuteJob) -> None:
         """Execute a scheduled job and queue the result record."""
         execution_id, token = self.bind_execution_context(
-            cmd.job.app_key,
-            cmd.job.instance_index,
-            cmd.job.instance_name,
-            execution_kind="job",
-            job_id=cmd.job_db_id,
+            ExecutionContext(
+                app_key=cmd.job.app_key,
+                instance_index=cmd.job.instance_index,
+                instance_name=cmd.job.instance_name,
+                execution_kind="job",
+                job_id=cmd.job_db_id,
+            )
         )
         try:
 
