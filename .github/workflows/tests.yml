@@ -46,6 +46,7 @@ jobs:
                         - 'tools/check_client_floor.py'
                         - 'tools/check_wire_compat.py'
                         - 'tools/wire_compat_*.txt'
+                        - '.github/actions/setup-oasdiff/**'
 
     frontend:
         needs: changes
@@ -116,17 +117,8 @@ jobs:
               run: npx size-limit
               working-directory: frontend
 
-            - name: Set up Go
-              uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-              with:
-                  go-version: "stable"
-                  cache: false
-
-            # Version also pinned in mise.toml ("github:oasdiff/oasdiff") for local pre-push runs.
-            - name: Install oasdiff
-              run: |
-                  go install github.com/oasdiff/oasdiff@v1.32.1
-                  echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+            - name: Set up oasdiff
+              uses: ./.github/actions/setup-oasdiff
 
             - name: Run wire-compat check tests
               run: uv run pytest tests/unit/tools/test_check_wire_compat.py
@@ -203,17 +195,8 @@ jobs:
 
             - run: uv sync
 
-            - name: Set up Go
-              uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-              with:
-                  go-version: "stable"
-                  cache: false
-
-            # Version also pinned in mise.toml ("github:oasdiff/oasdiff") for local pre-push runs.
-            - name: Install oasdiff
-              run: |
-                  go install github.com/oasdiff/oasdiff@v1.32.1
-                  echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+            - name: Set up oasdiff
+              uses: ./.github/actions/setup-oasdiff
 
             - name: Test hassette-wire and hassette-client
               run: uv run nox -s wire client
