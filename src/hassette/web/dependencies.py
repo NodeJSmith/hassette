@@ -26,7 +26,6 @@ LOG_LEVELS: dict[LogLevel, int] = {
     "CRITICAL": CRITICAL,
 }
 VALID_LOG_LEVEL_NAMES: frozenset[str] = frozenset(LOG_LEVELS)
-VALID_SOURCE_TIERS: frozenset[str] = frozenset({"app", "framework"})
 
 # Shared query/path parameter annotations — annotate route parameters with these instead of
 # repeating the `Query(...)`/`Path(...)` call in every signature.

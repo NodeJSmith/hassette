@@ -476,13 +476,6 @@ ROUTE_CASES = {
         "validation_failed",
         f"Invalid level 'BOGUS'. Must be one of: {LOG_LEVELS}",
     ),
-    "logs-bad-source-tier": ProblemCase(
-        "GET",
-        "/api/logs/recent?source_tier=nope",
-        422,
-        "validation_failed",
-        "Invalid source_tier 'nope'. Must be one of: app, framework",
-    ),
     "log-level-empty-logger": ProblemCase(
         "PUT",
         "/api/logs/level",
@@ -506,6 +499,13 @@ ROUTE_CASES = {
         422,
         "validation_failed",
         "Validation failed: query.limit: Input should be greater than or equal to 1",
+    ),
+    "fastapi-logs-bad-source-tier": ProblemCase(
+        "GET",
+        "/api/logs/recent?source_tier=nope",
+        422,
+        "validation_failed",
+        "Validation failed: query.source_tier: Input should be 'app', 'framework' or 'all'",
     ),
     # The body must stay under MAX_REQUEST_BODY_BYTES (web/body_limit.py), or the body-limit
     # middleware answers 413 before field validation runs.

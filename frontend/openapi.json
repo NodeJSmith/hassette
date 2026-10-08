@@ -1079,18 +1079,17 @@
             "in": "query",
             "required": false,
             "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
+              "enum": [
+                "app",
+                "framework",
+                "all"
               ],
-              "description": "Filter by source tier: 'app' or 'framework'. Omit to return records from both. Unlike the telemetry-metrics endpoints, which default to 'app', this default deliberately includes everything: the log viewer is a raw feed, not an app-author-facing metric.",
+              "type": "string",
+              "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything.",
+              "default": "all",
               "title": "Source Tier"
             },
-            "description": "Filter by source tier: 'app' or 'framework'. Omit to return records from both. Unlike the telemetry-metrics endpoints, which default to 'app', this default deliberately includes everything: the log viewer is a raw feed, not an app-author-facing metric."
+            "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
           }
         ],
         "responses": {

@@ -50,6 +50,15 @@ class TestGetLogRecordsFilters:
         assert results[0]["message"] == "match"
         assert results[0]["execution_id"] == "exec-aaa"
 
+    async def test_source_tier_all_applies_no_filter(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
+        db_svc, _ = db
+        await insert_log_record(db_svc, source_tier="framework", message="fw")
+        await insert_log_record(db_svc, source_tier="app", message="app")
+
+        results = await query_service.get_log_records(source_tier="all")
+
+        assert {r["message"] for r in results} == {"fw", "app"}
+
     async def test_filter_by_source_tier(self, db: DbFixture, query_service: TelemetryQueryService) -> None:
         db_svc, _ = db
         await insert_log_record(db_svc, source_tier="framework", message="fw")
