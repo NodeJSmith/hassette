@@ -29,6 +29,9 @@ class ProblemCode(StrEnum):
     APP_BLOCKED = "app_blocked"
     """409: the app is excluded by the ``--app`` filter. Retrying won't help."""
 
+    ACTION_IN_PROGRESS = "action_in_progress"
+    """409: another start, stop, or reload on this app is still running. Nothing was done."""
+
     ACTION_FAILED = "action_failed"
     """500: the start, stop, or reload ran but failed, or left a targeted instance failed."""
 

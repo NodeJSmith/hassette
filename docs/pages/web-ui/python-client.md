@@ -128,7 +128,7 @@ Each error response from Hassette carries a [problem `code`](api-errors.md), a m
 | `AuthenticationError` | 401: a missing or wrong token |
 | `ForbiddenError` → `PathTraversalError` | 403 |
 | `NotFoundError` → `AppNotFoundError`, `InstanceNotFoundError`, `SourceNotFoundError` | 404 |
-| `ConflictError` → `BootstrapNotReleasedError`, `AppBlockedError`, `JobNotRegisteredError` | 409 |
+| `ConflictError` → `BootstrapNotReleasedError`, `AppBlockedError`, `ActionInProgressError`, `JobNotRegisteredError` | 409 |
 | `RequestValidationError` | 422: the server rejected a parameter |
 | `ServerError` → `ActionFailedError`, `SourceUnavailableError` | 5xx |
 | `GatewayError` | 502 or 504 from a proxy in front of Hassette |
@@ -156,6 +156,8 @@ The client never retries. The exception class tells you whether a retry can help
 - **Outcome unknown on a write:** `HassetteTimeoutError`, `HassetteConnectionError`, `GatewayError`, `UnexpectedResponseError`, `ServiceUnavailableError` (Hassette never answers a write with 503, so it came from a proxy), and any `ServerError` other than `ActionFailedError` (an unexpected server error can happen partway through). The server may or may not have received an `action()` or `trigger_job()`, or may still be working on it: a proxy can give up with a 502 or 504 while Hassette is still reloading the app. A connection error can also be permanent, such as a TLS certificate problem or a bad URL.
 
 `ActionFailedError` is different: the action ran and failed, and its `problem` says why. Before sending a write again after one of those, check whether it already happened. `start` and `stop` are safe to send again, since starting a running app or stopping a stopped one does nothing. `reload` and `trigger_job()` aren't: each one sent again reloads the app or runs the job a second time, so check the app's status or the job's executions first.
+
+`ActionInProgressError` from `action()` means nothing ran: an earlier action on the same app is still running, perhaps one whose request already timed out on your side. Hassette rejects the new action rather than queuing it behind the first, so check the app's status once the first one finishes instead of retrying straight away.
 
 A `ResponseValidationError` on a write whose `status` is 2xx usually means Hassette already carried out the request and only its answer didn't parse, so it shouldn't be sent blindly again. The client can't prove the 2xx came from Hassette, though: a proxy in front of it can answer 2xx too. Check the app's status or the job's executions, as above, before deciding. An `UnexpectedResponseError` is the clear case of an answer that didn't come from Hassette.
 

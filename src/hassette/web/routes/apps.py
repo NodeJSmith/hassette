@@ -72,7 +72,7 @@ KNOWN_APP_CODES = (ProblemCode.APP_NOT_FOUND,)
 INSTANCE_INDEX_CODES = (*APP_KEY_CODES, *KNOWN_APP_CODES, ProblemCode.INSTANCE_NOT_FOUND)
 """Codes ``_require_valid_instance_index`` raises."""
 
-STOP_ACTION_CODES = (*APP_KEY_CODES, *KNOWN_APP_CODES, ProblemCode.ACTION_FAILED)
+STOP_ACTION_CODES = (*APP_KEY_CODES, *KNOWN_APP_CODES, ProblemCode.ACTION_IN_PROGRESS, ProblemCode.ACTION_FAILED)
 """Codes ``_run_app_action`` raises for ``stop``, which never awaits bootstrap release or checks the
 ``--app`` filter."""
 
@@ -211,6 +211,13 @@ async def _run_app_action(
     "accepted" for a request nothing acted on. Also only reachable from start/reload, for the
     same reason as the bootstrap case above.
 
+    ``action_in_progress`` (409) answers at once when another action already holds this app's
+    lifecycle lock. Waiting for the lock would run the action late, after a client with a request
+    timeout has already given up on it. The check is race-free because ``operation()`` reaches
+    the lock without suspending: under the default ``REJECT_IF_UNRELEASED`` admission,
+    ``_admit_start()`` is awaited but only does a synchronous release check, and an uncontended
+    ``asyncio.Lock`` is acquired without yielding. ``AppLifecycleService``'s tests pin this.
+
     ``instance_index`` is echoed back on the response as-is (already validated by
     ``_require_valid_instance_index`` before this function is called) so a caller can confirm
     the server acted on the instance it intended, not just that *some* 202 came back.
@@ -227,6 +234,8 @@ async def _run_app_action(
     """
     _validate_app_key(app_key)
     _require_known_app(app_key, hassette, action)
+    if hassette.app_handler.is_action_in_progress(app_key):
+        raise WebApiError(ProblemCode.ACTION_IN_PROGRESS, f"Another action on app {app_key!r} is still running")
     await _await_operation(action, app_key, operation)
     _raise_if_target_failed(action, app_key, hassette, instance_index)
     LOGGER.info("%s app %s (source=%s)", _ACTION_PAST_TENSE[action], app_key, peer_address_or_unknown(request))

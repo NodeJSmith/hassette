@@ -35,6 +35,7 @@ These codes come from specific endpoints. Each endpoint lists the ones it can re
 | `instance_not_found` | 404 | The instance index is out of range for the app's current config. |
 | `bootstrap_not_released` | 409 | App bootstrap prerequisites aren't ready yet. Retry the start or reload later. |
 | `app_blocked` | 409 | The `--app` filter excludes this app. Retrying won't help until the filter changes. |
+| `action_in_progress` | 409 | Another start, stop, or reload on this app is still running, so this one was rejected without running. |
 | `action_failed` | 500 | A start, stop, or reload ran but failed, or left a targeted instance failed. `detail` carries the failure message. |
 | `telemetry_unavailable` | 503 | The telemetry database could not be read. |
 | `source_not_found` | 404 | The app's source file doesn't exist. |
@@ -43,7 +44,7 @@ These codes come from specific endpoints. Each endpoint lists the ones it can re
 | `invalid_token` | 401 | The token sent to `POST /api/auth/session` is wrong. |
 | `job_not_registered` | 409 | The scheduled job has no live registration: never registered, or removed since the caller saw it. |
 
-The two `409` codes on the app action endpoints (`POST /api/apps/{app_key}/start` and the others) mean different things. `bootstrap_not_released` clears on its own once Hassette finishes connecting, so a retry succeeds. `app_blocked` does not clear until the `--app` filter changes.
+The three `409` codes on the app action endpoints (`POST /api/apps/{app_key}/start` and the others) mean different things. `bootstrap_not_released` clears on its own once Hassette finishes connecting, so a retry succeeds. `app_blocked` does not clear until the `--app` filter changes. `action_in_progress` means Hassette is still working on an earlier action for the same app, such as a reload whose request timed out on the client side. Hassette rejects the new action instead of queuing it, so check the app's status before sending it again.
 
 ## Codes any endpoint can return
 

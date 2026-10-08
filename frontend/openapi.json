@@ -253,8 +253,9 @@
             }
           },
           "409": {
-            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "description": "`action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
             "x-problem-codes": [
+              "action_in_progress",
               "bootstrap_not_released",
               "app_blocked"
             ],
@@ -347,6 +348,19 @@
               }
             }
           },
+          "409": {
+            "description": "`action_in_progress`: another action on this app is still running; nothing was done",
+            "x-problem-codes": [
+              "action_in_progress"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "500": {
             "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
             "x-problem-codes": [
@@ -429,8 +443,9 @@
             }
           },
           "409": {
-            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "description": "`action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
             "x-problem-codes": [
+              "action_in_progress",
               "bootstrap_not_released",
               "app_blocked"
             ],
@@ -534,8 +549,9 @@
             }
           },
           "409": {
-            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "description": "`action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
             "x-problem-codes": [
+              "action_in_progress",
               "bootstrap_not_released",
               "app_blocked"
             ],
@@ -638,6 +654,19 @@
               }
             }
           },
+          "409": {
+            "description": "`action_in_progress`: another action on this app is still running; nothing was done",
+            "x-problem-codes": [
+              "action_in_progress"
+            ],
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
           "500": {
             "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
             "x-problem-codes": [
@@ -730,8 +759,9 @@
             }
           },
           "409": {
-            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
+            "description": "`action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
             "x-problem-codes": [
+              "action_in_progress",
               "bootstrap_not_released",
               "app_blocked"
             ],
@@ -4816,6 +4846,7 @@
           "instance_not_found",
           "bootstrap_not_released",
           "app_blocked",
+          "action_in_progress",
           "action_failed",
           "telemetry_unavailable",
           "source_not_found",
