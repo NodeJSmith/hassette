@@ -5,6 +5,108 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.56.0](https://github.com/NodeJSmith/hassette/compare/v0.55.0...v0.56.0) (2026-10-08)
+
+### Breaking Changes
+
+#### App code
+
+- **`AppConfig.app_key` removed** — the field was never populated, so `self.app_config.app_key` was always `""`. Read the app's key with `self.app_key` instead. An `app_key` left under an app's config in `hassette.toml` still loads, but is now an ignored extra field. (#2470)
+- **`ResourceStatus` and `ExecutionStatus` import paths moved** — `hassette.types.ResourceStatus`, `hassette.types.enums.ResourceStatus` and `hassette.types.types.ExecutionStatus` no longer resolve. Import them from the package root: `from hassette import ResourceStatus, ExecutionStatus`. `ExecutionMode` and `BackpressurePolicy` are also exported from the root. The `LOG_LEVEL_TYPE` alias is gone; use `hassette_wire.LogLevel`. (#2449)
+- **`AppConfig.log_level` defaults to `None`** — code that reads `self.app_config.log_level` directly now gets `None` for apps that don't set it, instead of `"INFO"`. Use `self.config_log_level` for the resolved level. (#2571)
+
+#### Web API, CLI JSON and `hassette_wire`
+
+These affect scripts and dashboards that call the HTTP/WebSocket API, parse `--json` CLI output, or import `hassette_wire` models. App code is not affected.
+
+- **Errors are RFC 9457 problem details** — every non-2xx response under `/api` is now `application/problem+json` with `type`, `title`, `status`, `detail` and a stable `code` (see the new [API errors](https://hassette.readthedocs.io/en/latest/pages/web-ui/api-errors/) page). Status codes and `detail` strings are unchanged. Validation 422s now carry a string `detail` summary instead of a list, and with the SPA served, a non-GET request to an unknown `/api` path returns 404 instead of 405. (#2480)
+- **Telemetry outages return a problem body** — data routes (telemetry, logs, executions, listeners, jobs, apps) now answer a database outage with a 503 `telemetry_unavailable` problem body instead of a 503 with an empty or default body. `/api/health/ready` and `/api/telemetry/status` are unchanged. (#2491)
+- **Apps endpoints reshaped** — update callers as follows (#2558):
+  - `GET /api/apps/manifests` → `GET /api/apps`; the list field `manifests` → `apps`
+  - `GET /api/apps/{app_key}/manifest` → `GET /api/apps/{app_key}`
+  - The old `GET /api/apps` live-instance view (`AppStatusResponse`) is removed
+  - `GET /api/telemetry/dashboard/app-grid` → `GET /api/telemetry/app-grid`, with rows shaped `{app, activity}` instead of flat
+  - WebSocket event `app_manifests_changed` → `apps_changed`
+  - `hassette app --json` and `hassette dashboard --json` rows are also `{app, activity}`; `recent_invocations_1h` leaves the app summary
+  - Activity that wasn't computed is now `null` per part (`stats`, `activity_buckets`, `last_error`, `blocking_event_count`) instead of zeros — handle `null`
+  - A non-finite `since` (`nan`, `inf`) now returns 422
+- **One `AppHealth` model** — `GET /api/telemetry/app/{app_key}/health` returns `AppHealth`, with averages renamed to `handler_avg_duration_ms` / `job_avg_duration_ms` (`null` when nothing of that kind ran). Grid rows nest `error_rate`, `error_rate_class`, `health_status` and `last_activity_ts` under `health` and drop `avg_duration_ms`. `hassette app health --json` renames `handler_avg_duration` / `job_avg_duration` to `*_ms`. Health now counts executions of handlers and jobs removed mid-window. (#2520)
+- **Typed vocabularies** — `role`, `schedule_status`, `schedule_status_reason` and app action fields are now enums in the OpenAPI and WebSocket schemas. `ServiceInfo.role` and `JobSummary.schedule_status` are now required. (#2527)
+- **`hassette_wire` model renames** — names now follow one rule (records are bare nouns, HTTP collections are `*Response`, WS payloads are `*Data`). Wire bytes are unchanged; only Python and schema component names change (#2584, #2558, #2520):
+  - `AppInstanceResponse` → `AppInstance`, `BootIssueResponse` → `BootIssue`, `ServiceInfoResponse` → `ServiceInfo`, `LogEntryResponse` → `LogEntry`, `AppSourceResponse` → `AppSource`, `ConnectedPayload` → `ConnectedData`, `ListenerWithSummary` → `ListenerSummary`
+  - `AppManifestResponse` → `AppSummary`, `AppManifestListResponse` → `AppListResponse`, `DashboardAppGrid*` → `AppGrid*`, `ManifestStatus` → `AppStatus`
+  - `AppHealthResponse` → `AppHealth`; `AppStatusResponse` is removed
+
+### For App Authors: You Can Now Delete
+
+- **`await super().before_initialize()` added only to keep `self.cache` working** — the cache is now initialized by the framework before your hook runs, so an override no longer needs the `super()` call. (#2572)
+- **`cast()` around `self.cache.get(key, default=...)`** — `get()` with a non-`None` default is now typed as the default's type, so `cast(list[float], ...)` wrappers and `or 0` fallbacks can go. (#2528)
+- **Per-app `log_level` set only to match `[hassette.logging] apps`** — apps without their own `log_level` now inherit the global apps level. (#2571)
+- **`deep_detection_enabled = true` set alongside `allow_deep_detection_in_prod = true`** — the allow flag now enables Tier 2 blocking-IO detection in production on its own. (#2472)
+- **`try`/`except` inside predicates on `duration=` listeners to catch your own errors** — a raising duration-hold predicate is now recorded as an error execution and routed to the listener's `on_error` handler, like any other predicate. (#2588)
+- **Test code that rebuilds a simulated event to compare context IDs** — `AppTestHarness.simulate_*()` helpers now return the event they dispatched. (#2593)
+
+### Python Client
+
+- `hassette-client` now ships `HassetteClient`: typed async methods over an `aiohttp.ClientSession` you own, returning `hassette_wire` models. Every network or server failure raises a `HassetteClientError` subclass (connection, timeout, HTTP status families, app-not-found, bootstrap-not-released), so callers branch on exception type instead of parsing response bodies. See the new [Python client](https://hassette.readthedocs.io/en/latest/pages/web-ui/python-client/) page. (#2596)
+- The server now reports `api_schema_version` in its health payload, and `check_server_version()` raises `UnsupportedServerVersionError` against a server too old for the client (#2596)
+- Client responses parse leniently: an enum or `Literal` value a newer server adds arrives as `UnknownValue` (a `str` subclass that keeps the raw value) instead of failing validation. Opt in on your own parses with `hassette_wire.LENIENT_CONTEXT`. (#2502)
+- `hassette-wire` now holds every model, enum and Literal served over the HTTP/WebSocket API, depending only on pydantic, so tools can use the API contract without installing the framework (#2449)
+
+### Configuration
+
+- New `hassette.local.toml` overlay for per-machine settings you don't want to commit (a dev `base_url`, a debug log level). Each configured TOML file gets its own `<name>.local.toml` sibling, which is deep-merged on top key by key, so it only needs the keys it changes. Env vars and CLI flags still win. Overlays are watched for hot reload. (#2561)
+- New per-app `cache_shared = true` silences the `cache_key` collision warning for apps that share a cache on purpose. The warning still fires, and names the missing apps, unless every app sharing the key sets it. (#2570)
+
+### Web UI & CLI
+
+- Blocking-IO findings are now visible: a "blocking calls" section on the app Overview tab, an "N blocking" badge on the Apps list, a "loop stalls" panel on Diagnostics for stalls not tied to an app, and a new `hassette blocking` command. Findings group by the app call site that blocked, with exact counts. Stalls recorded before upgrading show as "call site not captured". (#2495)
+- The Apps page and the `hassette app` / `hassette dashboard` tables show "—" for activity that wasn't computed, instead of zeros and a healthy-looking status. The CLI prints a one-line warning on stderr naming the missing parts. (#2558)
+- App health is computed the same way everywhere. The app detail health strip now reads it from the server and shows Handlers · Error Rate · Handler Avg · Job Avg; the CLI shows handler and job averages instead of one duration column. (#2520)
+- Config sections on the Config page and an app's Config tab can be collapsed and expanded (#2577)
+- An open dashboard tab prompts you to reload when the server is upgraded underneath it. The CLI keeps working against newer servers. (#2527)
+- CLI tables use the same widths and full-word headers across `hassette app`, `hassette app activity` and `hassette status` (`App Key` → `App`, `Invoc/1h` → `Invocations/1h`, `Errs` → `Errors`) (#2544)
+
+### Testing
+
+- `AppTestHarness.simulate_*()` helpers return the typed event they dispatched (for example `RawStateChangeEvent` from `simulate_state_change()`), after the triggered handlers have drained. Existing tests that ignore the return value are unaffected. (#2593)
+
+### Bug Fixes
+
+- WebSocket writes are no longer re-sent after a response timeout, which could apply a command twice. `fire_event`, `call_service(return_response=True)` without `wait_for_ack`, and helper `create` / `update` / `delete` now send exactly once and raise `ResponseTimeoutError`, or `ResponseLostError` on disconnect. Both subclass the new `OutcomeUnknownError`: if you relied on the old retry, catch it and check whether the command took effect before retrying. Reads still retry. (#2468)
+- Reloading or starting an app from the web API or CLI no longer takes the app down with `HassetteNotInitializedError` until a process restart (#2490)
+- Startup no longer times out when `file_watcher.watch_files = false` (#2501; also shipped in 0.55.1)
+- Apps without an explicit `log_level` now inherit `[hassette.logging] apps` instead of always using `INFO` (#2571)
+- `self.cache` works when an app overrides `before_initialize` without calling `super()`, instead of raising `AsyncCache is not initialized` (#2572)
+- `allow_deep_detection_in_prod = true` enables Tier 2 blocking-IO detection on its own. Note: an explicit `deep_detection_enabled = true` in production now turns Tier 2 on too; `deep_detection_enabled = false` always wins. (#2472)
+- A predicate that raises on a `duration=` listener is now recorded as an error execution and sent to `on_error`, instead of only being logged (#2588)
+- App keys containing `/`, `\`, an absolute path or a `..` segment are rejected at config validation, so an app's derived cache directory can't escape `data_dir` or alias another app's (#2579)
+- WebSocket send and dispatch-failure logs and `FailedMessageError` messages no longer include payload values, which could contain secrets such as a password-mode `input_text` value. The payload is still on `FailedMessageError.original_data`. (#2565, #2567)
+- Shutdown logs carry the app's real key instead of `app_key=None` (#2470)
+- `self.cache.get(key, default=x)` is typed as `x`'s type instead of `T | None` (#2528)
+- Invalid handler and `where=` predicate signatures (`*args`, positional-only parameters) no longer report a dependency injection error when the handler doesn't use DI (#2575)
+- Keyboard-focused execution table rows show a focus ring (#2583)
+- The OpenAPI and WebSocket schemas now include field descriptions for telemetry, blocking, health, WebSocket and auth models (#2538, #2541)
+
+### Documentation
+
+- New pages: [API errors](https://hassette.readthedocs.io/en/latest/pages/web-ui/api-errors/) (every problem `code`) and [Python client](https://hassette.readthedocs.io/en/latest/pages/web-ui/python-client/) (#2480, #2596)
+- Accuracy pass across the core-concepts and testing pages: listener naming errors, state conversion rules, `simulate_app_*` signatures, `enabled = false` behavior, and config file discovery (every `hassette.toml` is merged) (#2465)
+- The bus methods page states correctly that omitting `name=` raises `TypeError`, and that every handler-taking method accepts `on_error` (#2441)
+- `HelperClient.update()` and `delete()` take the helper's storage id (`"vacation_mode"`), not its `entity_id`; the docs and docstrings now say so (#2450)
+- Blocking-IO guidance points to `self.task_bucket.run_in_thread` instead of `asyncio.to_thread` (#2523)
+- `/api/health` reports `ok` only once the WebSocket is connected and app bootstrap is released (#2471)
+- Fixed the `A.get_path` example path in the predicate reference (#2435)
+- The lifecycle internals page says who it's for and defines its terms (#2436)
+
+
+## [0.55.1](https://github.com/NodeJSmith/hassette/compare/v0.55.0...v0.55.1) (2026-10-05)
+
+### Bug Fixes
+
+- Startup no longer fails when `file_watcher.watch_files` is disabled. The file watcher service never marked itself ready on that path, so startup waited out the full timeout and then aborted. (#2501)
+
+
 ## [0.55.0](https://github.com/NodeJSmith/hassette/compare/v0.54.0...v0.55.0) (2026-09-28)
 
 ### Breaking Changes
