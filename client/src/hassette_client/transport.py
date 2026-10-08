@@ -94,9 +94,10 @@ class Transport:
         self.base_url = base_url.rstrip("/")
         self.display_url = redact_userinfo(self.base_url)
         self.request_timeout = request_timeout
-        # No token means no header at all: an empty bearer would fail closed, while a request with
-        # no Authorization header can still be admitted by the server's trusted-proxy peer check.
-        self.headers: Mapping[str, str] = {"Authorization": f"Bearer {token}"} if token else {}
+        # None sends no header, so the server's trusted-proxy peer check may admit the request. Any string,
+        # including an empty one, is sent as given and the server decides: an empty bearer fails closed
+        # with 401 instead of silently falling back to peer trust (e.g. from an unset environment variable).
+        self.headers: Mapping[str, str] = {"Authorization": f"Bearer {token}"} if token is not None else {}
 
     @overload
     async def request(

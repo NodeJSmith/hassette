@@ -55,8 +55,9 @@ class HassetteClient:
         session: The session to send requests on.
         base_url: The server's root URL, such as ``"http://127.0.0.1:8126"``. A path prefix is kept,
             for a server behind a reverse proxy.
-        token: The web API token. With none, requests carry no ``Authorization`` header, which a server
-            that trusts the caller's address as a proxy accepts.
+        token: The web API token. With ``None``, requests carry no ``Authorization`` header, which a
+            server that trusts the caller's address as a proxy accepts. Any string, including an empty
+            one, is sent as a bearer token, so an empty token is rejected rather than falling back to that.
         request_timeout: Seconds allowed for each request, including reading the body. Must be
             positive. For a slow app action, use a second client with a longer timeout on the same
             session.

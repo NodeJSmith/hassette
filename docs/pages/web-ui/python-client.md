@@ -37,7 +37,7 @@ The examples further down are fragments: they run inside `main()` and use its `c
 `HassetteClient(session, base_url, *, token=None, request_timeout=10.0)` takes:
 
 - `base_url`: the server's root URL. A path prefix is kept, so `https://example.com/hassette` works behind a reverse proxy that serves Hassette under a sub-path. Leave out any `user:password@`: `aiohttp` turns it into Basic authentication, and combined with a token every request raises `ValueError`.
-- `token`: the web API token. Without one, requests carry no `Authorization` header. A server that lists your machine in `web_api.trusted_proxies` admits those requests anyway (see [Enabling and accessing the web UI](index.md#enabling-and-accessing)).
+- `token`: the web API token. With `None` (the default), requests carry no `Authorization` header. A server that lists your machine in `web_api.trusted_proxies` admits those requests anyway (see [Enabling and accessing the web UI](index.md#enabling-and-accessing)). Any string is sent as given, including an empty one (such as from an unset environment variable), which the server rejects with a 401 instead of falling back to that trust.
 - `request_timeout`: seconds allowed for each request, including reading the whole response. It must be positive.
 
 `token` and `request_timeout` are keyword-only.
@@ -195,7 +195,7 @@ pages/web-ui/snippets/python_client_skew.py:unknown
 --8<--
 ```
 
-`case UnknownValue():` matches only unrecognized values; `case status:` takes everything else. Against a server newer than the client, it prints a line like `porch_lights: 'paused' is newer than this client`.
+`case UnknownValue() as unknown:` matches only unrecognized values; `case status:` takes everything else. Against a server newer than the client, it prints a line like `porch_lights: 'paused' is newer than this client`.
 
 The client also ignores response fields it doesn't know: they don't appear on the returned model.
 

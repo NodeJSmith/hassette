@@ -12,8 +12,8 @@ async def print_statuses(client: HassetteClient) -> None:
     # --8<-- [start:unknown]
     for app in (await client.get_apps()).apps:
         match app.status:
-            case UnknownValue():
-                print(f"{app.app_key}: {app.status!r} is newer than this client")
+            case UnknownValue() as unknown:
+                print(f"{app.app_key}: {unknown.value!r} is newer than this client")
             case status:
                 print(f"{app.app_key}: {status}")
     # --8<-- [end:unknown]

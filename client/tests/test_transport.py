@@ -38,15 +38,23 @@ async def test_token_is_sent_as_a_bearer_header(client: HassetteClient, server: 
     assert server.requests[0].headers["Authorization"] == f"Bearer {TEST_TOKEN}"
 
 
-@pytest.mark.parametrize("token", [None, ""])
-async def test_no_token_sends_no_authorization_header(
-    session: aiohttp.ClientSession, server: FakeServer, token: str | None
-) -> None:
+async def test_no_token_sends_no_authorization_header(session: aiohttp.ClientSession, server: FakeServer) -> None:
     server.respond(200, HEALTH_BODY)
 
-    await HassetteClient(session, server.base_url, token=token).get_health()
+    await HassetteClient(session, server.base_url, token=None).get_health()
 
     assert "Authorization" not in server.requests[0].headers
+
+
+async def test_empty_token_still_sends_an_authorization_header(
+    session: aiohttp.ClientSession, server: FakeServer
+) -> None:
+    # An empty token must not fall back to the no-header path, where a trusted proxy peer would be admitted.
+    server.respond(200, HEALTH_BODY)
+
+    await HassetteClient(session, server.base_url, token="").get_health()
+
+    assert server.requests[0].headers["Authorization"] == "Bearer "
 
 
 @pytest.mark.parametrize("request_timeout", [0, -1.0])
