@@ -22,7 +22,9 @@ reopened only where a decision below says so; Assumed lists which.
 A first implementation exists as commit `b753b2c5` on branch `2386`. It was written without a ledger. Its
 challenge produced 22 findings, 7 of them design-level. The full findings are in
 `first-attempt-challenge.md` in this directory, and Fn below refers to Finding n there. This ledger settles
-those contracts before any code is written.
+those contracts before any code is written. The build from this ledger is commits `48131a39` and
+`a0391f27` on branch `2386-take-two`. Its ship-time challenge reopened D20, D21 and D24, restated D23's rationale, and added D25–D27;
+Build lists the rework they require.
 
 **Standards first.** Where Home Assistant, HACS or Python library conventions have an established
 answer, this ledger follows it, even when that reverses an earlier decision, including the issue's own
@@ -34,25 +36,30 @@ Two prior-art briefs in this directory ground the decisions:
 - `prior-art-retryable.md` covers retry signaling (D2–D5).
   Its recommendation, a per-instance flag, was later set aside for HA convention; see D2.
 - `prior-art-skew-and-bodies.md` covers body classification and version skew (D18–D24).
+- `prior-art-floor-verification.md` covers how client libraries choose and verify a minimum server
+  version (D20, D25–D27). It was written when the ship-time challenge reopened D20.
 
 Files involved:
 
 - `client/src/hassette_client/`: `transport.py`, `errors.py`, `client.py`, `parsing.py`, `version.py`,
   `__init__.py`
 - `client/tests/`
-- `client/pyproject.toml`, which gains `packaging` as a runtime dependency (D21), floored at or below HA's
-  pin (Assumed)
-- `wire/src/hassette_wire/`, for the response-model changes in D10 and D11, then
+- `client/pyproject.toml`
+- `wire/src/hassette_wire/`, for the response-model changes in D10 and D11, `API_SCHEMA_VERSION` and
+  `SystemStatusResponse.api_schema_version` (D25), then
   `frontend/openapi.json` and the frontend types regenerated with
   `uv run python scripts/export_schemas.py --types`
-- `tools/check_wire_compat.py`, whose `extract_tagged_openapi` D20's guard reuses
-- `.github/workflows/tests.yml`, for the release-PR step that runs D14's coverage test against the floor
-  tag's `openapi.json` (D20's guard)
+- `src/hassette/core/runtime_query_service.py` (`get_system_status()` builds every `SystemStatusResponse`,
+  for `GET /api/health` and the WebSocket status payload, so it sets `api_schema_version`, D25)
+- `tools/check_wire_compat.py`, whose tag extraction and reversed oasdiff run D27's guard reuses, and
+  `tools/check_client_floor.py`, rewritten in place as D27's guard (request check via the coverage test,
+  response check via oasdiff); its tests in `tests/unit/tools/`
+- `.github/workflows/tests.yml`, for D27's guard step on every PR
+- `.claude/rules/web-api.md`, for D20's bump rule (replacing the release-PR paragraph the first build added)
 - `tests/integration/web_api/test_hassette_client.py`
 - `docs/pages/web-ui/python-client.md` and its snippets
 - `noxfile.py`
-- `client/README.md` and `.claude/rules/web-api.md` (the first attempt touched both; D1's delete list
-  applies to them)
+- `client/README.md`
 
 Out of scope:
 
@@ -61,7 +68,7 @@ Out of scope:
 - any server-sent retry signal (`Retry-After`, idempotency keys);
 - the HA integration's handling of `UnsupportedServerVersionError` and its repair issue (spec 113).
 
-D20 also reverses spec 114's consumer-owned version floor and its newer-server warning.
+D20 also reverses spec 114's consumer-owned version floor and its newer-server warning (`design/specs/114-hassette-client/brief.md`).
 
 ## Decisions
 
@@ -92,7 +99,9 @@ checks each one:
   `request_timeout` (D5);
 - `APP_ACTIONS` and its `ValueError` (D6);
 - `create_session`, its request model use, and its docs (D12);
-- `server_is_newer`, `CLIENT_DISTRIBUTION` and the `importlib.metadata` version lookup (D20, D22);
+- `server_is_newer`, `CLIENT_DISTRIBUTION` and the `importlib.metadata` version lookup (D20);
+- the release-version floor the first build added after the cherry-pick: every item under Build,
+  "Rework to the API schema floor" (D20, D21, D27);
 - the commit message's claims about `retryable` and `server_is_newer`, which the squash-merge PR title
   and body replace.
 
@@ -591,112 +600,217 @@ stay as well.
 
 ### D20: How is version skew handled, and who owns the minimum server version?
 
-Background: F6; `prior-art-skew-and-bodies.md` Q1. `server_is_newer()` returned `False` for both "same"
-and "older". The direction that actually fails is client-newer-than-server, because the HACS integration
-updates first. In that case:
+Background: F6; `prior-art-skew-and-bodies.md` Q1; `prior-art-floor-verification.md`. The direction that
+fails is client-newer-than-server, because the HACS integration updates first. A missing route then
+surfaces as a generic `NotFoundError`, and a missing query parameter is silently ignored.
 
-- a missing route surfaces as a generic `NotFoundError`;
-- a missing query parameter is silently ignored.
+This decision was ratified twice before (a skew enum, then a release-version floor) and reopened at the
+ship-time challenge. The release-version floor as built had three problems:
 
-This decision was first ratified as B, then reopened under the standards-first principle (Summary).
+- a v0.55.0 server, at the floor, couldn't parse `GET /api/apps` in this client, because its guard checked
+  requests only;
+- the floor was picked by hand on the release-please PR, a branch the bot regenerates;
+- a build from main reports the previous release, so it reads as older than the routes it serves.
 
-HA core precedent, from the local checkout at `~/source/core/homeassistant/components/`:
+HA core precedent, from `~/source/core/homeassistant/components/`:
 
 - **The library raises.** wled (`WLEDUnsupportedVersionError`), music_assistant and zwave_js
-  (`InvalidServerVersion`), and matter (`ServerVersionTooOld`, a subclass of `InvalidServerVersion`,
-  `matter/__init__.py:100-101`). The integration catches the exception in setup and in the config flow.
-- **The integration compares.** mealie keeps `MIN_REQUIRED_MEALIE_VERSION` in its own `const.py` and
-  compares it with `AwesomeVersion` (`mealie/__init__.py:67`).
+  (`InvalidServerVersion`), matter (`ServerVersionTooOld`). The integration catches it in setup and the
+  config flow.
+- **Libraries whose authors also own the server use an integer API schema version the server
+  advertises,** bumped in the PR that makes the change: zwave-js-server-python
+  (`MIN_SERVER_SCHEMA_VERSION`), python-matter-server (`SCHEMA_VERSION`; HA's `matter/api.py:354` checks
+  `server_info.schema_version < TOPOLOGY_SCHEMA_VERSION`), music-assistant (`API_SCHEMA_VERSION`;
+  `music_assistant/config_flow.py:113`).
+- **Release-version floors are for servers the library author doesn't own:** mealie
+  (`MIN_REQUIRED_MEALIE_VERSION`, compared by the integration), wled, docker-py.
 
 No integration in HA core warns about a merely newer server.
 
-**Deciding factor:** HA convention, with a minimum that stays correct automatically.
+**Deciding factor:** HA convention for a library that owns its server, with a floor that is bumped in the
+change that needs it and verified by CI.
 
-| | B: `version_skew()` enum; the consumer owns the floor | E: The library owns the floor. A `MIN_SERVER_VERSION` constant and `check_server_version(health)`, raising `UnsupportedServerVersionError(HassetteClientError)`; a CI check guards the constant | M: The mealie pattern. No client helper; the integration keeps and compares its own floor |
+| | R: Release-version floor (`MIN_SERVER_VERSION`, as first built) | S: Integer API schema version the server advertises; the library owns `MIN_API_SCHEMA_VERSION`; `check_server_version(health)` raises `UnsupportedServerVersionError(HassetteClientError)` | M: The mealie pattern: no client helper; the integration keeps its own floor |
 |---|---|---|---|
-| HA precedent | None | The library owns the floor, as in most (wled, matter, music_assistant, zwave_js); the check is opt-in where they raise automatically on connect or first fetch (reason below) | mealie |
-| Who keeps the minimum correct | The integration, by hand | This repo, enforced by CI | The integration, by hand from release notes |
-| New client surface | An enum and a function | A constant, a function and an exception | None |
-| Agrees with spec 114 (floor in the integration) | Yes | No, reverses it | Yes |
+| HA precedent | wled, mealie (servers they don't own) | zwave-js, matter, music-assistant (servers they own) | mealie |
+| Where a bump happens | The release-please PR, by hand | The feature PR that makes the client need it | The integration, from release notes |
+| Picking the number | Guess which release has the routes | The next integer | Read release notes |
+| A build from main reports correctly | No, it reports the last release | Yes | No |
+| New surface | A constant, a function, an exception | The same, plus one health field and one wire constant (D25) | None |
 
-**Recommendation:** E. A library-owned floor is the most common HA pattern. The repo that adds a server
-dependency is also the one that knows about it, and CI makes the bump impossible to forget. There is
-one stated deviation: the check is an explicit call, not raised automatically from a connect step
-(see below).
-**Pick M instead if** you'd rather have no client surface and accept a floor kept by hand in the
-integration.
-**Reversibility:** hard after release
+**Recommendation:** S. It is what HA's own-server libraries do, it moves the bump into the PR that
+creates the need, and it makes the guard independent of release numbers (D27).
+**Pick R instead if** no server-side change is acceptable. **Pick M instead if** you'd rather have no
+client surface and a floor kept by hand in the integration.
+**Reversibility:** hard after release (a public constant, field and exception)
 
-What E means for the build:
+What S means for the build:
 
-- **`MIN_SERVER_VERSION`** is a public constant in `version.py`: the oldest hassette server this client
-  release works with. Its first value is the highest `v*` tag reachable from HEAD when the build starts, as
-  `resolve_latest_release_tag` in `tools/check_wire_compat.py` defines it (`--merged HEAD`); the first release-please PR's guard run confirms it or forces a bump.
-- **`check_server_version(health)`** raises `UnsupportedServerVersionError` when the server's version is
-  below `MIN_SERVER_VERSION`. The exception carries `server_version` and `min_version` attributes and
-  says which side to upgrade.
-  - An empty, `"unknown"` or non-PEP 440 version passes (fails open). The pass is logged at DEBUG. This
-    is the comparison half of mealie's pattern (`mealie/__init__.py:67`, `version.valid and ...`). The
-    warning half lives in mealie's integration (`mealie/__init__.py:62-66`), so the client docs tell
-    consumers to warn when `health.version` is unreadable. The library itself never logs above DEBUG
-    (D17).
-  - A valid PEP 440 pre-release of the floor compares as older under D21's strict ordering
-    (`0.56.0.dev3 < 0.56.0`) and raises. A dev build may predate the routes the floor exists for, so
-    strict is the safe direction.
-  - A newer server passes silently; lenient parsing exists for exactly that case.
-  - Alternatives considered: failing closed on an unreadable version was rejected because a dev or
-    source checkout reports `"unknown"` and the CLI must still talk to it, and mealie fails open; a
-    `major.minor` comparison that lets `0.56.0.dev3` pass is D21's question.
+- **`MIN_API_SCHEMA_VERSION`** is a public `int` constant in `hassette_client/version.py`: the oldest API
+  schema this client release works with. It replaces `MIN_SERVER_VERSION`, which is deleted.
+- **`hassette_wire.API_SCHEMA_VERSION`** is the server's current API schema (D25). It starts at `1` in
+  this change, and `MIN_API_SCHEMA_VERSION` starts at `1` too, since the client already calls routes no
+  released server has.
+- **The floor release** is the oldest `v*` tag whose `hassette_wire.API_SCHEMA_VERSION` is at least
+  `MIN_API_SCHEMA_VERSION` (a tag without the constant counts as `0`), or HEAD when no tag qualifies. D27's
+  guard checks against its `openapi.json`.
+- **The bump rule.** A PR that makes the client depend on server API missing from the floor release raises `API_SCHEMA_VERSION` by one, unless it was already raised since
+  the last release, and sets `MIN_API_SCHEMA_VERSION` to it, in the same PR. D27's guard fails until it
+  does. The constant's docstring and `.claude/rules/web-api.md` state the rule.
+- **`check_server_version(health)`** raises `UnsupportedServerVersionError` when the server's
+  `api_schema_version` is below `MIN_API_SCHEMA_VERSION` (D21). The exception carries `server_version` (the
+  release string the server reported, for the message), `api_schema_version` and
+  `min_api_schema_version`, and says to upgrade the hassette server or install an older hassette-client.
 - **The check is explicit, not automatic.** This is the one deviation from wled and matter, which raise
-  from their connect or first-fetch call. hassette-client is plain HTTP with no connect step. Its
-  nearest equivalent, `get_health()`, has to answer whatever the server's version, so the CLI's
-  `hassette status` can still report on an older server and health polling keeps getting status
-  instead of exceptions. The integration calls the check during setup and in the config flow.
-- **CI guard.** It is part of D14's coverage test, not a separate tool. The test's `openapi.json` source
-  is configurable, and CI also runs its "every client request (route, method, query parameter) exists
-  in the spec" assertions against `openapi.json` at tag `v{MIN_SERVER_VERSION}`. The "every operation
-  has a client method" assertion is not run against the older spec. One list of client requests feeds
-  both runs.
-  - **Where it runs** (revised at the sketch comb). Only on release-please PRs: a step in
-    `.github/workflows/tests.yml` gated on `github.head_ref` starting with `release-please--`, checked
-    out with `fetch-depth: 0`. It extracts the floor's spec with `git show v{X}:frontend/openapi.json`,
-    reusing `extract_tagged_openapi` from `tools/check_wire_compat.py`, and points the coverage test at
-    it. Feature PRs run the coverage test against HEAD only. A feature PR can't fix a floor failure,
-    because the next version isn't known until release-please opens its PR, so the check belongs where
-    the version is known.
-  - **Tag not yet created.** If tag `v{MIN_SERVER_VERSION}` doesn't exist and `MIN_SERVER_VERSION`
-    equals the version being released (the root `pyproject.toml` version on that release-please PR),
-    the guard compares against HEAD's `openapi.json`, which is that release's API. Any other missing
-    tag fails, so a typo in the floor is caught. release-please creates the tag only after its PR
-    merges, which is why the fallback is needed.
-  - A release that makes the client depend on new server API can't merge until `MIN_SERVER_VERSION` is
-    raised. In practice that's a one-line edit on the release-please PR, where the version number is
-    known. release-please can't do this itself: its marker rewrites a line on every release
-    unconditionally, which would make each release require a server of at least its own version.
-- **Not here.** A newer-server warning (spec 114's plan) is dropped, since no HA integration does it.
-  The integration's own handling is spec 113's: `unsupported_version` in the config flow, and
+  from their connect call. hassette-client is plain HTTP with no connect step, and `get_health()` has to
+  answer whatever the server's version, so the CLI can still report on an older server and health polling
+  keeps getting status instead of exceptions. The integration calls the check during setup and in the
+  config flow.
+- **Not here.** A newer-server warning (no HA integration does it) and a server-declared oldest client
+  (D26). The integration's own handling is spec 113's: `unsupported_version` in the config flow, and
   `ConfigEntryNotReady` at setup.
 
-**Ratified:** Switched from B to E under the standards-first principle, then refined at the sketch challenge. The library owns `MIN_SERVER_VERSION`. An explicit `check_server_version(health)` raises `UnsupportedServerVersionError`: unreadable versions pass and consumers are told to warn, pre-releases of the floor count as older, and newer servers pass silently. The one stated deviation from raise-on-connect is that the check is opt-in. The CI guard is D14's coverage test run against the floor tag's `openapi.json` on release-please PRs only, falling back to HEAD when the floor is the release being cut; the first floor is the highest `v*` tag at build time. Feature PRs aren't gated on the floor, since only the release PR knows the version. This was chosen over a skew enum or the mealie pattern, to follow the majority HA pattern and keep the floor correct by construction, accepting a one-line bump on release-please PRs where the guard fires, and reversing spec 114's consumer-owned floor and its newer-server warning.
+**Ratified:** Switched from R to S at the ship-time challenge: an integer API schema version the server advertises, with `MIN_API_SCHEMA_VERSION` owned by the client and bumped in the feature PR that needs it, over a release-version floor bumped on the release-please PR, to follow HA convention for libraries that own their server and make builds from main report correctly, accepting a new health field and wire constant (D25).
 
-### D21: Does the version comparison use the full version or only `major.minor`?
+### D21: How does the check compare, and what does a server that reports no schema mean?
 
-Background: `prior-art-skew-and-bodies.md` Q1, open question. Under D20 the comparison is server version
-against `MIN_SERVER_VERSION`.
+Background: under D20 the check compares two integers. Servers released before this change send no
+`api_schema_version` at all. The release-version check this replaces passed an unreadable version (fail
+open), which left callers re-parsing `health.version` to tell a pass from an unchecked one (ship-time
+challenge F8).
 
-**Deciding factor:** A comparison that is simple and never wrong.
+**Deciding factor:** A server that can't have the routes the floor exists for is reported as too old, with
+no unchecked state for callers to detect.
 
-**Recommendation:** Full PEP 440 comparison via `packaging`, so `0.56.0.dev3` sorts before `0.56.0`.
-**Pick `major.minor` instead if** you'd rather a patch-level minimum were impossible to express.
+| | A: Integer `<`; a missing field parses as `0`, below every floor, so the check raises | B: Integer `<`; a missing field passes (fail open) and the check returns whether it compared |
+|---|---|---|
+| Pre-schema server | Raises "upgrade hassette" | Passes; caller must notice and warn |
+| HA precedent | matter: `server_info is None or server_info.schema_version < X` | mealie's `version.valid and ...` for unparseable release strings |
+| Caller code | `try`/`except` only | An extra branch on the return value |
+| Runtime dependency | None (`packaging` is dropped) | None (`packaging` is dropped) |
+
+**Recommendation:** A. A server without the field predates schema 1 and therefore every route the floor
+exists for, so "too old" is the true answer. With no unreadable case, the check returns `None` and raises
+below the floor, and the docs example loses its second parse.
+**Pick B instead if** some caller must run against pre-schema servers through the check. The CLI doesn't
+call it, so none does today.
 **Reversibility:** easy before release
-**Ratified:** Chose full PEP 440 comparison over `major.minor`, to keep the comparison exact (including dev/pre-releases). Restated after D20's switch: it now compares the server against `MIN_SERVER_VERSION`, not against the client's own version.
+**Ratified:** Chose integer comparison where a missing `api_schema_version` parses as `0` and the check raises, over failing open, so a pre-schema server is reported as too old with no unchecked state for callers to detect, accepting that no caller can pass the check against a pre-schema server.
 
 ### D22: (withdrawn) Where does the client get its own version?
 
-Withdrawn: under D20 the client compares the server against `MIN_SERVER_VERSION`, not against its own
-version, so nothing needs the client's version at runtime.
+Withdrawn: under D20 the client compares the server's schema against `MIN_API_SCHEMA_VERSION`, not against
+its own version, so nothing needs the client's version at runtime.
 
 **Ratified:** Withdrawn as moot under D20.
+
+### D25: Where, and under what name, does the server advertise its API schema?
+
+**Deciding factor:** The value arrives with the response `check_server_version` already takes, under a name
+that can't be confused with hassette's other schema versions.
+
+| | A: `api_schema_version: int = 0` on `SystemStatusResponse` (`GET /api/health`), from a `hassette_wire.API_SCHEMA_VERSION` constant | B: A separate `GET /api/version` route | C: A response header on every response |
+|---|---|---|---|
+| Arrives with what the check takes | Yes | No, a second call | Yes, but not on the parsed model |
+| HA precedent | matter and music-assistant put it in the server-info payload | None | None |
+| One shared definition (server and D27's guard read it) | Yes, in hassette-wire, released in lockstep | Needs its own constant anyway | Same |
+| New surface | One field, one constant | A route, a model, a client method | A header contract |
+
+The name is `api_schema_version`, not HA's bare `schema_version`, because hassette already uses "schema
+version" for the telemetry database's migration head (`SchemaVersionError`). The field defaults to `0`, so
+lenient parsing of a pre-schema server's health gives D21's "too old".
+
+**Recommendation:** A.
+**Pick B instead if** you want version data off the health route entirely. **Pick C instead if** every
+response, not only health, should carry it.
+**Reversibility:** hard after release (a wire field and constant)
+**Ratified:** Chose `api_schema_version: int = 0` on `SystemStatusResponse` (`GET /api/health`), sourced from `hassette_wire.API_SCHEMA_VERSION`, over a separate route or a response header, so the value arrives with the response the check takes and has one shared definition, accepting a wire field and constant that are hard to change after release.
+
+### D26: Does the server also advertise the oldest client schema it supports?
+
+music-assistant's server sends `min_supported_schema_version` so it can turn away old clients. hassette's
+server never turns away a client: an older client is covered by lenient parsing and
+`check_wire_compat`'s forward run.
+
+**Deciding factor:** No field without a consumer.
+
+**Recommendation:** No. Nothing on the server would set it, and nothing in the client would act on it.
+**Pick yes instead if** the server will ever drop support for old clients.
+**Reversibility:** easy (additive later)
+**Ratified:** Chose not advertising an oldest supported client schema over adding `min_supported_schema_version`, since the server never turns away a client and nothing would consume the field, accepting that it must be added later if the server ever drops old clients.
+
+### D27: What verifies the floor, and on which PRs?
+
+Background: `prior-art-floor-verification.md`. No surveyed HA library checks its floor in CI; they test
+fixtures at the current schema. opensearch-py is the one client found testing responses at old servers,
+with a live container matrix. `tools/check_wire_compat.py` already runs oasdiff in the "new client, old
+server" direction (blocking on `response-required-property-removed` and
+`response-property-became-optional`), but only against the latest tag and with
+`tools/wire_compat_ignore.txt` applied, which is where floor-to-HEAD drift accumulates.
+
+**Deciding factor:** The guard fails on the verified v0.55.0 break, on the PR that causes it.
+
+| | A: Every PR. Floor spec: the floor release's `openapi.json` (D20). Checks: the coverage test's request checks, plus the reversed oasdiff blocking IDs, limited to operations the client calls and the statuses it parses as models (2xx, and a probe's 503), with no ignore file | B: The same checks, on release-please PRs only | C: A, plus a job that runs the floor tag's published Docker image and calls it with the client | D: Request checks only (as first built) |
+|---|---|---|---|---|
+| Catches the v0.55.0 `GET /api/apps` break | Yes | Yes | Yes | No |
+| Fails on the PR that causes it | Yes | No, at release | Yes | n/a |
+| Cost | Spec diffs from committed files | Same | A container per run; unverified that a bare image serves the client's routes without Home Assistant | Lowest |
+| Prior art | hassette's own oasdiff tooling, aimed at the floor | Same | opensearch-py | None |
+
+The guard also fails when `MIN_API_SCHEMA_VERSION` is above `API_SCHEMA_VERSION` at HEAD, which catches
+a typo or a missing server bump, and its failure message states D20's bump rule.
+
+**Recommendation:** A.
+**Pick B instead if** feature-PR CI time matters more than failing early. **Pick C instead if** a spec
+check ever misses a real break.
+**Reversibility:** easy (CI only)
+
+What A means for the build:
+
+- **The tool.** `tools/check_client_floor.py` is rewritten in place, keeping its name and its job of
+  resolving a spec and running `client/tests/test_openapi_coverage.py` against it through
+  `HASSETTE_CLIENT_OPENAPI`. The release-version resolution (`release_version()`, the "tag doesn't exist
+  yet" fallback, `FloorSpecError`'s message) goes. `tests/unit/tools/test_check_client_floor.py` is
+  rewritten to match.
+- **Finding the floor release.** `API_SCHEMA_VERSION` lives in `wire/src/hassette_wire/health.py`, next to
+  `SystemStatusResponse`, and is re-exported from `hassette_wire`. The guard lists tags the way
+  `resolve_latest_release_tag` does (`git tag --list 'v*' --merged HEAD --sort=-v:refname`, so pre-release
+  tags are candidates like any other). For each tag, newest first, it reads that file with
+  `git show <tag>:<path>` and takes a module-level `API_SCHEMA_VERSION = <int>` with `ast`; a missing file
+  or name is `0`. It stops at the first tag below `MIN_API_SCHEMA_VERSION`, which is sound because the
+  bump rule only ever raises the constant. The last qualifying tag is the floor release, and its spec comes
+  from `extract_tagged_openapi`. When no tag qualifies, the floor spec is HEAD's `frontend/openapi.json`.
+- **The request check** is unchanged: the coverage test with `HASSETTE_CLIENT_OPENAPI` pointing at the
+  floor spec.
+- **The response check runs in the tool**, not the coverage test, because `nox -s client` runs the client's
+  tests in an environment where `tools/` isn't importable. With `HASSETTE_CLIENT_OPENAPI` set, the coverage
+  test also writes the operations the client calls to the JSON file named by `HASSETTE_CLIENT_OPERATIONS`:
+  each `(method, template)` its recorded requests match in HEAD's `frontend/openapi.json` (matched against
+  HEAD so the template strings are oasdiff's), and whether the method is in `STATUS_MODEL_503_METHODS`.
+  The tool reads that file, runs `run_oasdiff` with HEAD's spec as base and the floor spec as revision,
+  keeps `select_reversed_blocking_findings`, and then keeps only findings whose `operation` and `path`
+  the client calls and whose status the client parses as a model: 2xx, plus 503 for
+  `STATUS_MODEL_503_METHODS`. A 422 or other problem status is excluded because the client never parses
+  those as the route's model.
+- **Reading the status.** oasdiff 1.32.1 has no status field; it's in `text`, phrased two ways:
+  "from the response with the `200` status" (`response-required-property-removed`) and "became optional
+  for the status `422`" (`response-property-became-optional`). The tool matches ``status `(\d{3})` ``
+  in either. A finding whose status can't be read fails the guard rather than being skipped.
+- **No ignore file.** `run_oasdiff`'s `ignore_file` becomes `Path | None`, and `None` omits
+  `--err-ignore`. `check_wire_compat.py`'s own runs keep passing `tools/wire_compat_ignore.txt`.
+- **The guard's own failures** are the ones stated above the recommendation: `MIN_API_SCHEMA_VERSION`
+  above `API_SCHEMA_VERSION` at HEAD, with D20's bump rule in the message.
+- **CI.** In `tests.yml`'s `workspace-members` job, the checkout uses `fetch-depth: 0` on every run and
+  the guard step drops its `release-please--` condition. The job also installs oasdiff the way the
+  `frontend` job does. The comments on both steps are rewritten. The existing `tools/check_client_floor.py`
+  path filter stays.
+- **Tests use fixtures.** At merge no tag carries `API_SCHEMA_VERSION`, so the floor release is HEAD and
+  the guard diffs HEAD against itself. The guard's tests build fixture tags and specs instead. One
+  fixture is v0.55.0's committed `openapi.json`, against which the `GET /api/apps` 200 findings must block
+  and its 422 findings must not. Another is a fixture spec where a client-parsed 200 field became
+  optional, which must block. That is how this PR demonstrates the deciding factor.
+
+**Ratified:** Chose a guard on every PR that diffs the client's operations against the floor tag's `openapi.json` (request checks plus reversed oasdiff blocking IDs, client-parsed statuses only, no ignore file), over release-PR-only checks, a live floor container, or request checks alone, so the v0.55.0 response break fails on the PR that causes it, accepting a spec diff on every PR.
 
 ### D23: Does an error from a missing route say the server may be older?
 
@@ -727,10 +841,12 @@ such as `app_not_found`.
 | New surface or state | None | None | None |
 | Prior art | None client-side | None client-side | All surveyed clients |
 
-`ResponseValidationError` never gets a direction hint under any option. `tools/check_wire_compat.py`
-runs oasdiff in both directions against the latest release tag on every PR, so no release adds a
-required response field an adjacent release lacks, and the chain of releases covers everything above the
-floor. A parse failure therefore isn't evidence of an older server.
+`ResponseValidationError` never gets a direction hint under any option. Against a server at or above the
+floor, D27's guard checks that every response field the client requires is still required and present,
+so a missing required field isn't evidence of an older server. The guard doesn't catch a retyped field or a
+closed vocabulary that grew (D24's table lists those as `ResponseValidationError`), so a parse failure
+points at drift in what a field holds, which a direction hint wouldn't explain either. (Restated when D20 was reopened: the earlier argument relied on
+`check_wire_compat`'s adjacent-release chain, which `tools/wire_compat_ignore.txt` breaks.)
 
 **Recommendation:** C, under the standards-first principle (see Summary). No surveyed client rewrites a
 route miss into a skew hint. The standard is to raise what the server said and document how to read
@@ -748,15 +864,16 @@ behavior no other client has.
 Background: F22; `prior-art-skew-and-bodies.md` Q1 sections 3 and 5. The client pins `hassette-wire`
 exactly, so an older client tolerates only what its wire already tolerates. FastAPI silently ignores
 query parameters it doesn't know, so a newer client sending a new filter to an older server gets
-unfiltered data back with no error. D20's `MIN_SERVER_VERSION` and its CI guard are what prevent that.
+unfiltered data back with no error. D20's `MIN_API_SCHEMA_VERSION` and D27's guard are what prevent that.
+Reopened with D20: the promise it states changed shape.
 
 **Deciding factor:** An integration author can tell, from the docs alone, what each side tolerates.
 
-| | A: Table plus a per-method `.. versionadded::` on methods newer than the first transport release | B: Compatibility table on the docs page only (both directions), linking to `check_wire_compat` and D20's guard as the source of truth; nothing in `version.py` beyond `MIN_SERVER_VERSION`'s own docstring (CLAUDE.md, Internal Documentation); the docs explain `MIN_SERVER_VERSION` and `check_server_version()` (D20) | C: Keep the current "a newer server is supported" wording |
+| | A: Table plus a per-method `.. versionadded::` on methods newer than the first transport release | B: Compatibility table on the docs page only (both directions), linking to `check_wire_compat` and D27's guard as the source of truth; nothing in `version.py` beyond `MIN_API_SCHEMA_VERSION`'s own docstring (CLAUDE.md, Internal Documentation); the docs explain `MIN_API_SCHEMA_VERSION`, `api_schema_version` and `check_server_version()` (D20, D25) | C: Keep the current "a newer server is supported" wording |
 |---|---|---|---|
 | Promise accurate in both directions | Yes | Yes | No |
-| Author knows the oldest supported server | Yes | Yes (`MIN_SERVER_VERSION`, enforced by D20's guard) | No |
-| Matches prior art | No: per-method markers stand in for per-command checks | GitHub REST's enumerated additive/breaking list, backed here by the oasdiff runs and D20's guard | n/a |
+| Author knows the oldest supported server | Yes | Yes (`MIN_API_SCHEMA_VERSION`, enforced by D27's guard) | No |
+| Matches prior art | No: per-method markers stand in for per-command checks | GitHub REST's enumerated additive/breaking list, backed here by the oasdiff runs and D27's guard | n/a |
 | Fits repo conventions | No: docs use mkdocstrings Google style (`mkdocs.yml:153`), which doesn't render the Sphinx directive | Yes | Yes |
 | Effort | Docs plus a convention to establish | Docs | None |
 
@@ -770,24 +887,25 @@ The table's rows:
 - new query parameter or request field;
 - renamed, removed or retyped field.
 
-Each row has an outcome for an older client, and for a newer client against a server at or above
-`MIN_SERVER_VERSION`, per the brief's §5 table with D10 applied. Under D20's guard, the "new route" and
-"new query parameter" rows read "can't happen against a server whose version is readable and at or
-above `MIN_SERVER_VERSION`". The guard checks that routes, methods and parameters exist, not what an
-existing parameter means.
+Each row has an outcome for an older client, and for a newer client against a server whose
+`api_schema_version` is at least `MIN_API_SCHEMA_VERSION`, per the brief's §5 table with D10 applied. Under
+D27's guard, the "new response field", "new route" and "new query parameter" rows read "can't happen"
+against such a server: the guard checks that routes, methods and parameters exist and that every response
+field the client requires is present. It doesn't check what an existing parameter or field means. Under
+D21 there is no unreadable-version case, so the table carries no precondition beyond the check passing.
 
-**Recommendation:** B. A table backed by CI is the established precedent, and D20 already makes the
-per-route minimum exact.
+**Recommendation:** B. A table backed by CI is the established precedent, and D27 makes the per-route
+minimum exact.
 **Pick A instead if** you want per-method markers too and are willing to establish a rendering
 convention for them.
 **Pick C instead if** you'd rather keep the docs short.
 **Reversibility:** easy
-**Ratified:** Chose a two-direction compatibility table on the docs page only, linking to `check_wire_compat` and D20's guard as the source of truth and stating the readable-version precondition, over per-method `versionadded` markers, a `version.py` copy or the current wording, to state the promise precisely in one place, accepting that the table isn't visible from IDE hover or `help()`.
+**Ratified:** Chose a both-direction compatibility table on the docs page, backed by `check_wire_compat` and D27's guard and explaining `MIN_API_SCHEMA_VERSION`, `api_schema_version` and `check_server_version()`, over adding per-method `versionadded` markers or keeping the current wording, to make the promise accurate in both directions from the docs alone, accepting that per-method minimums live in CI rather than on each method.
 
 ## Assumed
 
 - The issue body's Key Decisions stand, except the `retryable` attribute (reversed by D2), the per-call
-  timeout (D5), the zero-exemption coverage rule (D12) and `server_is_newer()` (replaced by D20). The ones that stand cover:
+  timeout (D5), the zero-exemption coverage rule (D12) and `server_is_newer()` (removed by D20). The ones that stand cover:
   - async aiohttp with a caller-owned session the client never creates or closes;
   - an explicit timeout on every request (D5) and `allow_redirects=False`;
   - no `Authorization` header when no token is configured;
@@ -809,7 +927,7 @@ convention for them.
 - Methods and the coverage test ship in one PR. Evidence: issue #2386 body, "Methods and coverage test
   ship as a single PR".
 - `tools/check_wire_compat.py` already compares the API against the last `v*` tag with oasdiff, in both
-  skew directions, so CI already has tag-based schema access (D20's guard, D23). Evidence: `tools/check_wire_compat.py`;
+  skew directions, so CI already has tag-based schema access (D27's guard, D23). Evidence: `tools/check_wire_compat.py`;
   `design/research/2026-10-02-hassette-client-transport/research.md:68`.
 - `POST /api/apps/{key}/{start|stop|reload}` answers only after the operation finishes. Evidence:
   `src/hassette/web/routes/apps.py`, `_run_app_action`.
@@ -834,25 +952,62 @@ convention for them.
 - aiohttp raises a plain `ValueError` for a header value containing `\r` or `\n` when the request is
   written; non-ASCII values pass. Evidence: aiohttp `http_writer.py:359`; probe against a local aiohttp
   server during the sketch comb.
-- HA 2026.9 pins `aiohttp==3.14.3` and `pydantic==2.13.4`, and requires `packaging>=23.1`. Evidence:
-  `~/source/core/homeassistant/package_constraints.txt:9, 144, 52`.
+- Every `v*` tag commits `frontend/openapi.json`, and hassette publishes a Docker image per release tag.
+  Evidence: `tools/check_wire_compat.py` (`extract_tagged_openapi`); `.github/workflows/build_and_publish_image.yml`.
+- HA 2026.9 pins `aiohttp==3.14.3` and `pydantic==2.13.4`. Evidence:
+  `~/source/core/homeassistant/package_constraints.txt:9, 144`.
 
 ## Build
 
-- [x] Implementation and tests committed
-- [x] Docs
-- [ ] Ship-time challenge
+- [x] Implementation and tests committed (first build: `48131a39`, `a0391f27`)
+- [x] Docs (first build)
+- [x] Ship-time challenge (reopened D20, D21, D24, restated D23, added D25–D27)
+- [ ] Rework to the API schema floor committed
+- [ ] Docs reworked
+- [ ] Ship-time challenge on the rework
 
-**Calls made during the build:**
+**Rework to the API schema floor.** The first build shipped a release-version floor. Every item below is
+replaced, and none of the old floor may survive in code, tests or docs (D1's delete list points here):
 
-- `MIN_SERVER_VERSION` is `0.55.0`, as D20 specifies, though the guard already fails against v0.55.0: five routes the client calls (`GET /api/apps/{app_key}`, the app grid and the three blocking routes) came after it. Raising it now would mean guessing the next version number. D20 puts that bump on the first release-please PR, where `tools/check_client_floor.py` names it.
-- The guard is `tools/check_client_floor.py`. It resolves the floor's `openapi.json` and runs the coverage test with `HASSETTE_CLIENT_OPENAPI` pointing at it. Against an older spec only the request checks run: the route, method and query-parameter checks. The response-model and 503 checks are marked current-API-only, since schema names and probe docs legitimately differ in old releases.
+- `client/src/hassette_client/version.py`: delete `MIN_SERVER_VERSION` and the `packaging` comparison. Add
+  `MIN_API_SCHEMA_VERSION = 1` with the bump rule in its docstring (D20). `check_server_version` compares
+  `health.api_schema_version` against it, so a pre-schema server's `0` raises, and it returns `None`
+  (D21). Its docstring loses the PEP 440 and "unreadable version passes" text.
+- `client/src/hassette_client/errors.py`: `UnsupportedServerVersionError` carries `server_version`,
+  `api_schema_version` and `min_api_schema_version` instead of `min_version`, says to upgrade the hassette
+  server or install an older hassette-client, and still round-trips through `copy`/`pickle` (D9).
+- `client/src/hassette_client/__init__.py` (module docstring and exports) and `client.py`'s references:
+  `MIN_SERVER_VERSION` becomes `MIN_API_SCHEMA_VERSION`.
+- `client/pyproject.toml`: drop the `packaging` dependency and its mention in the floors comment; refresh
+  `uv.lock`.
+- `wire/src/hassette_wire/health.py`: add `API_SCHEMA_VERSION = 1` (re-exported from `hassette_wire`) and
+  `SystemStatusResponse.api_schema_version: int = 0` (D25). `RuntimeQueryService.get_system_status()`
+  (`src/hassette/core/runtime_query_service.py`), the one place the model is built, sets it from the
+  constant, so the WebSocket status payload carries it too. Regenerate `frontend/openapi.json` and the
+  frontend types, WS schemas included.
+- D27's guard: `tools/check_client_floor.py`, the response check in
+  `client/tests/test_openapi_coverage.py` (the operations file; its module docstring loses the release-PR
+  wording),
+  `run_oasdiff`'s optional ignore file, the CI changes, and the fixture-based tests, all as D27 lays out.
+- Tests: rewrite `client/tests/test_version.py` and `tests/unit/tools/test_check_client_floor.py`; update
+  `client/tests/test_errors.py` and `tests/integration/web_api/test_hassette_client.py` for the new
+  exception attributes and the health field.
+- `.claude/rules/web-api.md`: the release-PR paragraph becomes D20's bump rule (raise `API_SCHEMA_VERSION`
+  and set `MIN_API_SCHEMA_VERSION` in the feature PR; D27's guard fails until it does).
+- `docs/pages/web-ui/python-client.md` and `snippets/python_client_skew.py`: the version section becomes
+  D24's both-direction table and explains `MIN_API_SCHEMA_VERSION`, `api_schema_version` and
+  `check_server_version()` (a pre-schema server raises; no unchecked case). The CI paragraph says every
+  PR, not every release. The snippet drops its second parse of `health.version`.
+
+**Calls made during the build:** the calls below were made in the first build. They are unaffected by the
+rework, which records its own calls for D20, D21 and D25–D27 here.
+
 - The coverage test also checks, against the current API only, that every query parameter the server declares has a client filter, and that `CALLS` passes every keyword filter. Without the second check, D14's misnamed-filter check would pass vacuously for a filter no call sends.
 - `HassetteConnectionError` for an `InvalidURL` says "the URL is invalid" without echoing it, because aiohttp's message is the raw URL, userinfo included (D15).
 - `MAX_ERROR_BODY_BYTES = 4096` and `MAX_BODY_EXCERPT_BYTES = 200` (D16 left the values to the build). The excerpt is the first 200 bytes, decoded with replacement characters, so a multi-byte character cut at the boundary ends in U+FFFD. A body that isn't a parsed problem keeps its excerpt on `body_excerpt`; a malformed problem body does too.
 - `DEFAULT_TIMEOUT_SECONDS` became `DEFAULT_REQUEST_TIMEOUT`, to match D5's parameter name.
 - D10's open status fields use two new backing Literals, `AcceptedStatus` and `LivenessStatus`, unexported like the other `Open*` backing Literals.
-- D11's required `LivenessResponse.status` trips `check_wire_compat`'s reversed run, so `tools/wire_compat_ignore.txt` gets one line. It isn't a real break, because every server serializes the old default.
+- D11's required `LivenessResponse.status` trips `check_wire_compat`'s reversed run, so `tools/wire_compat_ignore.txt` gets one line. It isn't a real break, because every server serializes the old default. D27's guard doesn't read that file and doesn't need the line: it checks only statuses the client parses, against floor releases that post-date D11.
 - `user:password@` in `base_url` isn't rejected or stripped. aiohttp turns it into Basic auth, and with a token set it raises `ValueError` on the first request (it won't send an `Authorization` header alongside URL credentials or a session-level `auth=`), so the docs say to leave it out and list the `ValueError` in the failure table. Rejecting it would have been a new argument check that no decision covers, and stripping it would silently drop credentials a user typed. Every message and log line still redacts it (D15), including the `ClientResponseError` path, whose aiohttp message carries the request URL.
 - `noxfile.py`'s member floor run pins each direct dependency to its `>=` floor in an isolated, project-less environment (`floor_requirements()`), replacing `uv run --resolution lowest-direct`. Inside the workspace, `lowest-direct` resolves the root package's requirements too, so a member floor below the root's own floor (the client's `aiohttp` floor, say) would never be installed and the floor run would prove nothing. The parser handles exactly what the members declare today: a requirement with extras, an environment marker, or anything other than a single `>=` floor raises rather than being pinned wrongly. This also changes the existing `wire` floor job.
 - D17's log lines have no tests that capture log output (the "No Log Capture Tests" invariant). The behavior around each fallback path is tested instead.
