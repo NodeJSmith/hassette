@@ -126,3 +126,20 @@ async def test_synthetic_event_build_failure_is_log_only() -> None:
 
     svc._executor.enqueue_record.assert_not_called()
     svc._executor.invoke_error_handler.assert_not_called()
+
+
+async def test_post_predicate_failure_on_immediate_fire_is_log_only() -> None:
+    """A failure after the predicate matched (here: elapsed computation) is not a predicate failure."""
+    svc = make_service_with_state()
+
+    def broken_elapsed(_state: object, _config: object) -> float:
+        raise RuntimeError("elapsed boom")
+
+    svc._duration_hold.compute_elapsed = broken_elapsed  # pyright: ignore[reportAttributeAccessIssue]
+    listener = create_listener(topic=TOPIC, entity_id=ENTITY_ID, immediate=True, duration=60.0, error_handler=on_error)
+
+    await svc._duration_hold.immediate_fire_task(listener)
+    await asyncio.sleep(0)
+
+    svc._executor.enqueue_record.assert_not_called()
+    svc._executor.invoke_error_handler.assert_not_called()

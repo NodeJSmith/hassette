@@ -122,11 +122,11 @@ class DurationHoldManager:
 
         Error contract: any exception → log at WARNING; immediate fire becomes a no-op.
         ``state_reader`` handles state-read errors; the outer try/except catches
-        everything else (synthetic event build, predicate match, dispatch). Once the
-        synthetic event exists, the failure is also recorded via
-        ``record_predicate_failure`` (error ``ExecutionRecord`` + error-handler routing).
-        A failure building the synthetic event itself is log-only, since error
-        handlers require an event.
+        everything else (synthetic event build, timer setup, dispatch). A raising
+        predicate is additionally recorded via ``record_predicate_failure`` (error
+        ``ExecutionRecord`` + error-handler routing); other failures are log-only, since
+        they are not predicate failures and a synthetic-event build failure leaves no
+        event to hand an error handler.
         """
         duration_config = listener.duration_config
         entity_id = duration_config.entity_id if duration_config else None
@@ -142,11 +142,18 @@ class DurationHoldManager:
         if current_state is None:
             return
 
-        synthetic_event: Event[Any] | None = None
-        attempt_start = time.time()
         try:
             synthetic_event = self.make_synthetic_event(entity_id, current_state)
-            if not listener.matches(synthetic_event):
+            predicate_start = time.time()
+            try:
+                matched = listener.matches(synthetic_event)
+            except Exception as exc:
+                self.logger.exception("Predicate raised in immediate_fire for %s; treating as non-match", listener)
+                self.safe_record_predicate_failure(
+                    listener, synthetic_event.topic, synthetic_event, exc, predicate_start
+                )
+                return
+            if not matched:
                 return
 
             invoke_fn = build_tracked_invoke_fn(
@@ -196,8 +203,6 @@ class DurationHoldManager:
                 listener.topic,
                 exc_info=exc,
             )
-            if synthetic_event is not None:
-                self.safe_record_predicate_failure(listener, synthetic_event.topic, synthetic_event, exc, attempt_start)
 
     def start_remaining_duration_timer(
         self,
