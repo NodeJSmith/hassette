@@ -4,8 +4,9 @@ Three kinds of gap fail generation:
 
 - ``route``: a JSON route HEAD or the release serves that no success request reaches. Problem and probe
   requests don't count: they exercise a route's failure, not the body the released client parses.
-- ``empty``: a route whose every success response, across all scenarios, is empty (see
-  :func:`is_empty_body`), so the released client never parses a populated body from it.
+- ``empty``: a part of a route's body that is empty in every success response across all scenarios (see
+  :func:`body_parts`), so the released client never parses a populated one: the whole body when it's ``null``
+  or a list, otherwise each top-level list field on its own.
 - ``problem``: a ``ProblemCode`` HEAD defines that no problem request answers with.
 
 :data:`EXCLUDED` suppresses a gap, with the reason. An exclusion that no longer matches a gap is itself
@@ -31,21 +32,22 @@ EXCLUDED: dict[tuple[CoverageKind, str], str] = {
         "the fallback for an unmapped HTTPException: it has no fixed status and no route raises it deliberately"
     ),
 }
-"""Gaps left open on purpose, keyed by (kind, target), each with the reason. A ``route`` or ``empty`` target
-is ``"METHOD /path/template"``; a ``problem`` target is the ``ProblemCode`` value."""
+"""Gaps left open on purpose, keyed by (kind, target), each with the reason. A ``route`` target is
+``"METHOD /path/template"``; an ``empty`` target is that or, for a list field, ``"METHOD /path/template field"``
+(see :func:`body_parts`); a ``problem`` target is the ``ProblemCode`` value."""
 
 Answered = tuple[FixtureRequest, Any]
 """A request paired with its parsed JSON response body."""
 
 GAP_DESCRIPTIONS: Mapping[CoverageKind, str] = {
     "route": "no success request reaches it; add one to success_requests()",
-    "empty": "every success response is empty (null, [] or only empty lists); seed data that populates it",
+    "empty": "null or [] in every success response; seed data that populates it",
     "problem": "no problem request answers with it; add one to PROBLEM_REQUESTS",
 }
 
 SUMMARY_LABELS: Mapping[CoverageKind, str] = {
     "route": "routes reached by a success request",
-    "empty": "reached routes with a populated body",
+    "empty": "body parts and list fields populated",
     "problem": "problem codes answered",
 }
 
@@ -59,18 +61,20 @@ class CoverageReport:
     """One line per kind, counting what's covered and what's excluded, for the generator to print."""
 
 
-def is_empty_body(body: Any) -> bool:
-    """Whether a success body carries no data.
+def body_parts(route_key: str, body: Any) -> dict[str, bool]:
+    """The parts of a success body coverage tracks, each mapped to whether this body populates it.
 
-    It doesn't when it is ``null``, ``[]``, or an object with at least one list field whose list fields are all
-    empty. Only the top level is inspected.
+    An object's parts are its top-level list fields, named ``"<route_key> <field>"``, so one populated list
+    can't hide another that's always empty; an object with no list fields is one populated part named
+    ``route_key``. Any other body is one part named ``route_key``, empty when it is ``null`` or ``[]``. Nested
+    lists aren't inspected.
     """
-    if body is None or body == []:
-        return True
     if not isinstance(body, dict):
-        return False
-    lists = [value for value in body.values() if isinstance(value, list)]
-    return bool(lists) and not any(lists)
+        return {route_key: body is not None and body != []}
+    lists = {f"{route_key} {field}": bool(value) for field, value in body.items() if isinstance(value, list)}
+    if not lists:
+        return {route_key: True}
+    return lists
 
 
 def coverage_report(
@@ -82,11 +86,17 @@ def coverage_report(
     answered = list(answered)
     successes = [(request, body) for request, body in answered if request.is_success]
     reached = {request.route_key for request, _ in successes}
-    populated = {request.route_key for request, body in successes if not is_empty_body(body)}
+    parts: set[str] = set()
+    populated: set[str] = set()
+    for request, body in successes:
+        for part, is_populated in body_parts(request.route_key, body).items():
+            parts.add(part)
+            if is_populated:
+                populated.add(part)
     codes = {request.problem_code.value for request, _ in answered if request.problem_code is not None}
     targets: dict[CoverageKind, set[str]] = {
         "route": {f"{method} {path}" for method, path in routes},
-        "empty": reached,
+        "empty": parts,
         "problem": {code.value for code in ProblemCode},
     }
     covered: dict[CoverageKind, set[str]] = {"route": reached, "empty": populated, "problem": codes}

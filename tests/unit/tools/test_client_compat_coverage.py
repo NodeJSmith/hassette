@@ -3,7 +3,7 @@
 from typing import Any
 
 import pytest
-from client_compat_coverage import EXCLUDED, Answered, coverage_report, is_empty_body
+from client_compat_coverage import EXCLUDED, Answered, body_parts, coverage_report
 from client_compat_requests import FixtureRequest
 from hassette_wire import ProblemCode
 
@@ -20,14 +20,21 @@ def success(route: str, body: Any = None, name: str = "s") -> Answered:
     return FixtureRequest(name, method, path), {"value": 1} if body is None else body
 
 
-@pytest.mark.parametrize("body", [None, [], {"records": [], "truncated": False}, {"apps": [], "since": None}])
-def test_is_empty_body(body: Any) -> None:
-    assert is_empty_body(body)
-
-
-@pytest.mark.parametrize("body", [[{}], {"records": [{}], "other": []}, {"ok": True}, {}, 0, ""])
-def test_is_not_empty_body(body: Any) -> None:
-    assert not is_empty_body(body)
+@pytest.mark.parametrize(
+    ("body", "parts"),
+    [
+        (None, {"R": False}),
+        ([], {"R": False}),
+        ([{}], {"R": True}),
+        ({"ok": True}, {"R": True}),
+        ({}, {"R": True}),
+        (0, {"R": True}),
+        ({"records": [], "truncated": False}, {"R records": False}),
+        ({"records": [{}], "other": [], "n": 1}, {"R records": True, "R other": False}),
+    ],
+)
+def test_body_parts(body: Any, parts: dict[str, bool]) -> None:
+    assert body_parts("R", body) == parts
 
 
 def test_route_gap_counts_only_success_requests() -> None:
@@ -49,7 +56,7 @@ def test_empty_gap_needs_every_success_body_empty() -> None:
     routes = [("GET", "/api/always"), ("GET", "/api/once")]
     answered = [
         success("GET /api/always", []),
-        success("GET /api/always", {"rows": []}, name="again"),
+        success("GET /api/always", [], name="again"),
         success("GET /api/once", []),
         success("GET /api/once", [{"id": 1}], name="populated"),
         *every_problem_answered(),
@@ -57,7 +64,19 @@ def test_empty_gap_needs_every_success_body_empty() -> None:
 
     [gap] = coverage_report(routes, answered, excluded={}).gaps
 
-    assert gap.startswith("empty GET /api/always: every success response is empty")
+    assert gap.startswith("empty GET /api/always: null or [] in every success response")
+
+
+def test_one_populated_list_field_does_not_hide_an_always_empty_one() -> None:
+    answered = [
+        success("GET /api/health", {"services": [], "boot_issues": [{}]}),
+        success("GET /api/health", {"services": [], "boot_issues": []}, name="again"),
+        *every_problem_answered(),
+    ]
+
+    [gap] = coverage_report([("GET", "/api/health")], answered, excluded={}).gaps
+
+    assert gap.startswith("empty GET /api/health services:")
 
 
 def test_empty_gap_ignores_probe_bodies() -> None:
@@ -121,6 +140,6 @@ def test_coverage_report_summarizes_covered_and_excluded() -> None:
     assert report.gaps == []
     assert report.summary == [
         "routes reached by a success request: 2 of 3 covered, 1 excluded",
-        "reached routes with a populated body: 1 of 2 covered, 1 excluded",
+        "body parts and list fields populated: 1 of 2 covered, 1 excluded",
         f"problem codes answered: {len(ProblemCode) - 1} of {len(ProblemCode)} covered, 1 excluded",
     ]

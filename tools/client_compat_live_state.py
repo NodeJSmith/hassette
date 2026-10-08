@@ -14,10 +14,11 @@ import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, NamedTuple
 from unittest.mock import AsyncMock, MagicMock
 
-from hassette_wire import AppStatus, ExecutionStatus, ResourceStatus, StackFrame
+from hassette_wire import AppStatus, ExecutionStatus, ResourceRole, ResourceStatus, StackFrame
 from seed_scenarios.base import MONKEYPATCH_TIER, REASON_ATTRIBUTED, WATCHDOG_TIER, SeedContext, make_instance_name
 
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError, TelemetryUnavailableError
@@ -46,6 +47,47 @@ APP_KEY_UNREADABLE_APP = "unreadable_app"
 OUTSIDE_APP_DIR = Path("/etc/hostname")
 """Where :data:`APP_KEY_ESCAPING_APP`'s source path resolves. Any absolute path outside the app directory makes
 the source route's traversal check fire; the route refuses before reading, so the file is never opened."""
+
+MANIFEST_SEED_FIELDS = (
+    "app_key",
+    "class_name",
+    "display_name",
+    "filename",
+    "enabled",
+    "autostart",
+    "auto_loaded",
+)
+"""The ``AppManifestInfo`` fields :func:`seed_live_state` copies into ``SeedContext.add_app_manifest``.
+
+Spelled as names rather than as keyword arguments because the same seven keyword arguments already appear in
+``AppRegistry`` and the e2e manifest fixtures, and the duplicate-code gate rejects a third copy."""
+
+SERVICE_CHILDREN = (
+    SimpleNamespace(
+        class_name="WebsocketService",
+        status=ResourceStatus.RUNNING,
+        role=ResourceRole.SERVICE,
+        _ready_reason="connected",
+        _retry_at=None,
+    ),
+    SimpleNamespace(
+        class_name="DatabaseService",
+        status=ResourceStatus.FAILED,
+        role=ResourceRole.SERVICE,
+        _ready_reason=None,
+        _retry_at=1_760_000_000.0,  # epoch seconds
+    ),
+    SimpleNamespace(
+        class_name="StateProxy",
+        status=ResourceStatus.STARTING,
+        role=ResourceRole.RESOURCE,
+        _ready_reason=None,
+        _retry_at=None,
+    ),
+)
+"""The stub's framework children, which ``/api/health`` lists as services: a ready service, a failed one
+waiting to retry, and a starting resource, so every ``ServiceInfo`` field is set somewhere. They carry only the
+attributes ``RuntimeQueryService.get_system_status`` reads."""
 
 FAILED_RUN_TRACEBACK = (
     'Traceback (most recent call last):\n  File "/config/apps/handler.py", line 42, in on_change\n'
@@ -185,6 +227,22 @@ def wire_app_outcomes(hassette: MagicMock, manifests: Iterable[AppManifestInfo])
     wire_failed_instances(hassette, by_key)
     wire_multi_app_config(hassette, by_key[APP_KEY_MULTI_APP])
     wire_source_paths(hassette)
+    wire_framework_services(hassette)
+    wire_app_filter(hassette, by_key)
+
+
+def wire_framework_services(hassette: MagicMock) -> None:
+    """Give the stub :data:`SERVICE_CHILDREN` as its children, which ``/api/health`` lists as services."""
+    hassette.children = list(SERVICE_CHILDREN)
+
+
+def wire_app_filter(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo]) -> None:
+    """Set the ``--app`` filter that :data:`APP_KEY_BLOCKED_APP`'s ``ONLY_APP`` block reason implies.
+
+    The filter is an allowlist, so it names every other live app. ``/api/apps`` reports it as ``only_apps``;
+    the app's refusal to start is wired separately, by :func:`refuse_blocked_apps`.
+    """
+    hassette._app_handler.registry.only_apps = frozenset(by_key) - {APP_KEY_BLOCKED_APP}
 
 
 def refuse_blocked_apps(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo]) -> None:
@@ -258,15 +316,7 @@ def seed_live_state(db_path: Path, manifests: Iterable[AppManifestInfo]) -> None
         ctx = SeedContext(conn.cursor())
         conn.execute("BEGIN")
         for manifest in manifests:
-            ctx.add_app_manifest(
-                app_key=manifest.app_key,
-                class_name=manifest.class_name,
-                display_name=manifest.display_name,
-                filename=manifest.filename,
-                enabled=manifest.enabled,
-                autostart=manifest.autostart,
-                auto_loaded=manifest.auto_loaded,
-            )
+            ctx.add_app_manifest(**{field: getattr(manifest, field) for field in MANIFEST_SEED_FIELDS})
         seed_failed_execution(ctx, conn, base)
         conn.execute("COMMIT")
     finally:
