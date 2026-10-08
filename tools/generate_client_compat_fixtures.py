@@ -3,7 +3,8 @@
 Each seed scenario (``scripts/seed_db.py``) is served by HEAD's real FastAPI app over a stub
 ``Hassette``: telemetry comes from the seeded database through a real ``TelemetryQueryService``, and
 live state (apps, scheduler, config) from the e2e mock fixtures. Every JSON route is requested at
-least once, plus a set of problem requests, each checked for its ``ProblemCode``.
+least once, plus a set of problem requests, each checked for its ``ProblemCode``, and the probe routes
+(readiness, telemetry status) in their 503 state, whose body is the route's own status model.
 
 Each fixture records the response body and the type the *latest release* declares for that route in
 its ``openapi.json``. hassette-client's tests require each method to parse its route's declared
@@ -102,6 +103,14 @@ class FixtureRequest:
     body: Mapping[str, Any] | None = None
     problem_code: ProblemCode | None = None
     """The code a problem request must answer with; ``None`` for a success request."""
+    status_body_503: bool = False
+    """The request must answer 503 with the route's own status model rather than a problem body: the probe
+    routes (readiness, telemetry status) do this, and the released client parses that body as data.
+    Mutually exclusive with ``problem_code``."""
+
+    def __post_init__(self) -> None:
+        if self.status_body_503 and self.problem_code is not None:
+            raise ValueError(f"{self.name}: a request is either a problem or a status-body-503 request, not both")
 
     @property
     def path(self) -> str:
@@ -190,6 +199,16 @@ TELEMETRY_UNAVAILABLE_REQUEST = FixtureRequest(
     problem_code=ProblemCode.TELEMETRY_UNAVAILABLE,
 )
 """Sent after the database connection is closed, which is what makes telemetry unavailable."""
+
+TELEMETRY_STATUS_UNAVAILABLE_REQUEST = FixtureRequest(
+    "telemetry-status-unavailable", "GET", "/api/telemetry/status", status_body_503=True
+)
+"""Sent after the database connection is closed, like :data:`TELEMETRY_UNAVAILABLE_REQUEST`."""
+
+HEALTH_READY_UNAVAILABLE_REQUEST = FixtureRequest(
+    "health-ready-unavailable", "GET", "/api/health/ready", status_body_503=True
+)
+"""Sent to an app whose bootstrap was never released, so the system status isn't ``ok``."""
 
 
 def success_requests(ids: SeedIds) -> list[FixtureRequest]:
@@ -298,8 +317,13 @@ def head_json_routes() -> set[tuple[str, str]]:
 
 
 def uncovered_routes(routes: Iterable[tuple[str, str]], requests: Iterable[FixtureRequest]) -> list[str]:
-    """The routes no success request reaches and :data:`EXCLUDED_ROUTES` doesn't name."""
-    accounted = {(r.method, r.route) for r in requests if r.problem_code is None} | EXCLUDED_ROUTES.keys()
+    """The routes no success request reaches and :data:`EXCLUDED_ROUTES` doesn't name.
+
+    Problem and status-body-503 requests don't count: they exercise a route's failure, not its success.
+    """
+    accounted = {
+        (r.method, r.route) for r in requests if r.problem_code is None and not r.status_body_503
+    } | EXCLUDED_ROUTES.keys()
     return sorted(f"{method} {path}" for method, path in routes if (method, path) not in accounted)
 
 
@@ -322,14 +346,21 @@ def first_value(conn: sqlite3.Connection, query: str) -> Any:
     return row[0] if row else None
 
 
-def build_app(read_db: aiosqlite.Connection) -> Any:
+def build_app(read_db: aiosqlite.Connection, *, bootstrap_released: bool = True) -> Any:
     """HEAD's FastAPI app over a stub ``Hassette`` whose telemetry reads ``read_db``.
+
+    ``bootstrap_released=False`` leaves the system status short of ``ok``, so ``/api/health/ready`` answers 503.
 
     The live-state wiring follows ``build_mock_hassette`` in ``tests/e2e/conftest.py``, minus its mocked
     telemetry; compare against it when a route starts failing here.
     """
     manifests = build_manifests()
-    hassette = create_hassette_stub(manifests=manifests, scheduler_jobs=build_scheduler_jobs(), app_action_mocks=True)
+    hassette = create_hassette_stub(
+        manifests=manifests,
+        scheduler_jobs=build_scheduler_jobs(),
+        app_action_mocks=True,
+        bootstrap_released=bootstrap_released,
+    )
     create_mock_runtime_query_service(hassette)
     wire_app_manifest_lookups(hassette, manifests)
     wire_config(hassette)
@@ -344,12 +375,25 @@ def check_response(scenario: str, request: FixtureRequest, response: Response) -
     """Raise if ``response`` isn't what ``request`` expects.
 
     Raises:
-        RuntimeError: A success request didn't answer 2xx JSON, or a problem request didn't answer
-            its code's status with a problem body carrying that code. The generator, not the
-            released client, is broken.
+        RuntimeError: A success request didn't answer 2xx JSON, a status-body-503 request didn't
+            answer 503 with a plain JSON status body, or a problem request didn't answer its code's
+            status with a problem body carrying that code. The generator, not the released client,
+            is broken.
     """
     where = f"{scenario}: {request.method} {request.path} answered {response.status_code}"
     content_type = response.headers.get("content-type", "")
+    if request.status_body_503:
+        # A status model has no ``code``; a problem body always does.
+        if (
+            response.status_code != 503
+            or not content_type.startswith("application/json")
+            or not isinstance(body := response.json(), dict)
+            or "code" in body
+        ):
+            raise RuntimeError(
+                f"{where} ({content_type}), expected a 503 application/json status body: {response.text[:500]}"
+            )
+        return
     if request.problem_code is None:
         if not response.is_success or not content_type.startswith("application/json"):
             raise RuntimeError(f"{where} ({content_type}), expected a 2xx JSON body: {response.text[:500]}")
@@ -362,23 +406,44 @@ def check_response(scenario: str, request: FixtureRequest, response: Response) -
         )
 
 
+async def send(client: AsyncClient, request: FixtureRequest) -> tuple[FixtureRequest, Response]:
+    """Send ``request`` and pair it with its response."""
+    response = await client.request(request.method, request.path, params=request.query, json=request.body)
+    return request, response
+
+
 async def serve_scenario(
     db_path: Path, requests: Iterable[FixtureRequest], *, with_problems: bool
 ) -> list[tuple[FixtureRequest, Response]]:
-    """Send ``requests`` (and the problem requests, if ``with_problems``) to an app over ``db_path``."""
+    """Send ``requests`` to an app over ``db_path``, plus the failure-path requests if ``with_problems``."""
     read_db = await aiosqlite.connect(f"file:{db_path}?mode=ro", uri=True)
-    read_db.row_factory = aiosqlite.Row
-    async with AsyncClient(transport=ASGITransport(app=build_app(read_db)), base_url="http://hassette") as client:
-        try:
-            exchanges = [
-                (request, await client.request(request.method, request.path, params=request.query, json=request.body))
-                for request in [*requests, *(PROBLEM_REQUESTS if with_problems else [])]
-            ]
-        finally:
-            await read_db.close()
-        if with_problems:
-            unavailable = TELEMETRY_UNAVAILABLE_REQUEST
-            exchanges.append((unavailable, await client.request(unavailable.method, unavailable.path)))
+    try:
+        read_db.row_factory = aiosqlite.Row
+        async with AsyncClient(transport=ASGITransport(app=build_app(read_db)), base_url="http://hassette") as client:
+            exchanges = [await send(client, request) for request in requests]
+            if with_problems:
+                exchanges += await serve_failure_paths(client, read_db)
+    finally:
+        # Closing twice is safe: aiosqlite's close() is a no-op on a closed connection.
+        await read_db.close()
+    return exchanges
+
+
+async def serve_failure_paths(
+    client: AsyncClient, read_db: aiosqlite.Connection
+) -> list[tuple[FixtureRequest, Response]]:
+    """Send the problem requests and the 503 probe requests.
+
+    Closes ``read_db`` partway: the telemetry requests sent after the close are the ones that need
+    telemetry unavailable, so the order here is load-bearing.
+    """
+    exchanges = [await send(client, request) for request in PROBLEM_REQUESTS]
+    not_ready_app = build_app(read_db, bootstrap_released=False)
+    async with AsyncClient(transport=ASGITransport(app=not_ready_app), base_url="http://hassette") as not_ready:
+        exchanges.append(await send(not_ready, HEALTH_READY_UNAVAILABLE_REQUEST))
+    await read_db.close()
+    exchanges.append(await send(client, TELEMETRY_UNAVAILABLE_REQUEST))
+    exchanges.append(await send(client, TELEMETRY_STATUS_UNAVAILABLE_REQUEST))
     return exchanges
 
 
@@ -387,7 +452,7 @@ async def generate(
 ) -> Generated:
     """Seed and serve each scenario, and pair each response with the type the release declares for it.
 
-    The problem requests go to the first scenario only.
+    The problem and status-body-503 requests go to the first scenario only.
 
     Raises:
         RuntimeError: A response isn't what its request expects, or a JSON route HEAD or the release

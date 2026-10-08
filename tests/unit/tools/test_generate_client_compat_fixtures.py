@@ -11,9 +11,11 @@ from pathlib import Path
 import pytest
 from generate_client_compat_fixtures import (
     EXCLUDED_ROUTES,
+    HEALTH_READY_UNAVAILABLE_REQUEST,
     PROBLEM_REQUESTS,
     PROBLEM_TYPE_SPEC,
     RELEASE_FILE,
+    TELEMETRY_STATUS_UNAVAILABLE_REQUEST,
     TELEMETRY_UNAVAILABLE_REQUEST,
     FixtureRequest,
     Generated,
@@ -91,14 +93,20 @@ def test_success_requests_skip_routes_missing_their_seed_id() -> None:
     assert "/api/health" in without_ids
 
 
-def test_uncovered_routes_ignores_excluded_and_problem_requests() -> None:
-    routes = [("GET", "/api/a"), ("GET", "/api/b"), *EXCLUDED_ROUTES]
+def test_uncovered_routes_counts_only_success_requests() -> None:
+    routes = [("GET", "/api/a"), ("GET", "/api/b"), ("GET", "/api/c"), *EXCLUDED_ROUTES]
     requests = [
         FixtureRequest("a", "GET", "/api/a"),
         FixtureRequest("b", "GET", "/api/b", problem_code=ProblemCode.NOT_FOUND),
+        FixtureRequest("c", "GET", "/api/c", status_body_503=True),
     ]
 
-    assert uncovered_routes(routes, requests) == ["GET /api/b"]
+    assert uncovered_routes(routes, requests) == ["GET /api/b", "GET /api/c"]
+
+
+def test_a_request_cannot_be_both_a_problem_and_a_probe() -> None:
+    with pytest.raises(ValueError, match="not both"):
+        FixtureRequest("x", "GET", "/api/x", problem_code=ProblemCode.NOT_FOUND, status_body_503=True)
 
 
 def problem_response(status: int, code: str) -> Response:
@@ -121,6 +129,25 @@ def test_check_response_rejects_the_wrong_problem(response: Response) -> None:
         check_response("healthy", request, response)
 
 
+def test_check_response_accepts_a_503_json_status_body_for_a_probe() -> None:
+    response = Response(503, json={"ready": False}, headers={"content-type": "application/json"})
+
+    check_response("healthy", HEALTH_READY_UNAVAILABLE_REQUEST, response)
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        Response(200, json={"ready": True}, headers={"content-type": "application/json"}),
+        problem_response(503, "telemetry_unavailable"),
+        Response(503, json={"code": "telemetry_unavailable"}, headers={"content-type": "application/json"}),
+    ],
+)
+def test_check_response_rejects_a_non_status_body_for_a_probe(response: Response) -> None:
+    with pytest.raises(RuntimeError, match="expected a 503 application/json status body"):
+        check_response("healthy", TELEMETRY_STATUS_UNAVAILABLE_REQUEST, response)
+
+
 async def test_generate_types_every_response_by_the_release_spec(
     tmp_path: Path, head_types: dict[tuple[str, str], object]
 ) -> None:
@@ -131,6 +158,13 @@ async def test_generate_types_every_response_by_the_release_spec(
     for request in [*PROBLEM_REQUESTS, TELEMETRY_UNAVAILABLE_REQUEST]:
         assert by_name[request.name].response_type == PROBLEM_TYPE_SPEC
         assert json.loads(by_name[request.name].body)["code"] == request.problem_code
+    healthy_counterpart = {
+        HEALTH_READY_UNAVAILABLE_REQUEST.name: "health-ready",
+        TELEMETRY_STATUS_UNAVAILABLE_REQUEST.name: "telemetry-status",
+    }
+    for name, healthy_name in healthy_counterpart.items():
+        assert by_name[name].status == 503
+        assert by_name[name].response_type == by_name[healthy_name].response_type
     app = by_name["app"]
     assert app.response_type == "AppSummary"
     assert AppSummary.model_validate_json(app.body).app_key == app.request.params["app_key"]
