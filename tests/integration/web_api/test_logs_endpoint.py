@@ -81,20 +81,14 @@ class TestLogsEndpoints:
         response = await client.get(f"{LOGS_RECENT_PATH}?execution_id=abc-123")
         assert response.status_code == 200
 
+    @pytest.mark.parametrize("tier", ["app", "framework", "all"])
     async def test_get_logs_recent_accepts_source_tier_param(
-        self, client: "AsyncClient", mock_hassette: MagicMock
+        self, client: "AsyncClient", mock_hassette: MagicMock, tier: str
     ) -> None:
         mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
-        response = await client.get(f"{LOGS_RECENT_PATH}?source_tier=app")
+        response = await client.get(f"{LOGS_RECENT_PATH}?source_tier={tier}")
         assert response.status_code == 200
-
-    async def test_get_logs_recent_accepts_source_tier_all(
-        self, client: "AsyncClient", mock_hassette: MagicMock
-    ) -> None:
-        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
-        response = await client.get(f"{LOGS_RECENT_PATH}?source_tier=all")
-        assert response.status_code == 200
-        assert mock_hassette.telemetry_query_service.get_log_records.await_args.kwargs["source_tier"] == "all"
+        assert mock_hassette.telemetry_query_service.get_log_records.await_args.kwargs["source_tier"] == tier
 
     async def test_get_logs_recent_defaults_to_all_tiers(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
         mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
