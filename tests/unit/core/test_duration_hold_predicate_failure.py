@@ -35,6 +35,13 @@ async def on_error(_ctx: BusErrorContext) -> None:
     pass
 
 
+def make_registered_listener(db_id: int, **kwargs: object) -> Listener:
+    """Listener on ``TOPIC``/``ENTITY_ID`` with a DB id, so telemetry records can be attributed."""
+    listener = create_listener(topic=TOPIC, entity_id=ENTITY_ID, **kwargs)
+    listener.mark_registered(db_id)
+    return listener
+
+
 def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> None:
     svc._executor.enqueue_record.assert_called_once()
     record = svc._executor.enqueue_record.call_args[0][0]
@@ -57,14 +64,7 @@ def assert_error_recorded_and_routed(svc: BusService, listener: Listener) -> Non
 
 async def test_raising_hold_predicate_on_duration_fire_is_recorded_and_routed() -> None:
     svc = make_service_with_state()
-    listener = create_listener(
-        topic=TOPIC,
-        entity_id=ENTITY_ID,
-        duration=60.0,
-        hold_predicate=raising_predicate,
-        error_handler=on_error,
-    )
-    listener.mark_registered(11)
+    listener = make_registered_listener(11, duration=60.0, hold_predicate=raising_predicate, error_handler=on_error)
     assert listener.duration_config is not None
     mock_timer = MagicMock()
     listener.duration_config._timer = mock_timer
@@ -79,14 +79,7 @@ async def test_raising_hold_predicate_on_duration_fire_is_recorded_and_routed() 
 
 async def test_raising_predicate_on_immediate_fire_is_recorded_and_routed() -> None:
     svc = make_service_with_state()
-    listener = create_listener(
-        topic=TOPIC,
-        entity_id=ENTITY_ID,
-        immediate=True,
-        where=raising_predicate,
-        error_handler=on_error,
-    )
-    listener.mark_registered(12)
+    listener = make_registered_listener(12, immediate=True, where=raising_predicate, error_handler=on_error)
 
     await svc._duration_hold.immediate_fire_task(listener)
     await asyncio.sleep(0)
@@ -96,14 +89,9 @@ async def test_raising_predicate_on_immediate_fire_is_recorded_and_routed() -> N
 
 async def test_raising_predicate_on_immediate_fire_routes_to_app_level_handler() -> None:
     svc = make_service_with_state()
-    listener = create_listener(
-        topic=TOPIC,
-        entity_id=ENTITY_ID,
-        immediate=True,
-        where=raising_predicate,
-        app_error_handler_resolver=lambda: on_error,
+    listener = make_registered_listener(
+        13, immediate=True, where=raising_predicate, app_error_handler_resolver=lambda: on_error
     )
-    listener.mark_registered(13)
 
     await svc._duration_hold.immediate_fire_task(listener)
     await asyncio.sleep(0)
