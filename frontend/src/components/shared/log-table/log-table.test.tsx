@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { LogEntry } from "@/api/endpoints";
 import { createLogEntry } from "@/test/factories";
 
+import * as constants from "./constants";
 import { ALL_LEVELS, getLogLevelStyle, LEVEL_INDEX, LEVEL_OPTIONS, LEVELS, resolveSortKey } from "./constants";
 import { rowKey } from "./types";
 import { sortEntries } from "./use-log-filters";
@@ -106,41 +107,37 @@ describe("resolveSortKey", () => {
 
 describe("rowKey", () => {
   it("uses timestamp-seq when seq is present", () => {
-    const e = { seq: 42, timestamp: 1000, logger_name: "test", lineno: 10 };
-    expect(rowKey(e)).toBe("1000-42");
+    const input = { seq: 42, timestamp: 1000, logger_name: "test", lineno: 10 };
+    expect(rowKey(input)).toBe("1000-42");
   });
 
   it("uses timestamp-seq-logger-lineno when seq is the 0 fallback marker", () => {
-    const e = { seq: 0, timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 };
-    expect(rowKey(e)).toBe("1000-0-hassette.apps.my_app-55");
+    const input = { seq: 0, timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 };
+    expect(rowKey(input)).toBe("1000-0-hassette.apps.my_app-55");
   });
 
   it("falls back to timestamp-logger-lineno only when seq is genuinely absent", () => {
-    const e = { timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 };
-    expect(rowKey(e)).toBe("1000-hassette.apps.my_app-55");
+    const input = { timestamp: 1000, logger_name: "hassette.apps.my_app", lineno: 55 };
+    expect(rowKey(input)).toBe("1000-hassette.apps.my_app-55");
   });
 
   it("gives two seq-0 records with different logger/lineno distinct keys", () => {
-    const a = entry({ seq: 0, timestamp: 1000, logger_name: "third_party_a", lineno: 42 });
-    const b = entry({ seq: 0, timestamp: 1000, logger_name: "third_party_b", lineno: 99 });
+    const a = { seq: 0, timestamp: 1000, logger_name: "third_party_a", lineno: 42 };
+    const b = { seq: 0, timestamp: 1000, logger_name: "third_party_b", lineno: 99 };
     expect(rowKey(a)).not.toBe(rowKey(b));
   });
 
   it("documents that two fully-identical seq-0 records still collide", () => {
-    // Same timestamp, logger, and line, both carrying the unstamped seq-0 fallback —
-    // rowKey has no remaining field to discriminate on. Accepted as an extremely rare
-    // edge case rather than a silent regression: it's a documented, deliberate limit.
-    const a = entry({ seq: 0, timestamp: 1000, logger_name: "third_party", lineno: 42 });
-    const b = entry({ seq: 0, timestamp: 1000, logger_name: "third_party", lineno: 42 });
+    // rowKey has no field left to discriminate on once timestamp, logger, and lineno all match.
+    const a = { seq: 0, timestamp: 1000, logger_name: "third_party", lineno: 42 };
+    const b = { seq: 0, timestamp: 1000, logger_name: "third_party", lineno: 42 };
     expect(rowKey(a)).toBe(rowKey(b));
   });
 });
 
 describe("getLogLevelStyle", () => {
-  it("is the only exported log-level style resolver", async () => {
-    const constantsModule = await import("./constants");
-
-    expect(Object.keys(constantsModule)).not.toContain("levelClass");
+  it("is the only exported log-level style resolver", () => {
+    expect(Object.keys(constants)).not.toContain("levelClass");
   });
 
   it("returns the matching shared style object for a known level", () => {
