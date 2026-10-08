@@ -1,6 +1,7 @@
 """Request mechanics: session ownership, auth header, timeouts, redirects, query and path encoding."""
 
 import json
+import math
 
 import aiohttp
 import pytest
@@ -57,8 +58,8 @@ async def test_empty_token_still_sends_an_authorization_header(
     assert server.requests[0].headers["Authorization"] == "Bearer "
 
 
-@pytest.mark.parametrize("request_timeout", [0, -1.0])
-def test_non_positive_request_timeout_raises_value_error(
+@pytest.mark.parametrize("request_timeout", [0, -1.0, math.nan, math.inf])
+def test_unusable_request_timeout_raises_value_error(
     session: aiohttp.ClientSession, server: FakeServer, request_timeout: float
 ) -> None:
     with pytest.raises(ValueError, match="request_timeout"):
