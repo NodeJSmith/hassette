@@ -8,7 +8,7 @@ import typing
 from collections.abc import Awaitable, Callable
 from contextvars import Token
 from dataclasses import asdict, dataclass, fields
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import structlog.contextvars
 import uuid_utils
@@ -45,7 +45,7 @@ _TIMEOUT_WARN_SUPPRESS_SECS = 60.0
 _TIMEOUT_WARN_CACHE_MAX = 1000
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class ExecutionContext:
     """Correlation fields identifying one handler or job execution.
 
@@ -53,14 +53,21 @@ class ExecutionContext:
     ``CommandExecutor.bind_execution_context``, which binds every field as a structlog
     contextvar. A new correlation field is added here and bound there; callers that don't
     set it are unaffected. ``unbind_execution_context`` unbinds every field by name.
+
+    An empty ``app_key`` is normalized to ``None`` on construction, so every consumer sees
+    the same value.
     """
 
     app_key: str | None
     instance_index: int
     instance_name: str | None
-    execution_kind: str | None = None
+    execution_kind: Literal["handler", "job"] | None = None
     listener_id: int | None = None
     job_id: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.app_key:
+            object.__setattr__(self, "app_key", None)
 
 
 @dataclass(frozen=True)
@@ -432,8 +439,7 @@ class CommandExecutor(Service):
         """Set CURRENT_EXECUTION_ID and bind structlog context vars for the duration of an execution."""
         execution_id = str(uuid_utils.uuid7())
         token = CURRENT_EXECUTION_ID.set(execution_id)
-        resolved_app_key = context.app_key or None
-        structlog.contextvars.bind_contextvars(**asdict(context) | {"app_key": resolved_app_key})
+        structlog.contextvars.bind_contextvars(**asdict(context))
         # Capture the owning task identity so a cross-thread reader can confirm this marker
         # names the task actually frozen on the loop, not a displaced one. This runs inside an
         # execute_handler/execute_job task in production; guard the no-running-loop case so a
@@ -445,7 +451,7 @@ class CommandExecutor(Service):
         # Publish the thread-visible marker last, as a single atomic assignment, so the off-loop
         # watchdog reads a fully-formed snapshot of the execution now holding the loop thread.
         self.current_execution = ExecutionMarker(
-            app_key=resolved_app_key,
+            app_key=context.app_key,
             instance_name=context.instance_name,
             execution_id=execution_id,
             started_at=time.monotonic(),
