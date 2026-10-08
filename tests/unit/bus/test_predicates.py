@@ -13,8 +13,13 @@ from types import SimpleNamespace
 
 from hassette import A, P
 from hassette.const import MISSING_VALUE, NOT_PROVIDED
-from hassette.event_handling.accessors import get_state_value_new, get_state_value_old, get_state_value_old_new
-from hassette.event_handling.conditions import Comparison, Increased, IsIn
+from hassette.event_handling.accessors import (
+    get_entity_id,
+    get_state_value_new,
+    get_state_value_old,
+    get_state_value_old_new,
+)
+from hassette.event_handling.conditions import Comparison, Glob, Increased, IsIn
 from hassette.event_handling.predicates import (
     AllOf,
     AnyOf,
@@ -486,6 +491,12 @@ def test_predicate_summarize_golden_value_is_callable() -> None:
     """ValueIs with callable condition — exact format: 'custom condition from <source>'."""
     pred = ValueIs(source=get_state_value_new, condition=lambda v: v > 50)
     assert pred.summarize() == "custom condition from get_state_value_new"
+
+
+def test_predicate_summarize_golden_value_is_condition_object() -> None:
+    """ValueIs with a condition object — uses the condition's own summary."""
+    pred = ValueIs(source=get_entity_id, condition=Glob("light.*"))
+    assert pred.summarize() == "value matches light.* from get_entity_id"
 
 
 def test_predicate_summarize_golden_guard() -> None:
