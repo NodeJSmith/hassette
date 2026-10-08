@@ -56,6 +56,22 @@ triggered handlers to complete before returning.
     awaited` in the pytest output is the tell (see
     [Async Basics](../migration/async-basics.md) for the underlying cause).
 
+Each `simulate_*` method also returns the event it sent, typed to match:
+`simulate_state_change()` returns a `RawStateChangeEvent`,
+`simulate_call_service()` a `CallServiceEvent`, and so on. Convenience
+methods like `simulate_hassette_service_ready()` return the event they
+dispatched on your behalf. Existing tests that ignore the return value keep
+working unchanged.
+
+Most tests don't need the returned event. Assert on what the app did, such as
+service calls via `api_recorder` or state it stored. The event is useful when
+you need to tie a result back to the exact event that caused it, for example
+by matching its context ID:
+
+```python
+--8<-- "pages/testing/snippets/testing_simulate_return_event.py"
+```
+
 ### State Changes
 
 `simulate_state_change()` publishes a `state_changed` event and drains all

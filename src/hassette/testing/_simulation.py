@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from hassette_wire import ResourceRole, ResourceStatus
 
-from hassette.events import ComponentLoadedEvent, ServiceRegisteredEvent
+from hassette.events import CallServiceEvent, ComponentLoadedEvent, RawStateChangeEvent, ServiceRegisteredEvent
 from hassette.events.hassette import HassetteAppStateEvent, HassetteServiceEvent, HassetteSimpleEvent
 from hassette.testing._factories import (
     create_call_service_event,
@@ -108,7 +108,7 @@ class SimulationMixin:
         old_attrs: dict | None = None,
         new_attrs: dict | None = None,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> RawStateChangeEvent:
         """Create a state change event and send it through the bus.
 
         Waits for all triggered handlers to complete by polling the task bucket
@@ -128,6 +128,9 @@ class SimulationMixin:
             new_attrs: New attributes dict. If ``None``, uses attributes
                 from the StateProxy (seeded via :meth:`set_state`).
             timeout: Maximum seconds to wait for handlers to complete.
+
+        Returns:
+            The dispatched ``RawStateChangeEvent``, returned after handlers have drained.
 
         Raises:
             DrainError: If any handler raised an exception.
@@ -157,6 +160,7 @@ class SimulationMixin:
         )
         await harness.hassette.send_event(event)
         await self.drain_task_bucket(timeout=timeout)
+        return event
 
     async def simulate_attribute_change(
         self,
@@ -167,7 +171,7 @@ class SimulationMixin:
         new_value: Any,
         state: str | None = None,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> RawStateChangeEvent:
         """Create an attribute change event and send it through the bus.
 
         Delegates to :meth:`simulate_state_change` with the same old/new state
@@ -185,6 +189,9 @@ class SimulationMixin:
             new_value: New attribute value.
             state: Explicit state value; if omitted, uses cached value or ``"unknown"``.
             timeout: Maximum seconds to wait for handlers to complete.
+
+        Returns:
+            The dispatched ``RawStateChangeEvent``, returned after handlers have drained.
 
         Raises:
             DrainError: If any handler raised an exception.
@@ -207,7 +214,7 @@ class SimulationMixin:
 
         current_state = state if state is not None else proxy_state
 
-        await self.simulate_state_change(
+        return await self.simulate_state_change(
             entity_id,
             old_value=current_state,
             new_value=current_state,
@@ -223,7 +230,7 @@ class SimulationMixin:
         *,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
         **data: Any,
-    ) -> None:
+    ) -> CallServiceEvent:
         """Create a call_service event and send it through the bus.
 
         Args:
@@ -231,6 +238,9 @@ class SimulationMixin:
             service: Service name (e.g., "turn_on").
             timeout: Maximum seconds to wait for handlers to complete.
             **data: Service call data.
+
+        Returns:
+            The dispatched ``CallServiceEvent``, returned after handlers have drained.
 
         Raises:
             DrainError: If any handler raised an exception.
@@ -242,17 +252,21 @@ class SimulationMixin:
         event = create_call_service_event(domain=domain, service=service, service_data=data)
         await harness.hassette.send_event(event)
         await self.drain_task_bucket(timeout=timeout)
+        return event
 
     async def simulate_component_loaded(
         self,
         component: str,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> ComponentLoadedEvent:
         """Create a component_loaded event and send it through the bus.
 
         Args:
             component: The component name (e.g., "mqtt", "zwave").
             timeout: Maximum seconds to wait for handlers to complete.
+
+        Returns:
+            The dispatched ``ComponentLoadedEvent``, returned after handlers have drained.
 
         Raises:
             ValueError: If timeout is non-finite or negative.
@@ -265,19 +279,23 @@ class SimulationMixin:
         event = create_component_loaded_event(component)
         await harness.hassette.send_event(event)
         await self.drain_task_bucket(timeout=timeout)
+        return event
 
     async def simulate_service_registered(
         self,
         domain: str,
         service: str,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> ServiceRegisteredEvent:
         """Create a service_registered event and send it through the bus.
 
         Args:
             domain: Service domain (e.g., "light").
             service: Service name (e.g., "turn_on").
             timeout: Maximum seconds to wait for handlers to complete.
+
+        Returns:
+            The dispatched ``ServiceRegisteredEvent``, returned after handlers have drained.
 
         Raises:
             DrainError: If any handler task raised a non-cancellation exception.
@@ -289,6 +307,7 @@ class SimulationMixin:
         event = create_service_registered_event(domain, service)
         await harness.hassette.send_event(event)
         await self.drain_task_bucket(timeout=timeout)
+        return event
 
     async def simulate_hassette_service_status(
         self,
@@ -301,7 +320,7 @@ class SimulationMixin:
         ready: bool = False,
         ready_phase: str | None = None,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> HassetteServiceEvent:
         """Create a Hassette service status event and send it through the bus.
 
         Args:
@@ -313,6 +332,9 @@ class SimulationMixin:
             ready: Whether the service is ready. Defaults to ``False``.
             ready_phase: Human-readable description of the readiness phase, if any.
             timeout: Maximum seconds to wait for handlers to complete.
+
+        Returns:
+            The dispatched ``HassetteServiceEvent``, returned after handlers have drained.
 
         Raises:
             DrainError: If any handler raised an exception.
@@ -337,6 +359,7 @@ class SimulationMixin:
         )
         await harness.hassette.send_event(event)
         await self.drain_task_bucket(timeout=timeout)
+        return event
 
     async def simulate_hassette_service_ready(
         self,
@@ -344,7 +367,7 @@ class SimulationMixin:
         *,
         ready_phase: str | None = None,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> HassetteServiceEvent:
         """Convenience: simulate a service reaching RUNNING status with ready=True.
 
         Delegates to :meth:`simulate_hassette_service_status`.
@@ -354,11 +377,14 @@ class SimulationMixin:
             ready_phase: Human-readable description of the readiness phase, if any.
             timeout: Maximum seconds to wait for handlers to complete.
 
+        Returns:
+            The dispatched ``HassetteServiceEvent``, returned after handlers have drained.
+
         Raises:
             DrainError: If any handler raised an exception.
             DrainTimeout: If drain does not reach quiescence within ``timeout``.
         """
-        await self.simulate_hassette_service_status(
+        return await self.simulate_hassette_service_status(
             resource_name,
             ResourceStatus.RUNNING,
             ready=True,
@@ -372,12 +398,15 @@ class SimulationMixin:
         *,
         exception: Exception | None = None,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> HassetteServiceEvent:
         """Convenience: simulate a service reaching FAILED status.
 
         Delegates to :meth:`simulate_hassette_service_status`.
+
+        Returns:
+            The dispatched ``HassetteServiceEvent``, returned after handlers have drained.
         """
-        await self.simulate_hassette_service_status(
+        return await self.simulate_hassette_service_status(
             resource_name, ResourceStatus.FAILED, exception=exception, timeout=timeout
         )
 
@@ -387,12 +416,15 @@ class SimulationMixin:
         *,
         exception: Exception | None = None,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> HassetteServiceEvent:
         """Convenience: simulate a service reaching CRASHED status.
 
         Delegates to :meth:`simulate_hassette_service_status`.
+
+        Returns:
+            The dispatched ``HassetteServiceEvent``, returned after handlers have drained.
         """
-        await self.simulate_hassette_service_status(
+        return await self.simulate_hassette_service_status(
             resource_name, ResourceStatus.CRASHED, exception=exception, timeout=timeout
         )
 
@@ -401,17 +433,20 @@ class SimulationMixin:
         resource_name: str,
         *,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> HassetteServiceEvent:
         """Convenience: simulate a service reaching RUNNING status.
 
         Delegates to :meth:`simulate_hassette_service_status`.
+
+        Returns:
+            The dispatched ``HassetteServiceEvent``, returned after handlers have drained.
         """
-        await self.simulate_hassette_service_status(resource_name, ResourceStatus.RUNNING, timeout=timeout)
+        return await self.simulate_hassette_service_status(resource_name, ResourceStatus.RUNNING, timeout=timeout)
 
     async def simulate_websocket_connected(
         self,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> HassetteSimpleEvent:
         """Create a websocket connected event and send it through the bus.
 
         For a lighter-weight alternative that marks the service ready and records a
@@ -420,6 +455,9 @@ class SimulationMixin:
 
         Args:
             timeout: Maximum seconds to wait for handlers to complete.
+
+        Returns:
+            The dispatched ``HassetteSimpleEvent``, returned after handlers have drained.
 
         Raises:
             DrainError: If any handler raised an exception.
@@ -436,15 +474,19 @@ class SimulationMixin:
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
         await harness.hassette.send_event(event)
         await self.drain_task_bucket(timeout=timeout)
+        return event
 
     async def simulate_websocket_disconnected(
         self,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> HassetteSimpleEvent:
         """Create a websocket disconnected event and send it through the bus.
 
         Args:
             timeout: Maximum seconds to wait for handlers to complete.
+
+        Returns:
+            The dispatched ``HassetteSimpleEvent``, returned after handlers have drained.
 
         Raises:
             DrainError: If any handler raised an exception.
@@ -461,6 +503,7 @@ class SimulationMixin:
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         await harness.hassette.send_event(event)
         await self.drain_task_bucket(timeout=timeout)
+        return event
 
     async def simulate_app_state_changed(
         self,
@@ -469,7 +512,7 @@ class SimulationMixin:
         previous_status: ResourceStatus | None = None,
         exception: Exception | None = None,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> HassetteAppStateEvent:
         """Create an app state changed event and send it through the bus.
 
         Always emits for the harness's own app. For cross-app coordination tests,
@@ -481,6 +524,9 @@ class SimulationMixin:
             previous_status: The previous status, if known.
             exception: An exception associated with the status change, if any.
             timeout: Maximum seconds to wait for handlers to complete.
+
+        Returns:
+            The dispatched ``HassetteAppStateEvent``, returned after handlers have drained.
 
         Raises:
             DrainError: If any handler raised an exception.
@@ -505,58 +551,74 @@ class SimulationMixin:
         )
         await harness.hassette.send_event(event)
         await self.drain_task_bucket(timeout=timeout)
+        return event
 
     async def simulate_app_running(
         self,
         *,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> HassetteAppStateEvent:
         """Convenience: simulate the app reaching RUNNING status.
 
         Delegates to :meth:`simulate_app_state_changed`.
+
+        Returns:
+            The dispatched ``HassetteAppStateEvent``, returned after handlers have drained.
         """
-        await self.simulate_app_state_changed(ResourceStatus.RUNNING, timeout=timeout)
+        return await self.simulate_app_state_changed(ResourceStatus.RUNNING, timeout=timeout)
 
     async def simulate_app_stopping(
         self,
         *,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> HassetteAppStateEvent:
         """Convenience: simulate the app reaching STOPPING status.
 
         Delegates to :meth:`simulate_app_state_changed`.
+
+        Returns:
+            The dispatched ``HassetteAppStateEvent``, returned after handlers have drained.
         """
-        await self.simulate_app_state_changed(ResourceStatus.STOPPING, timeout=timeout)
+        return await self.simulate_app_state_changed(ResourceStatus.STOPPING, timeout=timeout)
 
     async def simulate_homeassistant_restart(
         self,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> CallServiceEvent:
         """Convenience: simulate a homeassistant restart call_service event.
 
         Delegates to :meth:`simulate_call_service`.
+
+        Returns:
+            The dispatched ``CallServiceEvent``, returned after handlers have drained.
         """
-        await self.simulate_call_service("homeassistant", "restart", timeout=timeout)
+        return await self.simulate_call_service("homeassistant", "restart", timeout=timeout)
 
     async def simulate_homeassistant_start(
         self,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> CallServiceEvent:
         """Convenience: simulate a homeassistant start call_service event.
 
         Delegates to :meth:`simulate_call_service`.
+
+        Returns:
+            The dispatched ``CallServiceEvent``, returned after handlers have drained.
         """
-        await self.simulate_call_service("homeassistant", "start", timeout=timeout)
+        return await self.simulate_call_service("homeassistant", "start", timeout=timeout)
 
     async def simulate_homeassistant_stop(
         self,
         timeout: float = DEFAULT_SIMULATE_TIMEOUT,
-    ) -> None:
+    ) -> CallServiceEvent:
         """Convenience: simulate a homeassistant stop call_service event.
 
         Delegates to :meth:`simulate_call_service`.
+
+        Returns:
+            The dispatched ``CallServiceEvent``, returned after handlers have drained.
         """
-        await self.simulate_call_service("homeassistant", "stop", timeout=timeout)
+        return await self.simulate_call_service("homeassistant", "stop", timeout=timeout)
 
     async def drain_task_bucket(self, *, timeout: float = DEFAULT_SIMULATE_TIMEOUT) -> None:
         """Wait until bus dispatch queue AND app task_bucket are jointly quiescent.
