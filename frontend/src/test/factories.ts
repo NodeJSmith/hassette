@@ -334,6 +334,7 @@ export function createSystemStatus(overrides: Partial<SystemStatusResponse> = {}
     app_count: 2,
     services: [],
     version: "1.0.0",
+    api_schema_version: 1,
     boot_issues: [],
     log_queue_drops: 0,
     db_write_queue_drops: 0,

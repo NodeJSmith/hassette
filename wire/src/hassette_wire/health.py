@@ -1,10 +1,17 @@
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.cli_format import CliFormat
 from hassette_wire.enums import OpenResourceRole, OpenResourceStatus
-from hassette_wire.literals import OpenBootIssueSeverity, OpenSystemHealthStatus
+from hassette_wire.literals import OpenBootIssueSeverity, OpenLivenessStatus, OpenSystemHealthStatus
+
+API_SCHEMA_VERSION = 1
+"""The API schema this server serves, reported as ``SystemStatusResponse.api_schema_version``.
+
+An integer, not a release version, so a build from main reports the API it actually serves. hassette-client
+compares it against its ``MIN_API_SCHEMA_VERSION``; see that constant for when to raise this one.
+"""
 
 
 class BootIssue(BaseModel):
@@ -43,6 +50,8 @@ class SystemStatusResponse(BaseModel):
     app_count: int
     services: Annotated[list[ServiceInfo], CliFormat("services")] = Field(default_factory=list)
     version: str = ""
+    api_schema_version: int = 0
+    """The server's ``API_SCHEMA_VERSION``; ``0`` from a server released before the schema existed."""
     boot_issues: list[BootIssue] = Field(default_factory=list)
     log_queue_drops: int = 0
     """Log records dropped because the log queue was full — tune ``logging.log_queue_max``."""
@@ -58,7 +67,7 @@ class SystemStatusResponse(BaseModel):
 class LivenessResponse(BaseModel):
     """Response model for GET /api/health/live."""
 
-    status: Literal["live"] = "live"
+    status: OpenLivenessStatus
 
 
 class ReadinessResponse(BaseModel):

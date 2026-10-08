@@ -69,6 +69,7 @@ from hassette_wire.enums import (
     ScheduleStatusReason,
 )
 from hassette_wire.health import (
+    API_SCHEMA_VERSION,
     BootIssue,
     LivenessResponse,
     ReadinessResponse,
@@ -79,6 +80,7 @@ from hassette_wire.lenient import LENIENT_CONTEXT, UnknownValue
 from hassette_wire.literals import (
     AppAction,
     ErrorRateClass,
+    ExecutionKind,
     HealthStatus,
     ListenerKind,
     LogLevel,
@@ -124,6 +126,7 @@ from hassette_wire.ws import (
 )
 
 __all__ = [
+    "API_SCHEMA_VERSION",
     "LENIENT_CONTEXT",
     "MAX_SESSION_TOKEN_LENGTH",
     "WINDOWED_ACTIVITY_PARTS",
@@ -165,6 +168,7 @@ __all__ = [
     "Execution",
     "ExecutionCompletedData",
     "ExecutionCompletedWsMessage",
+    "ExecutionKind",
     "ExecutionMode",
     "ExecutionStatus",
     "HealthStatus",

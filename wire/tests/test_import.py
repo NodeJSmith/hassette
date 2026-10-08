@@ -10,8 +10,17 @@ from open_alias_helpers import is_open_alias
 
 # Defined in a submodule but deliberately not exported: Open<TypeName> field aliases and the Literals
 # named only to back one are field-typing detail, not public vocabulary, and lenient.py's internals stay
-# private. The aliases themselves are recognized by their LenientValue marker.
-NOT_EXPORTED_NAMES = {"BootIssueSeverity", "ExecutionKind", "HandlerKind", "LenientValue", "LOGGER"}
+# private. CLOSED_VOCABULARIES is audit data for the wire and client tests, not vocabulary. The aliases
+# themselves are recognized by their LenientValue marker.
+NOT_EXPORTED_NAMES = {
+    "AcceptedStatus",
+    "BootIssueSeverity",
+    "CLOSED_VOCABULARIES",
+    "HandlerKind",
+    "LenientValue",
+    "LivenessStatus",
+    "LOGGER",
+}
 
 
 def is_exported_by_design(name: str, obj: object) -> bool:

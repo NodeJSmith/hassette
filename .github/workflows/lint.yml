@@ -48,6 +48,7 @@ jobs:
                         - 'mise.toml'
                         - 'tools/**'
                         - '.github/workflows/lint.yml'
+                        - '.github/actions/setup-oasdiff/**'
                       frontend:
                         - 'frontend/**'
                         - 'tools/**'
@@ -92,17 +93,8 @@ jobs:
                   path: ~/.cache/prek
                   key: prek-${{ runner.os }}-${{ hashFiles('prek.toml') }}
 
-            - name: Set up Go
-              uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-              with:
-                  go-version: "stable"
-                  cache: false
-
-            # Version also pinned in mise.toml ("github:oasdiff/oasdiff") for local pre-push runs.
-            - name: Install oasdiff
-              run: |
-                  go install github.com/oasdiff/oasdiff@v1.32.1
-                  echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+            - name: Set up oasdiff
+              uses: ./.github/actions/setup-oasdiff
 
             - name: Run lint checks
               run: |

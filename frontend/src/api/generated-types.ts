@@ -1771,7 +1771,6 @@ export interface components {
         LivenessResponse: {
             /**
              * Status
-             * @default live
              * @constant
              */
             status: "live";
@@ -2043,6 +2042,12 @@ export interface components {
              * @default
              */
             version: string;
+            /**
+             * Api Schema Version
+             * @description The server's ``API_SCHEMA_VERSION``; ``0`` from a server released before the schema existed.
+             * @default 0
+             */
+            api_schema_version: number;
             /** Boot Issues */
             boot_issues?: components["schemas"]["BootIssue"][];
             /**

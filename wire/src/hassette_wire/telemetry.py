@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict
 
@@ -14,6 +14,7 @@ from hassette_wire.enums import (
     OpenScheduleStatusReason,
 )
 from hassette_wire.literals import (
+    OpenAcceptedStatus,
     OpenErrorRateClass,
     OpenExecutionKind,
     OpenHealthStatus,
@@ -391,6 +392,6 @@ class JobTriggerResponse(BaseModel):
     asynchronously and is not previewed in this response.
     """
 
-    status: Literal["accepted"] = "accepted"
+    status: OpenAcceptedStatus = "accepted"
     job_id: int
     job_name: str

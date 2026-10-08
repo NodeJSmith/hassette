@@ -165,3 +165,7 @@ GET /api/apps removed the required property `running` from the response with the
 GET /api/apps/manifests api path removed without deprecation
 GET /api/apps/{app_key}/manifest api path removed without deprecation
 GET /api/telemetry/dashboard/app-grid api path removed without deprecation
+
+# #2386: LivenessResponse.status loses its default so an empty `{}` body is not read as live. Not a real
+# break: every server serializes the default, so the field was always present on the wire.
+GET /api/health/live the response property `status` became optional for the status `200`

@@ -1141,20 +1141,30 @@ name = "hassette-client"
 version = "0.55.0"
 source = { editable = "client" }
 dependencies = [
+    { name = "aiohttp" },
     { name = "hassette-wire" },
+    { name = "pydantic" },
 ]
 
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
+    { name = "pytest-asyncio" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "hassette-wire", editable = "wire" }]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.10" },
+    { name = "hassette-wire", editable = "wire" },
+    { name = "pydantic", specifier = ">=2.7" },
+]
 provides-extras = ["cli"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8.4.0" }]
+dev = [
+    { name = "pytest", specifier = ">=8.4.0" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+]
 
 [[package]]
 name = "hassette-codegen"

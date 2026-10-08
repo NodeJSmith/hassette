@@ -366,12 +366,6 @@ def test_listener_summary_from_target_falls_back_to_topic_last_segment():
 # LivenessResponse and ReadinessResponse
 
 
-def test_liveness_response_has_live_status():
-    """LivenessResponse.status defaults to 'live'."""
-    result = LivenessResponse()
-    assert result.status == "live"
-
-
 def test_liveness_response_status_field_is_literal_live():
     """LivenessResponse constructed with status='live' produces the correct body."""
     result = LivenessResponse(status="live")

@@ -86,7 +86,6 @@
           "apps"
         ],
         "summary": "Get Apps",
-        "description": "Return every persisted app, overlaid with live runtime state.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but\nno loaded manifest are still included.",
         "operationId": "get_apps_api_apps_get",
         "responses": {
           "200": {
@@ -94,35 +93,44 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppListResponse"
+                  "$ref": "#/components/schemas/AppStatusResponse"
                 }
               }
             }
-          },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            },
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ]
           }
         }
       }
     },
-    "/api/apps/{app_key}": {
+    "/api/apps/manifests": {
       "get": {
         "tags": [
           "apps"
         ],
-        "summary": "Get App",
-        "description": "Return a single persisted app, overlaid with live runtime state.\n\nQueries the ``app_manifests`` DB table directly instead of the in-memory registry, so an\napp with historical telemetry but no loaded manifest returns 200 instead of 404. A DB\nfailure answers ``telemetry_unavailable``; a genuinely unknown ``app_key`` answers\n``app_not_found``.",
-        "operationId": "get_app_api_apps__app_key__get",
+        "summary": "Get App Manifests",
+        "description": "Return every persisted app manifest, overlaid with live runtime state.\n\nThe app spine is queried from the ``app_manifests`` DB table (Category B \u2014 503 via\n``db_degrades_to`` on failure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``, so apps with historical telemetry but\nno loaded manifest are still included. The ``recent_invocations_1h`` enrichment query\nbelow stays Category C (independently caught, degrading to zero while the response\ncontinues at 200).",
+        "operationId": "get_app_manifests_api_apps_manifests_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppManifestListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/apps/{app_key}/manifest": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Get App Manifest",
+        "description": "Return the persisted manifest for a single app, overlaid with live runtime state.\n\nQueries the ``app_manifests`` DB table directly instead of the in-memory registry, so an\napp with historical telemetry but no loaded manifest returns 200 instead of 404. A DB\nfailure and a genuinely unknown ``app_key`` are distinct failure modes (503 vs. 404) that\ndon't fit the single-branch ``db_degrades_to`` shape \u2014 handled inline (Category D, see\n``.claude/rules/web-api.md``).",
+        "operationId": "get_app_manifest_api_apps__app_key__manifest_get",
         "parameters": [
           {
             "name": "app_key",
@@ -140,46 +148,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppSummary"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "`invalid_app_key`: the app key is not a valid app key",
-            "x-problem-codes": [
-              "invalid_app_key"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`app_not_found`: no app with this key is configured",
-            "x-problem-codes": [
-              "app_not_found"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/AppManifestResponse"
                 }
               }
             }
@@ -187,9 +156,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -226,65 +195,15 @@
               }
             }
           },
-          "400": {
-            "description": "`invalid_app_key`: the app key is not a valid app key",
-            "x-problem-codes": [
-              "invalid_app_key"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`app_not_found`: no app with this key is configured",
-            "x-problem-codes": [
-              "app_not_found"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "409": {
-            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
-            "x-problem-codes": [
-              "bootstrap_not_released",
-              "app_blocked"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
-            "x-problem-codes": [
-              "action_failed"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -321,51 +240,12 @@
               }
             }
           },
-          "400": {
-            "description": "`invalid_app_key`: the app key is not a valid app key",
-            "x-problem-codes": [
-              "invalid_app_key"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`app_not_found`: no app with this key is configured",
-            "x-problem-codes": [
-              "app_not_found"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
-            "x-problem-codes": [
-              "action_failed"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -402,65 +282,15 @@
               }
             }
           },
-          "400": {
-            "description": "`invalid_app_key`: the app key is not a valid app key",
-            "x-problem-codes": [
-              "invalid_app_key"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`app_not_found`: no app with this key is configured",
-            "x-problem-codes": [
-              "app_not_found"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "409": {
-            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
-            "x-problem-codes": [
-              "bootstrap_not_released",
-              "app_blocked"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
-            "x-problem-codes": [
-              "action_failed"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -506,66 +336,18 @@
               }
             }
           },
-          "400": {
-            "description": "`invalid_app_key`: the app key is not a valid app key",
-            "x-problem-codes": [
-              "invalid_app_key"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "404": {
-            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
-            "x-problem-codes": [
-              "app_not_found",
-              "instance_not_found"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
+            "description": "App is unknown, or instance index is out of range for the app's current config"
           },
           "409": {
-            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
-            "x-problem-codes": [
-              "bootstrap_not_released",
-              "app_blocked"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
-            "x-problem-codes": [
-              "action_failed"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -611,52 +393,15 @@
               }
             }
           },
-          "400": {
-            "description": "`invalid_app_key`: the app key is not a valid app key",
-            "x-problem-codes": [
-              "invalid_app_key"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "404": {
-            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
-            "x-problem-codes": [
-              "app_not_found",
-              "instance_not_found"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
-            "x-problem-codes": [
-              "action_failed"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
+            "description": "App is unknown, or instance index is out of range for the app's current config"
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -702,66 +447,18 @@
               }
             }
           },
-          "400": {
-            "description": "`invalid_app_key`: the app key is not a valid app key",
-            "x-problem-codes": [
-              "invalid_app_key"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "404": {
-            "description": "`app_not_found`: no app with this key is configured; `instance_not_found`: the instance index is out of range for the app's current config",
-            "x-problem-codes": [
-              "app_not_found",
-              "instance_not_found"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
+            "description": "App is unknown, or instance index is out of range for the app's current config"
           },
           "409": {
-            "description": "`bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable)",
-            "x-problem-codes": [
-              "bootstrap_not_released",
-              "app_blocked"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "`action_failed`: the action ran but failed, or left a targeted instance failed",
-            "x-problem-codes": [
-              "action_failed"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
+            "description": "App bootstrap prerequisites are not ready yet (retry later), or the app is blocked by the --app filter (not retryable)"
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -799,38 +496,12 @@
               }
             }
           },
-          "400": {
-            "description": "`invalid_app_key`: the app key is not a valid app key",
-            "x-problem-codes": [
-              "invalid_app_key"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`app_not_found`: no app with this key is configured",
-            "x-problem-codes": [
-              "app_not_found"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -863,60 +534,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppSource"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "`invalid_app_key`: the app key is not a valid app key",
-            "x-problem-codes": [
-              "invalid_app_key"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "`path_traversal`: the app's source path resolves outside its app directory",
-            "x-problem-codes": [
-              "path_traversal"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "`app_not_found`: no app with this key is configured; `source_not_found`: the app's source file does not exist",
-            "x-problem-codes": [
-              "app_not_found",
-              "source_not_found"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "`source_unavailable`: the app's source file could not be read",
-            "x-problem-codes": [
-              "source_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/AppSourceResponse"
                 }
               }
             }
@@ -924,9 +542,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -964,24 +582,14 @@
             }
           },
           "401": {
-            "description": "`invalid_token`: the token is wrong",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            },
-            "x-problem-codes": [
-              "invalid_token"
-            ]
+            "description": "Invalid token"
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1087,10 +695,8 @@
                   "type": "null"
                 }
               ],
-              "description": "Filter by source tier: 'app' or 'framework'. Omit to return records from both. Unlike the telemetry-metrics endpoints, which default to 'app', this default deliberately includes everything: the log viewer is a raw feed, not an app-author-facing metric.",
               "title": "Source Tier"
-            },
-            "description": "Filter by source tier: 'app' or 'framework'. Omit to return records from both. Unlike the telemetry-metrics endpoints, which default to 'app', this default deliberately includes everything: the log viewer is a raw feed, not an app-author-facing metric."
+            }
           }
         ],
         "responses": {
@@ -1101,22 +707,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/LogEntry"
+                    "$ref": "#/components/schemas/LogEntryResponse"
                   },
                   "title": "Response Get Logs Api Logs Recent Get"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1124,9 +717,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1166,9 +759,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1182,7 +775,7 @@
           "executions"
         ],
         "summary": "Get Execution Logs",
-        "description": "Return all log records for a single execution, with retention-expired detection.\n\nFor UUIDv7 execution IDs, the embedded timestamp is extracted directly without a\ndatabase lookup. For historical UUIDv4 IDs, the database is queried to determine\nwhether retention has expired.\n\nReturns 422 if the execution_id is not a valid UUID. Returns an empty record list\nwith ``retention_expired=True`` if the execution is older than the log retention window.",
+        "description": "Return all log records for a single execution, with retention-expired detection.\n\nFor UUIDv7 execution IDs, the embedded timestamp is extracted directly without a\ndatabase lookup. For historical UUIDv4 IDs, the database is queried to determine\nwhether retention has expired.\n\nReturns 422 if the execution_id is not a valid UUID. Returns an empty record list\nwith ``retention_expired=True`` if logs have been purged by retention policy.",
         "operationId": "get_execution_logs_api_executions__execution_id__get",
         "parameters": [
           {
@@ -1218,25 +811,12 @@
               }
             }
           },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1322,22 +902,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ListenerSummary"
+                    "$ref": "#/components/schemas/ListenerWithSummary"
                   },
                   "title": "Response Get Listener Metrics Api Bus Listeners Get"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1345,9 +912,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1383,7 +950,7 @@
           "telemetry"
         ],
         "summary": "Telemetry Status",
-        "description": "Health check for the telemetry database.\n\nRuns a representative query against the unified ``executions`` table.\nReturns 503 with ``degraded: true`` when the database is\nunavailable; 200 with ``degraded: false`` when healthy.\n\nA probe, so a failure answers with this status body rather than a problem body: the CLI\nand container health checks read it as data.",
+        "description": "Health check for the telemetry database.\n\nRuns a representative query against the unified ``executions`` table.\nReturns 503 with ``degraded: true`` when the database is\nunavailable; 200 with ``degraded: false`` when healthy.",
         "operationId": "telemetry_status_api_telemetry_status_get",
         "responses": {
           "200": {
@@ -1481,20 +1048,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppHealth"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/AppHealthResponse"
                 }
               }
             }
@@ -1502,9 +1056,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1586,22 +1140,9 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/ListenerSummary"
+                    "$ref": "#/components/schemas/ListenerWithSummary"
                   },
                   "title": "Response App Listeners Api Telemetry App  App Key  Listeners Get"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1609,9 +1150,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1652,10 +1193,10 @@
                   "type": "null"
                 }
               ],
-              "description": "App instance index. Omit for every instance of the app.",
+              "description": "App instance index. None returns activity across all instances.",
               "title": "Instance Index"
             },
-            "description": "App instance index. Omit for every instance of the app."
+            "description": "App instance index. None returns activity across all instances."
           },
           {
             "name": "limit",
@@ -1718,25 +1259,12 @@
               }
             }
           },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -1750,7 +1278,7 @@
           "telemetry"
         ],
         "summary": "App Jobs",
-        "description": "Job summaries for a single app instance, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason``, ``jitter``, and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``) are joined from the live scheduler registry by\n``db_id``. If the live registry can't be read, the DB rows are returned without enrichment\nand a warning is logged. If the telemetry DB can't be read, the route answers\n``telemetry_unavailable``.",
+        "description": "Job summaries for a single app instance, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. On registry failure the DB rows are returned without enrichment (degraded but\nfunctional; logged warning, no 500).",
         "operationId": "app_jobs_api_telemetry_app__app_key__jobs_get",
         "parameters": [
           {
@@ -1825,243 +1353,12 @@
               }
             }
           },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/telemetry/app/{app_key}/blocking": {
-      "get": {
-        "tags": [
-          "telemetry"
-        ],
-        "summary": "App Blocking Findings",
-        "description": "Blocking-IO findings for one app: attributed events grouped by app call site.\n\nWithout ``instance_index``, findings cover every instance, which is what the multi-instance\nparent overview shows; with it, only that instance's events are counted.",
-        "operationId": "app_blocking_findings_api_telemetry_app__app_key__blocking_get",
-        "parameters": [
-          {
-            "name": "app_key",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": "Use `__hassette__` to query framework-internal actor telemetry.",
-              "title": "App Key"
-            },
-            "description": "Use `__hassette__` to query framework-internal actor telemetry."
-          },
-          {
-            "name": "instance_index",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "App instance index. Omit for every instance of the app.",
-              "title": "Instance Index"
-            },
-            "description": "App instance index. Omit for every instance of the app."
-          },
-          {
-            "name": "since",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Since"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BlockingFindingsResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/telemetry/blocking/findings": {
-      "get": {
-        "tags": [
-          "telemetry"
-        ],
-        "summary": "All Blocking Findings",
-        "description": "Blocking-IO findings for every app and instance, in one response.",
-        "operationId": "all_blocking_findings_api_telemetry_blocking_findings_get",
-        "parameters": [
-          {
-            "name": "since",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Since"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BlockingFindingsResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/telemetry/blocking/unattributed": {
-      "get": {
-        "tags": [
-          "telemetry"
-        ],
-        "summary": "Unattributed Blocking",
-        "description": "Loop stalls credited to no app (displaced or framework), for the diagnostics page.",
-        "operationId": "unattributed_blocking_api_telemetry_blocking_unattributed_get",
-        "parameters": [
-          {
-            "name": "since",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "number"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Since"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnattributedBlockingResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2144,25 +1441,12 @@
               }
             }
           },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2232,25 +1516,12 @@
               }
             }
           },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2320,25 +1591,12 @@
               }
             }
           },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2384,25 +1642,12 @@
               }
             }
           },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2410,14 +1655,14 @@
         }
       }
     },
-    "/api/telemetry/app-grid": {
+    "/api/telemetry/dashboard/app-grid": {
       "get": {
         "tags": [
           "telemetry"
         ],
-        "summary": "App Grid",
-        "description": "Every app joined with its activity over ``since``, for the Apps grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (``telemetry_unavailable`` on\nfailure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. Each telemetry enrichment below is one\nall-apps query that fills one ``AppActivity`` part. A query that raises\n``TelemetryUnavailableError`` leaves its part ``None`` in every row and the response continues at\n200, with one summary warning naming the failed parts; any other error is a bug and returns 500\n\u2014 see ``.claude/rules/web-api.md``. ``activity_buckets`` and ``last_error`` only run for a\nwindow, so they are ``None`` when ``since`` is ``None``.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
-        "operationId": "app_grid_api_telemetry_app_grid_get",
+        "summary": "Dashboard App Grid",
+        "description": "Per-app health data for the dashboard grid.\n\nThe app spine is queried from the ``app_manifests`` DB table (Category B \u2014 503 via\n``db_degrades_to`` on failure) and overlaid with live runtime state via\n``RuntimeQueryService.overlay_manifest_rows()``. The telemetry enrichment queries below\nstay Category C (independently caught, degrading to empty defaults while the response\ncontinues at 200) \u2014 see ``.claude/rules/web-api.md`` for the categories.\n\nAlways uses ``source_tier='app'`` \u2014 framework actors are shown via FrameworkHealth,\nnot the manifest-driven app grid.",
+        "operationId": "dashboard_app_grid_api_telemetry_dashboard_app_grid_get",
         "parameters": [
           {
             "name": "since",
@@ -2442,20 +1687,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AppGridResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/DashboardAppGridResponse"
                 }
               }
             }
@@ -2463,9 +1695,9 @@
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2479,7 +1711,7 @@
           "scheduler"
         ],
         "summary": "All Jobs",
-        "description": "All scheduled jobs across all apps, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. If the live registry can't be read, the DB rows are returned without enrichment\nand a warning is logged. If the telemetry DB can't be read, the route answers\n``telemetry_unavailable``.\n\nThe registry snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
+        "description": "All scheduled jobs across all apps, enriched with live registry data.\n\n``schedule_status``/``schedule_status_reason`` and, for ``SCHEDULED`` jobs, live timing\n(``next_run``, ``fire_at``, ``jitter``) are joined from the live scheduler registry by\n``db_id``. On registry failure the DB rows are returned without enrichment (degraded but\nfunctional; logged warning, no 500).\n\nThe registry snapshot is taken once \u2014 not per app \u2014 to avoid fan-out overhead.",
         "operationId": "all_jobs_api_scheduler_jobs_get",
         "parameters": [
           {
@@ -2531,25 +1763,12 @@
               }
             }
           },
-          "503": {
-            "description": "`telemetry_unavailable`: the telemetry store could not be read",
-            "x-problem-codes": [
-              "telemetry_unavailable"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
-          },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2588,24 +1807,14 @@
             }
           },
           "409": {
-            "description": "`job_not_registered`: the job has no live registration",
-            "x-problem-codes": [
-              "job_not_registered"
-            ],
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
-                }
-              }
-            }
+            "description": "Job is not currently registered (no live registration)"
           },
           "422": {
             "description": "Validation Error",
             "content": {
-              "application/problem+json": {
+              "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetail"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2630,11 +1839,6 @@
           },
           "action": {
             "type": "string",
-            "enum": [
-              "start",
-              "stop",
-              "reload"
-            ],
             "title": "Action"
           },
           "instance_index": {
@@ -2662,13 +1866,11 @@
         "properties": {
           "ok": {
             "type": "integer",
-            "title": "Ok",
-            "description": "Number of successful invocations/executions in this bucket."
+            "title": "Ok"
           },
           "err": {
             "type": "integer",
-            "title": "Err",
-            "description": "Number of error/timed-out invocations/executions in this bucket."
+            "title": "Err"
           }
         },
         "type": "object",
@@ -2683,17 +1885,14 @@
         "properties": {
           "row_id": {
             "type": "string",
-            "title": "Row Id",
-            "description": "Stable unique identifier for this entry.\n\nCarries the ``execution_id`` UUID when present. Rows that predate the\n``execution_id`` column fall back to ``'h-'`` (handler) or ``'j-'`` (job)\nprefixing the SQLite rowid. The type is always ``str``."
+            "title": "Row Id"
           },
           "status": {
-            "$ref": "#/components/schemas/ExecutionStatus",
-            "description": "Handler or job execution status."
+            "$ref": "#/components/schemas/ExecutionStatus"
           },
           "timestamp": {
             "type": "number",
-            "title": "Timestamp",
-            "description": "Unix epoch float for when the invocation/execution started."
+            "title": "Timestamp"
           },
           "app_key": {
             "type": "string",
@@ -2701,8 +1900,7 @@
           },
           "handler_id": {
             "type": "integer",
-            "title": "Handler Id",
-            "description": "Listener or scheduled-job registration ID, interpreted according to ``kind``."
+            "title": "Handler Id"
           },
           "handler_name": {
             "type": "string",
@@ -2736,8 +1934,7 @@
               "handler",
               "job"
             ],
-            "title": "Kind",
-            "description": "Whether this is a handler invocation or a job execution."
+            "title": "Kind"
           }
         },
         "type": "object",
@@ -2752,121 +1949,6 @@
         ],
         "title": "ActivityFeedEntry",
         "description": "A single activity entry for the cross-app recent activity feed."
-      },
-      "AppActivity": {
-        "properties": {
-          "stats": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AppActivityStats"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Counts, run totals and health. ``None`` when the summary query failed."
-          },
-          "activity_buckets": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/ActivityBucket"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Activity Buckets",
-            "description": "Per-app sparkline: equal-width ok/err buckets from ``since`` to now, oldest first; empty when the app\nhad no executions in the window. ``None`` when the bucket query failed or the request had no ``since``."
-          },
-          "last_error": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LastErrorResult"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The last-error lookup. ``None`` when it failed or the request had no ``since``."
-          },
-          "blocking_event_count": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Blocking Event Count",
-            "description": "Attributed blocking-IO events for this app in the requested window. ``None`` when the count query\nfailed."
-          }
-        },
-        "type": "object",
-        "required": [
-          "stats",
-          "activity_buckets",
-          "last_error",
-          "blocking_event_count"
-        ],
-        "title": "AppActivity",
-        "description": "How an app is doing over the grid's time window (``AppGridResponse.since``).\n\nEach part comes from its own all-apps enrichment query and is ``None`` exactly when that query\nfailed or did not run: ``activity_buckets`` and ``last_error`` only run for a window, so they are\n``None`` when ``since`` is ``None``. A computed part is never ``None``. The parts are read\nseparately, so they need not agree with each other (e.g. error totals against ``last_error``)."
-      },
-      "AppActivityStats": {
-        "properties": {
-          "handler_count": {
-            "type": "integer",
-            "title": "Handler Count"
-          },
-          "job_count": {
-            "type": "integer",
-            "title": "Job Count"
-          },
-          "total_invocations": {
-            "type": "integer",
-            "title": "Total Invocations"
-          },
-          "total_errors": {
-            "type": "integer",
-            "title": "Total Errors"
-          },
-          "total_timed_out": {
-            "type": "integer",
-            "title": "Total Timed Out"
-          },
-          "total_executions": {
-            "type": "integer",
-            "title": "Total Executions"
-          },
-          "total_job_errors": {
-            "type": "integer",
-            "title": "Total Job Errors"
-          },
-          "total_job_timed_out": {
-            "type": "integer",
-            "title": "Total Job Timed Out"
-          },
-          "health": {
-            "$ref": "#/components/schemas/AppHealth"
-          }
-        },
-        "type": "object",
-        "required": [
-          "handler_count",
-          "job_count",
-          "total_invocations",
-          "total_errors",
-          "total_timed_out",
-          "total_executions",
-          "total_job_errors",
-          "total_job_timed_out",
-          "health"
-        ],
-        "title": "AppActivityStats",
-        "description": "An app's listener and job counts, run totals and health over the grid's window."
       },
       "AppConfigResponse": {
         "properties": {
@@ -2942,62 +2024,13 @@
           "framework_fields"
         ],
         "title": "AppConfigResponse",
-        "description": "An app's configuration, served by ``GET /api/apps/{app_key}/config``.\n\nBundles the current config values, their TOML rendering, and the app config's JSON schema."
+        "description": "Response model for GET /apps/{app_key}/config."
       },
-      "AppGridEntry": {
-        "properties": {
-          "app": {
-            "$ref": "#/components/schemas/AppSummary",
-            "description": "What the app is: identity, lifecycle status and instances."
-          },
-          "activity": {
-            "$ref": "#/components/schemas/AppActivity",
-            "description": "What the app did over the grid's window; each part is ``None`` when it wasn't computed."
-          }
-        },
-        "type": "object",
-        "required": [
-          "app",
-          "activity"
-        ],
-        "title": "AppGridEntry",
-        "description": "One Apps grid row: an app joined with its activity, in a single server-side query."
-      },
-      "AppGridResponse": {
-        "properties": {
-          "apps": {
-            "items": {
-              "$ref": "#/components/schemas/AppGridEntry"
-            },
-            "type": "array",
-            "title": "Apps"
-          },
-          "since": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Since",
-            "description": "The window start the activity covers, echoed from the request. ``None`` means all-time totals,\nwith ``activity_buckets`` and ``last_error`` not computed (``None`` in every row)."
-          }
-        },
-        "type": "object",
-        "required": [
-          "apps"
-        ],
-        "title": "AppGridResponse",
-        "description": "The Apps grid: every app with its activity over ``since``."
-      },
-      "AppHealth": {
+      "AppHealthResponse": {
         "properties": {
           "error_rate": {
             "type": "number",
-            "title": "Error Rate",
-            "description": "Failed (error or timed out) handler and job executions as a percentage of all of them."
+            "title": "Error Rate"
           },
           "error_rate_class": {
             "type": "string",
@@ -3008,15 +2041,13 @@
             ],
             "title": "Error Rate Class"
           },
-          "health_status": {
-            "type": "string",
-            "enum": [
-              "excellent",
-              "good",
-              "warning",
-              "critical"
-            ],
-            "title": "Health Status"
+          "handler_avg_duration": {
+            "type": "number",
+            "title": "Handler Avg Duration"
+          },
+          "job_avg_duration": {
+            "type": "number",
+            "title": "Job Avg Duration"
           },
           "last_activity_ts": {
             "anyOf": [
@@ -3027,47 +2058,32 @@
                 "type": "null"
               }
             ],
-            "title": "Last Activity Ts",
-            "description": "Start of the latest handler or job execution, or null when nothing ran."
+            "title": "Last Activity Ts"
           },
-          "handler_avg_duration_ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
+          "health_status": {
+            "type": "string",
+            "enum": [
+              "excellent",
+              "good",
+              "warning",
+              "critical"
             ],
-            "title": "Handler Avg Duration Ms",
-            "description": "Mean handler execution duration, or null when no handler ran."
-          },
-          "job_avg_duration_ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Job Avg Duration Ms",
-            "description": "Mean job execution duration excluding skipped runs; null when no job ran or every job run was skipped."
+            "title": "Health Status"
           }
         },
         "type": "object",
         "required": [
           "error_rate",
           "error_rate_class",
-          "health_status",
+          "handler_avg_duration",
+          "job_avg_duration",
           "last_activity_ts",
-          "handler_avg_duration_ms",
-          "job_avg_duration_ms"
+          "health_status"
         ],
-        "title": "AppHealth",
-        "description": "Health of an app over a time window: one app instance, or all instances of an app.\n\nComputed over every execution in the window, including those of handlers and jobs removed since."
+        "title": "AppHealthResponse",
+        "description": "Health metrics for a single app instance."
       },
-      "AppInstance": {
+      "AppInstanceResponse": {
         "properties": {
           "app_key": {
             "type": "string",
@@ -3130,10 +2146,9 @@
           "class_name",
           "status"
         ],
-        "title": "AppInstance",
-        "description": "One configured instance of an app and its lifecycle status.\n\nNested in ``AppSummary.instances``. ``index`` is the instance's position in the app's config;\n``error_message`` and ``error_traceback`` describe why the instance failed, and are ``None``\nunless ``status`` is ``failed``."
+        "title": "AppInstanceResponse"
       },
-      "AppListResponse": {
+      "AppManifestListResponse": {
         "properties": {
           "total": {
             "type": "integer",
@@ -3143,18 +2158,15 @@
             "additionalProperties": {
               "type": "integer"
             },
-            "propertyNames": {
-              "$ref": "#/components/schemas/AppStatus"
-            },
             "type": "object",
             "title": "Status Counts"
           },
-          "apps": {
+          "manifests": {
             "items": {
-              "$ref": "#/components/schemas/AppSummary"
+              "$ref": "#/components/schemas/AppManifestResponse"
             },
             "type": "array",
-            "title": "Apps"
+            "title": "Manifests"
           },
           "only_apps": {
             "items": {
@@ -3167,54 +2179,11 @@
         "type": "object",
         "required": [
           "total",
-          "apps"
+          "manifests"
         ],
-        "title": "AppListResponse",
-        "description": "Response for ``GET /api/apps``: every app with status counts."
+        "title": "AppManifestListResponse"
       },
-      "AppSource": {
-        "properties": {
-          "app_key": {
-            "type": "string",
-            "title": "App Key"
-          },
-          "filename": {
-            "type": "string",
-            "title": "Filename"
-          },
-          "content": {
-            "type": "string",
-            "title": "Content"
-          },
-          "line_count": {
-            "type": "integer",
-            "title": "Line Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "app_key",
-          "filename",
-          "content",
-          "line_count"
-        ],
-        "title": "AppSource",
-        "description": "An app's Python source file, served by ``GET /api/apps/{app_key}/source``."
-      },
-      "AppStatus": {
-        "type": "string",
-        "enum": [
-          "disabled",
-          "blocked",
-          "degraded",
-          "running",
-          "failed",
-          "stopped"
-        ],
-        "title": "AppStatus",
-        "description": "An app's overall lifecycle status across its instances (distinct from the per-instance ``ResourceStatus``)."
-      },
-      "AppSummary": {
+      "AppManifestResponse": {
         "properties": {
           "app_key": {
             "type": "string",
@@ -3246,7 +2215,7 @@
             "default": true
           },
           "status": {
-            "$ref": "#/components/schemas/AppStatus"
+            "$ref": "#/components/schemas/ManifestStatus"
           },
           "block_reason": {
             "anyOf": [
@@ -3262,12 +2231,358 @@
           "instance_count": {
             "type": "integer",
             "title": "Instance Count",
-            "description": "Number of entries in ``instances``: every configured instance, including ones never started or\nindependently stopped, plus any instance still running beyond the configured count (e.g. after the config\nwas reduced). Always len(instances).\n\n0 when ``in_current_config`` is ``False``.",
+            "description": "Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).",
             "default": 0
           },
           "instances": {
             "items": {
-              "$ref": "#/components/schemas/AppInstance"
+              "$ref": "#/components/schemas/AppInstanceResponse"
+            },
+            "type": "array",
+            "title": "Instances"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "error_traceback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Traceback"
+          },
+          "recent_invocations_1h": {
+            "type": "integer",
+            "title": "Recent Invocations 1H",
+            "description": "Total handler invocations in the last hour across all instances.",
+            "default": 0
+          },
+          "in_current_config": {
+            "type": "boolean",
+            "title": "In Current Config",
+            "description": "True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "class_name",
+          "display_name",
+          "filename",
+          "enabled",
+          "auto_loaded",
+          "status"
+        ],
+        "title": "AppManifestResponse"
+      },
+      "AppSourceResponse": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "line_count": {
+            "type": "integer",
+            "title": "Line Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "app_key",
+          "filename",
+          "content",
+          "line_count"
+        ],
+        "title": "AppSourceResponse",
+        "description": "Response model for GET /apps/{app_key}/source."
+      },
+      "AppStatusResponse": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "running": {
+            "type": "integer",
+            "title": "Running"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "apps": {
+            "items": {
+              "$ref": "#/components/schemas/AppInstanceResponse"
+            },
+            "type": "array",
+            "title": "Apps"
+          },
+          "only_apps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Only Apps"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "running",
+          "failed",
+          "apps"
+        ],
+        "title": "AppStatusResponse"
+      },
+      "BackpressurePolicy": {
+        "type": "string",
+        "enum": [
+          "block",
+          "drop_newest"
+        ],
+        "title": "BackpressurePolicy",
+        "description": "What a listener does when the *global* dispatch semaphore is saturated.\n\nThe semaphore is shared by all listeners across all apps \u2014 saturation means\nthe whole bus is at capacity, not that this listener alone is busy. This is\ndistinct from per-listener rate controls (``debounce``, ``throttle``, ``mode``),\nwhich operate inside the handler invoker after a dispatch slot is acquired."
+      },
+      "BootIssueResponse": {
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "err",
+              "warn"
+            ],
+            "title": "Severity"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "severity",
+          "label",
+          "detail"
+        ],
+        "title": "BootIssueResponse",
+        "description": "A boot-time issue entry in the system status response."
+      },
+      "ConfigSchemaResponse": {
+        "properties": {
+          "config_schema": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config Schema"
+          },
+          "config_values": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "config_schema",
+          "config_values"
+        ],
+        "title": "ConfigSchemaResponse",
+        "description": "Complete Hassette configuration as a JSON schema plus current values.\n\n``config_schema`` is the fully-inlined JSON schema (all ``$ref``/``$defs`` resolved)\nderived from ``HassetteConfig.model_json_schema()``.  ``config_values`` is the current\nconfiguration serialized to JSON with ``SecretStr`` fields replaced by a masked\nplaceholder.  Every field and nested group is present \u2014 nothing is omitted."
+      },
+      "DashboardAppGridEntry": {
+        "properties": {
+          "app_key": {
+            "type": "string",
+            "title": "App Key"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ManifestStatus"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "instance_count": {
+            "type": "integer",
+            "title": "Instance Count",
+            "description": "Configured instances, including ones not currently tracked (never started, or independently stopped). Always len(instances).",
+            "default": 0
+          },
+          "handler_count": {
+            "type": "integer",
+            "title": "Handler Count"
+          },
+          "job_count": {
+            "type": "integer",
+            "title": "Job Count"
+          },
+          "total_invocations": {
+            "type": "integer",
+            "title": "Total Invocations"
+          },
+          "total_errors": {
+            "type": "integer",
+            "title": "Total Errors"
+          },
+          "total_timed_out": {
+            "type": "integer",
+            "title": "Total Timed Out",
+            "default": 0
+          },
+          "total_executions": {
+            "type": "integer",
+            "title": "Total Executions"
+          },
+          "total_job_errors": {
+            "type": "integer",
+            "title": "Total Job Errors"
+          },
+          "total_job_timed_out": {
+            "type": "integer",
+            "title": "Total Job Timed Out",
+            "default": 0
+          },
+          "avg_duration_ms": {
+            "type": "number",
+            "title": "Avg Duration Ms"
+          },
+          "last_activity_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity Ts"
+          },
+          "health_status": {
+            "type": "string",
+            "enum": [
+              "excellent",
+              "good",
+              "warning",
+              "critical"
+            ],
+            "title": "Health Status"
+          },
+          "error_rate": {
+            "type": "number",
+            "title": "Error Rate"
+          },
+          "error_rate_class": {
+            "type": "string",
+            "enum": [
+              "good",
+              "warn",
+              "bad"
+            ],
+            "title": "Error Rate Class"
+          },
+          "activity_buckets": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityBucket"
+            },
+            "type": "array",
+            "title": "Activity Buckets"
+          },
+          "last_error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Message"
+          },
+          "last_error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Type"
+          },
+          "last_error_ts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Ts"
+          },
+          "class_name": {
+            "type": "string",
+            "title": "Class Name",
+            "default": ""
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename",
+            "default": ""
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled",
+            "default": true
+          },
+          "auto_loaded": {
+            "type": "boolean",
+            "title": "Auto Loaded",
+            "default": false
+          },
+          "autostart": {
+            "type": "boolean",
+            "title": "Autostart",
+            "default": true
+          },
+          "block_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Block Reason"
+          },
+          "instances": {
+            "items": {
+              "$ref": "#/components/schemas/AppInstanceResponse"
             },
             "type": "array",
             "title": "Instances"
@@ -3297,349 +2612,46 @@
           "in_current_config": {
             "type": "boolean",
             "title": "In Current Config",
-            "description": "True if the app is present in the currently-loaded config; False for an app known only from recorded\nhistory, such as one removed from the config.",
+            "description": "True if the app is present in the currently-loaded config; False for DB-only/removed apps.",
             "default": true
           }
         },
         "type": "object",
         "required": [
           "app_key",
-          "class_name",
+          "status",
           "display_name",
-          "filename",
-          "enabled",
-          "auto_loaded",
-          "status"
+          "handler_count",
+          "job_count",
+          "total_invocations",
+          "total_errors",
+          "total_executions",
+          "total_job_errors",
+          "avg_duration_ms",
+          "last_activity_ts",
+          "health_status",
+          "error_rate",
+          "error_rate_class"
         ],
-        "title": "AppSummary",
-        "description": "What an app is: its config identity, lifecycle status and instances.\n\nServed by ``GET /api/apps`` (in ``AppListResponse``) and ``GET /api/apps/{app_key}``, and\nnested as ``app`` in each ``AppGridEntry``. Activity over a time window lives in\n``AppActivity``, never here."
+        "title": "DashboardAppGridEntry",
+        "description": "Per-app health entry for the dashboard grid."
       },
-      "BackpressurePolicy": {
-        "type": "string",
-        "enum": [
-          "block",
-          "drop_newest"
-        ],
-        "title": "BackpressurePolicy",
-        "description": "What a listener does when the *global* dispatch semaphore is saturated.\n\nThe semaphore is shared by all listeners across all apps \u2014 saturation means\nthe whole bus is at capacity, not that this listener alone is busy. This is\ndistinct from per-listener rate controls (``debounce``, ``throttle``, ``mode``),\nwhich operate inside the handler invoker after a dispatch slot is acquired."
-      },
-      "BlockingFinding": {
+      "DashboardAppGridResponse": {
         "properties": {
-          "app_key": {
-            "type": "string",
-            "title": "App Key"
-          },
-          "tier": {
-            "type": "string",
-            "enum": [
-              "watchdog",
-              "monkeypatch"
-            ],
-            "title": "Tier"
-          },
-          "call_site": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BlockingFrameRef"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Innermost app-code frame (Tier 1) or the intercepted call's caller frame (Tier 2)."
-          },
-          "call_site_is_user_code": {
-            "type": "boolean",
-            "title": "Call Site Is User Code",
-            "description": "``False`` when a Tier 2 call site is library or stdlib code; see ``detected_in_package``."
-          },
-          "detected_in_package": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Detected In Package",
-            "description": "Top-level package a non-user Tier 2 call site belongs to (e.g. ``\"requests\"``), else ``None``."
-          },
-          "callee": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BlockingFrameRef"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Tier 1 only: the frame just inside the call site \u2014 what the app code called into."
-          },
-          "primitive": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Primitive",
-            "description": "Tier 2 only: the intercepted primitive, e.g. ``\"time.sleep\"``."
-          },
-          "handlers": {
+          "apps": {
             "items": {
-              "$ref": "#/components/schemas/BlockingHandlerRef"
+              "$ref": "#/components/schemas/DashboardAppGridEntry"
             },
             "type": "array",
-            "title": "Handlers",
-            "description": "Every handler or job whose execution reached this call site, most recently seen first."
-          },
-          "instances": {
-            "items": {
-              "$ref": "#/components/schemas/BlockingInstanceRef"
-            },
-            "type": "array",
-            "title": "Instances",
-            "description": "The app instances these events came from, by index. A request for every instance merges\none call site's events across instances into one finding, since they share the code to fix."
-          },
-          "event_count": {
-            "type": "integer",
-            "title": "Event Count"
-          },
-          "max_stall_ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Stall Ms",
-            "description": "Longest stall in milliseconds. ``None`` for Tier 2, which records no duration."
-          },
-          "avg_stall_ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Avg Stall Ms"
-          },
-          "last_seen_ts": {
-            "type": "number",
-            "title": "Last Seen Ts"
-          },
-          "latest_stack": {
-            "items": {
-              "$ref": "#/components/schemas/StackFrame"
-            },
-            "type": "array",
-            "title": "Latest Stack",
-            "description": "The most recent event's captured stack, innermost first. Empty when none was stored."
+            "title": "Apps"
           }
         },
         "type": "object",
         "required": [
-          "app_key",
-          "tier",
-          "call_site",
-          "call_site_is_user_code",
-          "handlers",
-          "instances",
-          "event_count",
-          "last_seen_ts",
-          "latest_stack"
+          "apps"
         ],
-        "title": "BlockingFinding",
-        "description": "One thing to fix: every attributed blocking event at the same app call site, grouped.\n\n``call_site`` is ``None`` when no app-code frame was captured for these events (no stack\ncaptured, or the event was recorded without structured frames); such findings are grouped per handler\ninstead."
-      },
-      "BlockingFindingsResponse": {
-        "properties": {
-          "findings": {
-            "items": {
-              "$ref": "#/components/schemas/BlockingFinding"
-            },
-            "type": "array",
-            "title": "Findings",
-            "description": "Ordered by most recently seen first."
-          },
-          "truncated": {
-            "type": "boolean",
-            "title": "Truncated",
-            "description": "``True`` when the cap on findings was hit: the least recently seen call sites are omitted.",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "findings"
-        ],
-        "title": "BlockingFindingsResponse",
-        "description": "Blocking findings for one app, or for every app."
-      },
-      "BlockingFrameRef": {
-        "properties": {
-          "filename": {
-            "type": "string",
-            "title": "Filename",
-            "description": "Absolute path of the frame's source file, verbatim from the code object."
-          },
-          "lineno": {
-            "type": "integer",
-            "title": "Lineno"
-          },
-          "function": {
-            "type": "string",
-            "title": "Function"
-          },
-          "module": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Module",
-            "description": "The frame's module ``__name__``, or ``None`` when unavailable."
-          },
-          "display_path": {
-            "type": "string",
-            "title": "Display Path",
-            "description": "App-code frames relative to their app directory; library frames relative to their\n``site-packages`` root; stdlib frames as ``stdlib/<path>``; anything else absolute."
-          }
-        },
-        "type": "object",
-        "required": [
-          "filename",
-          "lineno",
-          "function",
-          "display_path"
-        ],
-        "title": "BlockingFrameRef",
-        "description": "A frame picked out for display, with a short path for summary lines."
-      },
-      "BlockingHandlerRef": {
-        "properties": {
-          "kind": {
-            "type": "string",
-            "enum": [
-              "listener",
-              "job"
-            ],
-            "title": "Kind"
-          },
-          "id": {
-            "type": "integer",
-            "title": "Id",
-            "description": "Listener or scheduled-job row id."
-          },
-          "name": {
-            "type": "string",
-            "title": "Name",
-            "description": "Listener name or job name."
-          },
-          "handler_method": {
-            "type": "string",
-            "title": "Handler Method"
-          },
-          "instance_index": {
-            "type": "integer",
-            "title": "Instance Index",
-            "description": "The app instance that registered this handler."
-          }
-        },
-        "type": "object",
-        "required": [
-          "kind",
-          "id",
-          "name",
-          "handler_method",
-          "instance_index"
-        ],
-        "title": "BlockingHandlerRef",
-        "description": "A handler or job whose execution reached a blocking call site."
-      },
-      "BlockingInstanceRef": {
-        "properties": {
-          "index": {
-            "type": "integer",
-            "title": "Index"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          }
-        },
-        "type": "object",
-        "required": [
-          "index"
-        ],
-        "title": "BlockingInstanceRef",
-        "description": "An app instance whose events are part of a finding."
-      },
-      "BootIssue": {
-        "properties": {
-          "severity": {
-            "type": "string",
-            "enum": [
-              "err",
-              "warn"
-            ],
-            "title": "Severity"
-          },
-          "label": {
-            "type": "string",
-            "title": "Label"
-          },
-          "detail": {
-            "type": "string",
-            "title": "Detail"
-          }
-        },
-        "type": "object",
-        "required": [
-          "severity",
-          "label",
-          "detail"
-        ],
-        "title": "BootIssue",
-        "description": "A problem found while the server started, listed in ``SystemStatusResponse.boot_issues``."
-      },
-      "ConfigSchemaResponse": {
-        "properties": {
-          "config_schema": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Config Schema"
-          },
-          "config_values": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Config Values"
-          }
-        },
-        "type": "object",
-        "required": [
-          "config_schema",
-          "config_values"
-        ],
-        "title": "ConfigSchemaResponse",
-        "description": "Complete Hassette configuration as a JSON schema plus current values.\n\n``config_schema`` is the fully-inlined JSON schema (all ``$ref``/``$defs`` resolved)\nderived from ``HassetteConfig.model_json_schema()``.  ``config_values`` is the current\nconfiguration serialized to JSON with ``SecretStr`` fields replaced by a masked\nplaceholder.  Every field and nested group is present \u2014 nothing is omitted."
+        "title": "DashboardAppGridResponse",
+        "description": "Dashboard app grid with per-app health data."
       },
       "Execution": {
         "properties": {
@@ -3649,8 +2661,7 @@
               "handler",
               "job"
             ],
-            "title": "Kind",
-            "description": "Discriminator: 'handler' for bus invocations, 'job' for scheduled-job executions."
+            "title": "Kind"
           },
           "listener_id": {
             "anyOf": [
@@ -3661,8 +2672,7 @@
                 "type": "null"
               }
             ],
-            "title": "Listener Id",
-            "description": "The owning listener row id. Set when kind='handler', None for job executions."
+            "title": "Listener Id"
           },
           "job_id": {
             "anyOf": [
@@ -3673,8 +2683,7 @@
                 "type": "null"
               }
             ],
-            "title": "Job Id",
-            "description": "The owning scheduled-job row id. Set when kind='job', None for handler invocations."
+            "title": "Job Id"
           },
           "execution_start_ts": {
             "type": "number",
@@ -3738,8 +2747,7 @@
                 "type": "null"
               }
             ],
-            "title": "Execution Id",
-            "description": "UUID string identifying the specific execution instance. None when not populated.\n\nUUIDv7 for new executions (embeds timestamp); UUIDv4 for historical executions."
+            "title": "Execution Id"
           },
           "trigger_context_id": {
             "anyOf": [
@@ -3750,8 +2758,7 @@
                 "type": "null"
               }
             ],
-            "title": "Trigger Context Id",
-            "description": "event_id from the triggering event payload. None for job executions, synthetic immediate-fire\ninvocations, and handler rows recorded because the listener's predicate raised."
+            "title": "Trigger Context Id"
           },
           "trigger_origin": {
             "anyOf": [
@@ -3762,8 +2769,7 @@
                 "type": "null"
               }
             ],
-            "title": "Trigger Origin",
-            "description": "Origin of the triggering event (e.g., 'LOCAL', 'REMOTE', 'HASSETTE'; 'HASSETTE_SYNTHETIC' for\nimmediate-fire synthetic invocations). None for job executions and for handler rows recorded because\nthe listener's predicate raised."
+            "title": "Trigger Origin"
           },
           "trigger_mode": {
             "anyOf": [
@@ -3774,37 +2780,31 @@
                 "type": "null"
               }
             ],
-            "title": "Trigger Mode",
-            "description": "How this execution was triggered (e.g., \"manual\" for a run-now request). None when not set."
+            "title": "Trigger Mode"
           },
           "retry_count": {
             "type": "integer",
             "title": "Retry Count",
-            "description": "Reserved for future retry tracking; currently always 0.",
             "default": 0
           },
           "attempt_number": {
             "type": "integer",
             "title": "Attempt Number",
-            "description": "Reserved for future retry tracking; currently always 1.",
             "default": 1
           },
           "args_json": {
             "type": "string",
             "title": "Args Json",
-            "description": "Reserved; not currently populated, so always '[]'. A job's registered positional arguments are\non ``JobSummary.args_json``.",
             "default": "[]"
           },
           "kwargs_json": {
             "type": "string",
             "title": "Kwargs Json",
-            "description": "Reserved; not currently populated, so always '{}'. A job's registered keyword arguments are\non ``JobSummary.kwargs_json``.",
             "default": "{}"
           },
           "thread_leaked": {
             "type": "boolean",
             "title": "Thread Leaked",
-            "description": "True when the execution timed out and the sync worker thread was still alive after the timeout.\n\nSubject to a small race window: if the worker finishes between the timeout cancellation and the\nliveness check, this field reads False even though the thread outlived the asyncio deadline.\nThis is a false-negative (undercounting), not a false-positive. Treat as a lower bound.",
             "default": false
           }
         },
@@ -3818,7 +2818,7 @@
           "error_message"
         ],
         "title": "Execution",
-        "description": "One run of a handler or scheduled job.\n\n``kind`` says which. Handler-only fields (``trigger_context_id``, ``trigger_origin``) are\n``None`` for job executions."
+        "description": "Unified execution record returned by queries against the ``executions`` table.\n\nReplaces the split ``HandlerInvocation`` / ``JobExecution`` models.\n``kind`` discriminates between handler invocations and job executions.\nHandler-only fields (``trigger_context_id``, ``trigger_origin``) default to\n``None`` for job executions."
       },
       "ExecutionMode": {
         "type": "string",
@@ -3841,7 +2841,20 @@
           "skipped"
         ],
         "title": "ExecutionStatus",
-        "description": "How a handler invocation or job execution ended."
+        "description": "Status values for handler invocations and job executions.\n\nMust stay in sync with the ``executions.status`` CHECK constraint."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
       },
       "JobSummary": {
         "properties": {
@@ -3933,8 +2946,7 @@
                 "type": "null"
               }
             ],
-            "title": "Predicate Description",
-            "description": "Structural description of the job's scheduler predicate \u2014 ``repr()`` for composed\npredicate objects, the qualified name for a bare callable. ``None`` when unset."
+            "title": "Predicate Description"
           },
           "human_description": {
             "anyOf": [
@@ -3945,8 +2957,7 @@
                 "type": "null"
               }
             ],
-            "title": "Human Description",
-            "description": "Human-readable summary of the job's scheduler predicate, or ``None`` when unset."
+            "title": "Human Description"
           },
           "total_executions": {
             "type": "integer",
@@ -3973,13 +2984,11 @@
           "skipped": {
             "type": "integer",
             "title": "Skipped",
-            "description": "Number of executions where the scheduler predicate returned ``False`` and the handler\ndid not run. Counted toward ``total_executions`` per the class invariant.",
             "default": 0
           },
           "thread_leaked": {
             "type": "integer",
             "title": "Thread Leaked",
-            "description": "Number of executions whose sync worker thread outlived its timeout (see ``Execution.thread_leaked``).\nA non-zero value flags a job leaking worker threads.\nMirrors the ``timed_out`` aggregate naming \u2014 the bare participle, not a ``_count`` suffix.",
             "default": 0
           },
           "last_executed_at": {
@@ -4010,23 +3019,23 @@
                 "type": "null"
               }
             ],
-            "title": "Group",
-            "description": "Scheduler group name, persisted at registration."
+            "title": "Group"
           },
           "schedule_status": {
-            "$ref": "#/components/schemas/ScheduleStatus",
-            "description": "Whether the job will run again on its own: its live status while it is registered with the running\nscheduler, otherwise the last status the server recorded for it."
+            "type": "string",
+            "title": "Schedule Status",
+            "default": "scheduled"
           },
           "schedule_status_reason": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ScheduleStatusReason"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "description": "Qualifies ``schedule_status`` when the status alone does not explain the job's state.\n``None`` for a clean status with no override."
+            "title": "Schedule Status Reason"
           },
           "next_run": {
             "anyOf": [
@@ -4037,8 +3046,7 @@
                 "type": "null"
               }
             ],
-            "title": "Next Run",
-            "description": "Unix epoch seconds of the next scheduled fire time (unjittered). ``None`` when:\n\n- the job is not registered with the running scheduler,\n- the server could not read live scheduler state, or\n- ``schedule_status`` is anything other than ``scheduled``.\n\n``None`` does not mean the job is done; ``schedule_status`` and ``schedule_status_reason`` say why."
+            "title": "Next Run"
           },
           "fire_at": {
             "anyOf": [
@@ -4049,8 +3057,7 @@
                 "type": "null"
               }
             ],
-            "title": "Fire At",
-            "description": "Unix epoch seconds of the live job's dispatch time; live-only. Equals\n``next_run`` when no jitter is configured."
+            "title": "Fire At"
           },
           "jitter": {
             "anyOf": [
@@ -4061,8 +3068,7 @@
                 "type": "null"
               }
             ],
-            "title": "Jitter",
-            "description": "Configured maximum jitter in seconds, not the offset sampled for this occurrence;\nlive-only. The applied offset is ``fire_at - next_run``."
+            "title": "Jitter"
           },
           "last_error_message": {
             "anyOf": [
@@ -4073,8 +3079,7 @@
                 "type": "null"
               }
             ],
-            "title": "Last Error Message",
-            "description": "Message of the most recent error or timeout within the query window, or None."
+            "title": "Last Error Message"
           },
           "last_error_type": {
             "anyOf": [
@@ -4085,8 +3090,7 @@
                 "type": "null"
               }
             ],
-            "title": "Last Error Type",
-            "description": "Exception type of the most recent error or timeout within the query window, or None."
+            "title": "Last Error Type"
           },
           "last_error_ts": {
             "anyOf": [
@@ -4097,8 +3101,7 @@
                 "type": "null"
               }
             ],
-            "title": "Last Error Ts",
-            "description": "Unix epoch of the most recent error or timeout within the query window, or None."
+            "title": "Last Error Ts"
           },
           "last_error_traceback": {
             "anyOf": [
@@ -4109,8 +3112,7 @@
                 "type": "null"
               }
             ],
-            "title": "Last Error Traceback",
-            "description": "Traceback from the most recent error or timeout within the query window. None when there is none,\nor when that row recorded no traceback (timeouts never do)."
+            "title": "Last Error Traceback"
           },
           "min_duration_ms": {
             "anyOf": [
@@ -4121,8 +3123,7 @@
                 "type": "null"
               }
             ],
-            "title": "Min Duration Ms",
-            "description": "Minimum duration in milliseconds across non-skipped executions. None means no non-skipped executions."
+            "title": "Min Duration Ms"
           },
           "max_duration_ms": {
             "anyOf": [
@@ -4133,24 +3134,20 @@
                 "type": "null"
               }
             ],
-            "title": "Max Duration Ms",
-            "description": "Maximum duration in milliseconds across non-skipped executions. None means no non-skipped executions."
+            "title": "Max Duration Ms"
           },
           "mode": {
             "$ref": "#/components/schemas/ExecutionMode",
-            "description": "Resolved overlap mode for this job. Persisted at registration.",
             "default": "single"
           },
           "suppressed_count": {
             "type": "integer",
             "title": "Suppressed Count",
-            "description": "Live count of re-fires suppressed by the guard (``single`` mode). Not persisted by design \u2014 read\nlive from the in-process guard and reset to 0 on restart. Reads 0 when the job has no live match or the\nlive registry is unavailable, so 0 does not prove none occurred.",
             "default": 0
           },
           "dropped_count": {
             "type": "integer",
             "title": "Dropped Count",
-            "description": "Live count of re-fires dropped due to queue cap (``queued`` mode). Not persisted by design \u2014 read\nlive from the in-process guard and reset to 0 on restart. Reads 0 when the job has no live match or the\nlive registry is unavailable, so 0 does not prove none occurred.",
             "default": 0
           }
         },
@@ -4171,11 +3168,10 @@
           "failed",
           "last_executed_at",
           "total_duration_ms",
-          "avg_duration_ms",
-          "schedule_status"
+          "avg_duration_ms"
         ],
         "title": "JobSummary",
-        "description": "One scheduled job's registration and its execution totals.\n\n``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``\nare tracked separately.\nInvariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``."
+        "description": "Per-job summary returned by ``get_job_summary()``.\n\n``failed`` counts only ``'error'`` status; ``timed_out``, ``cancelled``, and ``skipped``\nare tracked separately.\nInvariant: ``successful + failed + cancelled + timed_out + skipped == total_executions``."
       },
       "JobTriggerResponse": {
         "properties": {
@@ -4202,59 +3198,7 @@
         "title": "JobTriggerResponse",
         "description": "Response for POST /api/scheduler/jobs/{job_id}/trigger \u2014 manual job submission.\n\nSeparate from ``ActionResponse`` (which has ``app_key``/``action`` but no ``job_id``) \u2014\nthe trigger response identifies the job, not an app action. ``status`` is always\n``\"accepted\"`` for a live registration (the endpoint returns 409 instead of this model\nwhen the job has no live registration) \u2014 overlap-policy suppression or dropping happens\nasynchronously and is not previewed in this response."
       },
-      "LastError": {
-        "properties": {
-          "error_message": {
-            "type": "string",
-            "title": "Error Message"
-          },
-          "error_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Type"
-          },
-          "ts": {
-            "type": "number",
-            "title": "Ts",
-            "description": "When the failing execution started (Unix seconds)."
-          }
-        },
-        "type": "object",
-        "required": [
-          "error_message",
-          "ts"
-        ],
-        "title": "LastError",
-        "description": "The most recent handler or job error for an app in the grid's window."
-      },
-      "LastErrorResult": {
-        "properties": {
-          "error": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/LastError"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "The most recent error in the window. ``None`` means the lookup ran and found no error."
-          }
-        },
-        "type": "object",
-        "required": [
-          "error"
-        ],
-        "title": "LastErrorResult",
-        "description": "The outcome of the last-error lookup for one app."
-      },
-      "ListenerSummary": {
+      "ListenerWithSummary": {
         "properties": {
           "listener_id": {
             "type": "integer",
@@ -4541,25 +3485,23 @@
           "di_failures",
           "cancelled"
         ],
-        "title": "ListenerSummary",
-        "description": "One bus listener's registration and its invocation totals."
+        "title": "ListenerWithSummary",
+        "description": "Listener metrics enriched with human-readable handler summary."
       },
       "LivenessResponse": {
         "properties": {
           "status": {
             "type": "string",
             "const": "live",
-            "title": "Status"
+            "title": "Status",
+            "default": "live"
           }
         },
         "type": "object",
-        "required": [
-          "status"
-        ],
         "title": "LivenessResponse",
         "description": "Response model for GET /api/health/live."
       },
-      "LogEntry": {
+      "LogEntryResponse": {
         "properties": {
           "id": {
             "type": "integer",
@@ -4731,8 +3673,7 @@
           "logger_name",
           "message"
         ],
-        "title": "LogEntry",
-        "description": "One captured log record.\n\n``id`` identifies the stored record; ``seq`` orders records emitted by one server run. ``app_key``\nand ``instance_*`` are set for records an app emitted and ``None`` for framework records.\n``execution_*``, ``listener_id`` and ``job_id`` are set only for records emitted while a handler or\njob was running."
+        "title": "LogEntryResponse"
       },
       "LogLevelRequest": {
         "properties": {
@@ -4742,8 +3683,7 @@
           },
           "level": {
             "type": "string",
-            "title": "Level",
-            "description": "Level name to set: DEBUG, INFO, WARNING, ERROR, or CRITICAL. Case-insensitive."
+            "title": "Level"
           }
         },
         "type": "object",
@@ -4762,13 +3702,6 @@
           },
           "effective_level": {
             "type": "string",
-            "enum": [
-              "DEBUG",
-              "INFO",
-              "WARNING",
-              "ERROR",
-              "CRITICAL"
-            ],
             "title": "Effective Level"
           }
         },
@@ -4784,20 +3717,18 @@
         "properties": {
           "records": {
             "items": {
-              "$ref": "#/components/schemas/LogEntry"
+              "$ref": "#/components/schemas/LogEntryResponse"
             },
             "type": "array",
             "title": "Records"
           },
           "truncated": {
             "type": "boolean",
-            "title": "Truncated",
-            "description": "``True`` when the execution emitted more records than the request's limit; the rest are omitted."
+            "title": "Truncated"
           },
           "retention_expired": {
             "type": "boolean",
-            "title": "Retention Expired",
-            "description": "``True`` when ``records`` is empty and the execution is older than the server's log retention window:\nits records may have been deleted, or it may never have logged."
+            "title": "Retention Expired"
           }
         },
         "type": "object",
@@ -4807,71 +3738,20 @@
           "retention_expired"
         ],
         "title": "LogsByExecutionResponse",
-        "description": "The log records one handler or job execution emitted, served by ``GET /api/executions/{execution_id}``."
+        "description": "Response for GET /api/executions/{execution_id}."
       },
-      "ProblemCode": {
+      "ManifestStatus": {
         "type": "string",
         "enum": [
-          "invalid_app_key",
-          "app_not_found",
-          "instance_not_found",
-          "bootstrap_not_released",
-          "app_blocked",
-          "action_failed",
-          "telemetry_unavailable",
-          "source_not_found",
-          "path_traversal",
-          "source_unavailable",
-          "invalid_token",
-          "not_authenticated",
-          "job_not_registered",
-          "validation_failed",
-          "body_too_large",
-          "not_found",
-          "method_not_allowed",
-          "http_error",
-          "internal_error"
+          "disabled",
+          "blocked",
+          "degraded",
+          "running",
+          "failed",
+          "stopped"
         ],
-        "title": "ProblemCode",
-        "description": "Machine-readable reason carried in the ``code`` member of every web API error body.\n\nEach code maps to exactly one HTTP status, except ``http_error``, which carries whatever\nstatus the underlying error had. Before 1.0, renaming or removing a code, or changing its\nstatus, is a breaking change and is flagged as one; adding a code is not."
-      },
-      "ProblemDetail": {
-        "properties": {
-          "type": {
-            "type": "string",
-            "title": "Type",
-            "description": "Problem type URI. Always ``about:blank``: ``code`` carries the specific meaning.",
-            "default": "about:blank"
-          },
-          "title": {
-            "type": "string",
-            "title": "Title",
-            "description": "The HTTP reason phrase for ``status``."
-          },
-          "status": {
-            "type": "integer",
-            "title": "Status",
-            "description": "The HTTP status code of the response."
-          },
-          "detail": {
-            "type": "string",
-            "title": "Detail",
-            "description": "Human-readable explanation of this occurrence."
-          },
-          "code": {
-            "$ref": "#/components/schemas/ProblemCode",
-            "description": "Machine-readable reason for the error."
-          }
-        },
-        "type": "object",
-        "required": [
-          "title",
-          "status",
-          "detail",
-          "code"
-        ],
-        "title": "ProblemDetail",
-        "description": "RFC 9457 problem details body returned, as ``application/problem+json``, for every web API error."
+        "title": "ManifestStatus",
+        "description": "Enumeration for app manifest status values (manifest-scoped, distinct from ``ResourceStatus``)."
       },
       "ReadinessResponse": {
         "properties": {
@@ -4897,19 +3777,6 @@
         "title": "ReadinessResponse",
         "description": "Response model for GET /api/health/ready."
       },
-      "ResourceRole": {
-        "type": "string",
-        "enum": [
-          "core",
-          "base",
-          "service",
-          "resource",
-          "app",
-          "unknown"
-        ],
-        "title": "ResourceRole",
-        "description": "The kind of framework component a status or service entry describes."
-      },
       "ResourceStatus": {
         "type": "string",
         "enum": [
@@ -4926,27 +3793,7 @@
         "title": "ResourceStatus",
         "description": "Enumeration for resource status."
       },
-      "ScheduleStatus": {
-        "type": "string",
-        "enum": [
-          "scheduled",
-          "waiting",
-          "completed",
-          "manual"
-        ],
-        "title": "ScheduleStatus",
-        "description": "Whether a scheduled job will run again on its own."
-      },
-      "ScheduleStatusReason": {
-        "type": "string",
-        "enum": [
-          "legacy_unknown",
-          "trigger_error"
-        ],
-        "title": "ScheduleStatusReason",
-        "description": "Qualifies a ``ScheduleStatus`` when the status alone does not explain the job's state.\n\nAbsent when the status needs no qualification."
-      },
-      "ServiceInfo": {
+      "ServiceInfoResponse": {
         "properties": {
           "name": {
             "type": "string",
@@ -4956,8 +3803,9 @@
             "$ref": "#/components/schemas/ResourceStatus"
           },
           "role": {
-            "$ref": "#/components/schemas/ResourceRole",
-            "description": "What kind of framework component the service is."
+            "type": "string",
+            "title": "Role",
+            "default": ""
           },
           "ready_phase": {
             "anyOf": [
@@ -4968,8 +3816,7 @@
                 "type": "null"
               }
             ],
-            "title": "Ready Phase",
-            "description": "Human-readable description of the current readiness phase, or None if not available."
+            "title": "Ready Phase"
           },
           "retry_at": {
             "anyOf": [
@@ -4980,26 +3827,23 @@
                 "type": "null"
               }
             ],
-            "title": "Retry At",
-            "description": "Unix timestamp when the next restart will be attempted (cooling state), or None."
+            "title": "Retry At"
           }
         },
         "type": "object",
         "required": [
           "name",
-          "status",
-          "role"
+          "status"
         ],
-        "title": "ServiceInfo",
-        "description": "One framework service and its lifecycle status, listed in ``SystemStatusResponse.services``."
+        "title": "ServiceInfoResponse",
+        "description": "Structured info for one internal service."
       },
       "SessionRequest": {
         "properties": {
           "token": {
             "type": "string",
             "maxLength": 4096,
-            "title": "Token",
-            "description": "Bearer token to exchange for a session cookie.\n\nThe server rejects a value longer than the field's maximum length with a 422."
+            "title": "Token"
           }
         },
         "type": "object",
@@ -5007,7 +3851,7 @@
           "token"
         ],
         "title": "SessionRequest",
-        "description": "Request body for ``POST /api/auth/session``: exchanges a bearer token for a session cookie."
+        "description": "Request body for POST /api/auth/session.\n\nThe pinned wire contract for the login exchange (design.md's Middleware and routing\nsection): ``{\"token\": \"<bearer-token>\"}``. The backend (this route) and the frontend\n(``postSession()`` in ``client.ts``) target this exact field name independently."
       },
       "SessionResponse": {
         "properties": {
@@ -5020,44 +3864,7 @@
         },
         "type": "object",
         "title": "SessionResponse",
-        "description": "Response for ``POST /api/auth/session`` when the token is accepted.\n\nThe session cookie arrives in the ``Set-Cookie`` response header; this body only confirms\nsuccess."
-      },
-      "StackFrame": {
-        "properties": {
-          "filename": {
-            "type": "string",
-            "title": "Filename",
-            "description": "Absolute path of the frame's source file, verbatim from the code object."
-          },
-          "lineno": {
-            "type": "integer",
-            "title": "Lineno"
-          },
-          "function": {
-            "type": "string",
-            "title": "Function"
-          },
-          "module": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Module",
-            "description": "The frame's module ``__name__``, or ``None`` when unavailable."
-          }
-        },
-        "type": "object",
-        "required": [
-          "filename",
-          "lineno",
-          "function"
-        ],
-        "title": "StackFrame",
-        "description": "One captured stack frame."
+        "description": "Response for POST /api/auth/session on a correct token.\n\nThe session cookie itself travels via the ``Set-Cookie`` response header, minted by\n``mint_session_cookie()`` \u2014 this body just confirms success for callers that inspect\nthe JSON payload rather than only the status code."
       },
       "SystemStatusResponse": {
         "properties": {
@@ -5092,7 +3899,7 @@
           },
           "services": {
             "items": {
-              "$ref": "#/components/schemas/ServiceInfo"
+              "$ref": "#/components/schemas/ServiceInfoResponse"
             },
             "type": "array",
             "title": "Services"
@@ -5102,15 +3909,9 @@
             "title": "Version",
             "default": ""
           },
-          "api_schema_version": {
-            "type": "integer",
-            "title": "Api Schema Version",
-            "description": "The server's ``API_SCHEMA_VERSION``; ``0`` from a server released before the schema existed.",
-            "default": 0
-          },
           "boot_issues": {
             "items": {
-              "$ref": "#/components/schemas/BootIssue"
+              "$ref": "#/components/schemas/BootIssueResponse"
             },
             "type": "array",
             "title": "Boot Issues"
@@ -5118,19 +3919,16 @@
           "log_queue_drops": {
             "type": "integer",
             "title": "Log Queue Drops",
-            "description": "Log records dropped because the log queue was full \u2014 tune ``logging.log_queue_max``.",
             "default": 0
           },
           "db_write_queue_drops": {
             "type": "integer",
             "title": "Db Write Queue Drops",
-            "description": "Log records dropped because the DB write queue was full, unavailable, or closed.",
             "default": 0
           },
           "log_persistence_active": {
             "type": "boolean",
             "title": "Log Persistence Active",
-            "description": "Whether log records are being persisted. When ``False``, a ``db_write_queue_drops`` of 0 does not mean\nlogs are being stored.",
             "default": false
           }
         },
@@ -5143,8 +3941,7 @@
           "entity_count",
           "app_count"
         ],
-        "title": "SystemStatusResponse",
-        "description": "Overall server health, served by ``GET /api/health``."
+        "title": "SystemStatusResponse"
       },
       "TelemetryStatusResponse": {
         "properties": {
@@ -5185,123 +3982,45 @@
         "title": "TelemetryStatusResponse",
         "description": "Health check response for the telemetry database."
       },
-      "UnattributedBlockingResponse": {
+      "ValidationError": {
         "properties": {
-          "total_count": {
-            "type": "integer",
-            "title": "Total Count",
-            "default": 0
-          },
-          "displaced_count": {
-            "type": "integer",
-            "title": "Displaced Count",
-            "default": 0
-          },
-          "framework_count": {
-            "type": "integer",
-            "title": "Framework Count",
-            "default": 0
-          },
-          "max_stall_ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Stall Ms"
-          },
-          "recent": {
+          "loc": {
             "items": {
-              "$ref": "#/components/schemas/UnattributedStall"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
             },
             "type": "array",
-            "title": "Recent",
-            "description": "The most recent stalls, newest first."
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
           }
         },
         "type": "object",
         "required": [
-          "recent"
+          "loc",
+          "msg",
+          "type"
         ],
-        "title": "UnattributedBlockingResponse",
-        "description": "Loop stalls that no app is credited with."
-      },
-      "UnattributedStall": {
-        "properties": {
-          "detected_ts": {
-            "type": "number",
-            "title": "Detected Ts"
-          },
-          "tier": {
-            "type": "string",
-            "enum": [
-              "watchdog",
-              "monkeypatch"
-            ],
-            "title": "Tier"
-          },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "displaced",
-              "framework"
-            ],
-            "title": "Reason"
-          },
-          "stall_duration_ms": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Stall Duration Ms"
-          },
-          "primitive": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Primitive"
-          },
-          "app_frame": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/BlockingFrameRef"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Innermost app-code frame in the stack, if any. Shown as evidence, not attribution."
-          },
-          "stack": {
-            "items": {
-              "$ref": "#/components/schemas/StackFrame"
-            },
-            "type": "array",
-            "title": "Stack",
-            "description": "The captured stack, innermost first. Empty when none was stored."
-          }
-        },
-        "type": "object",
-        "required": [
-          "detected_ts",
-          "tier",
-          "reason",
-          "stack"
-        ],
-        "title": "UnattributedStall",
-        "description": "One blocking event that names no app."
+        "title": "ValidationError"
       }
     }
   }
