@@ -65,6 +65,19 @@ hooks = [
     { id = "house-lint", args = ["--ignore", "HSL102"], files = '^(src|tests|scripts|tools|codegen|wire|client|docs|examples)/.*\.py$', stages = ["pre-commit", "pre-push"] },
 ]
 
+[[repos]]
+repo = "https://github.com/gitleaks/gitleaks"
+rev = "v8.30.1"
+hooks = [
+    # The upstream hook runs `gitleaks git --staged`, which scans only the index. At pre-push
+    # or in CI's clean checkout nothing is staged, so it would pass vacuously — keep it
+    # pre-commit only rather than show a green check that scanned nothing.
+    { id = "gitleaks", stages = ["pre-commit"] },
+    # Whole-tree scan for pre-push and CI (lint.yml runs `--stage pre-push`), so a commit made
+    # without local hooks still gets scanned before merge. Reuses this repo's gitleaks binary.
+    { id = "gitleaks", alias = "gitleaks-tree", name = "Detect hardcoded secrets (tracked tree)", entry = "./tools/scan_tracked_secrets.sh", pass_filenames = false, always_run = true, stages = ["pre-push"] },
+]
+
 # ---------------------------------------------------------------------------
 # Local hooks — security
 # ---------------------------------------------------------------------------
