@@ -1,7 +1,7 @@
 """Raising predicates on duration-hold paths are recorded and routed like the main dispatch path.
 
 Covers ``DurationHoldManager.hold_matches`` (reached via the duration-fire recheck) and
-``DurationHoldManager.immediate_fire_task``, both wired to ``BusService._record_predicate_failure``.
+``DurationHoldManager.immediate_fire_task``, both wired to ``BusService.record_predicate_failure_safely``.
 """
 
 import asyncio

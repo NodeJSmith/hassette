@@ -60,8 +60,9 @@ class DurationHoldManager:
                 bus kernel does not import HA event types.
             record_predicate_failure: Records a raising predicate as a failed execution and
                 routes it to the listener's (or app-level) error handler. Takes
-                ``(listener, topic, event, exc, start_ts)``. Injected from ``BusService`` so the
-                duration-hold paths share the main dispatch path's failure handling.
+                ``(listener, topic, event, exc, start_ts)`` and must not raise. Injected from
+                ``BusService`` so the duration-hold paths share the main dispatch path's
+                failure handling.
         """
         self.executor = executor
         self.config_resolver = config_resolver
@@ -94,24 +95,19 @@ class DurationHoldManager:
         and treated as a non-match so the spawned timer task doesn't crash.
         """
         hold_pred = listener.duration_config.hold_predicate if listener.duration_config else None
+        return self.evaluate_predicate(listener, event, hold_pred if hold_pred is not None else listener.matches)
+
+    def evaluate_predicate(
+        self, listener: Listener, event: "Event[Any]", predicate: "Callable[[Event[Any]], bool]"
+    ) -> bool:
+        """Run ``predicate`` against ``event``; a raise is recorded and treated as a non-match."""
         predicate_start = time.time()
         try:
-            if hold_pred is None:
-                return listener.matches(event)
-            return hold_pred(event)
+            return predicate(event)
         except Exception as exc:
-            self.logger.exception("Predicate raised in hold_matches for %s; treating as non-match", listener)
-            self.safe_record_predicate_failure(listener, event.topic, event, exc, predicate_start)
+            self.logger.exception("Predicate raised for %s; treating as non-match", listener)
+            self.record_predicate_failure(listener, event.topic, event, exc, predicate_start)
             return False
-
-    def safe_record_predicate_failure(
-        self, listener: Listener, topic: str, event: "Event[Any]", exc: Exception, start_ts: float
-    ) -> None:
-        """Call ``record_predicate_failure``, logging (not raising) if recording itself fails."""
-        try:
-            self.record_predicate_failure(listener, topic, event, exc, start_ts)
-        except Exception:
-            self.logger.exception("Failed to record predicate failure for %s", listener)
 
     async def immediate_fire_task(self, listener: Listener) -> None:
         """Fire a handler immediately with the current entity state.
@@ -144,16 +140,7 @@ class DurationHoldManager:
 
         try:
             synthetic_event = self.make_synthetic_event(entity_id, current_state)
-            predicate_start = time.time()
-            try:
-                matched = listener.matches(synthetic_event)
-            except Exception as exc:
-                self.logger.exception("Predicate raised in immediate_fire for %s; treating as non-match", listener)
-                self.safe_record_predicate_failure(
-                    listener, synthetic_event.topic, synthetic_event, exc, predicate_start
-                )
-                return
-            if not matched:
+            if not self.evaluate_predicate(listener, synthetic_event, listener.matches):
                 return
 
             invoke_fn = build_tracked_invoke_fn(
