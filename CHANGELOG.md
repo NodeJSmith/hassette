@@ -7,119 +7,105 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.56.0](https://github.com/NodeJSmith/hassette/compare/v0.55.0...v0.56.0) (2026-10-08)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+#### App code
 
-* seven wire models were renamed, changing OpenAPI/WS-schema component names and `hassette_wire` root exports: AppInstanceResponse -> AppInstance, BootIssueResponse -> BootIssue, ServiceInfoResponse -> ServiceInfo, LogEntryResponse -> LogEntry, AppSourceResponse -> AppSource, ConnectedPayload -> ConnectedData, ListenerWithSummary -> ListenerSummary. Bytes on the wire are unchanged.
-* The apps resource and app grid are reshaped; HTTP, WebSocket, CLI JSON and `hassette_wire` consumers must update.
-    #### Endpoints and events
-    - The grid endpoint moves from `/api/telemetry/dashboard/app-grid` to
-    `/api/telemetry/app-grid`, and its rows become `{app, activity}` instead
-    of flat rows.
-    - `GET /api/apps` (`AppStatusResponse`) is removed. The app list moves
-    from `GET /api/apps/manifests` to `GET /api/apps`, and one app from `GET
-    /api/apps/{app_key}/manifest` to `GET /api/apps/{app_key}`. The list
-    envelope's `manifests` field becomes `apps`.
-    - The WS event `app_manifests_changed` becomes `apps_changed`.
-    - Non-finite `since` (`nan`, `inf`, `-inf`) now returns 422 on every
-    endpoint that takes `since`.
-    - `AppGridResponse` gains `since` (additive).
-    #### Response shapes
-    - `hassette app --json` and `hassette dashboard --json` rows go from
-    flat to `{app, activity}`.
-    - `recent_invocations_1h` leaves the app summary.
-    - Activity that was not computed is `null` per part (`stats`,
-    `activity_buckets`, `last_error`, `blocking_event_count`) instead of
-    zeros; clients must handle null.
-    #### Renamed and removed models
-    - OpenAPI and WS-schema components: `AppManifestResponse` becomes
-    `AppSummary`, `AppManifestListResponse` becomes `AppListResponse`,
-    `DashboardAppGrid*` becomes `AppGrid*`, the WS manifests-changed classes
-    become `AppsChangedData`/`AppsChangedWsMessage`, and `ManifestStatus`
-    becomes `AppStatus` (`OpenManifestStatus` becomes `OpenAppStatus` inside
-    `hassette_wire.enums`).
-    - `hassette_wire` root exports: `AppStatusResponse` is removed;
-    `AppSummary`, `AppListResponse`, `AppGridEntry`, `AppGridResponse`,
-    `AppsChangedData`/`AppsChangedWsMessage` and `AppStatus` replace their
-    old names. `AppActivity`, `AppActivityStats`, `LastErrorResult`,
-    `LastError`, `WINDOWED_ACTIVITY_PARTS` and `requested_activity_parts`
-    are added.
-* `ServiceInfoResponse.role` is now required and typed as `ResourceRole`; the vocabulary fields (role, schedule_status, schedule_status_reason, app action) are enums in the OpenAPI and WebSocket schemas, and the WebSocket validator rejects unknown roles; `ResourceRole`, `ScheduleStatus`, `ScheduleStatusReason` and `AppAction` are new published wire schema names; `JobSummary.schedule_status` is now required.
-* App health is now one `AppHealth` model. `GET /api/telemetry/app/{app_key}/health` returns `AppHealth`, whose averages are renamed `handler_avg_duration_ms`/`job_avg_duration_ms` and are null when nothing of that kind ran. Dashboard grid rows drop `avg_duration_ms`, `error_rate`, `error_rate_class`, `health_status` and `last_activity_ts` in favor of a nested `health: AppHealth`. Per-instance health now counts executions of removed handlers and jobs. The `hassette app health` and `hassette dashboard` duration columns change to the handler/job averages. `hassette_wire.AppHealthResponse` is removed in favor of `AppHealth`. `hassette dashboard --json` rows nest `error_rate`, `error_rate_class`, `health_status` and `last_activity_ts` under `health` and drop `avg_duration_ms`; `hassette app health --json` renames `handler_avg_duration`/`job_avg_duration` to `*_ms`.
-* API data routes (telemetry, logs, executions, bus listeners, scheduler jobs, app manifests) now return a 503 `application/problem+json` body with code `telemetry_unavailable` when the telemetry database is unavailable, instead of a 503 with an empty or default JSON body. `/api/health/ready` and `/api/telemetry/status` are unchanged.
-* error responses under /api are served as application/problem+json instead of application/json; FastAPI validation 422s carry a string `detail` summary instead of a list of error objects; and with the SPA served, a non-GET request to an unknown /api path returns 404 instead of 405.
-* `AppConfig.app_key` is removed. An `app_key` set under an app's config in `hassette.toml` is now an ignored extra field rather than a validated, reserved one. Read the app's key at runtime via `self.app_key`.
-* `hassette.types.enums.ResourceStatus` / `hassette.types.ResourceStatus` no longer resolve — import `from hassette import ResourceStatus` instead. `hassette.types.types.ExecutionStatus` no longer resolves — import `from hassette import ExecutionStatus` instead.
+- **`AppConfig.app_key` removed** — the field was never populated, so `self.app_config.app_key` was always `""`. Read the app's key with `self.app_key` instead. An `app_key` left under an app's config in `hassette.toml` still loads, but is now an ignored extra field. (#2470)
+- **`ResourceStatus` and `ExecutionStatus` import paths moved** — `hassette.types.ResourceStatus`, `hassette.types.enums.ResourceStatus` and `hassette.types.types.ExecutionStatus` no longer resolve. Import them from the package root: `from hassette import ResourceStatus, ExecutionStatus`. `ExecutionMode` and `BackpressurePolicy` are also exported from the root. The `LOG_LEVEL_TYPE` alias is gone; use `hassette_wire.LogLevel`. (#2449)
+- **`AppConfig.log_level` defaults to `None`** — code that reads `self.app_config.log_level` directly now gets `None` for apps that don't set it, instead of `"INFO"`. Use `self.config_log_level` for the resolved level. (#2571)
 
-### Features
+#### Web API, CLI JSON and `hassette_wire`
 
-* add cache_shared opt-in to silence intentional cache_key collision warnings ([#2570](https://github.com/NodeJSmith/hassette/issues/2570)) ([7a1bd11](https://github.com/NodeJSmith/hassette/commit/7a1bd11f9d52b992003b7f09148aa5171aa9b74b))
-* **client:** add typed async transport and errors to hassette-client ([#2596](https://github.com/NodeJSmith/hassette/issues/2596)) ([975e011](https://github.com/NodeJSmith/hassette/commit/975e011cedd554671ff14ff2be841f01cee83af4))
-* name published wire models by role and document their schemas for clients ([#2584](https://github.com/NodeJSmith/hassette/issues/2584)) ([6711b7b](https://github.com/NodeJSmith/hassette/commit/6711b7bf07bddbf4cbf36ee0c1a35a7cb8e050de))
-* publish typed status and role vocabularies in the wire contract ([#2527](https://github.com/NodeJSmith/hassette/issues/2527)) ([ab99166](https://github.com/NodeJSmith/hassette/commit/ab991669a33237b31dd1b6087f2bf9d343405d26))
-* report one consistent app health everywhere ([#2520](https://github.com/NodeJSmith/hassette/issues/2520)) ([41c8bba](https://github.com/NodeJSmith/hassette/commit/41c8bba8d542a6eebe61e1f1a154959805f12d0a))
-* return dispatched events from AppTestHarness simulate helpers ([#2593](https://github.com/NodeJSmith/hassette/issues/2593)) ([0c8baa3](https://github.com/NodeJSmith/hassette/commit/0c8baa35c842a8f2bd5b40d985b4671c0743cdac)), closes [#1341](https://github.com/NodeJSmith/hassette/issues/1341)
-* return RFC 9457 problem details for every web API error ([#2480](https://github.com/NodeJSmith/hassette/issues/2480)) ([fae8aa1](https://github.com/NodeJSmith/hassette/commit/fae8aa17ca71f93bdef4b9c1ab8e2a9d45537f29))
-* return telemetry_unavailable problem bodies from data routes ([#2491](https://github.com/NodeJSmith/hassette/issues/2491)) ([8f90053](https://github.com/NodeJSmith/hassette/commit/8f900538e7b6e472d0f1414b680ee65773d15c62))
-* scope module-boundary rules to nested layers ([#2425](https://github.com/NodeJSmith/hassette/issues/2425)) ([7d7cb5f](https://github.com/NodeJSmith/hassette/commit/7d7cb5f1acbbca3464896774849be1e0cc6a2c37))
-* show uncomputed app activity as blank "—" and reshape apps into app + activity ([#2558](https://github.com/NodeJSmith/hassette/issues/2558)) ([15a8596](https://github.com/NodeJSmith/hassette/commit/15a859657a68348396db2faf60d89018302a6092))
-* support hassette.local.toml overlay for per-machine config ([#2561](https://github.com/NodeJSmith/hassette/issues/2561)) ([f7b6741](https://github.com/NodeJSmith/hassette/commit/f7b6741a8a5b33de49e515117d3d266c8857ac07))
-* surface blocking-IO findings in the web UI and CLI ([#2495](https://github.com/NodeJSmith/hassette/issues/2495)) ([35dbfe8](https://github.com/NodeJSmith/hassette/commit/35dbfe8694373872c74c0055af3f482d69ab88e6))
-* **ui:** collapse and expand config sections ([#2577](https://github.com/NodeJSmith/hassette/issues/2577)) ([5e37fc8](https://github.com/NodeJSmith/hassette/commit/5e37fc82f1abf8d9a04e5f79efb3ce43d9c5cd30)), closes [#1156](https://github.com/NodeJSmith/hassette/issues/1156)
-* **wire:** tolerate unknown enum and Literal values from newer servers via LENIENT_CONTEXT ([#2502](https://github.com/NodeJSmith/hassette/issues/2502)) ([a96597c](https://github.com/NodeJSmith/hassette/commit/a96597c05cb2e8c5d7fdbfc87126a8be5e1c4b84))
+These affect scripts and dashboards that call the HTTP/WebSocket API, parse `--json` CLI output, or import `hassette_wire` models. App code is not affected.
 
+- **Errors are RFC 9457 problem details** — every non-2xx response under `/api` is now `application/problem+json` with `type`, `title`, `status`, `detail` and a stable `code` (see the new [API errors](https://hassette.readthedocs.io/en/stable/pages/web-ui/api-errors/) page). Status codes and `detail` strings are unchanged. Validation 422s now carry a string `detail` summary instead of a list, and with the SPA served, a non-GET request to an unknown `/api` path returns 404 instead of 405. (#2480)
+- **Telemetry outages return a problem body** — data routes (telemetry, logs, executions, listeners, jobs, apps) now answer a database outage with a 503 `telemetry_unavailable` problem body instead of a 503 with an empty or default body. `/api/health/ready` and `/api/telemetry/status` are unchanged. (#2491)
+- **Apps endpoints reshaped** — update callers as follows (#2558):
+  - `GET /api/apps/manifests` → `GET /api/apps`; the list field `manifests` → `apps`
+  - `GET /api/apps/{app_key}/manifest` → `GET /api/apps/{app_key}`
+  - The old `GET /api/apps` live-instance view (`AppStatusResponse`) is removed
+  - `GET /api/telemetry/dashboard/app-grid` → `GET /api/telemetry/app-grid`, with rows shaped `{app, activity}` instead of flat
+  - WebSocket event `app_manifests_changed` → `apps_changed`
+  - `hassette app --json` and `hassette dashboard --json` rows are also `{app, activity}`; `recent_invocations_1h` leaves the app summary
+  - Activity that wasn't computed is now `null` per part (`stats`, `activity_buckets`, `last_error`, `blocking_event_count`) instead of zeros — handle `null`
+  - A non-finite `since` (`nan`, `inf`) now returns 422
+- **One `AppHealth` model** — `GET /api/telemetry/app/{app_key}/health` returns `AppHealth`, with averages renamed to `handler_avg_duration_ms` / `job_avg_duration_ms` (`null` when nothing of that kind ran). Grid rows nest `error_rate`, `error_rate_class`, `health_status` and `last_activity_ts` under `health` and drop `avg_duration_ms`. `hassette app health --json` renames `handler_avg_duration` / `job_avg_duration` to `*_ms`. Health now counts executions of handlers and jobs removed mid-window. (#2520)
+- **Typed vocabularies** — `role`, `schedule_status`, `schedule_status_reason` and app action fields are now enums in the OpenAPI and WebSocket schemas. `ServiceInfo.role` and `JobSummary.schedule_status` are now required. (#2527)
+- **`hassette_wire` model renames** — names now follow one rule (records are bare nouns, HTTP collections are `*Response`, WS payloads are `*Data`). Wire bytes are unchanged; only Python and schema component names change (#2584, #2558, #2520):
+  - `AppInstanceResponse` → `AppInstance`, `BootIssueResponse` → `BootIssue`, `ServiceInfoResponse` → `ServiceInfo`, `LogEntryResponse` → `LogEntry`, `AppSourceResponse` → `AppSource`, `ConnectedPayload` → `ConnectedData`, `ListenerWithSummary` → `ListenerSummary`
+  - `AppManifestResponse` → `AppSummary`, `AppManifestListResponse` → `AppListResponse`, `DashboardAppGrid*` → `AppGrid*`, `ManifestStatus` → `AppStatus`
+  - `AppHealthResponse` → `AppHealth`; `AppStatusResponse` is removed
+
+### For App Authors: You Can Now Delete
+
+- **`await super().before_initialize()` added only to keep `self.cache` working** — the cache is now initialized by the framework before your hook runs, so an override no longer needs the `super()` call. (#2572)
+- **`cast()` around `self.cache.get(key, default=...)`** — `get()` with a non-`None` default is now typed as the default's type, so `cast(list[float], ...)` wrappers and `or 0` fallbacks can go. (#2528)
+- **Per-app `log_level` set only to match `[hassette.logging] apps`** — apps without their own `log_level` now inherit the global apps level. (#2571)
+- **`deep_detection_enabled = true` set alongside `allow_deep_detection_in_prod = true`** — the allow flag now enables Tier 2 blocking-IO detection in production on its own. (#2472)
+- **`try`/`except` inside predicates on `duration=` listeners to catch your own errors** — a raising duration-hold predicate is now recorded as an error execution and routed to the listener's `on_error` handler, like any other predicate. (#2588)
+- **Test code that rebuilds a simulated event to compare context IDs** — `AppTestHarness.simulate_*()` helpers now return the event they dispatched. (#2593)
+
+### Python Client
+
+- `hassette-client` now ships `HassetteClient`: typed async methods over an `aiohttp.ClientSession` you own, returning `hassette_wire` models. Every network or server failure raises a `HassetteClientError` subclass (connection, timeout, HTTP status families, app-not-found, bootstrap-not-released), so callers branch on exception type instead of parsing response bodies. See the new [Python client](https://hassette.readthedocs.io/en/stable/pages/web-ui/python-client/) page. (#2596)
+- The server now reports `api_schema_version` in its health payload, and `check_server_version()` raises `UnsupportedServerVersionError` against a server too old for the client (#2596)
+- Client responses parse leniently: an enum or `Literal` value a newer server adds arrives as `UnknownValue` (a `str` subclass that keeps the raw value) instead of failing validation. Opt in on your own parses with `hassette_wire.LENIENT_CONTEXT`. (#2502)
+- `hassette-wire` now holds every model, enum and Literal served over the HTTP/WebSocket API, depending only on pydantic, so tools can use the API contract without installing the framework (#2449)
+
+### Configuration
+
+- New `hassette.local.toml` overlay for per-machine settings you don't want to commit (a dev `base_url`, a debug log level). Each configured TOML file gets its own `<name>.local.toml` sibling, which is deep-merged on top key by key, so it only needs the keys it changes. Env vars and CLI flags still win. Overlays are watched for hot reload. (#2561)
+- New per-app `cache_shared = true` silences the `cache_key` collision warning for apps that share a cache on purpose. The warning still fires, and names the missing apps, unless every app sharing the key sets it. (#2570)
+
+### Web UI & CLI
+
+- Blocking-IO findings are now visible: a "blocking calls" section on the app Overview tab, an "N blocking" badge on the Apps list, a "loop stalls" panel on Diagnostics for stalls not tied to an app, and a new `hassette blocking` command. Findings group by the app call site that blocked, with exact counts. Stalls recorded before upgrading show as "call site not captured". (#2495)
+- The Apps page and the `hassette app` / `hassette dashboard` tables show "—" for activity that wasn't computed, instead of zeros and a healthy-looking status. The CLI prints a one-line warning on stderr naming the missing parts. (#2558)
+- App health is computed the same way everywhere. The app detail health strip now reads it from the server and shows Handlers · Error Rate · Handler Avg · Job Avg; the CLI shows handler and job averages instead of one duration column. (#2520)
+- Config sections on the Config page and an app's Config tab can be collapsed and expanded (#2577)
+- An open dashboard tab prompts you to reload when the server is upgraded underneath it. The CLI keeps working against newer servers. (#2527)
+- CLI tables use the same widths and full-word headers across `hassette app`, `hassette app activity` and `hassette status` (`App Key` → `App`, `Invoc/1h` → `Invocations/1h`, `Errs` → `Errors`) (#2544)
+
+### Testing
+
+- `AppTestHarness.simulate_*()` helpers return the typed event they dispatched (for example `RawStateChangeEvent` from `simulate_state_change()`), after the triggered handlers have drained. Existing tests that ignore the return value are unaffected. (#2593)
 
 ### Bug Fixes
 
-* apps without an explicit log_level inherit the global logging.apps level ([#2571](https://github.com/NodeJSmith/hassette/issues/2571)) ([25eb170](https://github.com/NodeJSmith/hassette/commit/25eb170924a821f75a4709e3b9bef13cfab83db5)), closes [#2459](https://github.com/NodeJSmith/hassette/issues/2459)
-* initialize the app cache even when before_initialize skips super() ([#2572](https://github.com/NodeJSmith/hassette/issues/2572)) ([540b6ef](https://github.com/NodeJSmith/hassette/commit/540b6ef107e21bfb274ec60a56d1ed965bd72088)), closes [#2458](https://github.com/NodeJSmith/hassette/issues/2458)
-* keep app reload and start working from the web API and CLI ([#2490](https://github.com/NodeJSmith/hassette/issues/2490)) ([323ab92](https://github.com/NodeJSmith/hassette/commit/323ab92f177076d016b8597cc09be5a9717ed6e5))
-* let allow_deep_detection_in_prod enable Tier 2 blocking-IO detection on its own ([#2472](https://github.com/NodeJSmith/hassette/issues/2472)) ([4919b74](https://github.com/NodeJSmith/hassette/commit/4919b742b8529d2a706c1a9289635dbe30c07fd8)), closes [#2460](https://github.com/NodeJSmith/hassette/issues/2460)
-* publish field descriptions for blocking, health, ws and auth wire models ([#2541](https://github.com/NodeJSmith/hassette/issues/2541)) ([541acc2](https://github.com/NodeJSmith/hassette/commit/541acc287862509470f9e6f87a09c0af4597707f)), closes [#2539](https://github.com/NodeJSmith/hassette/issues/2539)
-* publish telemetry field descriptions in the OpenAPI schema ([#2538](https://github.com/NodeJSmith/hassette/issues/2538)) ([2aa5fba](https://github.com/NodeJSmith/hassette/commit/2aa5fbaf02f2f3655014d0ba00b64f7b4b8dfc53)), closes [#2517](https://github.com/NodeJSmith/hassette/issues/2517)
-* redact payload values from websocket send logs and errors ([#2565](https://github.com/NodeJSmith/hassette/issues/2565)) ([bc5705a](https://github.com/NodeJSmith/hassette/commit/bc5705a1142531d308d4a7611944c5cc5aed6e58)), closes [#2473](https://github.com/NodeJSmith/hassette/issues/2473)
-* reject app keys that would escape or alias the cache directory ([#2579](https://github.com/NodeJSmith/hassette/issues/2579)) ([0e1777a](https://github.com/NodeJSmith/hassette/commit/0e1777a6f9fa24d6b560c971ebb7c4c35d3dc1f4))
-* remove dead AppConfig.app_key and log the real app key on shutdown ([#2470](https://github.com/NodeJSmith/hassette/issues/2470)) ([a7d1bcf](https://github.com/NodeJSmith/hassette/commit/a7d1bcfe0f27d06ae2021fbb8371a82676b52fae))
-* route raising duration-hold predicates to error handlers and telemetry ([#2588](https://github.com/NodeJSmith/hassette/issues/2588)) ([91ad5e5](https://github.com/NodeJSmith/hassette/commit/91ad5e5ed9141d6da8e05171c5efb267256f6be6)), closes [#1258](https://github.com/NodeJSmith/hassette/issues/1258)
-* show a focus ring on keyboard-focused execution table rows ([#2583](https://github.com/NodeJSmith/hassette/issues/2583)) ([00eb0dc](https://github.com/NodeJSmith/hassette/commit/00eb0dc0619c9213e85fde791de4d6170eb6ef4a)), closes [#1187](https://github.com/NodeJSmith/hassette/issues/1187)
-* startup no longer fails when watch_files is disabled ([#2501](https://github.com/NodeJSmith/hassette/issues/2501)) ([edeefd8](https://github.com/NodeJSmith/hassette/commit/edeefd8edfcb9f8f03940be8e104e7208a4929b7))
-* stop blaming dependency injection for invalid handler and predicate signatures ([#2575](https://github.com/NodeJSmith/hassette/issues/2575)) ([bf41ea5](https://github.com/NodeJSmith/hassette/commit/bf41ea5f1f7c5574c378163c5c5cde96022d4e7f)), closes [#2455](https://github.com/NodeJSmith/hassette/issues/2455)
-* stop re-sending WebSocket writes after a response timeout ([#2468](https://github.com/NodeJSmith/hassette/issues/2468)) ([abbfea4](https://github.com/NodeJSmith/hassette/commit/abbfea43d428f81e8a6544e0e2ee66e919433c4c))
-* type cache get() as the default's type when a non-None default is passed ([#2528](https://github.com/NodeJSmith/hassette/issues/2528)) ([93e80cb](https://github.com/NodeJSmith/hassette/commit/93e80cb9d0c4f247af7a21c4d681225427d9858f)), closes [#2526](https://github.com/NodeJSmith/hassette/issues/2526)
-* **websocket:** stop logging inbound message payloads on dispatch failure ([#2567](https://github.com/NodeJSmith/hassette/issues/2567)) ([c48ba25](https://github.com/NodeJSmith/hassette/commit/c48ba2554a55210fd759e64e94eefcca1981b5d7)), closes [#2566](https://github.com/NodeJSmith/hassette/issues/2566) [#2568](https://github.com/NodeJSmith/hassette/issues/2568)
-
-
-### Refactoring
-
-* align naming drift across config, web API, task bucket, and tests ([#2451](https://github.com/NodeJSmith/hassette/issues/2451)) ([75e758b](https://github.com/NodeJSmith/hassette/commit/75e758b31d68cb846aded751ead207f074624ba9))
-* **cli:** unify app/dashboard column widths and headers, tidy app command module ([#2544](https://github.com/NodeJSmith/hassette/issues/2544)) ([f8be901](https://github.com/NodeJSmith/hassette/commit/f8be901b1c2a99b019327f9818539e425489da6e)), closes [#2516](https://github.com/NodeJSmith/hassette/issues/2516)
-* **frontend:** consistent @/ imports, SortState in utils, cast-free input handlers ([#2562](https://github.com/NodeJSmith/hassette/issues/2562)) ([ba932b1](https://github.com/NodeJSmith/hassette/commit/ba932b11c8d191adfa64549e7e9d9b22bfb4d945)), closes [#2549](https://github.com/NodeJSmith/hassette/issues/2549)
-* make app-snapshot dataclasses immutable ([#2569](https://github.com/NodeJSmith/hassette/issues/2569)) ([fc2293a](https://github.com/NodeJSmith/hassette/commit/fc2293a093f4b67bac70bf513b6c538121ffcc06)), closes [#1098](https://github.com/NodeJSmith/hassette/issues/1098)
-* move shutdown-budget allocation out of lifecycle.py into shutdown_budget.py ([#2576](https://github.com/NodeJSmith/hassette/issues/2576)) ([a065697](https://github.com/NodeJSmith/hassette/commit/a06569777b6dc1b4dcc911cbb8e72d58f7df44a9)), closes [#2454](https://github.com/NodeJSmith/hassette/issues/2454)
-* move wire contract models into hassette-wire ([#2449](https://github.com/NodeJSmith/hassette/issues/2449)) ([5825036](https://github.com/NodeJSmith/hassette/commit/58250367f8defecfcd1c2057e0e2af2218a5c564))
-* name the single-attempt retry budget in WebSocket send_and_wait ([#2469](https://github.com/NodeJSmith/hassette/issues/2469)) ([09a41f0](https://github.com/NodeJSmith/hassette/commit/09a41f09391cc781a2cd48071d17ad28bb53eaf4)), closes [#2467](https://github.com/NodeJSmith/hassette/issues/2467)
-* remove dead HandlerErrorRecord and JobErrorRecord schema models ([#2543](https://github.com/NodeJSmith/hassette/issues/2543)) ([2e551d0](https://github.com/NodeJSmith/hassette/commit/2e551d02d28bc14f591b55ef50f144423b74ff14)), closes [#2540](https://github.com/NodeJSmith/hassette/issues/2540)
-* remove focus-ring utilities that duplicate the global focus style ([#2589](https://github.com/NodeJSmith/hassette/issues/2589)) ([4661197](https://github.com/NodeJSmith/hassette/commit/46611979d1a7a9b57b809cdb3427208c5408e30d)), closes [#1279](https://github.com/NodeJSmith/hassette/issues/1279)
-* share owner resolution and warning labels across blocking-IO detection tiers ([#2497](https://github.com/NodeJSmith/hassette/issues/2497)) ([a456c91](https://github.com/NodeJSmith/hassette/commit/a456c9155d012712fcbca4a3e85094817cf408c9)), closes [#2494](https://github.com/NodeJSmith/hassette/issues/2494)
-* split scheduler_service.py into a job-queue module and a dispatch mixin ([#2452](https://github.com/NodeJSmith/hassette/issues/2452)) ([4afa619](https://github.com/NodeJSmith/hassette/commit/4afa61953cb056d70fa3f7a397f2388e032db24c)), closes [#2357](https://github.com/NodeJSmith/hassette/issues/2357)
-* split telemetry repository into insert-params and reconcile-sql modules ([#2430](https://github.com/NodeJSmith/hassette/issues/2430)) ([198c930](https://github.com/NodeJSmith/hassette/commit/198c930332a868f5d5946b0e17162d63ff2aed90))
-* **telemetry:** name shared SQL fragments and the app source tier ([#2559](https://github.com/NodeJSmith/hassette/issues/2559)) ([a561116](https://github.com/NodeJSmith/hassette/commit/a561116f288aa3021b4c702c5c3bd58a7c0f5027)), closes [#2556](https://github.com/NodeJSmith/hassette/issues/2556)
-* **telemetry:** unify clause naming and dedupe log-record SELECT in summary queries ([#2563](https://github.com/NodeJSmith/hassette/issues/2563)) ([158a20d](https://github.com/NodeJSmith/hassette/commit/158a20d61bd1e0539b4fc4b6b751ff7412717e9e)), closes [#2513](https://github.com/NodeJSmith/hassette/issues/2513)
-* tidy naming and structure in use-column-visibility hook ([#2429](https://github.com/NodeJSmith/hassette/issues/2429)) ([22d5ac9](https://github.com/NodeJSmith/hassette/commit/22d5ac940d9fa702ffc2bdbfc5a72887d3e094d6)), closes [#2380](https://github.com/NodeJSmith/hassette/issues/2380)
-* **web:** name the API prefix and CORS lists in the app factory ([#2503](https://github.com/NodeJSmith/hassette/issues/2503)) ([4c482c0](https://github.com/NodeJSmith/hassette/commit/4c482c0f4c8256b945676481dbf844211e1fd0f9)), closes [#2487](https://github.com/NodeJSmith/hassette/issues/2487)
-* **web:** split auth middleware dispatch and app-action helper into named steps ([#2505](https://github.com/NodeJSmith/hassette/issues/2505)) ([3511995](https://github.com/NodeJSmith/hassette/commit/3511995dd3722ef13d39d884bb96fc1fbf32b3d6)), closes [#2479](https://github.com/NodeJSmith/hassette/issues/2479)
-* **web:** use shared query annotations and wire literals in telemetry routes ([#2546](https://github.com/NodeJSmith/hassette/issues/2546)) ([ed75e0b](https://github.com/NodeJSmith/hassette/commit/ed75e0b316122a86ff88dd4addc3715c55e83319)), closes [#2515](https://github.com/NodeJSmith/hassette/issues/2515)
-
+- WebSocket writes are no longer re-sent after a response timeout, which could apply a command twice. `fire_event`, `call_service(return_response=True)` without `wait_for_ack`, and helper `create` / `update` / `delete` now send exactly once and raise `ResponseTimeoutError`, or `ResponseLostError` on disconnect. Both subclass the new `OutcomeUnknownError`: if you relied on the old retry, catch it and check whether the command took effect before retrying. Reads still retry. (#2468)
+- Reloading or starting an app from the web API or CLI no longer takes the app down with `HassetteNotInitializedError` until a process restart (#2490)
+- Startup no longer times out when `file_watcher.watch_files = false` (#2501; also shipped in 0.55.1)
+- Apps without an explicit `log_level` now inherit `[hassette.logging] apps` instead of always using `INFO` (#2571)
+- `self.cache` works when an app overrides `before_initialize` without calling `super()`, instead of raising `AsyncCache is not initialized` (#2572)
+- `allow_deep_detection_in_prod = true` enables Tier 2 blocking-IO detection on its own. Note: an explicit `deep_detection_enabled = true` in production now turns Tier 2 on too; `deep_detection_enabled = false` always wins. (#2472)
+- A predicate that raises on a `duration=` listener is now recorded as an error execution and sent to `on_error`, instead of only being logged (#2588)
+- App keys containing `/`, `\`, an absolute path or a `..` segment are rejected at config validation, so an app's derived cache directory can't escape `data_dir` or alias another app's (#2579)
+- WebSocket send and dispatch-failure logs and `FailedMessageError` messages no longer include payload values, which could contain secrets such as a password-mode `input_text` value. The payload is still on `FailedMessageError.original_data`. (#2565, #2567)
+- Shutdown logs carry the app's real key instead of `app_key=None` (#2470)
+- `self.cache.get(key, default=x)` is typed as `x`'s type instead of `T | None` (#2528)
+- Invalid handler and `where=` predicate signatures (`*args`, positional-only parameters) no longer report a dependency injection error when the handler doesn't use DI (#2575)
+- Keyboard-focused execution table rows show a focus ring (#2583)
+- The OpenAPI and WebSocket schemas now include field descriptions for telemetry, blocking, health, WebSocket and auth models (#2538, #2541)
 
 ### Documentation
 
-* clarify that /api/health ok requires app bootstrap release ([#2471](https://github.com/NodeJSmith/hassette/issues/2471)) ([cd22e8d](https://github.com/NodeJSmith/hassette/commit/cd22e8da1d6c546aa3c8a4ef8a1cfe3b790551e2)), closes [#2264](https://github.com/NodeJSmith/hassette/issues/2264)
-* clarify that HelperClient update/delete take the storage id, not entity_id ([#2450](https://github.com/NodeJSmith/hassette/issues/2450)) ([26f069c](https://github.com/NodeJSmith/hassette/commit/26f069c64d93cf5088979b61f6bdb8d938eef232)), closes [#1857](https://github.com/NodeJSmith/hassette/issues/1857)
-* correct the error raised for a missing name= and the on_error method list on the bus methods page ([#2441](https://github.com/NodeJSmith/hassette/issues/2441)) ([59bf579](https://github.com/NodeJSmith/hassette/commit/59bf579a1b2ec6cadcb8592ba8322c01661d18bb)), closes [#2358](https://github.com/NodeJSmith/hassette/issues/2358)
-* fix A.get_path example path in predicate reference ([#2435](https://github.com/NodeJSmith/hassette/issues/2435)) ([7a1d603](https://github.com/NodeJSmith/hassette/commit/7a1d6038b455631db586d1db911d8d942b0ceb22)), closes [#2375](https://github.com/NodeJSmith/hassette/issues/2375)
-* fix inaccurate claims across core-concepts and testing docs ([#2465](https://github.com/NodeJSmith/hassette/issues/2465)) ([6f191d2](https://github.com/NodeJSmith/hassette/commit/6f191d26596a1e986d60f0e13c1fbd3f99beef77))
-* make the lifecycle internals page followable for readers who land on it directly ([#2436](https://github.com/NodeJSmith/hassette/issues/2436)) ([f979c58](https://github.com/NodeJSmith/hassette/commit/f979c586031ffc2efefd85dad6c0c9cf5ecfbbcd)), closes [#1781](https://github.com/NodeJSmith/hassette/issues/1781)
-* point blocking-findings hint at task_bucket.run_in_thread ([#2523](https://github.com/NodeJSmith/hassette/issues/2523)) ([fe2e81e](https://github.com/NodeJSmith/hassette/commit/fe2e81ed846d22b6f64a300ece491b9aabe31684)), closes [#2522](https://github.com/NodeJSmith/hassette/issues/2522)
+- New pages: [API errors](https://hassette.readthedocs.io/en/stable/pages/web-ui/api-errors/) (every problem `code`) and [Python client](https://hassette.readthedocs.io/en/stable/pages/web-ui/python-client/) (#2480, #2596)
+- Accuracy pass across the core-concepts and testing pages: listener naming errors, state conversion rules, `simulate_app_*` signatures, `enabled = false` behavior, and config file discovery (every `hassette.toml` is merged) (#2465)
+- The bus methods page states correctly that omitting `name=` raises `TypeError`, and that every handler-taking method accepts `on_error` (#2441)
+- `HelperClient.update()` and `delete()` take the helper's storage id (`"vacation_mode"`), not its `entity_id`; the docs and docstrings now say so (#2450)
+- Blocking-IO guidance points to `self.task_bucket.run_in_thread` instead of `asyncio.to_thread` (#2523)
+- `/api/health` reports `ok` only once the WebSocket is connected and app bootstrap is released (#2471)
+- Fixed the `A.get_path` example path in the predicate reference (#2435)
+- The lifecycle internals page says who it's for and defines its terms (#2436)
+
+
+## [0.55.1](https://github.com/NodeJSmith/hassette/compare/v0.55.0...v0.55.1) (2026-10-05)
+
+### Bug Fixes
+
+- Startup no longer fails when `file_watcher.watch_files` is disabled. The file watcher service never marked itself ready on that path, so startup waited out the full timeout and then aborted. (#2501)
+
 
 ## [0.55.0](https://github.com/NodeJSmith/hassette/compare/v0.54.0...v0.55.0) (2026-09-28)
 
