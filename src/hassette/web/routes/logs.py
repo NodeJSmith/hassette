@@ -11,8 +11,8 @@ from hassette_wire import LogEntry, LogLevelRequest, LogLevelResponse, ProblemCo
 from hassette.web.auth.trusted_proxies import peer_address_or_unknown
 from hassette.web.dependencies import (
     VALID_LOG_LEVEL_NAMES,
-    VALID_SOURCE_TIERS,
     SinceQuery,
+    SourceTierQuery,
     TelemetryDep,
     is_log_level,
 )
@@ -49,11 +49,6 @@ def validate_log_level(level: str | None) -> str | None:
     return _validate_choice(level, VALID_LOG_LEVEL_NAMES, "level", str.upper)
 
 
-def validate_source_tier(source_tier: str | None) -> str | None:
-    """Lowercase and validate an optional ``source_tier`` query param; raises 422 if invalid."""
-    return _validate_choice(source_tier, VALID_SOURCE_TIERS, "source_tier", str.lower)
-
-
 @router.get(
     "/logs/recent",
     response_model=list[LogEntry],
@@ -66,18 +61,12 @@ async def get_logs(
     level: Annotated[str | None, Query()] = None,
     since: SinceQuery = None,
     execution_id: Annotated[str | None, Query()] = None,
-    source_tier: Annotated[
-        str | None,
-        Query(
-            description="Filter by source tier: 'app' or 'framework'. Omit to return records from both. "
-            "Unlike the telemetry-metrics endpoints, which default to 'app', this default deliberately "
-            "includes everything: the log viewer is a raw feed, not an app-author-facing metric."
-        ),
-    ] = None,
+    # Unlike the telemetry-metrics endpoints, which default to "app", this default deliberately
+    # includes everything: the log viewer is a raw feed, not an app-author-facing metric.
+    source_tier: SourceTierQuery = "all",
 ) -> list[LogEntry]:
     """Return recent log records from the database with optional filtering."""
     level = validate_log_level(level)
-    source_tier = validate_source_tier(source_tier)
     raw = await telemetry.get_log_records(
         limit=limit,
         since=since,

@@ -276,7 +276,7 @@ class SummaryQueriesMixin:
         app_key: str | None = None,
         level: str | None = None,
         execution_id: str | None = None,
-        source_tier: str | None = None,
+        source_tier: QuerySourceTier = "all",
     ) -> list[dict[str, Any]]:
         """Fetch log records with optional filters, ordered by timestamp DESC.
 
