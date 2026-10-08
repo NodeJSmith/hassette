@@ -3,7 +3,7 @@
 :class:`HassetteClient` sends requests over an ``aiohttp.ClientSession`` the caller owns, returns
 ``hassette_wire`` models, and raises a :class:`HassetteClientError` subclass for every network or
 server failure. Responses parse leniently, so this client keeps working against a newer server;
-:func:`check_server_version` checks that the server isn't older than :data:`MIN_SERVER_VERSION`.
+:func:`check_server_version` checks that the server's API schema isn't older than :data:`MIN_API_SCHEMA_VERSION`.
 """
 
 from hassette_client.client import HassetteClient
@@ -39,11 +39,11 @@ from hassette_client.errors import (
 )
 from hassette_client.parsing import parse_response
 from hassette_client.transport import DEFAULT_REQUEST_TIMEOUT
-from hassette_client.version import MIN_SERVER_VERSION, check_server_version
+from hassette_client.version import MIN_API_SCHEMA_VERSION, check_server_version
 
 __all__ = [
     "DEFAULT_REQUEST_TIMEOUT",
-    "MIN_SERVER_VERSION",
+    "MIN_API_SCHEMA_VERSION",
     "ActionFailedError",
     "AppBlockedError",
     "AppNotFoundError",

@@ -1143,7 +1143,6 @@ source = { editable = "client" }
 dependencies = [
     { name = "aiohttp" },
     { name = "hassette-wire" },
-    { name = "packaging" },
     { name = "pydantic" },
 ]
 
@@ -1157,7 +1156,6 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.10" },
     { name = "hassette-wire", editable = "wire" },
-    { name = "packaging", specifier = ">=23.1" },
     { name = "pydantic", specifier = ">=2.7" },
 ]
 provides-extras = ["cli"]

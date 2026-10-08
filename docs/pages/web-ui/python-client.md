@@ -176,46 +176,68 @@ Inside Home Assistant, don't retry in the integration at all. Raise `ConfigEntry
 
 ## Talking to an older or newer server
 
-`hassette-client` is released alongside Hassette, but the two are often upgraded at different times. A Home Assistant integration usually updates first, so the client is often the newer side.
+`hassette-client` is released alongside Hassette, but the two often upgrade at different times. A freshly installed client may meet last month's server, or a Home Assistant integration may update its client before Hassette. Three rules cover the gap:
+
+- `check_server_version()`, called once after connecting, makes an older server fail clearly instead of halfway through.
+- `UnknownValue` needs handling wherever code uses `match` on a status.
+- The client tolerates everything else a newer server changes.
 
 ### A newer server
 
-A newer server can send a status or other named value that this client doesn't know. Instead of failing, the client parses that value as a `hassette_wire.UnknownValue`, a string holding exactly what the server sent. The status fields in the example above are this kind of field:
+Some fields hold one of a fixed set of values, such as an app's `status` (`running`, `stopped`, and so on). Most are *open*: a newer server may add a value this client has never heard of. The client parses that value as a `hassette_wire.UnknownValue` instead of failing. `UnknownValue` is a `str` subclass holding exactly what the server sent, so printing or comparing it still works. A few fields are *closed*, such as `source_tier` and log levels. Their values are fixed, and an unknown one raises `ResponseValidationError`.
+
+`app.status` from [First request](#first-request) is an open field. This loop, inside `main()`, handles a status the client doesn't know:
 
 ```python
 --8<--
-pages/web-ui/snippets/python_client_skew.py:imports
+pages/web-ui/snippets/python_client_skew.py:unknown-imports
 pages/web-ui/snippets/python_client_skew.py:unknown
 --8<--
 ```
 
-The client also ignores response fields it doesn't know.
+`case UnknownValue():` matches only unrecognized values; `case status:` takes everything else. Against a server newer than the client, it prints a line like `porch_lights: 'paused' is newer than this client`.
+
+The client also ignores response fields it doesn't know: they don't appear on the returned model.
 
 ### An older server
 
-`MIN_SERVER_VERSION` is the oldest Hassette server this client release works with. `check_server_version()` takes a `get_health()` result and raises `UnsupportedServerVersionError` when the server is older. No method calls it for you, so `get_health()` still reports on an older server. Call it once when you set up a connection:
+Against an older server, a new method fails later with a `not_found` error. A new filter, such as `since=`, is silently ignored by the server: the call returns unfiltered data with no error. `check_server_version()` catches both up front. Call it once, when setting up a connection:
 
 ```python
---8<-- "pages/web-ui/snippets/python_client_skew.py:check"
+--8<--
+pages/web-ui/snippets/python_client_skew.py:check-imports
+pages/web-ui/snippets/python_client_skew.py:check
+--8<--
 ```
 
-Versions compare by [PEP 440](https://peps.python.org/pep-0440/), so a development build of the minimum version, such as `0.56.0.dev3`, counts as older than `0.56.0`. A server whose version isn't readable, such as `"unknown"` from a source checkout, passes, because there's nothing to compare. The example warns in that case, since nothing else will.
+Against a server that's too old, it prints a message like:
+
+```text
+hassette server 0.55.0 reports no API schema, older than 1, the oldest this hassette-client supports: upgrade the hassette server, or install an older hassette-client
+```
+
+The message names the two fixes: upgrade Hassette, or pin `hassette-client` to the release matching the server.
+
+The check compares API schema numbers, not Hassette's release version. Each server reports its API schema, an integer, as `api_schema_version` in `get_health()`. The number rises when the API gains something this client needs. A server released before the schema existed reports none, which counts as `0`. `MIN_API_SCHEMA_VERSION`, exported from `hassette_client`, is the oldest schema this client release works with. A server running from a git checkout reports the right schema even though its release version is out of date.
+
+Nothing calls `check_server_version()` automatically, so `get_health()` and the rest still work against an older server, for example to show its status.
 
 ### What each side tolerates
 
-| Server change | Older client, newer server | Newer client, server at or above `MIN_SERVER_VERSION` |
+The third column assumes `check_server_version()` passed.
+
+| Server change | Client older than the server | Client newer than the server |
 |---|---|---|
-| New response field | Ignored | Can't be missing: new fields are optional, so an older server's response gets the default |
-| New value in an open field (statuses, kinds) | Parsed as `UnknownValue` | Doesn't arise: the client knows every value the server sends |
-| New value in a closed field (`source_tier`, log levels) | `ResponseValidationError`. Hassette treats this as a breaking change | Doesn't arise |
-| New problem code | Raises the status's exception; `code` is an `UnknownValue` | Doesn't arise |
-| New endpoint or action | No method for it | Can't happen |
-| New query parameter or request field | Not sent; the server uses its default | Can't happen |
-| Renamed, removed or retyped field | `ResponseValidationError`. Hassette treats this as a breaking change | `ResponseValidationError` |
+| New response field | Ignored | The client never requires a field this server lacks |
+| New value in an open field | Parsed as `UnknownValue` | Doesn't arise: the client knows every value the server sends |
+| New value in a closed field | `ResponseValidationError`; upgrade the client. Hassette releases this as a breaking change | Doesn't arise |
+| New problem code | Raises the exception for its HTTP status; `exc.problem.code` is an `UnknownValue` | Doesn't arise |
+| New method or action | No method for it | Doesn't arise: the check guarantees the server has it |
+| New query parameter or request field | Not sent; the server uses its default | Doesn't arise: the check guarantees the server has it |
+| Renamed, removed or retyped field | `ResponseValidationError`. Hassette releases this as a breaking change | `ResponseValidationError` |
 
-Two CI checks back this table. A wire-compatibility check compares every change to Hassette's API with the latest release in both directions, and fails on a new required response field or a removed field unless the change is released as breaking. On every release, the client's requests are checked against the API of `MIN_SERVER_VERSION`, and the release can't ship until the minimum is raised to cover any endpoint, method or query parameter the client started using. That check proves each one exists on the older server, not that it means the same thing there.
-
-"Can't happen" assumes `check_server_version()` passed with a readable version. Against an older server, a new endpoint fails with a `not_found` error, and a new query parameter is silently ignored, so the filter has no effect.
+??? note "How Hassette tests these guarantees"
+    Every change to Hassette runs two checks. A wire-compatibility check compares the API with the latest release in both directions. It fails on a new required response field or a removed field unless the change is released as breaking. A client floor check runs the client against the oldest release reporting `MIN_API_SCHEMA_VERSION`. Every method, query parameter and required response field the client uses must exist there, or the change has to raise the API schema. Neither check covers a new value in a closed field, and neither proves an endpoint means the same thing on both releases.
 
 ## Logging
 

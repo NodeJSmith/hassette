@@ -69,7 +69,7 @@ PICKLABLE_ERRORS: list[HassetteClientError] = [
         body_size=12,
         body_excerpt="<html></html",
     ),
-    UnsupportedServerVersionError(server_version="0.50.0", min_version="0.55.0"),
+    UnsupportedServerVersionError(server_version="0.50.0", api_schema_version=0, min_api_schema_version=1),
     AppNotFoundError(status=404, endpoint="GET /api/apps/a", problem=PROBLEM),
     ConflictError(status=409, endpoint="POST /api/apps/a/reload", problem=NEWER_PROBLEM),
     RedirectError(

@@ -194,8 +194,7 @@ jobs:
               uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
               with:
                   persist-credentials: false
-                  # tools/check_client_floor.py reads a release tag's openapi.json on release-please PRs.
-                  fetch-depth: ${{ startsWith(github.head_ref, 'release-please--') && '0' || '1' }}
+                  fetch-depth: 0 # tools/check_client_floor.py reads release tags to find the client's floor release
 
             - name: Install uv and set the Python version
               uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
@@ -204,13 +203,27 @@ jobs:
 
             - run: uv sync
 
+            - name: Set up Go
+              uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+              with:
+                  go-version: "stable"
+                  cache: false
+
+            # Version also pinned in mise.toml ("github:oasdiff/oasdiff") for local pre-push runs.
+            - name: Install oasdiff
+              run: |
+                  go install github.com/oasdiff/oasdiff@v1.32.1
+                  echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
             - name: Test hassette-wire and hassette-client
               run: uv run nox -s wire client
 
-            # Only a release PR knows the version being released, which is what MIN_SERVER_VERSION may need
-            # to be raised to, so feature PRs can't act on this check.
-            - name: Check hassette-client against its minimum server version
-              if: startsWith(github.head_ref, 'release-please--')
+            - name: Run client floor check tests
+              run: uv run pytest tests/unit/tools/test_check_client_floor.py
+
+            # Fails the PR that makes the client need server API its floor release lacks, until that PR
+            # raises API_SCHEMA_VERSION and MIN_API_SCHEMA_VERSION (.claude/rules/client-schema-floor.md).
+            - name: Check hassette-client against its floor release
               run: uv run python tools/check_client_floor.py
 
     system:

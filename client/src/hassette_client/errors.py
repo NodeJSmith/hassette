@@ -157,19 +157,23 @@ class UnexpectedResponseError(ResponseValidationError):
 
 
 class UnsupportedServerVersionError(HassetteClientError):
-    """The server is older than :data:`~hassette_client.MIN_SERVER_VERSION`.
+    """The server's API schema is older than :data:`~hassette_client.MIN_API_SCHEMA_VERSION`.
 
     Raised only by :func:`~hassette_client.check_server_version`.
     """
 
-    def __init__(self, *, server_version: str, min_version: str) -> None:
+    def __init__(self, *, server_version: str, api_schema_version: int, min_api_schema_version: int) -> None:
         self.server_version = server_version
-        """The version the server reported."""
-        self.min_version = min_version
-        """The oldest server version this client release supports."""
+        """The release version the server reported, for display."""
+        self.api_schema_version = api_schema_version
+        """The API schema the server reported, ``0`` for a server too old to report one."""
+        self.min_api_schema_version = min_api_schema_version
+        """The oldest API schema this client release supports."""
+        served = f"serves API schema {api_schema_version}" if api_schema_version else "reports no API schema"
         super().__init__(
-            f"hassette server {server_version} is older than {min_version}, the oldest version this "
-            "hassette-client supports: upgrade the hassette server, or install an older hassette-client"
+            f"hassette server {server_version or '(unknown version)'} {served}, older than "
+            f"{min_api_schema_version}, the oldest this hassette-client supports: upgrade the hassette server, "
+            "or install an older hassette-client"
         )
 
 

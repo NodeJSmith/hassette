@@ -67,8 +67,8 @@ FORWARD_ALLOWED_ERR_CHECK_IDS = frozenset(
 )
 
 
-def resolve_latest_release_tag(repo_root: Path) -> str | None:
-    """Return the highest ``v*`` git tag reachable from HEAD, or None if there is none.
+def list_release_tags(repo_root: Path) -> list[str]:
+    """Return the ``v*`` git tags reachable from HEAD, highest version first.
 
     ``git tag --list --merged HEAD`` limits candidates to tags whose commit is an ancestor of
     HEAD, so a branch forked before a release isn't compared against a tag it can't see yet.
@@ -83,7 +83,12 @@ def resolve_latest_release_tag(repo_root: Path) -> str | None:
     )
     if result.returncode != 0:
         raise RuntimeError(f"git tag --list failed: {result.stderr.strip()}")
-    tags = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def resolve_latest_release_tag(repo_root: Path) -> str | None:
+    """Return the highest ``v*`` git tag reachable from HEAD, or None if there is none."""
+    tags = list_release_tags(repo_root)
     return tags[0] if tags else None
 
 
@@ -103,25 +108,17 @@ def extract_tagged_openapi(repo_root: Path, tag: str, dest_dir: Path) -> Path:
     return dest_path
 
 
-def run_oasdiff(base: Path, revision: Path, ignore_file: Path, label: str) -> list[dict[str, Any]]:
+def run_oasdiff(base: Path, revision: Path, ignore_file: Path | None, label: str) -> list[dict[str, Any]]:
     """Run ``oasdiff breaking base revision`` and return the parsed JSON findings.
 
     ``--err-ignore`` is applied by oasdiff itself, so an ignored finding never appears in the
-    returned list. Any non-zero exit code is a genuine tool error (bad args, unreadable spec,
-    malformed output).
+    returned list; ``ignore_file=None`` ignores nothing. Any non-zero exit code is a genuine tool
+    error (bad args, unreadable spec, malformed output).
     """
     print(f"--- oasdiff breaking ({label}): {base} -> {revision} ---")
+    ignore_args = ["--err-ignore", str(ignore_file)] if ignore_file is not None else []
     result = subprocess.run(
-        [
-            "oasdiff",
-            "breaking",
-            str(base),
-            str(revision),
-            "--format",
-            "json",
-            "--err-ignore",
-            str(ignore_file),
-        ],
+        ["oasdiff", "breaking", str(base), str(revision), "--format", "json", *ignore_args],
         capture_output=True,
         text=True,
         timeout=OASDIFF_TIMEOUT_SECONDS,

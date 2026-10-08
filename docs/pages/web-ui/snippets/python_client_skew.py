@@ -1,13 +1,11 @@
-# --8<-- [start:imports]
-from hassette_client import (
-    HassetteClient,
-    UnsupportedServerVersionError,
-    check_server_version,
-)
-from hassette_wire import UnknownValue
-from packaging.version import InvalidVersion, Version
+# --8<-- [start:check-imports]
+from hassette_client import HassetteClient, UnsupportedServerVersionError, check_server_version
 
-# --8<-- [end:imports]
+# --8<-- [end:check-imports]
+# --8<-- [start:unknown-imports]
+from hassette_wire import UnknownValue
+
+# --8<-- [end:unknown-imports]
 
 
 async def print_statuses(client: HassetteClient) -> None:
@@ -21,17 +19,15 @@ async def print_statuses(client: HassetteClient) -> None:
     # --8<-- [end:unknown]
 
 
-async def connect(client: HassetteClient) -> bool:
-    # --8<-- [start:check]
+# --8<-- [start:check]
+async def server_is_supported(client: HassetteClient) -> bool:
     health = await client.get_health()
     try:
         check_server_version(health)
     except UnsupportedServerVersionError as exc:
-        print(exc)  # names both versions and says which side to upgrade
+        print(exc)
         return False
-    try:
-        Version(health.version)
-    except InvalidVersion:
-        print(f"Hassette reports version {health.version!r}; couldn't check it's new enough")
     return True
-    # --8<-- [end:check]
+
+
+# --8<-- [end:check]

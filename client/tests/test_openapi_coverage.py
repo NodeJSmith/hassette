@@ -10,9 +10,11 @@ By default the document is the committed ``frontend/openapi.json``, the current 
 - a problem code a route declares fails ``test_every_declared_problem_code_resolves`` until the client
   maps it.
 
-With ``HASSETTE_CLIENT_OPENAPI`` set to another document, only the request checks run. On a release PR,
-``tools/check_client_floor.py`` points it at the ``openapi.json`` of ``MIN_SERVER_VERSION``, proving
-every request this client sends exists on the oldest server it claims to support.
+With ``HASSETTE_CLIENT_OPENAPI`` set to another document, only the request checks run. On every PR,
+``tools/check_client_floor.py`` points it at the ``openapi.json`` of the floor release (the oldest release
+reporting ``MIN_API_SCHEMA_VERSION``), proving every request this client sends exists on the oldest server
+it claims to support. The tool also sets ``HASSETTE_CLIENT_OPERATIONS``, and this module writes the
+operations the client calls there, for the tool's response check.
 """
 
 import contextlib
@@ -38,6 +40,10 @@ HEAD_OPENAPI_PATH = Path(__file__).resolve().parents[2] / "frontend" / "openapi.
 OTHER_OPENAPI = os.environ.get(OPENAPI_ENV_VAR)
 
 OPENAPI_PATH = Path(OTHER_OPENAPI) if OTHER_OPENAPI else HEAD_OPENAPI_PATH
+
+OPERATIONS_ENV_VAR = "HASSETTE_CLIENT_OPERATIONS"
+
+OPERATIONS_FILE = os.environ.get(OPERATIONS_ENV_VAR)
 
 current_api_only = pytest.mark.skipif(
     bool(OTHER_OPENAPI), reason="checks coverage of the current server's API, not an older one's"
@@ -108,14 +114,10 @@ PROBE_STATUS_BODY = {"status": "starting", "ready": False, "degraded": True}
 """A JSON 503 body both probe status models parse, so only a method's own 503 handling decides the outcome."""
 
 
-def load_openapi() -> dict[str, Any]:
-    return json.loads(OPENAPI_PATH.read_text())
-
-
-def operations() -> list[tuple[str, str, dict[str, Any]]]:
+def operations(spec_path: Path = OPENAPI_PATH) -> list[tuple[str, str, dict[str, Any]]]:
     return [
         (method.upper(), path, operation)
-        for path, path_item in load_openapi()["paths"].items()
+        for path, path_item in json.loads(spec_path.read_text())["paths"].items()
         for method, operation in path_item.items()
     ]
 
@@ -124,10 +126,12 @@ def template_pattern(path: str) -> re.Pattern[str]:
     return re.compile("^" + re.sub(r"\\\{[^/]+?\\\}", "[^/]+", re.escape(path)) + "$")
 
 
-def match_template(method: str, path: str) -> tuple[str, str] | None:
+def match_template(method: str, path: str, spec_path: Path = OPENAPI_PATH) -> tuple[str, str] | None:
     """Return the ``(method, template)`` of the operation a recorded request hit, or ``None`` if none does."""
     matches = [
-        (m, template) for m, template, _ in operations() if m == method and template_pattern(template).match(path)
+        (m, template)
+        for m, template, _ in operations(spec_path)
+        if m == method and template_pattern(template).match(path)
     ]
     assert len(matches) <= 1, f"{method} {path} matches {matches}"
     return matches[0] if matches else None
@@ -282,6 +286,34 @@ def test_every_declared_problem_code_resolves() -> None:
                 if problem_code in CODE_ERRORS:
                     family = error_class_for(int(status), None)
                     assert issubclass(CODE_ERRORS[problem_code], family), (method, path, status, code)
+
+
+@pytest.mark.skipif(not OPERATIONS_FILE, reason=f"only when {OPERATIONS_ENV_VAR} names a file to write")
+async def test_export_client_operations_for_floor_check(client: HassetteClient, server: FakeServer) -> None:
+    """Not a check: the contract with ``tools/check_client_floor.py``, which filters oasdiff findings by it.
+
+    Writes each operation the client calls, named as HEAD's spec names it (oasdiff's base), and whether the
+    client parses that operation's 503 as a model.
+    """
+    assert OPERATIONS_FILE is not None
+    parses_503_by_operation: dict[tuple[str, str], bool] = {}
+    for method_name, requests in (await all_requests(client, server)).items():
+        for method, path, _ in requests:
+            key = match_template(method, path, HEAD_OPENAPI_PATH)
+            assert key is not None, f"{method_name}: {method} {path} isn't in {HEAD_OPENAPI_PATH}"
+            if method_name in STATUS_MODEL_503_METHODS:
+                parses_503_by_operation[key] = True
+            else:
+                parses_503_by_operation.setdefault(key, False)
+
+    Path(OPERATIONS_FILE).write_text(
+        json.dumps(
+            [
+                {"method": method, "path": path, "parses_503": parses_503}
+                for (method, path), parses_503 in sorted(parses_503_by_operation.items())
+            ]
+        )
+    )
 
 
 @pytest.mark.parametrize("method_name", sorted(CALLS))

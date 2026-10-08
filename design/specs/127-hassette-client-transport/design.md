@@ -793,9 +793,11 @@ What A means for the build:
   `STATUS_MODEL_503_METHODS`. A 422 or other problem status is excluded because the client never parses
   those as the route's model.
 - **Reading the status.** oasdiff 1.32.1 has no status field; it's in `text`, phrased two ways:
-  "from the response with the `200` status" (`response-required-property-removed`) and "became optional
-  for the status `422`" (`response-property-became-optional`). The tool matches ``status `(\d{3})` ``
-  in either. A finding whose status can't be read fails the guard rather than being skipped.
+  - "from the response with the `200` status" (`response-required-property-removed`);
+  - "became optional for the status `422`" (`response-property-became-optional`).
+
+  The tool matches either order. A finding whose status can't be read fails the guard rather than being
+  skipped.
 - **No ignore file.** `run_oasdiff`'s `ignore_file` becomes `Path | None`, and `None` omits
   `--err-ignore`. `check_wire_compat.py`'s own runs keep passing `tools/wire_compat_ignore.txt`.
 - **The guard's own failures** are the ones stated above the recommendation: `MIN_API_SCHEMA_VERSION`
@@ -962,8 +964,8 @@ convention for them.
 - [x] Implementation and tests committed (first build: `48131a39`, `a0391f27`)
 - [x] Docs (first build)
 - [x] Ship-time challenge (reopened D20, D21, D24, restated D23, added D25–D27)
-- [ ] Rework to the API schema floor committed
-- [ ] Docs reworked
+- [x] Rework to the API schema floor committed
+- [x] Docs reworked
 - [ ] Ship-time challenge on the rework
 
 **Rework to the API schema floor.** The first build shipped a release-version floor. Every item below is
@@ -999,8 +1001,24 @@ replaced, and none of the old floor may survive in code, tests or docs (D1's del
   `check_server_version()` (a pre-schema server raises; no unchecked case). The CI paragraph says every
   PR, not every release. The snippet drops its second parse of `health.version`.
 
-**Calls made during the build:** the calls below were made in the first build. They are unaffected by the
-rework, which records its own calls for D20, D21 and D25–D27 here.
+**Calls made during the build:** the first build's calls are unaffected by the rework. The rework's calls
+come first.
+
+- The bump rule's full statement, with why one raise per release is enough, lives once in the
+  `MIN_API_SCHEMA_VERSION` docstring. A new path-scoped rule, `.claude/rules/client-schema-floor.md`
+  (`client/**`, `wire/src/**`, `src/hassette/web/**`), points there; `web-api.md` keeps a one-line
+  pointer. `web-api.md` alone loads only for server files, so a client edit would never see the rule.
+- `list_release_tags` moved into `tools/check_wire_compat.py`, and `resolve_latest_release_tag` uses it, so
+  both tools list tags one way. `schema_version_at` tests for the file with `git cat-file -e` before
+  `git show`, rather than matching git's stderr wording.
+- The guard fails closed when oasdiff is missing from PATH or the coverage test wrote no operations, since
+  either would otherwise let the response check pass without checking anything.
+- v0.55.0's `openapi.json` is committed as a test fixture (`tests/unit/tools/fixtures/client_floor/`), so
+  the deciding-factor test doesn't need tags, which the main suite's shallow checkout lacks.
+- `UnsupportedServerVersionError`'s message says "reports no API schema" for schema `0` rather than "serves
+  API schema 0".
+- `check_server_version` and `UnsupportedServerVersionError` keep their names (D20 names them); the
+  function's docstring says "version" there means the API schema.
 
 - The coverage test also checks, against the current API only, that every query parameter the server declares has a client filter, and that `CALLS` passes every keyword filter. Without the second check, D14's misnamed-filter check would pass vacuously for a filter no call sends.
 - `HassetteConnectionError` for an `InvalidURL` says "the URL is invalid" without echoing it, because aiohttp's message is the raw URL, userinfo included (D15).

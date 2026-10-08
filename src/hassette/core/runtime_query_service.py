@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from hassette_wire import (
+    API_SCHEMA_VERSION,
     AppsChangedData,
     AppStatus,
     AppStatusChangedData,
@@ -355,6 +356,7 @@ class RuntimeQueryService(Resource):
             app_count=app_count,
             services=services,
             version=get_version(),
+            api_schema_version=API_SCHEMA_VERSION,
             boot_issues=boot_issues,
             log_queue_drops=self.hassette.get_log_queue_drops(),
             db_write_queue_drops=self.hassette.get_db_write_queue_drops(),

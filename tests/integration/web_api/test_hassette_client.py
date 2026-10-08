@@ -20,7 +20,7 @@ from hassette_client import (
     UnexpectedResponseError,
     check_server_version,
 )
-from hassette_wire import ProblemCode
+from hassette_wire import API_SCHEMA_VERSION, ProblemCode
 
 from hassette.testing.config import WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
@@ -71,6 +71,7 @@ async def test_same_checkout_server_passes_the_version_check(session: aiohttp.Cl
     health = await HassetteClient(session, server_url).get_health()
 
     assert health.version == version("hassette")
+    assert health.api_schema_version == API_SCHEMA_VERSION
     check_server_version(health)
 
 

@@ -1,65 +1,270 @@
-"""Tests for tools/check_client_floor.py's choice of which ``openapi.json`` is the minimum server's.
+"""Tests for tools/check_client_floor.py: which release is the floor, and which oasdiff findings block.
 
-Real git plumbing, since tag lookup and ``git show`` are the thing under test.
+Real git plumbing, since tag lookup and ``git show`` are the thing under test. The finding filter runs
+the real ``oasdiff`` binary, since the shape of its findings (status only in ``text``) is what the filter
+depends on; those tests skip when ``oasdiff`` isn't on PATH, like ``test_check_wire_compat.py``.
 """
 
 import json
+import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
+import check_client_floor
 import pytest
-from check_client_floor import FloorSpecError, main, resolve_floor_openapi
-from hassette_client import MIN_SERVER_VERSION
+from check_client_floor import (
+    SCHEMA_MODULE_RELATIVE_PATH,
+    main,
+    resolve_floor_openapi,
+    schema_version_at,
+    schema_version_in,
+    select_client_findings,
+)
+from check_wire_compat import OPENAPI_RELATIVE_PATH, REPO_ROOT, run_oasdiff
 
 from tests.unit.tools.conftest import GitRepo
 
+FIXTURES = Path(__file__).parent / "fixtures" / "client_floor"
+
+needs_oasdiff = pytest.mark.skipif(shutil.which("oasdiff") is None, reason="oasdiff not found on PATH")
+
+CALLS_THING_ONLY = [{"method": "GET", "path": "/api/thing", "parses_503": False}]
+"""An operations file where the client calls only ``GET /api/thing`` and doesn't parse its 503 as a model."""
+
 
 def write_spec(repo: GitRepo, marker: str) -> None:
-    repo.write("frontend/openapi.json", json.dumps({"openapi": "3.1.0", "info": {"title": marker}}))
+    repo.write(OPENAPI_RELATIVE_PATH, json.dumps({"openapi": "3.1.0", "info": {"title": marker}}))
+
+
+def write_schema(repo: GitRepo, version: int) -> None:
+    repo.write(SCHEMA_MODULE_RELATIVE_PATH, f'"""Health models."""\n\nAPI_SCHEMA_VERSION = {version}\n')
+
+
+def release(repo: GitRepo, tag: str, marker: str, schema: int | None) -> None:
+    write_spec(repo, marker)
+    if schema is not None:
+        write_schema(repo, schema)
+    repo.commit(marker)
+    subprocess.run(["git", "tag", tag], cwd=repo.root, check=True, capture_output=True)
 
 
 def spec_title(path: Path) -> str:
     return json.loads(path.read_text())["info"]["title"]
 
 
-def test_tagged_minimum_reads_the_spec_at_that_tag(git_repo: GitRepo, tmp_path: Path) -> None:
-    write_spec(git_repo, "at-1.2.0")
-    git_repo.commit("release")
-    subprocess.run(["git", "tag", "v1.2.0"], cwd=git_repo.root, check=True, capture_output=True)
-    write_spec(git_repo, "head")
-    git_repo.commit("later")
+def operation_spec(responses: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """A one-operation spec, ``GET /api/thing``, answering each status with an object of the given schema."""
+    return {
+        "openapi": "3.0.0",
+        "info": {"title": "client-floor-fixture", "version": "1"},
+        "paths": {
+            "/api/thing": {
+                "get": {
+                    "operationId": "getThing",
+                    "responses": {
+                        status: {"description": "r", "content": {"application/json": {"schema": schema}}}
+                        for status, schema in responses.items()
+                    },
+                }
+            }
+        },
+    }
+
+
+def object_with_ab(required: list[str]) -> dict[str, Any]:
+    """An object schema with string properties ``a`` and ``b``; ``required`` names which of them are required."""
+    return {"type": "object", "required": required, "properties": {"a": {"type": "string"}, "b": {"type": "string"}}}
+
+
+def reversed_findings(tmp_path: Path, head: dict[str, Any], floor: dict[str, Any]) -> list[dict[str, Any]]:
+    head_path, floor_path = tmp_path / "head.json", tmp_path / "floor.json"
+    head_path.write_text(json.dumps(head))
+    floor_path.write_text(json.dumps(floor))
+    return run_oasdiff(head_path, floor_path, None, "test")
+
+
+def test_schema_version_in_reads_the_module_constant() -> None:
+    assert schema_version_in("API_SCHEMA_VERSION = 3\n") == 3
+    assert schema_version_in("OTHER = 3\n") == 0
+
+
+def test_tag_without_the_schema_file_counts_as_zero(git_repo: GitRepo) -> None:
+    release(git_repo, "v1.0.0", "old", schema=None)
+
+    assert schema_version_at(git_repo.root, "v1.0.0") == 0
+
+
+def test_floor_is_the_oldest_tag_at_or_above_the_minimum(git_repo: GitRepo, tmp_path: Path) -> None:
+    release(git_repo, "v1.0.0", "pre-schema", schema=None)
+    release(git_repo, "v1.1.0", "schema-1", schema=1)
+    release(git_repo, "v1.2.0", "schema-2", schema=2)
+    release(git_repo, "v1.3.0", "still-2", schema=2)
     dest = tmp_path / "out"
     dest.mkdir()
 
-    spec = resolve_floor_openapi(git_repo.root, "1.2.0", "1.3.0", dest)
+    assert spec_title(resolve_floor_openapi(git_repo.root, 2, dest)) == "schema-2"
+    assert spec_title(resolve_floor_openapi(git_repo.root, 1, dest)) == "schema-1"
 
-    assert spec_title(spec) == "at-1.2.0"
 
-
-def test_minimum_equal_to_the_release_being_cut_reads_heads_spec(git_repo: GitRepo, tmp_path: Path) -> None:
-    """release-please creates the tag only after its PR merges, so HEAD's spec is that release's API."""
+def test_no_qualifying_tag_falls_back_to_heads_spec(git_repo: GitRepo, tmp_path: Path) -> None:
+    release(git_repo, "v1.0.0", "pre-schema", schema=None)
     write_spec(git_repo, "head")
-    git_repo.commit("release PR")
+    write_schema(git_repo, 1)
+    git_repo.commit("introduce the schema")
 
-    spec = resolve_floor_openapi(git_repo.root, "1.3.0", "1.3.0", tmp_path)
+    spec = resolve_floor_openapi(git_repo.root, 1, tmp_path)
 
-    assert spec == git_repo.root / "frontend" / "openapi.json"
-
-
-def test_untagged_minimum_that_isnt_the_release_fails(git_repo: GitRepo, tmp_path: Path) -> None:
-    write_spec(git_repo, "head")
-    git_repo.commit("release PR")
-
-    with pytest.raises(FloorSpecError, match=r"tag v1\.2\.9 doesn't exist"):
-        resolve_floor_openapi(git_repo.root, "1.2.9", "1.3.0", tmp_path)
+    assert spec == git_repo.root / OPENAPI_RELATIVE_PATH
 
 
-def test_main_fails_without_running_the_tests_when_the_minimum_has_no_spec(
+def test_minimum_above_heads_schema_fails_before_running_anything(
     git_repo: GitRepo, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    write_spec(git_repo, "head")
-    git_repo.write("pyproject.toml", '[project]\nname = "hassette"\nversion = "999.0.0"\n')
-    git_repo.commit("release PR for a version that isn't the minimum")
+    write_schema(git_repo, 1)
+    git_repo.commit("server at schema 1")
 
-    assert main(git_repo.root) == 1
-    assert f"tag v{MIN_SERVER_VERSION} doesn't exist" in capsys.readouterr().err
+    assert main(git_repo.root, min_schema=2) == 1
+    err = capsys.readouterr().err
+    assert "above the API_SCHEMA_VERSION this checkout serves (1)" in err
+    assert "MIN_API_SCHEMA_VERSION docstring" in err
+
+
+@needs_oasdiff
+def test_v0_55_0_apps_list_break_blocks_and_its_422_findings_dont() -> None:
+    """The verified break: a v0.55.0 server's ``GET /api/apps`` lacks fields this client requires."""
+    findings = run_oasdiff(REPO_ROOT / OPENAPI_RELATIVE_PATH, FIXTURES / "v0.55.0-openapi.json", None, "test")
+    operations = [
+        {"method": "GET", "path": "/api/apps", "parses_503": False},
+        {"method": "GET", "path": "/api/apps/{app_key}/config", "parses_503": False},
+    ]
+
+    blocking = select_client_findings(findings, operations)
+
+    assert any(f["path"] == "/api/apps" and "`200` status" in f["text"] for f in blocking)
+    assert not any("`422`" in f["text"] for f in blocking)
+    # Nothing on an operation the client doesn't call.
+    assert {(f["operation"], f["path"]) for f in blocking} <= {(op["method"], op["path"]) for op in operations}
+
+
+@needs_oasdiff
+def test_success_field_that_became_optional_blocks(tmp_path: Path) -> None:
+    findings = reversed_findings(
+        tmp_path, operation_spec({"200": object_with_ab(["a", "b"])}), operation_spec({"200": object_with_ab(["a"])})
+    )
+
+    assert [f["id"] for f in select_client_findings(findings, CALLS_THING_ONLY)] == [
+        "response-property-became-optional"
+    ]
+
+
+@needs_oasdiff
+def test_problem_status_findings_dont_block(tmp_path: Path) -> None:
+    findings = reversed_findings(
+        tmp_path,
+        operation_spec({"200": object_with_ab(["a"]), "422": object_with_ab(["a", "b"])}),
+        operation_spec({"200": object_with_ab(["a"]), "422": object_with_ab(["a"])}),
+    )
+
+    assert findings
+    assert select_client_findings(findings, CALLS_THING_ONLY) == []
+
+
+@needs_oasdiff
+def test_503_blocks_only_for_a_probe_method(tmp_path: Path) -> None:
+    findings = reversed_findings(
+        tmp_path,
+        operation_spec({"200": object_with_ab(["a"]), "503": object_with_ab(["a", "b"])}),
+        operation_spec({"200": object_with_ab(["a"]), "503": object_with_ab(["a"])}),
+    )
+    probe = [{"method": "GET", "path": "/api/thing", "parses_503": True}]
+
+    assert select_client_findings(findings, CALLS_THING_ONLY) == []
+    assert len(select_client_findings(findings, probe)) == 1
+
+
+@needs_oasdiff
+def test_operation_the_client_doesnt_call_doesnt_block(tmp_path: Path) -> None:
+    findings = reversed_findings(
+        tmp_path, operation_spec({"200": object_with_ab(["a", "b"])}), operation_spec({"200": object_with_ab(["a"])})
+    )
+
+    assert select_client_findings(findings, [{"method": "GET", "path": "/api/other", "parses_503": False}]) == []
+
+
+def test_finding_with_an_unreadable_status_blocks() -> None:
+    finding = {
+        "id": "response-required-property-removed",
+        "level": 3,
+        "section": "paths",
+        "operation": "GET",
+        "path": "/api/thing",
+        "text": "removed the required property `b` in a phrasing this check doesn't know",
+    }
+
+    assert select_client_findings([finding], CALLS_THING_ONLY) == [finding]
+
+
+def floor_repo(repo: GitRepo, head_required: list[str], floor_required: list[str]) -> None:
+    """A repo whose v1.0.0 (schema 1) is the floor release, and whose HEAD serves schema 1 too."""
+    repo.write(OPENAPI_RELATIVE_PATH, json.dumps(operation_spec({"200": object_with_ab(floor_required)})))
+    write_schema(repo, 1)
+    repo.commit("release")
+    subprocess.run(["git", "tag", "v1.0.0"], cwd=repo.root, check=True, capture_output=True)
+    repo.write(OPENAPI_RELATIVE_PATH, json.dumps(operation_spec({"200": object_with_ab(head_required)})))
+    repo.write("CHANGELOG.md", "unreleased\n")  # so HEAD is a new commit even when the spec is unchanged
+    repo.commit("head")
+
+
+def stub_request_check(monkeypatch: pytest.MonkeyPatch, operations: list[dict[str, Any]]) -> None:
+    """Replace the coverage-test subprocess with one that passes and writes ``operations``."""
+
+    def passing_request_check(_repo_root: Path, _spec: Path, operations_file: Path) -> int:
+        operations_file.write_text(json.dumps(operations))
+        return 0
+
+    monkeypatch.setattr(check_client_floor, "run_request_check", passing_request_check)
+
+
+@needs_oasdiff
+def test_main_fails_when_the_floor_lacks_a_field_the_client_requires(
+    git_repo: GitRepo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    floor_repo(git_repo, head_required=["a", "b"], floor_required=["a"])
+    stub_request_check(monkeypatch, CALLS_THING_ONLY)
+
+    assert main(git_repo.root, min_schema=1) == 1
+    assert "GET /api/thing" in capsys.readouterr().err
+
+
+@needs_oasdiff
+def test_main_passes_when_the_floor_has_every_required_field(
+    git_repo: GitRepo, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    floor_repo(git_repo, head_required=["a"], floor_required=["a"])
+    stub_request_check(monkeypatch, CALLS_THING_ONLY)
+
+    assert main(git_repo.root, min_schema=1) == 0
+
+
+@needs_oasdiff
+def test_main_fails_when_no_operations_were_written(
+    git_repo: GitRepo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An empty operations file would make the response check pass without checking anything."""
+    floor_repo(git_repo, head_required=["a"], floor_required=["a"])
+    stub_request_check(monkeypatch, [])
+
+    assert main(git_repo.root, min_schema=1) == 1
+    assert "wrote no operations" in capsys.readouterr().err
+
+
+def test_main_fails_without_oasdiff(
+    git_repo: GitRepo, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_schema(git_repo, 1)
+    git_repo.commit("server at schema 1")
+    monkeypatch.setattr(check_client_floor.shutil, "which", lambda _name: None)
+
+    assert main(git_repo.root, min_schema=1) == 1
+    assert "oasdiff not found" in capsys.readouterr().err

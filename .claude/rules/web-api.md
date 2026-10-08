@@ -67,7 +67,7 @@ Every error under `/api` is an RFC 9457 `application/problem+json` body with a `
 
 Every route needs a typed method on `hassette_client.HassetteClient`, unless the test's `BROWSER_ONLY_OPERATIONS` names it with a reason. `client/tests/test_openapi_coverage.py` reads the committed `frontend/openapi.json`, so a new route or query parameter fails it until a method sends it and the test's `CALLS` table lists that method, passing every keyword filter. A new probe-style route that answers 503 with its status model also goes in that test's `STATUS_MODEL_503_METHODS`.
 
-A client method that starts using a new route or query parameter raises the client's minimum server: on the next release-please PR, `tools/check_client_floor.py` fails until `MIN_SERVER_VERSION` (`client/src/hassette_client/version.py`) is bumped there, usually to the version being released. Feature PRs aren't gated on it.
+A route or response field the client starts depending on also needs an API schema bump in the same PR; see `.claude/rules/client-schema-floor.md`.
 
 ## Telemetry Error Handling Pattern
 
