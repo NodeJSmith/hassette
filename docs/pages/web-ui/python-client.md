@@ -38,7 +38,7 @@ The examples further down are fragments: they run inside `main()` and use its `c
 
 - `base_url`: the server's root URL. A path prefix is kept, so `https://example.com/hassette` works behind a reverse proxy that serves Hassette under a sub-path. Leave out any `user:password@`: `aiohttp` turns it into Basic authentication, and combined with a token every request raises `ValueError`.
 - `token`: the web API token. With `None` (the default), requests carry no `Authorization` header. A server that lists your machine in `web_api.trusted_proxies` admits those requests anyway (see [Enabling and accessing the web UI](index.md#enabling-and-accessing)). Any string is sent as given, including an empty one (such as from an unset environment variable), which the server rejects with a 401 instead of falling back to that trust.
-- `request_timeout`: seconds allowed for each request, including reading the whole response. It must be positive.
+- `request_timeout`: seconds allowed for each request, including reading the whole response. It must be a positive, finite number.
 
 `token` and `request_timeout` are keyword-only.
 
@@ -114,7 +114,7 @@ This table lists every failure. The last two rows are bugs in the calling code r
 | `ResponseValidationError` | A response that doesn't match its model: a renamed or removed field | Yes |
 | `UnexpectedResponseError` | A success response that isn't JSON, such as a proxy's login page or the web UI's HTML. A subclass of `ResponseValidationError` | Yes |
 | `UnsupportedServerVersionError` | A server older than this client supports. Only `check_server_version()` raises it | Yes |
-| `ValueError` | A `request_timeout` of zero or less, raised by the constructor. A path argument that is empty, `.` or `..`, or contains `/`, raised before any request. Also a token containing a control character such as a newline, or a token combined with `user:password@` in `base_url` or a session created with `auth=`, raised by `aiohttp` on the first request | No |
+| `ValueError` | A `request_timeout` that isn't a positive, finite number, raised by the constructor. A path argument that is empty, `.` or `..`, or contains `/`, raised before any request. Also a token containing a control character such as a newline, or a token combined with `user:password@` in `base_url` or a session created with `auth=`, raised by `aiohttp` on the first request | No |
 | `RuntimeError` | A session that's already closed, raised by `aiohttp` itself. The client never closes the session you pass in | No |
 
 A malformed `base_url` raises `HassetteConnectionError` rather than `ValueError`, so a Home Assistant config flow can show the same "cannot connect" error for a bad URL as for an unreachable one.

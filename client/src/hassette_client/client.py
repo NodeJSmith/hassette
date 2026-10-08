@@ -1,5 +1,7 @@
 """The typed async client for hassette's HTTP API."""
 
+import math
+
 import aiohttp
 from hassette_wire import (
     ActionResponse,
@@ -59,11 +61,11 @@ class HassetteClient:
             server that trusts the caller's address as a proxy accepts. Any string, including an empty
             one, is sent as a bearer token, so an empty token is rejected rather than falling back to that.
         request_timeout: Seconds allowed for each request, including reading the body. Must be
-            positive. For a slow app action, use a second client with a longer timeout on the same
+            positive and finite. For a slow app action, use a second client with a longer timeout on the same
             session.
 
     Raises:
-        ValueError: ``request_timeout`` isn't positive, raised here. A path argument is empty, ``.``
+        ValueError: ``request_timeout`` isn't positive and finite, raised here. A path argument is empty, ``.``
             or ``..``, or contains ``/``, raised before any request.
     """
 
@@ -75,9 +77,10 @@ class HassetteClient:
         token: str | None = None,
         request_timeout: float = DEFAULT_REQUEST_TIMEOUT,
     ) -> None:
-        # aiohttp reads a total of 0 or less as "no timeout", which would leave requests unbounded.
-        if request_timeout <= 0:
-            raise ValueError(f"request_timeout must be positive, got {request_timeout!r}")
+        # aiohttp reads a total of 0 or less, or NaN, as "no timeout", which would leave requests unbounded,
+        # and infinity overflows on the first request instead of raising a client error.
+        if not (math.isfinite(request_timeout) and request_timeout > 0):
+            raise ValueError(f"request_timeout must be a positive finite number, got {request_timeout!r}")
         self._transport = Transport(session, base_url, token=token, request_timeout=request_timeout)
 
     async def get_health(self) -> SystemStatusResponse:
