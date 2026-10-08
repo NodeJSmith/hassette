@@ -38,8 +38,8 @@ class TestLoadOverrides:
         assert mp.service_param_renames.get("media_content_type") == "media_type"
 
     @pytest.mark.parametrize("domain", ["climate", "water_heater"])
-    def test_native_temperature_properties_keep_wire_names(self, domain: str) -> None:
-        """HA 2026.11 renamed these entity properties to native_*; state attribute names did not change."""
+    def test_native_temperature_properties_keep_field_names(self, domain: str) -> None:
+        """HA 2026.11 renamed these entity properties to native_*; generated field names must not change."""
         override = get_override(load_overrides(), domain)
         assert override is not None
         names = [
