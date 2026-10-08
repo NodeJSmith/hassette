@@ -10,7 +10,7 @@ import structlog.contextvars
 import uuid_utils
 
 from hassette.context import CURRENT_EXECUTION_ID
-from hassette.core.command_executor import CommandExecutor
+from hassette.core.command_executor import CommandExecutor, ExecutionContext
 from hassette.core.execution_record import SYNTHETIC_ORIGIN, ExecutionRecord
 from tests.support.factories import make_hass_event, make_hassette_event, make_invoke_handler_cmd
 
@@ -289,9 +289,11 @@ class TestBindExecutionContextPrecomputedInstanceName:
         executor.current_execution = None
 
         _execution_id, token = executor.bind_execution_context(
-            app_key="my_app",
-            instance_index=0,
-            instance_name="my_instance",
+            ExecutionContext(
+                app_key="my_app",
+                instance_index=0,
+                instance_name="my_instance",
+            )
         )
 
         try:
@@ -314,9 +316,11 @@ class TestBindExecutionContextPrecomputedInstanceName:
         executor.current_execution = None
 
         _execution_id, token = executor.bind_execution_context(
-            app_key="",
-            instance_index=0,
-            instance_name=None,
+            ExecutionContext(
+                app_key="",
+                instance_index=0,
+                instance_name=None,
+            )
         )
 
         try:
@@ -346,9 +350,9 @@ class TestBindExecutionContextPrecomputedInstanceName:
         original_bind = executor.bind_execution_context
         captured: list[str | None] = []
 
-        def spy_bind(app_key, instance_index, instance_name, **kwargs):
-            captured.append(instance_name)
-            return original_bind(app_key, instance_index, instance_name, **kwargs)
+        def spy_bind(context: ExecutionContext):
+            captured.append(context.instance_name)
+            return original_bind(context)
 
         with patch.object(executor, "bind_execution_context", side_effect=spy_bind):
             await executor.execute_handler(cmd)
@@ -368,9 +372,9 @@ class TestBindExecutionContextPrecomputedInstanceName:
         original_bind = executor.bind_execution_context
         captured: list[str | None] = []
 
-        def spy_bind(app_key, instance_index, instance_name, **kwargs):
-            captured.append(instance_name)
-            return original_bind(app_key, instance_index, instance_name, **kwargs)
+        def spy_bind(context: ExecutionContext):
+            captured.append(context.instance_name)
+            return original_bind(context)
 
         with patch.object(executor, "bind_execution_context", side_effect=spy_bind):
             await executor.execute_job(cmd)
