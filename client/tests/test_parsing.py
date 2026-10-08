@@ -13,6 +13,8 @@ from hassette_client import (
 )
 from hassette_wire import Execution, ReadinessResponse, SystemStatusResponse, TelemetryStatusResponse, UnknownValue
 
+LOG_ENTRY = {"id": 1, "seq": 1, "timestamp": 0.0, "level": "INFO", "logger_name": "x", "message": "m"}
+
 
 async def test_unknown_field_is_ignored(client: HassetteClient, server: FakeServer) -> None:
     server.respond(200, {**HEALTH_BODY, "added_in_a_later_release": 1})
@@ -34,8 +36,7 @@ async def test_unknown_literal_value_becomes_unknown_value(client: HassetteClien
 async def test_unknown_value_in_a_list_response_becomes_unknown_value(
     client: HassetteClient, server: FakeServer
 ) -> None:
-    entry = {"id": 1, "seq": 1, "timestamp": 0.0, "level": "INFO", "logger_name": "x", "message": "m"}
-    server.respond(200, [{**entry, "execution_kind": "webhook"}])
+    server.respond(200, [{**LOG_ENTRY, "execution_kind": "webhook"}])
 
     logs = await client.get_recent_logs()
 
@@ -188,8 +189,7 @@ async def test_response_validation_error_records_the_response(client: HassetteCl
 
 
 async def test_one_invalid_list_element_fails_the_whole_response(client: HassetteClient, server: FakeServer) -> None:
-    entry = {"id": 1, "seq": 1, "timestamp": 0.0, "level": "INFO", "logger_name": "x", "message": "m"}
-    server.respond(200, [entry, {**entry, "seq": "not-a-number"}])
+    server.respond(200, [LOG_ENTRY, {**LOG_ENTRY, "seq": "not-a-number"}])
 
     with pytest.raises(ResponseValidationError) as exc_info:
         await client.get_recent_logs()

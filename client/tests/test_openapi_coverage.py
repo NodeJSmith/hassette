@@ -18,6 +18,7 @@ operations the client calls there, for the tool's response check.
 """
 
 import contextlib
+import functools
 import inspect
 import json
 import os
@@ -114,12 +115,18 @@ PROBE_STATUS_BODY = {"status": "starting", "ready": False, "degraded": True}
 """A JSON 503 body both probe status models parse, so only a method's own 503 handling decides the outcome."""
 
 
-def operations(spec_path: Path = OPENAPI_PATH) -> list[tuple[str, str, dict[str, Any]]]:
-    return [
+@functools.cache
+def operations(spec_path: Path = OPENAPI_PATH) -> tuple[tuple[str, str, dict[str, Any]], ...]:
+    return tuple(
         (method.upper(), path, operation)
         for path, path_item in json.loads(spec_path.read_text())["paths"].items()
         for method, operation in path_item.items()
-    ]
+    )
+
+
+@functools.cache
+def operations_by_key(spec_path: Path = OPENAPI_PATH) -> dict[tuple[str, str], dict[str, Any]]:
+    return {(method, path): operation for method, path, operation in operations(spec_path)}
 
 
 def template_pattern(path: str) -> re.Pattern[str]:
@@ -135,6 +142,13 @@ def match_template(method: str, path: str, spec_path: Path = OPENAPI_PATH) -> tu
     ]
     assert len(matches) <= 1, f"{method} {path} matches {matches}"
     return matches[0] if matches else None
+
+
+def require_template(method: str, path: str) -> tuple[str, str]:
+    """Like :func:`match_template`, for a request that must hit an operation in the spec."""
+    key = match_template(method, path)
+    assert key is not None, f"{method} {path} isn't in {OPENAPI_PATH}"
+    return key
 
 
 def query_parameter_names(operation: dict[str, Any]) -> set[str]:
@@ -187,7 +201,6 @@ async def test_every_keyword_filter_is_sent_under_its_own_name(client: HassetteC
 
 async def test_every_client_request_exists_in_the_spec(client: HassetteClient, server: FakeServer) -> None:
     """Every route, method and query parameter the client sends is one the spec's server serves."""
-    by_operation = {(method, path): operation for method, path, operation in operations()}
     missing_routes: list[str] = []
     unknown_parameters: list[str] = []
     for method_name, requests in (await all_requests(client, server)).items():
@@ -196,7 +209,7 @@ async def test_every_client_request_exists_in_the_spec(client: HassetteClient, s
             if operation is None:
                 missing_routes.append(f"{method_name}: {method} {path}")
                 continue
-            declared = query_parameter_names(by_operation[operation])
+            declared = query_parameter_names(operations_by_key()[operation])
             unknown_parameters.extend(f"{method_name}: {name} on {method} {path}" for name in sorted(query - declared))
 
     assert missing_routes == [], f"routes missing from {OPENAPI_PATH}"
@@ -222,9 +235,7 @@ async def test_every_declared_query_parameter_has_a_client_filter(client: Hasset
     sent: dict[tuple[str, str], set[str]] = {}
     for requests in (await all_requests(client, server)).values():
         for method, path, query in requests:
-            operation = match_template(method, path)
-            assert operation is not None
-            sent.setdefault(operation, set()).update(query)
+            sent.setdefault(require_template(method, path), set()).update(query)
     unexposed = {
         (method, path): sorted(query_parameter_names(operation) - sent.get((method, path), set()))
         for method, path, operation in operations()
@@ -260,15 +271,13 @@ async def test_every_method_return_type_matches_its_routes_response_schema(
     client: HassetteClient, server: FakeServer, method_name: str
 ) -> None:
     server.respond(200, {})
-    by_operation = {(method, path): operation for method, path, operation in operations()}
     expected = expected_schema(get_type_hints(getattr(HassetteClient, method_name))["return"])
 
     for method, path, _ in await call_recording(client, server, method_name):
-        operation = match_template(method, path)
-        assert operation is not None
+        operation = require_template(method, path)
         successes = {
             status: response["content"]["application/json"]["schema"]
-            for status, response in by_operation[operation]["responses"].items()
+            for status, response in operations_by_key()[operation]["responses"].items()
             if status.startswith("2")
         }
         assert len(successes) == 1, (operation, successes)
@@ -338,12 +347,10 @@ async def test_status_model_503_handling_matches_the_route(
 ) -> None:
     """A method returns its model on 503 exactly when the route documents a non-problem 503 body."""
     server.respond(200, {})
-    by_operation = {(method, path): operation for method, path, operation in operations()}
     documents_status_model = False
     for method, path, _ in await call_recording(client, server, method_name):
-        operation = match_template(method, path)
-        assert operation is not None
-        content = by_operation[operation]["responses"].get("503", {}).get("content", {})
+        operation = require_template(method, path)
+        content = operations_by_key()[operation]["responses"].get("503", {}).get("content", {})
         documents_status_model = documents_status_model or bool(set(content) - {PROBLEM_MEDIA_TYPE})
 
     assert documents_status_model == (method_name in STATUS_MODEL_503_METHODS)
@@ -361,12 +368,10 @@ async def test_no_route_documents_a_model_body_at_another_error_status(
     that status added to the floor check's filter before this test may allow it.
     """
     server.respond(200, {})
-    by_operation = {(method, path): operation for method, path, operation in operations()}
     unchecked: list[str] = []
     for method, path, _ in await call_recording(client, server, method_name):
-        operation = match_template(method, path)
-        assert operation is not None
-        for status, response in by_operation[operation]["responses"].items():
+        operation = require_template(method, path)
+        for status, response in operations_by_key()[operation]["responses"].items():
             if status.startswith("2") or status == "503":
                 continue
             if set(response.get("content", {})) - {PROBLEM_MEDIA_TYPE}:

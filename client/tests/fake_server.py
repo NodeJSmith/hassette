@@ -16,7 +16,7 @@ HEALTH_BODY: dict[str, Any] = {
     "uptime_seconds": 12.5,
     "entity_count": 3,
     "app_count": 1,
-    "version": "0.55.0",
+    "version": "0.0.0-test",
 }
 """A valid ``SystemStatusResponse`` body."""
 

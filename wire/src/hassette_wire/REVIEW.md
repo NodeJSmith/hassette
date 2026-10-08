@@ -39,10 +39,11 @@ mapped in `tests/unit/core/test_wire_check_parity.py`) still match? That test
 fails on a mismatch, and on a new IN-list `CHECK` it doesn't classify.
 
 ## Closed Vocabularies
-`SourceTier` and `LogLevel` stay strict on response models, so an older
-client can't parse a value added to either. `tools/check_wire_compat.py`
-allows added response enum values, so it won't flag this. Does the diff add a
-value to either one? If so, it's a breaking change and needs a
+The vocabularies in `CLOSED_VOCABULARIES` (`literals.py`) stay strict on
+response models, so an older client can't parse a value added to one.
+`tools/check_wire_compat.py` allows added response enum values, so it won't
+flag this. Does the diff add a value to one of them, or add a vocabulary to
+`CLOSED_VOCABULARIES`? If so, it's a breaking change and needs a
 `BREAKING CHANGE:` footer.
 
 ## Duplicated Defaults

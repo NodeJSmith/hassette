@@ -14,11 +14,11 @@ from open_alias_helpers import is_open_alias
 # themselves are recognized by their LenientValue marker.
 NOT_EXPORTED_NAMES = {
     "AcceptedStatus",
-    "CLOSED_VOCABULARIES",
     "BootIssueSeverity",
+    "CLOSED_VOCABULARIES",
     "HandlerKind",
-    "LivenessStatus",
     "LenientValue",
+    "LivenessStatus",
     "LOGGER",
 }
 

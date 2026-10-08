@@ -276,6 +276,11 @@ def pickle_round_trip(error: HassetteClientError) -> HassetteClientError:
     return pickle.loads(pickle.dumps(error))  # noqa: S301 - the test's own freshly pickled bytes
 
 
+EVERY_ROUND_TRIP = pytest.mark.parametrize(
+    "round_trip", [copy.copy, copy.deepcopy, pickle_round_trip], ids=["copy", "deepcopy", "pickle"]
+)
+
+
 @pytest.mark.parametrize("error", PICKLABLE_ERRORS, ids=lambda error: type(error).__name__)
 @pytest.mark.parametrize("round_trip", [copy.copy, pickle_round_trip], ids=["copy", "pickle"])
 def test_errors_round_trip_with_every_attribute(
@@ -289,9 +294,7 @@ def test_errors_round_trip_with_every_attribute(
 
 
 @pytest.mark.parametrize("error", PICKLABLE_ERRORS, ids=lambda error: type(error).__name__)
-@pytest.mark.parametrize(
-    "round_trip", [copy.copy, copy.deepcopy, pickle_round_trip], ids=["copy", "deepcopy", "pickle"]
-)
+@EVERY_ROUND_TRIP
 def test_errors_keep_notes_through_a_round_trip(
     error: HassetteClientError, round_trip: Callable[[HassetteClientError], HassetteClientError]
 ) -> None:
@@ -303,9 +306,7 @@ def test_errors_keep_notes_through_a_round_trip(
     assert restored.__notes__ == ["while polling app status"]
 
 
-@pytest.mark.parametrize(
-    "round_trip", [copy.copy, copy.deepcopy, pickle_round_trip], ids=["copy", "deepcopy", "pickle"]
-)
+@EVERY_ROUND_TRIP
 def test_a_problem_code_newer_than_the_client_survives_a_round_trip(
     round_trip: Callable[[HassetteClientError], HassetteClientError],
 ) -> None:

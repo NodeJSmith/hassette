@@ -3,7 +3,9 @@ prek = "0.4.11"
 python = ["3.14.8"]
 uv = "latest"
 java = "temurin-21.0.12+101.0.LTS" # PMD CPD (tools/check_duplicate_code.py) is a JVM tool
-"github:oasdiff/oasdiff" = "1.32.1" # tools/check_wire_compat.py and tools/check_client_floor.py; CI installs the same version via go install in tests.yml (frontend, workspace-members) and lint.yml
+# oasdiff: tools/check_wire_compat.py and tools/check_client_floor.py. CI installs the same version via
+# go install in tests.yml (frontend, workspace-members) and lint.yml.
+"github:oasdiff/oasdiff" = "1.32.1"
 
 [env]
 # _.file = '.env'
