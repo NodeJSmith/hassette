@@ -635,7 +635,7 @@ change that needs it and verified by CI.
 | HA precedent | wled, mealie (servers they don't own) | zwave-js, matter, music-assistant (servers they own) | mealie |
 | Where a bump happens | The release-please PR, by hand | The feature PR that makes the client need it | The integration, from release notes |
 | Picking the number | Guess which release has the routes | The next integer | Read release notes |
-| A build from main reports correctly | No, it reports the last release | Yes | No |
+| A build from main reports correctly | No, it reports the last release | Closer: it reports the latest bump, which can lag API added after it (one bump per release; see Build, calls made during the build) | No |
 | New surface | A constant, a function, an exception | The same, plus one health field and one wire constant (D25) | None |
 
 **Recommendation:** S. It is what HA's own-server libraries do, it moves the bump into the PR that
@@ -775,7 +775,7 @@ What A means for the build:
 - **Finding the floor release.** `API_SCHEMA_VERSION` lives in `wire/src/hassette_wire/health.py`, next to
   `SystemStatusResponse`, and is re-exported from `hassette_wire`. The guard lists tags the way
   `resolve_latest_release_tag` does (`git tag --list 'v*' --merged HEAD --sort=-v:refname`, so pre-release
-  tags are candidates like any other). For each tag, newest first, it reads that file with
+  tags are candidates like any other; the build instead fails on reaching one, see Build). For each tag, newest first, it reads that file with
   `git show <tag>:<path>` and takes a module-level `API_SCHEMA_VERSION = <int>` with `ast`; a missing file
   or name is `0`. It stops at the first tag below `MIN_API_SCHEMA_VERSION`, which is sound because the
   bump rule only ever raises the constant. The last qualifying tag is the floor release, and its spec comes
@@ -788,7 +788,7 @@ What A means for the build:
   each `(method, template)` its recorded requests match in HEAD's `frontend/openapi.json` (matched against
   HEAD so the template strings are oasdiff's), and whether the method is in `STATUS_MODEL_503_METHODS`.
   The tool reads that file, runs `run_oasdiff` with HEAD's spec as base and the floor spec as revision,
-  keeps `select_reversed_blocking_findings`, and then keeps only findings whose `operation` and `path`
+  keeps findings in the blocking set (the build widens it, see Build's `FLOOR_BLOCKING_CHECK_IDS`), and then keeps only findings whose `operation` and `path`
   the client calls and whose status the client parses as a model: 2xx, plus 503 for
   `STATUS_MODEL_503_METHODS`. A 422 or other problem status is excluded because the client never parses
   those as the route's model.
@@ -845,8 +845,8 @@ such as `app_not_found`.
 
 `ResponseValidationError` never gets a direction hint under any option. Against a server at or above the
 floor, D27's guard checks that every response field the client requires is still required and present,
-so a missing required field isn't evidence of an older server. The guard doesn't catch a retyped field or a
-closed vocabulary that grew (D24's table lists those as `ResponseValidationError`), so a parse failure
+so a missing required field isn't evidence of an older server. As built, the guard also catches a retyped or
+newly nullable field (Build's `FLOOR_BLOCKING_CHECK_IDS`), but not a closed vocabulary that grew (D24's table lists those as `ResponseValidationError`), so a parse failure
 points at drift in what a field holds, which a direction hint wouldn't explain either. (Restated when D20 was reopened: the earlier argument relied on
 `check_wire_compat`'s adjacent-release chain, which `tools/wire_compat_ignore.txt` breaks.)
 
@@ -1009,14 +1009,27 @@ come first.
   (`client/**`, `wire/src/**`, `src/hassette/web/**`), points there; `web-api.md` keeps a one-line
   pointer. `web-api.md` alone loads only for server files, so a client edit would never see the rule.
 - `list_release_tags` moved into `tools/check_wire_compat.py`, and `resolve_latest_release_tag` uses it, so
-  both tools list tags one way. `schema_version_at` tests for the file with `git cat-file -e` before
-  `git show`, rather than matching git's stderr wording.
+  both tools list tags one way. `schema_version_at` tests for the file with `git ls-tree --name-only`
+  before `git show`, rather than matching git's stderr wording.
 - The guard fails closed when oasdiff is missing from PATH or the coverage test wrote no operations, since
   either would otherwise let the response check pass without checking anything.
 - v0.55.0's `openapi.json` is committed as a test fixture (`tests/unit/tools/fixtures/client_floor/`), so
   the deciding-factor test doesn't need tags, which the main suite's shallow checkout lacks.
 - `UnsupportedServerVersionError`'s message says "reports no API schema" for schema `0` rather than "serves
   API schema 0".
+- A build from main reports the schema of the latest bump, not of its own API: under the one-bump-per-release
+  rule, API added after that bump and before the release isn't reflected, so the check is exact only for
+  released servers. The docs say so. A per-PR bump would close the gap but can't be enforced while the floor
+  is keyed on releases.
+- The floor guard blocks on its own set, `FLOOR_BLOCKING_CHECK_IDS`: `check_wire_compat`'s two reversed IDs
+  plus `response-property-type-changed`, `response-property-became-nullable` and
+  `response-success-status-removed`, each verified against oasdiff 1.32.1 in the reversed direction. D27
+  named only the shared two, but a retyped or nullable field breaks the client's parse exactly as a missing
+  one does. Request bodies aren't compared; the docs say so.
+- Tag-walk ordering and monotonicity are deferred as KI-001 (`known-issues.md`), with a tripwire: the tool
+  fails if the floor walk reaches any tag that isn't a final `vX.Y.Z` release.
+- The tool refuses a shallow or tagless checkout, and reads a tag as schema 0 only when `git ls-tree` shows
+  the module absent there; any other git failure fails the check.
 - `check_server_version` and `UnsupportedServerVersionError` keep their names (D20 names them); the
   function's docstring says "version" there means the API schema.
 

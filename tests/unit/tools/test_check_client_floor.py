@@ -15,8 +15,10 @@ import check_client_floor
 import pytest
 from check_client_floor import (
     SCHEMA_MODULE_RELATIVE_PATH,
+    history_problem,
     main,
-    resolve_floor_openapi,
+    resolve_floor,
+    run_request_check,
     schema_version_at,
     schema_version_in,
     select_client_findings,
@@ -84,6 +86,16 @@ def reversed_findings(tmp_path: Path, head: dict[str, Any], floor: dict[str, Any
     return run_oasdiff(head_path, floor_path, None, "test")
 
 
+def test_schema_version_in_reads_an_annotated_constant() -> None:
+    assert schema_version_in("API_SCHEMA_VERSION: int = 4\n") == 4
+
+
+def test_schema_version_in_refuses_a_value_it_cant_read() -> None:
+    """Reading ``BASE + 1`` as 0 would silently move the floor."""
+    with pytest.raises(RuntimeError, match="int literal"):
+        schema_version_in("BASE = 1\nAPI_SCHEMA_VERSION = BASE + 1\n")
+
+
 def test_schema_version_in_reads_the_module_constant() -> None:
     assert schema_version_in("API_SCHEMA_VERSION = 3\n") == 3
     assert schema_version_in("OTHER = 3\n") == 0
@@ -103,19 +115,71 @@ def test_floor_is_the_oldest_tag_at_or_above_the_minimum(git_repo: GitRepo, tmp_
     dest = tmp_path / "out"
     dest.mkdir()
 
-    assert spec_title(resolve_floor_openapi(git_repo.root, 2, dest)) == "schema-2"
-    assert spec_title(resolve_floor_openapi(git_repo.root, 1, dest)) == "schema-1"
+    assert spec_title(resolve_floor(git_repo.root, 2, dest).spec) == "schema-2"
+    assert spec_title(resolve_floor(git_repo.root, 1, dest).spec) == "schema-1"
 
 
-def test_no_qualifying_tag_falls_back_to_heads_spec(git_repo: GitRepo, tmp_path: Path) -> None:
+def test_no_qualifying_tag_falls_back_to_heads_spec(
+    git_repo: GitRepo, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     release(git_repo, "v1.0.0", "pre-schema", schema=None)
     write_spec(git_repo, "head")
     write_schema(git_repo, 1)
     git_repo.commit("introduce the schema")
 
-    spec = resolve_floor_openapi(git_repo.root, 1, tmp_path)
+    floor = resolve_floor(git_repo.root, 1, tmp_path)
 
-    assert spec == git_repo.root / OPENAPI_RELATIVE_PATH
+    assert floor.tag is None
+    assert floor.spec == git_repo.root / OPENAPI_RELATIVE_PATH
+    assert "Floor release: HEAD (no release reports API schema 1 yet)" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("rc_schema", [None, 1], ids=["tagged-before-the-bump", "carrying-the-schema"])
+def test_walk_reaching_a_pre_release_tag_fails(git_repo: GitRepo, tmp_path: Path, rc_schema: int | None) -> None:
+    """Git's version sort puts v1.1.0rc1 above v1.1.0; until that's ordered (KI-001), the walk must not pass."""
+    release(git_repo, "v1.0.0", "pre-schema", schema=None)
+    release(git_repo, "v1.1.0", "schema-1", schema=1)
+    release(git_repo, "v1.1.0rc1", "rc", schema=rc_schema)
+
+    with pytest.raises(RuntimeError, match=r"reached v1\.1\.0rc1, which isn't a final"):
+        resolve_floor(git_repo.root, 1, tmp_path)
+
+
+def test_history_problem_refuses_a_tagless_checkout(git_repo: GitRepo) -> None:
+    write_schema(git_repo, 1)
+    git_repo.commit("no tags")
+
+    assert (
+        history_problem(git_repo.root) == "No v* release tags are reachable from HEAD; fetch tags (git fetch --tags)."
+    )
+
+
+def test_history_problem_refuses_a_shallow_checkout(git_repo: GitRepo, tmp_path: Path) -> None:
+    release(git_repo, "v1.0.0", "first", schema=1)
+    write_spec(git_repo, "second")
+    git_repo.commit("second")
+    clone = tmp_path / "shallow"
+    subprocess.run(
+        ["git", "clone", "-q", "--depth", "1", f"file://{git_repo.root}", str(clone)], check=True, capture_output=True
+    )
+
+    problem = history_problem(clone)
+
+    assert problem is not None
+    assert "shallow" in problem
+
+
+def test_history_problem_accepts_full_history_with_tags(git_repo: GitRepo) -> None:
+    release(git_repo, "v1.0.0", "first", schema=1)
+
+    assert history_problem(git_repo.root) is None
+
+
+def test_unknown_tag_raises_rather_than_reading_as_zero(git_repo: GitRepo) -> None:
+    release(git_repo, "v1.0.0", "first", schema=1)
+
+    with pytest.raises(RuntimeError, match=r"git ls-tree v9\.9\.9 failed"):
+        schema_version_at(git_repo.root, "v9.9.9")
 
 
 def test_minimum_above_heads_schema_fails_before_running_anything(
@@ -190,6 +254,49 @@ def test_operation_the_client_doesnt_call_doesnt_block(tmp_path: Path) -> None:
     )
 
     assert select_client_findings(findings, [{"method": "GET", "path": "/api/other", "parses_503": False}]) == []
+
+
+@needs_oasdiff
+@pytest.mark.parametrize(
+    ("floor_a_schema", "finding_id"),
+    [
+        ({"type": "integer"}, "response-property-type-changed"),
+        ({"type": "string", "nullable": True}, "response-property-became-nullable"),
+    ],
+)
+def test_floor_field_the_client_cant_parse_blocks(
+    tmp_path: Path, floor_a_schema: dict[str, Any], finding_id: str
+) -> None:
+    head = operation_spec({"200": {"type": "object", "required": ["a"], "properties": {"a": {"type": "string"}}}})
+    floor = operation_spec({"200": {"type": "object", "required": ["a"], "properties": {"a": floor_a_schema}}})
+
+    findings = reversed_findings(tmp_path, head, floor)
+
+    assert [f["id"] for f in select_client_findings(findings, CALLS_THING_ONLY)] == [finding_id]
+
+
+@needs_oasdiff
+def test_floor_without_the_success_response_blocks(tmp_path: Path) -> None:
+    findings = reversed_findings(
+        tmp_path, operation_spec({"200": object_with_ab(["a"])}), operation_spec({"201": object_with_ab(["a"])})
+    )
+
+    assert [f["id"] for f in select_client_findings(findings, CALLS_THING_ONLY)] == ["response-success-status-removed"]
+
+
+@needs_oasdiff
+def test_coverage_export_feeds_the_response_filter(tmp_path: Path) -> None:
+    """End to end: the coverage test's export, as the tool runs it, feeds the filter with oasdiff's own paths."""
+    operations_file = tmp_path / "operations.json"
+
+    assert run_request_check(REPO_ROOT, REPO_ROOT / OPENAPI_RELATIVE_PATH, operations_file) == pytest.ExitCode.OK
+    operations = json.loads(operations_file.read_text())
+    assert {"method": "GET", "path": "/api/apps", "parses_503": False} in operations
+
+    findings = run_oasdiff(REPO_ROOT / OPENAPI_RELATIVE_PATH, FIXTURES / "v0.55.0-openapi.json", None, "test")
+    blocking = select_client_findings(findings, operations)
+
+    assert any(f["path"] == "/api/apps" and "`200` status" in f["text"] for f in blocking)
 
 
 def test_finding_with_an_unreadable_status_blocks() -> None:
@@ -268,3 +375,13 @@ def test_main_fails_without_oasdiff(
 
     assert main(git_repo.root, min_schema=1) == 1
     assert "oasdiff not found" in capsys.readouterr().err
+
+
+def test_main_fails_cleanly_when_the_schema_module_is_missing(
+    git_repo: GitRepo, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write_spec(git_repo, "head")
+    git_repo.commit("no schema module")
+
+    assert main(git_repo.root, min_schema=1) == 1
+    assert "wire/src/hassette_wire/health.py is missing" in capsys.readouterr().err

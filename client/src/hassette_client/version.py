@@ -13,15 +13,16 @@ MIN_API_SCHEMA_VERSION = 1
 
 A server reports its schema as ``api_schema_version`` in :meth:`~hassette_client.HassetteClient.get_health`,
 from ``hassette_wire.API_SCHEMA_VERSION``. Every route, method and query parameter the client sends, and
-every response field it requires, exists on the oldest release reporting at least this schema.
+every response field it requires, with the type it requires, exists on the oldest release reporting at least
+this schema.
 
 The bump rule, which ``tools/check_client_floor.py`` enforces on every pull request: a change that makes
 the client depend on server API that release lacks (a route, method or query parameter, or a response field
-the client now requires) does two things in the same pull request.
+the client now requires or whose type it now needs) does two things in the same pull request.
 
 1. Raise ``API_SCHEMA_VERSION`` (``wire/src/hassette_wire/health.py``) by one, unless it is already above
    the latest release's value (``git show <latest v* tag>:wire/src/hassette_wire/health.py``). Releases
-   are what servers run, so one raise per release is enough: a second raise before the next release would
+   are what servers run, so one bump per release is enough: a second bump before the next release would
    name the same release as the floor.
 2. Set this constant to ``API_SCHEMA_VERSION``.
 """

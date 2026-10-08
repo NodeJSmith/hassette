@@ -218,26 +218,25 @@ hassette server 0.55.0 reports no API schema, older than 1, the oldest this hass
 
 The message names the two fixes: upgrade Hassette, or pin `hassette-client` to the release matching the server.
 
-The check compares API schema numbers, not Hassette's release version. Each server reports its API schema, an integer, as `api_schema_version` in `get_health()`. The number rises when the API gains something this client needs. A server released before the schema existed reports none, which counts as `0`. `MIN_API_SCHEMA_VERSION`, exported from `hassette_client`, is the oldest schema this client release works with. A server running from a git checkout reports the right schema even though its release version is out of date.
+The check compares API schema numbers, not Hassette's release version. Each server reports its API schema, an integer, as `api_schema_version` in `get_health()`. The number rises when the API gains something this client needs. A server released before the schema existed reports none, which counts as `0`. `MIN_API_SCHEMA_VERSION`, exported from `hassette_client`, is the oldest schema this client release works with. The check is exact for released servers. A server running from a git checkout reports the schema of the most recent bump, which can predate API added since, because the schema is bumped once per release.
 
 Nothing calls `check_server_version()` automatically, so `get_health()` and the rest still work against an older server, for example to show its status.
 
 ### What each side tolerates
 
-The third column assumes `check_server_version()` passed.
-
-| Server change | Client older than the server | Client newer than the server |
+| Server change | Client older than the server | Client newer than the server (after `check_server_version()` passes) |
 |---|---|---|
 | New response field | Ignored | The client never requires a field this server lacks |
 | New value in an open field | Parsed as `UnknownValue` | Doesn't arise: the client knows every value the server sends |
 | New value in a closed field | `ResponseValidationError`; upgrade the client. Hassette releases this as a breaking change | Doesn't arise |
 | New problem code | Raises the exception for its HTTP status; `exc.problem.code` is an `UnknownValue` | Doesn't arise |
 | New method or action | No method for it | Doesn't arise: the check guarantees the server has it |
-| New query parameter or request field | Not sent; the server uses its default | Doesn't arise: the check guarantees the server has it |
+| New query parameter | Not sent; the server uses its default | Doesn't arise: the check guarantees the server has it |
+| New request body field | Not sent; the server uses its default | Not checked: the server may ignore it or answer 422 |
 | Renamed, removed or retyped field | `ResponseValidationError`. Hassette releases this as a breaking change | `ResponseValidationError` |
 
 ??? note "How Hassette tests these guarantees"
-    Every change to Hassette runs two checks. A wire-compatibility check compares the API with the latest release in both directions. It fails on a new required response field or a removed field unless the change is released as breaking. A client floor check runs the client against the oldest release reporting `MIN_API_SCHEMA_VERSION`. Every method, query parameter and required response field the client uses must exist there, or the change has to raise the API schema. Neither check covers a new value in a closed field, and neither proves an endpoint means the same thing on both releases.
+    Every code change to Hassette runs two checks. A wire-compatibility check compares the API with the latest release in both directions. It fails on a new required response field or a removed field unless the change is released as breaking. A client floor check runs the client against the oldest release reporting `MIN_API_SCHEMA_VERSION`. Every method and query parameter the client uses must exist there, and every response field the client requires must be present with the same type, or the change has to raise the API schema. Neither check covers a new value in a closed field or a request body field, and neither proves an endpoint means the same thing on both releases.
 
 ## Logging
 

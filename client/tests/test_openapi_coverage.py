@@ -347,3 +347,29 @@ async def test_status_model_503_handling_matches_the_route(
         documents_status_model = documents_status_model or bool(set(content) - {PROBLEM_MEDIA_TYPE})
 
     assert documents_status_model == (method_name in STATUS_MODEL_503_METHODS)
+
+
+@current_api_only
+@pytest.mark.parametrize("method_name", sorted(CALLS))
+async def test_no_route_documents_a_model_body_at_another_error_status(
+    client: HassetteClient, server: FakeServer, method_name: str
+) -> None:
+    """Only a probe's 503 carries a model body among error statuses.
+
+    ``tools/check_client_floor.py`` checks the floor release's responses only at 2xx and, for
+    ``STATUS_MODEL_503_METHODS``, 503. A route that documents a model body at another error status needs
+    that status added to the floor check's filter before this test may allow it.
+    """
+    server.respond(200, {})
+    by_operation = {(method, path): operation for method, path, operation in operations()}
+    unchecked: list[str] = []
+    for method, path, _ in await call_recording(client, server, method_name):
+        operation = match_template(method, path)
+        assert operation is not None
+        for status, response in by_operation[operation]["responses"].items():
+            if status.startswith("2") or status == "503":
+                continue
+            if set(response.get("content", {})) - {PROBLEM_MEDIA_TYPE}:
+                unchecked.append(f"{method} {path} {status}")
+
+    assert unchecked == []
