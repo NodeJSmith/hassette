@@ -15,12 +15,12 @@ class ExtractedProperty:
     union_mode: str | None = None
 
 
-def extract_properties(init_py: Path) -> list[ExtractedProperty]:
-    """Extract _attr_* fields from the entity class in __init__.py."""
-    source = init_py.read_text(encoding="utf-8")
+def extract_properties(entity_module: Path) -> list[ExtractedProperty]:
+    """Extract _attr_* fields from the entity class defined in ``entity_module``."""
+    source = entity_module.read_text(encoding="utf-8")
 
     try:
-        tree = ast.parse(source, filename=str(init_py))
+        tree = ast.parse(source, filename=str(entity_module))
     except SyntaxError:
         return []
 

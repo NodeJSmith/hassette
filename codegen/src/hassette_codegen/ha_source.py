@@ -10,6 +10,12 @@ from pathlib import Path
 
 from hassette_codegen.extractors._common import find_entity_class
 
+ENTITY_MODULE_FILES = ("__init__.py", "entity.py")
+"""Component files that may hold a domain's base entity class, in lookup order.
+
+HA moved some domains' entity class out of ``__init__.py`` into ``entity.py`` (todo, 2026.10).
+"""
+
 
 @dataclass
 class DiscoveredDomain:
@@ -17,6 +23,11 @@ class DiscoveredDomain:
     path: Path
     has_services_yaml: bool
     has_const_py: bool
+    entity_module: Path | None
+    """The file defining the domain's base entity class (see ``ENTITY_MODULE_FILES``).
+
+    ``None`` for manual-override domains, whose properties come from the override instead.
+    """
 
 
 @dataclass
@@ -149,7 +160,10 @@ def check_ruff_available() -> None:
 
 
 def discover_domains(ha_core_path: Path) -> list[DiscoveredDomain]:
-    """Discover core entity domains by scanning for CACHED_PROPERTIES_WITH_ATTR_."""
+    """Discover core entity domains by scanning for CACHED_PROPERTIES_WITH_ATTR_.
+
+    Returns everything upstream exposes; the pipeline then drops ``SIMPLE_STATE_DOMAINS``.
+    """
     components_dir = ha_core_path / "homeassistant" / "components"
     domains: list[DiscoveredDomain] = []
 
@@ -157,19 +171,8 @@ def discover_domains(ha_core_path: Path) -> list[DiscoveredDomain]:
         if not component_dir.is_dir():
             continue
 
-        init_py = component_dir / "__init__.py"
-        if not init_py.exists():
-            continue
-
-        source = init_py.read_text(encoding="utf-8")
-        if "CACHED_PROPERTIES_WITH_ATTR_" not in source:
-            continue
-
-        try:
-            tree = ast.parse(source, filename=str(init_py))
-        except SyntaxError:
-            continue
-        if find_entity_class(tree) is None:
+        entity_module = find_entity_module(component_dir)
+        if entity_module is None:
             continue
 
         domains.append(
@@ -178,7 +181,29 @@ def discover_domains(ha_core_path: Path) -> list[DiscoveredDomain]:
                 path=component_dir,
                 has_services_yaml=(component_dir / "services.yaml").exists(),
                 has_const_py=(component_dir / "const.py").exists(),
+                entity_module=entity_module,
             )
         )
 
     return domains
+
+
+def find_entity_module(component_dir: Path) -> Path | None:
+    """Return the first ``ENTITY_MODULE_FILES`` entry defining a cached-properties entity class."""
+    for filename in ENTITY_MODULE_FILES:
+        module = component_dir / filename
+        if not module.exists():
+            continue
+
+        source = module.read_text(encoding="utf-8")
+        if "CACHED_PROPERTIES_WITH_ATTR_" not in source:
+            continue
+
+        try:
+            tree = ast.parse(source, filename=str(module))
+        except SyntaxError:
+            continue
+        if find_entity_class(tree) is not None:
+            return module
+
+    return None

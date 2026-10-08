@@ -21,6 +21,9 @@ HASS = "HASS"
 # HTML <th> elements plural in frontend tests
 ths = "ths"
 
+# Home Assistant's therm unit symbol (UnitOfEnergy.THERM), generated into const/sensor.py
+thm = "thm"
+
 # Acceptable spelling variant
 unparseable = "unparseable"
 Unparseable = "Unparseable"

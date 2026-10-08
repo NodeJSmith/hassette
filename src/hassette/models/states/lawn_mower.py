@@ -12,12 +12,14 @@ class LawnMowerActivity(StrEnum):
     MOWING = "mowing"
     DOCKED = "docked"
     RETURNING = "returning"
+    IDLE = "idle"
 
 
 class LawnMowerEntityFeature(IntFlag):
     START_MOWING = 1
     PAUSE = 2
     DOCK = 4
+    STOP = 8
 
 
 class LawnMowerAttributes(AttributesBase):
@@ -34,6 +36,10 @@ class LawnMowerAttributes(AttributesBase):
     @property
     def supports_dock(self) -> bool:
         return self.has_feature(LawnMowerEntityFeature.DOCK)
+
+    @property
+    def supports_stop(self) -> bool:
+        return self.has_feature(LawnMowerEntityFeature.STOP)
 
 
 class LawnMowerState(StringBaseState):

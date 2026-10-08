@@ -15,6 +15,7 @@ class BinarySensorDeviceClass(StrEnum):
     DOOR = "door"
     GARAGE_DOOR = "garage_door"
     GAS = "gas"
+    GLASS_BREAK = "glass_break"
     HEAT = "heat"
     LIGHT = "light"
     LOCK = "lock"
