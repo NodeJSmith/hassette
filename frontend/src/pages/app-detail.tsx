@@ -79,7 +79,7 @@ function Tab({
       aria-selected={isActive}
       aria-controls={`tabpanel-${id}`}
       className={cn(
-        "inline-block whitespace-nowrap px-4 py-2 font-sans text-[length:var(--text-mono-md)] font-medium text-muted-foreground no-underline transition-colors hover:bg-muted hover:text-foreground focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary max-sidebar:min-h-[var(--sz-touch)] max-sidebar:px-3 max-small-mobile:px-1.5 max-small-mobile:text-xs",
+        "inline-block whitespace-nowrap px-4 py-2 font-sans text-[length:var(--text-mono-md)] font-medium text-muted-foreground no-underline transition-colors hover:bg-muted hover:text-foreground focus-visible:rounded-sm max-sidebar:min-h-[var(--sz-touch)] max-sidebar:px-3 max-small-mobile:px-1.5 max-small-mobile:text-xs",
         isActive && "bg-[linear-gradient(to_bottom,transparent,var(--primary-soft))] text-foreground",
       )}
     >

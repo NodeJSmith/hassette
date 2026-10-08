@@ -39,7 +39,7 @@ export function InstanceSwitcher({
             role="tab"
             aria-selected={isActive}
             className={cn(
-              "inline-flex items-center gap-2 whitespace-nowrap rounded-sm border border-border bg-transparent px-3 py-1 font-mono text-xs text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+              "inline-flex items-center gap-2 whitespace-nowrap rounded-sm border border-border bg-transparent px-3 py-1 font-mono text-xs text-foreground-secondary transition-colors hover:bg-accent hover:text-foreground",
               isActive &&
                 "cursor-default border-[var(--primary-border)] bg-[var(--primary-bg)] font-medium text-primary hover:bg-[var(--primary-bg)] hover:text-primary",
             )}
@@ -71,7 +71,7 @@ function InstanceCard({
   return (
     <button
       type="button"
-      className="flex cursor-pointer flex-col gap-2 rounded-md border border-[var(--border-strong)] bg-card p-4 text-left [font-family:inherit] text-sm text-foreground shadow-[var(--shadow-2)] transition-[border-color,box-shadow] hover:shadow-[var(--shadow-3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+      className="flex cursor-pointer flex-col gap-2 rounded-md border border-[var(--border-strong)] bg-card p-4 text-left [font-family:inherit] text-sm text-foreground shadow-[var(--shadow-2)] transition-[border-color,box-shadow] hover:shadow-[var(--shadow-3)]"
       data-testid={`instance-card-${instance.index}`}
       onClick={() => {
         onNavigate(instance.index);

@@ -170,7 +170,7 @@ function StatusFilterContent({
             key={f}
             type="button"
             className={cn(
-              "cursor-pointer rounded-sm px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+              "cursor-pointer rounded-sm px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
               isActive && "bg-accent font-medium text-foreground",
             )}
             aria-pressed={isActive}

@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
 
-// The bare-button look (no border or background) plus the hover and focus-ring affordance,
+// The bare-button look (no border or background) plus the hover affordance,
 // shared by this popover's two buttons so the pair cannot drift apart. Per-button layout
 // and sizing stay at the call sites.
 const BARE_BUTTON_CLASS =
-  "cursor-pointer border-none bg-transparent text-muted-foreground transition-colors hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary";
+  "cursor-pointer border-none bg-transparent text-muted-foreground transition-colors hover:text-foreground";
 
 export interface ColumnPickerProps {
   selectedColumns: ColumnId[];
