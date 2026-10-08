@@ -32,13 +32,13 @@ from typing import Any
 import pytest
 from check_wire_compat import (
     ERR_LEVEL,
-    GIT_TIMEOUT_SECONDS,
     OPENAPI_RELATIVE_PATH,
     REPO_ROOT,
     REVERSED_BLOCKING_CHECK_IDS,
     describe_finding_location,
     extract_tagged_openapi,
     list_release_tags,
+    run_git,
     run_oasdiff,
 )
 from hassette_client import MIN_API_SCHEMA_VERSION
@@ -104,21 +104,13 @@ def schema_version_in(source: str) -> int:
 
 def schema_version_at(repo_root: Path, tag: str) -> int:
     """The ``API_SCHEMA_VERSION`` tag ``tag`` serves; ``0`` when the tag predates the constant or its file."""
-    listing = subprocess.run(
-        ["git", "ls-tree", "--name-only", tag, "--", SCHEMA_MODULE_RELATIVE_PATH],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=GIT_TIMEOUT_SECONDS,
-    )
+    listing = run_git(repo_root, "ls-tree", "--name-only", tag, "--", SCHEMA_MODULE_RELATIVE_PATH)
     if listing.returncode != 0:
         raise RuntimeError(f"git ls-tree {tag} failed: {listing.stderr.strip()}")
     if not listing.stdout.strip():
         return 0
     blob = f"{tag}:{SCHEMA_MODULE_RELATIVE_PATH}"
-    result = subprocess.run(
-        ["git", "show", blob], cwd=repo_root, capture_output=True, text=True, timeout=GIT_TIMEOUT_SECONDS
-    )
+    result = run_git(repo_root, "show", blob)
     if result.returncode != 0:
         raise RuntimeError(f"git show {blob} failed: {result.stderr.strip()}")
     return schema_version_in(result.stdout)
@@ -130,13 +122,7 @@ def history_problem(repo_root: Path) -> str | None:
     A shallow or tagless checkout would otherwise look like "no release reports the minimum yet" and make
     the check pass against HEAD without checking anything.
     """
-    shallow = subprocess.run(
-        ["git", "rev-parse", "--is-shallow-repository"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=GIT_TIMEOUT_SECONDS,
-    )
+    shallow = run_git(repo_root, "rev-parse", "--is-shallow-repository")
     if shallow.returncode != 0:
         return f"git rev-parse failed: {shallow.stderr.strip()}"
     if shallow.stdout.strip() == "true":

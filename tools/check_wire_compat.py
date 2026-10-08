@@ -67,6 +67,17 @@ FORWARD_ALLOWED_ERR_CHECK_IDS = frozenset(
 )
 
 
+def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """Run ``git <args>`` in ``repo_root`` with captured text output; the caller checks ``returncode``."""
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        timeout=GIT_TIMEOUT_SECONDS,
+    )
+
+
 def list_release_tags(repo_root: Path) -> list[str]:
     """Return the ``v*`` git tags reachable from HEAD, highest version first.
 
@@ -74,13 +85,7 @@ def list_release_tags(repo_root: Path) -> list[str]:
     HEAD, so a branch forked before a release isn't compared against a tag it can't see yet.
     Empty stdout with exit 0 means no reachable tag; any non-zero exit is a real git failure.
     """
-    result = subprocess.run(
-        ["git", "tag", "--list", "v*", "--merged", "HEAD", "--sort=-v:refname"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=GIT_TIMEOUT_SECONDS,
-    )
+    result = run_git(repo_root, "tag", "--list", "v*", "--merged", "HEAD", "--sort=-v:refname")
     if result.returncode != 0:
         raise RuntimeError(f"git tag --list failed: {result.stderr.strip()}")
     return [line.strip() for line in result.stdout.splitlines() if line.strip()]
@@ -94,13 +99,7 @@ def resolve_latest_release_tag(repo_root: Path) -> str | None:
 
 def extract_tagged_openapi(repo_root: Path, tag: str, dest_dir: Path) -> Path:
     """Extract ``frontend/openapi.json`` as it existed at ``tag`` into ``dest_dir``."""
-    result = subprocess.run(
-        ["git", "show", f"{tag}:{OPENAPI_RELATIVE_PATH}"],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        timeout=GIT_TIMEOUT_SECONDS,
-    )
+    result = run_git(repo_root, "show", f"{tag}:{OPENAPI_RELATIVE_PATH}")
     if result.returncode != 0:
         raise RuntimeError(f"git show {tag}:{OPENAPI_RELATIVE_PATH} failed: {result.stderr.strip()}")
     dest_path = dest_dir / "openapi-release.json"
