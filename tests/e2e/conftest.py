@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
 import pytest
+from hassette_wire import QuerySourceTier
 from playwright.sync_api import Locator, Page, expect
 
 from hassette.web.app import create_fastapi_app
@@ -247,7 +248,7 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
         app_key: str | None = None,
         level: str | None = None,
         execution_id: str | None = None,
-        source_tier: str = "all",
+        source_tier: QuerySourceTier = "all",
     ) -> list[dict]:
         # dup-ignore-end
         entries: list[LogRecordEntry] = handler.captured
