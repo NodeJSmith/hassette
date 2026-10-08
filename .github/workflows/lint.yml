@@ -63,6 +63,35 @@ jobs:
                         - 'codegen/**'
                         - '.generated-manifest'
 
+    # Unfiltered on purpose: a secret can land in any tracked file (a root Dockerfile, a
+    # workflow), not just the paths the `changes` filters cover.
+    secrets:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                  persist-credentials: false
+
+            - name: Install prek
+              uses: j178/prek-action@8a0e9d7b7d92cbc0139d6b1d1130aa3855ca9172 # v2
+              with:
+                  install-only: true
+
+            - name: Cache prek environments
+              uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+              with:
+                  path: ~/.cache/prek
+                  key: prek-secrets-${{ runner.os }}-${{ hashFiles('prek.toml') }}
+
+            - name: Set up Go
+              uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+              with:
+                  go-version: "stable"
+                  cache: false
+
+            - name: Scan tracked tree for secrets
+              run: prek run gitleaks-tree --all-files --stage pre-push
+
     python:
         needs: changes
         if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
@@ -105,6 +134,8 @@ jobs:
                   echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
             - name: Run lint checks
+              env:
+                  SKIP: gitleaks-tree # runs in the unfiltered `secrets` job instead
               run: |
                   uv tool install ruff==0.14.9
                   prek run --no-group frontend --all-files --stage pre-push
@@ -418,7 +449,7 @@ jobs:
               run: uv run python tools/check_duplicate_code.py --gate-new-code "$BASE_SHA" "$HEAD_SHA"
 
     lint-complete:
-        needs: [python, frontend, codegen-freshness, ha-version-staleness, security, lockfile-fresh, slotscheck, link-check, file-sizes, duplicate-code]
+        needs: [secrets, python, frontend, codegen-freshness, ha-version-staleness, security, lockfile-fresh, slotscheck, link-check, file-sizes, duplicate-code]
         if: always()
         runs-on: ubuntu-latest
         steps:
