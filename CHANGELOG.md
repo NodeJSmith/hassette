@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 These affect scripts and dashboards that call the HTTP/WebSocket API, parse `--json` CLI output, or import `hassette_wire` models. App code is not affected.
 
-- **Errors are RFC 9457 problem details** — every non-2xx response under `/api` is now `application/problem+json` with `type`, `title`, `status`, `detail` and a stable `code` (see the new [API errors](https://hassette.readthedocs.io/en/stable/pages/web-ui/api-errors/) page). Status codes and `detail` strings are unchanged. Validation 422s now carry a string `detail` summary instead of a list, and with the SPA served, a non-GET request to an unknown `/api` path returns 404 instead of 405. (#2480)
+- **Errors are RFC 9457 problem details** — every non-2xx response under `/api` is now `application/problem+json` with `type`, `title`, `status`, `detail` and a stable `code` (see the new [API errors](https://hassette.readthedocs.io/en/latest/pages/web-ui/api-errors/) page). Status codes and `detail` strings are unchanged. Validation 422s now carry a string `detail` summary instead of a list, and with the SPA served, a non-GET request to an unknown `/api` path returns 404 instead of 405. (#2480)
 - **Telemetry outages return a problem body** — data routes (telemetry, logs, executions, listeners, jobs, apps) now answer a database outage with a 503 `telemetry_unavailable` problem body instead of a 503 with an empty or default body. `/api/health/ready` and `/api/telemetry/status` are unchanged. (#2491)
 - **Apps endpoints reshaped** — update callers as follows (#2558):
   - `GET /api/apps/manifests` → `GET /api/apps`; the list field `manifests` → `apps`
@@ -48,7 +48,7 @@ These affect scripts and dashboards that call the HTTP/WebSocket API, parse `--j
 
 ### Python Client
 
-- `hassette-client` now ships `HassetteClient`: typed async methods over an `aiohttp.ClientSession` you own, returning `hassette_wire` models. Every network or server failure raises a `HassetteClientError` subclass (connection, timeout, HTTP status families, app-not-found, bootstrap-not-released), so callers branch on exception type instead of parsing response bodies. See the new [Python client](https://hassette.readthedocs.io/en/stable/pages/web-ui/python-client/) page. (#2596)
+- `hassette-client` now ships `HassetteClient`: typed async methods over an `aiohttp.ClientSession` you own, returning `hassette_wire` models. Every network or server failure raises a `HassetteClientError` subclass (connection, timeout, HTTP status families, app-not-found, bootstrap-not-released), so callers branch on exception type instead of parsing response bodies. See the new [Python client](https://hassette.readthedocs.io/en/latest/pages/web-ui/python-client/) page. (#2596)
 - The server now reports `api_schema_version` in its health payload, and `check_server_version()` raises `UnsupportedServerVersionError` against a server too old for the client (#2596)
 - Client responses parse leniently: an enum or `Literal` value a newer server adds arrives as `UnknownValue` (a `str` subclass that keeps the raw value) instead of failing validation. Opt in on your own parses with `hassette_wire.LENIENT_CONTEXT`. (#2502)
 - `hassette-wire` now holds every model, enum and Literal served over the HTTP/WebSocket API, depending only on pydantic, so tools can use the API contract without installing the framework (#2449)
@@ -90,7 +90,7 @@ These affect scripts and dashboards that call the HTTP/WebSocket API, parse `--j
 
 ### Documentation
 
-- New pages: [API errors](https://hassette.readthedocs.io/en/stable/pages/web-ui/api-errors/) (every problem `code`) and [Python client](https://hassette.readthedocs.io/en/stable/pages/web-ui/python-client/) (#2480, #2596)
+- New pages: [API errors](https://hassette.readthedocs.io/en/latest/pages/web-ui/api-errors/) (every problem `code`) and [Python client](https://hassette.readthedocs.io/en/latest/pages/web-ui/python-client/) (#2480, #2596)
 - Accuracy pass across the core-concepts and testing pages: listener naming errors, state conversion rules, `simulate_app_*` signatures, `enabled = false` behavior, and config file discovery (every `hassette.toml` is merged) (#2465)
 - The bus methods page states correctly that omitting `name=` raises `TypeError`, and that every handler-taking method accepts `on_error` (#2441)
 - `HelperClient.update()` and `delete()` take the helper's storage id (`"vacation_mode"`), not its `entity_id`; the docs and docstrings now say so (#2450)
