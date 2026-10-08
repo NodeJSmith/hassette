@@ -1,5 +1,13 @@
 from .colors import COLORS, Color
-from .misc import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED, SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
+from .misc import (
+    ANY_VALUE,
+    MISSING_VALUE,
+    NOT_PROVIDED,
+    SECONDS_PER_DAY,
+    SECONDS_PER_HOUR,
+    SECONDS_PER_MINUTE,
+    FalseySentinel,
+)
 from .sensor import DEVICE_CLASS, STATE_CLASS, UNIT_OF_MEASUREMENT
 
 __all__ = [
@@ -14,4 +22,5 @@ __all__ = [
     "STATE_CLASS",
     "UNIT_OF_MEASUREMENT",
     "Color",
+    "FalseySentinel",
 ]

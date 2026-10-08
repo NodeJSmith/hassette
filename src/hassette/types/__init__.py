@@ -3,7 +3,9 @@ from hassette_wire import ResourceRole
 from .enums import (
     ACTIVE_STATUSES,
     TERMINAL_STATUSES,
+    BlockingIOBehavior,
     ConnectionState,
+    ForgottenAwaitBehavior,
     Outcome,
     Topic,
 )
@@ -39,11 +41,13 @@ __all__ = [
     "TERMINAL_STATUSES",
     "AppConfigT",
     "AsyncHandlerType",
+    "BlockingIOBehavior",
     "BusErrorHandlerType",
     "ChangeType",
     "ComparisonCondition",
     "ConnectionState",
     "EventT",
+    "ForgottenAwaitBehavior",
     "HandlerType",
     "JobCallable",
     "Outcome",
