@@ -116,6 +116,7 @@ class BusService(Service):
             logger=self.logger,
             make_synthetic_event=make_synthetic_state_event,
             compute_elapsed=compute_elapsed,
+            record_predicate_failure=self.record_predicate_failure_safely,
         )
 
         self._removal_callbacks = {}
@@ -418,10 +419,7 @@ class BusService(Service):
                 except Exception as exc:
                     failed.add(listener.listener_id)
                     self.logger.exception("Predicate raised for %s; skipping this listener", listener)
-                    try:
-                        self._record_predicate_failure(listener, route, event, exc, predicate_start)
-                    except Exception:
-                        self.logger.exception("Failed to record predicate failure for %s", listener)
+                    self.record_predicate_failure_safely(listener, route, event, exc, predicate_start)
                     continue
                 if matched:
                     chosen[listener.listener_id] = (route, listener)
@@ -533,6 +531,19 @@ class BusService(Service):
     def duration_timers_active(self) -> int:
         """Number of currently active duration timers."""
         return self._duration_hold.duration_timers_active
+
+    def record_predicate_failure_safely(
+        self, listener: "Listener", topic: str, event: "Event[Any]", exc: Exception, start_ts: float
+    ) -> None:
+        """Call ``_record_predicate_failure``, logging (not raising) if recording itself fails.
+
+        Shared by main dispatch and the duration-hold paths so a broken recorder can never
+        crash a dispatch loop or a spawned timer task.
+        """
+        try:
+            self._record_predicate_failure(listener, topic, event, exc, start_ts)
+        except Exception:
+            self.logger.exception("Failed to record predicate failure for %s", listener)
 
     def _record_predicate_failure(
         self, listener: "Listener", topic: str, event: "Event[Any]", exc: Exception, start_ts: float

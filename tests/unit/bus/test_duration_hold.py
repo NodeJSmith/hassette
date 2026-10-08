@@ -68,6 +68,7 @@ def make_manager(
         logger=logging.getLogger("test"),
         make_synthetic_event=make_synthetic_state_event,
         compute_elapsed=compute_elapsed,
+        record_predicate_failure=MagicMock(),
     )
 
 
