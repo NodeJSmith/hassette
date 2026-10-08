@@ -335,9 +335,9 @@ class ValueIs(_PredicateOps, Generic[EventT, V]):
             An ``ANY_VALUE`` condition renders as a literal, e.g. ``"value is <ANY_VALUE> from <source>"``.
         """
         source_name = callable_name(self.source)
-        if hasattr(self.condition, "summarize"):
-            return f"value {_summarize_condition(self.condition)} from {source_name}"
         if callable(self.condition):
+            if hasattr(self.condition, "summarize"):
+                return f"value {_summarize_condition(self.condition)} from {source_name}"
             return f"custom condition from {source_name}"
         return f"value is {self.condition} from {source_name}"
 

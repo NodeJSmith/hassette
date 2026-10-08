@@ -499,6 +499,19 @@ def test_predicate_summarize_golden_value_is_condition_object() -> None:
     assert pred.summarize() == "value matches light.* from get_entity_id"
 
 
+def test_predicate_summarize_golden_value_is_literal_with_summarize_attr() -> None:
+    """A non-callable literal with a ``summarize`` attribute renders as a literal, not as a condition object."""
+
+    class Literal:
+        summarize = "not a method"
+
+        def __str__(self) -> str:
+            return "lit"
+
+    pred = ValueIs(source=get_entity_id, condition=Literal())
+    assert pred.summarize() == "value is lit from get_entity_id"
+
+
 def test_predicate_summarize_golden_guard() -> None:
     assert Guard(lambda _e: True).summarize() == "custom condition"
 
