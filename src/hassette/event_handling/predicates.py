@@ -328,13 +328,16 @@ class ValueIs(_PredicateOps, Generic[EventT, V]):
         When ``condition`` is ``ANY_VALUE``, the predicate matches every event without calling ``source``.
 
         Returns:
-            For a literal condition, ``"value is <condition> from <source>"``; for a callable condition
-            (including condition objects such as ``Glob``, whose own summary is not used),
-            ``"custom condition from <source>"``, where ``<source>`` is the extractor's callable name.
+            For a literal condition, ``"value is <condition> from <source>"``; for a condition object with
+            its own ``summarize()`` (such as ``Glob``), ``"value <summary> from <source>"``, e.g.
+            ``"value matches light.* from get_entity_id"``; for any other callable condition,
+            ``"custom condition from <source>"``. ``<source>`` is the extractor's callable name.
             An ``ANY_VALUE`` condition renders as a literal, e.g. ``"value is <ANY_VALUE> from <source>"``.
         """
         source_name = callable_name(self.source)
         if callable(self.condition):
+            if hasattr(self.condition, "summarize"):
+                return f"value {_summarize_condition(self.condition)} from {source_name}"
             return f"custom condition from {source_name}"
         return f"value is {self.condition} from {source_name}"
 
