@@ -28,6 +28,7 @@ from hassette_wire import (
     AppHealth,
     BlockingFindingsResponse,
     Execution,
+    ExecutionKind,
     JobSummary,
     LastError,
     LastErrorResult,
@@ -37,7 +38,6 @@ from hassette_wire import (
     UnattributedBlockingResponse,
     requested_activity_parts,
 )
-from hassette_wire.literals import ExecutionKind
 
 from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.execution_models import AppLastError

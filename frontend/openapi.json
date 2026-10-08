@@ -4549,11 +4549,13 @@
           "status": {
             "type": "string",
             "const": "live",
-            "title": "Status",
-            "default": "live"
+            "title": "Status"
           }
         },
         "type": "object",
+        "required": [
+          "status"
+        ],
         "title": "LivenessResponse",
         "description": "Response model for GET /api/health/live."
       },

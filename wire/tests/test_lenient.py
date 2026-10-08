@@ -15,25 +15,20 @@ from hassette_wire import (
     BlockingHandlerRef,
     ExecutionMode,
     ListenerSummary,
-    LogLevel,
     LogLevelRequest,
     ProblemCode,
     ProblemDetail,
     ResourceStatus,
     ServiceInfo,
     SessionRequest,
-    SourceTier,
     SystemStatusResponse,
     UnknownValue,
     WsServerMessage,
 )
 from hassette_wire.lenient import _LENIENT_KEY, LenientValue, vocabulary_of
+from hassette_wire.literals import CLOSED_VOCABULARIES
 from open_alias_helpers import is_open_alias, open_aliases, plain_type
 from pydantic import BaseModel, TypeAdapter, ValidationError
-
-# Closed vocabularies stay strict on response models: adding a value to either is a breaking wire
-# change, not version skew.
-CLOSED_VOCABULARIES = (SourceTier, LogLevel)
 
 # Request models stay strict (they carry no vocabulary fields today); a new one must be added here.
 REQUEST_MODELS = {LogLevelRequest, SessionRequest}
@@ -315,7 +310,8 @@ def test_open_alias_marker_names_its_own_type(name: str) -> None:
 def strict_vocabularies(annotation: Any) -> list[Any]:
     """Wire StrEnums and multi-value Literals reachable in ``annotation`` without passing through an open alias.
 
-    Single-value Literals (WS ``type`` discriminators, ``"accepted"``) are constants, not vocabularies.
+    Single-value Literals (WS ``type`` discriminators) are constants, not vocabularies, so this skips them.
+    The single-value status fields a client reads are audited in ``client/tests/test_open_values.py``.
     """
     if is_open_alias(annotation):
         return []

@@ -1,10 +1,10 @@
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.cli_format import CliFormat
 from hassette_wire.enums import OpenResourceRole, OpenResourceStatus
-from hassette_wire.literals import OpenBootIssueSeverity, OpenSystemHealthStatus
+from hassette_wire.literals import OpenBootIssueSeverity, OpenLivenessStatus, OpenSystemHealthStatus
 
 
 class BootIssue(BaseModel):
@@ -58,7 +58,7 @@ class SystemStatusResponse(BaseModel):
 class LivenessResponse(BaseModel):
     """Response model for GET /api/health/live."""
 
-    status: Literal["live"] = "live"
+    status: OpenLivenessStatus
 
 
 class ReadinessResponse(BaseModel):

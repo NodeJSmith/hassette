@@ -79,6 +79,7 @@ from hassette_wire.lenient import LENIENT_CONTEXT, UnknownValue
 from hassette_wire.literals import (
     AppAction,
     ErrorRateClass,
+    ExecutionKind,
     HealthStatus,
     ListenerKind,
     LogLevel,
@@ -165,6 +166,7 @@ __all__ = [
     "Execution",
     "ExecutionCompletedData",
     "ExecutionCompletedWsMessage",
+    "ExecutionKind",
     "ExecutionMode",
     "ExecutionStatus",
     "HealthStatus",

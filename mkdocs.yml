@@ -94,6 +94,7 @@ nav:
       - Check Framework Health: pages/web-ui/diagnostics.md
       - Configure Health Checks: pages/web-ui/health-endpoints.md
       - API Error Responses: pages/web-ui/api-errors.md
+      - Call the API from Python: pages/web-ui/python-client.md
   - CLI:
       - Overview: pages/cli/index.md
       - Command Reference: pages/cli/commands.md

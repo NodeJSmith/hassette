@@ -57,11 +57,17 @@ Every error under `/api` is an RFC 9457 `application/problem+json` body with a `
 - **Routes raise `WebApiError(ProblemCode.X, detail)`**, never `HTTPException`. The status comes from `CODE_STATUS`. Keep `from exc` chaining.
 - **Middleware calls `problem_response()`**, never builds a body by hand. `tests/unit/web/test_error_mechanism_guard.py` fails on any `HTTPException(...)` or `{"detail": ...}` outside `errors.py`, and on any `ProblemCode` missing from the catalog page.
 - **Declare operation-specific codes with `responses=problem_responses(...)`**. Compose shared-helper codes from the tuples next to the helpers in `routes/apps.py` (`APP_KEY_CODES`, `ACTION_CODES`, ...). Global codes (`GLOBAL_CODES`) are never declared per route. An autouse fixture in `tests/integration/web_api/conftest.py` fails any test where a route raises a code it doesn't declare.
-- **A new code** goes in `ProblemCode`, `CODE_STATUS`, `CODE_DESCRIPTIONS` (if operation-specific), and the catalog page. Prefer adding a code over reusing one with a different meaning.
+- **A new code** goes in `ProblemCode`, `CODE_STATUS`, `CODE_DESCRIPTIONS` (if operation-specific), and the catalog page, and in `hassette_client`'s `CODE_ERRORS` (with its own exception class) or `GENERIC_CODES` (`client/src/hassette_client/errors.py`); a client test fails until it's in one. Prefer adding a code over reusing one with a different meaning.
 - **401 is reserved for authentication.** `DefaultDenyMiddleware` counts every outgoing 401 as a failed login, so only `invalid_token` and `not_authenticated` map to 401. A unit test pins this.
 - **Never put the rejected value in `detail`.** The 422 summary uses only `loc` and `msg`; hassette's own request-model validators must not interpolate the validated value into their error message either, because it reaches `detail`.
 - **Stability:** codes follow the wire contract's pre-1.0 policy. Renaming or removing a code, or changing its status, is a breaking change (`feat!:`, `BREAKING CHANGE:` footer, `tools/wire_compat_ignore.txt` if flagged). Adding one is not. The `detail` of routing errors (`not_found`, `method_not_allowed`) is not stable.
-- **Not problem bodies:** the two probes, `/api/health/ready` and `/api/telemetry/status`, return their status models with a 503. They are data, not errors, and the CLI (`tolerate_503`) and load balancers read them as data. The OpenAPI rewrite matches on schema references, not status, so it leaves them alone. No other route answers an error status with a success model.
+- **Not problem bodies:** the two probes, `/api/health/ready` and `/api/telemetry/status`, return their status models with a 503. They are data, not errors, and the CLI (`tolerate_503`), `hassette_client` (`status_model_on_503`) and load balancers read them as data. The OpenAPI rewrite matches on schema references, not status, so it leaves them alone. No other route answers an error status with a success model.
+
+## Client Coverage
+
+Every route needs a typed method on `hassette_client.HassetteClient`, unless the test's `BROWSER_ONLY_OPERATIONS` names it with a reason. `client/tests/test_openapi_coverage.py` reads the committed `frontend/openapi.json`, so a new route or query parameter fails it until a method sends it and the test's `CALLS` table lists that method, passing every keyword filter. A new probe-style route that answers 503 with its status model also goes in that test's `STATUS_MODEL_503_METHODS`.
+
+A client method that starts using a new route or query parameter raises the client's minimum server: on the next release-please PR, `tools/check_client_floor.py` fails until `MIN_SERVER_VERSION` (`client/src/hassette_client/version.py`) is bumped there, usually to the version being released. Feature PRs aren't gated on it.
 
 ## Telemetry Error Handling Pattern
 

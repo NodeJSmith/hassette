@@ -8,6 +8,10 @@ SourceTier = Literal["app", "framework"]
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 """Log levels for configuring logging."""
 
+CLOSED_VOCABULARIES = (SourceTier, LogLevel)
+"""Vocabularies that stay strict in response models: adding a value to one is a breaking wire change, not
+version skew. Every other enum or ``Literal`` a response carries uses an ``Open<TypeName>`` alias."""
+
 QuerySourceTier = Literal["app", "framework", "all"]
 """Valid source_tier values for query-side filtering. 'all' disables the filter."""
 
@@ -56,3 +60,13 @@ AppAction = Literal["start", "stop", "reload"]
 """A lifecycle action requested on an app or one of its instances."""
 
 OpenAppAction = Annotated[AppAction | UnknownValue, LenientValue("AppAction")]
+
+AcceptedStatus = Literal["accepted"]
+"""The ``status`` of a response confirming the server accepted a requested action."""
+
+OpenAcceptedStatus = Annotated[AcceptedStatus | UnknownValue, LenientValue("AcceptedStatus")]
+
+LivenessStatus = Literal["live"]
+"""The ``status`` of a liveness probe answer."""
+
+OpenLivenessStatus = Annotated[LivenessStatus | UnknownValue, LenientValue("LivenessStatus")]

@@ -1,9 +1,9 @@
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from hassette_wire.enums import OpenAppStatus, OpenResourceStatus
-from hassette_wire.literals import OpenAppAction
+from hassette_wire.literals import OpenAcceptedStatus, OpenAppAction
 
 
 class AppInstance(BaseModel):
@@ -75,7 +75,7 @@ class ActionResponse(BaseModel):
     their own request data, since a routing bug would otherwise still look like a plain 202.
     """
 
-    status: Literal["accepted"] = "accepted"
+    status: OpenAcceptedStatus = "accepted"
     app_key: str
     action: OpenAppAction
     instance_index: int | None

@@ -5,13 +5,22 @@ build-backend = "uv_build"
 [project]
 name = "hassette-client"
 version = "0.55.0"  # x-release-please-version
-description = "Async client for the Hassette HTTP and WebSocket API."
+description = "Async client for the Hassette HTTP API."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.15"
-dependencies = ["hassette-wire==0.55.0"]  # x-release-please-version
+# Floors stay at or below Home Assistant's pins and constraints (aiohttp==3.14.3, pydantic==2.13.4,
+# packaging>=23.1 in HA 2026.9), independent of the root package's own floors, so a root bump can
+# never make this package uninstallable inside HA. The version pin sits on its own line because
+# release-please rewrites every version on a marked line.
+dependencies = [
+    "hassette-wire==0.55.0",  # x-release-please-version
+    "aiohttp>=3.10",
+    "packaging>=23.1",
+    "pydantic>=2.7",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -24,7 +33,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-# Populated with aiohttp, cyclopts and rich when the CLI moves here (#2387).
+# Populated with cyclopts and rich when the CLI moves here (#2387).
 cli = []
 
 [project.urls]
@@ -32,7 +41,7 @@ Homepage = "https://github.com/nodejsmith/hassette"
 Repository = "https://github.com/nodejsmith/hassette"
 
 [dependency-groups]
-dev = ["pytest>=8.4.0"]
+dev = ["pytest>=8.4.0", "pytest-asyncio>=1.0.0"]
 
 [tool.uv.sources]
 hassette-wire = { workspace = true }
@@ -42,3 +51,5 @@ module-name = "hassette_client"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+filterwarnings = ["error"]

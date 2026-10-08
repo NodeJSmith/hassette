@@ -1771,7 +1771,6 @@ export interface components {
         LivenessResponse: {
             /**
              * Status
-             * @default live
              * @constant
              */
             status: "live";

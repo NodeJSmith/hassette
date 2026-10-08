@@ -1,7 +1,9 @@
+import tomllib
 import typing
 from pathlib import Path
 
 import nox
+from packaging.requirements import Requirement
 
 if typing.TYPE_CHECKING:
     from nox.sessions import Session
@@ -67,10 +69,11 @@ def dev(session: "Session"):
 def run_member_tests(session: "Session", member: str) -> None:
     """Run a workspace member's tests on the locked dependencies, then on its declared floors.
 
-    The floor run resolves direct dependencies to the lowest versions the workspace's
-    ``pyproject.toml`` files allow, in a throwaway environment, so ``uv.lock`` stays untouched. It
-    pins the oldest Python in ``requires-python``, because old pydantic-core releases have no wheels
-    for the newest Pythons.
+    The floor run pins each of the member's direct dependencies to its ``>=`` floor in an isolated,
+    project-less environment, so ``uv.lock`` stays untouched. It can't use ``--resolution
+    lowest-direct`` inside the workspace: that resolves the root package's requirements too, so a
+    member floor below the root's own floor would never be installed. It pins the oldest Python in
+    ``requires-python``, because old pydantic-core releases have no wheels for the newest Pythons.
     """
     member_pytest = ("--directory", member, "pytest", "-q")
     session.run("uv", "run", *member_pytest, external=True)
@@ -78,13 +81,54 @@ def run_member_tests(session: "Session", member: str) -> None:
         "uv",
         "run",
         "--isolated",
-        "--resolution",
-        "lowest-direct",
+        "--no-project",
         "--python",
         FLOOR_PYTHON,
-        *member_pytest,
+        "--directory",
+        member,
+        *floor_requirements(member),
+        "pytest",
+        "-q",
         external=True,
     )
+
+
+def floor_requirements(member: str) -> list[str]:
+    """``uv run --with`` arguments installing ``member`` with every direct dependency at its floor.
+
+    Covers ``[project].dependencies`` and the ``dev`` dependency group; optional extras aren't
+    installed. A workspace member is installed from its directory instead, since it isn't on PyPI
+    at this version yet. Paths are relative to ``member``'s directory, where the floor run executes.
+
+    Raises:
+        ValueError: A dependency has no single ``>=`` floor to pin.
+    """
+    pyproject = read_pyproject(member)
+    requirements = [*pyproject["project"]["dependencies"], *pyproject["dependency-groups"]["dev"]]
+    member_dirs = workspace_member_dirs()
+    # Editable, so the run tests the current source: uv caches a built path dependency until its
+    # pyproject.toml changes, and would otherwise reuse a stale wheel.
+    args = ["--with-editable", "."]
+    for raw in requirements:
+        requirement = Requirement(raw)
+        if requirement.name in member_dirs:
+            args += ["--with-editable", f"../{member_dirs[requirement.name]}"]
+            continue
+        floors = [spec.version for spec in requirement.specifier if spec.operator == ">="]
+        if len(floors) != 1:
+            raise ValueError(f"{member}: {raw!r} needs exactly one >= floor for the floor run")
+        args += ["--with", f"{requirement.name}=={floors[0]}"]
+    return args
+
+
+def workspace_member_dirs() -> dict[str, str]:
+    """Map each uv workspace member's distribution name to its directory."""
+    members = read_pyproject(".")["tool"]["uv"]["workspace"]["members"]
+    return {read_pyproject(directory)["project"]["name"]: directory for directory in members}
+
+
+def read_pyproject(directory: str) -> dict[str, typing.Any]:
+    return tomllib.loads(Path(directory, "pyproject.toml").read_text())
 
 
 @nox.session(python=False)
