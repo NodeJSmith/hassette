@@ -13,6 +13,7 @@ from hassette_client import (
     RedirectError,
 )
 from hassette_wire import SystemStatusResponse
+from yarl import URL
 
 
 async def test_requests_use_the_callers_session_and_leave_it_open(
@@ -46,6 +47,14 @@ async def test_no_token_sends_no_authorization_header(
     await HassetteClient(session, server.base_url, token=token).get_health()
 
     assert "Authorization" not in server.requests[0].headers
+
+
+@pytest.mark.parametrize("request_timeout", [0, -1.0])
+def test_non_positive_request_timeout_raises_value_error(
+    session: aiohttp.ClientSession, server: FakeServer, request_timeout: float
+) -> None:
+    with pytest.raises(ValueError, match="request_timeout"):
+        HassetteClient(session, server.base_url, request_timeout=request_timeout)
 
 
 async def test_unanswered_request_raises_timeout_error(session: aiohttp.ClientSession, server: FakeServer) -> None:
@@ -95,6 +104,19 @@ async def test_control_character_in_token_raises_value_error_on_first_request(
 
     # The type is the contract; the message varies across aiohttp releases.
     with pytest.raises(ValueError):  # noqa: PT011
+        await client.get_health()
+
+    assert server.requests == []
+
+
+async def test_token_with_credentials_in_base_url_raises_value_error_on_first_request(
+    session: aiohttp.ClientSession, server: FakeServer
+) -> None:
+    url_with_credentials = str(URL(server.base_url).with_user("user").with_password("pw"))
+    client = HassetteClient(session, url_with_credentials, token=TEST_TOKEN)
+
+    # The match pins the cause: aiohttp won't send an Authorization header alongside URL credentials.
+    with pytest.raises(ValueError, match="AUTHORIZATION header"):
         await client.get_health()
 
     assert server.requests == []
@@ -173,7 +195,7 @@ async def test_action_name_is_left_to_the_server(client: HassetteClient, server:
     assert server.requests[0].path == "/api/apps/my_app/restart"
 
 
-@pytest.mark.parametrize("app_key", [".", "..", "foo/config", "/"])
+@pytest.mark.parametrize("app_key", ["", ".", "..", "foo/config", "/"])
 async def test_path_parameter_that_would_change_the_route_is_rejected_before_any_request(
     client: HassetteClient, server: FakeServer, app_key: str
 ) -> None:

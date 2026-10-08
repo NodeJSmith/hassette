@@ -36,9 +36,9 @@ The examples further down are fragments: they run inside `main()` and use its `c
 
 `HassetteClient(session, base_url, *, token=None, request_timeout=10.0)` takes:
 
-- `base_url`: the server's root URL. A path prefix is kept, so `https://example.com/hassette` works behind a reverse proxy that serves Hassette under a sub-path. Leave out any `user:password@`: `aiohttp` turns it into Basic authentication, which replaces the token.
+- `base_url`: the server's root URL. A path prefix is kept, so `https://example.com/hassette` works behind a reverse proxy that serves Hassette under a sub-path. Leave out any `user:password@`: `aiohttp` turns it into Basic authentication, and combined with a token every request raises `ValueError`.
 - `token`: the web API token. Without one, requests carry no `Authorization` header. A server that lists your machine in `web_api.trusted_proxies` admits those requests anyway (see [Enabling and accessing the web UI](index.md#enabling-and-accessing)).
-- `request_timeout`: seconds allowed for each request, including reading the whole response.
+- `request_timeout`: seconds allowed for each request, including reading the whole response. It must be positive.
 
 `token` and `request_timeout` are keyword-only.
 
@@ -114,7 +114,7 @@ This table lists every failure. The last two rows are bugs in the calling code r
 | `ResponseValidationError` | A response that doesn't match its model: a renamed or removed field | Yes |
 | `UnexpectedResponseError` | A success response that isn't JSON, such as a proxy's login page or the web UI's HTML. A subclass of `ResponseValidationError` | Yes |
 | `UnsupportedServerVersionError` | A server older than this client supports. Only `check_server_version()` raises it | Yes |
-| `ValueError` | A path argument that is `.` or `..` or contains `/`, raised before any request. Also a token containing a control character such as a newline, raised by `aiohttp` on the first request | No |
+| `ValueError` | A `request_timeout` of zero or less, raised by the constructor. A path argument that is empty, `.` or `..`, or contains `/`, raised before any request. Also a token containing a control character such as a newline, or a token combined with `user:password@` in `base_url` or a session created with `auth=`, raised by `aiohttp` on the first request | No |
 | `RuntimeError` | A session that's already closed, raised by `aiohttp` itself. The client never closes the session you pass in | No |
 
 A malformed `base_url` raises `HassetteConnectionError` rather than `ValueError`, so a Home Assistant config flow can show the same "cannot connect" error for a bad URL as for an unreachable one.
@@ -152,12 +152,12 @@ A `base_url` that points somewhere outside the API, such as the web UI's root pa
 
 The client never retries. The exception class tells you whether a retry can help:
 
-- **Worth retrying with backoff:** `ServiceUnavailableError` and `BootstrapNotReleasedError`, raised when apps can't start yet because Hassette hasn't connected to Home Assistant and loaded its initial state. Any failure on a read (a `get_*` method) is also safe to retry.
-- **Outcome unknown on a write:** `HassetteTimeoutError`, `HassetteConnectionError`, `GatewayError` and `UnexpectedResponseError`. The server may or may not have received an `action()` or `trigger_job()`, or may still be working on it: a proxy can give up with a 502 or 504 while Hassette is still reloading the app. A connection error can also be permanent, such as a TLS certificate problem or a bad URL.
+- **Worth retrying with backoff:** `BootstrapNotReleasedError`, raised when apps can't start yet because Hassette hasn't connected to Home Assistant and loaded its initial state, and `ServiceUnavailableError` on a read. Any failure on a read (a `get_*` method) is also safe to retry.
+- **Outcome unknown on a write:** `HassetteTimeoutError`, `HassetteConnectionError`, `GatewayError`, `UnexpectedResponseError`, `ServiceUnavailableError` (Hassette never answers a write with 503, so it came from a proxy), and any `ServerError` other than `ActionFailedError` (an unexpected server error can happen partway through). The server may or may not have received an `action()` or `trigger_job()`, or may still be working on it: a proxy can give up with a 502 or 504 while Hassette is still reloading the app. A connection error can also be permanent, such as a TLS certificate problem or a bad URL.
 
-Before sending a write again after one of those, check whether it already happened. `start` and `stop` are safe to send again, since starting a running app or stopping a stopped one does nothing. `reload` and `trigger_job()` aren't: each one sent again reloads the app or runs the job a second time, so check the app's status or the job's executions first.
+`ActionFailedError` is different: the action ran and failed, and its `problem` says why. Before sending a write again after one of those, check whether it already happened. `start` and `stop` are safe to send again, since starting a running app or stopping a stopped one does nothing. `reload` and `trigger_job()` aren't: each one sent again reloads the app or runs the job a second time, so check the app's status or the job's executions first.
 
-A `ResponseValidationError` on a write whose `status` is 2xx is different: the server already carried out the request, and only its answer didn't parse. Don't send it again. `UnexpectedResponseError` is the exception to that rule, because its answer may not have come from Hassette at all.
+A `ResponseValidationError` on a write whose `status` is 2xx usually means Hassette already carried out the request and only its answer didn't parse, so it shouldn't be sent blindly again. The client can't prove the 2xx came from Hassette, though: a proxy in front of it can answer 2xx too. Check the app's status or the job's executions, as above, before deciding. An `UnexpectedResponseError` is the clear case of an answer that didn't come from Hassette.
 
 This retries a `start` with exponential backoff and jitter, so many clients recovering at once don't all hit the server in the same second:
 
@@ -172,7 +172,7 @@ Inside Home Assistant, don't retry in the integration at all. Raise `ConfigEntry
 
 ## Health probes
 
-`get_ready()` and `get_telemetry_status()` return their result even when the server answers 503, because for those two endpoints the 503 is the answer. Check `ready` on the `get_ready()` result, or `degraded` on the `get_telemetry_status()` result, rather than catching an error. A 503 that isn't JSON, such as a proxy reporting that Hassette is down, raises `ServiceUnavailableError` from these two as well. Every other method raises on any 503. [Configure Health Checks](health-endpoints.md) explains what each endpoint reports.
+`get_ready()` and `get_telemetry_status()` return their result even when the server answers 503, because for those two endpoints the 503 is the answer. Check `ready` on the `get_ready()` result, or `degraded` on the `get_telemetry_status()` result, rather than catching an error. A 503 whose body isn't that result, such as a proxy's page reporting that Hassette is down, raises `ServiceUnavailableError` from these two as well. Every other method raises on any 503. [Configure Health Checks](health-endpoints.md) explains what each endpoint reports.
 
 ## Talking to an older or newer server
 

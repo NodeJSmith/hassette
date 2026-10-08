@@ -140,7 +140,7 @@ class Transport:
             response_type: What a successful body parses as.
             params: Query parameters. ``None`` values are left out, so the server applies its default.
             body: A request model, sent as JSON.
-            status_model_on_503: Parse a JSON 503 body into ``response_type`` too, for the probe
+            status_model_on_503: Parse a JSON or untyped 503 body into ``response_type`` too, for the probe
                 endpoints whose 503 answer is a status model rather than an error.
 
         Raises:
@@ -247,6 +247,8 @@ def interpret_response(response: RawResponse, response_type: Any, endpoint: str,
     if 300 <= status < 400:
         raise log_raising(http_error(RedirectError, response, endpoint, problem=None))
     if is_probe_status_body(status, kind, status_model_on_503=status_model_on_503):
+        if kind is MediaKind.MISSING:
+            LOGGER.debug("%s sent a 503 with no Content-Type; trying it as the status model", endpoint)
         probe_status = try_parse_probe_status(response_type, response, endpoint)
         if probe_status is not None:
             return probe_status
@@ -269,10 +271,10 @@ def parse_success_body(response_type: Any, response: RawResponse, endpoint: str)
 
 
 def try_parse_probe_status(response_type: Any, response: RawResponse, endpoint: str) -> Any | None:
-    """A probe's 503 status model, or ``None`` when the JSON body is something else.
+    """A probe's 503 status model, or ``None`` when the body is something else.
 
-    A JSON 503 that isn't the status model came from something else, such as a proxy whose upstream is
-    down, and raises like any other unavailable response.
+    A JSON or untyped 503 that isn't the status model came from something else, such as a proxy whose
+    upstream is down, and raises like any other unavailable response.
     """
     try:
         return parse_payload(response_type, response.payload, endpoint=endpoint)
@@ -323,8 +325,11 @@ def log_raising(error: ErrorT, *, cause: BaseException | None = None) -> ErrorT:
 
 
 def is_probe_status_body(status: int, kind: MediaKind, *, status_model_on_503: bool) -> bool:
-    """Whether a response may be a probe's status model, which its route sends as a JSON 503."""
-    return status == 503 and status_model_on_503 and kind is MediaKind.JSON
+    """Whether a response may be a probe's status model, which its route sends as a JSON 503.
+
+    A 503 with no Content-Type qualifies too, as on a 2xx; parsing it confirms or rejects it.
+    """
+    return status == 503 and status_model_on_503 and kind in (MediaKind.JSON, MediaKind.MISSING)
 
 
 def is_excerpt_only(status: int, kind: MediaKind, *, status_model_on_503: bool) -> bool:
@@ -384,11 +389,12 @@ def path_segment(value: str | int) -> str:
     """Quote ``value`` for use as one path segment.
 
     Raises:
-        ValueError: ``value`` is ``.`` or ``..``, or contains ``/``. URL normalization would drop or
-            climb a dot segment, and the server decodes ``%2F`` before routing, so each would send the
-            request to a route the caller didn't name.
+        ValueError: ``value`` is empty, ``.`` or ``..``, or contains ``/``. An empty segment collapses
+            into its neighbors, URL normalization would drop or climb a dot segment, and the server
+            decodes ``%2F`` before routing, so each would send the request to a route the caller
+            didn't name.
     """
     text = str(value)
-    if text in DOT_SEGMENTS or "/" in text:
+    if not text or text in DOT_SEGMENTS or "/" in text:
         raise ValueError(f"{text!r} can't be used as a path parameter")
     return quote(text, safe="")

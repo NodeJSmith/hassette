@@ -19,6 +19,7 @@ The classes say what failed, not whether to try again; the client never retries.
 the API from Python" lists which failures are worth retrying and which leave a write's outcome unknown.
 """
 
+import inspect
 from collections.abc import Mapping
 from typing import Any
 
@@ -49,6 +50,18 @@ tests until someone decides which it belongs to.
 class HassetteClientError(Exception):
     """Base class for every network or server failure :class:`~hassette_client.HassetteClient` raises."""
 
+    def __reduce__(self) -> str | tuple[Any, ...]:
+        # Default exception pickling calls ``cls(*self.args)``, which can't reach keyword-only
+        # constructors. A class whose ``__init__`` takes keyword-only fields is rebuilt from them, so
+        # each must be stored under its own name. The full instance state then overwrites the rebuilt
+        # one, which sets those fields a second time (harmlessly) and restores ``__notes__`` and any
+        # attribute added after construction. Both travel as arguments, so ``copy.deepcopy`` copies them.
+        parameters = inspect.signature(type(self).__init__).parameters.values()
+        fields = [p.name for p in parameters if p.kind is inspect.Parameter.KEYWORD_ONLY]
+        if not fields:
+            return super().__reduce__()
+        return rebuild, (type(self), {name: getattr(self, name) for name in fields}), self.__dict__
+
 
 class HassetteConnectionError(HassetteClientError):
     """The request never got a complete HTTP response: refused, reset, DNS or TLS failure, or a bad URL.
@@ -73,7 +86,9 @@ class ResponseValidationError(HassetteClientError):
     endpoint, the model and each failing field location, but never the values that failed, since
     those come from the server's payload. A 422 from the server is :class:`RequestValidationError`.
 
-    On a 2xx response the server has already done what was asked; only its answer failed to parse.
+    On a 2xx response from hassette, the server has already done what was asked and only its answer
+    failed to parse. A proxy in front of hassette can also answer 2xx, so on a write, check the
+    outcome before sending it again.
     """
 
     def __init__(
@@ -101,21 +116,6 @@ class ResponseValidationError(HassetteClientError):
         """The exception's message. ``__init__`` calls it last, so an override can read every attribute."""
         where = f" from {self.endpoint}" if self.endpoint else ""
         return f"Response{where} does not match {self.model}: {'; '.join(self.problems)}"
-
-    def __reduce__(self) -> tuple[Any, tuple[type, dict[str, Any]]]:
-        # The constructors are keyword-only, which default exception pickling (``cls(*self.args)``) can't
-        # call. Every class with its own ``__init__`` fields rebuilds from all of them this way. The fields
-        # travel as an argument, so ``copy.deepcopy`` copies them too.
-        return rebuild, (
-            type(self),
-            {
-                "model": self.model,
-                "endpoint": self.endpoint,
-                "problems": self.problems,
-                "status": self.status,
-                "content_type": self.content_type,
-            },
-        )
 
 
 class UnexpectedResponseError(ResponseValidationError):
@@ -155,19 +155,6 @@ class UnexpectedResponseError(ResponseValidationError):
             "check base_url, or whether a proxy answered"
         )
 
-    def __reduce__(self) -> tuple[Any, tuple[type, dict[str, Any]]]:
-        return rebuild, (
-            type(self),
-            {
-                "model": self.model,
-                "endpoint": self.endpoint,
-                "status": self.status,
-                "content_type": self.content_type,
-                "body_size": self.body_size,
-                "body_excerpt": self.body_excerpt,
-            },
-        )
-
 
 class UnsupportedServerVersionError(HassetteClientError):
     """The server is older than :data:`~hassette_client.MIN_SERVER_VERSION`.
@@ -184,9 +171,6 @@ class UnsupportedServerVersionError(HassetteClientError):
             f"hassette server {server_version} is older than {min_version}, the oldest version this "
             "hassette-client supports: upgrade the hassette server, or install an older hassette-client"
         )
-
-    def __reduce__(self) -> tuple[Any, tuple[type, dict[str, Any]]]:
-        return rebuild, (type(self), {"server_version": self.server_version, "min_version": self.min_version})
 
 
 class HassetteHTTPError(HassetteClientError):
@@ -245,21 +229,6 @@ class HassetteHTTPError(HassetteClientError):
         size = f"more than {self.body_size}" if self.body_truncated else str(self.body_size)
         malformed = "malformed problem body, " if self.content_type == PROBLEM_MEDIA_TYPE else ""
         return f" ({malformed}{self.content_type or 'no Content-Type'}, {size} bytes)"
-
-    def __reduce__(self) -> tuple[Any, tuple[type, dict[str, Any]]]:
-        return rebuild, (
-            type(self),
-            {
-                "status": self.status,
-                "endpoint": self.endpoint,
-                "problem": self.problem,
-                "content_type": self.content_type,
-                "body_size": self.body_size,
-                "body_truncated": self.body_truncated,
-                "body_excerpt": self.body_excerpt,
-                "location": self.location,
-            },
-        )
 
 
 class RedirectError(HassetteHTTPError):
@@ -348,7 +317,11 @@ class GatewayError(ServerError):
 
 
 class ServiceUnavailableError(ServerError):
-    """503: the server can't serve this request right now. Worth retrying later."""
+    """503: the server can't serve this request right now.
+
+    Worth retrying later on a read. Hassette never answers a write with 503, so on a write it came from
+    a proxy and the outcome is unknown: check before sending it again.
+    """
 
 
 class TelemetryUnavailableError(ServiceUnavailableError):

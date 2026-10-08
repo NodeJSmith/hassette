@@ -28,7 +28,7 @@ from hassette_client import (
 )
 from hassette_client.errors import CODE_ERRORS, GENERIC_CODES, STATUS_ERRORS
 from hassette_client.transport import MAX_BODY_EXCERPT_BYTES, MAX_ERROR_BODY_BYTES
-from hassette_wire import ProblemCode, ProblemDetail, UnknownValue
+from hassette_wire import LENIENT_CONTEXT, ProblemCode, ProblemDetail, UnknownValue
 
 CODE_STATUS: dict[ProblemCode, int] = {
     ProblemCode.INVALID_APP_KEY: 400,
@@ -49,6 +49,11 @@ PROBLEM = ProblemDetail.model_validate(
     {"title": "Not Found", "status": 404, "detail": "no such app", "code": "app_not_found"}
 )
 
+NEWER_PROBLEM = ProblemDetail.model_validate(
+    {"title": "Conflict", "status": 409, "detail": "busy", "code": "brand_new_code"}, context=LENIENT_CONTEXT
+)
+"""A problem whose code is newer than this client, the case lenient parsing exists for."""
+
 PICKLABLE_ERRORS: list[HassetteClientError] = [
     HassetteConnectionError("GET /api/health to http://h failed"),
     HassetteTimeoutError("GET /api/health to http://h timed out after 10.0s"),
@@ -66,6 +71,7 @@ PICKLABLE_ERRORS: list[HassetteClientError] = [
     ),
     UnsupportedServerVersionError(server_version="0.50.0", min_version="0.55.0"),
     AppNotFoundError(status=404, endpoint="GET /api/apps/a", problem=PROBLEM),
+    ConflictError(status=409, endpoint="POST /api/apps/a/reload", problem=NEWER_PROBLEM),
     RedirectError(
         status=302,
         endpoint="GET /api/health",
@@ -280,6 +286,36 @@ def test_errors_round_trip_with_every_attribute(
     assert type(restored) is type(error)
     assert str(restored) == str(error)
     assert vars(restored) == vars(error)
+
+
+@pytest.mark.parametrize("error", PICKLABLE_ERRORS, ids=lambda error: type(error).__name__)
+@pytest.mark.parametrize(
+    "round_trip", [copy.copy, copy.deepcopy, pickle_round_trip], ids=["copy", "deepcopy", "pickle"]
+)
+def test_errors_keep_notes_through_a_round_trip(
+    error: HassetteClientError, round_trip: Callable[[HassetteClientError], HassetteClientError]
+) -> None:
+    noted = copy.copy(error)  # PICKLABLE_ERRORS is shared across tests, so don't add notes to it
+    noted.add_note("while polling app status")
+
+    restored = round_trip(noted)
+
+    assert restored.__notes__ == ["while polling app status"]
+
+
+@pytest.mark.parametrize(
+    "round_trip", [copy.copy, copy.deepcopy, pickle_round_trip], ids=["copy", "deepcopy", "pickle"]
+)
+def test_a_problem_code_newer_than_the_client_survives_a_round_trip(
+    round_trip: Callable[[HassetteClientError], HassetteClientError],
+) -> None:
+    error = ConflictError(status=409, endpoint="POST /api/apps/a/reload", problem=NEWER_PROBLEM)
+
+    restored = round_trip(error)
+
+    assert isinstance(restored, ConflictError)
+    assert isinstance(restored.code, UnknownValue)
+    assert restored.code == "brand_new_code"
 
 
 def test_deep_copy_doesnt_share_mutable_attributes() -> None:

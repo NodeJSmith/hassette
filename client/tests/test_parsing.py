@@ -90,21 +90,33 @@ async def test_get_telemetry_status_returns_the_status_model_on_200_and_503(
     ("body", "content_type"),
     [
         (b"<html>upstream down</html>", "text/html"),
-        (b'{"status": "starting", "ready": false}', None),
+        (b"upstream down", None),
         (b'{"error": "upstream connect error"}', "application/json"),
+        (b'{"error": "upstream connect error"}', None),
     ],
-    ids=["html", "untyped", "foreign-json"],
+    ids=["html", "untyped-text", "foreign-json", "untyped-foreign-json"],
 )
 async def test_probe_503_that_is_not_the_status_model_raises(
     client: HassetteClient, server: FakeServer, body: bytes, content_type: str | None
 ) -> None:
-    """Only a JSON 503 is read as the probe's status model; a foreign one is a proxy saying hassette is down."""
+    """A 503 that doesn't parse as the probe's status model is a proxy saying hassette is down."""
     server.respond(503, raw=body, content_type=content_type)
 
     with pytest.raises(ServiceUnavailableError) as exc_info:
         await client.get_ready()
 
     assert type(exc_info.value) is ServiceUnavailableError
+
+
+async def test_probe_503_without_content_type_parses_as_the_status_model(
+    client: HassetteClient, server: FakeServer
+) -> None:
+    """A proxy that strips Content-Type still leaves "up but not ready" readable."""
+    server.respond(503, raw=b'{"status": "starting", "ready": false}', content_type=None)
+
+    ready = await client.get_ready()
+
+    assert ready.ready is False
 
 
 async def test_probe_503_problem_raises_by_its_code(client: HassetteClient, server: FakeServer) -> None:

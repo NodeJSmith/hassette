@@ -57,11 +57,13 @@ class HassetteClient:
             for a server behind a reverse proxy.
         token: The web API token. With none, requests carry no ``Authorization`` header, which a server
             that trusts the caller's address as a proxy accepts.
-        request_timeout: Seconds allowed for each request, including reading the body. For a slow
-            app action, use a second client with a longer timeout on the same session.
+        request_timeout: Seconds allowed for each request, including reading the body. Must be
+            positive. For a slow app action, use a second client with a longer timeout on the same
+            session.
 
     Raises:
-        ValueError: A path argument is ``.`` or ``..``, or contains ``/``. Raised before any request.
+        ValueError: ``request_timeout`` isn't positive, raised here. A path argument is empty, ``.``
+            or ``..``, or contains ``/``, raised before any request.
     """
 
     def __init__(
@@ -72,7 +74,10 @@ class HassetteClient:
         token: str | None = None,
         request_timeout: float = DEFAULT_REQUEST_TIMEOUT,
     ) -> None:
-        self.transport = Transport(session, base_url, token=token, request_timeout=request_timeout)
+        # aiohttp reads a total of 0 or less as "no timeout", which would leave requests unbounded.
+        if request_timeout <= 0:
+            raise ValueError(f"request_timeout must be positive, got {request_timeout!r}")
+        self._transport = Transport(session, base_url, token=token, request_timeout=request_timeout)
 
     async def get_health(self) -> SystemStatusResponse:
         """Get the server's status, version, connection state and boot issues.
@@ -80,11 +85,11 @@ class HassetteClient:
         Pass the result to :func:`~hassette_client.check_server_version` to check the server is new
         enough for this client. This method itself works against any server version.
         """
-        return await self.transport.request("GET", "/api/health", SystemStatusResponse)
+        return await self._transport.request("GET", "/api/health", SystemStatusResponse)
 
     async def get_liveness(self) -> LivenessResponse:
         """Check that the server process is up and answering."""
-        return await self.transport.request("GET", "/api/health/live", LivenessResponse)
+        return await self._transport.request("GET", "/api/health/live", LivenessResponse)
 
     async def get_ready(self) -> ReadinessResponse:
         """Check whether the server is ready to serve.
@@ -92,7 +97,7 @@ class HassetteClient:
         Returns the readiness model whether the server answers 200 (ready) or 503 (not ready); read
         its fields rather than catching an error.
         """
-        return await self.transport.request("GET", "/api/health/ready", ReadinessResponse, status_model_on_503=True)
+        return await self._transport.request("GET", "/api/health/ready", ReadinessResponse, status_model_on_503=True)
 
     async def get_apps(self) -> AppListResponse:
         """List every configured app with its instances and status.
@@ -100,7 +105,7 @@ class HassetteClient:
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        return await self.transport.request("GET", "/api/apps", AppListResponse)
+        return await self._transport.request("GET", "/api/apps", AppListResponse)
 
     async def get_app(self, app_key: str) -> AppSummary:
         """Get one app with its instances and status.
@@ -110,7 +115,7 @@ class HassetteClient:
             AppNotFoundError: No app with this key is configured.
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        return await self.transport.request("GET", f"/api/apps/{path_segment(app_key)}", AppSummary)
+        return await self._transport.request("GET", f"/api/apps/{path_segment(app_key)}", AppSummary)
 
     async def action(self, app_key: str, action: AppAction, *, instance: int | None = None) -> ActionResponse:
         """Start, stop or reload an app, or one of its instances.
@@ -141,7 +146,7 @@ class HassetteClient:
         path = f"/api/apps/{path_segment(app_key)}"
         if instance is not None:
             path += f"/instances/{path_segment(instance)}"
-        return await self.transport.request("POST", f"{path}/{path_segment(action)}", ActionResponse)
+        return await self._transport.request("POST", f"{path}/{path_segment(action)}", ActionResponse)
 
     async def get_app_config(self, app_key: str) -> AppConfigResponse:
         """Get an app's configuration, with secret fields masked.
@@ -150,7 +155,7 @@ class HassetteClient:
             InvalidAppKeyError: ``app_key`` isn't a valid app key.
             AppNotFoundError: No app with this key is configured.
         """
-        return await self.transport.request("GET", f"/api/apps/{path_segment(app_key)}/config", AppConfigResponse)
+        return await self._transport.request("GET", f"/api/apps/{path_segment(app_key)}/config", AppConfigResponse)
 
     async def get_app_source(self, app_key: str) -> AppSource:
         """Get the source code of an app's module.
@@ -162,7 +167,7 @@ class HassetteClient:
             PathTraversalError: The source path resolves outside the app directory.
             SourceUnavailableError: The source file exists but couldn't be read.
         """
-        return await self.transport.request("GET", f"/api/apps/{path_segment(app_key)}/source", AppSource)
+        return await self._transport.request("GET", f"/api/apps/{path_segment(app_key)}/source", AppSource)
 
     async def get_recent_logs(
         self,
@@ -195,12 +200,12 @@ class HassetteClient:
             "execution_id": execution_id,
             "source_tier": source_tier,
         }
-        return await self.transport.request("GET", "/api/logs/recent", list[LogEntry], params=params)
+        return await self._transport.request("GET", "/api/logs/recent", list[LogEntry], params=params)
 
     async def set_log_level(self, logger: str, level: LogLevel) -> LogLevelResponse:
         """Change a logger's level on the running server."""
         body = LogLevelRequest(logger=logger, level=level)
-        return await self.transport.request("PUT", "/api/logs/level", LogLevelResponse, body=body)
+        return await self._transport.request("PUT", "/api/logs/level", LogLevelResponse, body=body)
 
     async def get_execution_logs(self, execution_id: str, *, limit: int | None = None) -> LogsByExecutionResponse:
         """Get the log records one handler or job execution emitted.
@@ -209,7 +214,7 @@ class HassetteClient:
             TelemetryUnavailableError: The log store couldn't be read.
         """
         path = f"/api/executions/{path_segment(execution_id)}"
-        return await self.transport.request("GET", path, LogsByExecutionResponse, params={"limit": limit})
+        return await self._transport.request("GET", path, LogsByExecutionResponse, params={"limit": limit})
 
     async def get_listeners(
         self,
@@ -225,11 +230,11 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         params = {"app_key": app_key, "instance_index": instance_index, "since": since, "source_tier": source_tier}
-        return await self.transport.request("GET", "/api/bus/listeners", list[ListenerSummary], params=params)
+        return await self._transport.request("GET", "/api/bus/listeners", list[ListenerSummary], params=params)
 
     async def get_config(self) -> ConfigSchemaResponse:
         """Get the server's configuration schema and values, with secret fields masked."""
-        return await self.transport.request("GET", "/api/config", ConfigSchemaResponse)
+        return await self._transport.request("GET", "/api/config", ConfigSchemaResponse)
 
     async def get_telemetry_status(self) -> TelemetryStatusResponse:
         """Check whether the telemetry store is healthy.
@@ -237,7 +242,7 @@ class HassetteClient:
         Returns the status model whether the server answers 200 or 503 (degraded); read its fields
         rather than catching an error.
         """
-        return await self.transport.request(
+        return await self._transport.request(
             "GET", "/api/telemetry/status", TelemetryStatusResponse, status_model_on_503=True
         )
 
@@ -256,7 +261,7 @@ class HassetteClient:
         """
         path = f"/api/telemetry/app/{path_segment(app_key)}/health"
         params = {"instance_index": instance_index, "since": since, "source_tier": source_tier}
-        return await self.transport.request("GET", path, AppHealth, params=params)
+        return await self._transport.request("GET", path, AppHealth, params=params)
 
     async def get_app_listeners(
         self,
@@ -273,7 +278,7 @@ class HassetteClient:
         """
         path = f"/api/telemetry/app/{path_segment(app_key)}/listeners"
         params = {"instance_index": instance_index, "since": since, "source_tier": source_tier}
-        return await self.transport.request("GET", path, list[ListenerSummary], params=params)
+        return await self._transport.request("GET", path, list[ListenerSummary], params=params)
 
     async def get_app_activity(
         self,
@@ -298,7 +303,7 @@ class HassetteClient:
         """
         path = f"/api/telemetry/app/{path_segment(app_key)}/activity"
         params = {"instance_index": instance_index, "limit": limit, "since": since, "source_tier": source_tier}
-        return await self.transport.request("GET", path, list[ActivityFeedEntry], params=params)
+        return await self._transport.request("GET", path, list[ActivityFeedEntry], params=params)
 
     async def get_app_jobs(
         self,
@@ -315,7 +320,7 @@ class HassetteClient:
         """
         path = f"/api/telemetry/app/{path_segment(app_key)}/jobs"
         params = {"instance_index": instance_index, "since": since, "source_tier": source_tier}
-        return await self.transport.request("GET", path, list[JobSummary], params=params)
+        return await self._transport.request("GET", path, list[JobSummary], params=params)
 
     async def get_app_blocking_findings(
         self, app_key: str, *, instance_index: int | None = None, since: float | None = None
@@ -327,7 +332,7 @@ class HassetteClient:
         """
         path = f"/api/telemetry/app/{path_segment(app_key)}/blocking"
         params = {"instance_index": instance_index, "since": since}
-        return await self.transport.request("GET", path, BlockingFindingsResponse, params=params)
+        return await self._transport.request("GET", path, BlockingFindingsResponse, params=params)
 
     async def get_blocking_findings(self, *, since: float | None = None) -> BlockingFindingsResponse:
         """Get the blocking-I/O findings across every app.
@@ -336,7 +341,7 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = "/api/telemetry/blocking/findings"
-        return await self.transport.request("GET", path, BlockingFindingsResponse, params={"since": since})
+        return await self._transport.request("GET", path, BlockingFindingsResponse, params={"since": since})
 
     async def get_unattributed_blocking(self, *, since: float | None = None) -> UnattributedBlockingResponse:
         """Get event-loop stalls that couldn't be attributed to a handler or job.
@@ -345,7 +350,7 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = "/api/telemetry/blocking/unattributed"
-        return await self.transport.request("GET", path, UnattributedBlockingResponse, params={"since": since})
+        return await self._transport.request("GET", path, UnattributedBlockingResponse, params={"since": since})
 
     async def get_executions(
         self, *, kind: ExecutionKind | None = None, limit: int | None = None, since: float | None = None
@@ -361,7 +366,7 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         params = {"kind": kind, "limit": limit, "since": since}
-        return await self.transport.request("GET", "/api/telemetry/executions", list[Execution], params=params)
+        return await self._transport.request("GET", "/api/telemetry/executions", list[Execution], params=params)
 
     async def get_listener_executions(
         self, listener_id: int, *, limit: int | None = None, since: float | None = None
@@ -372,7 +377,7 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = f"/api/telemetry/listener/{path_segment(listener_id)}/executions"
-        return await self.transport.request("GET", path, list[Execution], params={"limit": limit, "since": since})
+        return await self._transport.request("GET", path, list[Execution], params={"limit": limit, "since": since})
 
     async def get_job_executions(
         self, job_id: int, *, limit: int | None = None, since: float | None = None
@@ -383,7 +388,7 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = f"/api/telemetry/job/{path_segment(job_id)}/executions"
-        return await self.transport.request("GET", path, list[Execution], params={"limit": limit, "since": since})
+        return await self._transport.request("GET", path, list[Execution], params={"limit": limit, "since": since})
 
     async def get_execution(self, execution_id: str) -> Execution | None:
         """Get one execution, or ``None`` if no execution has this ID.
@@ -392,7 +397,7 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         path = f"/api/telemetry/execution/{path_segment(execution_id)}"
-        return await self.transport.request("GET", path, Execution | None)
+        return await self._transport.request("GET", path, Execution | None)
 
     async def get_app_grid(self, *, since: float | None = None) -> AppGridResponse:
         """Get every app with its status and activity summary, as the dashboard's app grid shows them.
@@ -400,7 +405,7 @@ class HassetteClient:
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
-        return await self.transport.request("GET", "/api/telemetry/app-grid", AppGridResponse, params={"since": since})
+        return await self._transport.request("GET", "/api/telemetry/app-grid", AppGridResponse, params={"since": since})
 
     async def get_jobs(
         self, *, since: float | None = None, source_tier: QuerySourceTier | None = None
@@ -411,7 +416,7 @@ class HassetteClient:
             TelemetryUnavailableError: The telemetry store couldn't be read.
         """
         params = {"since": since, "source_tier": source_tier}
-        return await self.transport.request("GET", "/api/scheduler/jobs", list[JobSummary], params=params)
+        return await self._transport.request("GET", "/api/scheduler/jobs", list[JobSummary], params=params)
 
     async def trigger_job(self, job_id: int) -> JobTriggerResponse:
         """Run a scheduled job now, outside its schedule.
@@ -423,4 +428,4 @@ class HassetteClient:
             JobNotRegisteredError: The job has no live registration.
         """
         path = f"/api/scheduler/jobs/{path_segment(job_id)}/trigger"
-        return await self.transport.request("POST", path, JobTriggerResponse)
+        return await self._transport.request("POST", path, JobTriggerResponse)

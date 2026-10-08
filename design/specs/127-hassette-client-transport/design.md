@@ -134,22 +134,26 @@ What E means for the build:
   - For `action()` and `trigger_job`, check the app's or job's state before resending.
   - A connection failure can also be permanent: a TLS certificate problem or a bad URL.
 - **Docs, `ResponseValidationError` on `action()` and `trigger_job`.** When its `status` (D18) is 2xx
-  and it is not an `UnexpectedResponseError`, the server has already applied the change and only the
-  response body failed to parse, so don't resend. An `UnexpectedResponseError` means the answer may not
-  have come from hassette (a proxy login page, the SPA at a wrong `base_url`), so the outcome is
-  unknown.
+  and it is not an `UnexpectedResponseError`, hassette most likely applied the change and only the
+  response body failed to parse, so don't resend blindly; but a proxy can answer 2xx too, so check
+  the app's or job's state first (revised at the ship-time challenge). An `UnexpectedResponseError`
+  means the answer may not have come from hassette (a proxy login page, the SPA at a wrong
+  `base_url`), so the outcome is unknown.
 - **Docs, which actions are safe to resend.** `start` and `stop` converge on a target state, so
   resending them is safe. `reload` and `trigger_job` are not.
 - **Docs, Retrying page.** Two lists:
-  - safe to retry with backoff: `ServiceUnavailableError`, `BootstrapNotReleasedError`, and any
-    failure on a read;
+  - safe to retry with backoff: `BootstrapNotReleasedError`, `ServiceUnavailableError` on a read, and
+    any failure on a read;
   - outcome unknown on writes (`action()`, `trigger_job`): `HassetteTimeoutError`,
-    `HassetteConnectionError`, `GatewayError`, `UnexpectedResponseError`.
+    `HassetteConnectionError`, `GatewayError`, `UnexpectedResponseError`, `ServiceUnavailableError`
+    (hassette never answers a write with 503, so a proxy sent it), and any `ServerError` other than
+    `ActionFailedError` (revised at the ship-time challenge). `ActionFailedError` means the action ran
+    and failed.
 
   It states that the client never retries, and that HA's own setup retry and polling are the retry
   mechanism inside HA.
 
-**Ratified:** Switched from A to E under the standards-first principle: no `retryable` flag; distinct exception classes plus documented retry guidance carry the meaning, over a per-instance flag, to match every surveyed HA library and how HA consumes errors, accepting that script authors decide what to retry from classes and docs, and reversing the issue's `retryable` Key Decision. Re-ratified at the sketch comb with corrected guidance: two lists (safe to retry; outcome unknown on writes, which includes `GatewayError` and `UnexpectedResponseError`), "a 2xx `ResponseValidationError` means already applied" excludes `UnexpectedResponseError`, and `start`/`stop` are documented as safe to resend while `reload`/`trigger_job` are not.
+**Ratified:** Switched from A to E under the standards-first principle: no `retryable` flag; distinct exception classes plus documented retry guidance carry the meaning, over a per-instance flag, to match every surveyed HA library and how HA consumes errors, accepting that script authors decide what to retry from classes and docs, and reversing the issue's `retryable` Key Decision. Re-ratified at the sketch comb with corrected guidance: two lists (safe to retry; outcome unknown on writes, which includes `GatewayError` and `UnexpectedResponseError`), "a 2xx `ResponseValidationError` means already applied" excludes `UnexpectedResponseError`, and `start`/`stop` are documented as safe to resend while `reload`/`trigger_job` are not. Refined at the ship-time challenge: a 2xx `ResponseValidationError` is "most likely applied, check before resending" since a proxy can answer 2xx, and a 503 or a generic `ServerError` on a write is outcome-unknown.
 
 ### D3: (withdrawn) How does the transport know whether a request is idempotent?
 
@@ -220,7 +224,7 @@ Background: F5 and F7. uvicorn decodes `%2F` before routing, so `get_app("foo/co
 **Deciding factor:** Never sending a request to a route the caller didn't name, with a failure contract
 that is true as written.
 
-| | A: `path_segment` rejects `.`, `..` and any value containing `/`, with `ValueError`; the contract reads "every network or server failure is a `HassetteClientError`; invalid arguments raise `ValueError`" | B: Same rejections, but raise an `InvalidArgumentError(HassetteClientError)` | C: Keep encoding `/`, document it |
+| | A: `path_segment` rejects an empty value, `.`, `..` and any value containing `/`, with `ValueError`; the contract reads "every network or server failure is a `HassetteClientError`; invalid arguments raise `ValueError`" | B: Same rejections, but raise an `InvalidArgumentError(HassetteClientError)` | C: Keep encoding `/`, document it |
 |---|---|---|---|
 | Wrong-route request possible | No | No | Yes |
 | One `except HassetteClientError` catches everything | No (argument errors are separate) | Yes | No |
@@ -234,13 +238,13 @@ that is true as written.
 The contract's exact wording, revised at the sketch challenge: "every network or server failure is a
 `HassetteClientError`, and so is a malformed `base_url`, because aiohttp's `InvalidURL` is wrapped as
 `HassetteConnectionError`, which is how an HA config flow maps a bad URL to `cannot_connect`.
-Invalid path arguments raise `ValueError`, and so does a token containing a control character such as
-`\r` or `\n`, which aiohttp itself rejects on the first request (D8). A closed session raises aiohttp's own `RuntimeError` (D8).
+Invalid path arguments and a non-positive `request_timeout` raise `ValueError`, and so does a token containing a control character such as
+`\r` or `\n`, or a token combined with credentials in `base_url` or a session-level `auth=`, which aiohttp itself rejects on the first request (D8). A closed session raises aiohttp's own `RuntimeError` (D8).
 `UnsupportedServerVersionError` comes only from `check_server_version()` (D20)." The docs publish this
 as a failure-mode table with three columns: exception, cause, and whether `HassetteClientError` catches
 it.
 
-**Ratified:** Chose rejecting `.`, `..` and `/` in `path_segment` with `ValueError`, with the failure contract worded exactly as quoted above and published as a docs failure-mode table, over a client-error subclass or encoding `/`, to make wrong-route requests impossible and the contract true as written, accepting that `except HassetteClientError` doesn't catch argument bugs or a closed session.
+**Ratified:** Chose rejecting empty, `.`, `..` and `/` in `path_segment` with `ValueError`, with the failure contract worded exactly as quoted above and published as a docs failure-mode table, over a client-error subclass or encoding `/`, to make wrong-route requests impossible and the contract true as written, accepting that `except HassetteClientError` doesn't catch argument bugs or a closed session.
 
 ### D8: What happens to exceptions from below aiohttp's `ClientError` (closed session, bad header values)?
 
@@ -493,7 +497,7 @@ What A means for the build. The user asked for logs that are useful in practice,
     connection or a read timeout.
   - Never at ERROR. The caller owns that decision.
 - **Every fallback or judgment path, at DEBUG,** each naming what was decided:
-  - a missing Content-Type fell back to parsing (D18);
+  - a missing Content-Type fell back to parsing (D18), on a 2xx or a probe 503;
   - a probe 503 failed to parse and was raised;
   - a malformed problem body was classed by status;
   - a non-problem error body was truncated at the cap (D16).
@@ -549,7 +553,7 @@ What C means for the build:
 |---|---|---|
 | 2xx | JSON or MISSING | Parse the model; a failure raises `ResponseValidationError` |
 | 2xx | OTHER or PROBLEM | `UnexpectedResponseError` (a `ResponseValidationError` subclass, D19) with entry `<body>: not_json (<media type>)` |
-| 503 on a probe (`get_ready`, `get_telemetry_status`) | JSON | Parse the status model; a parse failure raises `ServiceUnavailableError` |
+| 503 on a probe (`get_ready`, `get_telemetry_status`) | JSON, or missing | Parse the status model; a parse failure raises `ServiceUnavailableError` |
 | 503 on a probe | anything else | Raise as on any other route (by problem code, else by status) |
 | other non-2xx | PROBLEM | Parse `ProblemDetail`, class by code; a parse failure gives `problem=None`, class by status, message notes "malformed problem" (no payload) |
 | 3xx | any | `RedirectError` (a `HassetteHTTPError` subclass) carrying `location` (kept from `b753b2c5`; hassette's API never redirects, so a proxy did) |
@@ -845,11 +849,12 @@ convention for them.
 - The guard is `tools/check_client_floor.py`. It resolves the floor's `openapi.json` and runs the coverage test with `HASSETTE_CLIENT_OPENAPI` pointing at it. Against an older spec only the request checks run: the route, method and query-parameter checks. The response-model and 503 checks are marked current-API-only, since schema names and probe docs legitimately differ in old releases.
 - The coverage test also checks, against the current API only, that every query parameter the server declares has a client filter, and that `CALLS` passes every keyword filter. Without the second check, D14's misnamed-filter check would pass vacuously for a filter no call sends.
 - `HassetteConnectionError` for an `InvalidURL` says "the URL is invalid" without echoing it, because aiohttp's message is the raw URL, userinfo included (D15).
-- `MAX_ERROR_BODY_BYTES = 4096` and `MAX_BODY_EXCERPT_CHARS = 200` (D16 left the values to the build). A body that isn't a parsed problem keeps its excerpt on `body_excerpt`; a malformed problem body does too.
+- `MAX_ERROR_BODY_BYTES = 4096` and `MAX_BODY_EXCERPT_BYTES = 200` (D16 left the values to the build). The excerpt is the first 200 bytes, decoded with replacement characters, so a multi-byte character cut at the boundary ends in U+FFFD. A body that isn't a parsed problem keeps its excerpt on `body_excerpt`; a malformed problem body does too.
 - `DEFAULT_TIMEOUT_SECONDS` became `DEFAULT_REQUEST_TIMEOUT`, to match D5's parameter name.
 - D10's open status fields use two new backing Literals, `AcceptedStatus` and `LivenessStatus`, unexported like the other `Open*` backing Literals.
 - D11's required `LivenessResponse.status` trips `check_wire_compat`'s reversed run, so `tools/wire_compat_ignore.txt` gets one line. It isn't a real break, because every server serializes the old default.
-- `user:password@` in `base_url` isn't rejected or stripped. aiohttp turns it into Basic auth, which replaces the bearer token, so the docs say to leave it out. Rejecting it would have been a new argument check that no decision covers, and stripping it would silently drop credentials a user typed. Every message and log line still redacts it (D15), including the `ClientResponseError` path, whose aiohttp message carries the request URL.
+- `user:password@` in `base_url` isn't rejected or stripped. aiohttp turns it into Basic auth, and with a token set it raises `ValueError` on the first request (it won't send an `Authorization` header alongside URL credentials or a session-level `auth=`), so the docs say to leave it out and list the `ValueError` in the failure table. Rejecting it would have been a new argument check that no decision covers, and stripping it would silently drop credentials a user typed. Every message and log line still redacts it (D15), including the `ClientResponseError` path, whose aiohttp message carries the request URL.
+- `noxfile.py`'s member floor run pins each direct dependency to its `>=` floor in an isolated, project-less environment (`floor_requirements()`), replacing `uv run --resolution lowest-direct`. Inside the workspace, `lowest-direct` resolves the root package's requirements too, so a member floor below the root's own floor (the client's `aiohttp` floor, say) would never be installed and the floor run would prove nothing. The parser handles exactly what the members declare today: a requirement with extras, an environment marker, or anything other than a single `>=` floor raises rather than being pinned wrongly. This also changes the existing `wire` floor job.
 - D17's log lines have no tests that capture log output (the "No Log Capture Tests" invariant). The behavior around each fallback path is tested instead.
 
 ## Addendum

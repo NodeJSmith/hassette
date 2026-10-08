@@ -96,15 +96,17 @@ def run_member_tests(session: "Session", member: str) -> None:
 def floor_requirements(member: str) -> list[str]:
     """``uv run --with`` arguments installing ``member`` with every direct dependency at its floor.
 
-    Covers ``[project].dependencies`` and the ``dev`` dependency group; optional extras aren't
-    installed. A workspace member is installed from its directory instead, since it isn't on PyPI
-    at this version yet. Paths are relative to ``member``'s directory, where the floor run executes.
+    Covers ``[project].dependencies`` and the ``dev`` dependency group, if any; optional extras
+    aren't installed. A workspace member is installed from its directory instead, since it isn't on
+    PyPI at this version yet. Paths are relative to ``member``'s directory, where the floor run
+    executes.
 
     Raises:
-        ValueError: A dependency has no single ``>=`` floor to pin.
+        ValueError: A non-workspace dependency has no single ``>=`` floor to pin, or carries extras
+            or an environment marker, which a plain ``name==floor`` pin would silently drop.
     """
     pyproject = read_pyproject(member)
-    requirements = [*pyproject["project"]["dependencies"], *pyproject["dependency-groups"]["dev"]]
+    requirements = [*pyproject["project"]["dependencies"], *pyproject.get("dependency-groups", {}).get("dev", [])]
     member_dirs = workspace_member_dirs()
     # Editable, so the run tests the current source: uv caches a built path dependency until its
     # pyproject.toml changes, and would otherwise reuse a stale wheel.
@@ -114,6 +116,10 @@ def floor_requirements(member: str) -> list[str]:
         if requirement.name in member_dirs:
             args += ["--with-editable", f"../{member_dirs[requirement.name]}"]
             continue
+        if requirement.extras:
+            raise ValueError(f"{member}: {raw!r} has extras, which a plain floor pin would drop")
+        if requirement.marker is not None:
+            raise ValueError(f"{member}: {raw!r} has an environment marker, which a plain floor pin would ignore")
         floors = [spec.version for spec in requirement.specifier if spec.operator == ">="]
         if len(floors) != 1:
             raise ValueError(f"{member}: {raw!r} needs exactly one >= floor for the floor run")
