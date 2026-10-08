@@ -39,7 +39,7 @@ export function TableFooter({ count, columnFilters, onResetFilters, extras }: Ta
                 type="button"
                 className={cn(
                   "inline-flex items-center rounded-sm border border-border bg-transparent p-1 text-muted-foreground transition-colors",
-                  "hover:bg-[var(--highlight-bg)] hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+                  "hover:bg-[var(--highlight-bg)] hover:text-foreground",
                   hasActiveFilter && "border-[var(--primary-border)] text-primary",
                 )}
                 aria-label="Open filters"

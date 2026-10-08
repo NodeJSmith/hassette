@@ -73,7 +73,7 @@ export function AppTableRow({
               {isMulti && (
                 <button
                   type="button"
-                  className="w-4 cursor-pointer border-0 bg-transparent p-0 text-[length:var(--text-mono-md)] leading-none text-foreground-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary max-sidebar:flex max-sidebar:min-h-[var(--sz-touch)] max-sidebar:min-w-[var(--sz-touch)] max-sidebar:items-center max-sidebar:justify-center"
+                  className="w-4 cursor-pointer border-0 bg-transparent p-0 text-[length:var(--text-mono-md)] leading-none text-foreground-secondary max-sidebar:flex max-sidebar:min-h-[var(--sz-touch)] max-sidebar:min-w-[var(--sz-touch)] max-sidebar:items-center max-sidebar:justify-center"
                   onClick={onToggle}
                   aria-expanded={isExpanded}
                   aria-label={`${isExpanded ? "Collapse" : "Expand"} ${app.app_key}`}

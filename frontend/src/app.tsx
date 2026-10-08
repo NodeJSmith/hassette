@@ -210,7 +210,7 @@ export function App() {
               <div className="flex justify-end border-b border-border px-3 py-2">
                 <button
                   type="button"
-                  className="flex size-[var(--size-touch)] cursor-pointer items-center justify-center rounded-md border border-border bg-transparent text-foreground-secondary transition-colors hover:bg-[var(--highlight-bg)] hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-2 [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
+                  className="flex size-[var(--size-touch)] cursor-pointer items-center justify-center rounded-md border border-border bg-transparent text-foreground-secondary transition-colors hover:bg-[var(--highlight-bg)] hover:text-foreground [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-2 [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
                   aria-label="Close navigation"
                   onClick={() => closeDrawer()}
                 >

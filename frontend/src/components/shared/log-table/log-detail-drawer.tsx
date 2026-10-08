@@ -51,7 +51,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   return (
     <button
       type="button"
-      className="shrink-0 cursor-pointer rounded-sm border-none bg-transparent p-0 text-[length:var(--text-mono-sm)] text-foreground-faint transition-colors hover:text-foreground-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+      className="shrink-0 cursor-pointer rounded-sm border-none bg-transparent p-0 text-[length:var(--text-mono-sm)] text-foreground-faint transition-colors hover:text-foreground-secondary"
       onClick={handleCopy}
       aria-label={label}
       title={copied ? "Copied" : label}
@@ -159,7 +159,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
           <div className="flex gap-1">
             <button
               type="button"
-              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent"
               onClick={navigatePrev}
               disabled={currentIndex <= 0}
               aria-label="Previous entry"
@@ -168,7 +168,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
             </button>
             <button
               type="button"
-              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent"
               onClick={navigateNext}
               disabled={currentIndex >= entries.length - 1}
               aria-label="Next entry"
@@ -178,7 +178,7 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
           </div>
           <button
             type="button"
-            className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+            className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={onClose}
             aria-label="Close detail panel"
           >

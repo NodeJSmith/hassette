@@ -82,7 +82,7 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
       type="button"
       className={cn(
         "inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 [font-family:inherit] text-foreground-secondary [text-transform:inherit] [letter-spacing:inherit]",
-        "hover:text-foreground focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+        "hover:text-foreground focus-visible:rounded-sm",
         active && "font-semibold text-foreground",
       )}
       data-testid="sort-header-btn"
@@ -113,7 +113,7 @@ export function SortHeader<K extends string = string>(props: Props<K>) {
             type="button"
             className={cn(
               "relative inline-flex shrink-0 cursor-pointer items-center rounded-sm border-none bg-transparent p-0 text-foreground-faint transition-colors",
-              "hover:text-foreground-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary",
+              "hover:text-foreground-secondary",
               props.hasActiveFilter && "text-foreground-secondary",
             )}
             data-testid="filter-btn"
