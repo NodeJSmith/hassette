@@ -6,7 +6,7 @@ from .api import Api
 from .app import App, AppConfig, AppSync
 from .bus import Bus
 from .config import HassetteConfig
-from .const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
+from .const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED, FalseySentinel
 from .conversion import (
     STATE_REGISTRY,
     TYPE_REGISTRY,
@@ -16,7 +16,7 @@ from .conversion import (
 )
 from .core.core import Hassette
 from .event_handling import accessors, conditions, dependencies, predicates
-from .events import RawStateChangeEvent
+from .events import RawStateChangeEvent, TypedStateChangeEvent, TypedStateChangePayload
 from .exceptions import HassetteBlockingIOWarning, HassetteForgottenAwaitWarning
 from .models import entities, states
 from .models.services import ServiceResponse
@@ -49,6 +49,7 @@ __all__ = [
     "D",
     "ExecutionMode",
     "ExecutionStatus",
+    "FalseySentinel",
     "ForgottenAwaitBehavior",
     "Hassette",
     "HassetteBlockingIOWarning",
@@ -62,6 +63,8 @@ __all__ = [
     "TaskBucket",
     "Topic",
     "TypeConverterEntry",
+    "TypedStateChangeEvent",
+    "TypedStateChangePayload",
     "accessors",
     "conditions",
     "dependencies",

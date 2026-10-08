@@ -2,6 +2,7 @@ from .classes import AppManifest
 from .config import HassetteConfig
 from .models import (
     AppsConfig,
+    BlockingIODetectionConfig,
     DatabaseConfig,
     FileWatcherConfig,
     LifecycleConfig,
@@ -14,6 +15,7 @@ from .models import (
 __all__ = [
     "AppManifest",
     "AppsConfig",
+    "BlockingIODetectionConfig",
     "DatabaseConfig",
     "FileWatcherConfig",
     "HassetteConfig",

@@ -13,6 +13,7 @@ import { ConfigTab } from "../components/app-detail/config-tab";
 import { HandlersTab } from "../components/app-detail/handlers-tab";
 import { InstanceSwitcher, MultiInstanceOverview } from "../components/app-detail/multi-instance";
 import { OverviewTab } from "../components/app-detail/overview-tab";
+import { ErrorAlert } from "../components/shared/error-alert";
 import { Spinner } from "../components/shared/spinner";
 import { useCorrectUrl } from "../hooks/use-correct-url";
 import { useDocumentTitle } from "../hooks/use-document-title";
@@ -27,8 +28,6 @@ import { appLiveStatus } from "../utils/app-data";
 import { appDetailPath, type AppDetailTab, parseInstanceParam } from "../utils/app-routes";
 
 const PAGE_CLASS = "flex flex-1 flex-col gap-8 p-8 max-mobile:p-3 max-small-mobile:p-2";
-const ALERT_CLASS =
-  "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
 
 export type TabId = AppDetailTab;
 
@@ -189,11 +188,7 @@ export function AppDetailPage({ params }: Props) {
   if (initialLoading) return <Spinner />;
 
   if (manifestError || listenersError || jobsError) {
-    return (
-      <div className={ALERT_CLASS} role="alert">
-        {(manifestError ?? listenersError ?? jobsError)!.message}
-      </div>
-    );
+    return <ErrorAlert>{(manifestError ?? listenersError ?? jobsError)!.message}</ErrorAlert>;
   }
 
   const instanceQueryString = instanceIndex !== undefined ? `?instance=${instanceIndex}` : "";

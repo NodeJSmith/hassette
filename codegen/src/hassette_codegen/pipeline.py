@@ -50,6 +50,12 @@ from hassette_codegen.rendering import UnsafeGeneratedValueError, require_identi
 # ownership gate instead — reserving those would permanently block ever generating that domain.
 RESERVED_BASENAMES = frozenset({"base", "catalog", "input", "simple", "__init__"})
 
+# Domains whose state class is hand-written in models/states/simple.py. Discovery skips them even
+# when upstream exposes a cached-properties entity class: those _attr_* fields are Python-side entity
+# properties that never reach the wire state, and the hand-written class carries a timestamp base
+# (DateTimeBaseState) the AST heuristics can't infer. Applied in _discover_domains_for_run.
+SIMPLE_STATE_DOMAINS = frozenset({"ai_task", "conversation", "notify", "stt", "tts"})
+
 
 class Rejection(NamedTuple):
     """Output the pipeline refused to produce because a name from upstream was not safe to use.
@@ -196,7 +202,8 @@ def _discover_domains_for_run(
     effect; the caller is responsible for the "no domains matched filter" early-exit, since that
     has to skip override validation entirely.
     """
-    all_domains, rejections = _reject_unsafe_domain_names(discover_domains(ha_source.path))
+    discovered = [d for d in discover_domains(ha_source.path) if d.name not in SIMPLE_STATE_DOMAINS]
+    all_domains, rejections = _reject_unsafe_domain_names(discovered)
     overrides = load_overrides()
 
     manual_domains, manual_rejections = _reject_unsafe_domain_names(
@@ -587,12 +594,13 @@ def _extract_domain(
     if override and override.discovery == "manual":
         return _extract_manual_domain(domain_info, override)
 
-    init_py = domain_info.path / "__init__.py"
+    if domain_info.entity_module is None:
+        raise ValueError(f"Domain '{domain_info.name}' has no entity module and no manual override")
 
     features = extract_features(domain_info.path)
     strenums = extract_strenum(domain_info.path)
-    properties = extract_properties(init_py)
-    base_class = determine_base_class(init_py)
+    properties = extract_properties(domain_info.entity_module)
+    base_class = determine_base_class(domain_info.entity_module)
     services = extract_services(domain_info.path) if domain_info.has_services_yaml else []
 
     if override and override.property_overrides:
@@ -651,6 +659,7 @@ def _discover_manual_domains(
                 path=domain_path,
                 has_services_yaml=(domain_path / "services.yaml").exists(),
                 has_const_py=(domain_path / "const.py").exists(),
+                entity_module=None,
             )
         )
 

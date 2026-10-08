@@ -6,7 +6,7 @@ from pathlib import Path
 from hassette_codegen.extractors._common import find_entity_class
 
 
-def determine_base_class(init_py: Path) -> str:
+def determine_base_class(entity_module: Path) -> str:
     """Determine the state base class for an entity domain.
 
     Heuristic:
@@ -14,10 +14,10 @@ def determine_base_class(init_py: Path) -> str:
     - state property returns float|None or int|None → NumericBaseState
     - Otherwise → StringBaseState
     """
-    source = init_py.read_text(encoding="utf-8")
+    source = entity_module.read_text(encoding="utf-8")
 
     try:
-        tree = ast.parse(source, filename=str(init_py))
+        tree = ast.parse(source, filename=str(entity_module))
     except SyntaxError:
         return "StringBaseState"
 

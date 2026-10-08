@@ -8,6 +8,7 @@ import { LoopStallsPanel } from "../components/diagnostics/loop-stalls-panel";
 import { type MergedService, mergeServices } from "../components/diagnostics/merge-services";
 import { ServicesPanel } from "../components/diagnostics/services-panel";
 import { TelemetryPanel } from "../components/diagnostics/telemetry-panel";
+import { ErrorAlert } from "../components/shared/error-alert";
 import { Spinner } from "../components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "../components/shared/stats-strip";
 import { useDocumentTitle } from "../hooks/use-document-title";
@@ -127,13 +128,7 @@ export function DiagnosticsPage() {
       </div>
 
       {diag.loadError ? (
-        <div
-          className="rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-destructive"
-          role="alert"
-          data-testid="diag-load-error"
-        >
-          {diag.loadError.message}
-        </div>
+        <ErrorAlert data-testid="diag-load-error">{diag.loadError.message}</ErrorAlert>
       ) : (
         <>
           <StatsStrip

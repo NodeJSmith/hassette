@@ -7,6 +7,25 @@ if TYPE_CHECKING:
     from hassette.models.states import BaseState
     from hassette.resources.teardown import TeardownReport
 
+__all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and wrap by hand
+    "AppBlockedError", "AppBootstrapNotReleasedError", "AppPrecheckFailedError", "AuthTokenWriteError",
+    "BaseUrlRequiredError", "CannotOverrideFinalError", "ConnectionClosedError", "ConvertedTypeDoesNotMatchError",
+    "CouldNotFindHomeAssistantError", "CredentialResolutionError", "DependencyError", "DependencyInjectionError",
+    "DependencyResolutionError", "DomainNotFoundError", "DomainRequiredError", "DuplicateListenerError",
+    "EntityNotFoundError", "EntityNotInViewError", "EntityShapeError", "FailedMessageError", "FatalError",
+    "HassetteBlockingIOWarning", "HassetteError", "HassetteForgottenAwaitWarning", "HassetteNotInitializedError",
+    "IPV6NotSupportedError", "InvalidAuthError", "InvalidDataForStateConversionError", "InvalidEntityIdError",
+    "InvalidInheritanceError", "InvalidLifecycleTransitionError", "JobRemovedError", "LifecycleReentryError",
+    "ListenerNameRequiredError", "NoDomainAnnotationError", "OutcomeUnknownError", "RegistryNotReadyError",
+    "RegistryValidationError", "ResourceNotReadyError", "ResponseLostError", "ResponseTimeoutError",
+    "RestartRefusedError", "RetryableConnectionClosedError", "SchedulerNameRequiredError", "SchemaVersionError",
+    "SchemeRequiredInBaseUrlError", "SensorShapeMismatchError", "ServerUrlApiSuffixError", "ServerUrlError",
+    "ServerUrlHostRequiredError", "ServerUrlParseError", "ServerUrlSchemeRequiredError", "StateRegistryError",
+    "TaskBucketSealedError", "TelemetryUnavailableError", "TrustedProxyConfigError",
+    "UnableToConvertAnnotatedStateError", "UnableToConvertStateError", "UnableToConvertValueError",
+    "UndefinedUserConfigError", "WriteQueueUnavailableError",
+]  # fmt: skip
+
 MAX_ISSUES_IN_SUMMARY = 5
 
 WS_NOT_CONNECTED_MESSAGE = "WebSocket connection is not established"
@@ -165,10 +184,7 @@ class FailedMessageError(HassetteError):
     react programmatically::
 
         try:
-            await api.helpers.update(
-                "vacation_mode",
-                UpdateInputBooleanParams(initial=False),
-            )
+            await api.helpers.update("vacation_mode", UpdateInputBooleanParams(initial=False))
         except FailedMessageError as exc:
             if exc.code == "not_found":
                 # Helper was deleted between list and update — recreate it
@@ -183,13 +199,7 @@ class FailedMessageError(HassetteError):
     since no envelope arrived.
     """
 
-    def __init__(
-        self,
-        msg: str,
-        *,
-        code: str | None = None,
-        original_data: dict | None = None,
-    ) -> None:
+    def __init__(self, msg: str, *, code: str | None = None, original_data: dict | None = None) -> None:
         super().__init__(msg)
         self.code = code
         self.original_data = original_data
@@ -450,7 +460,7 @@ class DomainRequiredError(StateRegistryError):
         self.state_class = state_class
 
 
-class HassetteNotInitializedError(RuntimeError):
+class HassetteNotInitializedError(RuntimeError, HassetteError):
     """Exception raised when Hassette is not initialized in the current context."""
 
 

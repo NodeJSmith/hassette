@@ -9,6 +9,7 @@ Every end-to-end test generates a second, ordinary domain in the same run. Witho
 a test proving "the file was not overwritten" would also pass if the pipeline never ran at all.
 """
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -18,6 +19,7 @@ from hassette_codegen.ha_source import DiscoveredDomain, HASource
 from hassette_codegen.manifest import load_manifest, save_manifest
 from hassette_codegen.pipeline import (
     RESERVED_BASENAMES,
+    SIMPLE_STATE_DOMAINS,
     Rejection,
     _may_overwrite,
     _reject_unsafe_domain_names,
@@ -42,6 +44,7 @@ HAND_WRITTEN = '"""Hand-written, not generated."""\n\nSENTINEL = "do not overwri
 UNSAFE_SERVICE_YAML = "turn on:\n  fields: {}\n"
 
 STATES = Path("src/hassette/models/states")
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def make_ha_core(root: Path, domain_names: list[str], services: dict[str, str] | None = None) -> HASource:
@@ -66,7 +69,16 @@ def make_ha_core(root: Path, domain_names: list[str], services: dict[str, str] |
 
 
 def make_domains(*names: str) -> list[DiscoveredDomain]:
-    return [DiscoveredDomain(name=name, path=Path(name), has_services_yaml=False, has_const_py=False) for name in names]
+    return [
+        DiscoveredDomain(
+            name=name,
+            path=Path(name),
+            has_services_yaml=False,
+            has_const_py=False,
+            entity_module=Path(name) / "__init__.py",
+        )
+        for name in names
+    ]
 
 
 class TestRejectUnsafeDomainNames:
@@ -99,6 +111,32 @@ class TestRejectUnsafeDomainNames:
 
         assert "reserved for hand-written files" in err
         assert "not a usable Python identifier" in err
+
+
+class TestSimpleStateDomains:
+    def test_matches_the_domains_declared_in_simple_py(self) -> None:
+        tree = ast.parse((REPO_ROOT / STATES / "simple.py").read_text(encoding="utf-8"))
+        declared = {
+            node.annotation.slice.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.AnnAssign)
+            and isinstance(node.target, ast.Name)
+            and node.target.id == "domain"
+            and isinstance(node.annotation, ast.Subscript)
+            and isinstance(node.annotation.slice, ast.Constant)
+        }
+
+        assert declared == SIMPLE_STATE_DOMAINS
+
+    def test_discovered_simple_state_domain_is_not_generated(self, tmp_path: Path) -> None:
+        ha_source = make_ha_core(tmp_path / "core", ["tts", "fan"])
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir()
+
+        run_pipeline(ha_source, repo_root, check_mode=False)
+
+        assert not (repo_root / STATES / "tts.py").exists()
+        assert (repo_root / STATES / "fan.py").exists(), "the run produced nothing — guard proves nothing"
 
 
 class TestMayOverwrite:

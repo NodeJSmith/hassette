@@ -284,7 +284,9 @@ def create_event_from_hass(data: HassEventEnvelopeDict) -> Event:
 class TypedStateChangeEvent(Event[HassPayload[TypedStateChangePayload[StateT]]]):
     """Event representing a state change in Home Assistant, with typed state data.
 
-    This is not used directly; use the TypedStateChangeEvent annotation in dependencies instead.
+    Handlers receive it through the ``D.TypedStateChangeEvent[T]`` dependency annotation, which converts
+    the raw event's state dicts into ``T`` instances. Import this class to name or ``isinstance``-check
+    the event that annotation produces.
     """
 
 
