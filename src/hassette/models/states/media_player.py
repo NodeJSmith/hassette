@@ -105,18 +105,18 @@ class MediaPlayerEntityStateAttribute(StrEnum):
     ENTITY_PICTURE_LOCAL = "entity_picture_local"
 
 
-class MediaPlayerEnqueue(StrEnum):
-    ADD = "add"
-    NEXT = "next"
-    PLAY = "play"
-    REPLACE = "replace"
-
-
 class MediaPlayerDeviceClass(StrEnum):
     TV = "tv"
     SPEAKER = "speaker"
     RECEIVER = "receiver"
     PROJECTOR = "projector"
+
+
+class MediaPlayerEnqueue(StrEnum):
+    ADD = "add"
+    NEXT = "next"
+    PLAY = "play"
+    REPLACE = "replace"
 
 
 class MediaPlayerEntityFeature(IntFlag):

@@ -41,6 +41,14 @@ class LawnMowerEntity(BaseEntity[LawnMowerState, str]):
             target={"entity_id": self.entity_id},
         )
 
+    def stop(self) -> Coroutine[Any, Any, None]:
+        """Stops a lawn mower's current task."""
+        return self.api.call_service(
+            domain=self.domain,
+            service="stop",
+            target={"entity_id": self.entity_id},
+        )
+
 
 class LawnMowerEntitySyncFacade(BaseEntitySyncFacade[LawnMowerState, str]):
     """Synchronous facade for LawnMowerEntity service methods."""
@@ -66,5 +74,13 @@ class LawnMowerEntitySyncFacade(BaseEntitySyncFacade[LawnMowerState, str]):
         self.entity.api.sync.call_service(
             domain=self.entity.domain,
             service="pause",
+            target={"entity_id": self.entity.entity_id},
+        )
+
+    def stop(self) -> None:
+        """Stops a lawn mower's current task."""
+        self.entity.api.sync.call_service(
+            domain=self.entity.domain,
+            service="stop",
             target={"entity_id": self.entity.entity_id},
         )

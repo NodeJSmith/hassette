@@ -13,6 +13,13 @@ import yaml
 _KEY_REF = re.compile(r"^\[%key:(.+?)%\]$")
 _MAX_KEY_REF_DEPTH = 6  # bounds recursion through chained [%key:...%] references
 
+REGISTRATION_MODULE_FILES = ("__init__.py", "services.py")
+"""Component files scanned for ``async_register_entity_service`` calls.
+
+A domain may register services in either file. Results are merged in order, so a service registered
+in both takes the later file's registration.
+"""
+
 SupportsResponseValue = Literal["NONE", "OPTIONAL", "ONLY"]
 _VALID_SUPPORTS_RESPONSE: set[str] = {"NONE", "OPTIONAL", "ONLY"}
 
@@ -37,7 +44,7 @@ class ExtractedService:
 
 
 def extract_services(component_dir: Path) -> list[ExtractedService]:
-    """Extract service definitions from a domain's services.yaml + __init__.py."""
+    """Extract service definitions from a domain's services.yaml + its registration modules."""
     services_yaml = component_dir / "services.yaml"
     if not services_yaml.exists():
         return []
@@ -51,7 +58,9 @@ def extract_services(component_dir: Path) -> list[ExtractedService]:
     if not raw or not isinstance(raw, dict):
         return []
 
-    registrations = _extract_service_registrations(component_dir / "__init__.py")
+    registrations: dict[str, _ServiceRegistration] = {}
+    for filename in REGISTRATION_MODULE_FILES:
+        registrations.update(_extract_service_registrations(component_dir / filename))
     service_descs, field_descs = _extract_descriptions(component_dir)
 
     services: list[ExtractedService] = []
@@ -223,19 +232,19 @@ class _ServiceRegistration:
     supports_response: SupportsResponseValue = "NONE"
 
 
-def _extract_service_registrations(init_py: Path) -> dict[str, _ServiceRegistration]:
-    """Extract service registration calls from __init__.py via AST.
+def _extract_service_registrations(module: Path) -> dict[str, _ServiceRegistration]:
+    """Extract service registration calls from one component module via AST.
 
     Returns a dict mapping service_name -> _ServiceRegistration. Service names may be
     raw string literals ("browse_media") or unresolved AST identifiers ("SERVICE_BROWSE_MEDIA",
     "TodoServices.GET_ITEMS") — callers must try multiple lookup forms.
     """
-    if not init_py.exists():
+    if not module.exists():
         return {}
 
     try:
-        source = init_py.read_text(encoding="utf-8")
-        tree = ast.parse(source, filename=str(init_py))
+        source = module.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(module))
     except SyntaxError:
         return {}
 
