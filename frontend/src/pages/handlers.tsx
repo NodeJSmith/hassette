@@ -1,5 +1,6 @@
 import { getAllJobs, getAllListeners } from "@/api/endpoints";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorAlert } from "@/components/shared/error-alert";
 import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "@/components/shared/sort-header";
 import { Spinner } from "@/components/shared/spinner";
 import { TableCard } from "@/components/shared/table-card";
@@ -40,8 +41,6 @@ const PAGE_TITLE_CLASS =
 const TABLE_SECTION_CLASS = "flex flex-col gap-3";
 const SEARCH_INPUT_CLASS =
   "min-w-[var(--size-search-min)] self-end rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0 max-mobile:self-stretch";
-const ALERT_CLASS =
-  "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
 const DATA_TABLE_CLASS =
   "w-full table-fixed border-collapse bg-card [&_thead_tr]:bg-muted [&_th]:border-b [&_th]:border-border [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-mono [&_th]:text-xs [&_th]:font-medium [&_th]:uppercase [&_th]:tracking-[var(--text-label-tracking)] [&_th]:text-muted-foreground [&_th]:whitespace-nowrap [&_td]:border-b [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-[length:var(--text-small)] [&_td]:overflow-hidden [&_td]:text-ellipsis [&_tbody_tr:last-child_td]:border-b-0 [&_tbody_tr:hover]:bg-muted";
 
@@ -95,11 +94,7 @@ export function HandlersPage() {
   if (isLoading) return <Spinner />;
 
   if (listenersError || jobsError) {
-    return (
-      <div className={ALERT_CLASS} role="alert">
-        {(listenersError ?? jobsError)!.message}
-      </div>
-    );
+    return <ErrorAlert>{(listenersError ?? jobsError)!.message}</ErrorAlert>;
   }
 
   const allRows = [...allListeners.map(listenerToRow), ...allJobs.map(jobToRow)];

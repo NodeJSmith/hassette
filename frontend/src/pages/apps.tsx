@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ApiError } from "@/api/client";
 import { getAppGrid } from "@/api/endpoints";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ErrorAlert } from "@/components/shared/error-alert";
 import { ARIA_SORT_FOR_DIRECTION, SortHeader } from "@/components/shared/sort-header";
 import { Spinner } from "@/components/shared/spinner";
 import { StatsStrip, type StatsStripCell } from "@/components/shared/stats-strip";
@@ -90,8 +91,6 @@ const PAGE_TITLE_CLASS =
 const TABLE_SECTION_CLASS = "flex flex-col gap-3";
 const SEARCH_INPUT_CLASS =
   "min-w-[var(--size-search-min)] self-end rounded-md border border-[var(--border-strong)] bg-input px-2 py-1.5 font-sans text-[length:var(--text-mono-sm)] text-foreground outline-none placeholder:text-foreground-faint focus-visible:border-primary focus-visible:shadow-[0_0_0_2px_var(--primary-soft)] max-mobile:w-full max-mobile:min-w-0 max-mobile:self-stretch";
-const ALERT_CLASS =
-  "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
 // This page hand-rolls its <table>, so cell styling rides on the table element as `[&_th]`/
 // `[&_td]` child selectors. Split by what each group styles, then joined verbatim (not via cn(),
 // which would reorder and merge the groups).
@@ -302,9 +301,9 @@ export function AppsPage() {
   if (gridError) {
     const isUnavailable = gridError instanceof ApiError && gridError.status === 503;
     return (
-      <div className={ALERT_CLASS} role="alert" data-testid="apps-load-error">
+      <ErrorAlert data-testid="apps-load-error">
         {isUnavailable ? "Telemetry unavailable — the database is unreachable." : gridError.message}
-      </div>
+      </ErrorAlert>
     );
   }
 
