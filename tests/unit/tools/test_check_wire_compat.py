@@ -17,6 +17,7 @@ import pytest
 from check_wire_compat import (
     DEFAULT_IGNORE_FILE,
     format_ignore_line,
+    list_release_tags,
     main,
     resolve_latest_release_tag,
     select_forward_blocking_findings,
@@ -95,6 +96,15 @@ def test_new_enum_value_passes() -> None:
     parsing owns, not this check — see ``FORWARD_ALLOWED_ERR_CHECK_IDS``.
     """
     assert _run("new_enum_value") == 0
+
+
+def test_removed_enum_value_fails() -> None:
+    """An enum value present in the release and removed at HEAD is blocked, so an enum rename is too.
+
+    oasdiff rates this INFO by default; ``SEVERITY_OVERRIDES`` raises it, since a caller comparing
+    against the removed value silently stops matching.
+    """
+    assert _run("removed_enum_value") != 0
 
 
 def test_removed_response_property_passes_when_listed_in_ignore_file(tmp_path: Path) -> None:
@@ -194,3 +204,12 @@ def test_highest_reachable_tag_wins(tmp_path: Path) -> None:
     subprocess.run(["git", "tag", "v1.10.0"], cwd=tmp_path, check=True, capture_output=True)
 
     assert resolve_latest_release_tag(tmp_path) == "v1.10.0"
+
+
+def test_pre_release_and_non_pep440_tags_are_skipped(tmp_path: Path) -> None:
+    """Git's version sort ranks v1.1.0rc1 and v1.1.0.dev1 above v1.1.0; only final releases count."""
+    _init_throwaway_repo(tmp_path)
+    for tag in ("v1.0.0", "v1.1.0", "v1.1.0rc1", "v1.1.0.dev1", "v1.2.0-beta", "vnext"):
+        subprocess.run(["git", "tag", tag], cwd=tmp_path, check=True, capture_output=True)
+
+    assert list_release_tags(tmp_path) == ["v1.1.0", "v1.0.0"]

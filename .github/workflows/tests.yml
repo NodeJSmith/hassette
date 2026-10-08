@@ -48,20 +48,25 @@ jobs:
                         - 'tools/check_wire_compat.py'
                         - 'tools/wire_compat_*.txt'
                         - 'tools/generate_client_compat_fixtures.py'
+                        - 'tools/client_compat_*.py'
                         - 'tools/check_client_compat.py'
                         - '.github/actions/setup-oasdiff/**'
-                      # Route serialization and telemetry queries can change a response without touching wire/.
+                      # All of src/: any module the routes import (schemas, types, config, services) can
+                      # change a response body without touching wire/.
                       client_compat:
                         - 'wire/**'
-                        - 'src/hassette/web/**'
-                        - 'src/hassette/core/telemetry/**'
-                        - 'src/hassette/migrations_sql/**'
+                        - 'src/**'
+                        - 'pyproject.toml'
                         - 'scripts/seed_db.py'
                         - 'scripts/seed_scenarios/**'
                         - 'tests/e2e/mock_fixtures/**'
                         - 'tests/support/web_mocks.py'
+                        - 'tests/support/web_manifest_helpers.py'
+                        - 'tests/support/factories.py'
                         - 'tools/generate_client_compat_fixtures.py'
+                        - 'tools/client_compat_*.py'
                         - 'tools/check_client_compat.py'
+                        - 'tools/check_wire_compat.py'
                         - 'noxfile.py'
                         - 'uv.lock'
                         - '.github/workflows/tests.yml'
@@ -247,9 +252,18 @@ jobs:
 
             - run: uv sync
 
-            # Fails when the latest released hassette-client can't parse a response HEAD's server sends.
+            # Fails unless the newest published hassette-client release reachable from HEAD handles every
+            # response HEAD sends: parses its bodies and probe bodies, and maps its errors.
             - name: Check HEAD's responses against the released hassette-client
               run: uv run nox -s client_compat
+
+            - name: Upload the fixtures on failure
+              if: failure()
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+              with:
+                  name: client-compat-fixtures
+                  path: .nox/client_compat/tmp/client-compat-fixtures/
+                  retention-days: 7
 
     system:
         needs: changes
@@ -361,7 +375,9 @@ jobs:
                   flags: backend,frontend
 
     tests-complete:
-        needs: [frontend, test, workspace-members, client-compat, system, combine-and-report]
+        # changes is listed so a failed path filter fails this check; otherwise every job it gates would be
+        # skipped and read as passing.
+        needs: [changes, frontend, test, workspace-members, client-compat, system, combine-and-report]
         if: always()
         runs-on: ubuntu-latest
         steps:

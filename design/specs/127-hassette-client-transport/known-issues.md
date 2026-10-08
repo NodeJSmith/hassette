@@ -2,7 +2,7 @@
 
 Real issues found while building this feature and intentionally left unfixed.
 
-## KI-001: The client floor walk doesn't order pre-release tags or check that the schema never decreases
+## KI-001: The client floor walk doesn't check that the schema never decreases
 
 Status: open
 Recorded: 2026-10-08 (2386-take-two)
@@ -10,29 +10,26 @@ Source: ship-challenge
 Reason not fixed now: out-of-scope
 Affected files:
 - tools/check_client_floor.py
-- tools/check_wire_compat.py
 
 Issue:
-`resolve_floor_openapi` walks release tags in `git tag --sort=-v:refname` order and stops at the first tag
-below `MIN_API_SCHEMA_VERSION`. git's default version sort puts `v0.57.0rc1` and `v0.57.0.dev1` above
-`v0.57.0`, and the order depends on each machine's `versionsort.suffix`, so a schema raise landing between a
-pre-release and its final release would end the walk early and fall back to HEAD: the check passes without
-checking anything. The walk also assumes `API_SCHEMA_VERSION` never decreases along tag order (a reverted
-raise breaks that), and nothing asserts it.
+`find_floor_tag` walks final-release tags newest first and stops at the first tag below
+`MIN_API_SCHEMA_VERSION`. That's only sound if `API_SCHEMA_VERSION` never decreases toward newer tags, and
+nothing asserts it. A reverted raise would break it: the walk would stop at the reverted tag and report a
+newer floor than the oldest release that actually serves the minimum, or fall back to HEAD.
 
 Why deferred:
-Hassette doesn't cut pre-release tags (the last ones are `v0.18.0.dev1`–`dev3`, which predate the constant
-and are never reached by the walk), so the hazard can't occur today. A tripwire makes it impossible to hit
-silently: the tool fails with a pointer here if the floor walk reaches any tag that isn't a final `vX.Y.Z`
-release.
+The bump rule only ever raises the constant, and no release has lowered it, so the walk's result is right
+today.
 
 Recommended follow-up:
-When pre-release tags start being cut (or the tripwire fires): order tags by PEP 440 (`packaging.Version`)
-instead of git's sort, scan every reachable tag rather than breaking early, fail naming the tag if
-`API_SCHEMA_VERSION` ever decreases toward newer tags, pick the oldest tag at or above the minimum, and remove
-the tripwire.
+Scan every reachable final-release tag rather than breaking early, fail naming the tag if
+`API_SCHEMA_VERSION` ever decreases toward newer tags, and pick the oldest tag at or above the minimum.
 
 Acceptance criteria:
-- A fixture repo with `v1.1.0rc1` (schema 1) and `v1.1.0` (schema 2) and minimum 2 picks `v1.1.0`, not HEAD.
 - A fixture repo where the constant decreases between two tags fails with that tag named.
-- The result is the same with and without `versionsort.suffix` configured.
+- A fixture repo whose constant only rises picks the same floor tag as today.
+
+The other half of the original issue, pre-release tag ordering, is fixed (2026-10-08, #2485):
+`list_release_tags` in `tools/check_wire_compat.py` orders tags by PEP 440 and drops pre-release tags, so
+the walk never sees one and its order no longer depends on git's `versionsort.suffix`. The tripwire that
+guarded it is gone.
