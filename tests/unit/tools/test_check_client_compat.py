@@ -14,7 +14,7 @@ from check_client_compat import RELEASE_FILE, REPO_ROOT, MissingTypeError, check
 from generate_client_compat_fixtures import generate, release_response_types, schema_type_spec, write_fixtures
 from hassette_wire import AppSummary, Execution, LogEntry
 
-HEAD_OPENAPI = Path(__file__).resolve().parents[3] / "frontend" / "openapi.json"
+from tests.unit.tools.test_generate_client_compat_fixtures import HEAD_OPENAPI
 
 
 def write_fixture(directory: Path, name: str, response_type: object, body: str) -> Path:

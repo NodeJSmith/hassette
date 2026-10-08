@@ -149,6 +149,49 @@ class Generated:
     """Routes HEAD serves that the release doesn't, so no fixture was written for them."""
 
 
+PROBLEM_REQUESTS = [
+    FixtureRequest(
+        "problem-invalid-app-key",
+        "GET",
+        "/api/apps/{app_key}",
+        {"app_key": "not a key"},
+        problem_code=ProblemCode.INVALID_APP_KEY,
+    ),
+    FixtureRequest(
+        "problem-app-not-found",
+        "GET",
+        "/api/apps/{app_key}",
+        {"app_key": "no_such_app"},
+        problem_code=ProblemCode.APP_NOT_FOUND,
+    ),
+    FixtureRequest(
+        "problem-instance-not-found",
+        "POST",
+        "/api/apps/{app_key}/instances/{index}/start",
+        {"app_key": APP_KEY_MY_APP, "index": 99},
+        problem_code=ProblemCode.INSTANCE_NOT_FOUND,
+    ),
+    FixtureRequest(
+        "problem-validation-failed",
+        "GET",
+        "/api/telemetry/executions",
+        query={"limit": "not-a-number"},
+        problem_code=ProblemCode.VALIDATION_FAILED,
+    ),
+    FixtureRequest("problem-not-found", "GET", "/api/no-such-route", problem_code=ProblemCode.NOT_FOUND),
+    FixtureRequest("problem-method-not-allowed", "DELETE", "/api/apps", problem_code=ProblemCode.METHOD_NOT_ALLOWED),
+]
+"""Problem bodies don't depend on the seeded data, so they're requested against one scenario only."""
+
+TELEMETRY_UNAVAILABLE_REQUEST = FixtureRequest(
+    "problem-telemetry-unavailable",
+    "GET",
+    "/api/telemetry/executions",
+    problem_code=ProblemCode.TELEMETRY_UNAVAILABLE,
+)
+"""Sent after the database connection is closed, which is what makes telemetry unavailable."""
+
+
 def success_requests(ids: SeedIds) -> list[FixtureRequest]:
     """One request per JSON route, skipping routes that need an identifier ``ids`` lacks.
 
@@ -210,49 +253,6 @@ def success_requests(ids: SeedIds) -> list[FixtureRequest]:
     return requests
 
 
-PROBLEM_REQUESTS = [
-    FixtureRequest(
-        "problem-invalid-app-key",
-        "GET",
-        "/api/apps/{app_key}",
-        {"app_key": "not a key"},
-        problem_code=ProblemCode.INVALID_APP_KEY,
-    ),
-    FixtureRequest(
-        "problem-app-not-found",
-        "GET",
-        "/api/apps/{app_key}",
-        {"app_key": "no_such_app"},
-        problem_code=ProblemCode.APP_NOT_FOUND,
-    ),
-    FixtureRequest(
-        "problem-instance-not-found",
-        "POST",
-        "/api/apps/{app_key}/instances/{index}/start",
-        {"app_key": APP_KEY_MY_APP, "index": 99},
-        problem_code=ProblemCode.INSTANCE_NOT_FOUND,
-    ),
-    FixtureRequest(
-        "problem-validation-failed",
-        "GET",
-        "/api/telemetry/executions",
-        query={"limit": "not-a-number"},
-        problem_code=ProblemCode.VALIDATION_FAILED,
-    ),
-    FixtureRequest("problem-not-found", "GET", "/api/no-such-route", problem_code=ProblemCode.NOT_FOUND),
-    FixtureRequest("problem-method-not-allowed", "DELETE", "/api/apps", problem_code=ProblemCode.METHOD_NOT_ALLOWED),
-]
-"""Problem bodies don't depend on the seeded data, so they're requested against one scenario only."""
-
-TELEMETRY_UNAVAILABLE_REQUEST = FixtureRequest(
-    "problem-telemetry-unavailable",
-    "GET",
-    "/api/telemetry/executions",
-    problem_code=ProblemCode.TELEMETRY_UNAVAILABLE,
-)
-"""Sent after the database connection is closed, which is what makes telemetry unavailable."""
-
-
 def schema_type_spec(schema: Mapping[str, Any]) -> TypeSpec:
     """Encode an OpenAPI response schema as the type the released client parses it with.
 
@@ -275,15 +275,15 @@ def schema_type_spec(schema: Mapping[str, Any]) -> TypeSpec:
 
 def release_response_types(openapi: Mapping[str, Any]) -> dict[tuple[str, str], TypeSpec]:
     """Each (method, path template) in ``openapi`` mapped to its JSON success response's type."""
-    types: dict[tuple[str, str], TypeSpec] = {}
+    response_types: dict[tuple[str, str], TypeSpec] = {}
     for path, operations in openapi["paths"].items():
         for method, operation in operations.items():
             for status, response in operation.get("responses", {}).items():
                 schema = response.get("content", {}).get("application/json", {}).get("schema")
                 if status.startswith("2") and schema is not None:
-                    types[(method.upper(), path)] = schema_type_spec(schema)
+                    response_types[(method.upper(), path)] = schema_type_spec(schema)
                     break
-    return types
+    return response_types
 
 
 def head_json_routes() -> set[tuple[str, str]]:
@@ -377,8 +377,8 @@ async def serve_scenario(
         finally:
             await read_db.close()
         if with_problems:
-            request = TELEMETRY_UNAVAILABLE_REQUEST
-            exchanges.append((request, await client.request(request.method, request.path)))
+            unavailable = TELEMETRY_UNAVAILABLE_REQUEST
+            exchanges.append((unavailable, await client.request(unavailable.method, unavailable.path)))
     return exchanges
 
 
@@ -396,7 +396,7 @@ async def generate(
             silently losing its fixture.
     """
     fixtures: list[Fixture] = []
-    newer: set[str] = set()
+    newer_than_release: set[str] = set()
     sent: list[FixtureRequest] = []
     for index, scenario in enumerate(scenarios):
         db_path = work_dir / f"{scenario}.db"
@@ -408,7 +408,7 @@ async def generate(
             if request.problem_code is not None:
                 response_type = PROBLEM_TYPE_SPEC
             elif (response_type := release_types.get((request.method, request.route))) is None:
-                newer.add(f"{request.method} {request.route}")
+                newer_than_release.add(f"{request.method} {request.route}")
                 continue
             fixtures.append(Fixture(scenario, request, response.status_code, response_type, response.text))
     uncovered = uncovered_routes(head_json_routes() | release_types.keys(), sent)
@@ -417,7 +417,7 @@ async def generate(
             "No fixture request covers these routes HEAD or the release serves; add one to success_requests() "
             "or, with the reason, to EXCLUDED_ROUTES:\n  " + "\n  ".join(uncovered)
         )
-    return Generated(fixtures, sorted(newer))
+    return Generated(fixtures, sorted(newer_than_release))
 
 
 def write_fixtures(output: Path, generated: Generated, release_tag: str) -> None:
