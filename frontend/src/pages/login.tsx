@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 
+import { ErrorAlert } from "@/components/shared/error-alert";
 import { Button } from "@/components/ui/button";
 import { cardVariants } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -19,8 +20,6 @@ const TITLE_CLASS =
 const LABEL_CLASS = "text-sm font-medium text-foreground-secondary";
 const INPUT_CLASS =
   "w-full rounded-md border border-[var(--line-1)] bg-[var(--bg-sunken)] px-3 py-2 text-sm text-[var(--ink-1)] outline-none transition-colors placeholder:text-[var(--ink-4)] focus-visible:border-[var(--accent)] focus-visible:ring-2 focus-visible:ring-[var(--accent-soft)]";
-const ALERT_CLASS =
-  "flex items-start gap-3 rounded-md border border-destructive bg-[var(--destructive-bg)] px-4 py-3 text-sm text-foreground";
 
 export function LoginPage() {
   useDocumentTitle("Log in");
@@ -67,11 +66,7 @@ export function LoginPage() {
             required
           />
         </div>
-        {error && (
-          <div className={ALERT_CLASS} role="alert" data-testid="login-error">
-            {error}
-          </div>
-        )}
+        {error && <ErrorAlert data-testid="login-error">{error}</ErrorAlert>}
         <Button type="submit" disabled={submitting || token.length === 0}>
           {submitting ? "Signing in…" : "Sign in"}
         </Button>
