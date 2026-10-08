@@ -16,16 +16,16 @@ _COMPONENTS = _HA_CORE / "homeassistant" / "components"
 
 
 def _write_component(
-    tmp_path: Path, services_yaml: str, init_py: str | None = None, services_py: str | None = None
+    tmp_path: Path, services_yaml: str, init_source: str | None = None, services_source: str | None = None
 ) -> Path:
     """Create a synthetic component directory with services.yaml and optional __init__.py / services.py."""
     comp = tmp_path / "test_domain"
     comp.mkdir()
     (comp / "services.yaml").write_text(dedent(services_yaml))
-    if init_py is not None:
-        (comp / "__init__.py").write_text(dedent(init_py))
-    if services_py is not None:
-        (comp / "services.py").write_text(dedent(services_py))
+    if init_source is not None:
+        (comp / "__init__.py").write_text(dedent(init_source))
+    if services_source is not None:
+        (comp / "services.py").write_text(dedent(services_source))
     return comp
 
 
@@ -169,13 +169,13 @@ class TestSupportsResponseExtraction:
             turn_on:
               fields: {}
             """,
-            init_py="""\
+            init_source="""\
             from .services import async_setup_services
 
             async def async_setup(hass):
                 async_setup_services(hass)
             """,
-            services_py="""\
+            services_source="""\
             from homeassistant.core import SupportsResponse
 
             def async_setup_services(hass):
@@ -200,13 +200,13 @@ class TestSupportsResponseExtraction:
             search_media:
               fields: {}
             """,
-            init_py="""\
+            init_source="""\
             async def async_setup(hass):
                 component.async_register_entity_service(
                     "browse_media", {}, "async_browse_media", supports_response=SupportsResponse.ONLY
                 )
             """,
-            services_py="""\
+            services_source="""\
             def async_setup_services(hass):
                 component.async_register_entity_service(
                     "search_media", {}, "async_search_media", supports_response=SupportsResponse.OPTIONAL
@@ -272,19 +272,17 @@ class TestServiceExtraction:
         assert turn_off.fields == []
 
     @pytest.mark.parametrize(
-        ("domain", "service", "expected"),
+        ("domain", "service"),
         [
-            ("weather", "get_forecasts", "ONLY"),
-            ("media_player", "browse_media", "ONLY"),
-            ("media_player", "search_media", "ONLY"),
-            ("todo", "get_items", "ONLY"),
+            ("weather", "get_forecasts"),
+            ("media_player", "browse_media"),
+            ("media_player", "search_media"),
+            ("todo", "get_items"),
         ],
     )
-    def test_response_services_keep_supports_response(
-        self, domain: str, service: str, expected: SupportsResponseValue
-    ) -> None:
+    def test_response_only_services_keep_supports_response(self, domain: str, service: str) -> None:
         services = {s.name: s for s in extract_services(_COMPONENTS / domain)}
-        assert services[service].supports_response == expected
+        assert services[service].supports_response == "ONLY"
 
 
 class TestTypeMapping:

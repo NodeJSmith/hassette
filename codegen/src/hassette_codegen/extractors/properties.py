@@ -1,4 +1,4 @@
-"""Extract entity properties from _attr_* annotations and CACHED_PROPERTIES_WITH_ATTR_."""
+"""Extract entity properties from the _attr_* annotations on a domain's entity class."""
 
 import ast
 from dataclasses import dataclass
@@ -55,31 +55,3 @@ def extract_properties(entity_module: Path) -> list[ExtractedProperty]:
         properties.append(ExtractedProperty(name=field_name, python_type=type_str, has_default=has_default))
 
     return properties
-
-
-def extract_cached_properties(init_py: Path) -> set[str]:
-    """Extract the set of property names from CACHED_PROPERTIES_WITH_ATTR_."""
-    source = init_py.read_text(encoding="utf-8")
-    try:
-        tree = ast.parse(source, filename=str(init_py))
-    except SyntaxError:
-        return set()
-    return _extract_cached_properties_set(tree)
-
-
-def _extract_cached_properties_set(tree: ast.Module) -> set[str]:
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "CACHED_PROPERTIES_WITH_ATTR_":
-                    return _extract_set_literal(node.value)
-    return set()
-
-
-def _extract_set_literal(node: ast.expr) -> set[str]:
-    result: set[str] = set()
-    if isinstance(node, ast.Set):
-        for elt in node.elts:
-            if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-                result.add(elt.value)
-    return result

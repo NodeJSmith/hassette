@@ -16,8 +16,8 @@ _MAX_KEY_REF_DEPTH = 6  # bounds recursion through chained [%key:...%] reference
 REGISTRATION_MODULE_FILES = ("__init__.py", "services.py")
 """Component files scanned for ``async_register_entity_service`` calls.
 
-HA moved most entity domains' service registration from ``__init__.py`` into ``services.py`` (2026.10).
-Results are merged in order, so a service registered in both files takes the later file's registration.
+A domain may register services in either file. Results are merged in order, so a service registered
+in both takes the later file's registration.
 """
 
 SupportsResponseValue = Literal["NONE", "OPTIONAL", "ONLY"]

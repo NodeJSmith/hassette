@@ -11,10 +11,7 @@ from pathlib import Path
 from hassette_codegen.extractors._common import find_entity_class
 
 ENTITY_MODULE_FILES = ("__init__.py", "entity.py")
-"""Component files that may hold a domain's base entity class, in lookup order.
-
-HA moved some domains' entity class out of ``__init__.py`` into ``entity.py`` (todo, 2026.10).
-"""
+"""Component files that may hold a domain's base entity class; the first file defining one wins."""
 
 
 @dataclass
@@ -162,7 +159,7 @@ def check_ruff_available() -> None:
 def discover_domains(ha_core_path: Path) -> list[DiscoveredDomain]:
     """Discover core entity domains by scanning for CACHED_PROPERTIES_WITH_ATTR_.
 
-    Returns everything upstream exposes; the pipeline then drops ``SIMPLE_STATE_DOMAINS``.
+    Returns everything upstream exposes; callers may drop domains whose state class is hand-written.
     """
     components_dir = ha_core_path / "homeassistant" / "components"
     domains: list[DiscoveredDomain] = []
