@@ -1,0 +1,22 @@
+# HA 2026.11 renamed these entity properties to native_*; map them back to the pre-rename field names so the
+# generated model doesn't change. target_temperature* don't match HA's wire keys (temperature,
+# target_temp_high/low) -- that pre-existing mismatch is #1836.
+[[property_overrides]]
+name = "native_current_temperature"
+wire_name = "current_temperature"
+
+[[property_overrides]]
+name = "native_target_temperature"
+wire_name = "target_temperature"
+
+[[property_overrides]]
+name = "native_target_temperature_high"
+wire_name = "target_temperature_high"
+
+[[property_overrides]]
+name = "native_target_temperature_low"
+wire_name = "target_temperature_low"
+
+[[property_overrides]]
+name = "native_temperature_unit"
+wire_name = "temperature_unit"

@@ -37,6 +37,26 @@ class TestLoadOverrides:
         mp = overrides["media_player"]
         assert mp.service_param_renames.get("media_content_type") == "media_type"
 
+    @pytest.mark.parametrize("domain", ["climate", "water_heater"])
+    def test_native_temperature_properties_keep_field_names(self, domain: str) -> None:
+        """HA 2026.11 renamed these entity properties to native_*; generated field names must not change."""
+        override = get_override(load_overrides(), domain)
+        assert override is not None
+        names = [
+            "current_temperature",
+            "target_temperature",
+            "target_temperature_high",
+            "target_temperature_low",
+            "temperature_unit",
+        ]
+        properties = [
+            ExtractedProperty(name=f"native_{n}", python_type="float | None", has_default=True) for n in names
+        ]
+
+        result = apply_property_overrides(properties, override.property_overrides)
+
+        assert [p.name for p in result] == names
+
     def test_state_base_class_override(self, tmp_path: Path) -> None:
         toml = tmp_path / "sensor.toml"
         toml.write_text('state_base_class = "NumericBaseState"\n')
