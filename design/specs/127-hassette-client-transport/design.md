@@ -1,7 +1,7 @@
 # Design: hassette-client transport, errors and typed methods (#2386)
 
 **Date:** 2026-10-07
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 
 ## Summary
@@ -966,7 +966,7 @@ convention for them.
 - [x] Ship-time challenge (reopened D20, D21, D24, restated D23, added D25–D27)
 - [x] Rework to the API schema floor committed
 - [x] Docs reworked
-- [ ] Ship-time challenge on the rework
+- [x] Ship-time challenge on the rework (12 findings: 11 applied, 1 deferred as KI-001)
 
 **Rework to the API schema floor.** The first build shipped a release-version floor. Every item below is
 replaced, and none of the old floor may survive in code, tests or docs (D1's delete list points here):
