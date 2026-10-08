@@ -380,6 +380,78 @@ class TestStopAppLocking:
         assert not lock.locked()
 
 
+class TestIsActionInProgress:
+    def test_false_for_app_key_never_locked(self, lifecycle_service: AppLifecycleService) -> None:
+        """An app key with no action yet reports idle without creating a lock for it."""
+        assert lifecycle_service.is_action_in_progress("test_app") is False
+        assert "test_app" not in lifecycle_service._app_key_locks
+
+    async def test_true_only_for_app_key_whose_action_is_running(self, lifecycle_service: AppLifecycleService) -> None:
+        """While stop_app runs, its own app key reports busy and other app keys don't; afterward it's idle."""
+        observed: dict[str, bool] = {}
+
+        async def fake_unlocked(app_key: str) -> None:
+            observed[app_key] = lifecycle_service.is_action_in_progress(app_key)
+            observed["other_app"] = lifecycle_service.is_action_in_progress("other_app")
+
+        lifecycle_service._stop_app_unlocked = AsyncMock(side_effect=fake_unlocked)
+
+        await lifecycle_service.stop_app("test_app")
+
+        assert observed == {"test_app": True, "other_app": False}
+        assert lifecycle_service.is_action_in_progress("test_app") is False
+
+    @pytest.mark.parametrize(
+        ("method", "args"),
+        [
+            ("start_app", ()),
+            ("stop_app", ()),
+            ("reload_app", ()),
+            ("start_instance", (0,)),
+            ("stop_instance", (0,)),
+            ("reload_instance", (0,)),
+        ],
+    )
+    async def test_lock_is_held_by_the_first_suspension(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        method: str,
+        args: tuple[int, ...],
+    ) -> None:
+        """The web API checks is_action_in_progress() and then calls one of these methods.
+
+        That check-then-act is only race-free if nothing between the call and the lock
+        acquisition suspends. Running the coroutine to its first suspension pins it: by then
+        the lock must already be held.
+        """
+        mock_hassette.app_bootstrap_coordinator.is_released = Mock(return_value=True)
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        never = asyncio.Event()
+
+        async def park(*_args: object) -> None:
+            await never.wait()
+
+        for body in (
+            "_start_app_unlocked",
+            "_stop_app_unlocked",
+            "_create_instance_unlocked",
+            "_stop_instance_unlocked",
+            "_reload_instance_unlocked",
+        ):
+            setattr(lifecycle_service, body, AsyncMock(side_effect=park))
+        lifecycle_service._instance_index_in_range = Mock(return_value=True)
+
+        coro = getattr(lifecycle_service, method)("test_app", *args)
+        try:
+            coro.send(None)
+            assert lifecycle_service.is_action_in_progress("test_app") is True
+        finally:
+            coro.close()
+
+
 class TestApplyChangesGating:
     @pytest.mark.parametrize(
         ("bucket", "autostart", "running", "operation", "expected_call"),
