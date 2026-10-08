@@ -14,7 +14,7 @@ from hassette.types.enums import BlockingIOBehavior, ForgottenAwaitBehavior
 
 
 @pytest.mark.parametrize(
-    ("module", "name", "obj"),
+    ("module", "name", "expected"),
     [
         (events, "TypedStateChangeEvent", TypedStateChangeEvent),
         (events, "TypedStateChangePayload", TypedStateChangePayload),
@@ -27,20 +27,20 @@ from hassette.types.enums import BlockingIOBehavior, ForgottenAwaitBehavior
         (config, "BlockingIODetectionConfig", BlockingIODetectionConfig),
     ],
 )
-def test_symbol_exported(module: object, name: str, obj: object) -> None:
+def test_symbol_exported(module: object, name: str, expected: object) -> None:
     """The symbol is listed in the package's ``__all__`` and resolves to the canonical object."""
     assert name in module.__all__  # pyright: ignore[reportAttributeAccessIssue]
-    assert getattr(module, name) is obj
+    assert getattr(module, name) is expected
 
 
 def test_exceptions_all_lists_every_public_exception() -> None:
     """``hassette.exceptions.__all__`` names exactly the public exception and warning classes it defines."""
     defined = {
         name
-        for name, obj in vars(exceptions).items()
-        if inspect.isclass(obj)
-        and issubclass(obj, BaseException)
-        and obj.__module__ == exceptions.__name__
+        for name, member in vars(exceptions).items()
+        if inspect.isclass(member)
+        and issubclass(member, BaseException)
+        and member.__module__ == exceptions.__name__
         and not name.startswith("_")
     }
     assert set(exceptions.__all__) == defined
