@@ -169,3 +169,7 @@ GET /api/telemetry/dashboard/app-grid api path removed without deprecation
 # #2386: LivenessResponse.status loses its default so an empty `{}` body is not read as live. Not a real
 # break: every server serializes the default, so the field was always present on the wire.
 GET /api/health/live the response property `status` became optional for the status `200`
+
+# #2262: GET /api/logs/recent source_tier becomes the shared app|framework|all enum (default all); values are now case-sensitive.
+GET /api/logs/recent the `query` request parameter `source_tier` was restricted to a list of enum values
+GET /api/logs/recent `query` request parameter `source_tier` list-of-types was narrowed by removing types `null`
