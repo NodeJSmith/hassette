@@ -36,6 +36,10 @@ APP_KEY_DEGRADED_APP = "degraded_app"
 APP_KEY_BLOCKED_APP = "blocked_app"
 """A live app the ``--app`` filter blocks, so starting it answers ``app_blocked`` (:func:`refuse_blocked_apps`)."""
 
+APP_KEY_BUSY_APP = "busy_app"
+"""A live app with an action always in flight, so any action on it answers ``action_in_progress``
+(:func:`wire_busy_app`). It reports ``STOPPED``, as an app whose start is still running does."""
+
 APP_KEY_ESCAPING_APP = "escaping_app"
 """A live app whose source path resolves outside its app directory, so reading its source answers
 ``path_traversal`` (:func:`wire_source_paths`)."""
@@ -215,7 +219,11 @@ def live_manifests() -> list[AppManifestInfo]:
                 status=AppStatus.STOPPED,
                 instance_count=0,
             )
-            for key, name in ((APP_KEY_ESCAPING_APP, "EscapingApp"), (APP_KEY_UNREADABLE_APP, "UnreadableApp"))
+            for key, name in (
+                (APP_KEY_ESCAPING_APP, "EscapingApp"),
+                (APP_KEY_UNREADABLE_APP, "UnreadableApp"),
+                (APP_KEY_BUSY_APP, "BusyApp"),
+            )
         ),
     ]
 
@@ -224,6 +232,7 @@ def wire_app_outcomes(hassette: MagicMock, manifests: Iterable[AppManifestInfo])
     """Make app actions, config and source reads answer the way each live app's state implies."""
     by_key = {manifest.app_key: manifest for manifest in manifests}
     refuse_blocked_apps(hassette, by_key)
+    wire_busy_app(hassette)
     wire_failed_instances(hassette, by_key)
     wire_multi_app_config(hassette, by_key[APP_KEY_MULTI_APP])
     wire_source_paths(hassette)
@@ -254,6 +263,14 @@ def refuse_blocked_apps(hassette: MagicMock, by_key: Mapping[str, AppManifestInf
 
     hassette._app_handler.start_app.side_effect = refuse_blocked
     hassette._app_handler.reload_app.side_effect = refuse_blocked
+
+
+def wire_busy_app(hassette: MagicMock) -> None:
+    """:data:`APP_KEY_BUSY_APP` reports an action in progress, so any action on it answers ``action_in_progress``.
+
+    The route checks this before running the action, so the stub's action mocks are never reached for it.
+    """
+    hassette._app_handler.is_action_in_progress.side_effect = lambda app_key: app_key == APP_KEY_BUSY_APP
 
 
 def wire_failed_instances(hassette: MagicMock, by_key: Mapping[str, AppManifestInfo]) -> None:

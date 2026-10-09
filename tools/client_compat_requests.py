@@ -13,7 +13,13 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import quote
 
-from client_compat_live_state import APP_KEY_BLOCKED_APP, APP_KEY_ESCAPING_APP, APP_KEY_UNREADABLE_APP, SeedIds
+from client_compat_live_state import (
+    APP_KEY_BLOCKED_APP,
+    APP_KEY_BUSY_APP,
+    APP_KEY_ESCAPING_APP,
+    APP_KEY_UNREADABLE_APP,
+    SeedIds,
+)
 from hassette_wire import ProblemCode
 
 from hassette.web.body_limit import MAX_REQUEST_BODY_BYTES
@@ -111,6 +117,13 @@ PROBLEM_REQUESTS = [
         "/api/apps/{app_key}/start",
         {"app_key": APP_KEY_BLOCKED_APP},
         problem_code=ProblemCode.APP_BLOCKED,
+    ),
+    FixtureRequest(
+        "problem-action-in-progress",
+        "POST",
+        "/api/apps/{app_key}/start",
+        {"app_key": APP_KEY_BUSY_APP},
+        problem_code=ProblemCode.ACTION_IN_PROGRESS,
     ),
     FixtureRequest(
         "problem-action-failed",
