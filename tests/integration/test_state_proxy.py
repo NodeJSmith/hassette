@@ -528,8 +528,7 @@ async def test_retry_attempt_resets_when_generation_changes() -> None:
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_initial_snapshot)
     await proxy.on_initialize()
     await asyncio.wait_for(first_sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
-    assert proxy._bootstrap_task is not None
-    await asyncio.wait_for(proxy._bootstrap_task, timeout=SYNC_WAIT_TIMEOUT)
+    await finish_bootstrap(proxy)
 
     proxy.hassette.websocket_service.get_connected_generation.return_value = 2
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=RuntimeError("boom-2"))
@@ -677,7 +676,7 @@ async def test_disconnect_mid_sync_returns_connected_waiters_normally(state_prox
     owner_task = asyncio.create_task(state_proxy.on_reconnect())
     await asyncio.wait_for(sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
     waiter_task = asyncio.create_task(state_proxy.on_reconnect())
-    await asyncio.sleep(0)
+    await asyncio.sleep(0)  # let waiter_task attach to the active sync before the disconnect cancels it
 
     await state_proxy.on_disconnect()
 

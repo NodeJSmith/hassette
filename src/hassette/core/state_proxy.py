@@ -554,7 +554,7 @@ class StateProxy(Resource):
                     task = self._start_sync_task(generation, status)
                     started_new_task = True
             if not await wait_for_sync_task(task):
-                # Cancelled by on_disconnect: this generation is gone, and the next connected
+                # Cancelled by on_disconnect or on_shutdown: this generation is gone, and the next connected
                 # signal issues its own request.
                 return
             if started_new_task or not continue_after_active_task:
