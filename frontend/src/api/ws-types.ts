@@ -82,6 +82,11 @@ export interface ConnectedWsMessage {
 export interface ConnectedData {
   uptime_seconds: number;
   entity_count: number;
+  /**
+   * Number of app instances currently tracked, running or failed — not the number of configured apps.
+   *
+   * Same meaning as ``SystemStatusResponse.app_count``.
+   */
   app_count: number;
   version?: string;
 }

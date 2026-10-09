@@ -146,6 +146,22 @@ class TestPreBootstrapAppState:
 
         assert status.app_count == 0
 
+    def test_get_system_status_app_count_excludes_stopped_apps(
+        self, runtime: RuntimeQueryService, tmp_path: Path
+    ) -> None:
+        """app_count counts tracked instances, so a configured-but-stopped app isn't included."""
+        registry = AppRegistry()
+        running = create_app_manifest("running_app", tmp_path)
+        stopped = create_app_manifest("stopped_app", tmp_path)
+        registry.set_manifests({running.app_key: running, stopped.app_key: stopped})
+        registry.register_app(running.app_key, 0, MagicMock())
+        runtime.hassette.app_handler.get_status_snapshot = registry.get_snapshot
+
+        status = runtime.get_system_status()
+
+        assert len(registry.manifests) == 2
+        assert status.app_count == 1
+
     def test_overlay_manifest_rows_reflects_configured_registry_before_bootstrap(
         self, runtime: RuntimeQueryService, tmp_path: Path
     ) -> None:

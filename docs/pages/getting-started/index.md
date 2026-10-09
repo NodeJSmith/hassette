@@ -69,7 +69,7 @@ hassette status
 │  status               ok                                     │
 │  websocket_connected  True                                   │
 │  uptime_seconds       4.21                                   │
-│  app_count            1                                      │
+│  app_count            1 instance (excludes stopped apps)     │
 ╰──────────────────────────────────────────────────────────────╯
 ```
 

@@ -160,6 +160,7 @@
           "type": "integer"
         },
         "app_count": {
+          "description": "Number of app instances currently tracked, running or failed \u2014 not the number of configured apps.\n\nSame meaning as ``SystemStatusResponse.app_count``.",
           "title": "App Count",
           "type": "integer"
         },

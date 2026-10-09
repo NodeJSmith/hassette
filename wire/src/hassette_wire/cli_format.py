@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-CliFormatStyle = Literal["duration_ms", "duration_s", "uptime", "relative_time", "services"]
+CliFormatStyle = Literal["duration_ms", "duration_s", "uptime", "relative_time", "services", "instance_count"]
 
 
 @dataclass(frozen=True)

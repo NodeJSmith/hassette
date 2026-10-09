@@ -68,7 +68,12 @@ const schema11 = {
       properties: {
         uptime_seconds: { title: "Uptime Seconds", type: "number" },
         entity_count: { title: "Entity Count", type: "integer" },
-        app_count: { title: "App Count", type: "integer" },
+        app_count: {
+          description:
+            "Number of app instances currently tracked, running or failed — not the number of configured apps.\n\nSame meaning as ``SystemStatusResponse.app_count``.",
+          title: "App Count",
+          type: "integer",
+        },
         version: { default: "", title: "Version", type: "string" },
       },
       required: ["uptime_seconds", "entity_count", "app_count"],
@@ -1005,7 +1010,12 @@ const schema17 = {
   properties: {
     uptime_seconds: { title: "Uptime Seconds", type: "number" },
     entity_count: { title: "Entity Count", type: "integer" },
-    app_count: { title: "App Count", type: "integer" },
+    app_count: {
+      description:
+        "Number of app instances currently tracked, running or failed — not the number of configured apps.\n\nSame meaning as ``SystemStatusResponse.app_count``.",
+      title: "App Count",
+      type: "integer",
+    },
     version: { default: "", title: "Version", type: "string" },
   },
   required: ["uptime_seconds", "entity_count", "app_count"],

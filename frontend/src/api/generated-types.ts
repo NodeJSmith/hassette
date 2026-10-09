@@ -2033,7 +2033,13 @@ export interface components {
             uptime_seconds: number;
             /** Entity Count */
             entity_count: number;
-            /** App Count */
+            /**
+             * App Count
+             * @description Number of app instances currently tracked, running or failed — not the number of configured apps.
+             *
+             *     A configured app that is stopped, disabled, or not yet started has no instance and is not counted, so this
+             *     is ``0`` before app bootstrap and can be lower than the total ``GET /api/apps`` lists.
+             */
             app_count: number;
             /** Services */
             services?: components["schemas"]["ServiceInfo"][];
