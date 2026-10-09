@@ -639,6 +639,45 @@ async def test_disconnect_cancels_active_sync_so_reconnect_can_start_fresh(state
     assert state_proxy.maintained_generation == 2
 
 
+async def test_disconnect_mid_poll_returns_normally_and_next_poll_still_syncs(state_proxy: StateProxy) -> None:
+    # Cancelling the shared sync task must not surface as CancelledError in the awaiting poll
+    # handler — the command executor would record that as a cancelled poll job execution.
+    sync_entered, _never_release, blocked_snapshot = gated_get_states_raw_factory()
+    state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=blocked_snapshot)
+    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1
+
+    poll_task = asyncio.create_task(state_proxy.load_cache())
+    await asyncio.wait_for(sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
+
+    await state_proxy.on_disconnect()
+
+    assert await asyncio.wait_for(poll_task, timeout=SYNC_WAIT_TIMEOUT) is None
+    assert not poll_task.cancelled()
+
+    state_proxy.hassette.api.get_states_raw = AsyncMock(return_value=[make_light_state_dict("light.kitchen", "on")])
+    await asyncio.wait_for(state_proxy.load_cache(), timeout=SYNC_WAIT_TIMEOUT)
+
+    state_proxy.hassette.api.get_states_raw.assert_awaited_once()
+    assert state_proxy.cache_freshness == StateCacheFreshness.FRESH
+
+
+async def test_disconnect_mid_sync_returns_connected_waiters_normally(state_proxy: StateProxy) -> None:
+    sync_entered, _never_release, blocked_snapshot = gated_get_states_raw_factory()
+    state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=blocked_snapshot)
+    state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
+
+    owner_task = asyncio.create_task(state_proxy.on_reconnect())
+    await asyncio.wait_for(sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
+    waiter_task = asyncio.create_task(state_proxy.on_reconnect())
+    await asyncio.sleep(0)
+
+    await state_proxy.on_disconnect()
+
+    await asyncio.wait_for(asyncio.gather(owner_task, waiter_task), timeout=SYNC_WAIT_TIMEOUT)
+    state_proxy.hassette.api.get_states_raw.assert_awaited_once()
+    assert state_proxy.cache_freshness == StateCacheFreshness.STALE
+
+
 async def test_superseded_retry_task_is_canceled_when_new_generation_sync_starts() -> None:
     proxy = build_state_proxy()
     retry_started = asyncio.Event()
