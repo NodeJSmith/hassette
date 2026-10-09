@@ -37,6 +37,8 @@ The example defines every method with `async def` and awaits the registration ca
 
 With `env_prefix="MYAPP_"`, the field `api_key` reads from `MYAPP_API_KEY`. Fields without a matching environment variable fall back to their declared defaults. Required fields (no default) raise a validation error at startup if absent.
 
+Choose a prefix that doesn't start with `HASSETTE__`. Hassette reads that namespace for its own settings and [refuses to start](../configuration/index.md#unknown-keys) on a name it doesn't recognize, so an app variable like `HASSETTE__MYAPP_API_KEY` stops startup. To set an app's config through Hassette's variables instead, use `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` (see [App Configuration](configuration.md)).
+
 ### Base Fields
 
 Every `AppConfig` includes four built-in fields. Two identify and log the app:
