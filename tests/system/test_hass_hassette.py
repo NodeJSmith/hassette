@@ -38,6 +38,9 @@ POLL_TIMEOUT_SECONDS = 60.0
 # A stop answers once the app's shutdown finishes; hassette's own shutdown budget is well under this.
 ACTION_TIMEOUT_SECONDS = 60.0
 HA_POLL_INTERVAL_SECONDS = 1.0
+APP_POLL_INTERVAL_SECONDS = 0.5
+# Entropy of the per-run web API token the test hands HA.
+TOKEN_BYTES = 32
 
 
 async def ha_ws(ha_url: str, command: dict[str, Any]) -> Any:
@@ -93,11 +96,46 @@ async def app_key_by_device(ha_url: str) -> dict[str, str]:
     }
 
 
+async def wait_for_app_entities(ha_url: str, entry_id: str, expected: set[str]) -> dict[str, dict[str, Any]]:
+    """Wait until every ``expected`` unique_id is registered for the entry; return the entry's entities."""
+    entities: dict[str, dict[str, Any]] = {}
+
+    async def all_registered() -> bool:
+        nonlocal entities
+        entities = await app_entities(ha_url, entry_id)
+        return expected <= entities.keys()
+
+    await wait_for(all_registered, timeout=POLL_TIMEOUT_SECONDS, interval=HA_POLL_INTERVAL_SECONDS, desc="app entities")
+    return entities
+
+
+def switch_is(ha: httpx.AsyncClient, switch: str, expected_state: str):
+    """A ``wait_for`` condition: HA reports ``switch`` in ``expected_state``."""
+
+    async def check() -> bool:
+        resp = await ha.get(f"/api/states/{switch}")
+        resp.raise_for_status()
+        return resp.json()["state"] == expected_state
+
+    return check
+
+
+def app_is_stopped(api: httpx.AsyncClient, app_key: str):
+    """A ``wait_for`` condition: hassette reports ``app_key`` as stopped."""
+
+    async def check() -> bool:
+        resp = await api.get(f"/api/apps/{app_key}")
+        resp.raise_for_status()
+        return resp.json()["status"] == "stopped"
+
+    return check
+
+
 async def test_integration_controls_hassette_apps(ha_container: str, tmp_path: Path, system_app_dir: Path) -> None:
     """Each app becomes a device with its entities, and turning its switch off stops it in hassette."""
     # HA reaches hassette from its container through the docker bridge, so the web API binds every
     # interface; a per-run token keeps that from exposing a known credential on the LAN.
-    token = secrets.token_urlsafe(32)
+    token = secrets.token_urlsafe(TOKEN_BYTES)
     config, base_url = make_web_system_config(ha_container, tmp_path, host="0.0.0.0", auth_token=token)
     # make_web_system_config starts with an empty app dir; this test needs the fixture apps loaded.
     config.apps.autodetect = True
@@ -115,54 +153,28 @@ async def test_integration_controls_hassette_apps(ha_container: str, tmp_path: P
         entry_id = await create_entry(ha, f"http://{HOST_FROM_HA}:{config.web_api.port}", token)
         try:
             expected = {f"{key}-{suffix}" for key in app_keys for suffix in APP_ENTITY_KEYS}
-            entities: dict[str, dict[str, Any]] = {}
-
-            async def all_entities_registered() -> bool:
-                nonlocal entities
-                entities = await app_entities(ha_container, entry_id)
-                return expected <= entities.keys()
-
-            await wait_for(
-                all_entities_registered,
-                timeout=POLL_TIMEOUT_SECONDS,
-                interval=HA_POLL_INTERVAL_SECONDS,
-                desc="app entities",
-            )
+            entities = await wait_for_app_entities(ha_container, entry_id, expected)
 
             device_app = await app_key_by_device(ha_container)
-            for key in app_keys:
-                for suffix in APP_ENTITY_KEYS:
-                    device_id = entities[f"{key}-{suffix}"]["device_id"]
-                    assert device_app[device_id] == key
+            for unique_id in expected:
+                assert device_app[entities[unique_id]["device_id"]] == unique_id.rsplit("-", 1)[0]
 
             switch = entities[f"{toggled_key}-running"]["entity_id"]
+            poll = {"timeout": POLL_TIMEOUT_SECONDS, "interval": HA_POLL_INTERVAL_SECONDS}
+            await wait_for(switch_is(ha, switch, "on"), desc=f"{switch} on", **poll)
 
-            def switch_is(expected_state: str):
-                async def check() -> bool:
-                    r = await ha.get(f"/api/states/{switch}")
-                    r.raise_for_status()
-                    return r.json()["state"] == expected_state
-
-                return check
-
-            await wait_for(
-                switch_is("on"), timeout=POLL_TIMEOUT_SECONDS, interval=HA_POLL_INTERVAL_SECONDS, desc=f"{switch} on"
-            )
-
-            r = await ha.post(
+            resp = await ha.post(
                 "/api/services/switch/turn_off", json={"entity_id": switch}, timeout=ACTION_TIMEOUT_SECONDS
             )
-            r.raise_for_status()
+            resp.raise_for_status()
 
-            async def app_stopped() -> bool:
-                r = await api.get(f"/api/apps/{toggled_key}")
-                r.raise_for_status()
-                return r.json()["status"] == "stopped"
-
-            await wait_for(app_stopped, timeout=ACTION_TIMEOUT_SECONDS, interval=0.5, desc=f"{toggled_key} stopped")
             await wait_for(
-                switch_is("off"), timeout=POLL_TIMEOUT_SECONDS, interval=HA_POLL_INTERVAL_SECONDS, desc=f"{switch} off"
+                app_is_stopped(api, toggled_key),
+                timeout=ACTION_TIMEOUT_SECONDS,
+                interval=APP_POLL_INTERVAL_SECONDS,
+                desc=f"{toggled_key} stopped",
             )
+            await wait_for(switch_is(ha, switch, "off"), desc=f"{switch} off", **poll)
         finally:
             # Unload before hassette stops, so the session-scoped HA isn't left polling a dead server.
             # Best-effort: raising here would replace the assertion error that brought us here.

@@ -4,7 +4,7 @@
 # dummy tokens in config tests, and HA demo-camera proxy tokens in recorded events.
 design/specs/002-startup-smoke-tests/design.md:curl-auth-header:425
 docs/pages/getting-started/docker/snippets/ts-curl-ha.sh:curl-auth-header:1
-scripts/docker/.env:jwt:37
+scripts/docker/.env:jwt:38
 tests/data/events/state_change_events.jsonl:generic-api-key:32
 tests/data/events/state_change_events.jsonl:generic-api-key:33
 tests/data/events/state_change_events.jsonl:generic-api-key:34

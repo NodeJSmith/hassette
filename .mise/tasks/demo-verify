@@ -107,7 +107,7 @@ fi
 
 entry_state() {
     local body
-    body=$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $HA_ACCESS_TOKEN" \
+    body=$(curl -s --max-time 5 -w '\n%{http_code}' -H "Authorization: Bearer $HA_ACCESS_TOKEN" \
         "$HA_URL/api/config/config_entries/entry?domain=hassette") || { echo "unreachable"; return; }
     local code="${body##*$'\n'}"
     if [[ "$code" != "200" ]]; then
