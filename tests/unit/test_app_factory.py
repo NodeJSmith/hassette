@@ -468,6 +468,10 @@ class MixinOnlyConfig(DelayMixin, AppConfig):
     pass
 
 
+class TrailingMixinConfig(AppConfig, DelayMixin):
+    pass
+
+
 class CamelCaseConfig(AppConfig):
     model_config = SettingsConfigDict(alias_generator=to_camel)
 
@@ -540,14 +544,15 @@ class TestAppFactoryUnrecognizedConfigKeyWarning:
 
         mock_registry.register_app.assert_called_once()
 
+    @pytest.mark.parametrize("config_cls", [MixinOnlyConfig, TrailingMixinConfig], ids=["leading", "trailing"])
     def test_config_with_mixin_fields_warns_on_typo(
-        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest
+        self, factory: AppFactory, mock_registry: AppRegistry, mock_manifest, config_cls: type[AppConfig]
     ):
-        """Fields contributed by a plain mixin make the config typed, so a typo against them warns."""
+        """Fields contributed by a plain mixin make the config typed, on either side of ``AppConfig`` in the bases."""
         config = {"instance_name": "test_instance", "off_dealy": 5}
 
         with pytest.warns(UserWarning, match="'off_dealy' \\(did you mean 'off_delay'\\?\\)"):
-            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(MixinOnlyConfig))
+            factory.create_single_instance("test_app", mock_manifest, 0, config, make_app_class(config_cls))
 
         mock_registry.register_app.assert_called_once()
 
