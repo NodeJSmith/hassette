@@ -9,7 +9,7 @@ import type { LogDrawerProps } from "./use-log-table";
 
 vi.mock("./log-detail-drawer", () => ({
   LogDetailDrawer: (props: { selectedKey: string | null }) =>
-    props.selectedKey ? <aside data-testid="drawer" role="complementary" /> : null,
+    props.selectedKey ? <aside data-testid={DRAWER_TEST_ID} role="complementary" /> : null,
 }));
 
 const WRAPPER_TEST_ID = "log-table-with-drawer";
