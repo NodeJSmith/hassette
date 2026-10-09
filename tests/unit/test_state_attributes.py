@@ -128,6 +128,16 @@ class TestSetpointWireKeys:
 
         assert attrs_cls.model_validate(attrs.model_dump()) == attrs
 
+    @pytest.mark.parametrize("attrs_cls", [ClimateAttributes, WaterHeaterAttributes])
+    def test_wire_key_wins_and_field_name_is_not_kept_as_extra(
+        self, attrs_cls: type[ClimateAttributes | WaterHeaterAttributes]
+    ) -> None:
+        attrs = attrs_cls.model_validate({"temperature": 70.5, "target_temperature": 60.0})
+
+        assert attrs.target_temperature == 70.5
+        assert attrs.extras == {}
+        assert attrs.model_dump()["target_temperature"] == 70.5
+
     def test_water_heater_target_temp_step_wire_key(self) -> None:
         attrs = WaterHeaterAttributes.model_validate({"target_temp_step": 0.5})
 
