@@ -383,7 +383,7 @@ async def test_shutdown_drain_is_bounded_when_worker_is_dead(service: DatabaseSe
     await asyncio.gather(service._db_worker_task, return_exceptions=True)
     assert service.enqueue(async_noop()) is True
 
-    with patch("hassette.core.database_service._SHUTDOWN_DRAIN_TIMEOUT_SECONDS", 0.05):
+    with patch("hassette.core.database_write_queue._SHUTDOWN_DRAIN_TIMEOUT_SECONDS", 0.05):
         await asyncio.wait_for(service.on_shutdown(), timeout=5.0)
 
     assert service._db is None, "Database connection should be closed after a bounded drain"

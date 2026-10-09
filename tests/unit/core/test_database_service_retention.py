@@ -13,7 +13,9 @@ from unittest.mock import MagicMock, patch
 import aiosqlite
 import pytest
 
-from hassette.core.database_service import DatabaseService, _execute_failsafe_delete, _execute_target_delete
+from hassette.core.database_failsafe import _execute_failsafe_delete
+from hassette.core.database_retention import _execute_target_delete
+from hassette.core.database_service import DatabaseService
 from hassette.core.retention_targets import _FAILSAFE_TABLES, _RETENTION_TABLES, RetentionTarget
 from tests.unit.core._fixtures_database_service import mock_hassette, service
 
