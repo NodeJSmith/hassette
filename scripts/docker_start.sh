@@ -18,6 +18,14 @@ PRUNE_UV_CACHE="${HASSETTE_DOCKER_PRUNE_UV_CACHE:-1}"
 RETRY_DELAY="${HASSETTE_DOCKER_RETRY_DELAY:-300}"
 CONSTRAINTS="/app/constraints.txt"
 IMAGE_APP_DIR="/app"  # Hassette's own install, with its own pyproject.toml and uv.lock; never a user project
+TMP_ROOT="${TMPDIR:-/tmp}"
+
+# Per-step uv timeouts (seconds) and requirements.txt search depth
+UV_EXPORT_TIMEOUT_SECS=300
+UV_PROJECT_DEPS_TIMEOUT_SECS=300
+UV_PROJECT_PACKAGE_TIMEOUT_SECS=120
+UV_REQUIREMENTS_TIMEOUT_SECS=120
+REQUIREMENTS_MAX_DEPTH=5
 
 REMEDY_DEPS="Fix the dependency file named above, then run: docker restart <container>"
 REMEDY_CONFIG="Fix the setting named above (in its file or your compose environment), then run: docker compose up -d
@@ -154,16 +162,66 @@ elif [ -z "$FD_BIN" ]; then
     echo "NOTE: fd (fdfind) not found — if you enable HASSETTE_DOCKER_INSTALL_DEPS=1 later, it will require fd."
 fi
 
+# ── helper: user-facing banner for a failed uv command ──────────────────────
+# Usage: print_install_failure_banner <failure_type>
+# failure_type (valid set): "export" | "project" | "requirements"
+print_install_failure_banner() {
+    local failure_type="$1"
+
+    echo ""
+    case "${failure_type}" in
+        export)
+            echo "─────────────────────────────────────────────────────────"
+            echo "  EXPORT FAILED"
+            echo ""
+            echo "  Could not export your project's dependencies."
+            echo "  Common causes: local path deps, git deps not reachable,"
+            echo "  or a lockfile that needs regenerating."
+            echo ""
+            echo "  To fix: run 'uv lock' locally, commit uv.lock, and restart."
+            echo "  If your project has local path deps, use the custom image"
+            echo "  build pattern instead."
+            echo "─────────────────────────────────────────────────────────"
+            ;;
+        project)
+            echo "─────────────────────────────────────────────────────────"
+            echo "  DEPENDENCY CONFLICT"
+            echo ""
+            echo "  Your project's dependencies conflict with this version"
+            echo "  of Hassette. This usually means your uv.lock was generated"
+            echo "  against a different Hassette version than this image."
+            echo ""
+            echo "  To fix: run 'uv lock' locally, commit uv.lock, and restart."
+            echo "─────────────────────────────────────────────────────────"
+            ;;
+        requirements)
+            echo "─────────────────────────────────────────────────────────"
+            echo "  DEPENDENCY CONFLICT"
+            echo ""
+            echo "  A requirements.txt dependency conflicts with this version"
+            echo "  of Hassette."
+            echo ""
+            echo "  To fix: relax the version pin in your requirements.txt, or"
+            echo "  check which version hassette requires:"
+            echo "    cat /app/constraints.txt | grep <package>"
+            echo "─────────────────────────────────────────────────────────"
+            ;;
+        *)
+            echo "BUG: print_install_failure_banner got unknown failure type '${failure_type}'"
+            ;;
+    esac
+}
+
 # ── helper: run a uv command with timeout and friendly error messages ─────────
-# Usage: run_uv_install <timeout_seconds> <conflict_type> <uv args...>
-# conflict_type: "export", "project", or "requirements"
+# Usage: run_uv_install <timeout_seconds> <failure_type> <uv args...>
+# failure_type: see print_install_failure_banner for the valid set
 run_uv_install() {
     local timeout_secs="$1"
-    local conflict_type="$2"
+    local failure_type="$2"
     shift 2
 
     local uv_log
-    uv_log=$(mktemp /tmp/uv-output.XXXXXX)
+    uv_log=$(mktemp "${TMP_ROOT}/uv-output.XXXXXX")
 
     # Stream live output AND capture to file for error replay.
     # Temporarily disable set -e so the pipeline doesn't abort the function,
@@ -174,63 +232,25 @@ run_uv_install() {
     set -e
     local exit_code="${pipe_status[0]}"
     local tee_code="${pipe_status[1]:-0}"
+    rm -f "${uv_log}"
 
     if [ "${exit_code}" -eq 0 ] && [ "${tee_code}" -eq 0 ]; then
-        rm -f "${uv_log}"
         return 0
     fi
 
     # tee failure (disk full, permission denied) — warn but use the uv exit code for decision
     if [ "${tee_code}" -ne 0 ] && [ "${exit_code}" -eq 0 ]; then
         echo "WARNING: output capture failed (tee exit ${tee_code}) — install may have succeeded but logs are incomplete"
-        rm -f "${uv_log}"
         return 0
     fi
 
     if [ "${exit_code}" -eq 124 ]; then
-        rm -f "${uv_log}"
         echo "ERROR: dependency install timed out after ${timeout_secs}s"
         halt 1 "the dependency install timed out" "Check the container's network access."
     fi
 
-    # User-friendly error banner — uv output was already streamed live above
-    echo ""
-    if [ "${conflict_type}" = "export" ]; then
-        echo "─────────────────────────────────────────────────────────"
-        echo "  EXPORT FAILED"
-        echo ""
-        echo "  Could not export your project's dependencies."
-        echo "  Common causes: local path deps, git deps not reachable,"
-        echo "  or a lockfile that needs regenerating."
-        echo ""
-        echo "  To fix: run 'uv lock' locally, commit uv.lock, and restart."
-        echo "  If your project has local path deps, use the custom image"
-        echo "  build pattern instead."
-        echo "─────────────────────────────────────────────────────────"
-    elif [ "${conflict_type}" = "project" ]; then
-        echo "─────────────────────────────────────────────────────────"
-        echo "  DEPENDENCY CONFLICT"
-        echo ""
-        echo "  Your project's dependencies conflict with this version"
-        echo "  of Hassette. This usually means your uv.lock was generated"
-        echo "  against a different Hassette version than this image."
-        echo ""
-        echo "  To fix: run 'uv lock' locally, commit uv.lock, and restart."
-        echo "─────────────────────────────────────────────────────────"
-    else
-        echo "─────────────────────────────────────────────────────────"
-        echo "  DEPENDENCY CONFLICT"
-        echo ""
-        echo "  A requirements.txt dependency conflicts with this version"
-        echo "  of Hassette."
-        echo ""
-        echo "  To fix: relax the version pin in your requirements.txt, or"
-        echo "  check which version hassette requires:"
-        echo "    cat /app/constraints.txt | grep <package>"
-        echo "─────────────────────────────────────────────────────────"
-    fi
-
-    rm -f "${uv_log}"
+    # uv output was already streamed live above
+    print_install_failure_banner "${failure_type}"
     echo "ERROR: dependency install failed (exit ${exit_code})"
     halt 1 "a dependency conflict (see above)" "${REMEDY_DEPS}"
 }
@@ -241,11 +261,11 @@ run_uv_install() {
 if [ -f "$PROJECT_DIR/uv.lock" ]; then
     log_phase "project install: starting (from $PROJECT_DIR)"
 
-    user_deps_file=$(mktemp /tmp/user-deps.XXXXXX)
-    tmp_project=$(mktemp -d /tmp/project-build.XXXXXX)
+    user_deps_file=$(mktemp "${TMP_ROOT}/user-deps.XXXXXX")
+    tmp_project=$(mktemp -d "${TMP_ROOT}/project-build.XXXXXX")
 
     log_phase "project install: exporting locked deps"
-    run_uv_install 300 "export" export \
+    run_uv_install "$UV_EXPORT_TIMEOUT_SECS" "export" export \
         --no-hashes --frozen \
         --directory "$PROJECT_DIR" \
         --no-default-groups \
@@ -253,13 +273,13 @@ if [ -f "$PROJECT_DIR/uv.lock" ]; then
         --output-file "${user_deps_file}"
 
     log_phase "project install: installing deps with constraints"
-    run_uv_install 300 "project" pip install \
+    run_uv_install "$UV_PROJECT_DEPS_TIMEOUT_SECS" "project" pip install \
         -r "${user_deps_file}" \
         -c "$CONSTRAINTS"
 
     log_phase "project install: installing project package"
     cp -a "$PROJECT_DIR"/. "$tmp_project"/
-    run_uv_install 120 "project" pip install \
+    run_uv_install "$UV_PROJECT_PACKAGE_TIMEOUT_SECS" "project" pip install \
         --no-deps "$tmp_project"
 
     # Explicit cleanup — the EXIT trap never fires on the happy path because
@@ -294,15 +314,15 @@ if [ "${INSTALL_DEPS}" = "1" ]; then
     found_files=0
 
     if [ "${#ROOTS[@]}" -gt 0 ]; then
-        # Exact match for requirements.txt only; NUL-safe read; max-depth 5
+        # Exact match for requirements.txt only; NUL-safe read; depth-limited
         while IFS= read -r -d '' req; do
             [ -s "$req" ] || continue
             found_files=$((found_files + 1))
             echo "Installing requirements from $req (with constraints)..."
-            run_uv_install 120 "requirements" pip install \
+            run_uv_install "$UV_REQUIREMENTS_TIMEOUT_SECS" "requirements" pip install \
                 -r "$req" \
                 -c "$CONSTRAINTS"
-        done < <("$FD_BIN" -t f -a -0 --max-depth 5 '^requirements\.txt$' "${ROOTS[@]}" | sort -z)
+        done < <("$FD_BIN" -t f -a -0 --max-depth "$REQUIREMENTS_MAX_DEPTH" '^requirements\.txt$' "${ROOTS[@]}" | sort -z)
     fi
 
     log_phase "requirements install: complete ($found_files file(s))"

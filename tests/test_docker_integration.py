@@ -16,8 +16,25 @@ from pathlib import Path
 
 import pytest
 
-DOCKER_IMAGE = os.getenv("HASSETTE_TEST_IMAGE", "hassette:test")
+DEFAULT_DOCKER_IMAGE = "hassette:test"
+DOCKER_IMAGE = os.getenv("HASSETTE_TEST_IMAGE", DEFAULT_DOCKER_IMAGE)
+
+CONTAINER_TIMEOUT = 60
+PROJECT_CONTAINER_TIMEOUT = 120
+UV_LOCK_TIMEOUT = 60
 DOCKER_CLEANUP_TIMEOUT = 30
+
+FAKE_TOKEN = "test_token"
+FAKE_BASE_URL = "http://test"
+BASE_CONTAINER_ENV = {
+    "HASSETTE__TOKEN": FAKE_TOKEN,
+    "HASSETTE__BASE_URL": FAKE_BASE_URL,
+}
+
+# aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
+CONFLICTING_REQUIREMENT = "aiohttp==3.0.0"
+
+HATCHLING_BUILD_SYSTEM = '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
 NO_RETRY = {"HASSETTE_DOCKER_RETRY_DELAY": "0"}
 
 pytestmark = [
@@ -31,7 +48,7 @@ def run_hassette_container(
     *,
     volumes: list[str] | None = None,
     env: dict[str, str] | None = None,
-    timeout: int = 60,
+    timeout: int = CONTAINER_TIMEOUT,
     name: str | None = None,
     remove: bool = True,
     args: list[str] | None = None,
@@ -48,11 +65,7 @@ def run_hassette_container(
         cmd.extend(["--name", name])
     for vol in volumes or []:
         cmd.extend(["-v", vol])
-    merged_env = {
-        "HASSETTE__TOKEN": "test_token",
-        "HASSETTE__BASE_URL": "http://test",
-    }
-    merged_env.update(env or {})
+    merged_env = {**BASE_CONTAINER_ENV, **(env or {})}
     for key, value in merged_env.items():
         cmd.extend(["-e", f"{key}={value}"])
     cmd.extend([DOCKER_IMAGE, *(args if args is not None else ["--check"])])
@@ -70,7 +83,7 @@ def run_requirements_container(
 
 
 def run_project_container(
-    project_dir: Path, *, timeout: int = 120, env: dict[str, str] | None = None
+    project_dir: Path, *, timeout: int = PROJECT_CONTAINER_TIMEOUT, env: dict[str, str] | None = None
 ) -> tuple[subprocess.CompletedProcess[str], str]:
     """Run the container with the project mounted as the config volume, found by walking up from /config/apps."""
     return run_hassette_container(volumes=[f"{project_dir}:/config"], env=env, timeout=timeout)
@@ -82,7 +95,9 @@ def create_project_package(project_dir: Path, pyproject_content: str) -> None:
     pkg_dir = project_dir / "test_proj"
     pkg_dir.mkdir()
     (pkg_dir / "__init__.py").write_text("")
-    subprocess.run(["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True, timeout=60)
+    subprocess.run(
+        ["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True, timeout=UV_LOCK_TIMEOUT
+    )
 
 
 @pytest.fixture
@@ -115,7 +130,7 @@ def docker_project_dir() -> Iterator[Path]:
             "/mnt",
         ],
         capture_output=True,
-        timeout=30,
+        timeout=DOCKER_CLEANUP_TIMEOUT,
     )
     shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -244,8 +259,7 @@ def test_docker_constraint_conflict(tmp_path: Path):
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
 
-    # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
-    (apps_dir / "requirements.txt").write_text("aiohttp==3.0.0\n")
+    (apps_dir / "requirements.txt").write_text(f"{CONFLICTING_REQUIREMENT}\n")
 
     result, output = run_requirements_container(apps_dir, env=NO_RETRY)
 
@@ -254,14 +268,29 @@ def test_docker_constraint_conflict(tmp_path: Path):
     assert "HASSETTE CAN'T START" in output
 
 
-def test_docker_project_install_with_lockfile(docker_project_dir: Path):
-    """Test that a project with uv.lock triggers the export-then-install path."""
-    create_project_package(
-        docker_project_dir,
-        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
-        'requires-python = ">=3.11"\ndependencies = []\n'
-        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n',
+def project_pyproject(dependencies: str = "[]", *, build_system: bool = True) -> str:
+    """Return a minimal ``test-proj`` pyproject.toml, optionally with a hatchling ``[build-system]``."""
+    content = (
+        f'[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = {dependencies}\n'
     )
+    return content + HATCHLING_BUILD_SYSTEM if build_system else content
+
+
+@pytest.mark.parametrize(
+    "pyproject_content",
+    [
+        pytest.param(project_pyproject(), id="with_lockfile"),
+        pytest.param(project_pyproject(build_system=False), id="without_build_system"),
+        pytest.param(project_pyproject('["tabulate>=0.9"]'), id="with_real_dep"),
+    ],
+)
+def test_docker_project_install_succeeds(docker_project_dir: Path, pyproject_content: str):
+    """Test that a locked project installs via the export-then-install path.
+
+    Covers a bare project, one without ``[build-system]`` (uv's default backend), and one with a
+    real dependency installed through constraints.
+    """
+    create_project_package(docker_project_dir, pyproject_content)
     result, output = run_project_container(docker_project_dir)
 
     assert result.returncode == 0, f"Project install failed. Output:\n{output}"
@@ -276,18 +305,13 @@ def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path
     cleanup must happen explicitly before the exec. Uses `docker diff` (rather than --rm) so the
     container's final filesystem state can be inspected after it exits.
     """
-    create_project_package(
-        docker_project_dir,
-        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
-        'requires-python = ">=3.11"\ndependencies = []\n'
-        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n',
-    )
+    create_project_package(docker_project_dir, project_pyproject())
 
     container_name = f"hassette-tmp-leak-test-{os.getpid()}"
     try:
         result, output = run_hassette_container(
             volumes=[f"{docker_project_dir}:/config"],
-            timeout=120,
+            timeout=PROJECT_CONTAINER_TIMEOUT,
             name=container_name,
             remove=False,
         )
@@ -306,52 +330,20 @@ def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path
         subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
 
 
-def test_docker_project_install_without_build_system(docker_project_dir: Path):
-    """Test that a project without [build-system] still installs via uv's default backend."""
-    create_project_package(
-        docker_project_dir,
-        '[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = []\n',
-    )
-    result, output = run_project_container(docker_project_dir)
-
-    assert result.returncode == 0, f"Project without [build-system] should still work. Output:\n{output}"
-    assert "project install: complete" in output
-
-
 def test_docker_project_without_lockfile_warns(docker_project_dir: Path):
     """Test that pyproject.toml without uv.lock logs a warning to run uv lock."""
     (docker_project_dir / "pyproject.toml").write_text(
         '[project]\nname = "test-proj"\nversion = "0.1.0"\ndependencies = []\n'
     )
-    result, output = run_project_container(docker_project_dir, timeout=60)
+    result, output = run_project_container(docker_project_dir, timeout=CONTAINER_TIMEOUT)
 
     assert result.returncode == 0, f"Container should still start. Output:\n{output}"
     assert "uv lock" in output, f"Expected lockfile warning. Output:\n{output}"
 
 
-def test_docker_project_install_with_real_dep(docker_project_dir: Path):
-    """Test that a project with an actual dependency gets it installed through constraints."""
-    create_project_package(
-        docker_project_dir,
-        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
-        'requires-python = ">=3.11"\ndependencies = ["tabulate>=0.9"]\n'
-        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n',
-    )
-    result, output = run_project_container(docker_project_dir)
-
-    assert result.returncode == 0, f"Project install with real dep failed. Output:\n{output}"
-    assert "project install: complete" in output
-
-
 def test_docker_project_constraint_conflict(docker_project_dir: Path):
     """Test that a project whose lockfile conflicts with hassette's constraints fails with a clear error."""
-    # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
-    create_project_package(
-        docker_project_dir,
-        '[project]\nname = "test-proj"\nversion = "0.1.0"\n'
-        'requires-python = ">=3.11"\ndependencies = ["aiohttp==3.0.0"]\n'
-        '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n',
-    )
+    create_project_package(docker_project_dir, project_pyproject(f'["{CONFLICTING_REQUIREMENT}"]'))
     result, output = run_project_container(docker_project_dir, env=NO_RETRY)
 
     assert result.returncode == 1, f"Expected exit 1 for project constraint conflict. Output:\n{output}"
@@ -380,16 +372,13 @@ def test_docker_apps_default_to_the_config_volume():
 
 def test_docker_finds_project_by_walking_up_from_the_apps_dir(docker_project_dir: Path):
     """A hautomate-style layout (project at /apps, apps in /apps/src/<pkg>) is found with no project setting."""
-    create_project_package(
-        docker_project_dir,
-        '[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = []\n',
-    )
+    create_project_package(docker_project_dir, project_pyproject(build_system=False))
     (docker_project_dir / "src" / "test_proj").mkdir(parents=True)
 
     result, output = run_hassette_container(
         volumes=[f"{docker_project_dir}:/apps"],
         env={"HASSETTE__APPS__DIRECTORY": "/apps/src/test_proj"},
-        timeout=120,
+        timeout=PROJECT_CONTAINER_TIMEOUT,
     )
 
     assert result.returncode == 0, output
