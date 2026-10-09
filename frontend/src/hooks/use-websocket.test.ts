@@ -511,6 +511,18 @@ describe("useWebSocket", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["system-status"] });
   });
 
+  it.each([true, false])("invalidates the system-status query on connectivity (connected=%s)", (connected) => {
+    const { ws, queryClient } = renderConnectedWebSocketHook();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    act(() => {
+      ws.simulateMessage({ type: "connectivity", data: { connected }, timestamp: 1000 });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledOnce();
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["system-status"] });
+  });
+
   it("drops invalid messages without updating state", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { ws } = renderConnectedWebSocketHook();

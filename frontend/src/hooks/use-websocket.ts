@@ -150,7 +150,10 @@ export function useWebSocket(): void {
             break;
 
           case "connectivity":
-            // Intentionally ignored — not consumed by the frontend UI.
+            // The hassette-to-HA link changed. The payload only carries `connected`; the
+            // aggregated system status (overall status, websocket_connected, boot_issues) lives
+            // behind /health, so refetch it rather than patching a partial copy here.
+            void queryClient.invalidateQueries({ queryKey: queryKeys.systemStatus() });
             break;
 
           case "apps_changed":
