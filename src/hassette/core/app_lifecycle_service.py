@@ -1275,16 +1275,10 @@ class AppLifecycleService(Resource):
         an app that's disabled on both sides (see `ChangeSet.metadata_apps`).
         """
         original_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items()}
-
-        # reload() replaces the config only when the new one is valid, so on failure both the config
-        # and the registry stay as they are, and the next save triggers a fresh attempt.
-        try:
+        try:  # reload() swaps in only a valid config: on failure, config and registry stay as they are
             self.hassette.config.reload()
-        except ConfigError as exc:
-            self.logger.error("Configuration reload rejected, keeping the running configuration: %s", exc)
-            return original_apps_config, {k: deepcopy(v) for k, v in original_apps_config.items()}
-        except Exception as exc:
-            self.logger.exception("Failed to reload configuration, keeping the running configuration: %s", exc)
+        except Exception as exc:  # an invalid config on disk (ConfigError) needs no traceback; a bug does
+            self.logger.error("Config reload rejected: %s", exc, exc_info=not isinstance(exc, ConfigError))
             return original_apps_config, {k: deepcopy(v) for k, v in original_apps_config.items()}
 
         self.set_apps_configs(self.hassette.config.apps.manifests)
