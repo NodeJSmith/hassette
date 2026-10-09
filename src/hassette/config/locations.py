@@ -90,7 +90,7 @@ def resolve_locations(
 
     explicit = config_dir if config_dir is not None else env_lookup(environ, CONFIG_DIR_ENV_NAMES)
     if explicit is not None:
-        resolved_dir = absolute(explicit, cwd)
+        resolved_dir = anchored(explicit, cwd)
         search_dirs = [resolved_dir]
         config_home = resolved_dir
     else:
@@ -143,20 +143,17 @@ def is_config_dir_env(name: str) -> bool:
 def anchored(path: str | PurePath, base: Path) -> Path:
     """Return `path` with ``~`` expanded and anchored at `base` when relative, with ``..`` collapsed.
 
-    Symlinks are not resolved, so a path the user wrote keeps its spelling.
+    Symlinks are not resolved, so a path the user wrote keeps its spelling. A config file reached
+    through a symlinked directory therefore anchors its relative paths at the link, whether it was
+    found by search or named with ``--config-file``.
     """
     return Path(os.path.normpath(base / Path(path).expanduser()))
-
-
-def absolute(path: str | PurePath, base: Path) -> Path:
-    """Return `anchored(path, base)` with symlinks resolved."""
-    return anchored(path, base).resolve()
 
 
 def file_list(files: FileList, cwd: Path) -> tuple[Path, ...]:
     if isinstance(files, str | PurePath):
         files = [files]
-    return tuple(absolute(f, cwd) for f in files)
+    return tuple(anchored(f, cwd) for f in files)
 
 
 def search(dirs: Sequence[Path], name: str) -> tuple[Path, ...]:

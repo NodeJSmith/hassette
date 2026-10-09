@@ -48,8 +48,8 @@ class TomlTable:
 class ConfigBuild:
     """Inputs and records for constructing one config."""
 
-    environ: Mapping[str, str]
-    """Process environment snapshot that every build of this config reads."""
+    environ: Mapping[str, str] = field(repr=False)
+    """Process environment snapshot that every build of this config reads (kept out of repr: it holds secrets)."""
 
     locations: ConfigLocations
     cwd: Path

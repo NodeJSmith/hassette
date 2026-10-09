@@ -181,6 +181,10 @@ To keep a separate mount instead, leave `./apps:/apps` in place and add `HASSETT
 
 Use `docker compose up -d` after editing the compose file, not `docker restart`, which keeps the container's old environment.
 
+### App Config `.env` Files
+
+`AppConfig` reads the same `.env` files as the running Hassette config, so values in a file passed with `--env-file` now reach your app settings. A subclass that sets `env_file` in its `model_config` keeps pydantic-settings' meaning: `env_file=None` reads no `.env` file. Under the testing harness, which reads no config files, `AppConfig` reads no `.env` file either; set test values directly instead.
+
 ### Verify the Upgrade
 
 Run `hassette run --check` (in Docker, the `docker compose exec` form above) and confirm `APPS_DIR` points where your apps live. Then start Hassette and look for the `Apps directory:` line in the logs, followed by your apps loading.

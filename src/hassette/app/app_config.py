@@ -10,6 +10,15 @@ from hassette.config.locations import resolve_locations
 from hassette.exceptions import HassetteNotInitializedError
 from hassette.types.enums import BlockingIOBehavior, ForgottenAwaitBehavior
 
+INHERIT_HASSETTE_ENV_FILES = "<inherit the running Hassette config's .env files>"
+"""Marker `AppConfig` sets as its ``env_file`` default, meaning "read the running Hassette config's ``.env`` files".
+
+It is never read as a path: `AppConfig.settings_customise_sources` replaces the dotenv source while
+``env_file`` still holds it. A subclass that sets ``env_file`` itself, ``None`` included, overwrites
+the marker and gets pydantic-settings' own meaning (``None`` reads no ``.env`` file). pydantic-settings'
+default is already ``None``, which is why ``None`` can't be the marker.
+"""
+
 
 class AppConfig(BaseSettings):
     """Base configuration class for applications in the Hassette framework.
@@ -25,6 +34,7 @@ class AppConfig(BaseSettings):
         arbitrary_types_allowed=True,
         env_ignore_empty=True,
         use_attribute_docstrings=True,
+        env_file=INHERIT_HASSETTE_ENV_FILES,
     )
 
     @classmethod
@@ -36,15 +46,16 @@ class AppConfig(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        """Read the same ``.env`` files as the running Hassette config, unless the subclass pins ``env_file``."""
-        if cls.model_config.get("env_file") is not None:
-            return (init_settings, env_settings, dotenv_settings, file_secret_settings)
-        return (
-            init_settings,
-            env_settings,
-            DotEnvSettingsSource(settings_cls, env_file=list(hassette_env_files())),
-            file_secret_settings,
-        )
+        """Read the same ``.env`` files as the running Hassette config, unless the subclass sets ``env_file``."""
+        if cls.model_config.get("env_file") == INHERIT_HASSETTE_ENV_FILES:
+            return (
+                init_settings,
+                env_settings,
+                DotEnvSettingsSource(settings_cls, env_file=list(hassette_env_files())),
+                file_secret_settings,
+            )
+        # the subclass set env_file itself: pydantic-settings reads it as usual
+        return (init_settings, env_settings, dotenv_settings, file_secret_settings)
 
     instance_name: str = ""
     """Name for the instance of the app."""

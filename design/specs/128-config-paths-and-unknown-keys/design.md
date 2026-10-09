@@ -424,12 +424,12 @@ Under A:
 - The dead `config_file`/`env_file` settings fields are removed; `--config-file`/`--env-file` arrive as `HassetteConfig` init arguments. Setting either name now fails as an unknown key, listed in the `upgrading.md` migration table.
 - A subclass can pin its files with `model_config["toml_file"]`/`["env_file"]` (`None` searches, `[]` reads none); the hermetic test config passes `config_file=[]`/`env_file=[]` as init arguments instead, because pydantic-settings warns about a pinned `toml_file` on a class whose sources omit a TOML source.
 - `apps.directory` and `data_dir` defaults come from `default_factory` functions that read the build in progress (`config/build.py`), not from a lowest-priority source, so a subclass's own field default (TestConfig's scratch `data_dir`) still wins.
-- `ConfigError` subclasses `ValueError`, and `HassetteConfig` wraps construction `ValidationError`s into it in every mode, so any invalid config raises one type.
-- `AppConfig` reads the running Hassette config's `.env` list (or the default search outside one) unless a subclass pins `env_file`, so it now sees values from a custom `--env-file` without `import_dot_env_files`, as it already did for the default files.
+- `ConfigError` subclasses `ValueError`, and `HassetteConfig` wraps construction `ValidationError`s into it in every mode, and the settings sources raise it for a config file they can't read or parse (naming the file), so any invalid config raises one type.
+- `AppConfig` reads the running Hassette config's `.env` list (or the default search outside one) unless a subclass sets `env_file` (its base default is the `HASSETTE_ENV_FILES` marker, so a subclass's `None` keeps pydantic-settings' "no `.env`" meaning), so it now sees values from a custom `--env-file` without `import_dot_env_files`, as it already did for the default files.
 - Bootstrap logging (`__main__.entrypoint`) writes to stderr for every command, not only `--check`: stdout is data for `--json` and `--check`, and `hassette run` switches to its configured stream once Hassette starts.
 - `hassette run --check` prints a config error as plain text rather than logging it, so the multi-line message stays readable when stderr isn't a terminal (logging renders JSON there).
 - TOML did-you-mean suggestions match the last segment against settings in the same table, so `logging.levle` gets no suggestion instead of `logging.all_events`.
-- D10's startup lines aren't pinned by a test: the repo's invariants forbid log-capture tests, and the behavior has no other signal.
+- D10's warning decision is `utils.app_utils.apps_dir_warning`, unit-tested on its return value; `startup_tasks` only logs it.
 - `docker_start.sh`: when `--check` prints no locations (container args like `--help`/`--version`), it skips installs and goes straight to `exec hassette run`; it drops a user-supplied `--check` from its own check call (passing the flag twice is a usage error); a non-78 failure of the check halts with a container-arguments remedy.
 - The project-dir walk-up stops below `/app`, the image's own install, which holds Hassette's `pyproject.toml` and `uv.lock` (reachable when `apps.directory` is under `/app`, as in `scripts/docker/ha-demo.yml`).
 - The requirements scan skips the apps dir as a separate root when it is inside the config dir, so each `requirements.txt` is installed once.
@@ -439,6 +439,10 @@ Under A:
 - D11's reference link is `https://hassette.readthedocs.io/en/stable/pages/core-concepts/configuration/`: the published path includes `pages/` (`docs_dir: docs`), and `stable` matches every other docs link in the repo. A test checks the URL names a page under `docs/`.
 - A `.env` file that sets `HASSETTE_CONFIG_DIR` (single underscore) fails D3's check like `HASSETTE__CONFIG_DIR`, instead of being silently ignored.
 - Config loading is split into `config/locations.py` (resolver, including the old `helpers.default_config_dir`), `config/build.py` (the build in progress), `config/sources.py` (settings sources, including the TOML source formerly in `classes.py`) and `config/checks.py` (unknown keys, D3); pointers above to the old homes predate the split.
+- Explicit `config_dir`, `--config-file` and `--env-file` keep the user's spelling (no symlink resolution beyond the resolved cwd that relative ones anchor at), like searched files, so a file reached through a symlinked directory anchors its relative paths at the link however it was named.
+- The environment snapshot is kept out of `repr` on `LoadInputs` and `ConfigBuild`, since it holds every secret in the process environment.
+- `LoadInputs` records the build's `cwd` and `reload()` replays it, so relative location inputs resolve the same way on reload even if the process cwd changed.
+- A test walks the settings model tree and fails on any path-bearing field shape `anchor_paths` can't anchor (D4's "every Path field").
 - The TOML settings source takes the resolver's absolute file list directly; the `toml_paths` normalizer it no longer needs is deleted.
 
 ## Addendum

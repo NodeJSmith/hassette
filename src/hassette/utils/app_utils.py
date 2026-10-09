@@ -544,3 +544,12 @@ def _ensure_on_sys_path(dir_path: Path) -> None:
 
     if str(dir_path) not in sys.path:
         sys.path.insert(0, str(dir_path))
+
+
+def apps_dir_warning(apps_dir: Path, *, has_apps: bool) -> str | None:
+    """Return the startup warning for an apps directory that is missing or holds no apps, else None."""
+    if not apps_dir.is_dir():
+        return f"Apps directory {apps_dir} does not exist"
+    if not has_apps:
+        return f"No apps found or configured in apps directory {apps_dir}"
+    return None

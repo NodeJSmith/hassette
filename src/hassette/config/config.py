@@ -1,7 +1,7 @@
 import os
 from collections.abc import Mapping
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import Path
 from typing import Any
@@ -62,7 +62,9 @@ PYDANTIC_INSTANCE_STATE = ("__dict__", "__pydantic_fields_set__", "__pydantic_ex
 class LoadInputs:
     """What a config was built from, replayed by `HassetteConfig.reload`."""
 
-    environ: Mapping[str, str]
+    environ: Mapping[str, str] = field(repr=False)
+    """Kept out of repr: the snapshot holds every secret in the process environment."""
+    cwd: Path
     config_file: FileList | None
     env_file: FileList | None
     check_keys: bool
@@ -375,6 +377,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         config_file: FileList | None = None,
         env_file: FileList | None = None,
         check_keys: bool = True,
+        cwd: Path | None = None,
         **kwargs: Any,
     ) -> None:
         """Load the configuration from init kwargs, the environment, ``.env`` files and ``hassette.toml``.
@@ -389,13 +392,19 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 way with ``model_config["env_file"]``.
             check_keys: Reject keys that match no setting, and ``config_dir`` set in a file. CLI client
                 commands pass False so a typo doesn't stop ``hassette status``.
+            cwd: Directory every relative input (location arguments, env and init-kwarg paths)
+                resolves against. Defaults to the current directory now; `reload` reuses it.
             **kwargs: Setting values, the highest-priority source. A ``config_dir`` here is explicit.
+
+                Note: relative ``str``/``Path`` values of path settings resolve against `cwd`, but a
+                model instance (``apps=AppsConfig(directory=Path("rel"))``) is used as given, without
+                anchoring.
 
         Raises:
             ConfigError: The configuration is invalid.
         """
         environ = dict(os.environ if environ is None else environ)
-        cwd = Path.cwd()
+        cwd = (cwd or Path.cwd()).resolve()
         model_config = type(self).model_config
         locations = resolve_locations(
             environ,
@@ -423,7 +432,14 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         for name in kwargs:
             if isinstance(validated := getattr(self, name, None), SecretStr):
                 init_kwargs[name] = validated
-        self._load_inputs = LoadInputs(environ, config_file, env_file, check_keys, init_kwargs)
+        self._load_inputs = LoadInputs(
+            environ=environ,
+            cwd=cwd,
+            config_file=config_file,
+            env_file=env_file,
+            check_keys=check_keys,
+            init_kwargs=init_kwargs,
+        )
         self._locations = locations
 
     def reload(self) -> None:
@@ -440,6 +456,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         inputs = self._load_inputs
         candidate = type(self)(
             environ=inputs.environ,
+            cwd=inputs.cwd,
             config_file=inputs.config_file,
             env_file=inputs.env_file,
             check_keys=inputs.check_keys,

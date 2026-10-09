@@ -173,6 +173,27 @@ class TestErrorSource:
         assert not str(exc_info.value).startswith("Invalid configuration")
 
 
+class TestUnreadableFile:
+    @pytest.mark.parametrize(
+        ("toml", "dotenv", "filename"),
+        [
+            pytest.param("[apps\n", "", "hassette.toml", id="malformed-toml"),
+            pytest.param("x = '\xff'\n", "", "hassette.toml", id="toml-not-utf8"),
+            pytest.param("", "HASSETTE__BASE_URL=\xff\n", ".env", id="dotenv-not-utf8"),
+        ],
+    )
+    def test_is_a_file_config_error_naming_the_file(self, cfg: Path, toml: str, dotenv: str, filename: str) -> None:
+        # latin-1 turns "\xff" into a lone 0xff byte, which is invalid UTF-8
+        (cfg / "hassette.toml").write_bytes(toml.encode("latin-1"))
+        (cfg / ".env").write_bytes(dotenv.encode("latin-1"))
+
+        with pytest.raises(ConfigError) as exc_info:
+            HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg)})
+
+        assert not isinstance(exc_info.value, EnvironmentConfigError)
+        assert str(cfg / filename) in str(exc_info.value)
+
+
 class TestConfigDirInAFile:
     @pytest.mark.parametrize(
         ("toml", "dotenv", "filename"),
@@ -241,3 +262,22 @@ class TestReload:
         live.reload()
 
         assert live.only_apps == ("kitchen",)
+
+    def test_reload_resolves_relative_inputs_against_the_original_cwd(
+        self, cfg: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        (cfg / "hassette.toml").write_text('base_url = "http://from-cfg:8123"\n', encoding="utf-8")
+        monkeypatch.chdir(cfg.parent)
+        live = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": cfg.name})
+
+        monkeypatch.chdir(cfg)
+        live.reload()
+
+        assert live.config_dir == cfg
+        assert live.base_url == "http://from-cfg:8123"
+
+    def test_environment_snapshot_stays_out_of_repr(self, cfg: Path) -> None:
+        (cfg / "hassette.toml").write_text("", encoding="utf-8")
+        live = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg), "UNRELATED_SECRET": "hunter2"})
+
+        assert "hunter2" not in repr(live._load_inputs)

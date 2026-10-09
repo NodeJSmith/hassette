@@ -7,6 +7,7 @@ config's inputs, and anchor relative paths: values from a file are relative to t
 directory, values from the process env and init kwargs to the working directory.
 """
 
+import tomllib
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from logging import getLogger
 from pathlib import Path
@@ -29,6 +30,7 @@ from hassette.config.classes import (
 )
 from hassette.config.locations import anchored, is_config_dir_env
 from hassette.config.models import AppsConfig
+from hassette.exceptions import ConfigError
 
 LOGGER = getLogger(__name__)
 
@@ -64,7 +66,10 @@ class FileDotEnvSettingsSource(DotEnvSettingsSource):
     def _read_env_files(self) -> Mapping[str, str | None]:
         if not self.path.is_file():
             return {}
-        raw = dict(dotenv_values(self.path, encoding=self.env_file_encoding or "utf8"))
+        try:
+            raw = dict(dotenv_values(self.path, encoding=self.env_file_encoding or "utf8"))
+        except (OSError, UnicodeDecodeError) as exc:  # python-dotenv skips malformed lines; it has no parse error
+            raise config_file_error(self.path, exc) from exc
         # HASSETTE_CONFIG_DIR has no settings prefix but is a config_dir spelling: record it so a
         # .env that sets it is reported instead of silently ignored
         record_keys(self.build, self, raw.items(), str(self.path), also=is_config_dir_env)
@@ -107,7 +112,11 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
         InitSettingsSource.__init__(self, settings_cls, self.toml_data)
 
     def read_table(self, settings_cls: type[BaseSettings], path: Path, build: ConfigBuild | None) -> dict[str, Any]:
-        table = normalize_toml_file(settings_cls, self._read_file(path))
+        try:
+            raw = self._read_file(path)
+        except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+            raise config_file_error(path, exc) from exc
+        table = normalize_toml_file(settings_cls, raw)
         if build is not None:
             build.toml_tables.append(TomlTable(path, table))
         return anchor_paths(settings_cls, table, path.parent)
@@ -143,6 +152,11 @@ def anchor_paths(model: type[BaseModel], data: dict[str, Any], base: Path) -> di
         elif model is AppsConfig and key == "apps" and isinstance(value, dict):  # [hassette.apps.apps.my_app]
             out[key] = {k: anchor_paths(AppManifest, v, base) if isinstance(v, dict) else v for k, v in value.items()}
     return out
+
+
+def config_file_error(path: Path, exc: Exception) -> ConfigError:
+    """Return the `ConfigError` to raise (``from exc``) for a config file that can't be read or parsed."""
+    return ConfigError(f"Can't load config file {path}: {exc}")
 
 
 def anchor(value: Any, base: Path) -> Any:

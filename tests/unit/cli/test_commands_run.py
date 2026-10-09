@@ -180,6 +180,20 @@ class TestRunCheck:
         assert "bogus" in captured.err
         assert captured.err.count("Invalid configuration") == 1
 
+    def test_malformed_toml_is_a_file_config_error(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        toml = clean_hassette_env / "hassette.toml"
+        toml.write_text("[apps\n", encoding="utf-8")
+
+        with pytest.raises(SystemExit) as exc_info:
+            cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
+
+        captured = capsys.readouterr()
+        assert exc_info.value.code == EX_CONFIG
+        assert captured.out.splitlines() == ["CONFIG_ERROR_SOURCE=file"]
+        assert str(toml) in captured.err
+
     def test_environment_config_error_names_the_environment(
         self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
     ) -> None:

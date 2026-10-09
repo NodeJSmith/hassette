@@ -1,13 +1,18 @@
 """Where config files are looked up, and what relative paths and ``apps.directory`` resolve to."""
 
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any, get_args
 
 import pytest
+from pydantic import BaseModel
 
 from hassette import HassetteConfig
 from hassette.config import locations
+from hassette.config.classes import AppManifest, is_path_annotation, model_annotation
 from hassette.config.helpers import get_log_level
 from hassette.config.locations import resolve_locations
+from hassette.config.models import AppsConfig
 
 
 @pytest.fixture
@@ -112,6 +117,30 @@ class TestRelativePaths:
         assert config.cli.token_file == cfg / "token"
         assert config.apps.apps["my_app"]["app_dir"] == cfg / "sub"
 
+    def test_symlinked_config_file_anchors_at_the_link(self, tmp_path: Path) -> None:
+        link = symlinked_config_dir(tmp_path)
+
+        config = HassetteConfig(environ={}, config_file=link / "hassette.toml", env_file=[], check_keys=False)
+
+        assert config.apps.directory == link / "apps"
+
+    def test_symlinked_config_dir_anchors_at_the_link(self, tmp_path: Path) -> None:
+        link = symlinked_config_dir(tmp_path)
+
+        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(link)}, check_keys=False)
+
+        assert config.apps.directory == link / "apps"
+
+    def test_every_path_field_shape_is_anchored(self) -> None:
+        """A path-bearing field `anchor_paths` can't anchor (e.g. ``list[Path]``) would stay cwd-relative."""
+        unsupported = [
+            name
+            for name, annotation in walk_annotations(HassetteConfig)
+            if mentions_path(annotation) and not is_path_annotation(annotation)
+        ]
+
+        assert unsupported == []
+
     def test_parent_segments_are_collapsed(self, tmp_path: Path) -> None:
         cfg = tmp_path / "cfg"
         write(cfg / "hassette.toml", '[apps]\ndirectory = "../apps"\n')
@@ -178,3 +207,31 @@ class TestBootstrapLogLevel:
         monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
 
         assert get_log_level() == "INFO"
+
+
+def symlinked_config_dir(tmp_path: Path) -> Path:
+    """Write ``real/hassette.toml`` setting a relative apps directory; return a symlink ``link`` -> ``real``."""
+    write(tmp_path / "real" / "hassette.toml", '[apps]\ndirectory = "apps"\n')
+    link = tmp_path / "link"
+    link.symlink_to(tmp_path / "real")
+    return link
+
+
+def walk_annotations(model: type[BaseModel], prefix: str = "") -> Iterator[tuple[str, Any]]:
+    """Yield each field's dotted name and annotation, descending into nested models.
+
+    App definitions under ``apps`` are walked as `AppManifest`, mirroring how `anchor_paths` treats them.
+    """
+    for name, info in model.model_fields.items():
+        yield f"{prefix}{name}", info.annotation
+        if (sub := model_annotation(info.annotation)) is not None:
+            yield from walk_annotations(sub, f"{prefix}{name}.")
+    if model is AppsConfig:
+        yield from walk_annotations(AppManifest, f"{prefix}<app>.")
+
+
+def mentions_path(annotation: Any) -> bool:
+    """True when ``Path`` appears anywhere in `annotation` (``list[Path]`` too), unlike `is_path_annotation`,
+    which accepts only the shapes `anchor_paths` anchors (``Path``, ``Path | None``).
+    """
+    return annotation is Path or any(mentions_path(arg) for arg in get_args(annotation))
