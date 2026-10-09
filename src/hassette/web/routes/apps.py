@@ -202,8 +202,8 @@ async def _run_app_action(
     start/stop/reload endpoint shares.
 
     ``AppBootstrapNotReleasedError`` maps to a retryable 409. It is only reachable from
-    start/reload — ``stop_app`` never awaits bootstrap release — so the ``stop`` endpoint
-    declares no 409 response.
+    start/reload — ``stop_app`` never awaits bootstrap release — so the ``stop`` endpoint's
+    only 409 is ``action_in_progress`` below.
 
     ``AppBlockedError`` also maps to a non-retryable 409: the app is excluded by the ``--app``
     filter, so start/reload was rejected outright (see ``AppLifecycleService``'s blocked-app
@@ -211,12 +211,13 @@ async def _run_app_action(
     "accepted" for a request nothing acted on. Also only reachable from start/reload, for the
     same reason as the bootstrap case above.
 
-    ``action_in_progress`` (409) answers at once when another action already holds this app's
-    lifecycle lock. Waiting for the lock would run the action late, after a client with a request
+    ``action_in_progress`` (409) answers at once when another action holds or is queued for this
+    app's lifecycle lock (``AppKeyLock.busy``, which stays true across a release-to-waiter
+    handoff). Waiting for the lock would run the action late, after a client with a request
     timeout has already given up on it. The check is race-free because ``operation()`` reaches
     the lock without suspending: under the default ``REJECT_IF_UNRELEASED`` admission,
     ``_admit_start()`` is awaited but only does a synchronous release check, and an uncontended
-    ``asyncio.Lock`` is acquired without yielding. ``AppLifecycleService``'s tests pin this.
+    lock is acquired without yielding. ``AppLifecycleService``'s tests pin this.
 
     ``instance_index`` is echoed back on the response as-is (already validated by
     ``_require_valid_instance_index`` before this function is called) so a caller can confirm

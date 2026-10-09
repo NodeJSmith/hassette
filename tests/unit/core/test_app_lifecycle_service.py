@@ -14,7 +14,7 @@ import pytest
 
 from hassette.bus import Bus
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
-from hassette.testing import EventCapture
+from hassette.testing import EventCapture, wait_for
 from tests.support.factories import make_change_set
 
 from .conftest import assert_load_completed_count, set_registry_apps
@@ -399,6 +399,46 @@ class TestIsActionInProgress:
         await lifecycle_service.stop_app("test_app")
 
         assert observed == {"test_app": True, "other_app": False}
+        assert lifecycle_service.is_action_in_progress("test_app") is False
+
+    async def test_true_while_a_queued_action_is_being_handed_the_lock(
+        self, lifecycle_service: AppLifecycleService
+    ) -> None:
+        """An action queued behind a finishing one keeps the app busy through the lock handoff.
+
+        ``release()`` clears ``locked()`` before the queued waiter re-takes the lock. A web request
+        landing in that gap would otherwise pass the check and then wait behind the queued action,
+        the late-run behavior the 409 exists to prevent. Observed synchronously inside
+        ``release()`` because the woken waiter may run before the test task resumes.
+        """
+        first_entered = asyncio.Event()
+        gate = asyncio.Event()
+
+        async def fake_unlocked(_app_key: str) -> None:
+            if not first_entered.is_set():
+                first_entered.set()
+                await gate.wait()
+
+        lifecycle_service._stop_app_unlocked = AsyncMock(side_effect=fake_unlocked)
+        lock = lifecycle_service._get_app_key_lock("test_app")
+        observed_at_handoff: list[tuple[bool, bool]] = []
+        real_release = lock.release
+
+        def observing_release() -> None:
+            real_release()
+            if not observed_at_handoff:
+                observed_at_handoff.append((lock.locked(), lifecycle_service.is_action_in_progress("test_app")))
+
+        lock.release = observing_release  # pyright: ignore[reportAttributeAccessIssue]
+        first = asyncio.create_task(lifecycle_service.stop_app("test_app"))
+        await asyncio.wait_for(first_entered.wait(), timeout=1)
+        second = asyncio.create_task(lifecycle_service.stop_app("test_app"))
+        await wait_for(lambda: bool(lock._waiters), desc="second stop_app queued on the app-key lock")
+
+        gate.set()
+        await asyncio.wait_for(asyncio.gather(first, second), timeout=1)
+
+        assert observed_at_handoff == [(False, True)]
         assert lifecycle_service.is_action_in_progress("test_app") is False
 
     @pytest.mark.parametrize(

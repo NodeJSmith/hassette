@@ -15,6 +15,7 @@ from hassette_wire import LogLevel, ResourceStatus
 import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
 from hassette.core.app_factory import AppFactory
+from hassette.core.app_key_lock import AppKeyLock
 from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
 from hassette.exceptions import (
     AppBlockedError,
@@ -138,7 +139,7 @@ class AppLifecycleService(Resource):
         # live listener/job rows. Never held across the admission wait, so REJECT_IF_UNRELEASED
         # callers fail fast. The web API reads it via is_action_in_progress() to reject a concurrent
         # action instead of queuing it. Entries are never pruned, bounded by distinct app_keys.
-        self._app_key_locks: dict[str, asyncio.Lock] = {}
+        self._app_key_locks: dict[str, AppKeyLock] = {}
 
     async def on_initialize(self) -> None:
         """Signal readiness immediately — no dependencies to wait for."""
@@ -383,13 +384,13 @@ class AppLifecycleService(Resource):
     def bootstrap_coordinator(self) -> "AppBootstrapCoordinator":
         return self.hassette.app_bootstrap_coordinator
 
-    def _get_app_key_lock(self, app_key: str) -> asyncio.Lock:
-        return self._app_key_locks.setdefault(app_key, asyncio.Lock())
+    def _get_app_key_lock(self, app_key: str) -> AppKeyLock:
+        return self._app_key_locks.setdefault(app_key, AppKeyLock())
 
     def is_action_in_progress(self, app_key: str) -> bool:
-        """Whether a start, stop, reload, or config reconciliation currently holds ``app_key``'s lock."""
+        """Whether a start, stop, reload, or config reconciliation holds or is waiting for ``app_key``'s lock."""
         lock = self._app_key_locks.get(app_key)
-        return lock is not None and lock.locked()
+        return lock is not None and lock.busy
 
     def _resolve_manifest(self, app_key: str) -> "AppManifest | None":
         """Fetch ``app_key``'s manifest, logging the standard skip message if it is absent.

@@ -44,7 +44,7 @@ These codes come from specific endpoints. Each endpoint lists the ones it can re
 | `invalid_token` | 401 | The token sent to `POST /api/auth/session` is wrong. |
 | `job_not_registered` | 409 | The scheduled job has no live registration: never registered, or removed since the caller saw it. |
 
-The three `409` codes on the app action endpoints (`POST /api/apps/{app_key}/start` and the others) mean different things. `bootstrap_not_released` clears on its own once Hassette finishes connecting, so a retry succeeds. `app_blocked` does not clear until the `--app` filter changes. `action_in_progress` means Hassette is still working on an earlier action for the same app, such as a reload whose request timed out on the client side. Hassette rejects the new action instead of queuing it, so check the app's status before sending it again.
+The three `409` codes on the app action endpoints (`POST /api/apps/{app_key}/start` and the others) mean different things. `bootstrap_not_released` clears on its own once Hassette finishes connecting, so a retry succeeds. `app_blocked` does not clear until the `--app` filter changes. `action_in_progress` means Hassette is still working on an earlier action for the same app, such as a reload whose request timed out on the client side. Hassette rejects the new action instead of queuing it. Once the app's status shows the earlier action has finished, the same request succeeds.
 
 ## Codes any endpoint can return
 
