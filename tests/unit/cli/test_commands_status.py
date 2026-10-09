@@ -65,7 +65,7 @@ class TestCmdStatus:
         status_data = make_system_status_response(app_count=20)
         client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
         output = runner.stdout(client, cmd_status)
-        assert "20 instances (excludes stopped apps)" in output
+        assert "20 instances (running/failed only)" in output
 
     def test_status_degraded_prints_status_not_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Status command prints status body (not an error) when instance is 'degraded' (200)."""

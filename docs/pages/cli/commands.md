@@ -49,7 +49,7 @@ $ hassette status
 │  bootstrap_released      true                                │
 │  uptime_seconds          16.57                               │
 │  entity_count            103                                 │
-│  app_count               3 instances (excludes stopped apps) │
+│  app_count               3 instances (running/failed only)   │
 │  services                EventStreamService, BusService, ... │
 │  version                 0.32.0                              │
 │  boot_issues             []                                  │
