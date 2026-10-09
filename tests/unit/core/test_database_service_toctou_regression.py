@@ -9,7 +9,8 @@ import asyncio
 import pytest
 
 # Underscore-prefixed names below are intentional test-only reaches into module internals.
-from hassette.core.database_service import DatabaseService, _WriteQueueItem
+from hassette.core.database_service import DatabaseService
+from hassette.core.database_write_queue import _WriteQueueItem
 from tests.unit.core._fixtures_database_service import initialized_service_with_worker, mock_hassette, service
 
 __all__ = ["initialized_service_with_worker", "mock_hassette", "service"]  # re-exposed as fixtures
