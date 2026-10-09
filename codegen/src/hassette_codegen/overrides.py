@@ -2,7 +2,7 @@
 
 import sys
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from hassette_codegen.extractors.properties import ExtractedProperty
@@ -18,6 +18,8 @@ class PropertyOverride:
     add: bool = False
     remove: bool = False
     union_mode: str | None = None
+    aliases: list[str] = field(default_factory=list)
+    """Extra input keys accepted for the field (HA's wire keys). Unlike ``wire_name``, the field name is unchanged."""
 
 
 @dataclass
@@ -60,6 +62,7 @@ def load_overrides(overrides_dir: Path | None = None) -> dict[str, DomainOverrid
                 add=p.get("add", False),
                 remove=p.get("remove", False),
                 union_mode=p.get("union_mode"),
+                aliases=p.get("aliases", []),
             )
             for p in data.get("property_overrides", [])
         ]
@@ -86,23 +89,22 @@ def apply_property_overrides(
     properties: list[ExtractedProperty],
     overrides: list[PropertyOverride],
 ) -> list[ExtractedProperty]:
-    """Apply property overrides: rename, retype, or add properties. Returns a new list."""
+    """Apply property overrides: rename, retype, alias, add, or remove properties. Returns a new list."""
     if not overrides:
         return properties
 
-    result = [
-        ExtractedProperty(name=p.name, python_type=p.python_type, has_default=p.has_default, union_mode=p.union_mode)
-        for p in properties
-    ]
+    result = list(properties)
 
     for ov in overrides:
         if ov.add:
+            name = ov.wire_name or ov.name
             result.append(
                 ExtractedProperty(
-                    name=ov.wire_name or ov.name,
+                    name=name,
                     python_type=ov.type or "str | None",
                     has_default=True,
                     union_mode=ov.union_mode,
+                    validation_aliases=_alias_choices(ov.aliases, name),
                 )
             )
             continue
@@ -114,17 +116,26 @@ def apply_property_overrides(
                 print(f"WARNING: remove override for '{ov.name}' did not match any property", file=sys.stderr)
             continue
 
-        for prop in result:
+        for i, prop in enumerate(result):
             if prop.name == ov.name:
-                if ov.wire_name:
-                    prop.name = ov.wire_name
-                if ov.type:
-                    prop.python_type = ov.type
-                if ov.union_mode:
-                    prop.union_mode = ov.union_mode
+                name = ov.wire_name or prop.name
+                result[i] = replace(
+                    prop,
+                    name=name,
+                    python_type=ov.type or prop.python_type,
+                    union_mode=ov.union_mode or prop.union_mode,
+                    validation_aliases=_alias_choices(ov.aliases, name) if ov.aliases else prop.validation_aliases,
+                )
                 break
 
     return result
+
+
+def _alias_choices(aliases: list[str], field_name: str) -> tuple[str, ...]:
+    """Wire keys first, then the field name, so data keyed by hassette's own field names still validates."""
+    if not aliases:
+        return ()
+    return (*aliases, field_name)
 
 
 def validate_overrides(

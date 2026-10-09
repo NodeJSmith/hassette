@@ -16,10 +16,11 @@ from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, EnvSettingsSource
 
 from hassette.config.build import ENVIRONMENT_SOURCE, ConfigBuild
-from hassette.config.classes import AppManifest, is_mapping_annotation, model_annotation, str_aliases
+from hassette.config.classes import AppManifest, is_mapping_annotation, model_annotation
 from hassette.config.locations import ENV_NESTED_DELIMITER, SETTINGS_ENV_PREFIX, ConfigLocations, is_config_dir_env
 from hassette.config.models import AppsConfig
 from hassette.exceptions import ConfigError
+from hassette.utils.alias_utils import str_aliases
 
 CONFIG_REFERENCE_URL = "https://hassette.readthedocs.io/en/stable/pages/core-concepts/configuration/"
 """Docs-site configuration reference: ``site_url`` in ``mkdocs.yml``, the version, then the page's path under

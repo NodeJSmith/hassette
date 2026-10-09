@@ -22,7 +22,7 @@ export interface GroupDef {
 export const GROUP_DEFS: GroupDef[] = [
   { key: "err", label: "FAILING", tone: "err", defaultOpen: true, healthy: false },
   { key: "blocked", label: "BLOCKED", tone: "err", defaultOpen: true, healthy: false },
-  { key: "warn", label: "SLOW", tone: "warn", defaultOpen: true, healthy: false },
+  { key: "warn", label: "WARNING", tone: "warn", defaultOpen: true, healthy: false },
   { key: HEALTHY_GROUP_KEY, label: "RUNNING", tone: "ok", defaultOpen: false, healthy: true },
   { key: "stopped", label: "STOPPED", tone: "mute", defaultOpen: true, healthy: false },
   { key: "disabled", label: "DISABLED", tone: "mute", defaultOpen: false, healthy: true },

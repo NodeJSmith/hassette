@@ -15,10 +15,10 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings
 
 from hassette.types.types import is_framework_key
+from hassette.utils.alias_utils import alias_groups, canonicalize_aliases
 
 LOCAL_OVERLAY_INFIX = ".local"
 
@@ -50,39 +50,6 @@ def is_path_annotation(annotation: Any) -> bool:
 def is_mapping_annotation(annotation: Any) -> bool:
     """True when `annotation` is ``dict`` or a parameterized ``dict[...]``."""
     return getattr(annotation, "__origin__", annotation) is dict
-
-
-def str_aliases(info: FieldInfo) -> tuple[str, ...]:
-    """Return the string aliases pydantic validates `info`'s field by, in lookup order.
-
-    A ``validation_alias`` replaces ``alias`` for validation, so only one of them counts.
-    """
-    alias = info.validation_alias or info.alias
-    choices = alias.choices if isinstance(alias, AliasChoices) else (alias,)
-    return tuple(c for c in choices if isinstance(c, str))
-
-
-def alias_groups(model: type[BaseModel]) -> list[tuple[str, ...]]:
-    """Return each multi-spelling field's string aliases in pydantic's lookup order; the first is canonical."""
-    groups: list[tuple[str, ...]] = []
-    for info in model.model_fields.values():
-        names = str_aliases(info)
-        if len(names) > 1:
-            groups.append(names)
-    return groups
-
-
-def canonicalize_aliases(data: dict[str, Any], groups: list[tuple[str, ...]]) -> dict[str, Any]:
-    """Rewrite alias keys to each group's canonical spelling; if several are present, the first in order wins."""
-    out = dict(data)
-    for group in groups:
-        present = [k for k in group if k in out]
-        if present and present != [group[0]]:
-            value = out[present[0]]
-            for key in present:
-                del out[key]
-            out[group[0]] = value
-    return out
 
 
 def canonicalize_table(settings_cls: type[BaseSettings], data: dict[str, Any]) -> dict[str, Any]:

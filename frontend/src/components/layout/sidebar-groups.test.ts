@@ -9,7 +9,7 @@ type LiveStatuses = Record<string, AppStatusEntry>;
 const NO_LIVE_STATUSES: LiveStatuses = {};
 
 describe("getGroupKey", () => {
-  it("groups a degraded manifest under the warn (SLOW) group, not healthy", () => {
+  it("groups a degraded manifest under the warn (WARNING) group, not healthy", () => {
     const manifest = createAppSummary({
       status: "degraded",
       instance_count: 2,

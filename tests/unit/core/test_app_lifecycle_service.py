@@ -13,7 +13,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock, call, patch
 import pytest
 
 from hassette.bus import Bus
-from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
+from hassette.core.app_lifecycle_common import AppAdmissionMode
+from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.testing import EventCapture, wait_for
 from tests.support.factories import make_change_set
 

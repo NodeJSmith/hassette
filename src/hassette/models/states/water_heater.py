@@ -1,7 +1,7 @@
 from enum import IntFlag, StrEnum
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from .base import AttributesBase, StringBaseState
 
@@ -38,11 +38,19 @@ class WaterHeaterAttributes(AttributesBase):
     min_temp: float | None = Field(default=None)
     operation_list: list[str] | None = Field(default=None)
     precision: float | None = Field(default=None)
-    target_temperature_high: float | None = Field(default=None)
-    target_temperature_low: float | None = Field(default=None)
-    target_temperature: float | None = Field(default=None)
+    target_temperature_high: float | None = Field(
+        default=None, validation_alias=AliasChoices("target_temp_high", "target_temperature_high")
+    )
+    target_temperature_low: float | None = Field(
+        default=None, validation_alias=AliasChoices("target_temp_low", "target_temperature_low")
+    )
+    target_temperature: float | None = Field(
+        default=None, validation_alias=AliasChoices("temperature", "target_temperature")
+    )
     temperature_unit: str | None = Field(default=None)
-    target_temperature_step: float | None = Field(default=None)
+    target_temperature_step: float | None = Field(
+        default=None, validation_alias=AliasChoices("target_temp_step", "target_temperature_step")
+    )
 
     @property
     def supports_target_temperature(self) -> bool:

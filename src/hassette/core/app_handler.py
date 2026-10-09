@@ -13,7 +13,8 @@ from hassette_wire import LogLevel
 from hassette.bus import Bus
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
+from hassette.core.app_lifecycle_common import AppAdmissionMode
+from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
