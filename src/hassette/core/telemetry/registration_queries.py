@@ -1,5 +1,6 @@
 """Registration-level telemetry query methods: listener and job summaries, slow handlers."""
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from hassette_wire import JobSummary, QuerySourceTier
@@ -28,61 +29,36 @@ if TYPE_CHECKING:
     import aiosqlite
 
 
-class RegistrationQueriesMixin:
-    """Listener/job registration-summary query methods, mixed into TelemetryQueryService."""
+@dataclass(frozen=True)
+class RegistrationSummarySource:
+    """The per-kind pieces of a registration summary query; see ``build_registration_summary_query``."""
 
-    if TYPE_CHECKING:
-        # Provided by TelemetryQueryService; declared for type narrowing within the mixin.
-        execute: "Callable[..., AbstractAsyncContextManager[aiosqlite.Cursor]]"
+    table: str
+    """Registration table (``listeners`` or ``scheduled_jobs``)."""
 
-    async def get_listener_summary(
-        self,
-        app_key: str | None = None,
-        instance_index: int | None = None,
-        since: float | None = None,
-        source_tier: QuerySourceTier = APP_SOURCE_TIER,
-    ) -> list[ListenerSummaryRow]:
-        """Return per-listener summaries, optionally filtered to a specific app instance.
+    alias: str
+    """SQL alias for ``table``; ``select_columns`` must reference the table through it."""
 
-        When ``app_key`` is ``None``, returns all listeners across all apps (no WHERE filter
-        on app_key or instance_index). When ``app_key`` is provided, returns only listeners
-        for that app and instance (``instance_index`` defaults to 0).
+    fk_column: str
+    """Column on ``executions`` that references ``table.id``."""
 
-        Args:
-            app_key: The app key to filter by. ``None`` returns all apps.
-            instance_index: The app instance index to filter by. Ignored when ``app_key`` is ``None``.
-            since: When provided, restrict invocation counts to records with
-                ``execution_start_ts >= since`` (Unix epoch float).
-            source_tier: Filter listeners by source tier.
-        """
-        tier_clause, tier_params = source_tier_clause(source_tier, "l")
-        since_join_clause, since_params = since_clause(since, "e.execution_start_ts")
-        since_err_clause, _ = since_clause(since, "e_err.execution_start_ts")
+    kind: str
+    """SQL literal for the ``executions.kind`` value belonging to this registration type."""
 
-        join_condition = f"e.listener_id = l.id {since_join_clause}"
+    tombstone_columns: tuple[str, ...]
+    """Timestamp columns that must all be NULL for a registration to count as live."""
 
-        if app_key is not None:
-            where_clause = "l.app_key = :app_key AND l.instance_index = :instance_index"
-            params: dict[str, Any] = {
-                "app_key": app_key,
-                "instance_index": instance_index if instance_index is not None else 0,
-                **tier_params,
-                **since_params,
-            }
-        else:
-            where_clause = SQL_NO_FILTER
-            params = {**tier_params, **since_params}
+    select_columns: str
+    """Registration columns and execution aggregates; ``e`` is the executions row, ``last_err`` the latest failure."""
 
-        query = f"""
-            WITH ranked_errors AS (
-                SELECT e_err.listener_id, e_err.error_type, e_err.error_message,
-                       e_err.error_traceback, e_err.execution_start_ts,
-                       ROW_NUMBER() OVER (PARTITION BY e_err.listener_id ORDER BY e_err.execution_start_ts DESC) AS rn
-                FROM executions e_err
-                WHERE e_err.kind = {SQL_KIND_HANDLER}
-                  AND e_err.status IN {SQL_FAILED_STATUSES} {since_err_clause}
-            )
-            SELECT
+
+LISTENER_SUMMARY_SOURCE = RegistrationSummarySource(
+    table="listeners",
+    alias="l",
+    fk_column="listener_id",
+    kind=SQL_KIND_HANDLER,
+    tombstone_columns=("removed_at",),
+    select_columns=f"""
                 l.id AS listener_id,
                 l.app_key,
                 l.instance_index,
@@ -116,67 +92,16 @@ class RegistrationQueriesMixin:
                 MAX(e.execution_start_ts) AS last_invoked_at,
                 last_err.error_type AS last_error_type,
                 last_err.error_message AS last_error_message,
-                last_err.error_traceback AS last_error_traceback
-            FROM listeners l
-            LEFT JOIN executions e ON {join_condition} AND e.kind = {SQL_KIND_HANDLER}
-            LEFT JOIN ranked_errors last_err ON last_err.listener_id = l.id AND last_err.rn = 1
-            WHERE {where_clause}
-            AND l.removed_at IS NULL
-            {tier_clause}
-            GROUP BY l.id
-        """
-        async with self.execute(query, params) as cursor:
-            rows = await cursor.fetchall()
-        return [ListenerSummaryRow.model_validate(row_to_dict(row)) for row in rows]
+                last_err.error_traceback AS last_error_traceback""",
+)
 
-    async def get_job_summary(
-        self,
-        app_key: str | None = None,
-        instance_index: int | None = None,
-        since: float | None = None,
-        source_tier: QuerySourceTier = APP_SOURCE_TIER,
-    ) -> list[JobSummary]:
-        """Return per-job summaries, optionally filtered to a specific app instance.
-
-        When ``app_key`` is ``None``, returns all jobs across all apps (no WHERE filter
-        on app_key or instance_index). When ``app_key`` is provided, returns only jobs
-        for that app and instance (``instance_index`` defaults to 0).
-
-        Args:
-            app_key: The app key to filter by. ``None`` returns all apps.
-            instance_index: The app instance index to filter by. Ignored when ``app_key`` is ``None``.
-            since: When provided, restrict execution counts to records with
-                ``execution_start_ts >= since`` (Unix epoch float).
-            source_tier: Filter jobs by source tier.
-        """
-        tier_clause, tier_params = source_tier_clause(source_tier, "sj")
-        since_join_clause, since_params = since_clause(since, "e.execution_start_ts")
-        since_err_clause, _ = since_clause(since, "e_err.execution_start_ts")
-
-        join_condition = f"e.job_id = sj.id {since_join_clause}"
-
-        if app_key is not None:
-            where_clause = "sj.app_key = :app_key AND sj.instance_index = :instance_index"
-            params: dict[str, Any] = {
-                "app_key": app_key,
-                "instance_index": instance_index if instance_index is not None else 0,
-                **tier_params,
-                **since_params,
-            }
-        else:
-            where_clause = SQL_NO_FILTER
-            params = {**tier_params, **since_params}
-
-        query = f"""
-            WITH ranked_errors AS (
-                SELECT e_err.job_id, e_err.error_type, e_err.error_message,
-                       e_err.error_traceback, e_err.execution_start_ts,
-                       ROW_NUMBER() OVER (PARTITION BY e_err.job_id ORDER BY e_err.execution_start_ts DESC) AS rn
-                FROM executions e_err
-                WHERE e_err.kind = {SQL_KIND_JOB}
-                  AND e_err.status IN {SQL_FAILED_STATUSES} {since_err_clause}
-            )
-            SELECT
+JOB_SUMMARY_SOURCE = RegistrationSummarySource(
+    table="scheduled_jobs",
+    alias="sj",
+    fk_column="job_id",
+    kind=SQL_KIND_JOB,
+    tombstone_columns=("removed_at", "retired_at"),
+    select_columns=f"""
                 sj.id AS job_id,
                 sj.app_key,
                 sj.instance_index,
@@ -211,16 +136,75 @@ class RegistrationQueriesMixin:
                 last_err.error_type AS last_error_type,
                 last_err.error_message AS last_error_message,
                 last_err.execution_start_ts AS last_error_ts,
-                last_err.error_traceback AS last_error_traceback
-            FROM scheduled_jobs sj
-            LEFT JOIN executions e ON {join_condition} AND e.kind = {SQL_KIND_JOB}
-            LEFT JOIN ranked_errors last_err ON last_err.job_id = sj.id AND last_err.rn = 1
-            WHERE {where_clause}
-            AND sj.removed_at IS NULL
-            AND sj.retired_at IS NULL
-            {tier_clause}
-            GROUP BY sj.id
+                last_err.error_traceback AS last_error_traceback""",
+)
+
+
+class RegistrationQueriesMixin:
+    """Listener/job registration-summary query methods, mixed into TelemetryQueryService."""
+
+    if TYPE_CHECKING:
+        # Provided by TelemetryQueryService; declared for type narrowing within the mixin.
+        execute: "Callable[..., AbstractAsyncContextManager[aiosqlite.Cursor]]"
+
+    async def get_listener_summary(
+        self,
+        app_key: str | None = None,
+        instance_index: int | None = None,
+        since: float | None = None,
+        source_tier: QuerySourceTier = APP_SOURCE_TIER,
+    ) -> list[ListenerSummaryRow]:
+        """Return per-listener summaries, optionally filtered to a specific app instance.
+
+        When ``app_key`` is ``None``, returns all listeners across all apps (no WHERE filter
+        on app_key or instance_index). When ``app_key`` is provided, returns only listeners
+        for that app and instance (``instance_index`` defaults to 0).
+
+        Args:
+            app_key: The app key to filter by. ``None`` returns all apps.
+            instance_index: The app instance index to filter by. Ignored when ``app_key`` is ``None``.
+            since: When provided, restrict invocation counts to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
+            source_tier: Filter listeners by source tier.
         """
+        query, params = build_registration_summary_query(
+            LISTENER_SUMMARY_SOURCE,
+            app_key=app_key,
+            instance_index=instance_index,
+            since=since,
+            source_tier=source_tier,
+        )
+        async with self.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+        return [ListenerSummaryRow.model_validate(row_to_dict(row)) for row in rows]
+
+    async def get_job_summary(
+        self,
+        app_key: str | None = None,
+        instance_index: int | None = None,
+        since: float | None = None,
+        source_tier: QuerySourceTier = APP_SOURCE_TIER,
+    ) -> list[JobSummary]:
+        """Return per-job summaries, optionally filtered to a specific app instance.
+
+        When ``app_key`` is ``None``, returns all jobs across all apps (no WHERE filter
+        on app_key or instance_index). When ``app_key`` is provided, returns only jobs
+        for that app and instance (``instance_index`` defaults to 0).
+
+        Args:
+            app_key: The app key to filter by. ``None`` returns all apps.
+            instance_index: The app instance index to filter by. Ignored when ``app_key`` is ``None``.
+            since: When provided, restrict execution counts to records with
+                ``execution_start_ts >= since`` (Unix epoch float).
+            source_tier: Filter jobs by source tier.
+        """
+        query, params = build_registration_summary_query(
+            JOB_SUMMARY_SOURCE,
+            app_key=app_key,
+            instance_index=instance_index,
+            since=since,
+            source_tier=source_tier,
+        )
         async with self.execute(query, params) as cursor:
             rows = await cursor.fetchall()
         return [JobSummary.model_validate(row_to_dict(row)) for row in rows]
@@ -261,3 +245,58 @@ class RegistrationQueriesMixin:
         async with self.execute(query, {"threshold_ms": threshold_ms, "limit": limit, **tier_params}) as cursor:
             rows = await cursor.fetchall()
         return [SlowHandlerRecord.model_validate(row_to_dict(row)) for row in rows]
+
+
+def build_registration_summary_query(
+    source: RegistrationSummarySource,
+    *,
+    app_key: str | None,
+    instance_index: int | None,
+    since: float | None,
+    source_tier: QuerySourceTier,
+) -> tuple[str, dict[str, Any]]:
+    """Build the per-registration summary query and its bind parameters.
+
+    Every live registration row is left-joined to its executions (restricted by ``since``) for the
+    aggregate columns, and to its most recent failed execution (via the ``ranked_errors`` CTE) for
+    the ``last_err`` columns. When ``app_key`` is ``None`` no app/instance filter is applied;
+    otherwise ``instance_index`` defaults to 0.
+    """
+    alias = source.alias
+    tier_clause, tier_params = source_tier_clause(source_tier, alias)
+    since_join_clause, since_params = since_clause(since, "e.execution_start_ts")
+    since_err_clause, _ = since_clause(since, "e_err.execution_start_ts")
+
+    if app_key is not None:
+        where_clause = f"{alias}.app_key = :app_key AND {alias}.instance_index = :instance_index"
+        params: dict[str, Any] = {
+            "app_key": app_key,
+            "instance_index": instance_index if instance_index is not None else 0,
+            **tier_params,
+            **since_params,
+        }
+    else:
+        where_clause = SQL_NO_FILTER
+        params = {**tier_params, **since_params}
+
+    live_filter = "".join(f"\n            AND {alias}.{column} IS NULL" for column in source.tombstone_columns)
+    query = f"""
+            WITH ranked_errors AS (
+                SELECT e_err.{source.fk_column}, e_err.error_type, e_err.error_message,
+                       e_err.error_traceback, e_err.execution_start_ts,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY e_err.{source.fk_column} ORDER BY e_err.execution_start_ts DESC
+                       ) AS rn
+                FROM executions e_err
+                WHERE e_err.kind = {source.kind}
+                  AND e_err.status IN {SQL_FAILED_STATUSES} {since_err_clause}
+            )
+            SELECT{source.select_columns}
+            FROM {source.table} {alias}
+            LEFT JOIN executions e ON e.{source.fk_column} = {alias}.id {since_join_clause} AND e.kind = {source.kind}
+            LEFT JOIN ranked_errors last_err ON last_err.{source.fk_column} = {alias}.id AND last_err.rn = 1
+            WHERE {where_clause}{live_filter}
+            {tier_clause}
+            GROUP BY {alias}.id
+        """
+    return query, params
