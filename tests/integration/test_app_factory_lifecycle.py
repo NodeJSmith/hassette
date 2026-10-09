@@ -416,7 +416,13 @@ class TestAppLifecycleServiceIntegration:
         with caplog.at_level(logging.DEBUG, logger="hassette"):
             await app_lifecycle.initialize_instances("failing", instances, manifest)
 
-        error_records = [record for record in caplog.records if record.levelno == logging.ERROR]
+        # Only count records from the loggers involved in this init failure. The module-scoped
+        # harness autostarts the configured test apps (MyAppSync schedules a job ~1s after boot),
+        # so unrelated framework errors can land inside this capture window.
+        init_failure_loggers = {app_lifecycle.logger.name, *(inst.logger.name for inst in instances.values())}
+        init_records = [record for record in caplog.records if record.name in init_failure_loggers]
+
+        error_records = [record for record in init_records if record.levelno == logging.ERROR]
         assert len(error_records) == 1, (
             f"expected exactly one ERROR record for the init failure, got {len(error_records)}: "
             f"{[record.getMessage() for record in error_records]}"
@@ -430,7 +436,7 @@ class TestAppLifecycleServiceIntegration:
         assert "failing_init_app.py" in surviving_message
 
         # The demoted lower-layer logs should still exist at DEBUG, not be silently dropped.
-        debug_messages = [record.getMessage() for record in caplog.records if record.levelno == logging.DEBUG]
+        debug_messages = [record.getMessage() for record in init_records if record.levelno == logging.DEBUG]
         assert any("failed" in message and "RuntimeError" in message for message in debug_messages), (
             "run_hooks()'s handle_failed() log should be demoted to DEBUG, not removed entirely"
         )
