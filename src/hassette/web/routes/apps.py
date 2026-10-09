@@ -69,10 +69,15 @@ APP_KEY_CODES = (ProblemCode.INVALID_APP_KEY,)
 KNOWN_APP_CODES = (ProblemCode.APP_NOT_FOUND,)
 """Codes ``_require_known_app`` raises."""
 
-INSTANCE_INDEX_CODES = (*APP_KEY_CODES, *KNOWN_APP_CODES, ProblemCode.INSTANCE_NOT_FOUND)
+INSTANCE_INDEX_CODES = (
+    *APP_KEY_CODES,
+    *KNOWN_APP_CODES,
+    ProblemCode.ACTION_IN_PROGRESS,
+    ProblemCode.INSTANCE_NOT_FOUND,
+)
 """Codes ``_require_valid_instance_index`` raises."""
 
-STOP_ACTION_CODES = (*APP_KEY_CODES, *KNOWN_APP_CODES, ProblemCode.ACTION_FAILED)
+STOP_ACTION_CODES = (*APP_KEY_CODES, *KNOWN_APP_CODES, ProblemCode.ACTION_IN_PROGRESS, ProblemCode.ACTION_FAILED)
 """Codes ``_run_app_action`` raises for ``stop``, which never awaits bootstrap release or checks the
 ``--app`` filter."""
 
@@ -94,6 +99,18 @@ def _generic_action_failure_detail(action: AppAction, app_key: str) -> str:
 def _validate_app_key(app_key: str) -> None:
     if not _VALID_APP_KEY.match(app_key):
         raise WebApiError(ProblemCode.INVALID_APP_KEY, f"Invalid app_key: {app_key!r}")
+
+
+def _require_no_action_in_progress(app_key: str, hassette: HassetteDep) -> None:
+    """Raise ``ACTION_IN_PROGRESS`` when another action holds or is queued for ``app_key``'s lock.
+
+    Runs before any existence or instance-range check: an in-flight action can mutate the
+    registry those checks read (stopping an orphaned app unregisters its instances before
+    awaiting their shutdown), so checking existence first would turn a concurrent request into a
+    spurious 404 instead of the 409 it should get.
+    """
+    if hassette.app_handler.is_action_in_progress(app_key):
+        raise WebApiError(ProblemCode.ACTION_IN_PROGRESS, f"Another action on app {app_key!r} is still running")
 
 
 def _orphan_app_permitted(app_key: str, hassette: HassetteDep, action: AppAction) -> bool:
@@ -141,11 +158,15 @@ def _require_valid_instance_index(app_key: str, index: int, hassette: HassetteDe
     changes. Uses the shared ``normalize_app_config()`` (``hassette.schemas``) rather than a
     web-local reimplementation, so this count can never drift from ``AppFactory``'s.
 
+    Rejects with ``action_in_progress`` before any of that, for the reason
+    ``_require_no_action_in_progress`` gives.
+
     Skips range validation for an orphaned app that ``action`` still permits (see
     ``_orphan_app_permitted``'s docstring for the ``stop``-only rationale), and for a
     still-tracked instance orphaned by a shrunk config (see ``_orphan_instance_permitted``).
     """
     _validate_app_key(app_key)
+    _require_no_action_in_progress(app_key, hassette)
     manifest = hassette.app_handler.registry.get_manifest(app_key)
     if manifest is None:
         if _orphan_app_permitted(app_key, hassette, action):
@@ -202,14 +223,23 @@ async def _run_app_action(
     start/stop/reload endpoint shares.
 
     ``AppBootstrapNotReleasedError`` maps to a retryable 409. It is only reachable from
-    start/reload — ``stop_app`` never awaits bootstrap release — so the ``stop`` endpoint
-    declares no 409 response.
+    start/reload — ``stop_app`` never awaits bootstrap release — so the ``stop`` endpoint's
+    only 409 is ``action_in_progress`` below.
 
     ``AppBlockedError`` also maps to a non-retryable 409: the app is excluded by the ``--app``
     filter, so start/reload was rejected outright (see ``AppLifecycleService``'s blocked-app
     guards) rather than silently no-op'd — without this mapping the caller would get a 202
     "accepted" for a request nothing acted on. Also only reachable from start/reload, for the
     same reason as the bootstrap case above.
+
+    ``action_in_progress`` (409) answers at once when another action holds or is queued for this
+    app's lifecycle lock (``AppKeyLock.busy``, which stays true across a release-to-waiter
+    handoff). Waiting for the lock would run the action late, after a client with a request
+    timeout has already given up on it. It runs before ``_require_known_app`` for the reason
+    ``_require_no_action_in_progress`` gives. The check is race-free because ``operation()`` reaches
+    the lock without suspending: under the default ``REJECT_IF_UNRELEASED`` admission,
+    ``_admit_start()`` is awaited but only does a synchronous release check, and an uncontended
+    lock is acquired without yielding. ``AppLifecycleService``'s tests pin this.
 
     ``instance_index`` is echoed back on the response as-is (already validated by
     ``_require_valid_instance_index`` before this function is called) so a caller can confirm
@@ -226,6 +256,7 @@ async def _run_app_action(
     response body; every failed instance is still logged.
     """
     _validate_app_key(app_key)
+    _require_no_action_in_progress(app_key, hassette)
     _require_known_app(app_key, hassette, action)
     await _await_operation(action, app_key, operation)
     _raise_if_target_failed(action, app_key, hassette, instance_index)

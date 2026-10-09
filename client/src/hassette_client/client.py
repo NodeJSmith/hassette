@@ -130,7 +130,9 @@ class HassetteClient:
 
         After a timeout or connection error the outcome is unknown. Sending ``start`` or ``stop``
         again is safe, since each converges on a state; sending ``reload`` again reloads the app a
-        second time, so check the app's status first.
+        second time, so check the app's status first. While the first action is still running, the
+        server rejects a second one on the same app with ``ActionInProgressError`` rather than
+        queuing it.
 
         Args:
             app_key: The app to act on.
@@ -144,6 +146,7 @@ class HassetteClient:
             InstanceNotFoundError: ``instance`` is out of range for the app's config.
             BootstrapNotReleasedError: Apps can't be started yet; retry later. Not raised for a stop.
             AppBlockedError: The server's ``--app`` filter excludes this app. Not raised for a stop.
+            ActionInProgressError: Another action on this app is still running. Nothing was done.
             ActionFailedError: The action ran but failed, or left a targeted instance failed.
             HassetteTimeoutError: No answer in time. The action may still have run, or still be running.
         """

@@ -126,6 +126,10 @@ class AppHandler(Resource):
             self._bootstrap_task = None
         await self.lifecycle.shutdown_all()
 
+    def is_action_in_progress(self, app_key: str) -> bool:
+        """Whether an action on ``app_key`` is running — delegates to lifecycle service."""
+        return self.lifecycle.is_action_in_progress(app_key)
+
     async def start_app(self, app_key: str, force_reload: bool = False) -> None:
         """Start an app by key — delegates to lifecycle service."""
         await self.lifecycle.start_app(app_key, force_reload=force_reload)

@@ -170,6 +170,11 @@ def raising(handler_method: str, exc: Exception) -> Arrange:
     return arrange
 
 
+def action_in_progress(mock_hassette: MagicMock, tmp_path: Path) -> None:
+    single_instance_app(mock_hassette, tmp_path)
+    mock_hassette.app_handler.is_action_in_progress = MagicMock(return_value=True)
+
+
 def instance_ends_failed(mock_hassette: MagicMock, tmp_path: Path) -> None:
     single_instance_app(mock_hassette, tmp_path)
     mock_hassette._app_handler.registry.get_failed_instance_infos.return_value = {
@@ -261,6 +266,15 @@ ROUTE_CASES = {
         operation="/api/apps/{app_key}/reload",
         arrange=raising("reload_app", BLOCKED),
     ),
+    "app-action-in-progress": ProblemCase(
+        "POST",
+        "/api/apps/my_app/stop",
+        409,
+        "action_in_progress",
+        "Another action on app 'my_app' is still running",
+        operation="/api/apps/{app_key}/stop",
+        arrange=action_in_progress,
+    ),
     "app-action-raises": ProblemCase(
         "POST",
         "/api/apps/my_app/stop",
@@ -323,6 +337,15 @@ ROUTE_CASES = {
         "App 'my_app' is blocked by the --app filter",
         operation="/api/apps/{app_key}/instances/{index}/start",
         arrange=raising("start_instance", BLOCKED),
+    ),
+    "instance-action-in-progress": ProblemCase(
+        "POST",
+        "/api/apps/my_app/instances/0/reload",
+        409,
+        "action_in_progress",
+        "Another action on app 'my_app' is still running",
+        operation="/api/apps/{app_key}/instances/{index}/reload",
+        arrange=action_in_progress,
     ),
     "instance-action-failed": ProblemCase(
         "POST",

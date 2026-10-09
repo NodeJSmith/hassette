@@ -9,6 +9,7 @@ server failure. Responses parse leniently, so this client keeps working against 
 from hassette_client.client import HassetteClient
 from hassette_client.errors import (
     ActionFailedError,
+    ActionInProgressError,
     AppBlockedError,
     AppNotFoundError,
     AuthenticationError,
@@ -45,6 +46,7 @@ __all__ = [
     "DEFAULT_REQUEST_TIMEOUT",
     "MIN_API_SCHEMA_VERSION",
     "ActionFailedError",
+    "ActionInProgressError",
     "AppBlockedError",
     "AppNotFoundError",
     "AuthenticationError",

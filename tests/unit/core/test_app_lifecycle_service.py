@@ -14,10 +14,12 @@ import pytest
 
 from hassette.bus import Bus
 from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
-from hassette.testing import EventCapture
+from hassette.testing import EventCapture, wait_for
 from tests.support.factories import make_change_set
 
 from .conftest import assert_load_completed_count, set_registry_apps
+
+WAIT_TIMEOUT_SECONDS = 1
 
 
 class TestAppLifecycleServiceInit:
@@ -378,6 +380,118 @@ class TestStopAppLocking:
 
         assert lock_held_during_call is True
         assert not lock.locked()
+
+
+class TestIsActionInProgress:
+    def test_false_for_app_key_never_locked(self, lifecycle_service: AppLifecycleService) -> None:
+        """An app key with no action yet reports idle without creating a lock for it."""
+        assert lifecycle_service.is_action_in_progress("test_app") is False
+        assert "test_app" not in lifecycle_service._app_key_locks
+
+    async def test_true_only_for_app_key_whose_action_is_running(self, lifecycle_service: AppLifecycleService) -> None:
+        """While stop_app runs, its own app key reports busy and other app keys don't; afterward it's idle."""
+        observed: dict[str, bool] = {}
+
+        async def fake_unlocked(app_key: str) -> None:
+            observed[app_key] = lifecycle_service.is_action_in_progress(app_key)
+            observed["other_app"] = lifecycle_service.is_action_in_progress("other_app")
+
+        lifecycle_service._stop_app_unlocked = AsyncMock(side_effect=fake_unlocked)
+
+        await lifecycle_service.stop_app("test_app")
+
+        assert observed == {"test_app": True, "other_app": False}
+        assert lifecycle_service.is_action_in_progress("test_app") is False
+
+    async def test_true_while_a_queued_action_is_being_handed_the_lock(
+        self, lifecycle_service: AppLifecycleService
+    ) -> None:
+        """An action queued behind a finishing one keeps the app busy through the lock handoff.
+
+        ``release()`` clears ``locked()`` before the queued waiter re-takes the lock. A web request
+        landing in that gap would otherwise pass the check and then wait behind the queued action,
+        the late-run behavior the 409 exists to prevent. Observed synchronously inside
+        ``release()`` because the woken waiter may run before the test task resumes.
+        """
+        first_entered = asyncio.Event()
+        gate = asyncio.Event()
+
+        async def fake_unlocked(_app_key: str) -> None:
+            if not first_entered.is_set():
+                first_entered.set()
+                await gate.wait()
+
+        lifecycle_service._stop_app_unlocked = AsyncMock(side_effect=fake_unlocked)
+        lock = lifecycle_service._get_app_key_lock("test_app")
+        observed_at_handoff: list[tuple[bool, bool]] = []
+        real_release = lock.release
+
+        def observing_release() -> None:
+            real_release()
+            if not observed_at_handoff:
+                observed_at_handoff.append((lock.locked(), lifecycle_service.is_action_in_progress("test_app")))
+
+        lock.release = observing_release  # pyright: ignore[reportAttributeAccessIssue]
+        first = asyncio.create_task(lifecycle_service.stop_app("test_app"))
+        await asyncio.wait_for(first_entered.wait(), timeout=WAIT_TIMEOUT_SECONDS)
+        second = asyncio.create_task(lifecycle_service.stop_app("test_app"))
+        await wait_for(lambda: bool(lock._waiters), desc="second stop_app queued on the app-key lock")
+
+        gate.set()
+        await asyncio.wait_for(asyncio.gather(first, second), timeout=WAIT_TIMEOUT_SECONDS)
+
+        assert observed_at_handoff == [(False, True)]
+        assert lifecycle_service.is_action_in_progress("test_app") is False
+
+    @pytest.mark.parametrize(
+        ("method", "args"),
+        [
+            ("start_app", ()),
+            ("stop_app", ()),
+            ("reload_app", ()),
+            ("start_instance", (0,)),
+            ("stop_instance", (0,)),
+            ("reload_instance", (0,)),
+        ],
+    )
+    async def test_lock_is_held_by_the_first_suspension(
+        self,
+        lifecycle_service: AppLifecycleService,
+        mock_hassette: MagicMock,
+        mock_registry: MagicMock,
+        mock_manifest: MagicMock,
+        method: str,
+        args: tuple[int, ...],
+    ) -> None:
+        """The web API checks is_action_in_progress() and then calls one of these methods.
+
+        That check-then-act is only race-free if nothing between the call and the lock
+        acquisition suspends. Running the coroutine to its first suspension pins it: by then
+        the lock must already be held.
+        """
+        mock_hassette.app_bootstrap_coordinator.is_released = Mock(return_value=True)
+        mock_registry.get_manifest = Mock(return_value=mock_manifest)
+        never = asyncio.Event()
+
+        async def park(*_args: object) -> None:
+            await never.wait()
+
+        for body in (
+            "_start_app_unlocked",
+            "_stop_app_unlocked",
+            "_create_instance_unlocked",
+            "_stop_instance_unlocked",
+            "_reload_instance_unlocked",
+        ):
+            setattr(lifecycle_service, body, AsyncMock(side_effect=park))
+        lifecycle_service._instance_index_in_range = Mock(return_value=True)
+
+        coro = getattr(lifecycle_service, method)("test_app", *args)
+        try:
+            coro.send(None)  # runs to the first await that suspends, then hands control back
+            assert lifecycle_service.is_action_in_progress("test_app") is True
+        finally:
+            coro.close()
 
 
 class TestApplyChangesGating:

@@ -8,7 +8,7 @@ Uses the shared `app_handler` fixture from conftest.py (also used by
 test_app_handler_readiness.py).
 """
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from hassette.core.app_handler import AppHandler
 
@@ -37,3 +37,11 @@ class TestAppHandlerInstanceFacade:
         await app_handler.start_instance("test_app", 0)
 
         app_handler.lifecycle.start_instance.assert_awaited_once_with("test_app", 0)
+
+    def test_is_action_in_progress_delegates_to_lifecycle(self, app_handler: AppHandler) -> None:
+        """is_action_in_progress() returns the lifecycle service's answer for the app key."""
+        app_handler.lifecycle.is_action_in_progress = MagicMock(return_value=True)
+
+        assert app_handler.is_action_in_progress("test_app") is True
+
+        app_handler.lifecycle.is_action_in_progress.assert_called_once_with("test_app")

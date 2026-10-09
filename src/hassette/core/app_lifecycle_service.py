@@ -15,6 +15,7 @@ from hassette_wire import LogLevel, ResourceStatus
 import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import AppChangeDetector, ChangeSet
 from hassette.core.app_factory import AppFactory
+from hassette.core.app_key_lock import AppKeyLock
 from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
 from hassette.exceptions import (
     AppBlockedError,
@@ -131,19 +132,13 @@ class AppLifecycleService(Resource):
         # pass runs at a time, matching the "single reconciliation in flight" model the rest of
         # this class already assumes.
         self._change_event_lock = asyncio.Lock()
-        # Serializes the create->initialize->reconcile pipeline per app_key. Without this, initial
-        # bootstrap's parked start_app() call (blocked in _admit_start() on WAIT_FOR_RELEASE) and an
-        # independent post-release start_app()/reload_app() call for the same app_key (e.g. a
-        # file-watcher reload landing right as release fires) can both reach factory.create_instances()
-        # concurrently. AppRegistry.register_app() then overwrites without tearing down the loser's
-        # instance, and reconcile_app_registrations() computes live_listener_ids from its own call-local
-        # instances snapshot, so the second caller can delete/retire the first caller's still-running
-        # listener/job DB rows. Held only around create->initialize->reconcile, never around the
-        # (possibly indefinite) admission wait in _admit_start(), so REJECT_IF_UNRELEASED callers keep
-        # failing fast instead of retaining a waiting task. Entries accumulate for the life of the
-        # process (never pruned on stop_app) — accepted, since growth is bounded by distinct app_keys
-        # ever seen, not by request volume.
-        self._app_key_locks: dict[str, asyncio.Lock] = {}
+        # Serializes the create->initialize->reconcile pipeline per app_key. Without it, bootstrap's parked
+        # start_app() (waiting in _admit_start()) and a post-release start/reload of the same app_key can both
+        # reach factory.create_instances(); register_app() then overwrites without tearing down the loser's
+        # instance, and the second reconcile can retire the first caller's live listener/job rows. Never held
+        # across the admission wait, so REJECT_IF_UNRELEASED callers fail fast. The web API reads it via
+        # is_action_in_progress() to reject concurrent actions. Never pruned; bounded by distinct app_keys.
+        self._app_key_locks: dict[str, AppKeyLock] = {}
 
     async def on_initialize(self) -> None:
         """Signal readiness immediately — no dependencies to wait for."""
@@ -388,8 +383,13 @@ class AppLifecycleService(Resource):
     def bootstrap_coordinator(self) -> "AppBootstrapCoordinator":
         return self.hassette.app_bootstrap_coordinator
 
-    def _get_app_key_lock(self, app_key: str) -> asyncio.Lock:
-        return self._app_key_locks.setdefault(app_key, asyncio.Lock())
+    def _get_app_key_lock(self, app_key: str) -> AppKeyLock:
+        return self._app_key_locks.setdefault(app_key, AppKeyLock())
+
+    def is_action_in_progress(self, app_key: str) -> bool:
+        """Whether a start, stop, reload, or config reconciliation holds or is waiting for ``app_key``'s lock."""
+        lock = self._app_key_locks.get(app_key)
+        return lock is not None and lock.busy
 
     def _resolve_manifest(self, app_key: str) -> "AppManifest | None":
         """Fetch ``app_key``'s manifest, logging the standard skip message if it is absent.

@@ -1877,7 +1877,7 @@ export interface components {
          *     status, is a breaking change and is flagged as one; adding a code is not.
          * @enum {string}
          */
-        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_failed" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
+        ProblemCode: "invalid_app_key" | "app_not_found" | "instance_not_found" | "bootstrap_not_released" | "app_blocked" | "action_in_progress" | "action_failed" | "telemetry_unavailable" | "source_not_found" | "path_traversal" | "source_unavailable" | "invalid_token" | "not_authenticated" | "job_not_registered" | "validation_failed" | "body_too_large" | "not_found" | "method_not_allowed" | "http_error" | "internal_error";
         /**
          * ProblemDetail
          * @description RFC 9457 problem details body returned, as ``application/problem+json``, for every web API error.
@@ -2363,7 +2363,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2430,6 +2430,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -2488,7 +2497,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2556,7 +2565,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2624,6 +2633,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -2683,7 +2701,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
+            /** @description `action_in_progress`: another action on this app is still running; nothing was done; `bootstrap_not_released`: app bootstrap prerequisites are not ready yet (retry later); `app_blocked`: the app is blocked by the --app filter (not retryable) */
             409: {
                 headers: {
                     [name: string]: unknown;
