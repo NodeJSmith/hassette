@@ -65,6 +65,20 @@ class TestResolveLocations:
         )
         assert result.config_home == tmp_path
 
+    def test_existing_docker_config_dir_is_the_config_home_when_unset(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An empty HASSETTE__CONFIG_DIR in Docker must not anchor apps at the image's own /app."""
+        docker_config = tmp_path / "config-volume"
+        docker_config.mkdir()
+        monkeypatch.setattr(locations, "DOCKER_CONFIG_DIR", docker_config)
+
+        result = resolve_locations({"HASSETTE__CONFIG_DIR": ""}, cwd=tmp_path / "app")
+
+        assert not result.config_dir_explicit
+        assert result.config_dir == docker_config
+        assert result.config_home == docker_config
+
     def test_file_flags_replace_the_search_lists(self, tmp_path: Path) -> None:
         result = resolve_locations(
             {"HASSETTE__CONFIG_DIR": "/cfg"}, config_file="my.toml", env_file="my.env", cwd=tmp_path
@@ -109,7 +123,7 @@ class TestRelativePaths:
         )
         monkeypatch.chdir(tmp_path)
 
-        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg)}, check_keys=False)
+        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg)}, strict_inputs=False)
 
         assert config.data_dir == cfg / "data"
         assert config.apps.directory == cfg / "my_apps"
@@ -120,14 +134,14 @@ class TestRelativePaths:
     def test_symlinked_config_file_anchors_at_the_link(self, tmp_path: Path) -> None:
         link = symlinked_config_dir(tmp_path)
 
-        config = HassetteConfig(environ={}, config_file=link / "hassette.toml", env_file=[], check_keys=False)
+        config = HassetteConfig(environ={}, config_file=link / "hassette.toml", env_file=[], strict_inputs=False)
 
         assert config.apps.directory == link / "apps"
 
     def test_symlinked_config_dir_anchors_at_the_link(self, tmp_path: Path) -> None:
         link = symlinked_config_dir(tmp_path)
 
-        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(link)}, check_keys=False)
+        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(link)}, strict_inputs=False)
 
         assert config.apps.directory == link / "apps"
 
@@ -145,7 +159,7 @@ class TestRelativePaths:
         cfg = tmp_path / "cfg"
         write(cfg / "hassette.toml", '[apps]\ndirectory = "../apps"\n')
 
-        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg)}, check_keys=False)
+        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg)}, strict_inputs=False)
 
         assert config.apps.directory == tmp_path / "apps"
         assert ".." not in config.apps.directory.parts
@@ -180,6 +194,7 @@ class TestRelativePaths:
 
 class TestAppsDirectoryDefault:
     def test_defaults_to_apps_in_explicit_config_dir(self, tmp_path: Path) -> None:
+        (tmp_path / "cfg").mkdir()
         config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(tmp_path / "cfg")})
 
         assert config.apps.directory == tmp_path / "cfg" / "apps"

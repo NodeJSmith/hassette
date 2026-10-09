@@ -43,7 +43,8 @@ class SnapshotEnvSettingsSource(EnvSettingsSource):
         self.build = build
         super().__init__(settings_cls)
 
-    # overrides a private pydantic-settings hook: the env mapping every env source reads
+    # overrides a private pydantic-settings hook: the env mapping every env source reads.
+    # test_unknown_keys.py's test_process_env_var fails if pydantic-settings stops calling it.
     def _load_env_vars(self) -> Mapping[str, str | None]:
         environ = self.build.environ
         record_keys(self.build, self, environ.items(), ENVIRONMENT_SOURCE)
@@ -62,7 +63,8 @@ class FileDotEnvSettingsSource(DotEnvSettingsSource):
         self.build = build
         super().__init__(settings_cls, env_file=env_file)
 
-    # overrides a private pydantic-settings hook: the mapping read from the dotenv file(s)
+    # overrides a private pydantic-settings hook: the mapping read from the dotenv file(s).
+    # test_unknown_keys.py's test_dotenv_var_any_case fails if pydantic-settings stops calling it.
     def _read_env_files(self) -> Mapping[str, str | None]:
         if not self.path.is_file():
             return {}

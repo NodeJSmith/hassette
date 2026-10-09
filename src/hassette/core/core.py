@@ -163,9 +163,17 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # After the .env import above: autodetect imports app modules, which may read os.environ at import.
         self.config.set_validated_app_manifests()
 
+        config_files = sorted(self.config.toml_files | self.config.env_files)
+        self.logger.info("Config files read: %s", ", ".join(map(str, config_files)) or "none", stacklevel=3)
+
         apps_dir = self.config.apps.directory
         self.logger.info("Apps directory: %s", apps_dir, stacklevel=3)
-        if warning := apps_dir_warning(apps_dir, has_apps=bool(self.config.apps.manifests)):
+        if warning := apps_dir_warning(
+            apps_dir,
+            has_apps=bool(self.config.apps.manifests),
+            config_file_dirs=sorted({path.parent for path in config_files}),
+            cwd=self.config.locations.cwd,
+        ):
             self.logger.warning(warning, stacklevel=3)
 
         active_apps = [app for app in self.config.apps.manifests.values() if app.enabled]

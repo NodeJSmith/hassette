@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, InitSettingsSource, PydanticBaseSett
 
 from hassette import context as ctx
 from hassette.config.build import ACTIVE_BUILD, ConfigBuild, default_build_data_dir, open_build
-from hassette.config.checks import check_config_dir_not_in_files, check_unknown_keys, config_error_from_validation
+from hassette.config.checks import check_config_dir_not_in_files, check_explicit_locations, check_unknown_keys
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin, local_overlay_paths, unsafe_cache_path_reason
 from hassette.config.defaults import get_defaults_dict
 from hassette.config.helpers import filter_paths_to_unique_existing, get_dev_mode
@@ -67,7 +67,7 @@ class LoadInputs:
     cwd: Path
     config_file: FileList | None
     env_file: FileList | None
-    check_keys: bool
+    strict_inputs: bool
     init_kwargs: dict[str, Any]
     """Setting values passed to `__init__`, with raw secrets swapped for their validated `SecretStr`."""
 
@@ -187,9 +187,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Directory ``hassette.toml`` and ``.env`` are read from, and the default home of ``apps.directory``.
 
     Set it with the ``HASSETTE__CONFIG_DIR`` environment variable or ``--config-dir``. It can't be set
-    in ``hassette.toml`` or ``.env``, since those files are found through it. When unset, Hassette
-    searches ``/config`` (if it exists) or the platform config directory, then the working directory,
-    then ``./config``."""
+    in ``hassette.toml`` or ``.env``, since those files are found through it, and an explicit one must
+    exist. When unset, Hassette searches ``/config`` (if it exists) or the platform config directory,
+    then the working directory, then ``./config``; an existing ``/config`` is then also the home of
+    ``apps.directory``."""
 
     # reads the active ConfigBuild's environment (see hassette.config.build); the live env outside one
     data_dir: Path = Field(default_factory=default_build_data_dir)
@@ -361,7 +362,10 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         return value.resolve()
 
     def ensure_directories(self) -> None:
-        """Create config_dir and data_dir if they don't exist."""
+        """Create data_dir, and config_dir when it was defaulted, if they don't exist.
+
+        An explicit config_dir that doesn't exist never gets here: construction rejects it.
+        """
         for directory in (self.config_dir, self.data_dir):
             if not directory.exists():
                 LOGGER.debug("Creating directory %s as it does not exist", directory)
@@ -376,7 +380,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         environ: Mapping[str, str] | None = None,
         config_file: FileList | None = None,
         env_file: FileList | None = None,
-        check_keys: bool = True,
+        strict_inputs: bool = True,
         cwd: Path | None = None,
         **kwargs: Any,
     ) -> None:
@@ -390,8 +394,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 pin its own with ``model_config["toml_file"]``; an empty list reads none.
             env_file: ``.env`` file(s) to read instead of searching (``--env-file``), pinned the same
                 way with ``model_config["env_file"]``.
-            check_keys: Reject keys that match no setting, and ``config_dir`` set in a file. CLI client
-                commands pass False so a typo doesn't stop ``hassette status``.
+            strict_inputs: Reject explicit locations that don't exist, keys that match no setting, and
+                ``config_dir`` set in a file. CLI client commands pass False so a typo doesn't stop
+                ``hassette status``.
             cwd: Directory every relative input (location arguments, env and init-kwarg paths)
                 resolves against. Defaults to the current directory now; `reload` reuses it.
             **kwargs: Setting values, the highest-priority source. A ``config_dir`` here is explicit.
@@ -415,14 +420,17 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             env_file=env_file if env_file is not None else model_config.get("env_file"),
             cwd=cwd,
         )
+        # before construction, so a missing file is reported instead of the errors its absence causes
+        if strict_inputs:
+            check_explicit_locations(locations)
         build = ConfigBuild(environ, locations, cwd)
         try:
             with open_build(build):
                 super().__init__(**kwargs)
         except ValidationError as exc:
-            raise config_error_from_validation(exc, build) from exc
+            raise ConfigError(str(exc)) from exc
 
-        if check_keys:
+        if strict_inputs:
             check_config_dir_not_in_files(build)
             check_unknown_keys(type(self), build)
 
@@ -437,7 +445,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             cwd=cwd,
             config_file=config_file,
             env_file=env_file,
-            check_keys=check_keys,
+            strict_inputs=strict_inputs,
             init_kwargs=init_kwargs,
         )
         self._locations = locations
@@ -459,7 +467,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             cwd=inputs.cwd,
             config_file=inputs.config_file,
             env_file=inputs.env_file,
-            check_keys=inputs.check_keys,
+            strict_inputs=inputs.strict_inputs,
             **inputs.init_kwargs,
         )
         candidate.set_validated_app_manifests()
@@ -513,25 +521,28 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         """
         return ctx.get_hassette_config()
 
+    def require_token(self) -> None:
+        """Raise `ConfigError` when no Home Assistant token is set; the server can't start without one."""
+        if not self.token:
+            raise ConfigError(
+                "HA token is required for server startup. "
+                "Set HASSETTE__TOKEN or HA_TOKEN in your environment or .env file."
+            )
+
+    def check_explicit_app_manifests(self) -> None:
+        """Validate the app entries written in the config, without autodetect (which imports app modules).
+
+        Raises:
+            ConfigError: An entry has a reserved or unsafe key, or fails `AppManifest` validation.
+        """
+        validate_app_manifests(clean_explicit_apps(self.apps))
+
     def set_validated_app_manifests(self):
         """Cleans up and validates the apps configuration, including auto-detection."""
-        cleaned_apps_dict: dict[str, AppDict] = {}
+        cleaned_apps_dict = clean_explicit_apps(self.apps)
 
         # track known paths to simplify dupe detection during auto-detect
-        known_paths: set[Path] = set()
-
-        for k, v in self.apps.apps.copy().items():
-            if not isinstance(v, dict):
-                continue
-            try:
-                v = clean_app(k, v, self.apps.directory)
-            except (KeyError, TypeError):
-                LOGGER.warning("Skipping app %r: missing required keys (filename or class_name)", k)
-                continue
-            cleaned_apps_dict[k] = v
-
-            # track known paths
-            known_paths.add(v["full_path"])
+        known_paths: set[Path] = {v["full_path"] for v in cleaned_apps_dict.values()}
 
         if self.apps.autodetect:
             autodetected_apps = autodetect_apps(self.apps.directory, known_paths, set(self.apps.exclude_dirs))
@@ -545,27 +556,49 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 cleaned_apps_dict[k] = v
                 known_paths.add(full_path.resolve())
 
-        app_manifest_dict: dict[str, AppManifest] = {}
-        for k, v in cleaned_apps_dict.items():
-            if is_framework_key(k):
-                raise ConfigError(
-                    f"App key {k!r} is reserved for framework internals "
-                    f"(reserved prefix: '{FRAMEWORK_APP_KEY_PREFIX}'). "
-                    f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
-                )
-            if reason := unsafe_app_key_reason(k):
-                raise ConfigError(
-                    f"App key {k!r} {reason}; app keys are used as cache directory names. "
-                    f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
-                )
-            try:
-                app_manifest_dict[k] = AppManifest.model_validate(v)
-            except ValidationError as exc:
-                raise ConfigError(f"Invalid app {k!r}: {exc}") from exc
-
+        app_manifest_dict = validate_app_manifests(cleaned_apps_dict)
         self.apps.manifests = app_manifest_dict
 
         warn_on_cache_key_collisions(app_manifest_dict)
+
+
+def clean_explicit_apps(apps: AppsConfig) -> dict[str, AppDict]:
+    """Return the app entries written in the config, cleaned; entries missing required keys are skipped."""
+    cleaned: dict[str, AppDict] = {}
+    for k, v in apps.apps.items():
+        if not isinstance(v, dict):
+            continue
+        try:
+            cleaned[k] = clean_app(k, v, apps.directory)
+        except (KeyError, TypeError):
+            LOGGER.warning("Skipping app %r: missing required keys (filename or class_name)", k)
+    return cleaned
+
+
+def validate_app_manifests(cleaned_apps: dict[str, AppDict]) -> dict[str, AppManifest]:
+    """Validate cleaned app entries into manifests, rejecting reserved and unsafe app keys.
+
+    Raises:
+        ConfigError: An entry has a reserved or unsafe key, or fails `AppManifest` validation.
+    """
+    manifests: dict[str, AppManifest] = {}
+    for k, v in cleaned_apps.items():
+        if is_framework_key(k):
+            raise ConfigError(
+                f"App key {k!r} is reserved for framework internals "
+                f"(reserved prefix: '{FRAMEWORK_APP_KEY_PREFIX}'). "
+                f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
+            )
+        if reason := unsafe_app_key_reason(k):
+            raise ConfigError(
+                f"App key {k!r} {reason}; app keys are used as cache directory names. "
+                f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
+            )
+        try:
+            manifests[k] = AppManifest.model_validate(v)
+        except ValidationError as exc:
+            raise ConfigError(f"Invalid app {k!r}: {exc}") from exc
+    return manifests
 
 
 def unsafe_app_key_reason(app_key: str) -> str | None:

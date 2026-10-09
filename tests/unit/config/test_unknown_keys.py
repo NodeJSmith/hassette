@@ -1,11 +1,11 @@
-"""Keys that match no setting, ``config_dir`` set in a file, and what a reload does with either."""
+"""Explicit locations that don't exist, keys that match no setting, ``config_dir`` set in a file, and reloads."""
 
 from pathlib import Path
 
 import pytest
 
 from hassette import HassetteConfig
-from hassette.config.checks import CONFIG_REFERENCE_URL, EnvironmentConfigError
+from hassette.config.checks import CONFIG_REFERENCE_URL
 from hassette.exceptions import ConfigError
 
 DOCS_DIR = Path(__file__).parents[3] / "docs"
@@ -82,10 +82,10 @@ class TestFlagged:
         for name in ("bogus", "HASSETTE__DOTENV_TYPO", "HASSETTE__APP_DIR", "HASSETTE__APPS__DIRECTRY"):
             assert message.count(f"{name} (from") == 1
 
-    def test_check_keys_false_skips_the_check(self, cfg: Path) -> None:
+    def test_strict_inputs_false_skips_the_check(self, cfg: Path) -> None:
         (cfg / "hassette.toml").write_text("bogus = 1\n", encoding="utf-8")
 
-        HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg), "HASSETTE__APP_DIR": "x"}, check_keys=False)
+        HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg), "HASSETTE__APP_DIR": "x"}, strict_inputs=False)
 
 
 class TestAccepted:
@@ -135,42 +135,73 @@ class TestSuggestions:
         assert (DOCS_DIR / page / "index.md").is_file()
 
 
-class TestErrorSource:
-    """Whether a config error came from the process environment, which decides how it is fixed."""
-
+class TestValidationError:
     @pytest.mark.parametrize(
         "kwargs",
         [
-            pytest.param({"env": {"HASSETTE__APP_DIR": "/apps"}}, id="unknown-env-var"),
-            pytest.param({"env": {"HASSETTE__APP_DIR": "/apps"}, "toml": "bogus = 1\n"}, id="env-and-file-keys"),
             pytest.param({"env": {"HASSETTE__DATABASE__RETENTION_DAYS": "0"}}, id="invalid-nested-env-value"),
             pytest.param({"env": {"HASSETTE__WEB_API__PORT": "abc"}}, id="invalid-env-value"),
-        ],
-    )
-    def test_environment(self, cfg: Path, kwargs: dict[str, str | dict[str, str]]) -> None:
-        with pytest.raises(EnvironmentConfigError):
-            load(cfg, **kwargs)  # pyright: ignore[reportArgumentType]
-
-    @pytest.mark.parametrize(
-        "kwargs",
-        [
-            pytest.param({"toml": "bogus = 1\n"}, id="unknown-toml-key"),
-            pytest.param({"dotenv": "HASSETTE__BOGUS=1\n"}, id="unknown-dotenv-key"),
             pytest.param({"toml": "[database]\nretention_days = 0\n"}, id="invalid-toml-value"),
-            pytest.param({"toml": "config_dir = '/elsewhere'\n"}, id="config-dir-in-file"),
         ],
     )
-    def test_file(self, cfg: Path, kwargs: dict[str, str]) -> None:
-        with pytest.raises(ConfigError) as exc_info:
+    def test_is_a_config_error(self, cfg: Path, kwargs: dict[str, str | dict[str, str]]) -> None:
+        with pytest.raises(ConfigError):
             load(cfg, **kwargs)  # pyright: ignore[reportArgumentType]
-
-        assert not isinstance(exc_info.value, EnvironmentConfigError)
 
     def test_validation_message_has_no_prefix(self, cfg: Path) -> None:
         with pytest.raises(ConfigError) as exc_info:
             load(cfg, env={"HASSETTE__WEB_API__PORT": "abc"})
 
         assert not str(exc_info.value).startswith("Invalid configuration")
+
+
+class TestExplicitLocations:
+    @pytest.mark.parametrize(
+        ("kwargs", "missing"),
+        [
+            pytest.param(
+                {"environ": {"HASSETTE__CONFIG_DIR": "no-such-dir"}},
+                "config directory no-such-dir",
+                id="config-dir-env",
+            ),
+            pytest.param({"config_dir": "no-such-dir"}, "config directory no-such-dir", id="config-dir-kwarg"),
+            pytest.param({"config_file": "nope.toml"}, "config file nope.toml", id="config-file"),
+            pytest.param({"env_file": ["nope.env"]}, ".env file nope.env", id="env-file"),
+        ],
+    )
+    def test_missing_explicit_location_is_a_config_error(
+        self, tmp_path: Path, kwargs: dict[str, object], missing: str
+    ) -> None:
+        kind, name = missing.rsplit(" ", 1)
+
+        with pytest.raises(ConfigError) as exc_info:
+            HassetteConfig(cwd=tmp_path, **{"environ": {}, **kwargs})  # pyright: ignore[reportArgumentType]
+
+        assert f"{kind} {tmp_path / name}" in str(exc_info.value)
+
+    def test_every_missing_location_is_listed(self, tmp_path: Path) -> None:
+        with pytest.raises(ConfigError) as exc_info:
+            HassetteConfig(
+                environ={}, cwd=tmp_path, config_dir="no-such-dir", config_file="nope.toml", env_file="nope.env"
+            )
+
+        message = str(exc_info.value)
+        assert all(name in message for name in ("no-such-dir", "nope.toml", "nope.env"))
+
+    def test_config_dir_that_is_a_file_is_an_error(self, tmp_path: Path) -> None:
+        (tmp_path / "cfg").write_text("", encoding="utf-8")
+
+        with pytest.raises(ConfigError, match="config directory"):
+            HassetteConfig(environ={}, cwd=tmp_path, config_dir="cfg")
+
+    def test_missing_searched_locations_are_skipped(self, tmp_path: Path) -> None:
+        """The default search list may name directories that don't exist; only explicit ones are checked."""
+        HassetteConfig(cwd=tmp_path, environ={})
+
+    def test_client_commands_skip_the_check(self, tmp_path: Path) -> None:
+        config = HassetteConfig(environ={}, cwd=tmp_path, config_dir="no-such-dir", strict_inputs=False)
+
+        assert config.config_dir == tmp_path / "no-such-dir"
 
 
 class TestUnreadableFile:
@@ -190,7 +221,6 @@ class TestUnreadableFile:
         with pytest.raises(ConfigError) as exc_info:
             HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg)})
 
-        assert not isinstance(exc_info.value, EnvironmentConfigError)
         assert str(cfg / filename) in str(exc_info.value)
 
 
@@ -254,6 +284,18 @@ class TestReload:
         live.reload()
 
         assert live.verify_ssl is False
+
+    def test_reload_rejects_a_deleted_explicit_file_and_keeps_the_live_config(self, tmp_path: Path) -> None:
+        """An editor's atomic save can briefly remove the file; the reload is rejected, not applied empty."""
+        toml = tmp_path / "hassette.toml"
+        toml.write_text('base_url = "http://from-file:8123"\n', encoding="utf-8")
+        live = HassetteConfig(environ={}, cwd=tmp_path, config_file=toml, env_file=[])
+        toml.unlink()
+
+        with pytest.raises(ConfigError, match=str(toml)):
+            live.reload()
+
+        assert live.base_url == "http://from-file:8123"
 
     def test_reload_replays_init_kwargs(self, cfg: Path) -> None:
         (cfg / "hassette.toml").write_text("", encoding="utf-8")

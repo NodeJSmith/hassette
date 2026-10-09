@@ -583,7 +583,8 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
     # <config home>/apps during a config build (see hassette.config.build), else ./apps
     directory: Path = Field(default_factory=default_apps_dir)
     """Directory to load user apps from: absolute, or relative to the config file that sets it. Defaults to
-    ``apps`` in the config home: ``config_dir`` when it is set explicitly, otherwise the working directory."""
+    ``apps`` in the config home: ``config_dir`` when it is set explicitly, else ``/config`` if it exists, else
+    the working directory."""
 
     @model_validator(mode="before")
     @classmethod

@@ -89,14 +89,13 @@ CONFIG_HOME=/home/you/project
 APPS_DIR=/home/you/project/apps
 ```
 
-A problem prints to stderr and exits 78, with the closest real setting name when one is near. stdout then carries one line, `CONFIG_ERROR_SOURCE=file` or `CONFIG_ERROR_SOURCE=environment`, naming what the fix edits:
+A problem prints to stderr and exits 78, with the closest real setting name when one is near:
 
 ```console
 $ hassette run --check
 Invalid configuration: Unknown configuration keys (they match no Hassette setting):
   - base_ulr (from /home/you/project/config/hassette.toml): did you mean base_url?
 See the configuration reference: https://hassette.readthedocs.io/en/stable/pages/core-concepts/configuration/
-CONFIG_ERROR_SOURCE=file
 ```
 
 In Docker, run it inside the running container (the entrypoint would pass the extra arguments on to `hassette run`):
@@ -151,7 +150,7 @@ In the old layout, `src/myapps` resolved from the working directory (`./`). Now 
 
 ### Docker: the `/apps` Volume Is Gone
 
-The image no longer sets `HASSETTE__APP_DIR`, and `apps.directory` defaults to `/config/apps`. If you do nothing, no apps load, and the entrypoint prints a note that `/apps` has files but Hassette loads apps from `/config/apps`. Moving the files under the config mount is the recommended fix:
+The image no longer sets `HASSETTE__APP_DIR`, and `apps.directory` defaults to `/config/apps`. If you do nothing, no apps load, and startup warns that `/config/apps` doesn't exist or holds no apps. Moving the files under the config mount is the recommended fix:
 
 1. Move `./apps` to `./config/apps`.
 2. Remove the `./apps:/apps` line from the `volumes:` block in your compose file.

@@ -693,7 +693,7 @@ def make_client(ctx: CLIContext) -> HassetteCLIClient:
             override paths, and the remote-target flags (``--server-url``,
             ``--token-file``, ``--no-verify-ssl``/``--verify-ssl``).
     """
-    config = HassetteConfig(token=None, check_keys=False, **ctx.config_location_kwargs())
+    config = HassetteConfig(token=None, strict_inputs=False, **ctx.config_location_kwargs())
     return HassetteCLIClient(
         config,
         json_mode=ctx.json_mode,

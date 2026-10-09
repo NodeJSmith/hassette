@@ -50,14 +50,25 @@ class ConfigLocations:
     config_dir_explicit: bool
     """Whether `config_dir` came from ``--config-dir``, an env var, or an init kwarg."""
 
+    cwd: Path
+    """Resolved directory that relative location inputs, env and CLI paths anchor at."""
+
     config_home: Path
-    """Absolute anchor for config-relative defaults (``<config home>/apps``): the explicit `config_dir`, else cwd."""
+    """Absolute anchor for config-relative defaults (``<config home>/apps``).
+
+    The explicit `config_dir`, else ``/config`` if it exists, else cwd."""
 
     toml_files: tuple[Path, ...]
     """Absolute TOML files to read, lowest priority first. Missing files are skipped when loading."""
 
     env_files: tuple[Path, ...]
     """Absolute ``.env`` files to read, lowest priority first. Missing files are skipped when loading."""
+
+    toml_files_explicit: bool
+    """Whether `toml_files` was named (``--config-file``, a pinned ``toml_file``) rather than searched."""
+
+    env_files_explicit: bool
+    """Whether `env_files` was named (``--env-file``, a pinned ``env_file``) rather than searched."""
 
     @property
     def default_apps_dir(self) -> Path:
@@ -84,7 +95,8 @@ def resolve_locations(
         cwd: Directory relative inputs resolve against. Defaults to the current working directory.
 
     With an explicit `config_dir`, only that directory is searched. Otherwise the search list is
-    the default config dir, then cwd, then ``./config``; later files win.
+    the default config dir, then cwd, then ``./config``; later files win. The config home is the
+    explicit `config_dir`, else ``/config`` if it exists, else cwd.
     """
     cwd = (cwd or Path.cwd()).resolve()
 
@@ -96,14 +108,19 @@ def resolve_locations(
     else:
         resolved_dir = default_config_dir()
         search_dirs = [resolved_dir, cwd, cwd / "config"]
-        config_home = cwd
+        # default_config_dir() returns /config only when it exists, which marks Docker or the add-on,
+        # where cwd is the image's own install
+        config_home = resolved_dir if resolved_dir == DOCKER_CONFIG_DIR else cwd
 
     return ConfigLocations(
         config_dir=resolved_dir,
         config_dir_explicit=explicit is not None,
+        cwd=cwd,
         config_home=config_home,
         toml_files=file_list(config_file, cwd) if config_file is not None else search(search_dirs, CONFIG_FILE_NAME),
         env_files=file_list(env_file, cwd) if env_file is not None else search(search_dirs, ENV_FILE_NAME),
+        toml_files_explicit=config_file is not None,
+        env_files_explicit=env_file is not None,
     )
 
 

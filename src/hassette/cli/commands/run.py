@@ -12,9 +12,10 @@ from cyclopts import Parameter
 
 from hassette.cli.client import emit_usage_error
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.config.checks import ERROR_SOURCE_ENVIRONMENT, ERROR_SOURCE_FILE, EnvironmentConfigError
 from hassette.config.config import HassetteConfig
+from hassette.config.helpers import get_log_level
 from hassette.exceptions import AppPrecheckFailedError, ConfigError, FatalError
+from hassette.logging_ import enable_basic_logging
 from hassette.server import main as run_server
 
 LOGGER = getLogger("hassette.cli")
@@ -90,6 +91,10 @@ def cmd_run(
         check_config(init_kwargs)
         return
 
+    # The server logs its whole run to stdout, as a service should; until here the bootstrap
+    # fallback wrote to stderr so commands whose stdout is data keep it clean.
+    enable_basic_logging(get_log_level(), log_format="auto")
+
     config: HassetteConfig | None = None
     try:
         config = HassetteConfig(**init_kwargs)
@@ -121,21 +126,26 @@ def cmd_run(
 
 
 def check_config(init_kwargs: dict[str, Any]) -> None:
-    """Build the config with its key checks, then print the resolved locations for ``docker_start.sh``.
+    """Build and check the config as ``hassette run`` would, then print the resolved locations for ``docker_start.sh``.
 
-    stdout carries only shell-quoted ``KEY=VALUE`` lines, which the entrypoint evaluates: the
-    resolved, absolute ``CONFIG_DIR``, ``CONFIG_HOME`` and ``APPS_DIR`` on success, or
-    ``CONFIG_ERROR_SOURCE`` (``environment`` or ``file``, naming what the fix edits) on a config
-    error. Nothing else may reach stdout: ``hassette.__main__.entrypoint`` sends bootstrap logging to
-    stderr, and apps aren't imported. A config error is printed as plain text, not logged, so its
-    lines stay readable when stderr isn't a terminal (where logging renders JSON).
+    Beyond construction's checks, it requires a token and validates the app entries written in the
+    config. Autodetected apps are skipped, since finding them imports app modules.
+
+    On success, stdout carries only shell-quoted ``KEY=VALUE`` lines, which the entrypoint
+    evaluates: the resolved, absolute ``CONFIG_DIR``, ``CONFIG_HOME`` and ``APPS_DIR``. The
+    entrypoint proceeds only on exit 0 with all three present. Nothing else may reach stdout:
+    ``hassette.__main__.entrypoint`` sends bootstrap logging to stderr, and apps aren't imported.
+
+    A config error prints nothing to stdout and exits 78. Its message is printed to stderr as plain
+    text, not logged, so its lines stay readable when stderr isn't a terminal (where logging renders
+    JSON).
     """
     try:
         config = HassetteConfig(**init_kwargs)
+        config.require_token()
+        config.check_explicit_app_manifests()
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
-        source = ERROR_SOURCE_ENVIRONMENT if isinstance(exc, EnvironmentConfigError) else ERROR_SOURCE_FILE
-        print_shell_var("CONFIG_ERROR_SOURCE", source)
         raise SystemExit(EX_CONFIG) from None
     print_shell_var("CONFIG_DIR", config.config_dir)
     print_shell_var("CONFIG_HOME", config.locations.config_home)

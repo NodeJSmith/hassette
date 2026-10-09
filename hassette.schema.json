@@ -103,7 +103,7 @@
           "title": "Token"
         },
         "config_dir": {
-          "description": "Directory ``hassette.toml`` and ``.env`` are read from, and the default home of ``apps.directory``.\n\nSet it with the ``HASSETTE__CONFIG_DIR`` environment variable or ``--config-dir``. It can't be set\nin ``hassette.toml`` or ``.env``, since those files are found through it. When unset, Hassette\nsearches ``/config`` (if it exists) or the platform config directory, then the working directory,\nthen ``./config``.",
+          "description": "Directory ``hassette.toml`` and ``.env`` are read from, and the default home of ``apps.directory``.\n\nSet it with the ``HASSETTE__CONFIG_DIR`` environment variable or ``--config-dir``. It can't be set\nin ``hassette.toml`` or ``.env``, since those files are found through it, and an explicit one must\nexist. When unset, Hassette searches ``/config`` (if it exists) or the platform config directory,\nthen the working directory, then ``./config``; an existing ``/config`` is then also the home of\n``apps.directory``.",
           "format": "path",
           "title": "Config Dir",
           "type": "string"
@@ -371,7 +371,7 @@
           "type": "object"
         },
         "directory": {
-          "description": "Directory to load user apps from: absolute, or relative to the config file that sets it. Defaults to\n``apps`` in the config home: ``config_dir`` when it is set explicitly, otherwise the working directory.",
+          "description": "Directory to load user apps from: absolute, or relative to the config file that sets it. Defaults to\n``apps`` in the config home: ``config_dir`` when it is set explicitly, else ``/config`` if it exists, else\nthe working directory.",
           "format": "path",
           "title": "Directory",
           "type": "string"

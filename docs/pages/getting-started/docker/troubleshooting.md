@@ -16,7 +16,8 @@ If the logs show a "HASSETTE CAN'T START" banner, Hassette hit an error it can't
 ─────────────────────────────────────────────────────────
   HASSETTE CAN'T START: the configuration is invalid (see above)
 
-  Fix the file named above, then run: docker restart <container>
+  Fix the setting named above (in its file or your compose environment), then run: docker compose up -d
+  (docker restart keeps the old environment)
 
   Retrying in 300s (HASSETTE_DOCKER_RETRY_DELAY; 0 exits at once).
 ─────────────────────────────────────────────────────────
@@ -24,22 +25,17 @@ If the logs show a "HASSETTE CAN'T START" banner, Hassette hit an error it can't
 
 The container stays up showing the banner for the retry delay, then exits, and Docker restarts it. The wait keeps Docker from looping on the error (and repeating a dependency install). Set `HASSETTE_DOCKER_RETRY_DELAY` in the compose `environment:` block: the default is 300 seconds, and `0` exits at once.
 
-Where you fix the problem decides how to restart:
+After a config fix, run `docker compose up -d` whether you edited the compose file's `environment:` block or a file under `./config`. Recreating the container rereads both; `docker restart` keeps the old environment, so it can't apply a compose change.
 
-| You edited | Run |
-|---|---|
-| The compose file's `environment:` block | `docker compose up -d` (`docker restart` keeps the old environment) |
-| A file under `./config`, such as `config/.env` or `hassette.toml` | `docker restart hassette` |
+A config error includes a missing token and unknown settings. If you copied settings from an older version or a tutorial, a retired name such as `HASSETTE__APP_DIR` or `HASSETTE__INSTALL_DEPS` triggers it — see [Upgrading](../../operating/upgrading.md#config-paths-and-unknown-keys).
 
-A config error includes unknown settings. If you copied settings from an older version or a tutorial, a retired name such as `HASSETTE__APP_DIR` or `HASSETTE__INSTALL_DEPS` triggers it — see [Upgrading](../../operating/upgrading.md#config-paths-and-unknown-keys).
-
-Without a banner, the two most common causes are a missing token and an unreachable Home Assistant instance.
-
-**Missing token.** Hassette reads `HASSETTE__TOKEN` from `/config/.env` inside the container — that's the `./config/.env` file on your host. If that value is absent, Hassette exits at startup. Open your `config/.env` file and confirm the line is present:
+**Missing token.** The banner follows `HA token is required for server startup`. Hassette reads `HASSETTE__TOKEN` from `/config/.env` inside the container — that's the `./config/.env` file on your host. Open your `config/.env` file and confirm the line is present:
 
 ```
 HASSETTE__TOKEN=your_long_lived_token_here
 ```
+
+Without a banner, the most common cause is a Home Assistant instance Hassette can't reach.
 
 **Wrong base URL.** `HASSETTE__BASE_URL` must point to Home Assistant's HTTP interface. Use `http://homeassistant:8123` when HA runs as a container on the same Docker network (for example, in the same compose file); otherwise use your HA instance's IP address. Match the scheme to the URL you use for HA in your browser — `http://` or `https://`. Using `https://` when HA serves plain HTTP causes a connection failure.
 
@@ -63,7 +59,7 @@ Hassette reports a successful connection in the logs, but your apps never initia
 
 If this returns an empty directory or an error, check that your apps are in `./config/apps` on the host and that `compose.yml` mounts `./config:/config`.
 
-If your compose file still mounts `./apps:/apps` from an earlier version, Hassette ignores that directory and prints a note at startup. Move the files into `./config/apps/` and remove the `./apps:/apps` line. To keep the separate mount instead, add `HASSETTE__APPS__DIRECTORY: /apps` to the compose `environment:` block.
+If your compose file still mounts `./apps:/apps` from an earlier version, Hassette ignores that directory, and startup warns that `/config/apps` doesn't exist or holds no apps. Move the files into `./config/apps/` and remove the `./apps:/apps` line. To keep the separate mount instead, add `HASSETTE__APPS__DIRECTORY: /apps` to the compose `environment:` block.
 
 **Syntax error in an app file.** A Python syntax error prevents that app from loading. Scan the logs for errors:
 

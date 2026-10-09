@@ -141,7 +141,29 @@ def test_unknown_key_exits_78_before_starting(
     mock_run_server.assert_not_called()
 
 
+def test_server_logs_to_stdout(clean_hassette_env: Path) -> None:
+    """`hassette run` keeps its whole log on stdout; only data commands route bootstrap logging to stderr."""
+    env = {**os.environ, "HASSETTE__CONFIG_DIR": str(clean_hassette_env)}  # no token: fails at config check
+
+    result = subprocess.run(
+        [sys.executable, "-m", "hassette", "run"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert result.returncode == EX_CONFIG, result.stderr
+    assert "HA token is required" in result.stdout
+    assert "HA token is required" not in result.stderr
+
+
 class TestRunCheck:
+    @pytest.fixture(autouse=True)
+    def token(self, clean_hassette_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HASSETTE__TOKEN", "test-token")
+
     def test_prints_only_the_resolved_locations(
         self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -155,16 +177,51 @@ class TestRunCheck:
             f"APPS_DIR='{clean_hassette_env / 'my apps'}'",
         ]
 
-    @patch("hassette.cli.commands.run.HassetteConfig.set_validated_app_manifests")
-    def test_does_not_validate_manifests_or_start(
-        self, mock_validate: AsyncMock, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    @patch("hassette.config.config.autodetect_apps")
+    def test_does_not_autodetect_apps_or_start(
+        self, mock_autodetect: AsyncMock, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
+        """Autodetect imports app modules, which `--check` must never do."""
         with patch("hassette.cli.commands.run.run_server", new_callable=AsyncMock) as mock_run_server:
             cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
 
-        mock_validate.assert_not_called()
+        mock_autodetect.assert_not_called()
         mock_run_server.assert_not_called()
         assert len(capsys.readouterr().out.splitlines()) == 3
+
+    def test_missing_token_exits_78(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("HASSETTE__TOKEN")
+
+        with pytest.raises(SystemExit) as exc_info:
+            cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
+
+        captured = capsys.readouterr()
+        assert exc_info.value.code == EX_CONFIG
+        assert captured.out == ""
+        assert "HA token is required" in captured.err
+
+    @pytest.mark.parametrize(
+        ("entry", "error"),
+        [
+            pytest.param('[apps.porch]\nfilename = "porch.py"\nclass_name = "Porch"\ncache_key = "../escape"\n',
+                         "Invalid app 'porch'", id="unsafe-cache-key"),
+            pytest.param('[apps."a/b"]\nfilename = "ab.py"\nclass_name = "AB"\n', "App key 'a/b'", id="unsafe-key"),
+        ],
+    )  # fmt: skip
+    def test_invalid_explicit_app_entry_exits_78(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str], entry: str, error: str
+    ) -> None:
+        (clean_hassette_env / "hassette.toml").write_text(entry, encoding="utf-8")
+
+        with pytest.raises(SystemExit) as exc_info:
+            cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
+
+        captured = capsys.readouterr()
+        assert exc_info.value.code == EX_CONFIG
+        assert captured.out == ""
+        assert error in captured.err
 
     def test_config_error_exits_78_with_the_error_on_stderr(
         self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
@@ -176,11 +233,11 @@ class TestRunCheck:
 
         captured = capsys.readouterr()
         assert exc_info.value.code == EX_CONFIG
-        assert captured.out.splitlines() == ["CONFIG_ERROR_SOURCE=file"]
+        assert captured.out == ""
         assert "bogus" in captured.err
         assert captured.err.count("Invalid configuration") == 1
 
-    def test_malformed_toml_is_a_file_config_error(
+    def test_malformed_toml_is_a_config_error_naming_the_file(
         self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         toml = clean_hassette_env / "hassette.toml"
@@ -191,22 +248,17 @@ class TestRunCheck:
 
         captured = capsys.readouterr()
         assert exc_info.value.code == EX_CONFIG
-        assert captured.out.splitlines() == ["CONFIG_ERROR_SOURCE=file"]
+        assert captured.out == ""
         assert str(toml) in captured.err
-
-    def test_environment_config_error_names_the_environment(
-        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("HASSETTE__APP_DIR", "/apps")
-
-        with pytest.raises(SystemExit):
-            cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
-
-        assert capsys.readouterr().out.splitlines() == ["CONFIG_ERROR_SOURCE=environment"]
 
     def test_warnings_stay_off_stdout(self, clean_hassette_env: Path) -> None:
         """A warning logged during the check goes to stderr; the entrypoint's logging is what's under test."""
-        env = {**os.environ, "HASSETTE__LOGGING__LOG_LEVEL": "bogus", "HASSETTE__CONFIG_DIR": str(clean_hassette_env)}
+        env = {
+            **os.environ,
+            "HASSETTE__LOGGING__LOG_LEVEL": "bogus",
+            "HASSETTE__CONFIG_DIR": str(clean_hassette_env),
+            "HASSETTE__TOKEN": "test-token",
+        }
 
         result = subprocess.run(
             [sys.executable, "-m", "hassette", "run", "--check"],

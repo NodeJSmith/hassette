@@ -1,6 +1,6 @@
-"""Checks that run on a config build's recorded inputs: unknown keys and ``config_dir`` set in a file.
+"""Checks on a config's inputs: explicit locations that don't exist, unknown keys, and ``config_dir`` set in a file.
 
-Both checks read only what the settings sources recorded (see `hassette.config.sources`), so they
+The key checks read only what the settings sources recorded (see `hassette.config.sources`), so they
 see exactly the inputs the config was built from: the process-env snapshot, the ``.env`` files
 actually loaded, and the TOML files actually loaded.
 """
@@ -11,34 +11,19 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 from pydantic_settings import BaseSettings, EnvSettingsSource
 
 from hassette.config.build import ENVIRONMENT_SOURCE, ConfigBuild
 from hassette.config.classes import AppManifest, is_mapping_annotation, model_annotation, str_aliases
-from hassette.config.locations import ENV_NESTED_DELIMITER, SETTINGS_ENV_PREFIX, is_config_dir_env
+from hassette.config.locations import ENV_NESTED_DELIMITER, SETTINGS_ENV_PREFIX, ConfigLocations, is_config_dir_env
 from hassette.config.models import AppsConfig
 from hassette.exceptions import ConfigError
 
 CONFIG_REFERENCE_URL = "https://hassette.readthedocs.io/en/stable/pages/core-concepts/configuration/"
 """Docs-site configuration reference: ``site_url`` in ``mkdocs.yml``, the version, then the page's path under
 ``docs/`` (``pages/core-concepts/configuration/index.md``)."""
-
-
-ERROR_SOURCE_ENVIRONMENT = "environment"
-ERROR_SOURCE_FILE = "file"
-"""``hassette run --check`` reports a config error's source as one of these; ``docker_start.sh`` matches them."""
-
-
-class EnvironmentConfigError(ConfigError):
-    """A `ConfigError` that at least one process-env variable contributes to.
-
-    The process must be recreated with a fixed environment to clear it, which matters to a
-    supervisor: ``hassette run --check`` reports it as ``CONFIG_ERROR_SOURCE=environment``. When
-    files contribute too, that remedy still covers them: recreating the container also rereads its
-    mounted files, while a plain restart would keep the bad environment.
-    """
 
 
 @dataclass(frozen=True)
@@ -48,6 +33,27 @@ class UnknownKey:
     name: str
     source: str
     suggestion: str | None
+
+
+def check_explicit_locations(locations: ConfigLocations) -> None:
+    """Raise `ConfigError` naming each explicitly set config location that doesn't exist.
+
+    An explicit location replaces the search, so a typo there would otherwise run Hassette on
+    defaults without a sign that its settings were never read.
+    """
+    missing: list[str] = []
+    if locations.config_dir_explicit and not locations.config_dir.is_dir():
+        missing.append(f"config directory {locations.config_dir}")
+    if locations.toml_files_explicit:
+        missing += [f"config file {path}" for path in locations.toml_files if not path.is_file()]
+    if locations.env_files_explicit:
+        missing += [f".env file {path}" for path in locations.env_files if not path.is_file()]
+    if missing:
+        raise ConfigError(
+            "Config locations that were set explicitly don't exist:\n"
+            + "\n".join(f"  - {item}" for item in missing)
+            + "\nHassette reads only the locations you name, so fix the path or create it."
+        )
 
 
 def check_config_dir_not_in_files(build: ConfigBuild) -> None:
@@ -68,27 +74,8 @@ def check_config_dir_not_in_files(build: ConfigBuild) -> None:
 def check_unknown_keys(settings_cls: type[BaseSettings], build: ConfigBuild) -> None:
     """Raise `ConfigError` listing every recorded key that matches no setting."""
     unknown = find_unknown_keys(settings_cls, build)
-    if any(key.source == ENVIRONMENT_SOURCE for key in unknown):
-        raise EnvironmentConfigError(format_unknown_keys(unknown))
     if unknown:
         raise ConfigError(format_unknown_keys(unknown))
-
-
-def config_error_from_validation(exc: ValidationError, build: ConfigBuild) -> ConfigError:
-    """Wrap a construction `ValidationError`; `EnvironmentConfigError` when a process-env variable set a failing field.
-
-    A field counts as env-set when a recorded process-env name spells its path or one of its parents
-    (``HASSETTE__LOGGING`` or ``HASSETTE__LOGGING__LOG_LEVEL`` for ``logging.log_level``). List
-    indices in the error location are skipped. A value set through an alias spelling
-    (``HASSETTE__HA_TOKEN``) isn't matched and counts as a file error.
-    """
-    env_names = {key.name.lower() for key in build.env_keys if key.source == ENVIRONMENT_SOURCE}
-    for error in exc.errors():
-        path = [part for part in error["loc"] if isinstance(part, str)]
-        for depth in range(1, len(path) + 1):
-            if SETTINGS_ENV_PREFIX + ENV_NESTED_DELIMITER.join(path[:depth]).lower() in env_names:
-                return EnvironmentConfigError(str(exc))
-    return ConfigError(str(exc))
 
 
 def find_unknown_keys(settings_cls: type[BaseSettings], build: ConfigBuild) -> list[UnknownKey]:
@@ -143,6 +130,7 @@ class EnvNames:
         known: set[str] = set()
         open_prefixes: set[str] = set()
         for field_name, info in settings_cls.model_fields.items():
+            # private pydantic-settings API: every unknown-key test fails if it changes
             for _, env_name, _ in source._extract_field_info(info, field_name):  # pyright: ignore[reportPrivateUsage]
                 collect_env_names(env_name.lower(), info, known, open_prefixes)
         apps_prefix = f"{source.env_prefix}apps{ENV_NESTED_DELIMITER}"

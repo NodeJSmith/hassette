@@ -7,6 +7,7 @@ performs the full pipeline and returns the resolved command function plus bound 
 without executing the command.
 """
 
+import re
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,6 +17,8 @@ from whenever import Instant
 from hassette.cli import app
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 from tests.unit.cli.conftest import NOW_EPOCH, fixed_now
+
+DOCKER_START_SCRIPT = Path(__file__).parents[3] / "scripts" / "docker_start.sh"
 
 
 class TestSubcommandRouting:
@@ -194,6 +197,13 @@ class TestGlobalFlagWiring:
 
         assert bound.arguments["config_dir"] == Path("/cfg")
         assert list(bound.arguments["tokens"]) == ["run", "--check"]
+
+    def test_docker_passthrough_flags_match_the_cli(self) -> None:
+        """docker_start.sh skips the check for these args; each must make `hassette run` print and exit."""
+        match = re.search(r"^PASSTHROUGH_FLAGS=\((.*)\)$", DOCKER_START_SCRIPT.read_text(), re.MULTILINE)
+        assert match is not None
+
+        assert set(match.group(1).split()) == {*app.help_flags, *app.version_flags}
 
     def test_run_check_flag(self) -> None:
         cmd, bound, _ = app.parse_args(["run", "--check"])

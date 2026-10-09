@@ -407,8 +407,8 @@ def test_docker_config_error_halts_with_exit_78():
     assert "project install" not in output
 
 
-def test_docker_file_config_error_gets_the_restart_remedy(tmp_path: Path):
-    """A config error from a mounted file says to edit it and restart, not to recreate the container."""
+def test_docker_file_config_error_gets_the_recreate_remedy(tmp_path: Path):
+    """A config error from a mounted file gets the same recreate remedy as one from the environment."""
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     (config_dir / "hassette.toml").write_text("bogus = 1\n")
@@ -416,8 +416,18 @@ def test_docker_file_config_error_gets_the_restart_remedy(tmp_path: Path):
     result, output = run_hassette_container(volumes=[f"{config_dir}:/config:ro"], env=NO_RETRY)
 
     assert result.returncode == 78, output
-    assert "Fix the file named above, then run: docker restart <container>" in output
-    assert "docker compose up -d" not in output
+    assert "bogus (from /config/hassette.toml)" in output
+    assert "docker compose up -d" in output
+
+
+@pytest.mark.parametrize("flag", ["--help", "--version"])
+def test_docker_help_and_version_skip_the_check(flag: str):
+    """Help and version args print and exit 0 without a config check or any install, even with a bad config."""
+    result, output = run_hassette_container(env={"HASSETTE__APP_DIR": "/apps", **NO_RETRY}, args=[flag])
+
+    assert result.returncode == 0, output
+    assert "HASSETTE CAN'T START" not in output
+    assert "project install" not in output
 
 
 def test_docker_parent_relative_apps_dir_is_normalized(tmp_path: Path):
@@ -433,7 +443,6 @@ def test_docker_parent_relative_apps_dir_is_normalized(tmp_path: Path):
 
     assert result.returncode == 0, output
     assert "config checked (config dir /config, apps dir /apps)" in output
-    assert "NOTE: /apps has files" not in output
 
 
 def test_docker_config_dir_arg_reaches_both_invocations(tmp_path: Path):
@@ -446,17 +455,6 @@ def test_docker_config_dir_arg_reaches_both_invocations(tmp_path: Path):
     assert result.returncode == 0, output
     assert "config checked (config dir /alt, apps dir /alt/apps)" in output
     assert "CONFIG_DIR=/alt" in output
-
-
-def test_docker_warns_when_legacy_apps_volume_is_not_the_apps_dir(tmp_path: Path):
-    legacy = tmp_path / "apps"
-    legacy.mkdir()
-    (legacy / "my_app.py").write_text("")
-
-    result, output = run_hassette_container(volumes=[f"{legacy}:/apps:ro"])
-
-    assert result.returncode == 0, output
-    assert "NOTE: /apps has files, but Hassette loads apps from /config/apps." in output
 
 
 def test_docker_stop_ends_a_halt_promptly():

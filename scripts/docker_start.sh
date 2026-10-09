@@ -18,13 +18,16 @@ PRUNE_UV_CACHE="${HASSETTE_DOCKER_PRUNE_UV_CACHE:-1}"
 RETRY_DELAY="${HASSETTE_DOCKER_RETRY_DELAY:-300}"
 CONSTRAINTS="/app/constraints.txt"
 IMAGE_APP_DIR="/app"  # Hassette's own install, with its own pyproject.toml and uv.lock; never a user project
-LEGACY_APPS_DIR="/apps"
 
-REMEDY_FILE="Fix the file named above, then run: docker restart <container>"
-REMEDY_ENV="Fix the environment variable in your compose file, then run: docker compose up -d
+REMEDY_DEPS="Fix the dependency file named above, then run: docker restart <container>"
+REMEDY_CONFIG="Fix the setting named above (in its file or your compose environment), then run: docker compose up -d
   (docker restart keeps the old environment)"
 REMEDY_IMAGE="Pull the image again: docker compose pull && docker compose up -d"
-REMEDY_ARGS="Fix the container's command arguments in your compose file, then run: docker compose up -d"
+REMEDY_UNEXPECTED="Check the error above: fix the container's command arguments if it names one,
+  otherwise report it at https://github.com/NodeJSmith/hassette/issues"
+# Args that make `hassette run` print and exit instead of starting: cyclopts' help flags and the
+# root app's version_flags (hassette/cli/__init__.py). A test keeps this list in sync.
+PASSTHROUGH_FLAGS=(--help -h --version -v)
 
 # Temp files, removed on exit and before a halt's idle.
 user_deps_file=""
@@ -77,6 +80,15 @@ HASSETTE_VERSION=$(python -c "import importlib.metadata; print(importlib.metadat
 }
 log_phase "venv health check passed (v${HASSETTE_VERSION})"
 
+# Help and version args (anywhere in the args) print and exit, so they need no check and nothing installed.
+for arg in "$@"; do
+    for flag in "${PASSTHROUGH_FLAGS[@]}"; do
+        if [ "${arg}" = "${flag}" ]; then
+            exec hassette run "$@"
+        fi
+    done
+done
+
 # ── config check and locations ────────────────────────────────────────────────
 # Hassette resolves its own config, apps and project locations, from the same args as the final
 # `hassette run`, and rejects an invalid config before anything is installed.
@@ -95,30 +107,26 @@ set -e
 CONFIG_DIR=""
 CONFIG_HOME=""
 APPS_DIR=""
-CONFIG_ERROR_SOURCE=""
 while IFS= read -r line; do
     case "${line}" in
-        CONFIG_DIR=* | CONFIG_HOME=* | APPS_DIR=* | CONFIG_ERROR_SOURCE=*)
+        CONFIG_DIR=* | CONFIG_HOME=* | APPS_DIR=*)
             # safe to eval: `hassette run --check` shlex-quotes each value, and only these names pass
             eval "${line}"
             ;;
     esac
 done <<< "${check_stdout}"
 
+# Recreating the container rereads both its environment and its mounted files, so one remedy
+# covers a config error from either.
 if [ "${check_code}" -eq 78 ]; then
-    remedy="${REMEDY_FILE}"
-    if [ "${CONFIG_ERROR_SOURCE}" = "environment" ]; then  # ERROR_SOURCE_ENVIRONMENT in hassette/config/checks.py
-        remedy="${REMEDY_ENV}"
-    fi
-    halt 78 "the configuration is invalid (see above)" "${remedy}"
+    halt 78 "the configuration is invalid (see above)" "${REMEDY_CONFIG}"
 elif [ "${check_code}" -ne 0 ]; then
-    halt "${check_code}" "'hassette run --check' failed (see above)" "${REMEDY_ARGS}"
+    halt "${check_code}" "'hassette run --check' failed unexpectedly (see above)" "${REMEDY_UNEXPECTED}"
 fi
 
+# Success is exit 0 with every location printed; anything less never passes for a checked config.
 if [ -z "${CONFIG_DIR}" ] || [ -z "${CONFIG_HOME}" ] || [ -z "${APPS_DIR}" ]; then
-    # args like --help or --version print instead of checking, and need nothing installed
-    log_phase "no config locations from 'hassette run --check'; skipping dependency installs"
-    exec hassette run "$@"
+    halt 1 "'hassette run --check' exited 0 without printing the config locations" "${REMEDY_UNEXPECTED}"
 fi
 log_phase "config checked (config dir ${CONFIG_DIR}, apps dir ${APPS_DIR})"
 
@@ -136,17 +144,6 @@ find_project_dir() {
     echo "${CONFIG_HOME}"
 }
 PROJECT_DIR="${HASSETTE_DOCKER_PROJECT_DIR:-$(find_project_dir)}"
-
-# Apps used to live in a separate /apps volume; they now default to <config dir>/apps.
-case "${APPS_DIR}/" in  # the trailing / lets a dir match its own "<dir>/"* pattern
-    "${LEGACY_APPS_DIR}"/*) ;;
-    *)
-        if [ -d "${LEGACY_APPS_DIR}" ] && [ -n "$(ls -A "${LEGACY_APPS_DIR}" 2>/dev/null)" ]; then
-            echo "NOTE: ${LEGACY_APPS_DIR} has files, but Hassette loads apps from ${APPS_DIR}."
-            echo "      Move your apps to ${APPS_DIR}, or set HASSETTE__APPS__DIRECTORY=${LEGACY_APPS_DIR}."
-        fi
-        ;;
-esac
 
 # Debian package is `fd-find`; binary name is usually `fdfind`.
 FD_BIN="$(command -v fdfind || command -v fd || true)"
@@ -234,7 +231,7 @@ run_uv_install() {
 
     rm -f "${uv_log}"
     echo "ERROR: dependency install failed (exit ${exit_code})"
-    halt 1 "a dependency conflict (see above)" "${REMEDY_FILE}"
+    halt 1 "a dependency conflict (see above)" "${REMEDY_DEPS}"
 }
 
 # ---------------------------------------------------------------------------
