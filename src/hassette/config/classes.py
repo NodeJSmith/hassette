@@ -18,6 +18,7 @@ from pydantic_settings import BaseSettings
 from pydantic_settings.sources import InitSettingsSource, PathType, TomlConfigSettingsSource
 
 from hassette.types.types import is_framework_key
+from hassette.utils.alias_utils import alias_groups, canonicalize_aliases
 
 DEFAULT_PATH = Path()
 LOCAL_OVERLAY_INFIX = ".local"
@@ -73,31 +74,6 @@ def local_overlay_paths(files: list[Path]) -> list[Path]:
     Paths are derived, not checked; callers filter to the overlays that exist.
     """
     return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in files]
-
-
-def alias_groups(model: type[BaseModel]) -> list[tuple[str, ...]]:
-    """Return each multi-spelling field's string aliases in pydantic's lookup order; the first is canonical."""
-    groups: list[tuple[str, ...]] = []
-    for info in model.model_fields.values():
-        alias = info.validation_alias or info.alias
-        choices = alias.choices if isinstance(alias, AliasChoices) else (alias,)
-        names = tuple(c for c in choices if isinstance(c, str))
-        if len(names) > 1:
-            groups.append(names)
-    return groups
-
-
-def canonicalize_aliases(data: dict[str, Any], groups: list[tuple[str, ...]]) -> dict[str, Any]:
-    """Rewrite alias keys to each group's canonical spelling; if several are present, the first in order wins."""
-    out = dict(data)
-    for group in groups:
-        present = [k for k in group if k in out]
-        if present and present != [group[0]]:
-            value = out[present[0]]
-            for key in present:
-                del out[key]
-            out[group[0]] = value
-    return out
 
 
 def canonicalize_table(settings_cls: type[BaseSettings], data: dict[str, Any]) -> dict[str, Any]:

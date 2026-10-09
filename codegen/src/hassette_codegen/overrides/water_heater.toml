@@ -1,6 +1,7 @@
 # HA 2026.11 renamed these entity properties to native_*; map them back to the pre-rename field names so the
-# generated model doesn't change. target_temperature* don't match HA's wire keys (temperature,
-# target_temp_high/low) -- that pre-existing mismatch is #1836.
+# generated model doesn't change. The target_temperature* field names come from HA's entity properties, but
+# state_attributes/capability_attributes send them under different keys (WaterHeaterStateAttribute,
+# WaterHeaterCapabilityAttribute), so `aliases` maps the wire keys.
 [[property_overrides]]
 name = "native_current_temperature"
 wire_name = "current_temperature"
@@ -20,3 +21,22 @@ wire_name = "target_temperature_low"
 [[property_overrides]]
 name = "native_temperature_unit"
 wire_name = "temperature_unit"
+
+# Keyed on the final field names (after any native_* rename above), so they apply on either side of HA 2026.11.
+[[property_overrides]]
+name = "target_temperature"
+aliases = ["temperature"]
+
+[[property_overrides]]
+name = "target_temperature_high"
+aliases = ["target_temp_high"]
+
+[[property_overrides]]
+name = "target_temperature_low"
+aliases = ["target_temp_low"]
+
+# climate.toml renames its step field to the wire key (target_temp_step) instead; water_heater keeps its
+# existing public field name, so it aliases the wire key rather than renaming.
+[[property_overrides]]
+name = "target_temperature_step"
+aliases = ["target_temp_step"]

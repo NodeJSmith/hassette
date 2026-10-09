@@ -11,6 +11,7 @@ import hassette.utils.date_utils as date_utils
 from hassette.exceptions import NoDomainAnnotationError
 from hassette.models.states.catalog import register_state_converter
 from hassette.types import StateValueT
+from hassette.utils.alias_utils import alias_groups, canonicalize_aliases
 
 LOGGER = getLogger(__name__)
 
@@ -64,6 +65,18 @@ class AttributesBase(BaseModel):
         if self.supported_features is None:
             return False
         return bool(int(self.supported_features) & flag)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _canonicalize_alias_keys(cls, values: Any) -> Any:
+        """Collapse a field's alias spellings to one key, the highest-priority one present winning.
+
+        Without this, a lower-priority alias also present in the input lands in ``model_extra`` and
+        overrides the typed value in ``model_dump()``.
+        """
+        if not isinstance(values, dict):
+            return values
+        return canonicalize_aliases(values, alias_groups(cls))
 
 
 class BaseState(BaseModel, Generic[StateValueT]):

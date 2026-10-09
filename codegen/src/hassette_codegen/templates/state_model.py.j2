@@ -7,11 +7,8 @@ from enum import StrEnum
 {% endif %}
 from typing import Literal
 
-{% if datetime_fields %}
-from pydantic import Field, field_validator
-{% else %}
-from pydantic import Field
-{% endif %}
+from pydantic import {% if has_aliases %}AliasChoices, {% endif %}Field{% if datetime_fields %}, field_validator{% endif %}
+
 
 from .base import AttributesBase, {{ base_class }}
 {% for imp in extra_imports %}
@@ -37,7 +34,7 @@ class {{ enum.name }}(IntFlag):
 
 class {{ domain_title }}Attributes(AttributesBase):
 {% for prop in properties %}
-    {{ prop.name }}: {{ prop.python_type }} = Field(default=None{% if prop.union_mode %}, union_mode={{ prop.union_mode | py_literal }}{% endif %})
+    {{ prop.name }}: {{ prop.python_type }} = Field(default=None{% if prop.union_mode %}, union_mode={{ prop.union_mode | py_literal }}{% endif %}{% if prop.validation_aliases %}, validation_alias=AliasChoices({{ prop.validation_aliases | map("py_literal") | join(", ") }}){% endif %})
 {% endfor %}
 {% if not properties %}
     pass
