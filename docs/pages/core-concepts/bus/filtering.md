@@ -128,6 +128,20 @@ Chains flatten instead of nesting: `a & b & c` builds `P.AllOf((a, b, c))`, so t
 
 Conditions (`C.*`) do not support these operators. They test extracted values, not events, so they compose through predicates instead.
 
+### Ignoring Restart Replays: `P.EventEntityFresh`
+
+Home Assistant `event.*` entities, such as Zigbee buttons and remotes, store the time of their last event as their state value. When Home Assistant restarts, it restores that state and broadcasts it as a new `state_changed` event. Without a guard, every button automation runs once on each restart, as if someone pressed the button.
+
+The event's own `time_fired` doesn't help here, since a replayed event gets a fresh one. `P.EventEntityFresh` instead compares the timestamp in the entity's new state with that state's `last_changed`, and drops the event when the two are more than `max_age` seconds apart.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/filtering_event_entity_fresh.py"
+```
+
+A real press writes its timestamp and `last_changed` at the same moment, so it passes. A restart replay pairs the last real press's timestamp, often hours old, with a `last_changed` from the restart, so it is dropped. Both values come from Home Assistant, so the Hassette host's clock doesn't matter, and a listener with `duration=` still fires when its hold timer expires.
+
+The guard fails open: a state that isn't a timestamp, such as `unknown` or `unavailable`, passes. A `max_age` of a few seconds is plenty.
+
 ## Filtering Service Calls
 
 `on_call_service` accepts `domain=` and `service=` for coarse filtering, and `where=` for fine-grained control. `where=` on `on_call_service` also accepts a plain dict, which matches against the service data payload.

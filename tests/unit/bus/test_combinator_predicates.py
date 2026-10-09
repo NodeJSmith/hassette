@@ -9,15 +9,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from hassette.event_handling.predicates import (
-    AllOf,
-    AnyOf,
-    Guard,
-    Not,
-    ensure_tuple,
-    is_predicate_collection,
-    normalize_where,
-)
+from hassette.event_handling.predicate_collections import ensure_tuple, is_predicate_collection
+from hassette.event_handling.predicates import AllOf, AnyOf, Guard, Not, normalize_where
 
 
 def always_true(_event) -> bool:
