@@ -291,7 +291,7 @@ def build_registration_summary_query(
                 WHERE e_err.kind = {source.kind}
                   AND e_err.status IN {SQL_FAILED_STATUSES} {since_err_clause}
             )
-            SELECT{source.select_columns}
+            SELECT {source.select_columns}
             FROM {source.table} {alias}
             LEFT JOIN executions e ON e.{source.fk_column} = {alias}.id {since_join_clause} AND e.kind = {source.kind}
             LEFT JOIN ranked_errors last_err ON last_err.{source.fk_column} = {alias}.id AND last_err.rn = 1
