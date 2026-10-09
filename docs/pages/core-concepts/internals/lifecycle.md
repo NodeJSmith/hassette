@@ -116,7 +116,7 @@ A service enters `RUNNING` just before its `serve()` loop begins. `initialize()`
 
 Hassette starts services in dependency order. Services with no `depends_on` start first. Services that declare `depends_on` start after all their dependencies have signaled readiness. Services at the same dependency depth start concurrently.
 
-Shutdown runs in reverse order. Services that depended on others stop first. A service in `STOPPING` waits for its children to reach terminal states before completing. `ServiceWatcher` itself depends on `BusService`, so it sits in a later wave and shuts down before `BusService` does.
+Shutdown runs in reverse order. Services that depended on others stop first. A service in `STOPPING` waits for its children to reach terminal states before completing. `ServiceWatcher` depends on `BusService`, so it starts after `BusService` and shuts down before it.
 
 For the full dependency graph and startup wave diagram, see [Architecture & Data Flow](index.md).
 
@@ -175,9 +175,10 @@ Each resource owns exactly one initialization task and one shutdown task at a ti
 joins that same task through `asyncio.shield()` instead of starting a second attempt; such a caller
 is called a *joiner*. Joiners include the background task `start()` spawns to run `initialize()`,
 a direct `await resource.initialize()`, `restart()`, and a second concurrent `shutdown()` call.
-Cancelling one caller's *wait* (for example, the caller's own task is cancelled) does not cancel the underlying attempt; the shared task keeps running for every other joiner. A
-repeated `shutdown()` call after the attempt has already completed returns the stored report
-without rerunning any hooks.
+Cancelling one caller's *wait* (for example, the caller's own task is cancelled) does not cancel
+the underlying attempt; the shared task keeps running for every other joiner. A repeated
+`shutdown()` call after the attempt has already completed returns the stored report without
+rerunning any hooks.
 
 If `initialize()` is called while a shutdown is in progress, it waits for that shutdown's outcome
 before deciding whether a new attempt may start. If `shutdown()` is called while initialization is
