@@ -45,6 +45,10 @@ services:
       # DEMO_AUTH_TOKEN (scripts/docker/.env), also read by capture_screenshots.py and demo-verify
       HASSETTE__WEB_API__AUTH_TOKEN: "${DEMO_AUTH_TOKEN}"
       HASSETTE__WEB_API__PORT: "8126"
+      # The demo HA's pre-seeded hass-hassette config entry has no token
+      # (tests/fixtures/demo-ha-config/.storage/core.config_entries); trusting the HA
+      # service's address admits it without keeping a second copy of DEMO_AUTH_TOKEN.
+      HASSETTE__WEB_API__TRUSTED_PROXIES: '["homeassistant"]'
       HASSETTE__APPS__DIRECTORY: "/app/examples"
       HASSETTE__DATA_DIR: "/app/.demo-data"
     depends_on:

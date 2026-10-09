@@ -1,6 +1,31 @@
 {
   "version": 1,
-  "minor_version": 2,
+  "minor_version": 5,
   "key": "core.config_entries",
-  "data": {"entries": []}
+  "data": {
+    "entries": [
+      {
+        "entry_id": "01JHASSETTEDEMOENTRY000000",
+        "version": 1,
+        "minor_version": 1,
+        "domain": "hassette",
+        "title": "http://hassette:8126",
+        "data": {
+          "url": "http://hassette:8126",
+          "api_token": null,
+          "verify_ssl": true
+        },
+        "options": {},
+        "pref_disable_new_entities": false,
+        "pref_disable_polling": false,
+        "source": "user",
+        "unique_id": null,
+        "disabled_by": null,
+        "discovery_keys": {},
+        "subentries": [],
+        "created_at": "2026-10-09T00:00:00+00:00",
+        "modified_at": "2026-10-09T00:00:00+00:00"
+      }
+    ]
+  }
 }

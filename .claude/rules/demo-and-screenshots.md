@@ -18,10 +18,12 @@ For visual/UI work, run the demo stack — **not** the e2e mock server. It start
 
 ```bash
 mise run demo            # or: uv run python scripts/hassette_demo.py  (~60-90s to come up)
-mise run demo-verify     # non-interactive health check (apps running, listeners registered)
+mise run demo-verify     # non-interactive health check (apps running, listeners registered, HA integration loaded)
 ```
 
 `hassette_demo.py` wraps `scripts/demo_stack.py`'s `DemoStack` context manager (`docker compose up -d --wait`). Ports: HA `18123`, hassette `18126`, Vite `15173`; override with `DEMO_HA_PORT`, `DEMO_HASSETTE_PORT`, `DEMO_VITE_PORT`. Ctrl-C/SIGTERM tears it down via `docker compose down --remove-orphans`. If the wrapper died in a way that bypasses those handlers (e.g. `kill -9`/SIGKILL, an OOM kill, or a WSL restart), the containers are still running: `docker compose -p hassette-demo down --remove-orphans` (project name: `COMPOSE_PROJECT_NAME` in `scripts/demo_stack.py`).
+
+The demo HA installs the pinned hass-hassette integration and ships a pre-seeded config entry for it (`tests/fixtures/demo-ha-config/.storage/core.config_entries`, pointing at `http://hassette:8126` with no token; the demo hassette lists the `homeassistant` service in `web_api.trusted_proxies`), so every hassette app shows up as an HA device without clicking through the config flow. `demo-verify` fails if that entry doesn't load. The file is hand-authored: its `minor_version` must be the `core.config_entries` storage version of the pinned HA release, or HA migrates it on load.
 
 Gotchas:
 - **Stale app code:** reloading a *failed* app via the REST API reuses the stale module — after editing app code, restart the whole stack.

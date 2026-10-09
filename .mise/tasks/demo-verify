@@ -91,4 +91,45 @@ if ((LISTENER_COUNT == 0)); then
     exit 1
 fi
 
-echo "PASS: $EXPECTED_APPS/$EXPECTED_APPS apps running, $LISTENER_COUNT listeners registered"
+echo "OK: $EXPECTED_APPS/$EXPECTED_APPS apps running, $LISTENER_COUNT listeners registered"
+
+# The demo HA ships a pre-seeded hass-hassette config entry
+# (tests/fixtures/demo-ha-config/.storage/core.config_entries). HA starts before hassette, so
+# setup fails at first and HA retries with backoff; ENTRY_TIMEOUT covers those retries.
+ENTRY_TIMEOUT=120
+ENTRY_POLL_INTERVAL=2
+HA_URL="http://localhost:${DEMO_HA_PORT:-18123}"
+HA_ACCESS_TOKEN="$(grep -m1 '^HA_ACCESS_TOKEN=' "$DEMO_ENV_FILE" | cut -d= -f2-)" || true
+if [[ -z "$HA_ACCESS_TOKEN" ]]; then
+    echo "FAIL: HA_ACCESS_TOKEN not found in $DEMO_ENV_FILE"
+    exit 1
+fi
+
+entry_state() {
+    local body
+    body=$(curl -s -w '\n%{http_code}' -H "Authorization: Bearer $HA_ACCESS_TOKEN" \
+        "$HA_URL/api/config/config_entries/entry?domain=hassette") || { echo "unreachable"; return; }
+    local code="${body##*$'\n'}"
+    if [[ "$code" != "200" ]]; then
+        echo "unreachable (HTTP $code)"
+        return
+    fi
+    printf '%s' "${body%$'\n'*}" | python3 -c "import json,sys; e=json.load(sys.stdin); print(e[0]['state'] if e else 'missing')"
+}
+
+ENTRY_STATE=""
+DEADLINE=$((SECONDS + ENTRY_TIMEOUT))
+while ((SECONDS < DEADLINE)); do
+    ENTRY_STATE=$(entry_state)
+    # loaded is success; setup_error and missing don't change by waiting.
+    case "$ENTRY_STATE" in loaded | setup_error | missing) break ;; esac
+    sleep "$ENTRY_POLL_INTERVAL"
+done
+
+if [[ "$ENTRY_STATE" != "loaded" ]]; then
+    echo "FAIL: hass-hassette config entry is '$ENTRY_STATE', not 'loaded'"
+    echo "  Check the entry's url and the demo hassette's web_api.trusted_proxies (scripts/docker/ha-demo.yml)"
+    exit 1
+fi
+
+echo "PASS: hass-hassette config entry loaded in the demo HA"
