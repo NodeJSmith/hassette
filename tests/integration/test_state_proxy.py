@@ -77,6 +77,12 @@ def gated_get_states_raw_factory(
     return entered, release, side_effect
 
 
+async def finish_bootstrap(proxy: StateProxy) -> None:
+    """Wait out the fixture's background bootstrap sync so it can't claim a gate the test installs next."""
+    assert proxy._bootstrap_task is not None
+    await asyncio.wait_for(proxy._bootstrap_task, timeout=SYNC_WAIT_TIMEOUT)
+
+
 @pytest.fixture
 async def state_proxy() -> AsyncIterator[StateProxy]:
     proxy = build_state_proxy()
@@ -642,6 +648,7 @@ async def test_disconnect_cancels_active_sync_so_reconnect_can_start_fresh(state
 async def test_disconnect_mid_poll_returns_normally_and_next_poll_still_syncs(state_proxy: StateProxy) -> None:
     # Cancelling the shared sync task must not surface as CancelledError in the awaiting poll
     # handler — the command executor would record that as a cancelled poll job execution.
+    await finish_bootstrap(state_proxy)
     sync_entered, _never_release, blocked_snapshot = gated_get_states_raw_factory()
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=blocked_snapshot)
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 1
@@ -662,6 +669,7 @@ async def test_disconnect_mid_poll_returns_normally_and_next_poll_still_syncs(st
 
 
 async def test_disconnect_mid_sync_returns_connected_waiters_normally(state_proxy: StateProxy) -> None:
+    await finish_bootstrap(state_proxy)
     sync_entered, _never_release, blocked_snapshot = gated_get_states_raw_factory()
     state_proxy.hassette.api.get_states_raw = AsyncMock(side_effect=blocked_snapshot)
     state_proxy.hassette.websocket_service.get_connected_generation.return_value = 2
