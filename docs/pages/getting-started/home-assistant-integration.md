@@ -92,7 +92,7 @@ The switch and sensor work in dashboards and automations like any other entity:
 This automation turns `switch.motion_lights` off at 23:00. Paste it into **Settings → Automations & scenes → Create automation → Edit in YAML**, with your own entity in place of `switch.motion_lights`. Call `switch.turn_on` to start the app, or `button.press` on `button.motion_lights_reload` to reload it.
 
 !!! warning "A stop lasts until Hassette restarts or reloads the app"
-    When Hassette restarts, it starts every enabled app that has `autostart` on, including one you stopped here. With file watching on, editing the app's code or config starts it again too. To keep an app off until you switch it on, set `autostart = false` in its `[hassette.apps.<key>]` block. The switch still starts it on demand. See [App Configuration](../core-concepts/apps/configuration.md).
+    When Hassette restarts, it starts every enabled app that has `autostart` on, including one you stopped here. With automatic reloads on (`dev_mode` or `allow_reload_in_prod`), editing the app's code or config starts it again too. To keep an app off until you switch it on, set `autostart = false` in its `[hassette.apps.<key>]` block. The switch still starts it on demand. See [App Configuration](../core-concepts/apps/configuration.md).
 
 `sensor.motion_lights_status` reports one of these states:
 

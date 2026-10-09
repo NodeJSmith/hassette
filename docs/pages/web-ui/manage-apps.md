@@ -50,7 +50,7 @@ Clicking the app's own name opens its app-wide overview instead: a card per inst
 
 ![An expanded instance row with its own action buttons](../../_static/web_ui_instance_action_buttons.png)
 
-The REST API exposes the per-instance start, stop, and reload endpoints backing these buttons (see [Start, Stop, and Reload](#start-stop-and-reload) below) — a sibling instance keeps running untouched when one instance restarts. A config change to just one instance in `hassette.toml` already triggers a selective reload automatically: Hassette restarts only the instance whose config changed, not the whole app. Adding or removing an instance falls back to a full app restart, since the instance list itself changed. See [Passing Configuration](../core-concepts/apps/configuration.md#multiple-instances) for the config side of this behavior.
+The REST API exposes the per-instance start, stop, and reload endpoints backing these buttons (see [Start, Stop, and Reload](#start-stop-and-reload) below) — a sibling instance keeps running untouched when one instance restarts. With automatic reloads on (`dev_mode` or `allow_reload_in_prod`), a config change to just one instance in `hassette.toml` triggers a selective reload: Hassette restarts only the instance whose config changed, not the whole app. Adding or removing an instance falls back to a full app restart, since the instance list itself changed. See [Passing Configuration](../core-concepts/apps/configuration.md#multiple-instances) for the config side of this behavior.
 
 ## Start, Stop, and Reload
 
@@ -60,11 +60,11 @@ Action buttons appear in the **ACTIONS** column and in the App Detail header. Wh
 |--------|---------------|-------------|
 | **Start** | `STOPPED`, `FAILED`, or `DISABLED` | Initializes the app and begins processing events. |
 | **Stop** | `RUNNING` or `DEGRADED` | Shuts the app down gracefully and cancels its scheduled jobs. The app stops receiving events until started again. |
-| **Reload** | `RUNNING` or `DEGRADED` | Stops then starts the app, picking up code and config changes without restarting the Hassette process. |
+| **Reload** | `RUNNING` or `DEGRADED` | Stops the app, re-imports its Python file, and starts it again, without restarting the Hassette process. |
 
 **Stop** and **Reload** are both available for `DEGRADED` apps, not just `RUNNING` ones — a degraded app still has at least one instance running, so shutting it down or picking up new code is a meaningful recovery action. **Start** is not: nothing about `DEGRADED` implies a fully stopped app.
 
-**Reload** picks up changes to an app's Python file or its config in `hassette.toml`. Reloading one app does not affect other running apps. A full Hassette process restart is only needed for global settings, new integrations, or Hassette updates.
+**Reload** picks up changes to an app's Python file. It keeps the app's config as Hassette last loaded it, so an edit to `hassette.toml` needs a Hassette restart. With automatic reloads on (`dev_mode` or `allow_reload_in_prod`), Hassette reloads the config and the affected apps on its own when you save. Reloading one app does not affect other running apps.
 
 These actions call the REST API — `POST /api/apps/{key}/start`, `/stop`, `/reload` for the whole app, or `POST /api/apps/{key}/instances/{index}/start`, `/stop`, `/reload` for a single instance. The CLI exposes the same three actions as `hassette app start|stop|reload`, with `--instance` routing to the per-instance endpoint. See [CLI Commands](../cli/commands.md) for the full command reference.
 
