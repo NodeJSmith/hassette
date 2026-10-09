@@ -19,6 +19,8 @@ from tests.support.factories import make_change_set
 
 from .conftest import assert_load_completed_count, set_registry_apps
 
+WAIT_TIMEOUT_SECONDS = 1
+
 
 class TestAppLifecycleServiceInit:
     def test_stores_registry_reference(self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock) -> None:
@@ -431,12 +433,12 @@ class TestIsActionInProgress:
 
         lock.release = observing_release  # pyright: ignore[reportAttributeAccessIssue]
         first = asyncio.create_task(lifecycle_service.stop_app("test_app"))
-        await asyncio.wait_for(first_entered.wait(), timeout=1)
+        await asyncio.wait_for(first_entered.wait(), timeout=WAIT_TIMEOUT_SECONDS)
         second = asyncio.create_task(lifecycle_service.stop_app("test_app"))
         await wait_for(lambda: bool(lock._waiters), desc="second stop_app queued on the app-key lock")
 
         gate.set()
-        await asyncio.wait_for(asyncio.gather(first, second), timeout=1)
+        await asyncio.wait_for(asyncio.gather(first, second), timeout=WAIT_TIMEOUT_SECONDS)
 
         assert observed_at_handoff == [(False, True)]
         assert lifecycle_service.is_action_in_progress("test_app") is False
@@ -486,7 +488,7 @@ class TestIsActionInProgress:
 
         coro = getattr(lifecycle_service, method)("test_app", *args)
         try:
-            coro.send(None)
+            coro.send(None)  # runs to the first await that suspends, then hands control back
             assert lifecycle_service.is_action_in_progress("test_app") is True
         finally:
             coro.close()
