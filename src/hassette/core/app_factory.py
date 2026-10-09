@@ -1,8 +1,15 @@
 """App factory for creating app instances with config validation."""
 
+import inspect
+from difflib import get_close_matches
 from logging import getLogger
 from typing import TYPE_CHECKING
+from warnings import warn
 
+from pydantic import AliasChoices, AliasPath
+from pydantic.fields import FieldInfo
+
+from hassette.app.app_config import AppConfig
 from hassette.schemas.app_config_shape import normalize_app_config
 from hassette.utils.app_utils import (
     class_already_loaded,
@@ -14,8 +21,16 @@ from hassette.utils.app_utils import (
 )
 from hassette.utils.exception_utils import get_short_traceback
 
+SUGGESTION_CUTOFF = 0.5
+"""``difflib`` similarity a declared key needs to be offered as a "did you mean" suggestion.
+
+Looser than difflib's 0.6 default: a wrong guess costs a glance, a missing one leaves the user hunting."""
+
+INSTANCE_NAME_KEY = "instance_name"
+"""Config key the factory reads literally to name each instance, whatever alias the config class gives the field."""
+
 if TYPE_CHECKING:
-    from hassette import AppConfig, Hassette
+    from hassette import Hassette
     from hassette.app import App
     from hassette.config.classes import AppManifest
     from hassette.core.app_registry import AppRegistry
@@ -133,7 +148,7 @@ class AppFactory:
             config_dict: The raw config dict for this instance
             app_class: The already-loaded app class to instantiate
         """
-        instance_name = config_dict.get("instance_name")
+        instance_name = config_dict.get(INSTANCE_NAME_KEY)
         if not is_valid_instance_name(instance_name):
             self.registry.record_failure(
                 app_key, index, ValueError(f"App {app_key} instance {index} is missing instance_name")
@@ -142,6 +157,13 @@ class AppFactory:
 
         try:
             validated = app_class.app_config_cls.model_validate(config_dict)
+            warn_unrecognized_config_keys(
+                app_key=app_key,
+                manifest=manifest,
+                instance_name=instance_name,
+                config_dict=config_dict,
+                validated=validated,
+            )
             app_instance = app_class(
                 hassette=self.hassette,
                 app_config=validated,
@@ -199,3 +221,101 @@ class AppFactory:
     def normalize_configs(app_config: dict | list[dict] | None) -> list[dict]:
         """Ensure app_config is a list of dicts."""
         return normalize_app_config(app_config)
+
+
+def warn_unrecognized_config_keys(
+    app_key: str,
+    manifest: "AppManifest",
+    instance_name: str,
+    config_dict: dict,
+    validated: AppConfig,
+) -> None:
+    """Warn about config keys a typed ``AppConfig`` subclass absorbed as extras.
+
+    ``AppConfig`` allows extras so a bare ``App[AppConfig]`` can take arbitrary config. A subclass
+    that declares its own fields signals the app expects a known shape, so a leftover extra there
+    is almost always a typo that would otherwise leave the intended field silently at its default.
+
+    Only keys from the instance's own config are considered: pydantic-settings also folds
+    unrecognized ``.env`` entries into ``model_extra``, and those are not the user's app config.
+    """
+    config_cls = type(validated)
+    if not declares_own_fields(config_cls) or not validated.model_extra:
+        return
+
+    # ``instance_name`` is required under its literal name, so it can land in extras when an alias renames the field.
+    unrecognized = [key for key in validated.model_extra if key in config_dict and key != INSTANCE_NAME_KEY]
+    if not unrecognized:
+        return
+
+    accepted_keys = accepted_config_keys(config_cls)
+    lines = []
+    for key in unrecognized:
+        if key in accepted_keys:
+            # An accepted key left in extras either heads an ``AliasPath`` whose nested value is missing, or lost to
+            # an earlier ``AliasChoices`` source present in the same config. Suggesting the key itself would be noise.
+            lines.append(
+                f"  {key!r} (accepted key, but its value went unused: check the nested path, or whether "
+                "another alias for the same field took precedence)"
+            )
+            continue
+        matches = get_close_matches(key, accepted_keys, n=1, cutoff=SUGGESTION_CUTOFF)
+        lines.append(f"  {key!r} (did you mean {matches[0]!r}?)" if matches else f"  {key!r}")
+
+    msg = (
+        f"{config_cls.__name__} - {manifest.display_name} ({app_key}, instance {instance_name!r}) - "
+        "Unrecognized configuration key(s) don't match any declared field:\n"
+        + "\n".join(lines)
+        + f"\nCheck the spelling against the fields declared on {config_cls.__name__}."
+    )
+    warn(msg, stacklevel=2)
+
+
+def declares_own_fields(config_cls: type[AppConfig]) -> bool:
+    """Whether a class not in ``AppConfig``'s own MRO declares a field, new or overriding an inherited one.
+
+    Plain mixins count too, on either side of ``AppConfig`` in the bases: pydantic collects field
+    annotations from every class in the MRO.
+    """
+    appconfig_mro = set(AppConfig.__mro__)
+    own_classes = [klass for klass in config_cls.__mro__ if klass not in appconfig_mro]
+    return any(name in config_cls.model_fields for klass in own_classes for name in inspect.get_annotations(klass))
+
+
+def accepted_config_keys(config_cls: type[AppConfig]) -> list[str]:
+    """Return the top-level keys ``config_cls`` actually populates its fields from.
+
+    A field with an alias is populated by that alias, not by its attribute name, unless the model
+    enables ``validate_by_name``; suggesting the attribute name there would point at another extra.
+    """
+    model_config = config_cls.model_config
+    # Pydantic's two switches: aliases are honored unless ``validate_by_alias=False``; attribute names are
+    # honored for aliased fields only when ``validate_by_name`` (or its older spelling ``populate_by_name``)
+    # is set; an explicit ``validate_by_name`` wins over the legacy flag. Turning aliases off makes the attribute
+    # name the only key that works.
+    by_alias = model_config.get("validate_by_alias", True)
+    by_name = model_config.get("validate_by_name", model_config.get("populate_by_name", False))
+
+    keys: list[str] = []
+    for name, field in config_cls.model_fields.items():
+        aliases = field_alias_keys(field) if by_alias else []
+        if not aliases:
+            keys.append(name)  # unaliased field, or aliases disabled: the attribute name is the key
+            continue
+        keys.extend(aliases)
+        if by_name:
+            keys.append(name)
+    return keys
+
+
+def field_alias_keys(field: FieldInfo) -> list[str]:
+    """Top-level config keys a field's validation alias (or plain alias) accepts."""
+    alias = field.validation_alias if field.validation_alias is not None else field.alias
+    choices = alias.choices if isinstance(alias, AliasChoices) else [alias]
+    keys: list[str] = []
+    for choice in choices:
+        if isinstance(choice, str):
+            keys.append(choice)
+        elif isinstance(choice, AliasPath) and isinstance(choice.path[0], str):
+            keys.append(choice.path[0])
+    return keys
