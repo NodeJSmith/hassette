@@ -3,7 +3,7 @@ from hassette import App, P
 
 class HallwayButtonApp(App):
     async def on_initialize(self):
-        # Ignore presses older than 10 seconds, including HA restart replays
+        # Ignore HA restart replays of the last press
         await self.bus.on_state_change(
             "event.hallway_button",
             handler=self.on_button_pressed,

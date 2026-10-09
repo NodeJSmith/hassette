@@ -63,3 +63,13 @@ def now() -> ZonedDateTime:
     if _configured_tz is not None:
         return ZonedDateTime.now(_configured_tz)
     return ZonedDateTime.now_in_system_tz()
+
+
+def try_parse_iso(value: object) -> OffsetDateTime | None:
+    """Parse an ISO 8601 timestamp string, returning ``None`` for non-strings and unparseable values."""
+    if not isinstance(value, str):
+        return None
+    try:
+        return OffsetDateTime.parse_iso(value)
+    except ValueError:
+        return None

@@ -78,7 +78,7 @@ Works with: [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEven
 | `P.AttrTo` | `AttrTo(attr_name: str, condition: ChangeType)` | Returns `True` when the named attribute's new value satisfies `condition`. |
 | `P.AttrComparison` | `AttrComparison(attr_name: str, condition: ComparisonCondition)` | Returns `True` when `condition(old_attr, new_attr)` is `True` for the named attribute. |
 | `P.AttrDidChange` | `AttrDidChange(attr_name: str)` | Returns `True` when the named attribute changed. When `old_state` is `None`, returns `True` if the attribute is present on the new state. |
-| `P.EventEntityFresh` | `EventEntityFresh(max_age: float)` | Returns `True` when an `event.*` entity's new state timestamp is at most `max_age` seconds old. Non-timestamp states and future timestamps also return `True`. Guards button listeners against Home Assistant restart replays — see [Filtering](filtering.md#ignoring-restart-replays-pevententityfresh). |
+| `P.EventEntityFresh` | `EventEntityFresh(max_age: float)` | Returns `True` when an `event.*` entity's new state timestamp is at most `max_age` seconds before its `last_changed`. Non-timestamp states also return `True`. Guards button listeners against Home Assistant restart replays — see [Filtering](filtering.md#ignoring-restart-replays-pevententityfresh). |
 
 No `StateFromTo` predicate exists. For from-to matching, combine `P.StateFrom` and `P.StateTo` inside `P.AllOf`:
 

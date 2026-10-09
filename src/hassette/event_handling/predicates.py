@@ -49,8 +49,6 @@ from inspect import isawaitable
 from logging import getLogger
 from typing import Any, Generic, Self, TypeVar
 
-from whenever import OffsetDateTime
-
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
 from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.types.types import WhereClause
@@ -67,6 +65,7 @@ from .accessors import (
     get_entity_id,
     get_path,
     get_service_data_key,
+    get_state_object_new,
     get_state_value_new,
     get_state_value_old,
     get_state_value_old_new,
@@ -545,17 +544,19 @@ class AttrDidChange(_PredicateOps):
 
 @dataclass(frozen=True)
 class EventEntityFresh(_PredicateOps):
-    """Checks that an ``event.*`` entity's new state timestamp is at most ``max_age`` seconds old.
+    """Checks that an ``event.*`` entity's state timestamp is within ``max_age`` seconds of its ``last_changed``.
 
     Home Assistant ``event`` entities (buttons, remotes) store the time of their last event as
     their state value. When HA restarts it restores that state and broadcasts it as a new
-    ``state_changed`` event, so an unguarded button listener re-runs on every restart. The
-    event envelope's ``time_fired`` is fresh on those replays, so the staleness signal has to
-    come from the state value itself.
+    ``state_changed`` event, so an unguarded button listener re-runs on every restart. A real
+    press writes its timestamp and ``last_changed`` together; a restart replay pairs the old
+    timestamp with a ``last_changed`` set at restart. Both values come from Home Assistant, so
+    clock skew with the Hassette host and dispatch latency don't affect the result, and a
+    ``duration=`` hold recheck of the cached state still passes.
 
-    Fails open: a state value that is not an ISO 8601 timestamp (``unknown``, ``unavailable``,
-    a missing ``new_state``) or a timestamp in the future (clock skew) counts as fresh, so a
-    real press is never dropped.
+    Fails open: a missing ``new_state`` or a state value or ``last_changed`` that is not an
+    ISO 8601 timestamp (``unknown``, ``unavailable``) counts as fresh, so a real press is
+    never dropped.
 
     Examples:
         ```python
@@ -569,22 +570,21 @@ class EventEntityFresh(_PredicateOps):
     """
 
     max_age: float
-    """Maximum age in seconds of the event timestamp for the event to pass."""
+    """Maximum seconds between the event timestamp and ``last_changed`` for the event to pass."""
 
     def __post_init__(self) -> None:
         if self.max_age <= 0 or math.isnan(self.max_age):
             raise ValueError(f"max_age must be positive, got {self.max_age!r}")
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
-        raw = get_state_value_new(value)
-        if not isinstance(raw, str):
+        new_state = get_state_object_new(value)
+        if new_state is None:
             return True
-        try:
-            fired = OffsetDateTime.parse_iso(raw)
-        except ValueError:
+        fired = date_utils.try_parse_iso(new_state.get("state"))
+        changed = date_utils.try_parse_iso(new_state.get("last_changed"))
+        if fired is None or changed is None:
             return True
-        age = date_utils.now().to_instant() - fired.to_instant()
-        return age.total("seconds") <= self.max_age
+        return (changed.to_instant() - fired.to_instant()).total("seconds") <= self.max_age
 
     def summarize(self) -> str:
         """Return ``"event within <max_age>s"`` (e.g. ``"event within 10s"``)."""

@@ -48,10 +48,15 @@ from hassette.event_handling.predicates import (
     ValueIs,
     summarize_top_level,
 )
-from hassette.testing import create_call_service_event, create_state_change_event
+from hassette.testing import (
+    create_call_service_event,
+    create_state_change_event,
+    make_full_state_change_event,
+    make_state_dict,
+)
 from tests.support.helpers import create_attr_change_event
 
-FROZEN_NOW = ZonedDateTime(2026, 10, 9, 12, 0, 0, tz="UTC")
+LAST_CHANGED = "2026-10-09T12:00:00.000+00:00"
 
 
 # ValueIs tests
@@ -695,27 +700,39 @@ def test_operator_summarize_matches_explicit_combinators() -> None:
     assert summarize_top_level(EntityMatches("light.kitchen") & StateTo("on")) == "entity light.kitchen and → on"
 
 
-def event_entity_change(new_value: str | None) -> RawStateChangeEvent:
-    return create_state_change_event(entity_id="event.hallway_button", old_value=None, new_value=new_value)
+def event_entity_change(state_value: str | None, last_changed: str = LAST_CHANGED) -> RawStateChangeEvent:
+    new_state = (
+        make_state_dict("event.hallway_button", state_value, last_changed=last_changed)
+        if state_value is not None
+        else None
+    )
+    return make_full_state_change_event("event.hallway_button", old_state=None, new_state=new_state)
 
 
 @pytest.mark.parametrize(
-    ("state_value", "expected"),
+    ("state_value", "last_changed", "expected"),
     [
-        pytest.param("2026-10-09T11:59:55.000+00:00", True, id="recent"),
-        pytest.param("2026-10-09T11:59:50.000+00:00", True, id="exactly_max_age"),
-        pytest.param("2026-10-09T11:59:49.999+00:00", False, id="just_over_max_age"),
-        pytest.param("2026-10-09T08:00:00.000+00:00", False, id="restart_replay"),
-        pytest.param("2026-10-09T07:59:58.000-04:00", True, id="other_offset_recent"),
-        pytest.param("2026-10-09T12:05:00.000+00:00", True, id="future_clock_skew"),
-        pytest.param("unknown", True, id="unknown"),
-        pytest.param("unavailable", True, id="unavailable"),
-        pytest.param(None, True, id="missing_new_state"),
+        pytest.param("2026-10-09T11:59:59.998+00:00", LAST_CHANGED, True, id="real_press"),
+        pytest.param("2026-10-09T11:59:50.000+00:00", LAST_CHANGED, True, id="exactly_max_age"),
+        pytest.param("2026-10-09T11:59:49.999+00:00", LAST_CHANGED, False, id="just_over_max_age"),
+        pytest.param("2026-10-09T08:00:00.000+00:00", LAST_CHANGED, False, id="restart_replay"),
+        pytest.param("2026-10-09T07:59:58.000-04:00", LAST_CHANGED, True, id="other_offset_recent"),
+        pytest.param("2026-10-09T12:00:00.500+00:00", LAST_CHANGED, True, id="timestamp_after_last_changed"),
+        pytest.param("unknown", LAST_CHANGED, True, id="unknown"),
+        pytest.param("unavailable", LAST_CHANGED, True, id="unavailable"),
+        pytest.param("2026-10-09T08:00:00.000+00:00", "garbage", True, id="unparseable_last_changed"),
+        pytest.param(None, LAST_CHANGED, True, id="missing_new_state"),
     ],
 )
-def test_event_entity_fresh(state_value: str | None, expected: bool) -> None:
-    with patch("hassette.utils.date_utils.now", return_value=FROZEN_NOW):
-        assert P.EventEntityFresh(max_age=10)(event_entity_change(state_value)) is expected
+def test_event_entity_fresh(state_value: str | None, last_changed: str, expected: bool) -> None:
+    assert P.EventEntityFresh(max_age=10)(event_entity_change(state_value, last_changed)) is expected
+
+
+def test_event_entity_fresh_ignores_wall_clock() -> None:
+    """A press long ago still passes when its last_changed matches, so duration= hold rechecks keep firing."""
+    event = event_entity_change("2026-10-09T11:59:59.998+00:00")
+    with patch("hassette.utils.date_utils.now", return_value=ZonedDateTime(2026, 10, 10, 12, tz="UTC")):
+        assert P.EventEntityFresh(max_age=10)(event) is True
 
 
 @pytest.mark.parametrize("max_age", [0, -1, float("nan")])
