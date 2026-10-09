@@ -70,7 +70,7 @@ const schema11 = {
         entity_count: { title: "Entity Count", type: "integer" },
         app_count: {
           description:
-            "Number of app instances currently tracked, running or failed — not the number of configured apps.\n\nSame meaning as ``SystemStatusResponse.app_count``.",
+            "Number of app instances currently tracked (starting, running, or failed), not the number of configured apps.\n\nSame meaning as ``SystemStatusResponse.app_count``.",
           title: "App Count",
           type: "integer",
         },
@@ -1012,7 +1012,7 @@ const schema17 = {
     entity_count: { title: "Entity Count", type: "integer" },
     app_count: {
       description:
-        "Number of app instances currently tracked, running or failed — not the number of configured apps.\n\nSame meaning as ``SystemStatusResponse.app_count``.",
+        "Number of app instances currently tracked (starting, running, or failed), not the number of configured apps.\n\nSame meaning as ``SystemStatusResponse.app_count``.",
       title: "App Count",
       type: "integer",
     },

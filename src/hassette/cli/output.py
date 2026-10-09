@@ -142,7 +142,7 @@ def fmt_services(services: list[dict[str, Any]]) -> str:
 def fmt_instance_count(value: Any) -> str:
     """Label a tracked-instance count so it can't be read as the configured-app total."""
     noun = "instance" if value == 1 else "instances"
-    return f"{value} {noun} (running/failed only)"
+    return f"{value} tracked {noun}"
 
 
 CLI_FORMATTERS: dict[str, Callable[[Any], str]] = {

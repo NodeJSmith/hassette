@@ -83,7 +83,7 @@ export interface ConnectedData {
   uptime_seconds: number;
   entity_count: number;
   /**
-   * Number of app instances currently tracked, running or failed — not the number of configured apps.
+   * Number of app instances currently tracked (starting, running, or failed), not the number of configured apps.
    *
    * Same meaning as ``SystemStatusResponse.app_count``.
    */

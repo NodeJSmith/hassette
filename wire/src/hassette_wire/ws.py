@@ -77,7 +77,7 @@ class ConnectedData(BaseModel):
     uptime_seconds: float
     entity_count: int
     app_count: int
-    """Number of app instances currently tracked, running or failed — not the number of configured apps.
+    """Number of app instances currently tracked (starting, running, or failed), not the number of configured apps.
 
     Same meaning as ``SystemStatusResponse.app_count``."""
     version: str = ""

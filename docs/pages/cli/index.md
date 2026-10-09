@@ -13,7 +13,7 @@ $ hassette status
 │  websocket_connected  true                                │
 │  uptime_seconds       17s                                 │
 │  entity_count         103                                 │
-│  app_count            3 instances (running/failed only)   │
+│  app_count            3 tracked instances                 │
 │  services             EventStreamService, BusService,     │
 │                       SchedulerService, WebApiService      │
 │  version              0.32.0                              │

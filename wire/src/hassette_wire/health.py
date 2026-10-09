@@ -48,10 +48,10 @@ class SystemStatusResponse(BaseModel):
     uptime_seconds: Annotated[float, CliFormat("uptime")]
     entity_count: int
     app_count: Annotated[int, CliFormat("instance_count")]
-    """Number of app instances currently tracked, running or failed — not the number of configured apps.
+    """Number of app instances currently tracked (starting, running, or failed), not the number of configured apps.
 
-    A configured app that is stopped, disabled, or not yet started has no instance and is not counted, so this
-    is ``0`` before app bootstrap and can be lower than the total ``GET /api/apps`` lists."""
+    A configured app that is stopped or disabled, or whose instances haven't been created yet, is not counted, so
+    this is ``0`` before app bootstrap and can be lower than the total ``GET /api/apps`` lists."""
     services: Annotated[list[ServiceInfo], CliFormat("services")] = Field(default_factory=list)
     version: str = ""
     api_schema_version: int = 0
