@@ -1,0 +1,20 @@
+# The hass-hassette companion integration, pinned by HASS_HASSETTE_VERSION in scripts/docker/.env.
+#
+# Not a stack of its own: tests/system/docker-compose.yml and scripts/docker/ha-demo.yml each
+# pull this service in with `extends`, declare the `hass-hassette` volume, and mount it read-only
+# at /config/custom_components/hassette in their HA container. It runs once per `up`, emptying
+# the volume and unpacking the release asset into it, so a bumped pin never leaves stale files.
+# It reuses the HA image (already pulled, and it ships curl and python) rather than adding one.
+services:
+  hass-hassette:
+    image: homeassistant/home-assistant:${HA_VERSION}
+    entrypoint: ["/bin/sh", "-euc"]
+    command:
+      - |
+        find /dest -mindepth 1 -delete
+        curl -fsSL --retry 3 -o /tmp/hassette.zip \
+          "https://github.com/NodeJSmith/hass-hassette/releases/download/${HASS_HASSETTE_VERSION:?set HASS_HASSETTE_VERSION in scripts/docker/.env}/hassette.zip"
+        python3 -m zipfile -e /tmp/hassette.zip /dest
+    volumes:
+      - hass-hassette:/dest
+    restart: "no"

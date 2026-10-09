@@ -233,7 +233,7 @@ Job names must be unique within an app instance. Registering a second job with a
 | `"skip"` | Returns the existing job when its configuration matches the new registration. Raises `ValueError` when names match but configurations differ. Two jobs match when they share the same callable, trigger (by `trigger_id()`), group, jitter, timeout, `timeout_disabled`, `args`, `kwargs`, `on_error` handler, `mode`, and `where` predicate. |
 | `"replace"` | Removes the existing job and registers the new one. The new job's configuration does not need to match the old one. |
 
-`if_exists` matters most in `on_initialize`, which re-runs on app reload (triggered by config changes or `hassette reload`).
+`if_exists` matters most in `on_initialize`, which re-runs on app reload (triggered by `hassette reload`, or by config changes when automatic reloads are on).
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_idempotent_registration.py:idempotent_registration"

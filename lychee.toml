@@ -30,5 +30,8 @@ accept = [200, 429, 503]
 fallback_extensions = ["md"]
 index_files = ["index.md"]
 
+# Docs use RFC 1918 addresses (e.g. 192.168.1.10) as example hosts; a CI runner can't reach them.
+exclude_private = true
+
 max_concurrency = 4
 timeout = 30

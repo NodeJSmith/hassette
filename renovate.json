@@ -5,6 +5,7 @@
     "docker-compose managerFilePatterns lists both patterns explicitly: the standard compose pattern (covers tests/system/docker-compose.yml) and ha-demo.yml (covers scripts/docker/ha-demo.yml, which is not named compose* and would otherwise be missed).",
     "ignorePaths replaces config:recommended's defaults so tests/ is NOT ignored (the CI compose file lives under tests/), while the docs snippet compose files are excluded.",
     "chore(deps) commits keep dependency bumps out of the release-please changelog.",
+    "customManagers tracks HASS_HASSETTE_VERSION in scripts/docker/.env (the hass-hassette release the system-test and demo HA containers install) against NodeJSmith/hass-hassette's GitHub releases.",
     "homeassistant/home-assistant is explicitly disabled (see packageRules) -- the .claude/skills/ha-version-bump skill owns bumping the compose-file HA image tags in lockstep with the codegen pin, monthly. Weekly Renovate PRs for this one package went unreviewed in practice."
   ],
   "extends": ["config:recommended"],
@@ -21,6 +22,16 @@
       "/(^|/)ha-demo\\.ya?ml$/"
     ]
   },
+  "customManagers": [
+    {
+      "description": "HASS_HASSETTE_VERSION in scripts/docker/.env pins the hass-hassette release that the system-test and demo HA containers install; tests/system/test_hass_hassette.py checks each bump",
+      "customType": "regex",
+      "managerFilePatterns": ["/^scripts/docker/\\.env$/"],
+      "matchStrings": ["HASS_HASSETTE_VERSION=(?<currentValue>\\S+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "NodeJSmith/hass-hassette"
+    }
+  ],
   "packageRules": [
     {
       "description": "homeassistant/home-assistant is bumped monthly by the ha-version-bump skill in lockstep with the codegen pin, not by Renovate",

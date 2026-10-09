@@ -51,6 +51,9 @@ class DemoStack:
         self._vite_port = int(os.environ.get("DEMO_VITE_PORT", DEFAULT_VITE_PORT))
         self._tmp_dir: str | None = None
         self._torn_down = False
+        # Set once the pinned compose environment is built; teardown reuses it so `down` interpolates
+        # the compose file the same way `up` did.
+        self._compose_env: dict[str, str] | None = None
 
     @property
     def ha_port(self) -> int:
@@ -111,8 +114,9 @@ class DemoStack:
             self._tmp_dir = None
             raise
 
-        # Pre-create so Docker doesn't auto-create it as root on first bind-mount
+        # Pre-create so Docker doesn't auto-create these as root on first mount
         (self._repo_root / ".demo-data").mkdir(exist_ok=True)
+        (Path(self._tmp_dir) / "custom_components" / "hassette").mkdir(parents=True, exist_ok=True)
 
         env = {
             **os.environ,
@@ -132,19 +136,21 @@ class DemoStack:
         # would keep using the fixture value -- a mismatch between what the containers
         # authenticate with and what the scripts send. Fails loudly (like conftest.py's
         # HA_TOKEN) rather than silently falling back to an inherited/absent value, which
-        # would just be a quieter instance of the same bug this pinning fixes.
+        # would just be a quieter instance of the same bug this pinning fixes. HASS_HASSETTE_VERSION
+        # is pinned for the same reason: an inherited value would install a different release.
         # Keep in sync with tests/system/conftest.py's ha_container fixture (same pinning,
         # scoped to HA_ACCESS_TOKEN only since that compose stack has no hassette service).
         # Parsed fresh per DemoStack() instantiation rather than cached at module level like
         # conftest.py's HA_TOKEN -- this class has no import-time hook to do that caching in.
         fixture_env_path = self._repo_root / "scripts" / "docker" / ".env"
         fixture_env = dotenv_values(fixture_env_path)
-        for key in ("HA_ACCESS_TOKEN", "DEMO_AUTH_TOKEN"):
+        for key in ("HA_ACCESS_TOKEN", "DEMO_AUTH_TOKEN", "HASS_HASSETTE_VERSION"):
             value = fixture_env.get(key)
             if not value:
                 self._teardown()
                 raise RuntimeError(f"{key} not found in {fixture_env_path}")
             env[key] = value
+        self._compose_env = env
 
         try:
             result = subprocess.run(
@@ -206,8 +212,10 @@ class DemoStack:
                     COMPOSE_PROJECT_NAME,
                     "down",
                     "--remove-orphans",
+                    "--volumes",
                 ],
                 check=False,
+                env=self._compose_env,
                 cwd=str(self._repo_root),
                 timeout=COMPOSE_DOWN_TIMEOUT_SECONDS,
             )

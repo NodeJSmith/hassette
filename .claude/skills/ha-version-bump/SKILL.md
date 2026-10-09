@@ -62,6 +62,11 @@ this monthly one. If `renovate.json` no longer has that rule, or the rule is pre
 its `enabled` value is no longer exactly `false`, something reverted it; flag that to the
 user rather than proceeding as if Renovate will catch the drift.
 
+`scripts/docker/.env` also holds `HASS_HASSETTE_VERSION`, the hass-hassette integration
+release both stacks install. Renovate owns that pin (`customManagers` in `renovate.json`),
+so leave it alone here. `scripts/docker/hass-hassette.yml` uses
+`homeassistant/home-assistant:${HA_VERSION}` too; that interpolated tag is expected.
+
 Then update the local core checkout (path from `reference_ha-core-local-checkout`
 memory, default `~/source/core`):
 
@@ -123,6 +128,11 @@ over roughly 10 CPU-minutes get killed by the orphan-test reaper on this machine
 **Stop here if any command fails.** Do not proceed to Phase 5 or 6 on a red suite — fix
 the failure or report it to the user and end the run. A generated-model change that
 breaks tests is exactly the case this skill exists to catch before it ships.
+
+This gate skips the system tests; CI runs them on push. `tests/system/test_hass_hassette.py`
+loads the pinned hass-hassette release into the new HA image there. If only that test fails,
+the integration needs a release that supports the new HA version. Report that rather than
+holding the bump.
 
 ## Phase 5: Read the developer blog
 

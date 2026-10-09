@@ -55,6 +55,8 @@ Monitor and manage your automations from the browser — view aggregate stats at
 
 See the [Web UI docs](pages/web-ui/index.md) for a full tour.
 
+Prefer to manage apps from Home Assistant? The [Hassette integration (HACS)](pages/getting-started/home-assistant-integration.md) turns each app into a device with start, stop, and reload controls for your dashboards and automations.
+
 ## What you can build
 
 - Event-driven automations (state changes, events, scheduled jobs)
@@ -88,4 +90,5 @@ See the [Migration Guide](pages/migration/index.md) for a concept-by-concept com
 - **Production:** [Docker Deployment](pages/getting-started/docker/index.md)
 - **Architecture overview:** [Core Concepts](pages/core-concepts/index.md)
 - **Full configuration:** [Configuration Overview](pages/core-concepts/configuration/index.md)
+- **Control apps from Home Assistant:** [Hassette integration (HACS)](pages/getting-started/home-assistant-integration.md)
 - **Migrating from AppDaemon?** [Migration Guide](pages/migration/index.md)

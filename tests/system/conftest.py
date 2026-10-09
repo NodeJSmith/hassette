@@ -44,6 +44,10 @@ _HA_PORT = _DEMO_ENV.get("SYSTEM_HA_PORT")
 if not _HA_PORT:
     raise RuntimeError(f"SYSTEM_HA_PORT not found in {_DEMO_ENV_PATH}")
 HA_URL = f"http://localhost:{_HA_PORT}"
+# The hass-hassette release docker-compose.yml's init service installs into HA (see test_hass_hassette.py).
+_HASS_HASSETTE_VERSION = _DEMO_ENV.get("HASS_HASSETTE_VERSION")
+if not _HASS_HASSETTE_VERSION:
+    raise RuntimeError(f"HASS_HASSETTE_VERSION not found in {_DEMO_ENV_PATH}")
 HA_CONTAINER_NAME = "hassette-system-ha"
 STARTUP_TIMEOUT = 60  # seconds
 SHUTDOWN_TIMEOUT = 30  # seconds — matches Hassette's total_shutdown_timeout_seconds
@@ -94,14 +98,18 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     )
     config_tmp = tmp_path_factory.mktemp("ha-config")
     shutil.copytree(FIXTURE_DIR, config_tmp, dirs_exist_ok=True, ignore=_ignore)
+    # The hass-hassette volume mounts here; pre-creating it keeps Docker from making it root-owned,
+    # which pytest could not clean up.
+    (config_tmp / "custom_components" / "hassette").mkdir(parents=True)
 
-    # Pin HA_ACCESS_TOKEN and SYSTEM_HA_PORT to the fixture values even if the invoking shell
-    # exports its own — Docker Compose's interpolation precedence favors the process env over
-    # the .env file (docs.docker.com/compose/how-tos/environment-variables/variable-interpolation).
+    # Pin HA_ACCESS_TOKEN, SYSTEM_HA_PORT and HASS_HASSETTE_VERSION to the fixture values even if
+    # the invoking shell exports its own — Docker Compose's interpolation precedence favors the
+    # process env over the .env file (docs.docker.com/compose/how-tos/environment-variables/variable-interpolation).
     # An inherited HA_ACCESS_TOKEN would silently override the token baked into
     # tests/fixtures/ha-config/.storage/auth and break the HA container's healthcheck; an
     # inherited SYSTEM_HA_PORT would publish the container on a port that HA_URL — resolved from
-    # the .env file alone — does not poll, so readiness would time out after STARTUP_TIMEOUT.
+    # the .env file alone — does not poll, so readiness would time out after STARTUP_TIMEOUT; an
+    # inherited HASS_HASSETTE_VERSION would test a different release than the one Renovate tracks.
     # Keep in sync with scripts/demo_stack.py's DemoStack.__enter__ (same pinning, plus
     # DEMO_AUTH_TOKEN there since that compose stack also runs a hassette service).
     env = {
@@ -109,12 +117,15 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
         "HA_CONFIG_PATH": str(config_tmp),
         "HA_ACCESS_TOKEN": HA_TOKEN,
         "SYSTEM_HA_PORT": _HA_PORT,
+        "HASS_HASSETTE_VERSION": _HASS_HASSETTE_VERSION,
     }
-    subprocess.run(
-        ["docker", "compose", "-f", str(COMPOSE_FILE), "up", "-d", "homeassistant"],
-        check=True,
-        env=env,
-    )
+    compose = ["docker", "compose", "-f", str(COMPOSE_FILE)]
+    up = subprocess.run([*compose, "up", "-d", "homeassistant"], check=False, env=env)
+    if up.returncode != 0:
+        # HA waits on the hass-hassette download, so its log is the likeliest explanation.
+        logs = subprocess.run([*compose, "logs", "hass-hassette"], capture_output=True, text=True, env=env)
+        subprocess.run([*compose, "down", "-v"], check=False, env=env)
+        pytest.fail(f"docker compose up failed (exit {up.returncode}); hass-hassette log:\n{logs.stdout}{logs.stderr}")
     try:
         deadline = time.monotonic() + STARTUP_TIMEOUT
         while time.monotonic() < deadline:
@@ -134,11 +145,7 @@ def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
 
         yield HA_URL
     finally:
-        subprocess.run(
-            ["docker", "compose", "-f", str(COMPOSE_FILE), "down"],
-            check=False,
-            env=env,
-        )
+        subprocess.run([*compose, "down", "-v"], check=False, env=env)
 
 
 def session_ready(hassette: Hassette) -> bool:
@@ -298,16 +305,20 @@ def free_port() -> int:
         return sock.getsockname()[1]
 
 
-def make_web_system_config(ha_url: str, tmp_path: Path) -> tuple[HassetteConfig, str]:
+def make_web_system_config(
+    ha_url: str, tmp_path: Path, *, host: str = "127.0.0.1", auth_token: str | None = None
+) -> tuple[HassetteConfig, str]:
     """Build a HassetteConfig with the web API enabled, using a dynamically assigned port.
 
     Args:
         ha_url: Base URL of the running Home Assistant instance.
         tmp_path: Per-test temporary directory used for ``data_dir`` and ``app_dir``.
+        host: Address the web API binds. A non-loopback host requires ``auth_token``.
+        auth_token: Bearer token the web API requires; ``None`` disables auth.
 
     Returns:
-        A tuple of ``(config, base_url)`` where ``base_url`` is e.g.
-        ``http://localhost:PORT``.
+        A tuple of ``(config, base_url)``. ``base_url`` is always the loopback address
+        (``http://127.0.0.1:PORT``) the test process reaches the web API on, whatever ``host`` is.
     """
     port = free_port()
 
@@ -319,7 +330,13 @@ def make_web_system_config(ha_url: str, tmp_path: Path) -> tuple[HassetteConfig,
         token=HA_TOKEN,
         data_dir=tmp_path / "data",
         apps={"directory": app_dir, "autodetect": False},
-        web_api={"run": True, "port": port, "auth_enabled": False, "host": "127.0.0.1"},
+        web_api={
+            "run": True,
+            "port": port,
+            "host": host,
+            "auth_enabled": auth_token is not None,
+            "auth_token": auth_token,
+        },
         lifecycle={"startup_timeout_seconds": 30},
     )
     return config, f"http://127.0.0.1:{port}"

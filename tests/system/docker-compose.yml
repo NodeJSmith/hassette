@@ -4,8 +4,17 @@ services:
     container_name: hassette-system-ha
     volumes:
       - ${HA_CONFIG_PATH:-../../tests/fixtures/ha-config}:/config
+      # The integration files unpacked by the hass-hassette init service, overlaid on the config dir.
+      - hass-hassette:/config/custom_components/hassette:ro
     ports:
       - "${SYSTEM_HA_PORT}:8123"
+    # test_hass_hassette.py runs hassette in the pytest process on the host; the integration
+    # reaches its web API through this alias.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      hass-hassette:
+        condition: service_completed_successfully
     restart: "no"
     # HA_ACCESS_TOKEN (.env, symlinked from scripts/docker/.env) must match the
     # token baked into tests/fixtures/ha-config/.storage/auth. conftest.py's
@@ -24,3 +33,11 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  hass-hassette:
+    extends:
+      file: ../../scripts/docker/hass-hassette.yml
+      service: hass-hassette
+
+volumes:
+  hass-hassette:
