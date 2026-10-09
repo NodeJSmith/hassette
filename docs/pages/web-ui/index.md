@@ -110,7 +110,7 @@ The UI can be disabled independently while the REST API stays active:
 
 The UI has three persistent navigation elements.
 
-The **sidebar** lists every app grouped by lifecycle status: `FAILING`, `BLOCKED`, `SLOW`, `RUNNING`, `STOPPED`, and `DISABLED`. A search field filters the list by app name. The command palette opens from the search area or with Ctrl+K (Cmd+K on macOS).
+The **sidebar** lists every app grouped by lifecycle status: `FAILING`, `BLOCKED`, `WARNING`, `RUNNING`, `STOPPED`, and `DISABLED`. A search field filters the list by app name. The command palette opens from the search area or with Ctrl+K (Cmd+K on macOS).
 
 ![Sidebar](../../_static/web_ui_detail_sidebar.png)
 
