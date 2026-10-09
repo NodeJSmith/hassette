@@ -145,14 +145,7 @@ def test_server_logs_to_stdout(clean_hassette_env: Path) -> None:
     """`hassette run` keeps its whole log on stdout; only data commands route bootstrap logging to stderr."""
     env = {**os.environ, "HASSETTE__CONFIG_DIR": str(clean_hassette_env)}  # no token: fails at config check
 
-    result = subprocess.run(
-        [sys.executable, "-m", "hassette", "run"],
-        env=env,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
-    )
+    result = run_hassette(["run"], env)
 
     assert result.returncode == EX_CONFIG, result.stderr
     assert "HA token is required" in result.stdout
@@ -260,15 +253,15 @@ class TestRunCheck:
             "HASSETTE__TOKEN": "test-token",
         }
 
-        result = subprocess.run(
-            [sys.executable, "-m", "hassette", "run", "--check"],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=60,
-            check=False,
-        )
+        result = run_hassette(["run", "--check"], env)
 
         assert result.returncode == 0, result.stderr
         assert [line.split("=")[0] for line in result.stdout.splitlines()] == ["CONFIG_DIR", "CONFIG_HOME", "APPS_DIR"]
         assert "not valid" in result.stderr
+
+
+def run_hassette(args: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """Run ``python -m hassette`` in a subprocess, so the real entrypoint's logging setup is under test."""
+    return subprocess.run(
+        [sys.executable, "-m", "hassette", *args], env=env, capture_output=True, text=True, timeout=60, check=False
+    )

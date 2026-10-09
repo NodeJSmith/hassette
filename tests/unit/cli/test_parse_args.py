@@ -15,6 +15,7 @@ import pytest
 from whenever import Instant
 
 from hassette.cli import app
+from hassette.cli.commands.run import EX_CONFIG
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 from tests.unit.cli.conftest import NOW_EPOCH, fixed_now
 
@@ -204,6 +205,13 @@ class TestGlobalFlagWiring:
         assert match is not None
 
         assert set(match.group(1).split()) == {*app.help_flags, *app.version_flags}
+
+    def test_docker_ex_config_matches_the_cli(self) -> None:
+        """docker_start.sh halts with the config remedy on this exit code."""
+        match = re.search(r"^EX_CONFIG=(\d+)", DOCKER_START_SCRIPT.read_text(), re.MULTILINE)
+        assert match is not None
+
+        assert int(match.group(1)) == EX_CONFIG
 
     def test_run_check_flag(self) -> None:
         cmd, bound, _ = app.parse_args(["run", "--check"])

@@ -25,6 +25,7 @@ REMEDY_CONFIG="Fix the setting named above (in its file or your compose environm
 REMEDY_IMAGE="Pull the image again: docker compose pull && docker compose up -d"
 REMEDY_UNEXPECTED="Check the error above: fix the container's command arguments if it names one,
   otherwise report it at https://github.com/NodeJSmith/hassette/issues"
+EX_CONFIG=78  # EX_CONFIG in hassette/cli/commands/run.py; a test keeps them in sync
 # Args that make `hassette run` print and exit instead of starting: cyclopts' help flags and the
 # root app's version_flags (hassette/cli/__init__.py). A test keeps this list in sync.
 PASSTHROUGH_FLAGS=(--help -h --version -v)
@@ -118,8 +119,8 @@ done <<< "${check_stdout}"
 
 # Recreating the container rereads both its environment and its mounted files, so one remedy
 # covers a config error from either.
-if [ "${check_code}" -eq 78 ]; then
-    halt 78 "the configuration is invalid (see above)" "${REMEDY_CONFIG}"
+if [ "${check_code}" -eq "${EX_CONFIG}" ]; then
+    halt "${EX_CONFIG}" "the configuration is invalid (see above)" "${REMEDY_CONFIG}"
 elif [ "${check_code}" -ne 0 ]; then
     halt "${check_code}" "'hassette run --check' failed unexpectedly (see above)" "${REMEDY_UNEXPECTED}"
 fi

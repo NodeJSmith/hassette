@@ -88,11 +88,11 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
     top-level keys of an earlier one. Each file's local overlay sibling (``hassette.toml`` ->
     ``hassette.local.toml``) is then deep-merged on top, so an overlay can override a single nested
     key without restating the rest of its table. Relative paths in each file are anchored at that
-    file's directory before files combine. With a `build` (always, from `HassetteConfig.__init__`),
-    each file's table is recorded for the post-build checks; without one the source only reads.
+    file's directory before files combine. Each file's table is recorded on `build` for the
+    post-build checks.
     """
 
-    def __init__(self, settings_cls: type[BaseSettings], toml_files: Sequence[Path], build: ConfigBuild | None = None):
+    def __init__(self, settings_cls: type[BaseSettings], toml_files: Sequence[Path], build: ConfigBuild):
         self.toml_file_path = list(toml_files)
         base_files = self.toml_file_path
 
@@ -113,14 +113,13 @@ class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
         # as the second argument
         InitSettingsSource.__init__(self, settings_cls, self.toml_data)
 
-    def read_table(self, settings_cls: type[BaseSettings], path: Path, build: ConfigBuild | None) -> dict[str, Any]:
+    def read_table(self, settings_cls: type[BaseSettings], path: Path, build: ConfigBuild) -> dict[str, Any]:
         try:
             raw = self._read_file(path)
         except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
             raise config_file_error(path, exc) from exc
         table = normalize_toml_file(settings_cls, raw)
-        if build is not None:
-            build.toml_tables.append(TomlTable(path, table))
+        build.toml_tables.append(TomlTable(path, table))
         return anchor_paths(settings_cls, table, path.parent)
 
 

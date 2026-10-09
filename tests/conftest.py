@@ -292,6 +292,7 @@ def apps_config_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
     tmp_dir = tmp_path_factory.mktemp("hassette_apps")
     toml_path = tmp_dir / "hassette.toml"
     template = APPS_TOML_TEMPLATE.read_text(encoding="utf-8")
+    assert '"../apps"' in template, f'{APPS_TOML_TEMPLATE} no longer spells its apps paths as "../apps"'
     toml_path.write_text(template.replace('"../apps"', f'"{TEST_APPS_PATH.as_posix()}"'), encoding="utf-8")
     return toml_path
 

@@ -93,15 +93,14 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         cls,
         settings_cls: type["BaseSettings"],
         init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,  # noqa: ARG003 - pydantic-settings fixes the signature
+        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         build = ACTIVE_BUILD.get()
         if build is None:
-            # Constructed without HassetteConfig.__init__ (e.g. model_validate on a subclass):
-            # pydantic-settings' own sources, which read the live environment.
-            return (init_settings, env_settings, dotenv_settings, file_secret_settings)
+            # sources resolve only inside BaseSettings.__init__, which HassetteConfig.__init__ wraps in a build
+            raise RuntimeError("HassetteConfig settings sources resolved outside HassetteConfig.__init__")
 
         locations = build.locations
         init_kwargs = init_settings.init_kwargs if isinstance(init_settings, InitSettingsSource) else {}
@@ -113,7 +112,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
             # a later .env file wins, and an earlier source has priority
             *(FileDotEnvSettingsSource(settings_cls, path, build) for path in reversed(locations.env_files)),
             file_secret_settings,
-            HassetteTomlConfigSettingsSource(settings_cls, locations.toml_files, build=build),
+            HassetteTomlConfigSettingsSource(settings_cls, locations.toml_files, build),
         )
 
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
