@@ -336,8 +336,10 @@ jobs:
                   # RTD serves /en/stable/ from the last release, so a stable link to a page added since
                   # then would 404 live. Remap stable page links onto the docs source instead: a page that
                   # exists under docs/pages/ passes, a missing one still fails. The fragment is dropped
-                  # (lychee does not check fragments here). The remap cannot expand env vars, so the absolute
-                  # checkout path comes from the github.workspace expression.
+                  # (lychee does not check fragments here). The capture is lazy so an optional trailing slash
+                  # falls to `/?` instead of $1; a greedy capture would remap `foo/` to a directory, not foo.md.
+                  # The action `eval`s these args, so the remap is single-quoted to keep `$1` and the `$` anchor
+                  # literal; that also blocks $GITHUB_WORKSPACE, so the path comes from github.workspace.
                   args: >-
                       README.md CONTRIBUTING.md 'docs/**/*.md' --config lychee.toml
                       --remap '^https://hassette\.readthedocs\.io/en/stable/pages/([^#]*?)/?(#.*)?$ file://${{ github.workspace }}/docs/pages/$1'
