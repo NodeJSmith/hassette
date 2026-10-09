@@ -10,6 +10,7 @@ on:
             - "tools/docs/inventories.py"
             - "tools/docs/inventories/**"
             - ".github/workflows/docs.yml"
+            - "mise.toml"
     pull_request:
         paths:
             - "docs/**"
@@ -19,6 +20,7 @@ on:
             - "tools/docs/inventories.py"
             - "tools/docs/inventories/**"
             - ".github/workflows/docs.yml"
+            - "mise.toml"
 
     workflow_dispatch:
 
@@ -68,22 +70,28 @@ jobs:
         timeout-minutes: 10
 
         steps:
+            # Before the artifact download: checkout cleans the workspace. mise.toml must sit in the
+            # working directory for the muffet shim to resolve its pinned version.
+            - name: Checkout mise.toml
+              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              with:
+                  persist-credentials: false
+                  sparse-checkout: mise.toml
+                  sparse-checkout-cone-mode: false
+
             - name: Download site artifact
               uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
               with:
                   name: docs-site
                   path: site/
 
-            - name: Set up Go
-              uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-              with:
-                  go-version: "stable"
-                  cache: false
-
+            # Installs only muffet at the version pinned in mise.toml; env: false keeps mise.toml's
+            # [env] (the .venv activation) out of the job environment.
             - name: Install muffet
-              run: |
-                  go install github.com/raviqqe/muffet/v2@v2.11.4
-                  echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+              uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+              with:
+                  install_args: github:raviqqe/muffet
+                  env: false
 
             - name: Serve site
               run: python3 -m http.server 8000 -d site &
