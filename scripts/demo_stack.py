@@ -51,6 +51,9 @@ class DemoStack:
         self._vite_port = int(os.environ.get("DEMO_VITE_PORT", DEFAULT_VITE_PORT))
         self._tmp_dir: str | None = None
         self._torn_down = False
+        # Set once the pinned compose environment is built; teardown reuses it so `down` interpolates
+        # the compose file the same way `up` did.
+        self._compose_env: dict[str, str] | None = None
 
     @property
     def ha_port(self) -> int:
@@ -147,6 +150,7 @@ class DemoStack:
                 self._teardown()
                 raise RuntimeError(f"{key} not found in {fixture_env_path}")
             env[key] = value
+        self._compose_env = env
 
         try:
             result = subprocess.run(
@@ -211,6 +215,7 @@ class DemoStack:
                     "--volumes",
                 ],
                 check=False,
+                env=self._compose_env,
                 cwd=str(self._repo_root),
                 timeout=COMPOSE_DOWN_TIMEOUT_SECONDS,
             )
