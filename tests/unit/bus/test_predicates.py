@@ -10,8 +10,12 @@ This module tests the core predicate system including:
 """
 
 from types import SimpleNamespace
+from unittest.mock import patch
 
-from hassette import A, P
+import pytest
+from whenever import ZonedDateTime
+
+from hassette import A, P, RawStateChangeEvent
 from hassette.const import MISSING_VALUE, NOT_PROVIDED
 from hassette.event_handling.accessors import (
     get_entity_id,
@@ -30,6 +34,7 @@ from hassette.event_handling.predicates import (
     DidChange,
     DomainMatches,
     EntityMatches,
+    EventEntityFresh,
     Guard,
     IsMissing,
     IsPresent,
@@ -45,6 +50,8 @@ from hassette.event_handling.predicates import (
 )
 from hassette.testing import create_call_service_event, create_state_change_event
 from tests.support.helpers import create_attr_change_event
+
+FROZEN_NOW = ZonedDateTime(2026, 10, 9, 12, 0, 0, tz="UTC")
 
 
 # ValueIs tests
@@ -686,3 +693,37 @@ def test_operator_summarize_matches_explicit_combinators() -> None:
         "not (entity light.kitchen and → on)"
     )
     assert summarize_top_level(EntityMatches("light.kitchen") & StateTo("on")) == "entity light.kitchen and → on"
+
+
+def event_entity_change(new_value: str | None) -> RawStateChangeEvent:
+    return create_state_change_event(entity_id="event.hallway_button", old_value=None, new_value=new_value)
+
+
+@pytest.mark.parametrize(
+    ("state_value", "expected"),
+    [
+        pytest.param("2026-10-09T11:59:55.000+00:00", True, id="recent"),
+        pytest.param("2026-10-09T11:59:50.000+00:00", True, id="exactly_max_age"),
+        pytest.param("2026-10-09T11:59:49.999+00:00", False, id="just_over_max_age"),
+        pytest.param("2026-10-09T08:00:00.000+00:00", False, id="restart_replay"),
+        pytest.param("2026-10-09T07:59:58.000-04:00", True, id="other_offset_recent"),
+        pytest.param("2026-10-09T12:05:00.000+00:00", True, id="future_clock_skew"),
+        pytest.param("unknown", True, id="unknown"),
+        pytest.param("unavailable", True, id="unavailable"),
+        pytest.param(None, True, id="missing_new_state"),
+    ],
+)
+def test_event_entity_fresh(state_value: str | None, expected: bool) -> None:
+    with patch("hassette.utils.date_utils.now", return_value=FROZEN_NOW):
+        assert P.EventEntityFresh(max_age=10)(event_entity_change(state_value)) is expected
+
+
+@pytest.mark.parametrize("max_age", [0, -1])
+def test_event_entity_fresh_rejects_non_positive_max_age(max_age: float) -> None:
+    with pytest.raises(ValueError, match="max_age must be positive"):
+        P.EventEntityFresh(max_age=max_age)
+
+
+def test_predicate_summarize_golden_event_entity_fresh() -> None:
+    assert EventEntityFresh(max_age=10).summarize() == "event within 10s"
+    assert EventEntityFresh(max_age=2.5).summarize() == "event within 2.5s"
