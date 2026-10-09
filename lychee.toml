@@ -22,5 +22,12 @@ exclude = [
 # A genuinely missing page answers 404, which still fails.
 accept = [200, 429, 503]
 
+# `/en/stable/` links are remapped onto docs/pages/ source files by the link-check job in
+# .github/workflows/lint.yml (the remap needs the absolute checkout path, which this file can't
+# expand). These two settings make the remapped file:// URIs follow mkdocs' directory URLs:
+# `/pages/foo/` -> docs/pages/foo.md, and a section root `/pages/foo/` -> docs/pages/foo/index.md.
+fallback_extensions = ["md"]
+index_files = ["index.md"]
+
 max_concurrency = 4
 timeout = 30
