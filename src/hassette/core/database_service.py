@@ -77,8 +77,8 @@ _LOG_INSERT_SQL = (
 class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseSizeFailsafeMixin, Service):
     """Manages the SQLite database for operational telemetry.
 
-    Handles PRAGMA user_version migrations, heartbeat updates, and retention cleanup
-    of old execution records.
+    Handles PRAGMA user_version migrations, heartbeat updates, the write queue, retention
+    cleanup of old execution records, and the database size failsafe.
     """
 
     restart_spec: ClassVar[RestartSpec] = RestartSpec(

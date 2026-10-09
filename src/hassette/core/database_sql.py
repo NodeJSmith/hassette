@@ -1,16 +1,20 @@
 """Low-level SQL helpers shared by ``DatabaseService`` and its retention mixin."""
 
-import typing
+import logging
+from typing import Protocol
 
 import aiosqlite
-
-if typing.TYPE_CHECKING:
-    from hassette.core.database_service import DatabaseService
 
 SQL_BEGIN = "BEGIN"
 
 
-async def safe_rollback(db: aiosqlite.Connection, owner: "DatabaseService", context: str) -> None:
+class LoggerOwner(Protocol):
+    """Anything exposing a ``logger`` -- the only attribute ``safe_rollback`` reads from its owner."""
+
+    logger: logging.Logger
+
+
+async def safe_rollback(db: aiosqlite.Connection, owner: LoggerOwner, context: str) -> None:
     """Roll back a transaction, logging (not raising) if the rollback itself fails.
 
     Callers remain responsible for handling the original exception (re-raising, logging,

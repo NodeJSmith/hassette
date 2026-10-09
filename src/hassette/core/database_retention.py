@@ -17,7 +17,6 @@ if typing.TYPE_CHECKING:
 
     from hassette import Hassette
     from hassette.config.config import HassetteConfig
-    from hassette.core.database_service import DatabaseService
     from hassette.core.database_write_queue import _WriteQueueItem
 
 
@@ -227,7 +226,7 @@ class DatabaseRetentionMixin:
             try:
                 deleted, exhausted = await self._delete_target_batched(target, now, config)
             except _RetentionBatchError as exc:
-                await safe_rollback(self.db, typing.cast("DatabaseService", self), target.failsafe_label)
+                await safe_rollback(self.db, self, target.failsafe_label)
                 self.logger.exception("Retention cleanup failed for %s", target.failsafe_label)
                 # Batches already committed before the failure are real, durable progress —
                 # record them alongside the failure rather than reporting a false zero.
@@ -248,7 +247,7 @@ class DatabaseRetentionMixin:
                 cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
                 listeners_deleted, jobs_deleted = await self._run_parent_guard_deletes(cutoff)
             except Exception:
-                await safe_rollback(self.db, typing.cast("DatabaseService", self), "parent-guard deletes")
+                await safe_rollback(self.db, self, "parent-guard deletes")
                 self.logger.exception("Retention cleanup failed for parent-guard deletes")
                 parent_guard_failed = True
         else:
