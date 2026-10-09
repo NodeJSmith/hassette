@@ -6,6 +6,11 @@ services:
       - "127.0.0.1:${DEMO_HA_PORT:-18123}:8123"
     volumes:
       - "${HA_CONFIG_PATH:-../../tests/fixtures/demo-ha-config}:/config"
+      # The integration files unpacked by the hass-hassette init service, overlaid on the config dir.
+      - "hass-hassette:/config/custom_components/hassette:ro"
+    depends_on:
+      hass-hassette:
+        condition: service_completed_successfully
     restart: "no"
     # HA_ACCESS_TOKEN (scripts/docker/.env) must match tests/fixtures/demo-ha-config/.storage/auth
     healthcheck:
@@ -14,6 +19,11 @@ services:
       timeout: 5s
       retries: 12
       start_period: 20s
+
+  hass-hassette:
+    extends:
+      file: hass-hassette.yml
+      service: hass-hassette
 
   hassette:
     build:
@@ -75,3 +85,6 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+
+volumes:
+  hass-hassette:

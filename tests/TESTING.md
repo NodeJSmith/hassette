@@ -620,18 +620,19 @@ One file per user-visible subsystem:
 | `test_reconnection.py` | WebSocket reconnection: disconnect detection, reconnect with subscriptions, state proxy refresh |
 | `test_shutdown.py` | Graceful shutdown: session status, resource teardown |
 | `test_web_api.py` | Web API endpoints: health, apps, config, telemetry, WebSocket events |
+| `test_hass_hassette.py` | The pinned hass-hassette integration end to end: config flow, per-app devices and entities, stopping an app from its switch |
 
 ### Infrastructure
 
 `tests/system/conftest.py` provides the following fixtures and helpers:
 
 **Session-scoped fixtures:**
-- `ha_container` — starts the HA Docker container before the session and tears it down after. Yields the base URL (`http://localhost:18123`).
+- `ha_container` — starts the HA Docker container before the session and tears it down after. Yields the base URL (`http://localhost:18123`). The container first waits on the `hass-hassette` init service (`scripts/docker/hass-hassette.yml`), which downloads the release pinned by `HASS_HASSETTE_VERSION` in `scripts/docker/.env` into a volume mounted at `custom_components/hassette`. Starting the session therefore needs network access to GitHub; when the download fails, the fixture fails with the init service's log. The container maps `host.docker.internal` to the host, so the integration can reach a hassette running in the pytest process.
 - `system_app_dir` — returns `Path` to `tests/system/apps/`.
 
 **Config factories:**
 - `make_system_config(ha_url, tmp_path)` — returns a `HassetteConfig` pointing at the system test HA instance with `run_web_api=False`.
-- `make_web_system_config(ha_url, tmp_path)` — returns `(config, base_url)` with `run_web_api=True` and a dynamically assigned port.
+- `make_web_system_config(ha_url, tmp_path, *, host="127.0.0.1", auth_token=None)` — returns `(config, base_url)` with the web API running on a dynamically assigned port. Auth is off unless `auth_token` is given; a non-loopback `host` needs one. `base_url` is always the loopback address.
 
 **Context manager:**
 - `startup_context(config, timeout=30)` — async context manager that starts Hassette in the background, waits until fully connected (session created, WebSocket ready, event subscriptions active), yields the `Hassette` instance, and shuts it down on exit.
@@ -660,5 +661,5 @@ For test-specific variants, write an inline app to `tmp_path` and point `config.
 - **No caplog assertions** — test observable behavior (events received, state values, return values), not log output. Log messages are implementation details. Where a test must read a log record anyway, `caplog` works without any local setup: an autouse fixture in `tests/conftest.py` keeps the `hassette` logger propagating, so don't re-add per-test `propagate = True` resets.
 - **Tests are independent of execution order** — each test creates its own `HassetteConfig` and `startup_context`. No shared mutable state between tests.
 - **Container name is `hassette-system-ha`** — used for `docker restart` in reconnection tests. Defined in `tests/system/docker-compose.yml`. We use `restart` instead of `pause`/`unpause` because `pause` freezes the process without closing TCP connections, requiring a WebSocket keepalive timeout before disconnect is detected. `restart` immediately closes the connection and is a more realistic failure scenario (HA restarting after an update).
-- **Subprocess calls use `check=True`** — all `subprocess.run` calls that invoke docker commands must pass `check=True` so failures are immediately visible as errors, not silent no-ops.
+- **Subprocess calls use `check=True`** — all `subprocess.run` calls that invoke docker commands must pass `check=True`, or check the return code and fail with context, so failures are immediately visible as errors, not silent no-ops.
 - **Reconnection timeouts are generous** — use at least 15s for disconnect detection and 30s for reconnect confirmation to accommodate container startup latency.
