@@ -60,6 +60,13 @@ class TestCmdStatus:
         output = runner.stdout(client, cmd_status)
         assert "1h 1m 1s" in output
 
+    def test_app_count_labeled_as_instance_count(self, cli_client_factory: CLIClientFactory) -> None:
+        """app_count renders as an instance count so it can't be read as the configured-app total."""
+        status_data = make_system_status_response(app_count=20)
+        client = cli_client_factory.build_with_routes([("GET", "/api/health", 200, status_data.model_dump())])
+        output = runner.stdout(client, cmd_status)
+        assert "20 tracked instances" in output
+
     def test_status_degraded_prints_status_not_error(self, cli_client_factory: CLIClientFactory) -> None:
         """Status command prints status body (not an error) when instance is 'degraded' (200)."""
         status_data = make_system_status_response(status="degraded", websocket_connected=False)

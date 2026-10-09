@@ -39,7 +39,7 @@ See [Restricting Which Apps Run](../core-concepts/apps/index.md#restricting-whic
 
 ## `hassette status`
 
-Reports system health: connection state, uptime, app count, entity count, and version.
+Reports system health: connection state, uptime, app instance count, entity count, and version. The instance count covers every tracked instance (starting, running, or failed), so stopped and disabled apps, which have no instance, are left out. [`hassette app`](#hassette-app) lists every configured app.
 
 ```console
 $ hassette status
@@ -49,7 +49,7 @@ $ hassette status
 │  bootstrap_released      true                                │
 │  uptime_seconds          16.57                               │
 │  entity_count            103                                 │
-│  app_count               3                                   │
+│  app_count               3 tracked instances                 │
 │  services                EventStreamService, BusService, ... │
 │  version                 0.32.0                              │
 │  boot_issues             []                                  │

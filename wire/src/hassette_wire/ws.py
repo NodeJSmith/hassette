@@ -72,9 +72,14 @@ class ConnectedData(BaseModel):
     ``version`` is the server's hassette version; a client can compare it with its own to detect an upgrade.
     """
 
+    model_config = ConfigDict(use_attribute_docstrings=True)
+
     uptime_seconds: float
     entity_count: int
     app_count: int
+    """Number of app instances currently tracked (starting, running, or failed), not the number of configured apps.
+
+    Same meaning as ``SystemStatusResponse.app_count``."""
     version: str = ""
 
 

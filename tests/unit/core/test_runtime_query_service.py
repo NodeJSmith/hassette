@@ -146,6 +146,22 @@ class TestPreBootstrapAppState:
 
         assert status.app_count == 0
 
+    def test_get_system_status_app_count_excludes_apps_without_instances(
+        self, runtime: RuntimeQueryService, tmp_path: Path
+    ) -> None:
+        """app_count counts tracked instances, so a configured app that was never started isn't included."""
+        registry = AppRegistry()
+        running = create_app_manifest("running_app", tmp_path)
+        not_started = create_app_manifest("not_started_app", tmp_path)
+        registry.set_manifests({running.app_key: running, not_started.app_key: not_started})
+        registry.register_app(running.app_key, 0, MagicMock())
+        runtime.hassette.app_handler.get_status_snapshot = registry.get_snapshot
+
+        status = runtime.get_system_status()
+
+        assert len(registry.manifests) == 2
+        assert status.app_count == 1
+
     def test_overlay_manifest_rows_reflects_configured_registry_before_bootstrap(
         self, runtime: RuntimeQueryService, tmp_path: Path
     ) -> None:
