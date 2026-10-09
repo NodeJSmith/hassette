@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-10-04
+Last reviewed: 2026-10-09
 
 ## How the pieces fit
 
@@ -47,35 +47,16 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 ## Now
 
-| Initiative | Milestone | Brief / tracker |
-|---|---|---|
-| **HACS companion v0.1** | *HACS v0.1* | #45, `design/specs/113-hacs-companion-integration/brief.md`, `design/specs/114-hassette-client/brief.md` |
-
-Order. The workspace, wire package, problem details and lenient parsing are done
-(#2381, #2382, #2384, #2385, #2483, #2484). What's left, with the forced orderings in
-"Dependency chains" below:
-
-1. Fix the wire contract before anything imports it. Renames are cheap until the client and
-   hass-hassette pin these names. Four ratified ledgers, one PR each:
-   - #2448 (`design/specs/123-wire-vocabulary-typing/`) and #2508 (`design/specs/124-app-health-unification/`) can land in either order
-   - #2509 (`design/specs/125-apps-resource-and-grid/`) needs #2508
-   - #2448 (`design/specs/126-wire-naming-and-docs/`) goes last and closes #2448
-2. #2386 async transport, error mapping, typed methods in `hassette-client`
-3. A release that publishes `hassette-client` with #2386. After it, #2485 (cross-version CI,
-   which needs that published client) and step 4 can run in parallel; neither gates the other
-4. hass-hassette repo: config flow, coordinator, platforms, HACS release (its own spec). The repo
-   doesn't exist yet; until it does, unit C on #45's checklist tracks this step
-5. #2506 pinned integration in system-test/demo HA + one end-to-end system test + docs page
-
-The CLI move (#2387, #2388) isn't on this path. The integration needs only the client
-transport, so the standalone CLI is its own initiative in Next.
+Nothing is in Now. HACS v0.1 shipped (hass-hassette is installable as a HACS custom repository
+and dogfooded). The first row of Next takes the slot.
 
 ## Next
 
-Ordered. Only the first row is committed to start next; the rest can swap.
+Ordered. Only the first row is committed to start next; the rest can swap. The testing redesign makes breaking changes that cost more as users arrive, so it is the first candidate to swap ahead of the add-on.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
+| **HA add-on** | pool: `epic:ha-addon`, #71 | The step that turns the HACS work into something people beyond the maintainer can install. Only real blocker is #1850 (mounted `/apps` don't load), which now also covers #1854 and #2626. #616 (`hassette build`) is not a blocker. Supervisor discovery arrives with HACS v0.4 |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Standalone CLI** | *Standalone CLI* (tracker #1540) | Needs #2386. Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the `wait_for` races (#2302, #2303, #2304, #2309). Any can be pulled forward as an interrupt |
@@ -86,7 +67,6 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Blocked on / note |
 |---|---|---|
-| **HA add-on** | pool: `epic:ha-addon`, #71 | #1850 (mounted `/apps` don't load) and #616 (`hassette build`); Supervisor discovery arrives with HACS v0.4 |
 | **HACS v0.3+** | pool: #594, #46 (`epic:hacs`) | Webhooks (#594), `@template` (#46), HACS default store |
 | **v1.0 release** | pool: `release:v1.0.0` | Tag after the testing redesign and every planned breaking change (client split, HACS v0.2 app API) |
 | **Frontend visual system alignment** | pool: tracker #1427 (lists all 15 child issues) | Lower priority by choice: frontend is the least familiar area. Needs a very concrete spec before starting. Recreate the milestone from #1427's list when promoted |
@@ -104,7 +84,7 @@ These are the only forced orderings. Anything not on a chain can go in any order
                                                      client release ──> #2485 cross-version CI
                          #2386 client transport ──> standalone CLI (#2387 ──> #2388)
 hass-hassette v0.1 ──> HACS v0.2 ──> v0.3 webhooks ──> v0.4 add-on discovery
-#1850 + #616 Docker fixes ──> HA add-on (#71) ──> v0.4 add-on discovery
+#1850 (+ #1854, #2626) Docker fixes ──> HA add-on (#71) ──> v0.4 add-on discovery
 testing redesign + all breaking changes ──> v1.0 tag
 ```
 
