@@ -93,6 +93,9 @@ ROOT_REEXPORTS: tuple[str, ...] = (
 # on that same page, appended after the module's own `:::` block.
 EXTRA_PAGE_IDENTIFIERS: dict[str, tuple[str, ...]] = {
     "hassette.types.enums": tuple(f"hassette.{name}" for name in ROOT_REEXPORTS),
+    # Hassette's public service accessors (api, states, bus, ws_url, ...) live on this mixin, and
+    # mkdocstrings doesn't render inherited members, so the mixin renders alongside Hassette.
+    "hassette.core.core": ("hassette.core.hassette_accessors.HassetteAccessorsMixin",),
 }
 
 
