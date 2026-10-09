@@ -331,8 +331,8 @@ class TestUnwiredBootstrapCoordinator:
     """The class docstring promises every cross-resource read tolerates teardown/unwired state.
 
     ``app_bootstrap_coordinator`` is a lazily-wired ``Hassette`` property that raises
-    ``RuntimeError`` when the slot hasn't been set yet (see ``core.py``'s
-    ``_service_not_wired_error``) — mirroring how ``websocket_service``/``app_handler`` raise.
+    ``RuntimeError`` when the slot hasn't been set yet (see ``hassette_accessors.py``'s
+    ``service_not_wired_error``) — mirroring how ``websocket_service``/``app_handler`` raise.
     Simulated here via ``PropertyMock`` on the mock's per-instance class (the documented way to
     mock a property with ``unittest.mock``), since attribute *access* itself must raise, not a
     method call on the accessed object.

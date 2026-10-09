@@ -28,7 +28,7 @@ if typing.TYPE_CHECKING:
     from .websocket_service import WebsocketService
 
 
-def _service_not_wired_error(service: str) -> RuntimeError:
+def service_not_wired_error(service: str) -> RuntimeError:
     """Build the error raised when a service accessor is read before ``wire_services()`` ran.
 
     Names the missing service and the startup-ordering fix, so a premature read during
@@ -43,7 +43,7 @@ def _service_not_wired_error(service: str) -> RuntimeError:
 class HassetteAccessorsMixin:
     """Typed accessors for the services and runtime state ``Hassette`` wires up.
 
-    Each service accessor raises ``RuntimeError`` (via ``_service_not_wired_error``) when read
+    Each service accessor raises ``RuntimeError`` (via ``service_not_wired_error``) when read
     before ``Hassette.wire_services()`` has populated its slot. The slots themselves are assigned
     in ``Hassette.__init__`` and ``wire_services()``; this mixin only reads them.
     """
@@ -92,7 +92,7 @@ class HassetteAccessorsMixin:
     def session_manager(self) -> "SessionManager":
         """SessionManager instance for session lifecycle management."""
         if self._session_manager is None:
-            raise _service_not_wired_error("SessionManager")
+            raise service_not_wired_error("SessionManager")
         return self._session_manager
 
     @property
@@ -116,7 +116,7 @@ class HassetteAccessorsMixin:
     def event_stream_service(self) -> "EventStreamService":
         """EventStreamService instance for internal event stream lifecycle."""
         if self._event_stream_service is None:
-            raise _service_not_wired_error("EventStreamService")
+            raise service_not_wired_error("EventStreamService")
         return self._event_stream_service
 
     @property
@@ -139,14 +139,14 @@ class HassetteAccessorsMixin:
     def sync_executor_service(self) -> "SyncExecutorService":
         """The SyncExecutorService instance that owns the dedicated sync thread pool."""
         if self._sync_executor_service is None:
-            raise _service_not_wired_error("SyncExecutorService")
+            raise service_not_wired_error("SyncExecutorService")
         return self._sync_executor_service
 
     @property
     def command_executor(self) -> "CommandExecutor":
         """CommandExecutor for telemetry recording."""
         if self._command_executor is None:
-            raise _service_not_wired_error("CommandExecutor")
+            raise service_not_wired_error("CommandExecutor")
         return self._command_executor
 
     def get_drop_counters(self) -> tuple[int, int, int]:
@@ -197,70 +197,70 @@ class HassetteAccessorsMixin:
     def database_service(self) -> "DatabaseService":
         """DatabaseService instance for SQLite telemetry storage."""
         if self._database_service is None:
-            raise _service_not_wired_error("DatabaseService")
+            raise service_not_wired_error("DatabaseService")
         return self._database_service
 
     @property
     def logging_service(self) -> "LoggingService":
         """LoggingService instance for the async logging pipeline."""
         if self._logging_service is None:
-            raise _service_not_wired_error("LoggingService")
+            raise service_not_wired_error("LoggingService")
         return self._logging_service
 
     @property
     def runtime_query_service(self) -> "RuntimeQueryService":
         """RuntimeQueryService instance for live in-memory state queries."""
         if self._runtime_query_service is None:
-            raise _service_not_wired_error("RuntimeQueryService")
+            raise service_not_wired_error("RuntimeQueryService")
         return self._runtime_query_service
 
     @property
     def telemetry_query_service(self) -> "TelemetryQueryService":
         """TelemetryQueryService instance for historical DB-backed telemetry queries."""
         if self._telemetry_query_service is None:
-            raise _service_not_wired_error("TelemetryQueryService")
+            raise service_not_wired_error("TelemetryQueryService")
         return self._telemetry_query_service
 
     @property
     def app_handler(self) -> "AppHandler":
         """AppHandler instance for app lifecycle management."""
         if self._app_handler is None:
-            raise _service_not_wired_error("AppHandler")
+            raise service_not_wired_error("AppHandler")
         return self._app_handler
 
     @property
     def app_bootstrap_coordinator(self) -> "AppBootstrapCoordinator":
         """AppBootstrapCoordinator instance for app-bootstrap release control."""
         if self._app_bootstrap_coordinator is None:
-            raise _service_not_wired_error("AppBootstrapCoordinator")
+            raise service_not_wired_error("AppBootstrapCoordinator")
         return self._app_bootstrap_coordinator
 
     @property
     def websocket_service(self) -> "WebsocketService":
         """WebsocketService instance for HA WebSocket connection."""
         if self._websocket_service is None:
-            raise _service_not_wired_error("WebsocketService")
+            raise service_not_wired_error("WebsocketService")
         return self._websocket_service
 
     @property
     def bus_service(self) -> "BusService":
         """BusService instance for event bus management."""
         if self._bus_service is None:
-            raise _service_not_wired_error("BusService")
+            raise service_not_wired_error("BusService")
         return self._bus_service
 
     @property
     def bus(self) -> "Bus":
         """Bus instance for internal event pub/sub."""
         if self._bus is None:
-            raise _service_not_wired_error("Bus")
+            raise service_not_wired_error("Bus")
         return self._bus
 
     @property
     def state_proxy(self) -> "StateProxy":
         """StateProxy instance for entity state caching."""
         if self._state_proxy is None:
-            raise _service_not_wired_error("StateProxy")
+            raise service_not_wired_error("StateProxy")
         return self._state_proxy
 
     def try_state_proxy(self) -> "StateProxy | None":
@@ -276,40 +276,40 @@ class HassetteAccessorsMixin:
     def api_service(self) -> "ApiResource":
         """ApiResource instance for HA REST/WebSocket transport."""
         if self._api_service is None:
-            raise _service_not_wired_error("ApiResource")
+            raise service_not_wired_error("ApiResource")
         return self._api_service
 
     @property
     def scheduler_service(self) -> "SchedulerService":
         """SchedulerService instance for job scheduling."""
         if self._scheduler_service is None:
-            raise _service_not_wired_error("SchedulerService")
+            raise service_not_wired_error("SchedulerService")
         return self._scheduler_service
 
     @property
     def api(self) -> "Api":
         """API service for handling HTTP requests."""
         if self._api is None:
-            raise _service_not_wired_error("Api")
+            raise service_not_wired_error("Api")
         return self._api
 
     @property
     def states(self) -> "StateManager":
         """States manager instance for accessing Home Assistant states."""
         if self._states is None:
-            raise _service_not_wired_error("StateManager")
+            raise service_not_wired_error("StateManager")
         return self._states
 
     @property
     def state_registry(self) -> "StateRegistry":
         """State registry for managing state class registrations and conversions."""
         if self._state_registry is None:
-            raise _service_not_wired_error("StateRegistry")
+            raise service_not_wired_error("StateRegistry")
         return self._state_registry
 
     @property
     def type_registry(self) -> "TypeRegistry":
         """Type registry for managing state value type conversions."""
         if self._type_registry is None:
-            raise _service_not_wired_error("TypeRegistry")
+            raise service_not_wired_error("TypeRegistry")
         return self._type_registry

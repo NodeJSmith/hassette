@@ -42,7 +42,7 @@ from .command_executor import CommandExecutor
 from .database_service import DatabaseService
 from .event_stream_service import EventStreamService
 from .file_watcher import FileWatcherService
-from .hassette_accessors import HassetteAccessorsMixin, _service_not_wired_error
+from .hassette_accessors import HassetteAccessorsMixin, service_not_wired_error
 from .logging_service import LoggingService
 from .loop_watchdog import LoopWatchdog
 from .runtime_query_service import RuntimeQueryService
@@ -69,11 +69,6 @@ class Hassette(HassetteAccessorsMixin, Resource):
     This class initializes the Hassette instance, manages services, and provides access to the API,
     event bus, app handler, and other core components.
     """
-
-    _api: Api | None
-    _states: StateManager | None
-    _state_registry: StateRegistry | None
-    _type_registry: TypeRegistry | None
 
     @property
     def unique_name(self) -> str:
@@ -287,7 +282,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
     async def send_event(self, event: "Event[Any]") -> None:
         """Send an event to the event bus."""
         if self._event_stream_service is None:
-            raise _service_not_wired_error("EventStreamService")
+            raise service_not_wired_error("EventStreamService")
         if self.event_streams_closed:
             self.logger.debug("send_event dropped: streams closed (topic=%s)", event.topic)
             return
@@ -395,7 +390,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         try:
             await self.wait_for_ready([self.database_service], timeout=self.config.lifecycle.startup_timeout_seconds)
             if self._session_manager is None:
-                raise _service_not_wired_error("SessionManager")
+                raise service_not_wired_error("SessionManager")
             await self._session_manager.mark_orphaned_sessions()
             await self._session_manager.create_session()
         except Exception:
