@@ -33,7 +33,7 @@ class TestInitializeInstances:
         """Calls initialize() and mark_ready() on each instance."""
         instances = {0: mock_app_instance}
 
-        with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
+        with patch("hassette.core.app_lifecycle_instances.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
         mock_app_instance.initialize.assert_awaited_once()
@@ -45,7 +45,7 @@ class TestInitializeInstances:
         app2 = make_mock_app_instance(instance_name="instance_1", class_name="TestApp")
         instances = {0: app1, 1: app2}
 
-        with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
+        with patch("hassette.core.app_lifecycle_instances.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
         app1.initialize.assert_awaited_once()
@@ -142,7 +142,7 @@ class TestInitializeInstances:
 
         instances = {0: app1, 1: app2}
 
-        with patch("hassette.core.app_lifecycle_service.mark_ready") as mock_mark_ready:
+        with patch("hassette.core.app_lifecycle_instances.mark_ready") as mock_mark_ready:
             await lifecycle_service.initialize_instances("test_app", instances, mock_manifest)
 
         app1.initialize.assert_awaited_once()

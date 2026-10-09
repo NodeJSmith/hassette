@@ -11,7 +11,8 @@ import pytest
 import structlog
 from hassette_wire import ResourceStatus
 
-from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService
+from hassette.core.app_lifecycle_common import AppAdmissionMode
+from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import AppBlockedError, AppBootstrapNotReleasedError
 from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.testing import EventCapture

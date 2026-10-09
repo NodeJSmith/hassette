@@ -21,7 +21,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock, seal
 import pytest
 
 from hassette.core.app_change_detector import ChangeSet
-from hassette.core.app_lifecycle_service import AppAdmissionMode, AppLifecycleService, PendingReconciliation
+from hassette.core.app_lifecycle_common import AppAdmissionMode, PendingReconciliation
+from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.exceptions import InvalidInheritanceError, UndefinedUserConfigError
 from hassette.testing import EventCapture, wait_for
 from hassette.types import Topic
