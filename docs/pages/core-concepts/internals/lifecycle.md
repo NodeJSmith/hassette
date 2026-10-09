@@ -116,7 +116,7 @@ A service enters `RUNNING` just before its `serve()` loop begins. `initialize()`
 
 Hassette starts services in dependency order. Services with no `depends_on` start first. Services that declare `depends_on` start after all their dependencies have signaled readiness. Services at the same dependency depth start concurrently.
 
-Shutdown runs in reverse order. Services that depended on others stop first. A service in `STOPPING` waits for its children to reach terminal states before completing. `ServiceWatcher` itself depends on `BusService`. It shuts down after `BusService` stops accepting events, so no supervision messages are lost during teardown.
+Shutdown runs in reverse order. Services that depended on others stop first. A service in `STOPPING` waits for its children to reach terminal states before completing. `ServiceWatcher` depends on `BusService`, so it starts after `BusService` and shuts down before it.
 
 For the full dependency graph and startup wave diagram, see [Architecture & Data Flow](index.md).
 
@@ -146,7 +146,8 @@ least one of those did not. There is no third state — a report can never claim
 while also carrying causes, because `is_restart_safe` is computed, not stored.
 
 An exception raised outside the shutdown body itself — while observing a pending initializer or
-requesting shutdown, for example — also counts as negative evidence. The coordinator stores it on
+requesting shutdown, for example — also counts as negative evidence. The shutdown coordinator (the
+single shared task that runs one shutdown attempt for the resource) stores it on
 `teardown_report` before re-raising, so `await resource.shutdown()` raises in this case instead of
 returning a report. `teardown_report` retains the same restart-unsafe evidence a normal completion
 would have returned.
@@ -170,13 +171,14 @@ point for framework code and embedding hosts.
 
 ### Concurrent lifecycle calls join, they don't race
 
-Each resource owns exactly one initialization task and one shutdown task at a time. Every caller —
-`start()`'s spawned joiner, a direct `await resource.initialize()`, `restart()`, or a second
-concurrent `shutdown()` call — joins that same task through `asyncio.shield()` instead of starting
-a second attempt. Cancelling one caller's *wait* (for example, the caller's own task is cancelled)
-does not cancel the underlying attempt; the shared task keeps running for every other joiner. A
-repeated `shutdown()` call after the attempt has already completed returns the stored report
-without rerunning any hooks.
+Each resource owns exactly one initialization task and one shutdown task at a time. Every caller
+joins that same task through `asyncio.shield()` instead of starting a second attempt; such a caller
+is called a *joiner*. Joiners include the background task `start()` spawns to run `initialize()`,
+a direct `await resource.initialize()`, `restart()`, and a second concurrent `shutdown()` call.
+Cancelling one caller's *wait* (for example, the caller's own task is cancelled) does not cancel
+the underlying attempt; the shared task keeps running for every other joiner. A repeated
+`shutdown()` call after the attempt has already completed returns the stored report without
+rerunning any hooks.
 
 If `initialize()` is called while a shutdown is in progress, it waits for that shutdown's outcome
 before deciding whether a new attempt may start. If `shutdown()` is called while initialization is
