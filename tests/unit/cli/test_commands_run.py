@@ -187,13 +187,7 @@ class TestRunCheck:
     ) -> None:
         monkeypatch.delenv("HASSETTE__TOKEN")
 
-        with pytest.raises(SystemExit) as exc_info:
-            cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
-
-        captured = capsys.readouterr()
-        assert exc_info.value.code == EX_CONFIG
-        assert captured.out == ""
-        assert "HA token is required" in captured.err
+        assert "HA token is required" in check_config_error_stderr(clean_hassette_env, capsys)
 
     @pytest.mark.parametrize(
         ("entry", "error"),
@@ -208,27 +202,16 @@ class TestRunCheck:
     ) -> None:
         (clean_hassette_env / "hassette.toml").write_text(entry, encoding="utf-8")
 
-        with pytest.raises(SystemExit) as exc_info:
-            cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
-
-        captured = capsys.readouterr()
-        assert exc_info.value.code == EX_CONFIG
-        assert captured.out == ""
-        assert error in captured.err
+        assert error in check_config_error_stderr(clean_hassette_env, capsys)
 
     def test_config_error_exits_78_with_the_error_on_stderr(
         self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         (clean_hassette_env / "hassette.toml").write_text("bogus = 1\n", encoding="utf-8")
 
-        with pytest.raises(SystemExit) as exc_info:
-            cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
-
-        captured = capsys.readouterr()
-        assert exc_info.value.code == EX_CONFIG
-        assert captured.out == ""
-        assert "bogus" in captured.err
-        assert captured.err.count("Invalid configuration") == 1
+        err = check_config_error_stderr(clean_hassette_env, capsys)
+        assert "bogus" in err
+        assert err.count("Invalid configuration") == 1
 
     def test_malformed_toml_is_a_config_error_naming_the_file(
         self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
@@ -236,13 +219,7 @@ class TestRunCheck:
         toml = clean_hassette_env / "hassette.toml"
         toml.write_text("[apps\n", encoding="utf-8")
 
-        with pytest.raises(SystemExit) as exc_info:
-            cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
-
-        captured = capsys.readouterr()
-        assert exc_info.value.code == EX_CONFIG
-        assert captured.out == ""
-        assert str(toml) in captured.err
+        assert str(toml) in check_config_error_stderr(clean_hassette_env, capsys)
 
     def test_warnings_stay_off_stdout(self, clean_hassette_env: Path) -> None:
         """A warning logged during the check goes to stderr; the entrypoint's logging is what's under test."""
@@ -258,6 +235,17 @@ class TestRunCheck:
         assert result.returncode == 0, result.stderr
         assert [line.split("=")[0] for line in result.stdout.splitlines()] == ["CONFIG_DIR", "CONFIG_HOME", "APPS_DIR"]
         assert "not valid" in result.stderr
+
+
+def check_config_error_stderr(config_dir: Path, capsys: pytest.CaptureFixture[str]) -> str:
+    """Run ``hassette run --check`` against `config_dir`, assert it exits 78 with nothing on stdout, return stderr."""
+    with pytest.raises(SystemExit) as exc_info:
+        cmd_run(check=True, ctx=CLIContext(config_dir=config_dir))
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == EX_CONFIG
+    assert captured.out == ""
+    return captured.err
 
 
 def run_hassette(args: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:

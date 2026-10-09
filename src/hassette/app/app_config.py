@@ -37,6 +37,7 @@ class AppConfig(BaseSettings):
         env_file=INHERIT_HASSETTE_ENV_FILES,
     )
 
+    # dup-ignore-start: pydantic-settings fixes the settings_customise_sources override signature
     @classmethod
     def settings_customise_sources(
         cls,
@@ -46,6 +47,7 @@ class AppConfig(BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # dup-ignore-end
         """Read the same ``.env`` files as the running Hassette config, unless the subclass sets ``env_file``."""
         if cls.model_config.get("env_file") == INHERIT_HASSETTE_ENV_FILES:
             return (

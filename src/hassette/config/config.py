@@ -88,6 +88,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         nested_model_default_partial_update=True,
     )
 
+    # dup-ignore-start: pydantic-settings fixes the settings_customise_sources override signature
     @classmethod
     def settings_customise_sources(
         cls,
@@ -97,6 +98,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # dup-ignore-end
         build = ACTIVE_BUILD.get()
         if build is None:
             # sources resolve only inside BaseSettings.__init__, which HassetteConfig.__init__ wraps in a build

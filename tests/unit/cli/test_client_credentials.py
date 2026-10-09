@@ -120,6 +120,7 @@ class TestCredentialAttachment:
         class EnvOnlyConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {"toml_file": None, "env_file": None}
 
+            # dup-ignore-start: pydantic-settings fixes the settings_customise_sources override signature
             @classmethod
             def settings_customise_sources(
                 cls,
@@ -129,6 +130,7 @@ class TestCredentialAttachment:
                 dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003 — pydantic-settings binds by keyword
                 file_secret_settings: PydanticBaseSettingsSource,
             ) -> tuple[PydanticBaseSettingsSource, ...]:
+                # dup-ignore-end
                 return (init_settings, env_settings, file_secret_settings)
 
         config = EnvOnlyConfig(token=None, data_dir=tmp_path)
