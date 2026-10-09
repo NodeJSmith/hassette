@@ -93,7 +93,7 @@ def apply_property_overrides(
     if not overrides:
         return properties
 
-    result = [replace(p) for p in properties]
+    result = list(properties)
 
     for ov in overrides:
         if ov.add:
@@ -116,16 +116,16 @@ def apply_property_overrides(
                 print(f"WARNING: remove override for '{ov.name}' did not match any property", file=sys.stderr)
             continue
 
-        for prop in result:
+        for i, prop in enumerate(result):
             if prop.name == ov.name:
-                if ov.wire_name:
-                    prop.name = ov.wire_name
-                if ov.type:
-                    prop.python_type = ov.type
-                if ov.union_mode:
-                    prop.union_mode = ov.union_mode
-                if ov.aliases:
-                    prop.validation_aliases = _alias_choices(ov.aliases, prop.name)
+                name = ov.wire_name or prop.name
+                result[i] = replace(
+                    prop,
+                    name=name,
+                    python_type=ov.type or prop.python_type,
+                    union_mode=ov.union_mode or prop.union_mode,
+                    validation_aliases=_alias_choices(ov.aliases, name) if ov.aliases else prop.validation_aliases,
+                )
                 break
 
     return result
