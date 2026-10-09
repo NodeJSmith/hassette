@@ -9,19 +9,19 @@ if TYPE_CHECKING:
 
 __all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and wrap by hand
     "AppBlockedError", "AppBootstrapNotReleasedError", "AppPrecheckFailedError", "AuthTokenWriteError",
-    "BaseUrlRequiredError", "CannotOverrideFinalError", "ConnectionClosedError", "ConvertedTypeDoesNotMatchError",
-    "CouldNotFindHomeAssistantError", "CredentialResolutionError", "DependencyError", "DependencyInjectionError",
-    "DependencyResolutionError", "DomainNotFoundError", "DomainRequiredError", "DuplicateListenerError",
-    "EntityNotFoundError", "EntityNotInViewError", "EntityShapeError", "FailedMessageError", "FatalError",
-    "HassetteBlockingIOWarning", "HassetteError", "HassetteForgottenAwaitWarning", "HassetteNotInitializedError",
-    "IPV6NotSupportedError", "InvalidAuthError", "InvalidDataForStateConversionError", "InvalidEntityIdError",
-    "InvalidInheritanceError", "InvalidLifecycleTransitionError", "JobRemovedError", "LifecycleReentryError",
-    "ListenerNameRequiredError", "NoDomainAnnotationError", "OutcomeUnknownError", "RegistryNotReadyError",
-    "RegistryValidationError", "ResourceNotReadyError", "ResponseLostError", "ResponseTimeoutError",
-    "RestartRefusedError", "RetryableConnectionClosedError", "SchedulerNameRequiredError", "SchemaVersionError",
-    "SchemeRequiredInBaseUrlError", "SensorShapeMismatchError", "ServerUrlApiSuffixError", "ServerUrlError",
-    "ServerUrlHostRequiredError", "ServerUrlParseError", "ServerUrlSchemeRequiredError", "StateRegistryError",
-    "TaskBucketSealedError", "TelemetryUnavailableError", "TrustedProxyConfigError",
+    "BaseUrlRequiredError", "CannotOverrideFinalError", "ConfigError", "ConnectionClosedError",
+    "ConvertedTypeDoesNotMatchError", "CouldNotFindHomeAssistantError", "CredentialResolutionError", "DependencyError",
+    "DependencyInjectionError", "DependencyResolutionError", "DomainNotFoundError", "DomainRequiredError",
+    "DuplicateListenerError", "EntityNotFoundError", "EntityNotInViewError", "EntityShapeError", "FailedMessageError",
+    "FatalError", "HassetteBlockingIOWarning", "HassetteError", "HassetteForgottenAwaitWarning",
+    "HassetteNotInitializedError", "IPV6NotSupportedError", "InvalidAuthError", "InvalidDataForStateConversionError",
+    "InvalidEntityIdError", "InvalidInheritanceError", "InvalidLifecycleTransitionError", "JobRemovedError",
+    "LifecycleReentryError", "ListenerNameRequiredError", "NoDomainAnnotationError", "OutcomeUnknownError",
+    "RegistryNotReadyError", "RegistryValidationError", "ResourceNotReadyError", "ResponseLostError",
+    "ResponseTimeoutError", "RestartRefusedError", "RetryableConnectionClosedError", "SchedulerNameRequiredError",
+    "SchemaVersionError", "SchemeRequiredInBaseUrlError", "SensorShapeMismatchError", "ServerUrlApiSuffixError",
+    "ServerUrlError", "ServerUrlHostRequiredError", "ServerUrlParseError", "ServerUrlSchemeRequiredError",
+    "StateRegistryError", "TaskBucketSealedError", "TelemetryUnavailableError", "TrustedProxyConfigError",
     "UnableToConvertAnnotatedStateError", "UnableToConvertStateError", "UnableToConvertValueError",
     "UndefinedUserConfigError", "WriteQueueUnavailableError",
 ]  # fmt: skip
@@ -35,9 +35,8 @@ WS_NOT_CONNECTED_MESSAGE = "WebSocket connection is not established"
 class HassetteForgottenAwaitWarning(RuntimeWarning):
     """Warning emitted when a protected registration/scheduling method is called without ``await``.
 
-    Fired from ``RegistrationHandle.__del__`` when the handle is garbage-collected without
-    ever being awaited, sent to, thrown into, or closed. The message names the owning app
-    and the source location of the forgotten call site.
+    Fired from ``RegistrationHandle.__del__`` when the handle is garbage-collected without ever being
+    awaited, sent to, thrown into, or closed. The message names the owning app and the call site.
 
     Integrates with ``-W error``/``pytest.warns``/``filterwarnings`` like any ``RuntimeWarning``.
     """
@@ -150,11 +149,9 @@ class TelemetryUnavailableError(HassetteError):
 class SchemaVersionError(HassetteError):
     """Raised when the on-disk database schema version is ahead of the code's expected head.
 
-    This indicates the database was created by a newer binary. The service should not
-    auto-delete the database in this case; manual intervention is required.
-
-    Listed in ``DatabaseService.restart_spec.fatal_error_names`` so the ServiceWatcher
-    triggers immediate shutdown (FAILED path) rather than retrying.
+    This indicates the database was created by a newer binary, so the service must not auto-delete
+    it; manual intervention is required. Listed in ``DatabaseService.restart_spec.fatal_error_names``
+    so the ServiceWatcher triggers immediate shutdown (FAILED path) rather than retrying.
     """
 
 
@@ -340,6 +337,10 @@ class AppBlockedError(HassetteError):
 
 class AppPrecheckFailedError(HassetteError):
     """Custom exception to indicate that one or more prechecks for an app failed."""
+
+
+class ConfigError(ValueError, HassetteError):
+    """The configuration is invalid as written and must be edited; ``hassette run`` exits 78 on it."""
 
 
 class CannotOverrideFinalError(TypeError, HassetteError):

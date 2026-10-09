@@ -8,10 +8,11 @@ from pathlib import Path
 
 import dotenv
 import pytest
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr
 
 from hassette import HassetteConfig, context
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
+from hassette.exceptions import ConfigError
 from hassette.testing.config import TEST_TOKEN
 from hassette.utils import app_utils
 from tests.support.fixtures import run_hassette_startup_tasks
@@ -577,11 +578,11 @@ class TestRestRequestTimeout:
     """Tests for HassetteConfig.rest_request_timeout_seconds field."""
 
     def test_rejects_infinity(self) -> None:
-        with pytest.raises(ValidationError):
+        with pytest.raises(ConfigError):
             LogLevelTestConfig(rest_request_timeout_seconds=math.inf)
 
     def test_rejects_nan(self) -> None:
-        with pytest.raises(ValidationError):
+        with pytest.raises(ConfigError):
             LogLevelTestConfig(rest_request_timeout_seconds=math.nan)
 
     def test_accepts_positive_float(self) -> None:
@@ -622,12 +623,13 @@ class TestOnlyApps:
         assert config.only_apps == ("kitchen",)
         assert config.dev_mode is True
 
-    def test_reload_without_init_kwargs_rereads_sources(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_reload_without_init_kwargs_rereads_sources(self, tmp_path: Path) -> None:
         """Replaying init kwargs must not pin values that were never passed in."""
-        config = LogLevelTestConfig()
+        toml_file = tmp_path / "hassette.toml"
+        config = LogLevelTestConfig(config_file=toml_file)
         assert config.only_apps == ()
 
-        monkeypatch.setenv("HASSETTE__ONLY_APPS", '["porch"]')
+        toml_file.write_text('only_apps = ["porch"]\n', encoding="utf-8")
         config.reload()
 
         assert config.only_apps == ("porch",)
@@ -636,8 +638,8 @@ class TestOnlyApps:
         """The retained kwargs must not hold a second, unmasked copy of the token."""
         config = LogLevelTestConfig(token=TEST_TOKEN)
 
-        assert isinstance(config._init_kwargs["token"], SecretStr)
-        assert TEST_TOKEN not in repr(config._init_kwargs)
+        assert isinstance(config._load_inputs.init_kwargs["token"], SecretStr)
+        assert TEST_TOKEN not in repr(config._load_inputs.init_kwargs)
 
         config.reload()
 

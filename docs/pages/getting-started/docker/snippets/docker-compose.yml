@@ -6,7 +6,6 @@ services:
     stop_grace_period: 45s # time for Hassette to shut down apps cleanly before Docker force-kills it
     volumes:
       - ./config:/config
-      - ./apps:/apps
       - data:/data
       - uv_cache:/uv_cache
     ports:

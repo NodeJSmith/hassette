@@ -186,7 +186,20 @@ class TestGlobalFlagWiring:
     def test_config_file_flag(self) -> None:
         _cmd, bound, _ = app.meta.parse_args(["--config-file", "/some/path.toml", "status"])
 
-        assert bound.arguments["config_file"] == "/some/path.toml"
+        assert bound.arguments["config_file"] == Path("/some/path.toml")
+
+    def test_config_dir_flag_after_the_run_token(self) -> None:
+        """docker_start.sh passes container args after `run`; global flags there must still bind."""
+        _cmd, bound, _ = app.meta.parse_args(["run", "--check", "--config-dir", "/cfg"])
+
+        assert bound.arguments["config_dir"] == Path("/cfg")
+        assert list(bound.arguments["tokens"]) == ["run", "--check"]
+
+    def test_run_check_flag(self) -> None:
+        cmd, bound, _ = app.parse_args(["run", "--check"])
+
+        assert cmd.__name__ == "cmd_run"
+        assert bound.arguments["check"] is True
 
     def test_no_global_flags(self) -> None:
         _cmd, bound, _ = app.meta.parse_args(["log"])

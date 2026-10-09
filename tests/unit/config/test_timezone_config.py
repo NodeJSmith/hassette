@@ -1,9 +1,9 @@
 """Tests for HassetteConfig.timezone field validation."""
 
 import pytest
-from pydantic import ValidationError
 
 from hassette.config import HassetteConfig
+from hassette.exceptions import ConfigError
 from hassette.testing.config import TEST_TOKEN
 
 
@@ -25,9 +25,9 @@ class TestTimezoneValidation:
         assert config.timezone == "UTC"
 
     def test_invalid_timezone_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="Invalid timezone"):
+        with pytest.raises(ConfigError, match="Invalid timezone"):
             make_config(timezone="Not/A/Timezone")
 
     def test_empty_string_rejected(self) -> None:
-        with pytest.raises(ValidationError, match="Invalid timezone"):
+        with pytest.raises(ConfigError, match="Invalid timezone"):
             make_config(timezone="")

@@ -1,21 +1,17 @@
 import os
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from contextlib import suppress
 from logging import getLogger
 from pathlib import Path
 from typing import cast, get_args
 
-import platformdirs
 from hassette_wire import LogLevel
 
 from hassette import context
 from hassette.exceptions import HassetteNotInitializedError
-from hassette.utils import get_parsed_version
 
 LOG_LEVEL_VALUES = get_args(LogLevel)
-
-VERSION = get_parsed_version()
 
 LOGGER = getLogger(__name__)
 
@@ -50,43 +46,6 @@ def get_dev_mode() -> bool:
     return enabled
 
 
-def _resolve_default_dir(
-    env_primary: str,
-    env_secondary: str,
-    docker_path: str,
-    platformdirs_fn: "Callable[..., Path]",
-) -> Path:
-    """Resolve a directory from env vars, Docker convention, or platformdirs."""
-    if env := os.getenv(env_primary, os.getenv(env_secondary)):
-        return Path(env)
-    docker = Path(docker_path)
-    if docker.exists():
-        return docker
-    return platformdirs_fn("hassette", version=f"v{VERSION.major}")
-
-
-def default_config_dir() -> Path:
-    """Return the first found config directory.
-
-    Resolution order:
-        1. ``HASSETTE__CONFIG_DIR`` or ``HASSETTE_CONFIG_DIR`` environment variable
-        2. ``/config`` (Docker convention)
-        3. platformdirs user config path
-    """
-    return _resolve_default_dir("HASSETTE__CONFIG_DIR", "HASSETTE_CONFIG_DIR", "/config", platformdirs.user_config_path)
-
-
-def default_data_dir() -> Path:
-    """Return the first found data directory.
-
-    Resolution order:
-        1. ``HASSETTE__DATA_DIR`` or ``HASSETTE_DATA_DIR`` environment variable
-        2. ``/data`` (Docker convention)
-        3. platformdirs user data path
-    """
-    return _resolve_default_dir("HASSETTE__DATA_DIR", "HASSETTE_DATA_DIR", "/data", platformdirs.user_data_path)
-
-
 def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | None | set[Path]) -> set[Path]:
     """Filter the provided paths to only include unique existing paths.
 
@@ -112,7 +71,11 @@ def warn_log_level_not_valid(log_level: str, fallback_value: LogLevel) -> None:
 
 
 def get_log_level() -> LogLevel:
-    log_level = os.getenv("HASSETTE__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL")
+    """Return the bootstrap log level, used before the config is loaded.
+
+    Reads ``HASSETTE__LOGGING__LOG_LEVEL`` (the setting itself), then ``HASSETTE_LOG_LEVEL``, then ``LOG_LEVEL``.
+    """
+    log_level = os.getenv("HASSETTE__LOGGING__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL")
     return coerce_log_level(log_level, "INFO")
 
 

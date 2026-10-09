@@ -2,15 +2,38 @@
 
 Each section below covers one symptom. Jump to the one that matches your situation.
 
-## Container Exits Immediately
+## Container Keeps Restarting
 
-The container starts and stops within a few seconds. Check the logs first:
+The container starts, then stops and restarts every few minutes. Check the logs first:
 
 ```bash
 --8<-- "pages/getting-started/docker/snippets/ts-check-logs.sh"
 ```
 
-The two most common causes are a missing token and an unreachable Home Assistant instance.
+If the logs show a "HASSETTE CAN'T START" banner, Hassette hit an error it can't recover from by retrying: a configuration error, a dependency conflict, a uv timeout, or a damaged image. The banner states what failed and the remedy:
+
+```text
+─────────────────────────────────────────────────────────
+  HASSETTE CAN'T START: the configuration is invalid (see above)
+
+  Fix the file named above, then run: docker restart <container>
+
+  Retrying in 300s (HASSETTE_DOCKER_RETRY_DELAY; 0 exits at once).
+─────────────────────────────────────────────────────────
+```
+
+The container stays up showing the banner for the retry delay, then exits, and Docker restarts it. The wait keeps Docker from looping on the error (and repeating a dependency install). Set `HASSETTE_DOCKER_RETRY_DELAY` in the compose `environment:` block: the default is 300 seconds, and `0` exits at once.
+
+Where you fix the problem decides how to restart:
+
+| You edited | Run |
+|---|---|
+| The compose file's `environment:` block | `docker compose up -d` (`docker restart` keeps the old environment) |
+| A file under `./config`, such as `config/.env` or `hassette.toml` | `docker restart hassette` |
+
+A config error includes unknown settings. If you copied settings from an older version or a tutorial, a retired name such as `HASSETTE__APP_DIR` or `HASSETTE__INSTALL_DEPS` triggers it — see [Upgrading](../../operating/upgrading.md#config-paths-and-unknown-keys).
+
+Without a banner, the two most common causes are a missing token and an unreachable Home Assistant instance.
 
 **Missing token.** Hassette reads `HASSETTE__TOKEN` from `/config/.env` inside the container — that's the `./config/.env` file on your host. If that value is absent, Hassette exits at startup. Open your `config/.env` file and confirm the line is present:
 
@@ -18,7 +41,7 @@ The two most common causes are a missing token and an unreachable Home Assistant
 HASSETTE__TOKEN=your_long_lived_token_here
 ```
 
-**Wrong base URL.** `HASSETTE__BASE_URL` must point to Home Assistant's HTTP interface. Use `http://homeassistant:8123` when HA runs as a container on the same Docker network (for example, in the same compose file); otherwise use your HA instance's IP address. Match the scheme to the URL you use for HA in your browser — `http://` or `https://`. A trailing slash, or `https://` when HA serves plain HTTP, causes a connection failure.
+**Wrong base URL.** `HASSETTE__BASE_URL` must point to Home Assistant's HTTP interface. Use `http://homeassistant:8123` when HA runs as a container on the same Docker network (for example, in the same compose file); otherwise use your HA instance's IP address. Match the scheme to the URL you use for HA in your browser — `http://` or `https://`. Using `https://` when HA serves plain HTTP causes a connection failure.
 
 **Network not reachable.** If the URL looks correct, test the connection from inside the container (substitute the same token value from your `config/.env`):
 
@@ -32,13 +55,15 @@ A healthy response looks like `{"message": "API running."}`. An empty response o
 
 Hassette reports a successful connection in the logs, but your apps never initialize.
 
-**Apps directory not mounted.** Hassette looks for apps at `/apps` inside the container. Verify the mount is working:
+**Apps directory missing or empty.** Hassette looks for apps in `apps/` inside the config directory, `/config/apps` in the container, and logs `Apps directory: <path>` at startup, with a warning when it doesn't exist or holds no apps. Verify the files are there:
 
 ```bash
 --8<-- "pages/getting-started/docker/snippets/ts-ls-apps.sh"
 ```
 
-If this returns an empty directory or an error, check your `volumes:` block in `compose.yml`. It should include a line like `./apps:/apps`.
+If this returns an empty directory or an error, check that your apps are in `./config/apps` on the host and that `compose.yml` mounts `./config:/config`.
+
+If your compose file still mounts `./apps:/apps` from an earlier version, Hassette ignores that directory and prints a note at startup. Move the files into `./config/apps/` and remove the `./apps:/apps` line. To keep the separate mount instead, add `HASSETTE__APPS__DIRECTORY: /apps` to the compose `environment:` block.
 
 **Syntax error in an app file.** A Python syntax error prevents that app from loading. Scan the logs for errors:
 
@@ -52,14 +77,14 @@ Look for a `SyntaxError` or `ImportError` with a file path. Fix the error in tha
 
 Your app imports a third-party package, but Hassette reports an `ImportError` at startup.
 
-Hassette only installs from `requirements.txt` when `HASSETTE__INSTALL_DEPS=1` is set in the compose `environment:` block. Check your `compose.yml`:
+The container's start script, not Hassette, installs from `requirements.txt`, and only when `HASSETTE_DOCKER_INSTALL_DEPS=1` is set in the compose `environment:` block. The name has a single underscore after `HASSETTE` because the start script reads it, while the double-underscore `HASSETTE__` namespace belongs to Hassette settings. Check your `compose.yml`:
 
 ```yaml
 environment:
-  HASSETTE__INSTALL_DEPS: "1"
+  HASSETTE_DOCKER_INSTALL_DEPS: "1"
 ```
 
-If the variable is set, confirm `requirements.txt` is mounted and readable at `/config/requirements.txt` inside the container:
+If the variable is set, confirm `requirements.txt` is readable inside the container. The start script scans the config directory and the apps directory, so `./config/requirements.txt` is the one place to put it:
 
 ```bash
 docker compose exec hassette ls /config/requirements.txt
@@ -71,7 +96,7 @@ Then check whether the install ran at startup:
 --8<-- "pages/getting-started/docker/snippets/ts-dep-install-logs.sh"
 ```
 
-If you see no install output, `HASSETTE__INSTALL_DEPS` was not picked up. Run `docker compose down && docker compose up -d` to reload the environment — `down` stops and removes the container (data in your mounted volumes is safe), and `up -d` recreates it from the current compose file.
+If you see no install output, `HASSETTE_DOCKER_INSTALL_DEPS` was not picked up. Run `docker compose down && docker compose up -d` to reload the environment — `down` stops and removes the container (data in your mounted volumes is safe), and `up -d` recreates it from the current compose file.
 
 ## Can't Access the Web UI
 

@@ -23,6 +23,7 @@ hassette run
 | `--ha-verify-ssl` | Whether to verify SSL certificates for the Home Assistant connection. |
 | `--dev-mode`      | Enables developer mode.                                               |
 | `--app`, `-a`     | Run only this app key, excluding all others. Repeatable.              |
+| `--check`         | Validates the configuration, prints the resolved locations, and exits without starting. See [Checking the Resolved Locations](../core-concepts/configuration/index.md#check-config). |
 
 All flags are optional. Values resolve from `hassette.toml` (see [Configuration](../core-concepts/configuration/index.md)) and environment variables when not provided on the command line.
 
@@ -35,7 +36,14 @@ hassette run --app kitchen_lights,porch_motion
 
 See [Restricting Which Apps Run](../core-concepts/apps/index.md#restricting-which-apps-run) for details.
 
-`run` exits with code 1 when startup fails: an app fails its precheck (`AppPrecheckFailedError`), a fatal error fires (bad token, unreachable HA — see [Troubleshooting](../troubleshooting.md)), or the web API port is already taken (`Port 8126 is already in use — is another hassette instance running?`). Process managers can treat exit 1 as a startup error rather than a crash.
+`run` exits with one of these codes:
+
+| Code | Meaning | Examples and what to do |
+|---|---|---|
+| 78 | The configuration must be edited before a restart can succeed. | Invalid values, unknown keys, invalid app keys, or `config_dir` set in a file (Hassette needs `config_dir` to find the files, so a value inside them is read too late). Also an app failing its precheck, the import-and-validate pass over every app module before startup (`AppPrecheckFailedError`). Fix the config or app code, then restart. |
+| 1 | A runtime failure. | A fatal error such as a bad token or unreachable Home Assistant (see [Troubleshooting](../troubleshooting.md)), the web API port already taken (`Port 8126 is already in use — is another hassette instance running?`), or an unexpected exception. |
+
+Under systemd, `RestartPreventExitStatus=78` keeps a config error from restart-looping. See [Exit Codes](../core-concepts/configuration/index.md#exit-codes).
 
 ## `hassette status`
 
@@ -287,7 +295,7 @@ The execution table shows status, duration, error type, error message, timestamp
 
 ## `hassette log`
 
-Recent log entries from the in-memory log buffer.
+Recent log entries from the telemetry database (requires log persistence).
 
 ```console
 $ hassette log --limit 5
@@ -452,8 +460,9 @@ These flags apply to every command and are placed before the subcommand name.
 
 | Flag              | Aliases       | Description                                                                                  |
 | ----------------- | ------------- | ---------------------------------------------------------------------------------------------- |
-| `--config-file`   | `-c`          | Path to the TOML configuration file.                                                          |
-| `--env-file`      | `-e`, `--env` | Path to the `.env` file.                                                                       |
+| `--config-dir`    | n/a           | Directory to read `hassette.toml` and `.env` from, instead of searching. Also the default home of the apps directory. |
+| `--config-file`   | `-c`          | Path to the TOML configuration file, instead of searching.                                    |
+| `--env-file`      | `-e`, `--env` | Path to the `.env` file, instead of searching.                                                 |
 | `--json`          | n/a           | Outputs results as JSON.                                                                       |
 | `--debug`         | n/a           | Shows the full HTTP response on CLI errors.                                                    |
 | `--server-url`    | `-s`          | Base URL of a remote Hassette instance to connect to. See [Discovery Order](configuration.md#discovery-order). |

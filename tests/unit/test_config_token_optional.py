@@ -28,8 +28,8 @@ def test_hassette_token_env_var_is_loaded(monkeypatch, tmp_path) -> None:
 
     class _EnvConfig(HassetteConfig):
         model_config = HassetteConfig.model_config.copy() | {
-            "toml_file": None,
-            "env_file": None,
+            "toml_file": [],
+            "env_file": [],
         }
 
     config = _EnvConfig(data_dir=tmp_path)
@@ -41,8 +41,8 @@ def test_ha_token_env_var_is_loaded(monkeypatch, tmp_path) -> None:
 
     class _EnvConfig(HassetteConfig):
         model_config = HassetteConfig.model_config.copy() | {
-            "toml_file": None,
-            "env_file": None,
+            "toml_file": [],
+            "env_file": [],
         }
 
     config = _EnvConfig(data_dir=tmp_path)

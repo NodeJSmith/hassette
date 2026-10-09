@@ -2,7 +2,7 @@
 base_url = "http://127.0.0.1:8123"
 
 [hassette.apps]
-directory = "tests/data/apps"
+directory = "../apps"
 autodetect = false
 
 [hassette.apps.my_app]
@@ -10,7 +10,7 @@ enabled = true
 filename = "my_app.py"
 class_name = "MyApp"
 display_name = "My Test App"
-app_dir = "tests/data/apps"
+app_dir = "../apps"
 config = { test_entity = "input_button.test", instance_name = "unique_instance_name" }
 
 [hassette.apps.my_app_sync]
@@ -18,7 +18,7 @@ enabled = true
 filename = "my_app_sync.py"
 class_name = "MyAppSync"
 display_name = "My Test App Sync"
-app_dir = "tests/data/apps"
+app_dir = "../apps"
 # instance_name left off for testing default behavior
 config = { test_entity = "input_button.test" }
 
@@ -27,7 +27,7 @@ enabled = false
 filename = "disabled_app.py"
 class_name = "DisabledApp"
 display_name = "Disabled App"
-app_dir = "tests/data/apps"
+app_dir = "../apps"
 config = { test_entity = "input_button.test", instance_name = "disabled_instance" }
 
 [hassette.apps.no_autostart_app]
@@ -36,7 +36,7 @@ autostart = false
 filename = "no_autostart_app.py"
 class_name = "NoAutostartApp"
 display_name = "No Autostart App"
-app_dir = "tests/data/apps"
+app_dir = "../apps"
 config = { test_entity = "input_button.test", instance_name = "no_autostart_instance" }
 
 [hassette.apps.non_existent_app]
@@ -44,5 +44,5 @@ enabled = false
 filename = "non_existent_file.py"
 class_name = "MissingClass"
 display_name = "Missing App"
-app_dir = "tests/data/apps"
+app_dir = "../apps"
 config = { test_entity = "input_button.test", instance_name = "missing" }

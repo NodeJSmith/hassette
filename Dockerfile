@@ -94,8 +94,8 @@ ENV TZ=UTC
 # Create non-root user and needed directories
 RUN groupadd --gid 1000 hassette \
     && useradd --uid 1000 --gid 1000 --create-home --home-dir /home/hassette hassette \
-    && mkdir -p "$UV_CACHE_DIR" /config /data /apps \
-    && chown -R 1000:1000 /home/hassette "$UV_CACHE_DIR" /config /data /apps /app
+    && mkdir -p "$UV_CACHE_DIR" /config /data \
+    && chown -R 1000:1000 /home/hassette "$UV_CACHE_DIR" /config /data /app
 
 COPY --from=uv /uv /bin/uv
 COPY --from=builder --chown=hassette:hassette /app /app
@@ -106,13 +106,12 @@ USER hassette
 ENV HOME=/home/hassette \
     HASSETTE__CONFIG_DIR=/config \
     HASSETTE__DATA_DIR=/data \
-    HASSETTE__APP_DIR=/apps \
     PYTHONUNBUFFERED=1 \
     UV_LINK_MODE=copy \
     UV_CACHE_DIR=/uv_cache \
     OSTYPE=linux \
     PATH="/app/.venv/bin:$PATH"
 
-VOLUME ["/config", "/data", "/apps", "/uv_cache"]
+VOLUME ["/config", "/data", "/uv_cache"]
 
 ENTRYPOINT ["tini", "--", "/app/scripts/docker_start.sh"]

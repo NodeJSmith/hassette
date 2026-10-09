@@ -57,40 +57,6 @@
           "description": "IANA timezone name (e.g. ``\"America/Chicago\"``) used for all wall-clock\noperations: scheduler trigger resolution, event timestamp conversion, and\nstate model datetime fields.\n\nWhen ``None`` (default), the system process timezone is used. Set this when\nthe hassette process runs in a different timezone than Home Assistant (e.g.\nDocker containers running UTC while HA is configured for a local zone).",
           "title": "Timezone"
         },
-        "config_file": {
-          "anyOf": [
-            {
-              "format": "path",
-              "type": "string"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": "hassette.toml",
-          "description": "Path to the configuration file.",
-          "title": "Config File"
-        },
-        "env_file": {
-          "anyOf": [
-            {
-              "format": "path",
-              "type": "string"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": ".env",
-          "description": "Path to the environment file.",
-          "title": "Env File"
-        },
         "dev_mode": {
           "description": "Enable developer mode, which may include additional logging and features.",
           "title": "Dev Mode",
@@ -137,13 +103,13 @@
           "title": "Token"
         },
         "config_dir": {
-          "description": "Directory to load/save configuration.",
+          "description": "Directory ``hassette.toml`` and ``.env`` are read from, and the default home of ``apps.directory``.\n\nSet it with the ``HASSETTE__CONFIG_DIR`` environment variable or ``--config-dir``. It can't be set\nin ``hassette.toml`` or ``.env``, since those files are found through it. When unset, Hassette\nsearches ``/config`` (if it exists) or the platform config directory, then the working directory,\nthen ``./config``.",
           "format": "path",
           "title": "Config Dir",
           "type": "string"
         },
         "data_dir": {
-          "description": "Directory to store Hassette data.",
+          "description": "Directory to store Hassette data: absolute, or relative to the config file that sets it.",
           "format": "path",
           "title": "Data Dir",
           "type": "string"
@@ -302,7 +268,7 @@
           "type": "string"
         },
         "app_dir": {
-          "description": "Path to the app directory, relative to current working directory or absolute",
+          "description": "Path to the app directory: absolute, or relative to the config file that sets it",
           "examples": [
             "./apps"
           ],
@@ -405,7 +371,7 @@
           "type": "object"
         },
         "directory": {
-          "description": "Directory to load user apps from.",
+          "description": "Directory to load user apps from: absolute, or relative to the config file that sets it. Defaults to\n``apps`` in the config home: ``config_dir`` when it is set explicitly, otherwise the working directory.",
           "format": "path",
           "title": "Directory",
           "type": "string"
@@ -530,7 +496,7 @@
             }
           ],
           "default": null,
-          "description": "Path to a file containing the bearer credential for the target Hassette instance. Applies\nto any target, unlike the loopback-only ``<data_dir>/.web_api_token`` fallback.",
+          "description": "Path to a file containing the bearer credential for the target Hassette instance (absolute, or\nrelative to the config file that sets it). Applies to any target, unlike the loopback-only\n``<data_dir>/.web_api_token`` fallback.",
           "title": "Token File",
           "ui": {
             "label": "Token File"
@@ -575,7 +541,7 @@
             }
           ],
           "default": null,
-          "description": "Path to the SQLite database file. Defaults to data_dir / \"hassette.db\" when None.",
+          "description": "Path to the SQLite database file: absolute, or relative to the config file that sets it. Defaults to\ndata_dir / \"hassette.db\" when None.",
           "title": "Path"
         },
         "retention_days": {

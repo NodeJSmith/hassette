@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiosqlite
-import pydantic
 import pytest
 
 from hassette.config.config import HassetteConfig
@@ -15,6 +14,7 @@ from hassette.config.models import LoggingConfig
 from hassette.core.database_service import DatabaseService
 from hassette.core.migration_runner import run_migrations
 from hassette.core.telemetry.query_service import TelemetryQueryService
+from hassette.exceptions import ConfigError
 from hassette.schemas.log_models import LogRecord
 from hassette.testing.config import LATEST_MIGRATION_VERSION
 from hassette.utils.aiosqlite_utils import connect_daemon
@@ -657,7 +657,7 @@ class TestConfigValidator:
 
     def test_log_retention_days_ge_1(self) -> None:
         """log_retention_days rejects values < 1."""
-        with pytest.raises(pydantic.ValidationError):
+        with pytest.raises(ConfigError):
             HassetteConfig(
                 token="tok",
                 logging={"log_retention_days": 0},
@@ -666,7 +666,7 @@ class TestConfigValidator:
 
     def test_log_retention_days_gt_db_retention_days_raises(self) -> None:
         """Validator rejects log_retention_days > db_retention_days."""
-        with pytest.raises(pydantic.ValidationError, match="log_retention_days"):
+        with pytest.raises(ConfigError, match="log_retention_days"):
             HassetteConfig(
                 token="tok",
                 database={"retention_days": 3},

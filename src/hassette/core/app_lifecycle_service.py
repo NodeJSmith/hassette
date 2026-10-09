@@ -20,6 +20,7 @@ from hassette.events.hassette import HassetteAppStateEvent, HassetteSimpleEvent
 from hassette.exceptions import (
     AppBlockedError,
     AppBootstrapNotReleasedError,
+    ConfigError,
     InvalidInheritanceError,
     UndefinedUserConfigError,
 )
@@ -1275,12 +1276,16 @@ class AppLifecycleService(Resource):
         """
         original_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items()}
 
-        # Reinitialize config to pick up changes.
-        # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
+        # reload() replaces the config only when the new one is valid, so on failure both the config
+        # and the registry stay as they are, and the next save triggers a fresh attempt.
         try:
             self.hassette.config.reload()
+        except ConfigError as exc:
+            self.logger.error("Configuration reload rejected, keeping the running configuration: %s", exc)
+            return original_apps_config, {k: deepcopy(v) for k, v in original_apps_config.items()}
         except Exception as exc:
-            self.logger.exception("Failed to reload configuration: %s", exc)
+            self.logger.exception("Failed to reload configuration, keeping the running configuration: %s", exc)
+            return original_apps_config, {k: deepcopy(v) for k, v in original_apps_config.items()}
 
         self.set_apps_configs(self.hassette.config.apps.manifests)
         await self.persist_manifests()

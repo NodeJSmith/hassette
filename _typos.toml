@@ -31,6 +31,10 @@ Unparseable = "Unparseable"
 # Intentional misspellings in validation tests (testing that Pydantic rejects them)
 inital = "inital"
 optionss = "optionss"
+# Intentional misspellings in unknown-key tests (testing that the config rejects them and suggests the real name)
+directry = "directry"
+DIRECTRY = "DIRECTRY"
+levle = "levle"
 
 # Unicode category names (regex character classes)
 Nd = "Nd"

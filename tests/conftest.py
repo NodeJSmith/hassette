@@ -284,10 +284,15 @@ def env_file_path() -> Path:
 
 @pytest.fixture(scope="session")
 def apps_config_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Return a temporary hassette.toml populated with app definitions for app-centric tests."""
+    """Return a temporary hassette.toml populated with app definitions for app-centric tests.
+
+    The template's paths are relative to its own directory; relative paths resolve against the file
+    that sets them, so the copy gets them rewritten to absolute paths.
+    """
     tmp_dir = tmp_path_factory.mktemp("hassette_apps")
     toml_path = tmp_dir / "hassette.toml"
-    toml_path.write_text(APPS_TOML_TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
+    template = APPS_TOML_TEMPLATE.read_text(encoding="utf-8")
+    toml_path.write_text(template.replace('"../apps"', f'"{TEST_APPS_PATH.as_posix()}"'), encoding="utf-8")
     return toml_path
 
 

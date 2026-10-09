@@ -58,8 +58,8 @@ class SystemTestConfig(HassetteConfig):
 
     model_config = HassetteConfig.model_config.copy() | SettingsConfigDict(
         cli_parse_args=False,
-        env_file=None,
-        toml_file=None,
+        env_file=[],
+        toml_file=[],
     )
 
     def model_post_init(self, *args):
@@ -72,7 +72,7 @@ def scrub_inherited_hassette_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove the invoking shell's ``HASSETTE_*``/``HASSETTE__*`` vars for each system test.
 
     ``SystemTestConfig`` still reads the env settings source, and default factories
-    (``default_config_dir``, ``get_log_level``) read these vars directly, so a developer's
+    (``resolve_locations``, ``get_log_level``) read these vars directly, so a developer's
     exported values (e.g. ``HASSETTE__CLI__AUTH_TOKEN`` for a real server) would otherwise leak
     into the test server, the CLI client, and spawned ``hassette run`` subprocesses. Matching is
     case-insensitive because pydantic-settings env lookup is. Session-scoped fixtures such as

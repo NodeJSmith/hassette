@@ -1,1 +1,1 @@
-docker compose exec hassette ls /apps
+docker compose exec hassette ls /config/apps

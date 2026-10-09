@@ -101,11 +101,8 @@ def get_hermetic_hassette_config_cls() -> tuple[type[HassetteConfig], list[dict[
     cell: list[dict[str, Any]] = [{}]
 
     class _Cls(HassetteConfig):
-        model_config = HassetteConfig.model_config.copy() | {
-            "toml_file": None,
-            "env_file": None,
-            "extra": "forbid",
-        }
+        # files are switched off by the config_file=[]/env_file=[] init arguments in make_test_config
+        model_config = HassetteConfig.model_config.copy() | {"extra": "forbid"}
 
         @classmethod
         def settings_customise_sources(cls, settings_cls: type, **_kwargs: Any) -> tuple[InitSettingsSource]:  # pyright: ignore[reportIncompatibleMethodOverride]
@@ -169,4 +166,5 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
     with _config_lock:
         cls, cell = get_hermetic_hassette_config_cls()
         cell[0] = merged
-        return cls()
+        # no config files: the sources above ignore them, and the file watcher and .env import must too
+        return cls(config_file=[], env_file=[])

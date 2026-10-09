@@ -160,7 +160,15 @@ class Hassette(HassetteAccessorsMixin, Resource):
                     self.logger.debug("Loading environment variables from %s", env_file)
                     load_dotenv(env_file)
 
+        # After the .env import above: autodetect imports app modules, which may read os.environ at import.
         self.config.set_validated_app_manifests()
+
+        apps_dir = self.config.apps.directory
+        self.logger.info("Apps directory: %s", apps_dir, stacklevel=3)
+        if not apps_dir.is_dir():
+            self.logger.warning("Apps directory %s does not exist", apps_dir, stacklevel=3)
+        elif not self.config.apps.manifests:
+            self.logger.warning("No apps found or configured in apps directory %s", apps_dir, stacklevel=3)
 
         active_apps = [app for app in self.config.apps.manifests.values() if app.enabled]
         self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)

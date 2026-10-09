@@ -1,31 +1,28 @@
+import os
+from collections.abc import Mapping
 from contextlib import suppress
+from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from pydantic import AliasChoices, Field, PrivateAttr, SecretStr, field_validator, model_validator
-from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+from pydantic import AliasChoices, Field, PrivateAttr, SecretStr, ValidationError, field_validator, model_validator
+from pydantic_settings import BaseSettings, InitSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
 
 from hassette import context as ctx
-from hassette.config.classes import (
-    AppManifest,
-    ExcludeExtrasMixin,
-    HassetteTomlConfigSettingsSource,
-    local_overlay_paths,
-    toml_paths,
-    unsafe_cache_path_reason,
-)
-from hassette.config.defaults import (
-    ENV_FILE_LOCATIONS,
-    TOML_FILE_LOCATIONS,
-    get_defaults_dict,
-)
-from hassette.config.helpers import (
+from hassette.config.build import ACTIVE_BUILD, ConfigBuild, default_build_data_dir, open_build
+from hassette.config.checks import check_config_dir_not_in_files, check_unknown_keys, config_error_from_validation
+from hassette.config.classes import AppManifest, ExcludeExtrasMixin, local_overlay_paths, unsafe_cache_path_reason
+from hassette.config.defaults import get_defaults_dict
+from hassette.config.helpers import filter_paths_to_unique_existing, get_dev_mode
+from hassette.config.locations import (
+    ENV_NESTED_DELIMITER,
+    SETTINGS_ENV_PREFIX,
+    ConfigLocations,
+    FileList,
     default_config_dir,
-    default_data_dir,
-    filter_paths_to_unique_existing,
-    get_dev_mode,
+    resolve_locations,
 )
 from hassette.config.models import (
     AppsConfig,
@@ -39,6 +36,13 @@ from hassette.config.models import (
     WebApiConfig,
     WebSocketConfig,
 )
+from hassette.config.sources import (
+    FileDotEnvSettingsSource,
+    HassetteTomlConfigSettingsSource,
+    SnapshotEnvSettingsSource,
+    anchor_paths,
+)
+from hassette.exceptions import ConfigError
 from hassette.types.enums import ForgottenAwaitBehavior
 from hassette.types.types import FRAMEWORK_APP_KEY_PREFIX, AppDict, is_framework_key
 from hassette.utils.app_utils import autodetect_apps, clean_app
@@ -50,17 +54,30 @@ TOKEN_MEDIUM_THRESHOLD = 12
 TOKEN_SHORT_PREFIX_LENGTH = 3
 TOKEN_LONG_PREFIX_LENGTH = 6
 
+PYDANTIC_INSTANCE_STATE = ("__dict__", "__pydantic_fields_set__", "__pydantic_extra__", "__pydantic_private__")
+"""Every attribute pydantic keeps a model instance's state in; `HassetteConfig.reload` swaps all of them."""
+
+
+@dataclass(frozen=True)
+class LoadInputs:
+    """What a config was built from, replayed by `HassetteConfig.reload`."""
+
+    environ: Mapping[str, str]
+    config_file: FileList | None
+    env_file: FileList | None
+    check_keys: bool
+    init_kwargs: dict[str, Any]
+    """Setting values passed to `__init__`, with raw secrets swapped for their validated `SecretStr`."""
+
 
 class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Configuration for Hassette."""
 
     model_config = SettingsConfigDict(
-        env_prefix="hassette__",
-        env_file=ENV_FILE_LOCATIONS,
-        toml_file=TOML_FILE_LOCATIONS,
+        env_prefix=SETTINGS_ENV_PREFIX,
         env_ignore_empty=True,
         extra="allow",
-        env_nested_delimiter="__",
+        env_nested_delimiter=ENV_NESTED_DELIMITER,
         coerce_numbers_to_str=True,
         validate_by_name=True,
         use_attribute_docstrings=True,
@@ -78,14 +95,24 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         dotenv_settings: PydanticBaseSettingsSource,
         file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
-        sources = (
-            init_settings,
-            env_settings,
-            dotenv_settings,
+        build = ACTIVE_BUILD.get()
+        if build is None:
+            # Constructed without HassetteConfig.__init__ (e.g. model_validate on a subclass):
+            # pydantic-settings' own sources, which read the live environment.
+            return (init_settings, env_settings, dotenv_settings, file_secret_settings)
+
+        locations = build.locations
+        init_kwargs = init_settings.init_kwargs if isinstance(init_settings, InitSettingsSource) else {}
+        return (
+            # the resolver owns config_dir: it decided which files are read
+            InitSettingsSource(settings_cls, {"config_dir": locations.config_dir}),
+            InitSettingsSource(settings_cls, anchor_paths(settings_cls, init_kwargs, build.cwd)),
+            SnapshotEnvSettingsSource(settings_cls, build),
+            # a later .env file wins, and an earlier source has priority
+            *(FileDotEnvSettingsSource(settings_cls, path, build) for path in reversed(locations.env_files)),
             file_secret_settings,
-            HassetteTomlConfigSettingsSource(settings_cls),
+            HassetteTomlConfigSettingsSource(settings_cls, locations.toml_files, build=build),
         )
-        return sources
 
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     """Database storage, retention, and operational settings."""
@@ -126,14 +153,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     the hassette process runs in a different timezone than Home Assistant (e.g.
     Docker containers running UTC while HA is configured for a local zone)."""
 
-    # note - not actually used here, reflects the --config-file / --env-file flags on the cyclopts default command
-    config_file: Path | str | None = Field(default=Path("hassette.toml"))
-    """Path to the configuration file."""
-
-    # note - not actually used here, reflects the --config-file / --env-file flags on the cyclopts default command
-    env_file: Path | str | None = Field(default=Path(".env"))
-    """Path to the environment file."""
-
     dev_mode: bool = Field(default_factory=get_dev_mode)
     """Enable developer mode, which may include additional logging and features."""
 
@@ -161,11 +180,18 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     the plaintext is required (e.g. HTTP auth headers, WebSocket auth payload).
     """
 
+    # only used when constructed outside __init__: a build always supplies config_dir as an init source
     config_dir: Path = Field(default_factory=default_config_dir)
-    """Directory to load/save configuration."""
+    """Directory ``hassette.toml`` and ``.env`` are read from, and the default home of ``apps.directory``.
 
-    data_dir: Path = Field(default_factory=default_data_dir)
-    """Directory to store Hassette data."""
+    Set it with the ``HASSETTE__CONFIG_DIR`` environment variable or ``--config-dir``. It can't be set
+    in ``hassette.toml`` or ``.env``, since those files are found through it. When unset, Hassette
+    searches ``/config`` (if it exists) or the platform config directory, then the working directory,
+    then ``./config``."""
+
+    # reads the active ConfigBuild's environment (see hassette.config.build); the live env outside one
+    data_dir: Path = Field(default_factory=default_build_data_dir)
+    """Directory to store Hassette data: absolute, or relative to the config file that sets it."""
 
     import_dot_env_files: bool = Field(default=True)
     """Whether to import .env files specified in env_files. With this disabled, the .env file provided will only
@@ -232,14 +258,19 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     to suppress warnings globally, or ``"error"`` to escalate via ``filterwarnings("error")``."""
 
     @property
+    def locations(self) -> ConfigLocations:
+        """The resolved config locations this config was built from."""
+        return self._locations
+
+    @property
     def env_files(self) -> set[Path]:
-        """Return a list of environment files that Pydantic will check."""
-        return filter_paths_to_unique_existing(self.model_config.get("env_file", []))
+        """Return the existing ``.env`` files this config reads."""
+        return filter_paths_to_unique_existing(list(self._locations.env_files))
 
     @property
     def toml_files(self) -> set[Path]:
         """Return the existing TOML files that are loaded, including ``*.local.toml`` overlays."""
-        base_files = toml_paths(self.model_config.get("toml_file"))
+        base_files = list(self._locations.toml_files)
         return filter_paths_to_unique_existing([*base_files, *local_overlay_paths(base_files)])
 
     def get_watchable_files(self) -> set[Path]:
@@ -334,28 +365,92 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
                 LOGGER.debug("Creating directory %s as it does not exist", directory)
                 directory.mkdir(parents=True, exist_ok=True)
 
-    _init_kwargs: dict[str, Any] = PrivateAttr(default_factory=dict)
-    """Kwargs this config was constructed with, replayed by `reload()`."""
+    _load_inputs: LoadInputs = PrivateAttr()
+    _locations: ConfigLocations = PrivateAttr()
 
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        *,
+        environ: Mapping[str, str] | None = None,
+        config_file: FileList | None = None,
+        env_file: FileList | None = None,
+        check_keys: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        """Load the configuration from init kwargs, the environment, ``.env`` files and ``hassette.toml``.
+
+        Args:
+            environ: Process environment to read. Defaults to a snapshot of ``os.environ`` taken now;
+                `reload` reuses the same snapshot, so variables loaded into ``os.environ`` later
+                (``import_dot_env_files``) never shadow the ``.env`` files they came from.
+            config_file: TOML file(s) to read instead of searching (``--config-file``). A subclass can
+                pin its own with ``model_config["toml_file"]``; an empty list reads none.
+            env_file: ``.env`` file(s) to read instead of searching (``--env-file``), pinned the same
+                way with ``model_config["env_file"]``.
+            check_keys: Reject keys that match no setting, and ``config_dir`` set in a file. CLI client
+                commands pass False so a typo doesn't stop ``hassette status``.
+            **kwargs: Setting values, the highest-priority source. A ``config_dir`` here is explicit.
+
+        Raises:
+            ConfigError: The configuration is invalid.
+        """
+        environ = dict(os.environ if environ is None else environ)
+        cwd = Path.cwd()
+        model_config = type(self).model_config
+        locations = resolve_locations(
+            environ,
+            # read here to decide which files are searched; the field value itself then comes from
+            # the build's first source (see settings_customise_sources), which outranks this kwarg
+            config_dir=kwargs.get("config_dir"),
+            config_file=config_file if config_file is not None else model_config.get("toml_file"),
+            env_file=env_file if env_file is not None else model_config.get("env_file"),
+            cwd=cwd,
+        )
+        build = ConfigBuild(environ, locations, cwd)
+        try:
+            with open_build(build):
+                super().__init__(**kwargs)
+        except ValidationError as exc:
+            raise config_error_from_validation(exc, build) from exc
+
+        if check_keys:
+            check_config_dir_not_in_files(build)
+            check_unknown_keys(type(self), build)
+
         # Swap raw secrets for their validated SecretStr so the plaintext isn't kept alive in a
         # second, unmasked place for the life of the config. SecretStr round-trips as an init kwarg.
-        self._init_kwargs = {
-            name: value if not isinstance(getattr(self, name, None), SecretStr) else getattr(self, name)
-            for name, value in kwargs.items()
-        }
+        init_kwargs = dict(kwargs)
+        for name in kwargs:
+            if isinstance(validated := getattr(self, name, None), SecretStr):
+                init_kwargs[name] = validated
+        self._load_inputs = LoadInputs(environ, config_file, env_file, check_keys, init_kwargs)
+        self._locations = locations
 
     def reload(self) -> None:
-        """Reload the configuration from all sources.
+        """Reload the configuration from all sources, replacing this config only if the new one is valid.
 
-        Init kwargs are replayed because they are the highest-priority source: they carry the
-        `hassette run` flags, and a file-watcher reload that dropped them would silently undo
-        `--app` on the first save.
+        A candidate is built and its app manifests validated first; if either step raises, this
+        config is untouched. Init kwargs are replayed because they are the highest-priority source:
+        they carry the `hassette run` flags, and a file-watcher reload that dropped them would
+        silently undo `--app` on the first save.
+
+        Raises:
+            ConfigError: The configuration on disk is invalid; the running config is unchanged.
         """
-        # see: https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
-        self.__init__(**self._init_kwargs)
-        self.set_validated_app_manifests()
+        inputs = self._load_inputs
+        candidate = type(self)(
+            environ=inputs.environ,
+            config_file=inputs.config_file,
+            env_file=inputs.env_file,
+            check_keys=inputs.check_keys,
+            **inputs.init_kwargs,
+        )
+        candidate.set_validated_app_manifests()
+        # Become the candidate in place, so every holder of this config sees the reload. The private
+        # state (_load_inputs, _locations) moves with it. object.__setattr__ bypasses validate_assignment.
+        # Sub-model objects read from the old config (e.g. a saved `config.websocket`) keep the old values.
+        for attr in PYDANTIC_INSTANCE_STATE:
+            object.__setattr__(self, attr, getattr(candidate, attr))
 
     def model_post_init(self, *args: Any) -> None:
         """Set default values for any unset fields after initialization."""
@@ -436,17 +531,20 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         app_manifest_dict: dict[str, AppManifest] = {}
         for k, v in cleaned_apps_dict.items():
             if is_framework_key(k):
-                raise ValueError(
+                raise ConfigError(
                     f"App key {k!r} is reserved for framework internals "
                     f"(reserved prefix: '{FRAMEWORK_APP_KEY_PREFIX}'). "
                     f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
                 )
             if reason := unsafe_app_key_reason(k):
-                raise ValueError(
+                raise ConfigError(
                     f"App key {k!r} {reason}; app keys are used as cache directory names. "
                     f"Rename the app in your configuration (source: {v.get('full_path', 'unknown')})."
                 )
-            app_manifest_dict[k] = AppManifest.model_validate(v)
+            try:
+                app_manifest_dict[k] = AppManifest.model_validate(v)
+            except ValidationError as exc:
+                raise ConfigError(f"Invalid app {k!r}: {exc}") from exc
 
         self.apps.manifests = app_manifest_dict
 
