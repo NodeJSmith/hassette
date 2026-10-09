@@ -37,7 +37,7 @@ nav:
       - Quickstart: pages/getting-started/index.md
       - Home Assistant Token: pages/getting-started/ha_token.md
       - Your First Automation: pages/getting-started/first-automation.md
-      - Control Apps from Home Assistant: pages/getting-started/home-assistant-integration.md
+      - Control Apps from Home Assistant (HACS): pages/getting-started/home-assistant-integration.md
       - Docker Deployment:
           - Docker Setup: pages/getting-started/docker/index.md
           - Managing Dependencies: pages/getting-started/docker/dependencies.md
