@@ -1,0 +1,8 @@
+alias: "Stop motion lights at night"
+triggers:
+  - trigger: time
+    at: "23:00:00"
+actions:
+  - action: switch.turn_off
+    target:
+      entity_id: switch.motion_lights

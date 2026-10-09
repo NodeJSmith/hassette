@@ -1,0 +1,2 @@
+[hassette.web_api]
+auth_token = "change-me-to-a-long-random-string"
