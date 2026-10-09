@@ -41,14 +41,14 @@ Examples:
 """
 
 import inspect
+import math
 import typing
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from inspect import isawaitable
 from logging import getLogger
-from typing import Any, Generic, Self, TypeGuard, TypeVar
+from typing import Any, Generic, Self, TypeVar
 
-from boltons.iterutils import is_collection
 from whenever import OffsetDateTime
 
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
@@ -72,6 +72,7 @@ from .accessors import (
     get_state_value_old_new,
 )
 from .conditions import ARROW, Glob, Present
+from .predicate_collections import ensure_tuple, is_predicate_collection
 
 if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
@@ -571,7 +572,7 @@ class EventEntityFresh(_PredicateOps):
     """Maximum age in seconds of the event timestamp for the event to pass."""
 
     def __post_init__(self) -> None:
-        if self.max_age <= 0:
+        if self.max_age <= 0 or math.isnan(self.max_age):
             raise ValueError(f"max_age must be positive, got {self.max_age!r}")
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
@@ -759,41 +760,6 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
     if not isinstance(result, bool):
         raise TypeError(f"Predicate must return bool, got {type(result)}")
     return result
-
-
-def ensure_tuple(where: "Predicate | Sequence[Predicate]") -> tuple["Predicate", ...]:
-    """Ensure the 'where' is a flat tuple of predicates, flattening *only* predicate collections.
-
-    Recurses into list/tuple/set/frozenset; leaves Mapping, strings/bytes, and callables intact.
-    """
-    if is_predicate_collection(where):
-        out: list[Predicate] = []
-        # mypy/pyright: guarded by _is_predicate_collection, so safe to iterate
-        for item in typing.cast("Sequence[Predicate | Sequence[Predicate]]", where):
-            out.extend(ensure_tuple(item))
-        return tuple(out)
-
-    return (typing.cast("Predicate", where),)
-
-
-def is_predicate_collection(obj: Any) -> TypeGuard[Sequence["Predicate"]]:
-    """Return True for *predicate collections* we want to recurse into.
-
-    We treat only list/tuple/set/frozenset-like things as collections of predicates.
-    We explicitly DO NOT recurse into:
-      - mappings (those feed ServiceDataWhere elsewhere),
-      - strings/bytes,
-      - callables (predicates are callables; don't explode them),
-      - None.
-    """
-    if obj is None:
-        return False
-    if callable(obj):
-        return False
-    if isinstance(obj, (str, bytes, Mapping)):
-        return False
-    # boltons.is_collection filters out scalars for us; we just fence off types we don't want
-    return is_collection(obj)
 
 
 def _reject_async_predicate(pred: Any) -> None:

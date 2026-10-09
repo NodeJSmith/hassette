@@ -718,7 +718,7 @@ def test_event_entity_fresh(state_value: str | None, expected: bool) -> None:
         assert P.EventEntityFresh(max_age=10)(event_entity_change(state_value)) is expected
 
 
-@pytest.mark.parametrize("max_age", [0, -1])
+@pytest.mark.parametrize("max_age", [0, -1, float("nan")])
 def test_event_entity_fresh_rejects_non_positive_max_age(max_age: float) -> None:
     with pytest.raises(ValueError, match="max_age must be positive"):
         P.EventEntityFresh(max_age=max_age)

@@ -138,9 +138,9 @@ The event's own `time_fired` doesn't help here, since a replayed event gets a fr
 --8<-- "pages/core-concepts/bus/snippets/filtering_event_entity_fresh.py"
 ```
 
-A real press arrives within a second or two of its timestamp and passes. A replay after a restart carries the timestamp of the last real press, usually minutes or hours old, and is dropped.
+A real press arrives within a second or two of its timestamp and passes. A restart replay carries the last real press's timestamp, often hours old, and is dropped.
 
-The guard fails open. A state that isn't a timestamp (`unknown` before the first press, `unavailable`) passes, and so does a timestamp in the future, which points to clock skew between Home Assistant and Hassette. Pick `max_age` with skew in mind: a few seconds is enough when both clocks are synced.
+The guard fails open. A state that isn't a timestamp, such as `unknown` or `unavailable`, passes. A future timestamp also passes, since it points to clock skew between Home Assistant and Hassette. A `max_age` of a few seconds is enough when both clocks are synced.
 
 ## Filtering Service Calls
 
