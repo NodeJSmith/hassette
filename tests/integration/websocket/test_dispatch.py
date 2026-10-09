@@ -43,16 +43,16 @@ async def test_send_json_preserves_message_id_when_present(websocket_service: We
     assert second_payload["id"] == 41, "Expected explicit message id to be preserved"
 
 
-async def test_private_send_allows_setup_send_before_external_readiness(
+async def test_send_json_allows_setup_send_before_external_readiness(
     websocket_service: WebsocketService,
 ) -> None:
-    """Internal setup can use private send capability before CONNECTED is advertised."""
+    """send_json is gated on the send gate only, so setup traffic flows before CONNECTED is advertised."""
     fake_ws = build_fake_ws()
     websocket_service._ws = fake_ws
     websocket_service._connection_state = ConnectionState.CONNECTING
     websocket_service._send_ready_event.set()
 
-    await websocket_service._send_json_when_socket_live(type="subscribe_events")
+    await websocket_service.send_json(type="subscribe_events")
 
     payload = fake_ws.send_json.await_args.args[0]
     assert payload["type"] == "subscribe_events"
@@ -66,7 +66,7 @@ async def test_send_json_requires_connection(websocket_service: WebsocketService
 
 
 async def test_send_json_checks_connection_state(websocket_service: WebsocketService) -> None:
-    """Service-level send_json uses the private send capability during setup."""
+    """Service-level send_json passes the send gate during setup, even when the socket reports closed."""
     fake_ws = build_fake_ws(is_closed=True)
     websocket_service._ws = fake_ws
     websocket_service._connection_state = ConnectionState.CONNECTING

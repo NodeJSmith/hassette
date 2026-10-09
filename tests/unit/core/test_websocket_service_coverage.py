@@ -4,7 +4,7 @@ Targets branches not already exercised by test_ws_connection_state.py,
 test_websocket_readiness_events.py, and tests/integration/websocket/:
 cleanup() teardown branches, make_connection()'s tenacity retry wrapper,
 subscribe_events() payload construction, connect_ws()'s non-refused error path,
-_send_json_when_socket_live()'s send-failure redaction,
+send_json()'s send-failure redaction,
 raw_recv()'s binary/unexpected-type branches, respond_if_necessary()'s guard
 branches, and a handful of one-line property delegations.
 """
@@ -72,7 +72,7 @@ class TestSubscribeEvents:
                 entry.future.set_result(None)
 
         websocket_service._send_ready_event.set()
-        websocket_service._send_json_when_socket_live = AsyncMock(side_effect=fake_send_json)
+        websocket_service.send_json = AsyncMock(side_effect=fake_send_json)
 
         sub_id = await websocket_service.subscribe_events()
 
@@ -92,7 +92,7 @@ class TestSubscribeEvents:
                 entry.future.set_result(None)
 
         websocket_service._send_ready_event.set()
-        websocket_service._send_json_when_socket_live = AsyncMock(side_effect=fake_send_json)
+        websocket_service.send_json = AsyncMock(side_effect=fake_send_json)
 
         sub_id = await websocket_service.subscribe_events(event_type="state_changed")
 
@@ -297,7 +297,7 @@ class TestCleanup:
         actually sent anything to the websocket. Unlike
         `test_cleanup_attempts_unsubscribe_for_each_subscription_and_clears_ids` above (which mocks
         `send_json` directly and so never exercises the `_send_ready_event` gate), this test uses
-        the real `send_json` -> `_send_json_when_socket_live` path and asserts on the underlying
+        the real `send_json` path and asserts on the underlying
         fake websocket's `send_json`.
         """
         fake_ws = build_fake_ws(is_closed=False)
