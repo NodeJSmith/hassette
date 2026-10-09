@@ -94,3 +94,21 @@ async def test_action_after_lock_released_is_accepted(client: AsyncClient, mock_
 
     assert response.status_code == 202, response.text
     mock_hassette.app_handler.start_app.assert_awaited_once_with("my_app")
+
+
+@pytest.mark.parametrize("suffix", ["stop", "instances/0/stop"])
+async def test_busy_app_with_vanished_registry_entries_is_rejected_not_404(
+    client: AsyncClient, mock_hassette: MagicMock, suffix: str
+) -> None:
+    """Stopping an orphaned app unregisters its instances before awaiting their shutdown, so a
+    concurrent request sees neither a manifest nor instances while the lock is still held.
+    """
+    handler = mock_hassette.app_handler
+    handler.registry.get_manifest.return_value = None
+    handler.registry.get_instances.return_value = {}
+    handler.is_action_in_progress = MagicMock(return_value=True)
+
+    response = await client.post(f"{APPS_PATH}/my_app/{suffix}")
+
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "action_in_progress"
