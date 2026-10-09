@@ -124,7 +124,13 @@ class WebsocketService(Service):
     """Lock to prevent concurrent connection attempts."""
 
     _send_ready_event: asyncio.Event
-    """Private send capability: auth succeeded and recv loop is running for request/reply setup."""
+    """Send gate: auth succeeded and the recv loop is running.
+
+    This is the only send gate the service enforces. It opens before the event subscription
+    confirms so setup traffic (``subscribe_events``) can flow, which means it does not imply
+    external readiness: callers that must not send before CONNECTED (e.g. ``Api``) check
+    ``is_connected`` themselves.
+    """
 
     _connected_at: float | None
     """Monotonic timestamp of the most recent successful connection, or None."""
@@ -438,7 +444,7 @@ class WebsocketService(Service):
         await self.authenticate()
 
     async def start_recv_and_subscribe(self) -> asyncio.Task:
-        """Spawn the recv loop, open private send capability, subscribe, then advertise readiness.
+        """Spawn the recv loop, open the send gate, subscribe, then advertise readiness.
 
         Returns:
             The recv loop task.
@@ -554,7 +560,6 @@ class WebsocketService(Service):
         payload: dict[str, Any],
         msg_id: int,
         *,
-        allow_pre_ready: bool = False,
         late_reply_command: str | None = None,
     ) -> Any:
         """Register a response future for msg_id, send payload, and await the reply.
@@ -566,7 +571,6 @@ class WebsocketService(Service):
         Args:
             payload: The JSON payload to send. Must already include ``"id": msg_id``.
             msg_id: The message id used to correlate the response future.
-            allow_pre_ready: Whether to use the private pre-readiness send path for setup traffic.
             late_reply_command: Command type to log a late reply under if this times out. Only
                 for a non-retried write; None drops the entry on timeout like any other exit.
 
@@ -579,10 +583,7 @@ class WebsocketService(Service):
         fut = self.hassette.loop.create_future()
         self._pending.register(msg_id, fut)
         try:
-            if allow_pre_ready:
-                await self._send_json_when_socket_live(**payload)
-            else:
-                await self.send_json(**payload)
+            await self.send_json(**payload)
             # asyncio.wait, unlike wait_for, never cancels fut. A reply landing after the deadline
             # but before this task resumes still resolves it and is returned below, and the
             # check-and-mark that follows has no await in it for a reply to slip into.
@@ -622,7 +623,7 @@ class WebsocketService(Service):
             nonlocal last_abandoned_id
             if last_abandoned_id is not None:
                 with suppress(Exception):
-                    await self._send_json_when_socket_live(
+                    await self.send_json(
                         type="unsubscribe_events",
                         subscription=last_abandoned_id,
                         id=self.get_next_message_id(),
@@ -630,7 +631,7 @@ class WebsocketService(Service):
 
             msg_id = self.get_next_message_id()
             try:
-                await self.send_and_await_response({**payload, "id": msg_id}, msg_id, allow_pre_ready=True)
+                await self.send_and_await_response({**payload, "id": msg_id}, msg_id)
                 return msg_id
             except TimeoutError:
                 last_abandoned_id = msg_id
@@ -688,6 +689,9 @@ class WebsocketService(Service):
 
         Retries on transient failures (timeouts) with exponential backoff,
         matching the retry behavior of the REST API layer.
+
+        Shares ``send_json``'s gate: it requires an authenticated socket, not external readiness.
+        Callers that must wait for CONNECTED check ``is_connected`` first.
 
         Args:
             retry_on_timeout: Whether a response timeout may be retried. Defaults to True.
@@ -756,11 +760,24 @@ class WebsocketService(Service):
         """Resolve a pending response future (or log a late reply to a timed-out write) for ``message``."""
         self._pending.respond_if_necessary(message)
 
-    async def _send_json_when_socket_live(self, **data: Any) -> None:
+    async def send_json(self, **data: Any) -> None:
+        """Send a JSON message over the socket without waiting for a response.
+
+        Gated only on the send gate (authenticated socket with a running recv loop), not on
+        external readiness: ``subscribe_events`` sends through here before CONNECTED is
+        advertised. Callers that must wait for CONNECTED check ``is_connected`` first.
+
+        Args:
+            **data: The JSON payload. An ``id`` is assigned if not provided.
+
+        Raises:
+            ConnectionClosedError: If the send gate is closed.
+            FailedMessageError: If writing to the socket failed.
+        """
         if not self._send_ready_event.is_set():
             raise ConnectionClosedError(WS_NOT_CONNECTED_MESSAGE)
 
-        # The private send gate is only opened after authentication assigns the socket.
+        # The send gate is only opened after authentication assigns the socket.
         assert self._ws is not None, "WebSocket must be initialized before sending messages"
 
         if "id" not in data:
@@ -777,9 +794,6 @@ class WebsocketService(Service):
         except Exception as exc:
             self.logger.exception("Exception when sending message %s", label)
             raise FailedMessageError(f"Failed to send message {label}", original_data=dict(data)) from exc
-
-    async def send_json(self, **data: Any) -> None:
-        await self._send_json_when_socket_live(**data)
 
     async def authenticate(self) -> None:
         """Authenticate with the Home Assistant WebSocket API."""
