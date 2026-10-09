@@ -11,7 +11,7 @@ import pytest
 
 from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_handler import AppHandler
-from hassette.core.app_lifecycle_service import AppAdmissionMode
+from hassette.core.app_lifecycle_common import AppAdmissionMode
 
 
 class TestAppHandlerReadiness:
