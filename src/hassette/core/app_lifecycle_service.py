@@ -132,13 +132,12 @@ class AppLifecycleService(Resource):
         # pass runs at a time, matching the "single reconciliation in flight" model the rest of
         # this class already assumes.
         self._change_event_lock = asyncio.Lock()
-        # Serializes the create->initialize->reconcile pipeline per app_key. Without it, bootstrap's
-        # parked start_app() (waiting in _admit_start()) and a post-release start/reload of the same
-        # app_key can both reach factory.create_instances(); register_app() then overwrites without
-        # tearing down the loser's instance, and the second reconcile can retire the first caller's
-        # live listener/job rows. Never held across the admission wait, so REJECT_IF_UNRELEASED
-        # callers fail fast. The web API reads it via is_action_in_progress() to reject a concurrent
-        # action instead of queuing it. Entries are never pruned, bounded by distinct app_keys.
+        # Serializes the create->initialize->reconcile pipeline per app_key. Without it, bootstrap's parked
+        # start_app() (waiting in _admit_start()) and a post-release start/reload of the same app_key can both
+        # reach factory.create_instances(); register_app() then overwrites without tearing down the loser's
+        # instance, and the second reconcile can retire the first caller's live listener/job rows. Never held
+        # across the admission wait, so REJECT_IF_UNRELEASED callers fail fast. The web API reads it via
+        # is_action_in_progress() to reject concurrent actions. Never pruned; bounded by distinct app_keys.
         self._app_key_locks: dict[str, AppKeyLock] = {}
 
     async def on_initialize(self) -> None:
