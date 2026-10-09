@@ -517,7 +517,7 @@ class StateProxy(Resource):
                 )
             else:
                 task = self._start_sync_task(generation, StateSynchronizationStatus.POLL)
-        await task
+        await wait_for_sync_task(task)
 
     async def _request_connected_synchronization(self, generation: int, *, cause: _ConnectedSyncCause) -> None:
         """Ensure a synchronization for ``generation`` runs, deferring to or superseding one in flight.
@@ -553,7 +553,10 @@ class StateProxy(Resource):
                     self._pending_reconnect_generation = None
                     task = self._start_sync_task(generation, status)
                     started_new_task = True
-            await task
+            if not await wait_for_sync_task(task):
+                # Cancelled by on_disconnect: this generation is gone, and the next connected
+                # signal issues its own request.
+                return
             if started_new_task or not continue_after_active_task:
                 return
 
@@ -887,3 +890,22 @@ class StateProxy(Resource):
         if curr_last_updated is None or new_last_updated is None:
             return False
         return new_last_updated <= curr_last_updated
+
+
+async def wait_for_sync_task(task: asyncio.Task[None]) -> bool:
+    """Wait for a shared synchronization task without coupling to its cancellation.
+
+    The sync task is shared by every requester (poll job, connected observers, retries), and
+    ``on_disconnect`` cancels it. Awaiting it directly would re-raise that ``CancelledError`` in
+    each requester, making a disconnect look like the requester itself was cancelled. Cancelling
+    the requester likewise leaves the shared task running.
+
+    Returns:
+        False if the task was cancelled, True if it completed. Any other exception the task
+        raised is re-raised.
+    """
+    await asyncio.wait([task])
+    if task.cancelled():
+        return False
+    task.result()
+    return True
