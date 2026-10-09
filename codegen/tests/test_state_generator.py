@@ -130,6 +130,26 @@ class TestStateModelGenerator:
         output = generate_state_model(domain)
         assert "field_validator" not in output
         assert "convert_datetime_str_to_tz" not in output
+        assert "AliasChoices" not in output
+
+    def test_validation_aliases_render_alias_choices(self) -> None:
+        domain = ExtractedDomain(
+            name="climate",
+            base_class="StringBaseState",
+            properties=[
+                ExtractedProperty(
+                    name="target_temperature",
+                    python_type="float | None",
+                    has_default=True,
+                    validation_aliases=("temperature", "target_temperature"),
+                ),
+            ],
+            features=[],
+        )
+        output = generate_state_model(domain)
+        assert "from pydantic import AliasChoices, Field" in output
+        assert 'validation_alias=AliasChoices("temperature", "target_temperature")' in output
+        assert_compiles(output)
 
 
 class TestNormalizeEnumPrefixes:

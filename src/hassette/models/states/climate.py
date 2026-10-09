@@ -1,7 +1,7 @@
 from enum import IntFlag, StrEnum
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 
 from .base import AttributesBase, StringBaseState
 
@@ -90,10 +90,16 @@ class ClimateAttributes(AttributesBase):
     swing_horizontal_modes: list[str] | None = Field(default=None)
     humidity: float | None = Field(default=None)
     target_humidity_step: int | None = Field(default=None)
-    target_temperature_high: float | None = Field(default=None)
-    target_temperature_low: float | None = Field(default=None)
+    target_temperature_high: float | None = Field(
+        default=None, validation_alias=AliasChoices("target_temp_high", "target_temperature_high")
+    )
+    target_temperature_low: float | None = Field(
+        default=None, validation_alias=AliasChoices("target_temp_low", "target_temperature_low")
+    )
     target_temp_step: float | None = Field(default=None)
-    target_temperature: float | None = Field(default=None)
+    target_temperature: float | None = Field(
+        default=None, validation_alias=AliasChoices("temperature", "target_temperature")
+    )
     temperature_unit: str | None = Field(default=None)
 
     @property

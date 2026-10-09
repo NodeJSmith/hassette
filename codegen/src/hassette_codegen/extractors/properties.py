@@ -13,6 +13,8 @@ class ExtractedProperty:
     python_type: str
     has_default: bool
     union_mode: str | None = None
+    validation_aliases: tuple[str, ...] = ()
+    """Wire keys accepted for this field, in priority order. Empty means the field name is the wire key."""
 
 
 def extract_properties(entity_module: Path) -> list[ExtractedProperty]:

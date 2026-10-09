@@ -57,6 +57,36 @@ class TestLoadOverrides:
 
         assert [p.name for p in result] == names
 
+    @pytest.mark.parametrize("domain", ["climate", "water_heater"])
+    @pytest.mark.parametrize("prefix", ["", "native_"], ids=["pre-2026.11", "post-2026.11"])
+    def test_setpoint_fields_accept_ha_wire_keys(self, domain: str, prefix: str) -> None:
+        """HA sends setpoints as temperature / target_temp_high / target_temp_low, not the property names."""
+        override = get_override(load_overrides(), domain)
+        assert override is not None
+        names = ["target_temperature", "target_temperature_high", "target_temperature_low"]
+        properties = [
+            ExtractedProperty(name=f"{prefix}{n}", python_type="float | None", has_default=True) for n in names
+        ]
+
+        result = apply_property_overrides(properties, override.property_overrides)
+
+        assert {p.name: p.validation_aliases for p in result} == {
+            "target_temperature": ("temperature", "target_temperature"),
+            "target_temperature_high": ("target_temp_high", "target_temperature_high"),
+            "target_temperature_low": ("target_temp_low", "target_temperature_low"),
+        }
+
+    def test_aliases_loaded_from_toml(self, tmp_path: Path) -> None:
+        toml = tmp_path / "fake.toml"
+        toml.write_text('[[property_overrides]]\nname = "foo"\naliases = ["bar"]\n')
+        overrides = load_overrides(tmp_path)
+        properties = [ExtractedProperty(name="foo", python_type="float | None", has_default=True)]
+
+        result = apply_property_overrides(properties, overrides["fake"].property_overrides)
+
+        assert result[0].validation_aliases == ("bar", "foo")
+        assert properties[0].validation_aliases == ()
+
     def test_state_base_class_override(self, tmp_path: Path) -> None:
         toml = tmp_path / "sensor.toml"
         toml.write_text('state_base_class = "NumericBaseState"\n')

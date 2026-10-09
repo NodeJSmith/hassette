@@ -2,6 +2,7 @@
 
 import re
 from copy import deepcopy
+from dataclasses import replace
 
 from hassette_codegen.domain_data import ExtractedDomain, domain_to_title
 from hassette_codegen.extractors.features import ExtractedEnum
@@ -61,6 +62,7 @@ def generate_state_model(domain: ExtractedDomain) -> str:
         has_intflag=has_intflag,
         has_strenum=has_strenum,
         datetime_fields=datetime_fields,
+        has_aliases=any(p.validation_aliases for p in properties),
     )
 
 
@@ -121,11 +123,7 @@ def _apply_type_renames(properties: list[ExtractedProperty], renames: dict[str, 
         for old_name, new_name in renames.items():
             if old_name in python_type:
                 python_type = python_type.replace(old_name, new_name)
-        result.append(
-            ExtractedProperty(
-                name=prop.name, python_type=python_type, has_default=prop.has_default, union_mode=prop.union_mode
-            )
-        )
+        result.append(replace(prop, python_type=python_type))
     return result
 
 

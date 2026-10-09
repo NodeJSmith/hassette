@@ -16,6 +16,7 @@ from hassette.models.states.light import LightAttributes
 from hassette.models.states.lock import LockAttributes
 from hassette.models.states.media_player import MediaPlayerAttributes, MediaType, RepeatMode
 from hassette.models.states.sensor import SensorAttributes, SensorDeviceClass, SensorStateClass
+from hassette.models.states.water_heater import WaterHeaterAttributes
 from hassette.models.states.weather import WeatherAttributes
 
 
@@ -103,6 +104,34 @@ class TestClimateAttributes:
     def test_new_field_defaults_to_none(self, field: str) -> None:
         attrs = ClimateAttributes()
         assert getattr(attrs, field) is None
+
+
+class TestSetpointWireKeys:
+    """HA sends setpoints under different keys than the typed field names (#1836)."""
+
+    @pytest.mark.parametrize("attrs_cls", [ClimateAttributes, WaterHeaterAttributes])
+    def test_ha_wire_keys_populate_typed_fields(
+        self, attrs_cls: type[ClimateAttributes | WaterHeaterAttributes]
+    ) -> None:
+        raw = {"temperature": 70.5, "target_temp_high": 75.0, "target_temp_low": 65.0, "current_temperature": 68.2}
+
+        attrs = attrs_cls.model_validate(raw)
+
+        assert attrs.target_temperature == 70.5
+        assert attrs.target_temperature_high == 75.0
+        assert attrs.target_temperature_low == 65.0
+        assert attrs.extras == {}
+
+    @pytest.mark.parametrize("attrs_cls", [ClimateAttributes, WaterHeaterAttributes])
+    def test_field_names_still_accepted(self, attrs_cls: type[ClimateAttributes | WaterHeaterAttributes]) -> None:
+        attrs = attrs_cls(target_temperature=70.5, target_temperature_high=75.0, target_temperature_low=65.0)
+
+        assert attrs_cls.model_validate(attrs.model_dump()) == attrs
+
+    def test_water_heater_target_temp_step_wire_key(self) -> None:
+        attrs = WaterHeaterAttributes.model_validate({"target_temp_step": 0.5})
+
+        assert attrs.target_temperature_step == 0.5
 
 
 class TestWeatherAttributes:
