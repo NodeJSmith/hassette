@@ -108,7 +108,7 @@ If the container isn't running, `docker compose run --rm --entrypoint hassette h
 
 ### Unknown Keys
 
-**Unknown keys are startup errors.** A `HASSETTE__*` environment variable or `hassette.toml` key that matches no setting stops `hassette run` with exit code 78. Earlier versions ignored these silently. App definition tables (`[hassette.apps.<key>]`) aren't checked.
+**Unknown keys are startup errors.** A `HASSETTE__*` environment variable or `hassette.toml` key that matches no setting stops `hassette run` with exit code 78. Earlier versions ignored these silently. App definitions aren't checked: `[hassette.apps.<key>]` tables and `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` overrides keep working as before.
 
 **Retired items** fail as unknown keys. Replace each one:
 
@@ -121,6 +121,7 @@ If the container isn't running, `docker compose run --rm --entrypoint hassette h
 | `HASSETTE__PRUNE_UV_CACHE` | `HASSETTE_DOCKER_PRUNE_UV_CACHE` |
 | `config_file` / `env_file` settings | the `--config-file` / `--env-file` CLI flags |
 | `config_dir` in `hassette.toml` or `.env` | `--config-dir`, or `HASSETTE__CONFIG_DIR` in the process environment |
+| An `AppConfig` `env_prefix` starting with `hassette__` | any prefix outside the `HASSETTE__` namespace, such as `MYAPP_` |
 
 The container's start script reads the `HASSETTE_DOCKER_*` variables, not Hassette itself. They use a single underscore after `HASSETTE` because the double-underscore `HASSETTE__` namespace belongs to Hassette settings.
 
