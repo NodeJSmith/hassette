@@ -1,7 +1,7 @@
 # Design: Config paths that do what they say, and errors for settings that match nothing
 
 **Date:** 2026-10-09
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 
 ## Summary
@@ -414,7 +414,7 @@ Under A:
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 
