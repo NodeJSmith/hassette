@@ -89,7 +89,7 @@ def apply_property_overrides(
     properties: list[ExtractedProperty],
     overrides: list[PropertyOverride],
 ) -> list[ExtractedProperty]:
-    """Apply property overrides: rename, retype, or add properties. Returns a new list."""
+    """Apply property overrides: rename, retype, alias, add, or remove properties. Returns a new list."""
     if not overrides:
         return properties
 

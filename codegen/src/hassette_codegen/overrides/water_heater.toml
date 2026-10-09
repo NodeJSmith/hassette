@@ -35,6 +35,8 @@ aliases = ["target_temp_high"]
 name = "target_temperature_low"
 aliases = ["target_temp_low"]
 
+# climate.toml renames its step field to the wire key (target_temp_step) instead; water_heater keeps its
+# existing public field name, so it aliases the wire key rather than renaming.
 [[property_overrides]]
 name = "target_temperature_step"
 aliases = ["target_temp_step"]
