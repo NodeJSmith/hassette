@@ -63,6 +63,22 @@ class SystemTestConfig(HassetteConfig):
         pass
 
 
+@pytest.fixture(autouse=True)
+def scrub_inherited_hassette_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove the invoking shell's ``HASSETTE_*``/``HASSETTE__*`` vars for each system test.
+
+    ``SystemTestConfig`` still reads the env settings source, and default factories
+    (``default_config_dir``, ``get_log_level``) read these vars directly, so a developer's
+    exported values (e.g. ``HASSETTE__CLI__AUTH_TOKEN`` for a real server) would otherwise leak
+    into the test server, the CLI client, and spawned ``hassette run`` subprocesses. Matching is
+    case-insensitive because pydantic-settings env lookup is. Session-scoped fixtures such as
+    ``ha_container`` are set up before this runs, so the docker compose environment is untouched.
+    """
+    for name in list(os.environ):
+        if name.upper().startswith("HASSETTE_"):
+            monkeypatch.delenv(name)
+
+
 @pytest.fixture(scope="session")
 def ha_container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
     """Start the HA Docker container for the test session and tear it down after.
