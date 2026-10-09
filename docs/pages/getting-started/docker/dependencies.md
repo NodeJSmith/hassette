@@ -69,8 +69,14 @@ automatically. `HASSETTE_DOCKER_INSTALL_DEPS` is not needed.
 The walk-up supports a project mounted outside the config directory. Mount
 the project at `/apps` and point the apps directory inside it with
 `HASSETTE__APPS__DIRECTORY=/apps/src/mypkg`; Hassette finds the project at
-`/apps`. To skip the search, set `HASSETTE_DOCKER_PROJECT_DIR` to the
-directory and mount it.
+`/apps`:
+
+```yaml
+--8<-- "pages/getting-started/docker/snippets/deps-project-mount-compose.yml"
+```
+
+To skip the search, set `HASSETTE_DOCKER_PROJECT_DIR` to the directory and
+mount it.
 
 Hassette pins its own dependencies via a constraints file. Your packages
 cannot conflict with packages Hassette depends on. If a conflict occurs,
