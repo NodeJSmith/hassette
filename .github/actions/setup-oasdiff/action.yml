@@ -1,18 +1,13 @@
 name: Set up oasdiff
-description: Install the pinned oasdiff used by tools/check_wire_compat.py and tools/check_client_floor.py.
+description: Install the oasdiff pinned in mise.toml, used by tools/check_wire_compat.py and tools/check_client_floor.py.
 
 runs:
     using: composite
     steps:
-        - name: Set up Go
-          uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-          with:
-              go-version: "stable"
-              cache: false
-
-        # Version also pinned in mise.toml ("github:oasdiff/oasdiff") for local pre-push runs.
+        # Installs only oasdiff (not every tool in mise.toml) and puts it on PATH via mise's shims.
+        # env: false keeps mise.toml's [env] (the .venv activation) out of the job environment.
         - name: Install oasdiff
-          shell: bash
-          run: |
-              go install github.com/oasdiff/oasdiff@v1.32.1
-              echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+          with:
+              install_args: github:oasdiff/oasdiff
+              env: false

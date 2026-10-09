@@ -4,8 +4,7 @@ Runs the real ``oasdiff`` binary against minimal OpenAPI fixture pairs under
 ``tests/unit/tools/fixtures/wire_compat/`` — the exact per-check filtering and the
 reversed/forward argument order are the thing under test, and mocking ``oasdiff``'s output would
 just re-assert whatever the mock was told to return. Skipped when ``oasdiff`` isn't on PATH
-(installed via mise locally; installed via ``go install`` in the frontend CI job — see
-``.github/workflows/tests.yml``).
+(installed from the ``mise.toml`` pin, locally and in CI via ``.github/actions/setup-oasdiff``).
 """
 
 import json

@@ -51,6 +51,7 @@ jobs:
                         - 'tools/client_compat_*.py'
                         - 'tools/check_client_compat.py'
                         - '.github/actions/setup-oasdiff/**'
+                        - 'mise.toml'
                       # All of src/: any module the routes import (schemas, types, config, services) can
                       # change a response body without touching wire/.
                       client_compat:

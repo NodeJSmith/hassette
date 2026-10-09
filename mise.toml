@@ -3,9 +3,11 @@ prek = "0.4.11"
 python = ["3.14.8"]
 uv = "latest"
 java = "temurin-21.0.12+101.0.LTS" # PMD CPD (tools/check_duplicate_code.py) is a JVM tool
-# oasdiff: tools/check_wire_compat.py and tools/check_client_floor.py. CI installs the same version via
-# the shared .github/actions/setup-oasdiff action.
+# Single version pin for these CLIs: CI installs them from this file via jdx/mise-action.
+# oasdiff: tools/check_wire_compat.py and tools/check_client_floor.py (.github/actions/setup-oasdiff).
 "github:oasdiff/oasdiff" = "1.32.1"
+# muffet: docs link check (docs.yml link-check job).
+"github:raviqqe/muffet" = "2.11.4"
 
 [env]
 # _.file = '.env'
