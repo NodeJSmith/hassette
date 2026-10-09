@@ -171,7 +171,7 @@ def test_docker_installs_from_config_and_apps(tmp_path: Path):
         env={"HASSETTE__APPS__DIRECTORY": "/srv/apps", "HASSETTE_DOCKER_INSTALL_DEPS": "1"},
     )
 
-    assert output.count("Installing requirements from") >= 2, f"Not all requirements found. Output:\n{output}"
+    assert output.count("Installing requirements from") == 2, f"Expected exactly 2 installs. Output:\n{output}"
 
 
 def test_docker_skips_empty_requirements(tmp_path: Path):
@@ -470,8 +470,8 @@ def test_docker_stop_ends_a_halt_promptly():
             check=True, capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT,
         )  # fmt: skip
         deadline = time.monotonic() + 60
-        while "HASSETTE CAN'T START" not in docker_logs(container_name):
-            assert time.monotonic() < deadline, docker_logs(container_name)
+        while "HASSETTE CAN'T START" not in (logs := docker_logs(container_name)):
+            assert time.monotonic() < deadline, logs
             time.sleep(0.5)
 
         started = time.monotonic()
