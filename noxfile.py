@@ -1,3 +1,5 @@
+import json
+import shutil
 import tomllib
 import typing
 from pathlib import Path
@@ -147,6 +149,65 @@ def wire(session: "Session"):
 def client(session: "Session"):
     """Run the hassette-client workspace member's own tests, on locked and floor dependencies."""
     run_member_tests(session, "client")
+
+
+@nox.session(python=False)
+def client_compat(session: "Session"):
+    """Parse HEAD's web API responses with the latest released hassette-client.
+
+    Generates fixtures from seeded scenarios with ``tools/generate_client_compat_fixtures.py``, typed by
+    the newest release that is on PyPI and tagged reachably from HEAD, then checks them with
+    ``tools/check_client_compat.py`` in an isolated venv holding that release's ``hassette-client`` (and the
+    ``hassette-wire`` it pins) from PyPI instead of the workspace copies. Needs the release tags fetched and
+    PyPI reachable. A tag whose publish hasn't finished is skipped with a warning, not failed.
+
+    The client's third-party dependencies (pydantic, aiohttp, ...) are pinned to their ``uv.lock`` versions in
+    the isolated venv, so a failure points at the client/server pair rather than at a dependency release that
+    landed that day. ``uv run --with`` takes no constraints file, so the pins go in as requirements. A uv
+    resolution conflict on them means the release's dependency bounds exclude a locked version; loosen by
+    dropping that pin.
+    """
+    tmp = Path(session.create_tmp())
+    fixtures = tmp / "client-compat-fixtures"
+    if fixtures.exists():
+        shutil.rmtree(fixtures)
+    session.run(
+        "uv", "run", "python", "tools/generate_client_compat_fixtures.py", "--output", str(fixtures), external=True
+    )
+    # Mirrors RELEASE_FILE and its "version" key in tools/generate_client_compat_fixtures.py and
+    # tools/check_client_compat.py.
+    release = json.loads((fixtures / "release.json").read_text())["version"]
+    pins = tmp / "client-compat-pins.txt"
+    session.run(
+        "uv",
+        "export",
+        "--frozen",
+        "--package",
+        "hassette-client",
+        "--no-dev",
+        "--no-emit-workspace",
+        "--no-hashes",
+        "--format",
+        "requirements.txt",
+        "--output-file",
+        str(pins),
+        external=True,
+        silent=True,
+    )
+    session.run(
+        "uv",
+        "run",
+        "--isolated",
+        "--no-project",
+        "--with-requirements",
+        str(pins),
+        "--with",
+        f"hassette-client=={release}",
+        "python",
+        "tools/check_client_compat.py",
+        str(fixtures),
+        external=True,
+    )
 
 
 @nox.session(python=FLOOR_PYTHON)

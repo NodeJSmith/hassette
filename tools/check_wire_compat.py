@@ -17,7 +17,8 @@ Blocking is decided in Python from oasdiff's JSON findings (``id`` + ``level``):
 - **Forward (old client, new server):** ``oasdiff breaking <last-release> <HEAD>``. Every
   ERR-level finding blocks except ``FORWARD_ALLOWED_ERR_CHECK_IDS``
   (``response-property-enum-value-added``) — enum/Literal value growth is the old-client/new-server
-  hazard hassette-client's lenient parsing owns, not this check.
+  hazard hassette-client's lenient parsing owns, not this check. A *removed* response enum value is
+  raised to ERR (``SEVERITY_OVERRIDES``), so an enum rename blocks here.
 
 Both runs take ``--err-ignore tools/wire_compat_ignore.txt`` for deliberate, reviewed breaks (see
 that file's header for the override format). A failing run prints, for each blocking finding, the
@@ -35,6 +36,8 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Any
+
+from packaging.version import InvalidVersion, Version
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TOOLS_DIR = REPO_ROOT / "tools"
@@ -66,6 +69,14 @@ FORWARD_ALLOWED_ERR_CHECK_IDS = frozenset(
     }
 )
 
+# oasdiff ``--severity-levels`` overrides, applied to both runs. A removed response enum value is INFO by
+# default, so a rename (one value added, one removed) passed: the added half is allowed above. But a caller
+# comparing against the removed value silently stops matching, so in the forward run removal blocks. The
+# reversed run reports HEAD's additions under this id and ignores it (not in REVERSED_BLOCKING_CHECK_IDS).
+SEVERITY_OVERRIDES = {
+    "response-property-enum-value-removed": "ERR",
+}
+
 
 def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     """Run ``git <args>`` in ``repo_root`` with captured text output; the caller checks ``returncode``."""
@@ -79,16 +90,28 @@ def run_git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 
 def list_release_tags(repo_root: Path) -> list[str]:
-    """Return the ``v*`` git tags reachable from HEAD, highest version first.
+    """Return the final-release ``v*`` git tags reachable from HEAD, highest version first.
 
     ``git tag --list --merged HEAD`` limits candidates to tags whose commit is an ancestor of
     HEAD, so a branch forked before a release isn't compared against a tag it can't see yet.
     Empty stdout with exit 0 means no reachable tag; any non-zero exit is a real git failure.
+
+    Ordered by PEP 440 rather than git's version sort, which ranks ``v1.0.0rc1`` above ``v1.0.0``
+    (and varies with ``versionsort.suffix``). Pre-release, dev-release and non-PEP 440 tags are
+    dropped: none of them is a release users run.
     """
-    result = run_git(repo_root, "tag", "--list", "v*", "--merged", "HEAD", "--sort=-v:refname")
+    result = run_git(repo_root, "tag", "--list", "v*", "--merged", "HEAD")
     if result.returncode != 0:
         raise RuntimeError(f"git tag --list failed: {result.stderr.strip()}")
-    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    versions: dict[str, Version] = {}
+    for tag in (line.strip() for line in result.stdout.splitlines()):
+        try:
+            tag_version = Version(tag.removeprefix("v"))
+        except InvalidVersion:
+            continue
+        if not tag_version.is_prerelease:
+            versions[tag] = tag_version
+    return sorted(versions, key=versions.__getitem__, reverse=True)
 
 
 def resolve_latest_release_tag(repo_root: Path) -> str | None:
@@ -116,12 +139,26 @@ def run_oasdiff(base: Path, revision: Path, ignore_file: Path | None, label: str
     """
     print(f"--- oasdiff breaking ({label}): {base} -> {revision} ---")
     ignore_args = ["--err-ignore", str(ignore_file)] if ignore_file is not None else []
-    result = subprocess.run(
-        ["oasdiff", "breaking", str(base), str(revision), "--format", "json", *ignore_args],
-        capture_output=True,
-        text=True,
-        timeout=OASDIFF_TIMEOUT_SECONDS,
-    )
+    with tempfile.TemporaryDirectory() as tmp:
+        # oasdiff's severity file allows no comments, so the rationale lives on SEVERITY_OVERRIDES.
+        severity_file = Path(tmp) / "severity-levels.txt"
+        severity_file.write_text("".join(f"{check_id} {level}\n" for check_id, level in SEVERITY_OVERRIDES.items()))
+        result = subprocess.run(
+            [
+                "oasdiff",
+                "breaking",
+                str(base),
+                str(revision),
+                "--format",
+                "json",
+                "--severity-levels",
+                str(severity_file),
+                *ignore_args,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=OASDIFF_TIMEOUT_SECONDS,
+        )
     if result.stderr:
         print(result.stderr, file=sys.stderr, end="")
     if result.returncode != 0:

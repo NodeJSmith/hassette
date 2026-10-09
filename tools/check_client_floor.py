@@ -70,8 +70,6 @@ FLOOR_BLOCKING_CHECK_IDS = REVERSED_BLOCKING_CHECK_IDS | {
 sends: a required field missing or optional, a field of another type or possibly null, or no success response.
 Wider than ``check_wire_compat``'s set, which guards adjacent releases rather than whether this client parses."""
 
-FINAL_RELEASE_TAG = re.compile(r"v\d+\.\d+\.\d+")
-
 OASDIFF_LABEL = "hassette-client vs its floor release"
 
 BUMP_RULE = (
@@ -145,22 +143,12 @@ class Floor:
 def find_floor_tag(repo_root: Path, min_schema: int) -> str | None:
     """The oldest release tag reporting at least ``min_schema``, or ``None`` when no release does yet.
 
-    Walks tags newest first and stops at the first one below ``min_schema``, which is sound because the bump
-    rule only ever raises ``API_SCHEMA_VERSION``.
-
-    Raises:
-        RuntimeError: The walk reached a pre-release tag (KI-001,
-            ``design/specs/127-hassette-client-transport/known-issues.md``).
+    Walks final-release tags newest first (``list_release_tags`` drops pre-releases and orders by PEP 440) and
+    stops at the first one below ``min_schema``, which is sound because the bump rule only ever raises
+    ``API_SCHEMA_VERSION``.
     """
     floor_tag = None
     for tag in list_release_tags(repo_root):
-        # git's version sort puts v1.2.0rc1 above v1.2.0, so a pre-release tagged before a schema bump would
-        # end the walk early and pass against HEAD. Ordering them is unbuilt until pre-releases are cut.
-        if FINAL_RELEASE_TAG.fullmatch(tag) is None:
-            raise RuntimeError(
-                f"The floor walk reached {tag}, which isn't a final vX.Y.Z release; this check doesn't order "
-                "pre-release tags yet (KI-001, design/specs/127-hassette-client-transport/known-issues.md)."
-            )
         if schema_version_at(repo_root, tag) < min_schema:
             break
         floor_tag = tag

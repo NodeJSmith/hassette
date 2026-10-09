@@ -135,14 +135,13 @@ def test_no_qualifying_tag_falls_back_to_heads_spec(
 
 
 @pytest.mark.parametrize("rc_schema", [None, 1], ids=["tagged-before-the-bump", "carrying-the-schema"])
-def test_walk_reaching_a_pre_release_tag_fails(git_repo: GitRepo, tmp_path: Path, rc_schema: int | None) -> None:
-    """Git's version sort puts v1.1.0rc1 above v1.1.0; until that's ordered (KI-001), the walk must not pass."""
+def test_walk_skips_pre_release_tags(git_repo: GitRepo, tmp_path: Path, rc_schema: int | None) -> None:
+    """Git's version sort puts v1.1.0rc1 above v1.1.0; the walk must neither stop at it nor pick it."""
     release(git_repo, "v1.0.0", "pre-schema", schema=None)
     release(git_repo, "v1.1.0", "schema-1", schema=1)
     release(git_repo, "v1.1.0rc1", "rc", schema=rc_schema)
 
-    with pytest.raises(RuntimeError, match=r"reached v1\.1\.0rc1, which isn't a final"):
-        resolve_floor(git_repo.root, 1, tmp_path)
+    assert resolve_floor(git_repo.root, 1, tmp_path).tag == "v1.1.0"
 
 
 def test_history_problem_refuses_a_tagless_checkout(git_repo: GitRepo) -> None:

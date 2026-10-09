@@ -1044,3 +1044,11 @@ come first.
 - D17's log lines have no tests that capture log output (the "No Log Capture Tests" invariant). The behavior around each fallback path is tested instead.
 
 ## Addendum
+
+### 2026-10-08: the floor walk's pre-release tripwire is replaced by PEP 440 ordering (#2485)
+
+The Build section's tripwire, which failed the floor check on reaching any tag that isn't a final
+`vX.Y.Z` release, is gone. `list_release_tags` in `tools/check_wire_compat.py` now orders tags by PEP 440
+and drops pre-release, dev-release and non-PEP 440 tags, so the floor walk never reaches one and its order
+no longer depends on git's `versionsort.suffix`. KI-001 keeps only the still-open half: nothing asserts that
+`API_SCHEMA_VERSION` never decreases toward newer tags.
