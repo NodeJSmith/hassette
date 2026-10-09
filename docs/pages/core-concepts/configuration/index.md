@@ -125,7 +125,7 @@ Filtering at this level removes the events from every app simultaneously. Per-ha
 
 `hassette_event_buffer_size` (default 1000) sets the capacity of the internal channel that carries events from the WebSocket to the bus. When the buffer fills, event intake pauses until handlers catch up — events are delayed, not dropped. Raising the buffer absorbs longer bursts; excluding noisy domains is usually the better first move.
 
-`lifecycle.max_concurrent_dispatches` (default 50) caps how many handler invocations run at once. The bus delivers each event to every matching handler as a separate task, so an event that matches many handlers would otherwise spawn that many tasks at once. When the cap is reached, the bus waits for a running handler to finish before starting the next — and that wait flows back through the event buffer to the WebSocket reader, so a slow handler throttles intake instead of exhausting memory.
+`lifecycle.max_concurrent_dispatches` (default 50) caps how many handler invocations run at once. The bus delivers each event to every matching handler as a separate task, so an event that matches many handlers would otherwise spawn that many tasks at once. When the cap is reached, the bus waits for a running handler to finish before starting the next (listeners with the `DROP_NEWEST` backpressure policy skip the event instead) — and that wait flows back through the event buffer to the WebSocket reader, so a slow handler throttles intake instead of exhausting memory.
 
 A running handler holds its slot until it returns or reaches `event_handler_timeout_seconds`. Raise the cap for workloads with many fast handlers; lower it to bound peak concurrency on constrained hardware.
 
@@ -143,7 +143,7 @@ A running handler holds its slot until it returns or reaches `event_handler_time
 
 ### File Watcher
 
-The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). `[hassette.file_watcher]` tunes it: `debounce_milliseconds` (default 3000, or 6000 in `dev_mode`) is the quiet period required after the last change before a reload fires, `step_milliseconds` (default 500, or 1000 in `dev_mode`) is how long the watcher waits for additional changes to batch into the same reload, and `watch_files = false` disables watching entirely.
+The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). `[hassette.file_watcher]` tunes it: `debounce_milliseconds` (default 3000, or 6000 in `dev_mode`) is the longest the watcher groups changes into one reload, `step_milliseconds` (default 500, or 1000 in `dev_mode`) is the quiet period after the last change before that reload fires, and `watch_files = false` disables watching entirely.
 
 ### State Proxy Polling
 

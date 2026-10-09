@@ -76,7 +76,7 @@ Docker data volumes carry over across major versions. Mount points are version-i
 
 ## Config Paths and Unknown Keys
 
-Upgrading from 0.56 or earlier, three changes can break an existing setup: Hassette resolves relative paths against the file that sets them, rejects setting names it doesn't recognize, and keeps Docker apps inside the config mount. This section lists each one. The [Configuration](../core-concepts/configuration/index.md#file-locations) page has the full rules.
+Upgrading from 0.56 or earlier, four changes can break an existing setup: Hassette resolves relative paths against the file that sets them, rejects setting names it doesn't recognize, keeps Docker apps inside the config mount, and has apps read the same `.env` files as Hassette. This section lists each one. The [Configuration](../core-concepts/configuration/index.md#file-locations) page has the full rules.
 
 ### Check Your Configuration
 
@@ -121,7 +121,7 @@ If the container isn't running, `docker compose run --rm --entrypoint hassette h
 | `HASSETTE__PRUNE_UV_CACHE` | `HASSETTE_DOCKER_PRUNE_UV_CACHE` |
 | `config_file` / `env_file` settings | the `--config-file` / `--env-file` CLI flags |
 | `config_dir` in `hassette.toml` or `.env` | `--config-dir`, or `HASSETTE__CONFIG_DIR` in the process environment |
-| An `AppConfig` `env_prefix` starting with `hassette__` | any prefix outside the `HASSETTE__` namespace, such as `MYAPP_` |
+| An app's `AppConfig` `env_prefix` starting with `hassette__` (its variables are now checked as Hassette settings) | a prefix outside `HASSETTE__`: `env_prefix="hassette__myapp_"` becomes `env_prefix="myapp_"`, and `HASSETTE__MYAPP_API_KEY` becomes `MYAPP_API_KEY` |
 
 The container's start script reads the `HASSETTE_DOCKER_*` variables, not Hassette itself. They use a single underscore after `HASSETTE` because the double-underscore `HASSETTE__` namespace belongs to Hassette settings.
 

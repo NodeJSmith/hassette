@@ -50,7 +50,16 @@ On a configuration error it prints the problem to stderr, prints nothing to stdo
 
 `hassette run` refuses to start when a setting name matches nothing: a `HASSETTE__*` variable (in the process environment or a `.env` file) or a key in `hassette.toml`. The error lists each key with its source, suggests the closest real setting when one is near, and links back to this page.
 
-App definitions aren't checked: `[hassette.apps.<key>]` tables and `HASSETTE__APPS__<APP_KEY>__...` variables, including the `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` overrides, keep working. Hassette reads those itself and passes the values to the app. An `AppConfig` that reads the environment through its own `env_prefix` needs a prefix outside `HASSETTE__`: with `env_prefix="hassette__myapp_"`, its variables look like unknown Hassette settings and stop startup. When the file watcher reloads a config that introduces a bad key, Hassette logs an ERROR and keeps the running config. Commands that query a running instance (`hassette status` and the like) skip the check.
+App definitions aren't checked: `[hassette.apps.<key>]` tables and `HASSETTE__APPS__<APP_KEY>__...` variables, including the `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` overrides, keep working. Hassette reads those itself and passes the values to the app.
+
+An app's [`AppConfig`](../apps/index.md#environment-variables) that reads the environment through its own `env_prefix` needs a prefix outside `HASSETTE__`:
+
+| `env_prefix` | Variable for field `api_key` | Result |
+|---|---|---|
+| `"myapp_"` | `MYAPP_API_KEY` | Read by the app |
+| `"hassette__myapp_"` | `HASSETTE__MYAPP_API_KEY` | Unknown Hassette setting: startup stops |
+
+When the [file watcher](#file-watcher) reloads a config that introduces a bad key, Hassette logs an ERROR and keeps the running config. Commands that query a running instance (`hassette status` and the like) skip the check.
 
 ### Exit Codes {#exit-codes}
 
