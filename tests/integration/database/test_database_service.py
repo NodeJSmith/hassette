@@ -641,6 +641,47 @@ async def test_startup_size_failsafe_check_is_bounded_by_timeout(
     await fresh_service.on_shutdown()
 
 
+async def test_startup_cleanup_timeout_interrupts_in_flight_statement(
+    fresh_service: DatabaseService, mock_hassette_fresh: MagicMock
+) -> None:
+    """When the catch-up deadline fires mid-statement, the statement keeps running on aiosqlite's
+    worker thread (cancelling the await doesn't stop it). The recovery rollback queues behind it,
+    so without an interrupt on_initialize() would block past the half-budget it promises.
+    """
+    mock_hassette_fresh.config.lifecycle = mock_hassette_fresh.config.lifecycle.model_copy(
+        update={"startup_timeout_seconds": 0.2}
+    )
+    mock_hassette_fresh.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+
+    statement_started = asyncio.Event()
+    real_connect_daemon = database_service_module.connect_daemon
+
+    async def connect_daemon_with_endless_delete(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
+        """Replace the first DELETE with a statement that never finishes on its own, occupying
+        the real sqlite worker thread the way a huge batch or slow vacuum would.
+        """
+        conn = await real_connect_daemon(*args, **kwargs)
+        real_execute = conn.execute
+
+        async def endless_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
+            if sql.strip().upper().startswith("DELETE FROM"):
+                statement_started.set()
+                return await real_execute(
+                    "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c"
+                )
+            return await real_execute(sql, parameters)
+
+        conn.execute = endless_execute
+        return conn
+
+    with patch.object(database_service_module, "connect_daemon", connect_daemon_with_endless_delete):
+        await asyncio.wait_for(fresh_service.on_initialize(), timeout=5.0)
+
+    assert statement_started.is_set(), "size failsafe never reached its DELETE statement"
+
+    await fresh_service.on_shutdown()
+
+
 async def test_restart_resumes_interrupted_retention_on_startup(
     initialized_service: DatabaseService, db_hassette: MagicMock
 ) -> None:
