@@ -274,6 +274,24 @@ if [ -f "$PROJECT_DIR/uv.lock" ]; then
 
     log_phase "project install: complete"
 
+    # A build backend misconfiguration can install a package that isn't importable under the
+    # project's own name while every install step exits 0. App loading reads the apps dir directly,
+    # so warn rather than halt: most deployments still run, but the packaging is broken.
+    # -P keeps the cwd off sys.path, so a project checkout there can't mask a broken install.
+    project_module=$(python -P -c '
+import re, sys, tomllib
+with open(sys.argv[1], "rb") as f:
+    print(re.sub(r"[-_.]+", "_", tomllib.load(f)["project"]["name"]).lower())
+' "$PROJECT_DIR/pyproject.toml" 2>/dev/null || true)
+    if [ -n "${project_module}" ] && ! python -P -c '
+import importlib.util, sys
+sys.exit(0 if importlib.util.find_spec(sys.argv[1]) else 1)
+' "${project_module}" 2>/dev/null; then
+        echo "WARNING: the installed project package '${project_module}' is not importable under its own name."
+        echo "         Check your pyproject.toml's [build-system] / [tool.uv.build-backend] config."
+        echo "         Apps under HASSETTE__APPS__DIRECTORY still load, but the packaging is misconfigured."
+    fi
+
 elif [ -f "$PROJECT_DIR/pyproject.toml" ]; then
     log_phase "project install: skipped (pyproject.toml found but no uv.lock — run 'uv lock' to generate a lockfile, then restart)"
 else

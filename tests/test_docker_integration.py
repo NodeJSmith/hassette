@@ -342,6 +342,16 @@ def test_docker_project_install_succeeds(
     assert result.returncode == 0, f"Project install failed. Output:\n{output}"
     missing = expected_distributions - installed_distributions(diff_lines)
     assert not missing, f"Not installed: {sorted(missing)}. Output:\n{output}"
+    assert "not importable under its own name" not in output, output
+
+
+def test_docker_project_not_importable_under_its_name_warns(docker_project_dir: Path):
+    """A project whose installed package doesn't match its name warns but still starts (#2331)."""
+    create_project_package(docker_project_dir, project_pyproject(build_system=False).replace("test-proj", "other-name"))
+    result, output = run_project_container(docker_project_dir)
+
+    assert result.returncode == 0, f"Container should still start. Output:\n{output}"
+    assert "'other_name' is not importable under its own name" in output, output
 
 
 def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path):
