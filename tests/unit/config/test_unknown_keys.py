@@ -56,6 +56,7 @@ class TestFlagged:
 
         assert "HASSETTE__DATABASE.retentin_days (from environment)" in message
         assert "did you mean HASSETTE__DATABASE.retention_days?" in message
+        assert "reserved for Hassette settings" not in message
 
     @pytest.mark.parametrize("name", ["HASSETTE__DOTENV_TYPO", "hassette__dotenv_typo"])
     def test_dotenv_var_any_case(self, cfg: Path, name: str) -> None:

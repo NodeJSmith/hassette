@@ -88,6 +88,12 @@ def find_unknown_keys(settings_cls: type[BaseSettings], build: ConfigBuild) -> l
     for key in build.env_keys:
         if not env_names.is_known(key.name, key.value):
             found.setdefault(key.name.upper(), UnknownKey(key.name, key.source, env_names.suggest(key.name)))
+        elif (model := env_names.models.get(key.name.lower())) is not None and is_json_object(key.value):
+            # a whole group as one JSON value: check its keys as the same group in TOML is checked
+            for dotted in unknown_toml_keys(model, json.loads(key.value or "")):
+                suggestion = suggest_toml_name(model, dotted)
+                name = f"{key.name}.{dotted}"
+                found.setdefault(name.upper(), UnknownKey(name, key.source, suggestion and f"{key.name}.{suggestion}"))
 
     for table in build.toml_tables:
         for name in unknown_toml_keys(settings_cls, table.data):
@@ -103,7 +109,8 @@ def format_unknown_keys(unknown: list[UnknownKey]) -> str:
         if key.suggestion:
             line += f": did you mean {key.suggestion}?"
         lines.append(line)
-    if any(key.name.lower().startswith(SETTINGS_ENV_PREFIX) for key in unknown):
+    # a whole env var name (a key inside a JSON group value is dotted, and isn't an app's variable)
+    if any(key.name.lower().startswith(SETTINGS_ENV_PREFIX) and "." not in key.name for key in unknown):
         lines.append(
             "The HASSETTE__ prefix is reserved for Hassette settings; "
             "an app's own environment variables need a different prefix."
@@ -118,8 +125,17 @@ class EnvNames:
     The ``HASSETTE__APPS__<key>`` namespace is dynamic (app definitions), so `is_known` treats it apart.
     """
 
-    def __init__(self, known: set[str], open_prefixes: set[str], apps_prefix: str, apps_fields: set[str]):
+    def __init__(
+        self,
+        known: set[str],
+        open_prefixes: set[str],
+        apps_prefix: str,
+        apps_fields: set[str],
+        models: dict[str, type[BaseModel]],
+    ):
         self.known = known
+        self.models = models
+        """Each known env name whose setting is a nested group, to the group's model."""
         self.open_prefixes = open_prefixes
         self.apps_prefix = apps_prefix
         self.apps_fields = apps_fields
@@ -130,12 +146,13 @@ class EnvNames:
         source = EnvSettingsSource(settings_cls)
         known: set[str] = set()
         open_prefixes: set[str] = set()
+        models: dict[str, type[BaseModel]] = {}
         for field_name, info in settings_cls.model_fields.items():
             # private pydantic-settings API: every unknown-key test fails if it changes
             for _, env_name, _ in source._extract_field_info(info, field_name):  # pyright: ignore[reportPrivateUsage]
-                collect_env_names(env_name.lower(), info, known, open_prefixes)
+                collect_env_names(env_name.lower(), info, known, open_prefixes, models)
         apps_prefix = f"{source.env_prefix}apps{ENV_NESTED_DELIMITER}"
-        return cls(known, open_prefixes, apps_prefix, {n.lower() for n in field_names(AppsConfig)})
+        return cls(known, open_prefixes, apps_prefix, {n.lower() for n in field_names(AppsConfig)}, models)
 
     def is_known(self, name: str, value: str | None) -> bool:
         lowered = name.lower()
@@ -156,17 +173,24 @@ class EnvNames:
         return matches[0].upper() if matches else None
 
 
-def collect_env_names(env_name: str, info: FieldInfo, known: set[str], open_prefixes: set[str]) -> None:
-    """Add `env_name` and, for a nested model, each nested env name below it."""
+def collect_env_names(
+    env_name: str,
+    info: FieldInfo,
+    known: set[str],
+    open_prefixes: set[str],
+    models: dict[str, type[BaseModel]],
+) -> None:
+    """Add `env_name` and, for a nested model, record its model and add each nested env name below it."""
     known.add(env_name)
     sub = model_annotation(info.annotation)
     if sub is None:
         if is_mapping_annotation(info.annotation):
             open_prefixes.add(env_name + ENV_NESTED_DELIMITER)
         return
+    models[env_name] = sub
     for sub_name, sub_info in sub.model_fields.items():
         for name in field_spellings(sub_name, sub_info):
-            collect_env_names(f"{env_name}{ENV_NESTED_DELIMITER}{name.lower()}", sub_info, known, open_prefixes)
+            collect_env_names(f"{env_name}{ENV_NESTED_DELIMITER}{name.lower()}", sub_info, known, open_prefixes, models)
 
 
 def unknown_toml_keys(model: type[BaseModel], data: dict[str, Any], prefix: str = "") -> Iterator[str]:

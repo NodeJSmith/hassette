@@ -147,7 +147,10 @@ def anchor_paths(model: type[BaseModel], data: dict[str, Any], base: Path) -> di
                 out[key] = anchor_paths(AppManifest, value, base)
             continue
         if is_path_annotation(info.annotation):
-            out[key] = anchor(value, base)
+            if value == "":  # unset, as an empty env var is (env_ignore_empty), not Path(".") in the working directory
+                del out[key]
+            else:
+                out[key] = anchor(value, base)
         elif (sub := model_annotation(info.annotation)) is not None and isinstance(value, dict):
             out[key] = anchor_paths(sub, value, base)
         elif model is AppsConfig and key == "apps" and isinstance(value, dict):  # [hassette.apps.apps.my_app]
@@ -161,7 +164,7 @@ def config_file_error(path: Path, exc: Exception) -> ConfigError:
 
 
 def anchor(value: Any, base: Path) -> Any:
-    if not isinstance(value, str | Path) or value == "":
+    if not isinstance(value, str | Path):
         return value
     return anchored(value, base)
 
