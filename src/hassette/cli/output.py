@@ -55,8 +55,14 @@ def writes_to_tty(console: Console) -> bool:
     Deliberately not ``Console.is_terminal``: ``FORCE_COLOR`` or ``TTY_COMPATIBLE=1`` (common in CI)
     make that report ``True`` on a pipe, which would truncate piped tables. Those variables are
     about color and escape-code support, not about whether a human is reading a sized terminal.
+
+    A closed stream counts as not a TTY: this runs at import time (via :func:`make_stdout_console`),
+    and ``isatty()`` on a closed file raises ``ValueError``, which Rich's own check also absorbs.
     """
-    return console.file.isatty()
+    try:
+        return console.file.isatty()
+    except ValueError:
+        return False
 
 
 stdout_console = make_stdout_console()

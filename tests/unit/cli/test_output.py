@@ -451,6 +451,14 @@ class TestMakeStdoutConsole:
             console = make_stdout_console()
         assert console.width == PIPE_FALLBACK_WIDTH
 
+    def test_closed_stdout_counts_as_piped(self) -> None:
+        """A closed stdout falls back to pipe mode instead of raising at console construction."""
+        closed = StringIO()
+        closed.close()
+        with patch("sys.stdout", closed):
+            console = make_stdout_console()
+        assert console.width == PIPE_FALLBACK_WIDTH
+
     def test_piped_respects_columns(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """An explicit $COLUMNS wins over the fallback."""
         monkeypatch.setenv("COLUMNS", "60")
