@@ -5,7 +5,7 @@ Hassette — async-first Home Assistant automation framework.
 
 ╭─ Commands ───────────────────────────────────────────────────────────────────────────────────────╮
 │ app                    List and inspect apps.                                                    │
-│ blocking               Show blocking-IO findings: calls that stalled the event loop.             │
+│ blocking               Show blocking findings: calls that stalled the event loop.                │
 │ config                 Show current configuration.                                               │
 │ dashboard              Show app dashboard grid.                                                  │
 │ execution              Show logs for a specific execution.                                       │
@@ -231,7 +231,7 @@ Stop an app or app instance (POST /api/apps/{key}/stop).
 $ hassette blocking --help
 Usage: hassette blocking [OPTIONS] [ARGS]
 
-Show blocking-IO findings: calls that stalled the event loop.
+Show blocking findings: calls that stalled the event loop.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ APP --app            Filter by app key.                                                          │

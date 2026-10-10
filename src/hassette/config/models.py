@@ -670,18 +670,19 @@ class FileWatcherConfig(ExcludeExtrasMixin, BaseModel):
 
 
 class BlockingIODetectionConfig(ExcludeExtrasMixin, BaseModel):
-    """Blocking-I/O detection settings for the shared event loop.
+    """Blocking-call detection settings for the shared event loop.
 
-    Controls the two-tier detection system: Tier 1 (always-on responsiveness watchdog) and
-    Tier 2 (call-site interception of known blocking primitives, dev-default / prod-opt-in).
+    Controls the two-tier detection system: Tier 1 (always-on responsiveness watchdog, which
+    catches any loop stall, including CPU-bound work) and Tier 2 (call-site interception of
+    known blocking I/O primitives, dev-default / prod-opt-in).
     """
 
     # Group label on the model's own config — see WebApiConfig above for why this can't go on
     # the field reference in HassetteConfig (deref drops `$ref` sibling keys).
-    model_config = ConfigDict(json_schema_extra={"ui": {"group_label": "Blocking I/O"}})
+    model_config = ConfigDict(json_schema_extra={"ui": {"group_label": "Blocking Calls"}})
 
     behavior: BlockingIOBehavior | None = Field(default=None)
-    """Global default behavior for blocking-IO detection.
+    """Global default behavior for blocking-call detection.
 
     When ``None`` (default), the effective behavior is ``"warn"``. Per-app
     ``AppConfig.blocking_io_behavior`` overrides this when set. Set to ``"ignore"`` to

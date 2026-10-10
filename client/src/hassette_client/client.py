@@ -332,7 +332,7 @@ class HassetteClient:
     async def get_app_blocking_findings(
         self, app_key: str, *, instance_index: int | None = None, since: float | None = None
     ) -> BlockingFindingsResponse:
-        """Get the blocking-I/O findings attributed to an app's handlers and jobs.
+        """Get the blocking findings attributed to an app's handlers and jobs.
 
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.
@@ -342,7 +342,7 @@ class HassetteClient:
         return await self._transport.request("GET", path, BlockingFindingsResponse, params=params)
 
     async def get_blocking_findings(self, *, since: float | None = None) -> BlockingFindingsResponse:
-        """Get the blocking-I/O findings across every app.
+        """Get the blocking findings across every app.
 
         Raises:
             TelemetryUnavailableError: The telemetry store couldn't be read.

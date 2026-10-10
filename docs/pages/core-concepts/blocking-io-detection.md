@@ -1,14 +1,14 @@
-# Blocking-IO Detection
+# Blocking-Call Detection
 
-Hassette monitors the shared asyncio event loop for blocking I/O calls that stall it. When an app handler performs synchronous file, network, or sleep operations directly on the loop thread, every other handler and timer waits — detection surfaces that problem so it can be fixed.
+Hassette monitors the shared asyncio event loop for blocking calls that stall it. When an app handler performs synchronous file, network, or sleep operations directly on the loop thread, or runs long CPU-bound work there such as parsing a large HTML page, every other handler and timer waits — detection surfaces that problem so it can be fixed.
 
 ## How It Works
 
 Detection runs on two independent tiers.
 
-**Tier 1 — loop-responsiveness watchdog.** A daemon thread measures how long the event loop goes without responding to a heartbeat tick. When the gap exceeds `blocking_io.lag_threshold_seconds` (default 100ms), Hassette emits a [`HassetteBlockingIOWarning`][hassette.exceptions.HassetteBlockingIOWarning] naming the app and execution that owned the loop at the time, and records a row in the `blocking_events` telemetry table.
+**Tier 1 — loop-responsiveness watchdog.** A daemon thread measures how long the event loop goes without responding to a heartbeat tick. It doesn't care what held the loop: blocking I/O and CPU-bound work both count as a stall. When the gap exceeds `blocking_io.lag_threshold_seconds` (default 100ms), Hassette emits a [`HassetteBlockingIOWarning`][hassette.exceptions.HassetteBlockingIOWarning] naming the app and execution that owned the loop at the time, and records a row in the `blocking_events` telemetry table.
 
-**Tier 2 — call-site interception.** Hassette patches the known blocking primitives — `time.sleep`, `builtins.open`, `os.listdir`, `os.scandir`, `os.walk`, `glob.glob`, and blocking socket methods — to fire a warning and DB row at the exact call site. Tier 2 is on by default in `dev_mode` and off by default in production. To enable it in production, set `allow_deep_detection_in_prod = true` (or `deep_detection_enabled = true`); an explicit `deep_detection_enabled = false` keeps it off in any mode.
+**Tier 2 — call-site interception.** Hassette patches the known blocking I/O primitives — `time.sleep`, `builtins.open`, `os.listdir`, `os.scandir`, `os.walk`, `glob.glob`, and blocking socket methods — to fire a warning and DB row at the exact call site. Tier 2 is on by default in `dev_mode` and off by default in production. To enable it in production, set `allow_deep_detection_in_prod = true` (or `deep_detection_enabled = true`); an explicit `deep_detection_enabled = false` keeps it off in any mode.
 
 Both tiers share the same thread-id gate: calls that originate on a worker thread (via `asyncio.to_thread` or `run_in_executor`) pass through without triggering detection. Only calls on the event loop thread itself are flagged.
 
@@ -22,6 +22,8 @@ HassetteBlockingIOWarning: Blocking I/O detected on the event loop
 app: sensor_app, execution: 0199a3f2-7c41-7e0b-9d2a-5b8e1f4c6a10,
 call site: sensor_app.py:42
 ```
+
+A Tier 1 warning starts with `Event loop stalled by a blocking call (Tier 1 — loop watchdog)` instead. It reports how long the loop was held rather than a primitive, followed by the loop thread's stack, since the stall may have come from CPU-bound work rather than I/O.
 
 The warning integrates with standard Python filter machinery: `filterwarnings("error")`, `-W error`, and `pytest.warns` all work as expected.
 

@@ -1886,7 +1886,7 @@
           "telemetry"
         ],
         "summary": "App Blocking Findings",
-        "description": "Blocking-IO findings for one app: attributed events grouped by app call site.\n\nWithout ``instance_index``, findings cover every instance, which is what the multi-instance\nparent overview shows; with it, only that instance's events are counted.",
+        "description": "Blocking findings for one app: attributed events grouped by app call site.\n\nWithout ``instance_index``, findings cover every instance, which is what the multi-instance\nparent overview shows; with it, only that instance's events are counted.",
         "operationId": "app_blocking_findings_api_telemetry_app__app_key__blocking_get",
         "parameters": [
           {
@@ -1978,7 +1978,7 @@
           "telemetry"
         ],
         "summary": "All Blocking Findings",
-        "description": "Blocking-IO findings for every app and instance, in one response.",
+        "description": "Blocking findings for every app and instance, in one response.",
         "operationId": "all_blocking_findings_api_telemetry_blocking_findings_get",
         "parameters": [
           {
@@ -2831,7 +2831,7 @@
               }
             ],
             "title": "Blocking Event Count",
-            "description": "Attributed blocking-IO events for this app in the requested window. ``None`` when the count query\nfailed."
+            "description": "Attributed blocking events for this app in the requested window. ``None`` when the count query\nfailed."
           }
         },
         "type": "object",

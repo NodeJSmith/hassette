@@ -75,7 +75,7 @@ class AppConfig(BaseSettings):
     or ``"error"`` to treat forgotten awaits as errors (escalated by ``filterwarnings("error")``)."""
 
     blocking_io_behavior: BlockingIOBehavior | None = None
-    """Per-app control for blocking-IO detection behavior.
+    """Per-app control for blocking-call detection behavior.
 
     When ``None`` (default), the global ``HassetteConfig.blocking_io.behavior`` is used,
     which itself defaults to ``"warn"``.  Set to ``"ignore"`` to suppress detection for this app,

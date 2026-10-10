@@ -351,7 +351,7 @@ The table shows timestamp, level, function name, line number, and message for ea
 
 ## `hassette blocking`
 
-Blocking calls that stalled the event loop, grouped by the line of app code to fix. Without `--app`, it lists findings for every app, then the recent stalls that no app is credited with. Those are split by reason: `displaced` means an app execution was in flight but another task held the loop, and `framework` means no app execution was running. [Blocking-IO Detection](../core-concepts/blocking-io-detection.md#finding-blocking-calls) explains what each column means.
+Blocking calls that stalled the event loop, grouped by the line of app code to fix. Without `--app`, it lists findings for every app, then the recent stalls that no app is credited with. Those are split by reason: `displaced` means an app execution was in flight but another task held the loop, and `framework` means no app execution was running. [Blocking-Call Detection](../core-concepts/blocking-io-detection.md#finding-blocking-calls) explains what each column means.
 
 ```console
 $ hassette blocking --since 7d

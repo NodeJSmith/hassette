@@ -524,7 +524,7 @@ export interface paths {
         };
         /**
          * App Blocking Findings
-         * @description Blocking-IO findings for one app: attributed events grouped by app call site.
+         * @description Blocking findings for one app: attributed events grouped by app call site.
          *
          *     Without ``instance_index``, findings cover every instance, which is what the multi-instance
          *     parent overview shows; with it, only that instance's events are counted.
@@ -547,7 +547,7 @@ export interface paths {
         };
         /**
          * All Blocking Findings
-         * @description Blocking-IO findings for every app and instance, in one response.
+         * @description Blocking findings for every app and instance, in one response.
          */
         get: operations["all_blocking_findings_api_telemetry_blocking_findings_get"];
         put?: never;
@@ -864,7 +864,7 @@ export interface components {
             last_error: components["schemas"]["LastErrorResult"] | null;
             /**
              * Blocking Event Count
-             * @description Attributed blocking-IO events for this app in the requested window. ``None`` when the count query
+             * @description Attributed blocking events for this app in the requested window. ``None`` when the count query
              *     failed.
              */
             blocking_event_count: number | null;

@@ -40,7 +40,7 @@ class ForgottenAwaitBehavior(StrEnum):
 
 
 class BlockingIOBehavior(StrEnum):
-    """Controls what happens when blocking I/O is detected on the shared event loop."""
+    """Controls what happens when a blocking call is detected on the shared event loop."""
 
     IGNORE = auto()
     """Suppress detection entirely — no warning AND no ``blocking_events`` row is written.

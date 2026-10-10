@@ -86,7 +86,7 @@ app.command(log_app)
 execution_app = App(name="execution", help="Show logs for a specific execution.")
 app.command(execution_app)
 
-blocking_app = App(name="blocking", help="Show blocking-IO findings: calls that stalled the event loop.")
+blocking_app = App(name="blocking", help="Show blocking findings: calls that stalled the event loop.")
 app.command(blocking_app)
 
 config_app = App(name="config", help="Show current configuration.")

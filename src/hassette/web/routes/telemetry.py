@@ -208,7 +208,7 @@ async def app_blocking_findings(
     instance_index: OptionalInstanceIndexQuery = None,
     since: SinceQuery = None,
 ) -> BlockingFindingsResponse:
-    """Blocking-IO findings for one app: attributed events grouped by app call site.
+    """Blocking findings for one app: attributed events grouped by app call site.
 
     Without ``instance_index``, findings cover every instance, which is what the multi-instance
     parent overview shows; with it, only that instance's events are counted.
@@ -222,7 +222,7 @@ async def app_blocking_findings(
     responses=problem_responses(ProblemCode.TELEMETRY_UNAVAILABLE),
 )
 async def all_blocking_findings(telemetry: TelemetryDep, since: SinceQuery = None) -> BlockingFindingsResponse:
-    """Blocking-IO findings for every app and instance, in one response."""
+    """Blocking findings for every app and instance, in one response."""
     return await telemetry.get_blocking_findings(app_key=None, instance_index=None, since=since)
 
 

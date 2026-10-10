@@ -1,4 +1,4 @@
-"""Tier 1 loop-responsiveness watchdog for blocking-IO detection.
+"""Tier 1 loop-responsiveness watchdog for blocking-call detection.
 
 Detects event-loop stalls caused by blocking code on the loop thread and emits a
 ``HassetteBlockingIOWarning`` naming the offending app.
@@ -405,7 +405,7 @@ class LoopWatchdog:
             return
 
         msg = (
-            f"Blocking I/O detected on the event loop — "
+            f"Event loop stalled by a blocking call (Tier 1 — loop watchdog) — "
             f"{format_attribution_label(event.app_key, event.instance_name, event.execution_id)}, "
             f"stall: {event.stall_duration_ms:.0f}ms"
         )

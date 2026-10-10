@@ -1,4 +1,4 @@
-"""Blocking-IO findings: calls that blocked the event loop, grouped by the app code to fix.
+"""Blocking findings: calls that blocked the event loop, grouped by the app code to fix.
 
 Stacks are lists of ``StackFrame``, innermost frame first.
 """

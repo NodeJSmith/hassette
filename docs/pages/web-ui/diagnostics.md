@@ -50,7 +50,7 @@ failing or the database is unavailable — some historical data may be missing.
 
 ## Loop stalls
 
-The loop stalls panel appears when [blocking-IO detection](../core-concepts/blocking-io-detection.md) recorded stalls in the selected time window that it couldn't credit to an app. Hassette blames an app only when that app's code was the task holding the loop, so these stalls fall into two groups:
+The loop stalls panel appears when [blocking-call detection](../core-concepts/blocking-io-detection.md) recorded stalls in the selected time window that it couldn't credit to an app. Hassette blames an app only when that app's code was the task holding the loop, so these stalls fall into two groups:
 
 - **displaced**: an app execution was in flight, but a different task held the loop, so Hassette withheld the blame rather than guess.
 - **framework**: no app execution was responsible, for example a library callback or Hassette's own work.
