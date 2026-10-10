@@ -258,8 +258,8 @@ class DatabaseRetentionMixin:
 
         for target in _RETENTION_TABLES:
             result = await self._delete_target_batched(target, now, config)
-            # On failure, batches committed before it are real, durable progress — record them
-            # alongside the failure rather than reporting a false zero.
+            # Recorded on success and failure alike: a failed target's earlier committed batches are
+            # real, durable progress, so report them rather than a false zero.
             deleted_by_label[target.failsafe_label] = result.deleted
             if result.error is not None:
                 await safe_rollback(self.db, self, target.failsafe_label)
