@@ -196,21 +196,18 @@ async def test_pure_async_timeout_no_handle_no_thread_leaked(
     )
 
 
-# Completed sync handler with user-code TimeoutError → thread_leaked=False
-# (regression test for handle.active guard)
+# Completed sync handler with user-code TimeoutError → error, thread_leaked=False
 
 
 async def test_completed_sync_handler_no_false_thread_leaked(
     executor: CommandExecutor,
     sync_executor: SyncExecutor,
 ) -> None:
-    """A sync handler that raises TimeoutError from user code must not set thread_leaked.
+    """A sync handler that raises TimeoutError from user code is an error, not a leaked timeout.
 
-    When a sync handler raises TimeoutError itself (not from the framework timeout),
-    result.is_timed_out is True and the pool thread is still alive (pool threads persist
-    between jobs).  Without the handle.active guard, handle.thread.is_alive() alone
-    would cause a false thread_leaked=True.  The active flag — cleared by _call's finally
-    block when the handler returns/raises — prevents this false positive.
+    The pool thread is still alive afterwards (pool threads persist between jobs), but no
+    framework deadline expired, so the run is recorded as an error and never reaches the
+    thread-leak check.
     """
 
     def sync_raises_timeout(_event: object) -> None:
@@ -221,14 +218,10 @@ async def test_completed_sync_handler_no_false_thread_leaked(
     # No framework timeout — the TimeoutError comes from user code
     await executor.execute(invoke_cmd(listener, listener_id=5))
 
-    assert_timed_out(
-        executor,
-        thread_leaked=False,
-        reason=(
-            "thread_leaked must be False when the sync handler completed (active=False) "
-            "even though the pool thread is still alive"
-        ),
-    )
+    record = pop_execution_record(executor)
+    assert record.status == "error"
+    assert record.error_type == "TimeoutError"
+    assert record.thread_leaked is False
 
 
 # Round-trip persistence — thread_leaked column survives write+read back
