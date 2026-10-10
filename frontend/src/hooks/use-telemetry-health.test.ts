@@ -92,9 +92,9 @@ describe("useTelemetryHealth", () => {
     await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
 
     // After first failure, interval doubles to 60s
-    // Advancing 30s should NOT trigger another poll (old interval cleared)
+    // Advancing 30s should NOT trigger another poll (the 30s interval pauses during the retry chain)
     advanceTime(BASE_INTERVAL_MS);
-    // Should still be 1 since the interval is now 60s, not 30s
+    // Should still be 1 since the first retry waits 60s
     await waitForCallCount(mockedGetTelemetryStatus, 1);
 
     // Advancing another 30s (total 60s from first failure) triggers second poll
@@ -104,7 +104,7 @@ describe("useTelemetryHealth", () => {
     // After second failure, interval doubles to 120s
     // Advancing 60s should NOT trigger poll
     advanceTime(BASE_INTERVAL_MS * 2);
-    // Should still be 2 since the interval is now 120s, not 60s
+    // Should still be 2 since the second retry waits 120s
     await waitForCallCount(mockedGetTelemetryStatus, 2);
 
     // Advancing another 60s (total 120s from second failure) triggers third poll
@@ -158,7 +158,7 @@ describe("useTelemetryHealth", () => {
     await expectFirstPollNotDegraded(mockedGetTelemetryStatus);
   });
 
-  it("clears interval on unmount", async () => {
+  it("stops polling on unmount", async () => {
     const { unmount } = await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
 
     unmount();

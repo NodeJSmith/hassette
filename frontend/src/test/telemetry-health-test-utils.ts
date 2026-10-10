@@ -1,10 +1,10 @@
 /**
  * Test utilities for `useTelemetryHealth` hook tests.
  *
- * The hook needs no `QueryClientProvider` — it only touches the Zustand app store and fetch via
- * `getTelemetryStatus` — so these helpers compose directly with `renderHook` rather than
- * `query-test-utils.tsx`'s Query-composing primitives (`renderHookWithProviders`,
- * `renderInvalidatorHook`). Helpers that need to observe or wait on poll calls take the caller's
+ * The hook is a `useQuery` poller, so these helpers render it through `query-test-utils.tsx`'s
+ * `renderHookWithProviders` (a fresh, isolated QueryClient per render). The hook sets its own
+ * `retry`/`retryDelay`, overriding that client's `retry: false` default, so backoff timelines
+ * still run. Helpers that need to observe or wait on poll calls take the caller's
  * `vi.mocked(getTelemetryStatus)` as a parameter — the mock itself stays owned by the test file's
  * own `vi.mock("../api/endpoints", ...)` call, since that call (and the `mockReset()`/
  * `mockResolvedValue()` configuration per test) must live where the mock is declared. Waiting on
@@ -12,22 +12,21 @@
  * rather than re-declaring it here.
  */
 
-import { renderHook } from "@testing-library/react";
 import type { MockedFunction } from "vitest";
 import { expect, vi } from "vitest";
 
 import type { getTelemetryStatus } from "../api/endpoints";
 import { useTelemetryHealth } from "../hooks/use-telemetry-health";
 import { useAppStore } from "../state/store";
-import { waitForCallCount } from "./query-test-utils";
+import { renderHookWithProviders, waitForCallCount } from "./query-test-utils";
 
 type MockedGetTelemetryStatus = MockedFunction<typeof getTelemetryStatus>;
 
-/** Renders `useTelemetryHealth` directly, returning the `renderHook` result so tests needing
+/** Renders `useTelemetryHealth` inside a QueryClientProvider, returning the `renderHook` result so tests needing
  * `rerender`/`unmount` can destructure it. Not imported directly by any test file; used only by
  * `renderAndWaitForFirstPoll` and `expectFirstPollDegraded` below. */
 function renderTelemetryHealthHook() {
-  return renderHook(() => useTelemetryHealth());
+  return renderHookWithProviders(() => useTelemetryHealth());
 }
 
 /**

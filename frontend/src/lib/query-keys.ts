@@ -1,6 +1,7 @@
 export const queryKeys = {
   config: () => ["config"] as const,
   systemStatus: () => ["system-status"] as const,
+  telemetryStatus: () => ["telemetry-status"] as const,
   manifests: () => ["manifests"] as const,
   manifest: {
     base: (appKey: string) => ["manifest", appKey] as const,

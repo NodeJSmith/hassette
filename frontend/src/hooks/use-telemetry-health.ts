@@ -1,102 +1,79 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 
 import { ApiError } from "../api/client";
-import { getTelemetryStatus } from "../api/endpoints";
+import { getTelemetryStatus, type TelemetryStatus } from "../api/endpoints";
+import { queryKeys } from "../lib/query-keys";
 import { useAppStore } from "../state/store";
 
 export const BASE_INTERVAL_MS = 30_000;
 export const MAX_INTERVAL_MS = 120_000;
+const SERVICE_UNAVAILABLE_STATUS = 503;
 
 /**
- * Polls `/api/telemetry/status` to keep the app store's `telemetryDegraded` field current.
+ * Fetches telemetry status and mirrors it into the app store's telemetry health fields.
+ *
+ * Only HTTP 503 means the server reported its DB as degraded, so only a 503 flips
+ * `telemetryDegraded` on. Network errors and other statuses (e.g. during a rolling restart)
+ * leave it unchanged: a prior 503 keeps it true, a fresh start keeps it false, and the next
+ * successful poll clears it.
+ */
+async function fetchTelemetryHealth({ signal }: { signal: AbortSignal }): Promise<TelemetryStatus> {
+  const { setTelemetryHealth } = useAppStore.getState();
+  try {
+    const result = await getTelemetryStatus(signal);
+    setTelemetryHealth({
+      telemetryDegraded: result.degraded,
+      droppedOverflow: result.dropped_overflow ?? 0,
+      droppedExhausted: result.dropped_exhausted ?? 0,
+      droppedShutdown: result.dropped_shutdown ?? 0,
+      errorHandlerFailures: result.error_handler_failures ?? 0,
+    });
+    return result;
+  } catch (err) {
+    if (!signal.aborted && err instanceof ApiError && err.status === SERVICE_UNAVAILABLE_STATUS) {
+      setTelemetryHealth({ telemetryDegraded: true });
+    }
+    throw err;
+  }
+}
+
+/**
+ * Polls `/api/telemetry/status` to keep the app store's telemetry health fields current.
  *
  * - Runs regardless of which page is active (wired in app shell).
- * - Exponential backoff on consecutive failures: 30s -> 60s -> 120s cap.
- * - Resets to 30s on success AND on page navigation.
- * - On fetch failure, sets telemetryDegraded = true (unreachable = degraded).
- * - Uses AbortController to cancel in-flight requests on navigation, preventing
- *   stale completions from clobbering the navigation-reset interval.
+ * - Polls every 30s while healthy, including in background tabs. A failure starts a retry chain
+ *   with exponential backoff (60s, then 120s cap) that retries every error indefinitely, as the
+ *   indicator should recover on its own; the fixed interval pauses during the chain so the two
+ *   never overlap, and resumes once a fetch succeeds. TanStack pauses a retry chain while the
+ *   tab is hidden and resumes it immediately when the tab regains focus.
+ * - Page navigation cancels any in-flight fetch or pending retry and polls immediately,
+ *   resetting the backoff.
  */
 export function useTelemetryHealth(): void {
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const currentIntervalMs = useRef(BASE_INTERVAL_MS);
-  const abortRef = useRef<AbortController | null>(null);
+  const queryClient = useQueryClient();
   const [location] = useLocation();
 
-  const poll = useRef(async () => {
-    // Abort any in-flight request before starting a new one
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
+  // Consumers read telemetry health from the app store (written by `fetchTelemetryHealth`), so the
+  // query result itself is unused; the query owns scheduling, backoff, and cancellation. The
+  // effect below resets it on navigation.
+  useQuery({
+    queryKey: queryKeys.telemetryStatus(),
+    queryFn: fetchTelemetryHealth,
+    refetchInterval: (query) => (query.state.fetchFailureCount > 0 ? false : BASE_INTERVAL_MS),
+    refetchIntervalInBackground: true,
+    retry: true, // retry indefinitely; retryDelay spaces the attempts out
+    // `failureCount` is the number of failures before this one, so the first retry waits 60s.
+    retryDelay: (failureCount) => Math.min(BASE_INTERVAL_MS * 2 ** (failureCount + 1), MAX_INTERVAL_MS),
+  });
 
-    try {
-      const result = await getTelemetryStatus(controller.signal);
-      if (controller.signal.aborted) return; // Navigation cancelled us
-      useAppStore.getState().setTelemetryHealth({
-        telemetryDegraded: result.degraded,
-        droppedOverflow: result.dropped_overflow ?? 0,
-        droppedExhausted: result.dropped_exhausted ?? 0,
-        droppedShutdown: result.dropped_shutdown ?? 0,
-        errorHandlerFailures: result.error_handler_failures ?? 0,
-      });
-      // Reset backoff on success
-      if (currentIntervalMs.current !== BASE_INTERVAL_MS) {
-        currentIntervalMs.current = BASE_INTERVAL_MS;
-        restartInterval();
-      }
-    } catch (err) {
-      if (controller.signal.aborted) return;
-
-      // Distinguish server-reported DB degradation (HTTP 503) from network
-      // unreachability. Only 503 means the DB is actually degraded; network
-      // errors during rolling restarts should not show "DB degraded".
-      if (err instanceof ApiError && err.status === 503) {
-        useAppStore.getState().setTelemetryHealth({ telemetryDegraded: true });
-      }
-      // Network error or unexpected status — leave telemetryDegraded unchanged.
-      // A prior 503 keeps it true; a fresh start keeps it false. The backoff
-      // handles retry and the next successful poll will clear it.
-
-      // Apply exponential backoff: double current interval, cap at MAX
-      const nextInterval = Math.min(currentIntervalMs.current * 2, MAX_INTERVAL_MS);
-      if (nextInterval !== currentIntervalMs.current) {
-        currentIntervalMs.current = nextInterval;
-        restartInterval();
-      }
-    }
-  }).current;
-
-  function restartInterval() {
-    if (intervalRef.current !== null) {
-      clearInterval(intervalRef.current);
-    }
-    intervalRef.current = setInterval(poll, currentIntervalMs.current);
-  }
-
-  // Start polling on mount, cleanup on unmount
-  useEffect(() => {
-    void poll();
-    intervalRef.current = setInterval(poll, currentIntervalMs.current);
-    return () => {
-      abortRef.current?.abort();
-      if (intervalRef.current !== null) {
-        clearInterval(intervalRef.current);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; poll is a ref-stable closure
-  }, []);
-
-  // On page navigation: cancel in-flight, poll immediately, reset backoff
   const prevLocation = useRef(location);
   useEffect(() => {
-    if (prevLocation.current !== location) {
-      prevLocation.current = location;
-      abortRef.current?.abort(); // Cancel stale in-flight request
-      currentIntervalMs.current = BASE_INTERVAL_MS;
-      restartInterval();
-      void poll();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- poll is ref-stable; restartInterval only closes over refs
-  }, [location]);
+    if (prevLocation.current === location) return;
+    prevLocation.current = location;
+    const queryKey = queryKeys.telemetryStatus();
+    // Cancelling first drops a pending retry chain; a plain refetch would join it instead.
+    void queryClient.cancelQueries({ queryKey }).then(() => queryClient.refetchQueries({ queryKey }));
+  }, [location, queryClient]);
 }
