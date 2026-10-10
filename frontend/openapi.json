@@ -3149,6 +3149,12 @@
               }
             ],
             "title": "Owner Id"
+          },
+          "in_current_config": {
+            "type": "boolean",
+            "title": "In Current Config",
+            "description": "False for an instance still tracked at an index outside the app's configured range, such as one left\nrunning after the config's instance count was reduced. Such an instance accepts only ``stop``; ``start``\nand ``reload`` return 404.",
+            "default": true
           }
         },
         "type": "object",

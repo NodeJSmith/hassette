@@ -27,6 +27,10 @@ class AppInstanceInfo:
     error_message: str | None = None
     error_traceback: str | None = None
     owner_id: str | None = None
+    in_current_config: bool = True
+    """False for an instance still tracked at an index outside the app's configured range, such as one left
+    running after the config's instance count was reduced. Such an instance accepts only ``stop``; ``start``
+    and ``reload`` return 404."""
 
 
 @dataclass(frozen=True)

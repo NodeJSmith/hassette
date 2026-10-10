@@ -60,6 +60,8 @@ export function AppDetailHeader({
   // Stop/Reload forever. "blocked" has no such transient-start path; the backend rejects it
   // outright, so the override never goes stale.
   const actionStatus = manifest?.status === "blocked" ? "blocked" : liveStatus;
+  const instanceScoped = !!manifest && manifest.instance_count > 1 && !showParentOverview;
+  const instanceOrphaned = instanceScoped && currentInstance?.in_current_config === false;
 
   return (
     <>
@@ -84,8 +86,11 @@ export function AppDetailHeader({
             status={actionStatus}
             variant="text"
             confirmStop
-            {...(manifest && manifest.instance_count > 1 && !showParentOverview && currentInstance
-              ? { instance: getStableInstanceRef(currentInstance.index, currentInstance.instance_name) }
+            {...(instanceScoped && currentInstance
+              ? {
+                  instance: getStableInstanceRef(currentInstance.index, currentInstance.instance_name),
+                  instanceOrphaned,
+                }
               : {})}
           />
         </div>
@@ -94,9 +99,8 @@ export function AppDetailHeader({
       <p className="mb-3 break-words font-mono text-sm text-muted-foreground" data-testid="app-subtitle-meta">
         {manifest?.filename ?? appKey}
         {manifest?.class_name && manifest.class_name !== appKey && <> &middot; {manifest.class_name}</>}
-        {manifest && manifest.instance_count > 1 && !showParentOverview && (
-          <> &middot; instance {resolvedInstanceIndex}</>
-        )}
+        {instanceScoped && <> &middot; instance {resolvedInstanceIndex}</>}
+        {instanceOrphaned && <MetaBadge label="not in config" testId="not-in-config-badge" />}
         {manifest?.auto_loaded && <MetaBadge label="auto" testId="auto-loaded-badge" />}
         {/* Strict `=== false`, not `!manifest?.autostart`: `manifest` is undefined while
             loading, and we must not flash the chip before the manifest arrives. */}

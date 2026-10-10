@@ -114,11 +114,12 @@ function buildButtonSpecs(
   status: ActionButtonStatusKey,
   handlers: Record<ActionName, () => void>,
   instance?: InstanceRef,
+  instanceOrphaned = false,
 ): ActionButtonSpec[] {
   return [
     {
       action: "start",
-      visible: CAN_START[status],
+      visible: CAN_START[status] && !instanceOrphaned,
       iconVariant: "success-ghost",
       textVariant: "success",
       icon: <IconPlay />,
@@ -128,7 +129,7 @@ function buildButtonSpecs(
     },
     {
       action: "reload",
-      visible: status !== "unknown" && isReloadableStatus(status),
+      visible: status !== "unknown" && isReloadableStatus(status) && !instanceOrphaned,
       iconVariant: "info-ghost",
       textVariant: "outline",
       icon: <IconRefresh />,
@@ -221,9 +222,19 @@ interface Props {
   variant?: "icon" | "text";
   confirmStop?: boolean;
   instance?: InstanceRef;
+  // The instance's index is outside the app's configured range (its `in_current_config` is
+  // false) — the backend rejects start/reload for it with a 404, so only Stop is offered.
+  instanceOrphaned?: boolean;
 }
 
-export function ActionButtons({ appKey, status, variant = "icon", confirmStop = false, instance }: Props) {
+export function ActionButtons({
+  appKey,
+  status,
+  variant = "icon",
+  confirmStop = false,
+  instance,
+  instanceOrphaned = false,
+}: Props) {
   const { loading, run } = useAsyncAction();
   const [showStopConfirm, setShowStopConfirm] = useState(false);
 
@@ -246,6 +257,7 @@ export function ActionButtons({ appKey, status, variant = "icon", confirmStop = 
       stop: handleStop,
     },
     instance,
+    instance !== undefined && instanceOrphaned,
   );
 
   return (

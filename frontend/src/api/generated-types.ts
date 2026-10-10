@@ -1010,6 +1010,14 @@ export interface components {
             error_traceback?: string | null;
             /** Owner Id */
             owner_id?: string | null;
+            /**
+             * In Current Config
+             * @description False for an instance still tracked at an index outside the app's configured range, such as one left
+             *     running after the config's instance count was reduced. Such an instance accepts only ``stop``; ``start``
+             *     and ``reload`` return 404.
+             * @default true
+             */
+            in_current_config: boolean;
         };
         /**
          * AppListResponse

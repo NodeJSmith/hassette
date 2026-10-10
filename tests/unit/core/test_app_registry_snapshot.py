@@ -438,6 +438,38 @@ class TestBuildManifestInfoStatusDerivation:
         indices = {inst.index for inst in info.instances}
         assert indices == {0, 1}
 
+    def test_orphaned_instance_is_marked_not_in_current_config(self, registry: AppRegistry) -> None:
+        """A tracked index ``>= configured_count`` reports ``in_current_config=False`` so the UI
+        can withhold start/reload, which the API rejects for out-of-range indices; configured
+        indices (tracked or synthetic placeholder) stay ``True``.
+        """
+        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "a"}, {"instance_name": "b"}])
+        registry.register_app("my_app", 0, make_app_instance("my_app", 0))
+        registry.register_app("my_app", 2, make_app_instance("my_app", 2))  # running orphan
+        registry.record_failure("my_app", 3, ValueError("boom"))  # failed orphan
+
+        info = registry.build_manifest_info("my_app", manifest)
+
+        by_index = {inst.index: inst.in_current_config for inst in info.instances}
+        assert by_index == {0: True, 1: True, 2: False, 3: False}
+
+    def test_orphan_classification_matches_across_snapshot_paths(self, registry: AppRegistry) -> None:
+        """``get_snapshot()`` and ``get_failed_instance_infos()`` classify tracked orphans the same way
+        ``build_manifest_info()`` does, so status-change events never disagree with a fetch.
+        """
+        manifest = make_manifest_obj("my_app", app_config=[{"instance_name": "a"}, {"instance_name": "b"}])
+        registry.set_manifests({"my_app": manifest})
+        registry.register_app("my_app", 0, make_app_instance("my_app", 0))
+        registry.register_app("my_app", 2, make_app_instance("my_app", 2))
+        registry.record_failure("my_app", 1, ValueError("in range"))
+        registry.record_failure("my_app", 3, ValueError("orphan"))
+
+        snapshot = {inst.index: inst.in_current_config for inst in registry.get_snapshot().instances}
+        assert snapshot == {0: True, 1: True, 2: False, 3: False}
+
+        failed = {index: info.in_current_config for index, info in registry.get_failed_instance_infos("my_app").items()}
+        assert failed == {1: True, 3: False}
+
     def test_degraded_when_running_and_failed_coexist(self, registry: AppRegistry) -> None:
         """3 instances registered, index 0 fails — status is 'degraded'."""
         manifest = make_manifest_obj("my_app")

@@ -233,6 +233,9 @@ class AppRegistry:
     def _info_from_entry(
         self, app_key: str, index: int, entry: InstanceEntry, manifest: "AppManifest | None" = None
     ) -> AppInstanceInfo:
+        # Without a manifest there is no configured range to compare against; the app-level
+        # ``AppManifestInfo.in_current_config`` covers a wholly orphaned app.
+        in_current_config = manifest is None or index < len(AppFactory.normalize_configs(manifest.app_config))
         if entry.app is not None:
             return AppInstanceInfo(
                 app_key=app_key,
@@ -241,6 +244,7 @@ class AppRegistry:
                 class_name=entry.app.class_name,
                 status=entry.app.status,
                 owner_id=entry.app.unique_name,
+                in_current_config=in_current_config,
             )
 
         class_name = manifest.class_name if manifest else "Unknown"
@@ -253,6 +257,7 @@ class AppRegistry:
             error=entry.error,
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
+            in_current_config=in_current_config,
         )
 
     def get_snapshot(self) -> AppStatusSnapshot:
