@@ -317,7 +317,7 @@ async def release_and_drain(
     ``detach_self`` is forwarded to ``ExecutionModeGuard.release``. When the release detached the
     tracked invocation, the drain waits for that invocation to finish: resolving its future now
     would unpark its dispatch task while the callback is still running, so the dispatch would
-    report completion early.
+    report completion early. In that case this returns before the drain has run.
     """
     detached = await guard.release(detach_self=detach_self)
     if detached is None:
