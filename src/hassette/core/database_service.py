@@ -43,6 +43,10 @@ _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
 _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
 
+_STARTUP_CLEANUP_ROLLBACK_TIMEOUT_SECONDS = 5
+"""Bound on the rollback after a failed or timed-out startup cleanup catch-up, so recovery can't
+push on_initialize() past the readiness budget the catch-up's own timeout is meant to protect."""
+
 # dup-ignore-start: production source of truth for the log_records column set, asserted against
 # verbatim by tests/unit/core/test_log_records.py and mirrored independently in
 # tests/integration/database/test_database_service_migrations.py's EXPECTED_TABLES literal (a
@@ -232,12 +236,20 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             async with asyncio.timeout(startup_cleanup_timeout):
                 await self._check_size_failsafe()
                 await self._do_run_retention_cleanup()
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, TimeoutError):
+                # Cancelling the await doesn't stop a statement already running on aiosqlite's
+                # worker thread; interrupt it so the rollback below isn't queued behind it.
+                await self.db.interrupt()
             # A failure or timeout can leave a retention batch between its BEGIN and commit; roll
             # back so the write worker doesn't inherit an open transaction (a no-op when none is
             # open). Earlier batches stay committed.
-            await safe_rollback(self.db, self, "startup cleanup catch-up")
-            self.logger.warning("Startup cleanup catch-up failed; continuing without cleanup", exc_info=True)
+            try:
+                async with asyncio.timeout(_STARTUP_CLEANUP_ROLLBACK_TIMEOUT_SECONDS):
+                    await safe_rollback(self.db, self, "startup cleanup catch-up")
+            except TimeoutError:
+                self.logger.error("Startup cleanup rollback timed out — write connection state is now unknown")
+            self.logger.warning("Startup cleanup catch-up failed; continuing without cleanup", exc_info=exc)
 
         self._db_write_queue = asyncio.Queue(maxsize=self.hassette.config.database.write_queue_max)
         # Bypass the loop's global task factory so the worker is not tracked by any TaskBucket. A bare
