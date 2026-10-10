@@ -5,8 +5,10 @@ state-change listener for the entity, and moves the job between WAITING and SCHE
 the entity reports (or loses) a usable time.
 """
 
+import asyncio
 import typing
 from collections.abc import AsyncIterator
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -21,8 +23,10 @@ from tests.support.helpers import entity_topic, noop
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
+    from hassette.events import Event
 
 ALARM_ENTITY = "sensor.phone_next_alarm"
+CHANGE_DISPATCH_TIMEOUT_SECONDS = 5.0
 
 
 @pytest.fixture
@@ -51,10 +55,33 @@ async def seed_alarm(harness: HassetteHarness, value: str) -> None:
 
 
 async def change_alarm(harness: HassetteHarness, old_value: str, new_value: str) -> None:
-    """Send a state change for the alarm entity and wait for dispatch to settle."""
+    """Send a state change for the alarm entity and wait until its handlers have finished.
+
+    ``await_dispatch_idle`` alone is not enough: its stability check is a short wall-clock
+    sleep, and on a starved event loop it can expire before the bus loop has pulled the event
+    off the stream, returning while the dispatch bus is still idle. Waiting for ``dispatch()``
+    to have handled this exact event first guarantees its handler tasks are counted as pending
+    — and it holds even when no listener matches (e.g. after the job was removed).
+    """
     event = create_state_change_event(entity_id=ALARM_ENTITY, old_value=old_value, new_value=new_value)
-    await harness.hassette.send_event(event)
-    await harness.bus_service.await_dispatch_idle()
+    bus_service = harness.bus_service
+    original_dispatch = bus_service.dispatch
+    dispatched = asyncio.Event()
+
+    async def dispatch_and_signal(base_topic: str, dispatched_event: "Event[Any]") -> None:
+        try:
+            await original_dispatch(base_topic, dispatched_event)
+        finally:
+            if dispatched_event is event:
+                dispatched.set()
+
+    bus_service.dispatch = dispatch_and_signal  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        await harness.hassette.send_event(event)
+        await asyncio.wait_for(dispatched.wait(), timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
+    finally:
+        bus_service.dispatch = original_dispatch  # pyright: ignore[reportAttributeAccessIssue]
+    await bus_service.await_dispatch_idle()
 
 
 def iso_in(minutes: int) -> str:
