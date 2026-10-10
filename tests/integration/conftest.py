@@ -208,6 +208,19 @@ def pop_execution_record(executor: CommandExecutor) -> ExecutionRecord:
     return record
 
 
+def pop_user_timeout_error_record(executor: CommandExecutor) -> ExecutionRecord:
+    """Pop the queued record and assert it captured a user-raised ``TimeoutError`` as an error.
+
+    A ``TimeoutError`` raised by user code is a plain error with a traceback, never the
+    framework's ``timed_out`` status.
+    """
+    record = pop_execution_record(executor)
+    assert record.status == "error"
+    assert record.error_type == "TimeoutError"
+    assert record.error_traceback is not None
+    return record
+
+
 def make_mock_job(
     *,
     owner_id: str = "test_owner",

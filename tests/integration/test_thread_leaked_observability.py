@@ -25,7 +25,7 @@ from hassette.task_bucket.task_bucket import TaskBucket
 from tests.support.factories import make_listener_registration, make_mock_listener
 from tests.support.mock_hassette import make_mock_hassette
 
-from .conftest import invoke_cmd, pop_execution_record
+from .conftest import invoke_cmd, pop_execution_record, pop_user_timeout_error_record
 
 InvokeFn = Callable[[object], Awaitable[None]]
 
@@ -218,9 +218,7 @@ async def test_completed_sync_handler_no_false_thread_leaked(
     # No framework timeout — the TimeoutError comes from user code
     await executor.execute(invoke_cmd(listener, listener_id=5))
 
-    record = pop_execution_record(executor)
-    assert record.status == "error"
-    assert record.error_type == "TimeoutError"
+    record = pop_user_timeout_error_record(executor)
     assert record.thread_leaked is False
 
 

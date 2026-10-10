@@ -22,7 +22,7 @@ from tests.support.factories import (
     make_mock_listener,
 )
 
-from .conftest import invoke_cmd, make_mock_job, pop_execution_record
+from .conftest import invoke_cmd, make_mock_job, pop_execution_record, pop_user_timeout_error_record
 
 
 def queue_record(
@@ -169,11 +169,8 @@ async def test_handler_raised_timeout_error_recorded_as_error(
 
     await executor.execute(invoke_cmd(listener, effective_timeout=effective_timeout))
 
-    record = pop_execution_record(executor)
-    assert record.status == "error"
-    assert record.error_type == "TimeoutError"
+    record = pop_user_timeout_error_record(executor)
     assert record.error_message == "upstream"
-    assert record.error_traceback is not None
     assert "TimeoutError" in record.error_traceback
 
 
@@ -193,10 +190,7 @@ async def test_job_raised_timeout_error_recorded_as_error(
     )
     await executor.execute(cmd)
 
-    record = pop_execution_record(executor)
-    assert record.status == "error"
-    assert record.error_type == "TimeoutError"
-    assert record.error_traceback is not None
+    pop_user_timeout_error_record(executor)
 
 
 async def test_timeout_warning_rate_limited(executor: CommandExecutor) -> None:
