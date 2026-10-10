@@ -12,7 +12,7 @@ import {
   expectPollNotDegraded,
   renderAndWaitForFirstPoll,
 } from "../test/telemetry-health-test-utils";
-import { BASE_INTERVAL_MS } from "./use-telemetry-health";
+import { BASE_INTERVAL_MS, REQUEST_TIMEOUT_MS } from "./use-telemetry-health";
 
 let mockLocation = "/";
 const mockSetLocation = vi.fn();
@@ -92,9 +92,9 @@ describe("useTelemetryHealth", () => {
     await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
 
     // After first failure, interval doubles to 60s
-    // Advancing 30s should NOT trigger another poll (old interval cleared)
+    // Advancing 30s should NOT trigger another poll (the 30s interval pauses during the retry chain)
     advanceTime(BASE_INTERVAL_MS);
-    // Should still be 1 since the interval is now 60s, not 30s
+    // Should still be 1 since the first retry waits 60s
     await waitForCallCount(mockedGetTelemetryStatus, 1);
 
     // Advancing another 30s (total 60s from first failure) triggers second poll
@@ -104,7 +104,7 @@ describe("useTelemetryHealth", () => {
     // After second failure, interval doubles to 120s
     // Advancing 60s should NOT trigger poll
     advanceTime(BASE_INTERVAL_MS * 2);
-    // Should still be 2 since the interval is now 120s, not 60s
+    // Should still be 2 since the second retry waits 120s
     await waitForCallCount(mockedGetTelemetryStatus, 2);
 
     // Advancing another 60s (total 120s from second failure) triggers third poll
@@ -158,7 +158,29 @@ describe("useTelemetryHealth", () => {
     await expectFirstPollNotDegraded(mockedGetTelemetryStatus);
   });
 
-  it("clears interval on unmount", async () => {
+  it("times out a stalled request so polling recovers", async () => {
+    // A request that never settles unless aborted, like a fetch over a stalled connection.
+    mockedGetTelemetryStatus.mockImplementationOnce(
+      (signal) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        }),
+    );
+    await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
+
+    // The 30s interval joins the stalled request instead of replacing it, so no new call lands.
+    advanceTime(BASE_INTERVAL_MS);
+    await waitForCallCount(mockedGetTelemetryStatus, 1);
+
+    // Past the timeout, the stalled request fails and starts the retry chain (first retry after 60s).
+    advanceTime(REQUEST_TIMEOUT_MS);
+    await waitForCallCount(mockedGetTelemetryStatus, 1);
+    advanceTime(BASE_INTERVAL_MS * 2);
+
+    await expectPollNotDegraded(mockedGetTelemetryStatus, 2);
+  });
+
+  it("stops polling on unmount", async () => {
     const { unmount } = await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
 
     unmount();
