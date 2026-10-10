@@ -7,7 +7,12 @@ from typing import Any
 import aiosqlite
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.core.database_sql import SQL_BEGIN, safe_rollback
+from hassette.core.database_sql import (
+    CLEANUP_PROGRESS_LOG_INTERVAL,
+    SQL_BEGIN,
+    safe_rollback,
+    tracks_active_cleanup,
+)
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget, build_age_where
 
 if typing.TYPE_CHECKING:
@@ -82,6 +87,7 @@ class DatabaseRetentionMixin:
     logger: "logging.Logger"
     _db: aiosqlite.Connection | None
     _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
+    _active_cleanup: str | None
 
     db: aiosqlite.Connection
     enqueue: "Callable[[Coroutine[Any, Any, Any]], bool]"
@@ -119,7 +125,7 @@ class DatabaseRetentionMixin:
 
         total_deleted = 0
         exhausted = False
-        for _ in range(max_batches):
+        for batch_number in range(1, max_batches + 1):
             try:
                 await self.db.execute(SQL_BEGIN)
                 batch_count = await _execute_target_delete(self.db, target, cutoff=cutoff, batch_limit=batch_size)
@@ -129,6 +135,13 @@ class DatabaseRetentionMixin:
             total_deleted += batch_count
             if batch_count < batch_size:
                 break
+            if batch_number % CLEANUP_PROGRESS_LOG_INTERVAL == 0:
+                self.logger.info(
+                    "Retention cleanup in progress: %s — %d deleted across %d batches so far",
+                    target.failsafe_label,
+                    total_deleted,
+                    batch_number,
+                )
         else:
             # Every batch ran full-sized, but that doesn't prove rows past the cutoff remain —
             # the final full batch may have removed the last one. Check before declaring the
@@ -202,6 +215,7 @@ class DatabaseRetentionMixin:
         await self.db.commit()
         return cursor_rl.rowcount or 0, cursor_rj.rowcount or 0
 
+    @tracks_active_cleanup("retention cleanup")
     async def _do_run_retention_cleanup(self) -> None:
         """Execute the retention DELETE queries; called by the write-queue worker.
 

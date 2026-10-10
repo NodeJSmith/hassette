@@ -641,6 +641,83 @@ async def test_startup_size_failsafe_check_is_bounded_by_timeout(
     await fresh_service.on_shutdown()
 
 
+async def test_restart_resumes_interrupted_retention_on_startup(
+    initialized_service: DatabaseService, db_hassette: MagicMock
+) -> None:
+    """A restart that leaves a stale backlog behind (the same state an interrupted retention
+    pass leaves, since it commits per batch) gets it cleaned during on_initialize(), not a full
+    retention interval later — serve() starts its interval clock fresh on every restart.
+    """
+    session_id = initialized_service.hassette.session_id
+    await seed_listener_for_fk(initialized_service.db)
+    old_ts = time.time() - (8 * SECONDS_PER_DAY)  # past the 7-day retention window
+    for _ in range(5):
+        await initialized_service.db.execute(
+            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
+            (session_id, old_ts),
+        )
+    await initialized_service.db.commit()
+
+    # The service "dies" with the backlog still in place — the equivalent of a restart that
+    # landed before the in-flight retention pass finished.
+    await initialized_service.on_shutdown()
+
+    restarted = DatabaseService(db_hassette, parent=None)
+    await restarted.on_initialize()
+    try:
+        cursor = await restarted.db.execute("SELECT COUNT(*) FROM executions")
+        row = await cursor.fetchone()
+        assert row is not None
+        assert row[0] == 0, "startup did not resume retention cleanup of the stale backlog"
+        assert restarted._active_cleanup is None
+    finally:
+        await restarted.on_shutdown()
+        # Hand the fixture's teardown a live service to shut down again.
+        await initialized_service.on_initialize()
+
+
+async def test_active_cleanup_names_the_pass_holding_the_write_worker(
+    initialized_service: DatabaseService,
+) -> None:
+    """While a retention pass occupies the write worker, _active_cleanup names it, so a heartbeat
+    that times out behind it is attributable to that pass rather than an unexplained wedge.
+    """
+    session_id = initialized_service.hassette.session_id
+    await seed_listener_for_fk(initialized_service.db)
+    await initialized_service.db.execute(
+        "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+        " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
+        (session_id, time.time() - (8 * SECONDS_PER_DAY)),
+    )
+    await initialized_service.db.commit()
+
+    gate = asyncio.Event()
+    delete_reached = asyncio.Event()
+    real_execute = initialized_service.db.execute
+
+    async def gated_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
+        if sql.strip().upper().startswith("DELETE FROM"):
+            delete_reached.set()
+            await gate.wait()
+        return await real_execute(sql, parameters)
+
+    with patch.object(initialized_service.db, "execute", gated_execute):
+        assert await initialized_service.run_retention_cleanup() is True
+        await asyncio.wait_for(delete_reached.wait(), timeout=2)
+        assert initialized_service._active_cleanup == "retention cleanup"
+
+        with patch("hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", 0.05):
+            await initialized_service.update_heartbeat()
+        assert initialized_service._consecutive_heartbeat_failures == 1
+
+        gate.set()
+        assert initialized_service._db_write_queue is not None
+        await asyncio.wait_for(initialized_service._db_write_queue.join(), timeout=2)
+
+    assert initialized_service._active_cleanup is None
+
+
 async def test_run_size_failsafe_enqueues_check_size_failsafe(initialized_service: DatabaseService) -> None:
     """run_size_failsafe() drives _check_size_failsafe() via the write queue.
 
