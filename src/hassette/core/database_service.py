@@ -221,35 +221,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         await self._read_db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
 
         await self.set_pragmas()
-        # Startup catch-up: run the size failsafe, then retention cleanup, so a restart that
-        # interrupted a pass on a large backlog resumes it now instead of a full interval later
-        # (serve() starts both interval clocks fresh). No progress state needs to survive the
-        # restart: both passes commit per batch, so already-deleted rows stay deleted and a
-        # re-run just picks up whatever remains past the cutoff or over the size limit.
-        #
-        # Both share one bound of half the configured startup readiness budget. A large backlog
-        # could otherwise itself exhaust the readiness timeout that wait_for_ready() enforces
-        # around this whole on_initialize() call. A timeout here degrades to "startup skipped
-        # cleanup," not a failed startup, and the hourly serve() loop keeps grinding afterward.
-        startup_cleanup_timeout = self.hassette.config.lifecycle.startup_timeout_seconds / 2
-        try:
-            async with asyncio.timeout(startup_cleanup_timeout):
-                await self._check_size_failsafe()
-                await self._do_run_retention_cleanup()
-        except Exception as exc:
-            if isinstance(exc, TimeoutError):
-                # Cancelling the await doesn't stop a statement already running on aiosqlite's
-                # worker thread; interrupt it so the rollback below isn't queued behind it.
-                await self.db.interrupt()
-            # A failure or timeout can leave a retention batch between its BEGIN and commit; roll
-            # back so the write worker doesn't inherit an open transaction (a no-op when none is
-            # open). Earlier batches stay committed.
-            try:
-                async with asyncio.timeout(_STARTUP_CLEANUP_ROLLBACK_TIMEOUT_SECONDS):
-                    await safe_rollback(self.db, self, "startup cleanup catch-up")
-            except TimeoutError:
-                self.logger.error("Startup cleanup rollback timed out — write connection state is now unknown")
-            self.logger.warning("Startup cleanup catch-up failed; continuing without cleanup", exc_info=exc)
+        await self.run_startup_cleanup_catchup()
 
         self._db_write_queue = asyncio.Queue(maxsize=self.hassette.config.database.write_queue_max)
         # Bypass the loop's global task factory so the worker is not tracked by any TaskBucket. A bare
@@ -464,6 +436,40 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         auto_vacuum = INCREMENTAL is set by the runner before any tables are created.
         """
         run_migrations(self._db_path)
+
+    async def run_startup_cleanup_catchup(self) -> None:
+        """Run the size failsafe, then retention cleanup, once during on_initialize().
+
+        Runs directly on the write connection, before the write worker starts.
+        """
+        # A restart that interrupted a pass on a large backlog resumes it here instead of a full
+        # interval later (serve() starts both interval clocks fresh). No progress state needs to survive the
+        # restart: both passes commit per batch, so already-deleted rows stay deleted and a
+        # re-run just picks up whatever remains past the cutoff or over the size limit.
+        #
+        # Both share one bound of half the configured startup readiness budget. A large backlog
+        # could otherwise itself exhaust the readiness timeout that wait_for_ready() enforces
+        # around this whole on_initialize() call. A timeout here degrades to "startup skipped
+        # cleanup," not a failed startup, and the hourly serve() loop keeps grinding afterward.
+        startup_cleanup_timeout = self.hassette.config.lifecycle.startup_timeout_seconds / 2
+        try:
+            async with asyncio.timeout(startup_cleanup_timeout):
+                await self._check_size_failsafe()
+                await self._do_run_retention_cleanup()
+        except Exception as exc:
+            if isinstance(exc, TimeoutError):
+                # Cancelling the await doesn't stop a statement already running on aiosqlite's
+                # worker thread; interrupt it so the rollback below isn't queued behind it.
+                await self.db.interrupt()
+            # A failure or timeout can leave a retention batch between its BEGIN and commit; roll
+            # back so the write worker doesn't inherit an open transaction (a no-op when none is
+            # open). Earlier batches stay committed.
+            try:
+                async with asyncio.timeout(_STARTUP_CLEANUP_ROLLBACK_TIMEOUT_SECONDS):
+                    await safe_rollback(self.db, self, "startup cleanup catch-up")
+            except TimeoutError:
+                self.logger.error("Startup cleanup rollback timed out — write connection state is now unknown")
+            self.logger.warning("Startup cleanup catch-up failed; continuing without cleanup", exc_info=exc)
 
     async def set_pragmas(self) -> None:
         """Configure SQLite PRAGMAs for performance and safety."""

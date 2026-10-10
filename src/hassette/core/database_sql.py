@@ -1,4 +1,4 @@
-"""Low-level SQL helpers shared by ``DatabaseService`` and its retention/failsafe mixins."""
+"""Low-level SQL helpers and cleanup-pass tracking shared by ``DatabaseService`` and its mixins."""
 
 import functools
 import logging

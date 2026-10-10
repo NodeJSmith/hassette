@@ -666,6 +666,7 @@ async def test_startup_cleanup_timeout_interrupts_in_flight_statement(
         async def endless_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
             if sql.strip().upper().startswith("DELETE FROM"):
                 statement_started.set()
+                # Unbounded recursive CTE: never terminates unless interrupted.
                 return await real_execute(
                     "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c"
                 )
