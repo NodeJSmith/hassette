@@ -43,15 +43,9 @@ interface ActivityGroup {
   oldestTimestamp: number;
 }
 
-interface Accumulator {
-  key: string;
-  handlerName: string;
-  latestStatus: ExecutionStatus;
-  count: number;
+interface Accumulator extends Omit<ActivityGroup, "avgDurationMs"> {
   durationSum: number;
   durationCount: number;
-  newestTimestamp: number;
-  oldestTimestamp: number;
 }
 
 function summarizeActivityByHandler(entries: ActivityFeedEntryData[]): ActivityGroup[] {
