@@ -1,5 +1,6 @@
 """Unit tests for timeout enforcement in track_execution and ExecutionResult."""
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -65,15 +66,28 @@ class TestEffectiveTimeoutField:
 
 
 class TestTrackExecutionTimeout:
-    """track_execution sets status='timed_out' on TimeoutError and re-raises."""
+    """track_execution records 'timed_out' only when its own deadline expires."""
 
     async def test_track_execution_sets_timed_out_status(self) -> None:
-        """TimeoutError sets status='timed_out' and propagates."""
+        """An expired deadline sets status='timed_out' and propagates TimeoutError."""
         with pytest.raises(TimeoutError):
-            async with track_execution() as result:
-                raise TimeoutError("timed out")
+            async with track_execution(timeout=0.01) as result:
+                await asyncio.sleep(10)
 
         assert result.status is ExecutionStatus.TIMED_OUT
+        assert result.error_traceback is None
+
+    @pytest.mark.parametrize("timeout", [None, 10.0], ids=["no_timeout", "unexpired_timeout"])
+    async def test_body_raised_timeout_error_is_error(self, timeout: float | None) -> None:
+        """A TimeoutError raised by the body itself is recorded as an error with a traceback."""
+        with pytest.raises(TimeoutError):
+            async with track_execution(timeout=timeout) as result:
+                raise TimeoutError("upstream")
+
+        assert result.status is ExecutionStatus.ERROR
+        assert result.error_type == "TimeoutError"
+        assert result.error_message == "upstream"
+        assert result.error_traceback is not None
 
 
 class TestExecutionResultIsTimedOut:

@@ -72,6 +72,7 @@ class ExecutionResult:
 @asynccontextmanager
 async def track_execution(
     known_errors: tuple[type[Exception], ...] = (),
+    timeout: float | None = None,
 ) -> AsyncIterator[ExecutionResult]:
     """Async context manager that tracks execution timing and errors.
 
@@ -84,6 +85,10 @@ async def track_execution(
             suppressed. Useful for expected framework errors (e.g. ``DependencyError``,
             ``HassetteError``) where a full traceback adds no diagnostic value.
             Defaults to ``()`` (no suppression — all exceptions include tracebacks).
+        timeout: Deadline in seconds for the tracked body, or ``None`` for no deadline. Only
+            this deadline expiring records ``TIMED_OUT``; a ``TimeoutError`` raised by the body
+            itself (e.g. ``bus.wait_for`` or an HTTP client timeout) is recorded as ``ERROR``
+            with a traceback, like any other exception.
 
     Usage::
 
@@ -98,24 +103,26 @@ async def track_execution(
     """
     result = ExecutionResult()
     result.monotonic_start = time.monotonic()
+    deadline = asyncio.timeout(timeout)
     try:
-        yield result
+        async with deadline:
+            yield result
         result.status = ExecutionStatus.SUCCESS
     except asyncio.CancelledError:
         result.status = ExecutionStatus.CANCELLED
         raise
-    except TimeoutError as exc:
-        result.status = ExecutionStatus.TIMED_OUT
-        result.error_type = "TimeoutError"
-        result.error_message = str(exc) if str(exc) else "execution timed out"
-        result.exc = exc
-        raise
     except Exception as exc:
+        result.exc = exc
+        result.error_type = type(exc).__name__
+        if isinstance(exc, TimeoutError) and deadline.expired():
+            # Only the framework's own deadline counts as a timeout; a TimeoutError raised by the
+            # body (wait_for, HTTP clients) falls through to the error path below.
+            result.status = ExecutionStatus.TIMED_OUT
+            result.error_message = str(exc) if str(exc) else "execution timed out"
+            raise
         result.status = ExecutionStatus.ERROR
         result.error_message = str(exc)
-        result.error_type = type(exc).__name__
         result.is_di_failure = isinstance(exc, DependencyError)
-        result.exc = exc
         if known_errors and isinstance(exc, known_errors):
             result.error_traceback = None
         else:

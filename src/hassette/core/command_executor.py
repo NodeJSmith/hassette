@@ -310,8 +310,10 @@ class CommandExecutor(Service):
         Wraps ``track_execution()`` with a tier-aware exception contract:
 
         - ``CancelledError``   — record queued with status='cancelled', then re-raised.
-        - ``TimeoutError``     — record queued with status='timed_out', then swallowed.
-                                 Warning logged by ``log_timeout_rate_limited``; not re-raised.
+        - deadline expired     — ``cmd.effective_timeout`` elapsed: record queued with
+                                 status='timed_out', then swallowed. Warning logged by
+                                 ``log_timeout_rate_limited``; not re-raised. A ``TimeoutError``
+                                 raised by ``fn`` itself takes the ``Exception`` path below.
         - ``DependencyError``  — app tier: no traceback; framework tier: traceback included.
         - ``HassetteError``    — app tier: no traceback; framework tier: traceback included.
         - ``Exception``        — record queued with status='error', traceback included.
@@ -350,10 +352,9 @@ class CommandExecutor(Service):
             )
 
         try:
-            async with track_execution(known_errors=known) as result:
+            async with track_execution(known_errors=known, timeout=cmd.effective_timeout) as result:
                 result.execution_id = execution_id
-                async with asyncio.timeout(cmd.effective_timeout):
-                    await fn()
+                await fn()
         except asyncio.CancelledError:
             enqueue_result_record()
             raise
@@ -377,14 +378,7 @@ class CommandExecutor(Service):
                     result.duration_ms,
                     handle.thread.name,
                 )
-            if cmd.effective_timeout is not None:
-                self.log_timeout_rate_limited(cmd, result)
-            else:
-                self.logger.warning(
-                    "Handler raised TimeoutError after %.1fms (no framework timeout configured — "
-                    "exception originated from user code)",
-                    result.duration_ms,
-                )
+            self.log_timeout_rate_limited(cmd, result)
         # Clear the handle unconditionally so a future invocation that reuses this asyncio
         # context cannot read a stale worker reference and report a false thread_leaked.
         SYNC_WORKER_HANDLE.set(None)
