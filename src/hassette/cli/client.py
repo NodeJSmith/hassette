@@ -30,7 +30,7 @@ from hassette.cli.target import (
     resolve_server_target,
 )
 from hassette.config.config import HassetteConfig
-from hassette.exceptions import FatalError
+from hassette.exceptions import ConfigError, FatalError
 
 DEFAULT_TIMEOUT = 10.0
 
@@ -693,7 +693,10 @@ def make_client(ctx: CLIContext) -> HassetteCLIClient:
             override paths, and the remote-target flags (``--server-url``,
             ``--token-file``, ``--no-verify-ssl``/``--verify-ssl``).
     """
-    config = HassetteConfig(token=None, strict_inputs=False, **ctx.config_location_kwargs())
+    try:
+        config = HassetteConfig(token=None, strict_inputs=False, **ctx.config_location_kwargs())
+    except ConfigError as exc:
+        emit_usage_error(f"Invalid configuration: {exc}", json_mode=ctx.json_mode)
     return HassetteCLIClient(
         config,
         json_mode=ctx.json_mode,
