@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -277,25 +278,66 @@ def project_pyproject(dependencies: list[str] | None = None, *, build_system: bo
     return content
 
 
+def run_project_container_and_diff(project_dir: Path) -> tuple[subprocess.CompletedProcess[str], str, list[str]]:
+    """Run the project container, returning (result, combined output, ``docker diff`` lines).
+
+    The container is kept until its filesystem changes are read, so a test can check what the
+    entrypoint installed or left behind after the process exits.
+    """
+    container_name = f"hassette-project-test-{uuid.uuid4().hex[:12]}"
+    try:
+        result, output = run_hassette_container(
+            volumes=[f"{project_dir}:/config"],
+            timeout=PROJECT_CONTAINER_TIMEOUT,
+            name=container_name,
+            remove=False,
+        )
+        diff = subprocess.run(
+            ["docker", "diff", container_name],
+            capture_output=True,
+            text=True,
+            timeout=DOCKER_CLEANUP_TIMEOUT,
+            check=True,
+        )
+    finally:
+        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
+    return result, output, diff.stdout.splitlines()
+
+
+def installed_packages(diff_lines: list[str]) -> set[str]:
+    """Return the site-packages entries that ``docker diff`` lines (``<A|C|D> <path>``) show as newly added.
+
+    Only an entry added at the top of site-packages counts: importing an image package adds files
+    under its existing directory (``__pycache__``), which is not an install.
+    """
+    added = (line.removeprefix("A ") for line in diff_lines if line.startswith("A "))
+    return {
+        entry
+        for path in added
+        if "/site-packages/" in path and "/" not in (entry := path.split("/site-packages/", 1)[1])
+    }
+
+
 @pytest.mark.parametrize(
-    "pyproject_content",
+    ("pyproject_content", "expected_packages"),
     [
-        pytest.param(project_pyproject(), id="with_lockfile"),
-        pytest.param(project_pyproject(build_system=False), id="without_build_system"),
-        pytest.param(project_pyproject(["tabulate>=0.9"]), id="with_real_dep"),
+        pytest.param(project_pyproject(), {"test_proj"}, id="with_lockfile"),
+        pytest.param(project_pyproject(build_system=False), {"test_proj"}, id="without_build_system"),
+        pytest.param(project_pyproject(["tabulate>=0.9"]), {"test_proj", "tabulate"}, id="with_real_dep"),
     ],
 )
-def test_docker_project_install_succeeds(docker_project_dir: Path, pyproject_content: str):
-    """Test that a locked project installs via the export-then-install path.
+def test_docker_project_install_succeeds(docker_project_dir: Path, pyproject_content: str, expected_packages: set[str]):
+    """Test that a locked project and its dependencies install via the export-then-install path.
 
     Covers a bare project, one without ``[build-system]`` (uv's default backend), and one with a
     real dependency installed through constraints.
     """
     create_project_package(docker_project_dir, pyproject_content)
-    result, output = run_project_container(docker_project_dir)
+    result, output, diff_lines = run_project_container_and_diff(docker_project_dir)
 
     assert result.returncode == 0, f"Project install failed. Output:\n{output}"
-    assert "project install: complete" in output
+    missing = expected_packages - installed_packages(diff_lines)
+    assert not missing, f"Not installed: {sorted(missing)}. Output:\n{output}"
 
 
 def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path):
@@ -307,28 +349,11 @@ def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path
     container's final filesystem state can be inspected after it exits.
     """
     create_project_package(docker_project_dir, project_pyproject())
+    result, output, diff_lines = run_project_container_and_diff(docker_project_dir)
 
-    container_name = f"hassette-tmp-leak-test-{os.getpid()}"
-    try:
-        result, output = run_hassette_container(
-            volumes=[f"{docker_project_dir}:/config"],
-            timeout=PROJECT_CONTAINER_TIMEOUT,
-            name=container_name,
-            remove=False,
-        )
-        assert result.returncode == 0, f"Project install failed. Output:\n{output}"
-
-        diff = subprocess.run(
-            ["docker", "diff", container_name],
-            capture_output=True,
-            text=True,
-            timeout=DOCKER_CLEANUP_TIMEOUT,
-            check=True,
-        )
-        leaked = [line for line in diff.stdout.splitlines() if "/project-build." in line]
-        assert not leaked, f"Leftover project-build tmp dir(s) found:\n{diff.stdout}"
-    finally:
-        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
+    assert result.returncode == 0, f"Project install failed. Output:\n{output}"
+    leaked = [line for line in diff_lines if "/project-build." in line]
+    assert not leaked, f"Leftover project-build tmp dir(s) found: {leaked}"
 
 
 def test_docker_project_without_lockfile_warns(docker_project_dir: Path):
