@@ -12,7 +12,7 @@ from hassette.core.registration import ScheduledJobRegistration
 from hassette.core.scheduler_dispatch import SchedulerDispatchMixin
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.exceptions import JobRemovedError, TaskBucketSealedError
-from hassette.execution_mode import drain_pending_done
+from hassette.execution_mode import release_and_drain
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.resources.restart import CORE_PERMANENT_RESTART
@@ -324,14 +324,15 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         ``restart`` invocation, drains a queued ``queued``-mode factory (so a dispatch task
         parked on ``await done`` unwinds instead of hanging — see
         ``run_through_guard``/``drain_pending_done``), or releases every active task for
-        ``parallel``. Then persists ``removed_at`` when the job was ever assigned a
+        ``parallel``. An invocation removing its own job (``if_exists="replace"`` from the
+        job's callback) is left to finish rather than cancelled — see
+        ``ExecutionModeGuard.release``. Then persists ``removed_at`` when the job was ever assigned a
         ``db_id`` — no-op for a job whose registration never reached persistence.
 
         Args:
             job: The job whose guard/pending futures/persistence should be finalized.
         """
-        await job.guard.release()
-        drain_pending_done(job.pending_done)
+        await release_and_drain(job.guard, job.pending_done)
         if job.db_id is not None:
             await self.mark_job_removed(job.db_id)
 

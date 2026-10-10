@@ -28,5 +28,5 @@ The bus releases guards via `Listener.cancel()` → `invoker.release_guard()` in
 `src/hassette/bus/listeners.py`. The scheduler releases guards in
 `SchedulerService.remove_job()` / `_remove_jobs()` in
 `src/hassette/core/scheduler_service.py`. Do both paths drain `pending_done`
-futures after releasing the guard (via `drain_pending_done` from
+futures after releasing the guard (via `release_and_drain` from
 `src/hassette/execution_mode.py`), or does one subsystem skip the drain?

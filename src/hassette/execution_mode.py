@@ -179,20 +179,30 @@ class ExecutionModeGuard:
     def is_running(self) -> bool:
         return self.current_task is not None and not self.current_task.done()
 
-    async def release(self) -> None:
+    async def release(self) -> "asyncio.Task[None] | None":
         """Cancel the tracked task and drop all pending factories, retaining no references.
 
         Called when a listener is cancelled or re-registered. Pending ``queued`` factories are
         discarded rather than run, even when ``release`` is called mid-drain.
+
+        When called from inside the tracked task itself (a job replacing itself from its own
+        callback), that task is detached instead of cancelled: cancelling and then gathering the
+        task ``release`` is running in would wait on itself forever.
+
+        Returns:
+            The detached tracked task when ``release`` ran inside it, otherwise ``None``.
         """
         async with self._lock:
             self.pending.clear()
             task = self.current_task
             self.current_task = None
             if task is None or task.done():
-                return
+                return None
+            if task is asyncio.current_task():
+                return task
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+            return None
 
 
 async def run_with_stall_watch(
@@ -242,9 +252,9 @@ async def run_through_guard(
       never reach a caller: ``guard.drain_next`` drops such a factory and keeps draining.
       Resolving here rather than in ``drain_next`` is not a preference — ``drain_next`` holds
       only the opaque factory and never sees ``pending_done``.
-    - ``drain_pending_done(pending_done)``, which the caller must invoke after every
-      ``guard.release()`` to cover futures whose factory was dropped without ever running (the
-      QUEUED_ACCEPTED-then-released case).
+    - ``drain_pending_done(pending_done)``, which must run after every ``guard.release()`` to
+      cover futures whose factory was dropped without ever running (the QUEUED_ACCEPTED-then-
+      released case). Callers use ``release_and_drain``, which does both.
 
     A future missed by all three parks its outer task forever.
 
@@ -280,6 +290,20 @@ async def run_through_guard(
         resolve_done()
         return
     await done
+
+
+async def release_and_drain(guard: ExecutionModeGuard, pending_done: "set[asyncio.Future[None]]") -> None:
+    """Release ``guard``, then resolve every completion future in ``pending_done``.
+
+    When the release ran inside the tracked invocation, the drain waits for that invocation to
+    finish: resolving its future now would unpark its dispatch task while the callback is still
+    running, so the dispatch would report completion early.
+    """
+    detached = await guard.release()
+    if detached is None:
+        drain_pending_done(pending_done)
+    else:
+        detached.add_done_callback(lambda _t: drain_pending_done(pending_done))
 
 
 def drain_pending_done(pending_done: "set[asyncio.Future[None]]") -> None:
