@@ -123,7 +123,7 @@ class TestRelativePaths:
         )
         monkeypatch.chdir(tmp_path)
 
-        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg)}, strict_inputs=False)
+        config = config_from_dir(cfg)
 
         assert config.data_dir == cfg / "data"
         assert config.apps.directory == cfg / "my_apps"
@@ -142,7 +142,7 @@ class TestRelativePaths:
         )
         monkeypatch.chdir(tmp_path)
 
-        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg)}, strict_inputs=False)
+        config = config_from_dir(cfg)
 
         assert config.apps.directory == cfg / "apps"
         assert "app_dir" not in config.apps.apps["my_app"]
@@ -157,7 +157,7 @@ class TestRelativePaths:
     def test_symlinked_config_dir_anchors_at_the_link(self, tmp_path: Path) -> None:
         link = symlinked_config_dir(tmp_path)
 
-        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(link)}, strict_inputs=False)
+        config = config_from_dir(link)
 
         assert config.apps.directory == link / "apps"
 
@@ -175,7 +175,7 @@ class TestRelativePaths:
         cfg = tmp_path / "cfg"
         write(cfg / "hassette.toml", '[apps]\ndirectory = "../apps"\n')
 
-        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg)}, strict_inputs=False)
+        config = config_from_dir(cfg)
 
         assert config.apps.directory == tmp_path / "apps"
         assert ".." not in config.apps.directory.parts
@@ -249,6 +249,11 @@ class TestBootstrapLogLevel:
         monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
 
         assert get_log_level() == "INFO"
+
+
+def config_from_dir(config_dir: Path) -> HassetteConfig:
+    """Load the config whose ``HASSETTE__CONFIG_DIR`` is `config_dir`, without the unknown-key checks."""
+    return HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(config_dir)}, strict_inputs=False)
 
 
 def symlinked_config_dir(tmp_path: Path) -> Path:
