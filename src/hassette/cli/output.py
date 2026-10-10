@@ -41,11 +41,15 @@ def make_stdout_console() -> Console:
 
     A terminal keeps its detected width, and an explicit ``$COLUMNS`` always wins (Rich reads it
     itself); only a non-TTY stdout with no ``$COLUMNS`` gets :data:`PIPE_FALLBACK_WIDTH`.
+
+    The fallback sets width and height together: Rich only honors an assigned width ahead of its
+    fixed 80x25 ``TERM=dumb`` size when both dimensions are set, and ``TERM=dumb`` with
+    ``FORCE_COLOR`` is a common CI combination.
     """
     console = Console(file=sys.stdout, highlight=False)
     has_explicit_columns = os.environ.get("COLUMNS", "").isdigit()
     if not writes_to_tty(console) and not has_explicit_columns:
-        console.width = PIPE_FALLBACK_WIDTH
+        console.size = (PIPE_FALLBACK_WIDTH, console.height)
     return console
 
 
