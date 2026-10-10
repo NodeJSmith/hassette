@@ -14,6 +14,7 @@ from whenever import Instant
 
 import hassette.cli.output as output_module
 from hassette.cli.output import (
+    PIPE_FALLBACK_WIDTH,
     Column,
     _build_table,
     _cell_text,
@@ -21,6 +22,7 @@ from hassette.cli.output import (
     fmt_duration_ms,
     fmt_duration_s,
     fmt_relative_time,
+    make_stdout_console,
     render_detail,
     render_table,
 )
@@ -434,6 +436,41 @@ class TestRenderTablePipeDetection:
 
         output = stdout_buf.getvalue()
         assert long_name in output
+
+
+class TestMakeStdoutConsole:
+    @pytest.fixture(autouse=True)
+    def clear_terminal_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Clear env vars that set the width or would force Rich into terminal mode on piped stdout."""
+        for var in ("COLUMNS", "FORCE_COLOR", "TTY_COMPATIBLE", "TTY_INTERACTIVE"):
+            monkeypatch.delenv(var, raising=False)
+
+    def test_piped_without_columns_uses_wide_fallback(self) -> None:
+        """Piped stdout with no $COLUMNS gets the wide fallback instead of Rich's 80-column default."""
+        with patch("sys.stdout", StringIO()):
+            console = make_stdout_console()
+        assert console.width == PIPE_FALLBACK_WIDTH
+
+    def test_piped_respects_columns(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An explicit $COLUMNS wins over the fallback."""
+        monkeypatch.setenv("COLUMNS", "60")
+        with patch("sys.stdout", StringIO()):
+            console = make_stdout_console()
+        assert console.width == 60
+
+    def test_piped_table_keeps_cells_greppable(self) -> None:
+        """A wide table piped through the real stdout console renders every cell untruncated."""
+        buf = StringIO()
+        with patch("sys.stdout", buf):
+            console = make_stdout_console()
+        items = [SimpleItem(name="motion_lights_upstairs_hallway", count=1, note="n" * 120)]
+        columns = [Column("name", "Name", max_width=10), Column("count", "Count"), Column("note", "Note")]
+        with patch.object(output_module, "stdout_console", console):
+            render_table(items, columns, json_mode=False)
+
+        output = buf.getvalue()
+        assert "motion_lights_upstairs_hallway" in output
+        assert "n" * 120 in output
 
 
 # render_detail — JSON mode

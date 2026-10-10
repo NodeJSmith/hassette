@@ -107,6 +107,11 @@ InstanceArg = Annotated[
     ),
 ]
 
+# Log entries carry no instance filter server-side, so ``log --instance`` only exists to turn a
+# habitual ``--instance`` into a clear usage error. Hidden so --help and completions don't
+# advertise a filter that doesn't work.
+LogInstanceArg = Annotated[str | None, Parameter(name=["--instance"], show=False)]
+
 # Separate from InstanceArg (not just a differently-worded help string): the read commands
 # InstanceArg serves (health, activity) filter via --app, so --instance "requires --app". The
 # action commands this serves (start/stop/reload) always take a required positional <key>

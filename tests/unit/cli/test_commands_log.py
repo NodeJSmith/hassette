@@ -1,7 +1,11 @@
 """Unit tests for hassette log and execution commands."""
 
-import pytest
+from io import StringIO
 
+import pytest
+from rich.console import Console
+
+from hassette.cli import app
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.log import (
     EXECUTION_LOG_COLUMNS,
@@ -66,6 +70,15 @@ class TestCmdLog:
 
         assert code != 0
         assert "instance" in stderr.lower()
+
+    def test_instance_flag_hidden_from_help(self) -> None:
+        """Log --help doesn't advertise --instance, since the flag only exists to reject itself."""
+        buf = StringIO()
+        app.help_print(["log"], console=Console(file=buf, width=200))
+
+        help_text = buf.getvalue()
+        assert "--source-tier" in help_text
+        assert "--instance" not in help_text
 
     def test_human_mode_renders_table(self, cli_client_factory: CLIClientFactory) -> None:
         """Log renders a table with timestamp, level, and message."""

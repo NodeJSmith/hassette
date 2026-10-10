@@ -10,6 +10,7 @@ to the stderr console. The stdout console is used only by render functions.
 """
 
 import json
+import os
 import re
 import sys
 import time
@@ -28,7 +29,26 @@ from whenever import Instant, OffsetDateTime, PlainDateTime
 
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 
-stdout_console = Console(file=sys.stdout, highlight=False)
+#: Width used for stdout when it isn't a terminal and ``$COLUMNS`` is unset. Rich's own non-TTY
+#: default is 80 columns, which ellipsizes table cells in piped output (``hassette app | grep``
+#: can't match a truncated name). Tables and panels don't expand to fill the console, so a wide
+#: fallback only stops truncation; it doesn't pad short output.
+PIPE_FALLBACK_WIDTH = 1000
+
+
+def make_stdout_console() -> Console:
+    """Build the stdout console, widening Rich's 80-column default when piped.
+
+    A terminal keeps its detected width, and an explicit ``$COLUMNS`` always wins (Rich reads it
+    itself); only a non-TTY stdout with no ``$COLUMNS`` gets :data:`PIPE_FALLBACK_WIDTH`.
+    """
+    console = Console(file=sys.stdout, highlight=False)
+    if not console.is_terminal and not os.environ.get("COLUMNS", "").isdigit():
+        console.width = PIPE_FALLBACK_WIDTH
+    return console
+
+
+stdout_console = make_stdout_console()
 stderr_console = Console(file=sys.stderr, stderr=True, highlight=False)
 
 

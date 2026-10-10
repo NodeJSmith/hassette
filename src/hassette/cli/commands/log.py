@@ -7,7 +7,7 @@ from hassette_wire import LogEntry, LogsByExecutionResponse
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
 from hassette.cli.output import Column, fmt_relative_time, render_table
-from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
+from hassette.cli.types import AppKeyArg, LimitArg, LogInstanceArg, SinceArg, SourceTierArg
 
 # Shared log entry column definitions (used by both log and execution)
 
@@ -31,7 +31,7 @@ EXECUTION_LOG_COLUMNS: list[Column] = [
 
 def cmd_log(
     app: AppKeyArg = None,
-    instance: InstanceArg = None,
+    instance: LogInstanceArg = None,
     since: SinceArg = None,
     limit: LimitArg = None,
     source_tier: SourceTierArg = None,
