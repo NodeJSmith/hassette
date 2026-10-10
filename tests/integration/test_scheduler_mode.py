@@ -1023,3 +1023,60 @@ async def test_parallel_mode_has_no_stall_watchdog() -> None:
 
         gate.set()
         await asyncio.wait_for(dispatch_task, timeout=2.0)
+
+
+# Self-replace: a job re-arming itself under its own name from inside its callback
+
+
+class _SelfReplaceConfig(AppConfig):
+    """Config for the self-replace app: the execution mode under test."""
+
+    mode: str = "single"
+
+
+class _SelfReplaceApp(App[_SelfReplaceConfig]):
+    """One-shot hold timer that re-arms itself via ``if_exists="replace"`` on its first firing."""
+
+    fire_count: int
+    callback_finished: bool
+
+    async def on_initialize(self) -> None:
+        self.fire_count = 0
+        self.callback_finished = False
+        await self.arm()
+
+    async def arm(self) -> None:
+        await self.scheduler.run_in(self.hold, delay=10, name="hold", if_exists="replace", mode=self.app_config.mode)
+
+    async def hold(self) -> None:
+        self.fire_count += 1
+        if self.fire_count == 1:
+            await self.arm()
+        self.callback_finished = True
+
+
+@pytest.mark.parametrize("mode", ["single", "queued", "restart", "parallel"])
+async def test_job_replaces_itself_from_own_callback(mode: str) -> None:
+    """``run_in(..., if_exists="replace")`` from a job's own callback re-arms it instead of hanging.
+
+    The replace path removes the running job, whose guard tracks the very task executing the
+    callback; that invocation must run to completion rather than being cancelled or awaited.
+    """
+    async with AppTestHarness(_SelfReplaceApp, config={"mode": mode}) as harness:
+        app = harness.app
+        scheduler_service = harness._harness.hassette._scheduler_service
+        original = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
+
+        harness.freeze_time(original.next_run.add(seconds=1))
+        count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=5.0)
+
+        assert count == 1
+        assert app.callback_finished, "the self-replacing invocation must run to completion"
+        replacement = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
+        assert replacement is not original, "the job should have been replaced by a fresh registration"
+        assert original._dequeued, "the old registration should be removed"
+        assert replacement in await scheduler_service.get_all_jobs(), "the replacement should be on the heap"
+
+        harness.freeze_time(replacement.next_run.add(seconds=1))
+        assert await asyncio.wait_for(harness.trigger_due_jobs(), timeout=5.0) == 1
+        assert app.fire_count == 2, "the replacement should fire on its own schedule"
