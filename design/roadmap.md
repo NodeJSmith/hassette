@@ -3,7 +3,7 @@
 The single place that says what's being worked on, what's next, and what order actually
 matters. Update it when an initiative changes column — not per issue.
 
-Last reviewed: 2026-10-09
+Last reviewed: 2026-10-10
 
 ## How the pieces fit
 
@@ -47,16 +47,16 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 ## Now
 
-Nothing is in Now. HACS v0.1 shipped (hass-hassette is installable as a HACS custom repository
-and dogfooded). The first row of Next takes the slot.
+| Initiative | Milestone | Note |
+|---|---|---|
+| **HA add-on v0.1** | *HA Add-on v0.1* (umbrella #71) | Design: `design/specs/129-ha-addon-v01/design.md`. Start with the discovery spike (#2663) and the ingress base-path gate (#2664). Spans three repos: hassette, `hassette-addon` (new) and `hass-hassette` (NodeJSmith/hass-hassette#6, which a hassette milestone can't hold) |
 
 ## Next
 
-Ordered. Only the first row is committed to start next; the rest can swap. The testing redesign makes breaking changes that cost more as users arrive, so it is the first candidate to swap ahead of the add-on.
+Ordered. Only the first row is committed to start next; the rest can swap.
 
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
-| **HA add-on** | pool: `epic:ha-addon`, #71 | The step that turns the HACS work into something people beyond the maintainer can install. Only real blocker is #1850 (mounted `/apps` don't load), which now also covers #1854 and #2626. #616 (`hassette build`) is not a blocker. Supervisor discovery arrives with HACS v0.4 |
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
 | **Standalone CLI** | *Standalone CLI* (tracker #1540) | Needs #2386. Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the `wait_for` races (#2302, #2303, #2304, #2309). Any can be pulled forward as an interrupt |
@@ -83,8 +83,10 @@ These are the only forced orderings. Anything not on a chain can go in any order
 #2448 naming + docs (126) ──> #2386 client transport ──> client release ──> hass-hassette v0.1 ──> #2506 pinned E2E
                                                      client release ──> #2485 cross-version CI
                          #2386 client transport ──> standalone CLI (#2387 ──> #2388)
-hass-hassette v0.1 ──> HACS v0.2 ──> v0.3 webhooks ──> v0.4 add-on discovery
-#1850 (+ #1854, #2626) Docker fixes ──> HA add-on (#71) ──> v0.4 add-on discovery
+hass-hassette v0.1 ──> HACS v0.2 ──> v0.3 webhooks
+#2663 discovery spike ──> #2671 add-on announce + hass-hassette#6 discovery pairing (pulled forward from HACS v0.4)
+#2664 ingress base-path e2e ──> #2672 hassette-addon repo
+#2665, #2666, #2667 ──> #2669 add-on image ──> #2670 DB backup, #2671 announce, #2673 release bump
 testing redesign + all breaking changes ──> v1.0 tag
 ```
 
