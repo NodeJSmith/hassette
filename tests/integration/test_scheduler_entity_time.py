@@ -8,7 +8,6 @@ the entity reports (or loses) a usable time.
 import asyncio
 import typing
 from collections.abc import AsyncIterator
-from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -23,7 +22,6 @@ from tests.support.helpers import entity_topic, noop
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
-    from hassette.events import Event
 
 ALARM_ENTITY = "sensor.phone_next_alarm"
 CHANGE_DISPATCH_TIMEOUT_SECONDS = 5.0
@@ -59,29 +57,30 @@ async def change_alarm(harness: HassetteHarness, old_value: str, new_value: str)
 
     ``await_dispatch_idle`` alone is not enough: its stability check is a short wall-clock
     sleep, and on a starved event loop it can expire before the bus loop has pulled the event
-    off the stream, returning while the dispatch bus is still idle. Waiting for ``dispatch()``
-    to have handled this exact event first guarantees its handler tasks are counted as pending
-    — and it holds even when no listener matches (e.g. after the job was removed).
+    off the stream, returning while the dispatch bus is still idle. A throwaway sentinel
+    listener matching this exact event proves dispatch reached it, so every matching handler
+    task is already counted as pending when ``await_dispatch_idle`` runs. The sentinel matches
+    regardless of whether the scheduler still watches the entity (e.g. after the job was removed).
     """
     event = create_state_change_event(entity_id=ALARM_ENTITY, old_value=old_value, new_value=new_value)
-    bus_service = harness.bus_service
-    original_dispatch = bus_service.dispatch
-    dispatched = asyncio.Event()
+    fired = asyncio.Event()
 
-    async def dispatch_and_signal(base_topic: str, dispatched_event: "Event[Any]") -> None:
-        try:
-            await original_dispatch(base_topic, dispatched_event)
-        finally:
-            if dispatched_event is event:
-                dispatched.set()
+    async def sentinel() -> None:
+        fired.set()
 
-    bus_service.dispatch = dispatch_and_signal  # pyright: ignore[reportAttributeAccessIssue]
+    sub = await harness.bus.on(
+        topic=entity_topic(ALARM_ENTITY),
+        handler=sentinel,
+        where=lambda candidate: candidate is event,
+        name=f"test.entity_time.change_sentinel.{new_value}",
+        once=True,
+    )
     try:
         await harness.hassette.send_event(event)
-        await asyncio.wait_for(dispatched.wait(), timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
+        await asyncio.wait_for(fired.wait(), timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
+        await harness.bus_service.await_dispatch_idle(timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
     finally:
-        bus_service.dispatch = original_dispatch  # pyright: ignore[reportAttributeAccessIssue]
-    await bus_service.await_dispatch_idle()
+        sub.cancel()
 
 
 def iso_in(minutes: int) -> str:
