@@ -23,6 +23,7 @@ App-tier tests use AppTestHarness.
 
 import asyncio
 import contextlib
+import time
 import unittest.mock
 
 import pytest
@@ -1080,3 +1081,45 @@ async def test_job_replaces_itself_from_own_callback(mode: str) -> None:
         harness.freeze_time(replacement.next_run.add(seconds=1))
         assert await asyncio.wait_for(harness.trigger_due_jobs(), timeout=5.0) == 1
         assert app.fire_count == 2, "the replacement should fire on its own schedule"
+
+
+class _SyncSelfReplaceApp(App[_SelfReplaceConfig]):
+    """Sync-callback variant: the callback runs in a worker thread and re-arms via ``scheduler.sync``."""
+
+    fire_count: int
+    callback_finished: bool
+
+    async def on_initialize(self) -> None:
+        self.fire_count = 0
+        self.callback_finished = False
+        await self.scheduler.run_in(self.hold, delay=10, name="hold", if_exists="replace", mode=self.app_config.mode)
+
+    def hold(self) -> None:
+        self.fire_count += 1
+        if self.fire_count == 1:
+            self.scheduler.sync.run_in(self.hold, delay=10, name="hold", if_exists="replace", mode=self.app_config.mode)
+            # Give a cancelled dispatch time to return before the callback finishes, so a
+            # dispatch that stopped waiting on the worker thread is observable.
+            time.sleep(0.2)
+        self.callback_finished = True
+
+
+@pytest.mark.parametrize("mode", ["single", "queued", "restart"])
+async def test_sync_job_replaces_itself_from_own_callback(mode: str) -> None:
+    """A sync callback re-arming itself is not cancelled; the dispatch waits for the worker thread.
+
+    The sync facade runs the replace in a separate event-loop task, not the tracked invocation
+    task, so self-release detection must recognize it through the invocation's context.
+    """
+    async with AppTestHarness(_SyncSelfReplaceApp, config={"mode": mode}) as harness:
+        app = harness.app
+        original = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
+
+        harness.freeze_time(original.next_run.add(seconds=1))
+        count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=5.0)
+
+        assert count == 1
+        assert app.callback_finished, "the dispatch must wait for the sync callback to finish"
+        replacement = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
+        assert replacement is not original
+        assert original._dequeued
