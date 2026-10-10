@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { type AppStatusEntry, appStatusKey } from "../state/store";
-import { createAppActivityStats, createAppHealth } from "../test/factories";
+import { createAppActivityStats, createAppHealth, createInstance } from "../test/factories";
 import { createWouterMock } from "../test/mock-wouter";
 import { renderWithAppState } from "../test/render-helpers";
 import type { AppRow } from "../utils/app-data";
@@ -13,12 +13,18 @@ import { AppTableRow } from "./apps-table-row";
 vi.mock("wouter", () => createWouterMock());
 
 vi.mock("../components/shared/action-buttons", () => ({
-  ActionButtons: (props: { status?: string; confirmStop?: boolean; instance?: { index: number; name: string } }) => (
+  ActionButtons: (props: {
+    status?: string;
+    confirmStop?: boolean;
+    instance?: { index: number; name: string };
+    instanceOrphaned?: boolean;
+  }) => (
     <div
       data-testid="action-buttons"
       data-status={props.status ?? ""}
       data-confirm-stop={props.confirmStop ? "true" : "false"}
       data-instance={props.instance ? JSON.stringify(props.instance) : ""}
+      data-instance-orphaned={props.instanceOrphaned ? "true" : "false"}
     />
   ),
   getStableInstanceRef: (index: number, name: string) => ({ index, name }),
@@ -227,6 +233,7 @@ describe("AppTableRow", () => {
           instance_name: "my_app[0]",
           status: "running",
           error_message: null,
+          in_current_config: true,
         },
         {
           app_key: "my_app",
@@ -235,6 +242,7 @@ describe("AppTableRow", () => {
           instance_name: "my_app[1]",
           status: "stopped",
           error_message: null,
+          in_current_config: true,
         },
       ],
     });
@@ -255,6 +263,7 @@ describe("AppTableRow", () => {
           instance_name: "my_app[0]",
           status: "stopped",
           error_message: null,
+          in_current_config: true,
         },
         {
           app_key: "my_app",
@@ -263,6 +272,7 @@ describe("AppTableRow", () => {
           instance_name: "my_app[1]",
           status: "stopped",
           error_message: null,
+          in_current_config: true,
         },
       ],
     });
@@ -291,6 +301,7 @@ describe("AppTableRow", () => {
           instance_name: "my_app[0]",
           status: "failed",
           error_message: "boom",
+          in_current_config: true,
         },
         {
           app_key: "my_app",
@@ -299,6 +310,7 @@ describe("AppTableRow", () => {
           instance_name: "my_app[1]",
           status: "running",
           error_message: null,
+          in_current_config: true,
         },
       ],
     });
@@ -324,6 +336,7 @@ describe("AppTableRow", () => {
           instance_name: "my_app[0]",
           status: "failed",
           error_message: "boom",
+          in_current_config: true,
         },
         {
           app_key: "my_app",
@@ -332,6 +345,7 @@ describe("AppTableRow", () => {
           instance_name: "my_app[1]",
           status: "running",
           error_message: null,
+          in_current_config: true,
         },
       ],
     });
@@ -355,6 +369,7 @@ describe("AppTableRow", () => {
           instance_name: "my_app[0]",
           status: "running",
           error_message: null,
+          in_current_config: true,
         },
       ],
     });
@@ -377,6 +392,40 @@ describe("AppTableRow", () => {
   it("does not show 'no autostart' chip when autostart is true", () => {
     const { queryByText } = renderRow({ app: createAppRow({ autostart: true }) });
     expect(queryByText("no autostart")).toBeNull();
+  });
+
+  it("marks an instance outside the configured range as orphaned, with a 'not in config' chip", () => {
+    const app = createAppRow({
+      instance_count: 3,
+      instances: [
+        createInstance({ app_key: "my_app", index: 0, instance_name: "kept", status: "running" }),
+        createInstance({
+          app_key: "my_app",
+          index: 1,
+          instance_name: "running_orphan",
+          status: "running",
+          in_current_config: false,
+        }),
+        createInstance({
+          app_key: "my_app",
+          index: 2,
+          instance_name: "failed_orphan",
+          status: "failed",
+          in_current_config: false,
+        }),
+      ],
+    });
+    const { getByTestId } = renderRow({ app, isExpanded: true });
+
+    const kept = getByTestId("instance-row-my_app-0");
+    expect(within(kept).getByTestId("action-buttons").getAttribute("data-instance-orphaned")).toBe("false");
+    expect(within(kept).queryByTestId("not-in-config-chip")).toBeNull();
+
+    for (const index of [1, 2]) {
+      const row = getByTestId(`instance-row-my_app-${index}`);
+      expect(within(row).getByTestId("action-buttons").getAttribute("data-instance-orphaned")).toBe("true");
+      expect(within(row).getByTestId("not-in-config-chip").textContent).toBe("not in config");
+    }
   });
 
   it("shows 'removed' chip when in_current_config is false", () => {
@@ -432,6 +481,7 @@ describe("AppTableRow", () => {
             instance_name: "my_app[0]",
             status: "running",
             error_message: null,
+            in_current_config: true,
           },
           {
             app_key: "my_app",
@@ -440,6 +490,7 @@ describe("AppTableRow", () => {
             instance_name: "my_app[1]",
             status: "stopped",
             error_message: null,
+            in_current_config: true,
           },
         ],
       });
@@ -469,6 +520,7 @@ describe("AppTableRow", () => {
             instance_name: "my_app[0]",
             status: "stopped",
             error_message: null,
+            in_current_config: true,
           },
         ],
       });
@@ -495,6 +547,7 @@ describe("AppTableRow", () => {
             instance_name: "my_app[0]",
             status: "stopped",
             error_message: null,
+            in_current_config: true,
           },
         ],
       });
@@ -521,6 +574,7 @@ describe("AppTableRow", () => {
             instance_name: "my_app[0]",
             status: "running",
             error_message: null,
+            in_current_config: true,
           },
         ],
       });

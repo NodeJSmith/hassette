@@ -240,4 +240,50 @@ describe("AppDetailPage header", () => {
     expect(await findByTestId("btn-stop-test_app-0")).toBeDefined();
     expect(queryByTestId("btn-start-test_app-0")).toBeNull();
   });
+
+  it.each([
+    {
+      status: "running" as const,
+      hidden: ["btn-reload-test_app-1", "btn-start-test_app-1"],
+      shown: "btn-stop-test_app-1",
+    },
+    { status: "failed" as const, hidden: ["btn-start-test_app-1"], shown: null },
+  ])(
+    "withholds start/reload for a $status instance outside the configured range",
+    async ({ status, hidden, shown }) => {
+      // An orphan left behind by a config shrink: the backend 404s start/reload for it and only
+      // admits stop (see _require_valid_instance_index), so those buttons must not be offered.
+      const manifest = createAppSummary({
+        app_key: "test_app",
+        status: "running",
+        instance_count: 2,
+        instances: [
+          createInstance({ index: 0, instance_name: "primary", status: "running" }),
+          createInstance({ index: 1, instance_name: "orphan", status, in_current_config: false }),
+        ],
+      });
+      setupApi(manifest);
+      mockSearchString = "instance=1";
+      const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+      expect(await findByTestId("not-in-config-badge")).toBeDefined();
+      if (shown) expect(await findByTestId(shown)).toBeDefined();
+      for (const id of hidden) expect(queryByTestId(id)).toBeNull();
+    },
+  );
+
+  it("does not show the 'not in config' badge for a configured instance", async () => {
+    const manifest = createAppSummary({
+      app_key: "test_app",
+      instance_count: 2,
+      instances: [
+        createInstance({ index: 0, instance_name: "primary", status: "running" }),
+        createInstance({ index: 1, instance_name: "backup", status: "running" }),
+      ],
+    });
+    setupApi(manifest);
+    mockSearchString = "instance=1";
+    const { findByTestId, queryByTestId } = renderPage({ key: "test_app" });
+    expect(await findByTestId("btn-reload-test_app-1")).toBeDefined();
+    expect(queryByTestId("not-in-config-badge")).toBeNull();
+  });
 });

@@ -292,6 +292,27 @@ describe("ActionButtons", () => {
     expect(reloadApp).not.toHaveBeenCalled();
   });
 
+  it("shows only Stop for a running instance outside the configured range", () => {
+    const { getByTestId, queryByTestId } = render(
+      <ActionButtons appKey="my_app" status="running" instance={instance} instanceOrphaned />,
+    );
+    expect(getByTestId("btn-stop-my_app-1")).toBeDefined();
+    expect(queryByTestId("btn-reload-my_app-1")).toBeNull();
+    expect(queryByTestId("btn-start-my_app-1")).toBeNull();
+  });
+
+  it("shows no Start for a failed instance outside the configured range", () => {
+    const { queryByTestId } = render(
+      <ActionButtons appKey="my_app" status="failed" instance={instance} instanceOrphaned />,
+    );
+    expect(queryByTestId("btn-start-my_app-1")).toBeNull();
+  });
+
+  it("ignores instanceOrphaned for app-level buttons", () => {
+    const { getByTestId } = render(<ActionButtons appKey="my_app" status="running" instanceOrphaned />);
+    expect(getByTestId("btn-reload-my_app")).toBeDefined();
+  });
+
   it("uses instance-aware testid and aria-label when instance prop is provided", () => {
     const { getByTestId } = render(<ActionButtons appKey="my_app" status="stopped" instance={instance} />);
 

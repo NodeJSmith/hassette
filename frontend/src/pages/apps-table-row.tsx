@@ -226,6 +226,15 @@ export function AppTableRow({
                   <AppLink appKey={app.app_key} instanceIndex={inst.index}>
                     {inst.instance_name}
                   </AppLink>
+                  {!inst.in_current_config && (
+                    <Badge
+                      variant="muted"
+                      className={cn("max-sidebar:hidden", compact && "hidden")}
+                      data-testid="not-in-config-chip"
+                    >
+                      not in config
+                    </Badge>
+                  )}
                 </div>
               </td>
               <td>
@@ -257,6 +266,7 @@ export function AppTableRow({
                   status={instActionStatus}
                   confirmStop
                   instance={getStableInstanceRef(inst.index, inst.instance_name)}
+                  instanceOrphaned={!inst.in_current_config}
                 />
               </td>
             </tr>

@@ -27,6 +27,9 @@ class AppInstanceInfo:
     error_message: str | None = None
     error_traceback: str | None = None
     owner_id: str | None = None
+    in_current_config: bool = True
+    """False for a tracked instance whose index is outside the app's configured range (an orphan left
+    running after the config shrank). Only ``stop`` is accepted for such an instance."""
 
 
 @dataclass(frozen=True)

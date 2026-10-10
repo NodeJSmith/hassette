@@ -56,6 +56,7 @@ export function createInstance(overrides: Partial<AppInstance> = {}): AppInstanc
     error_message: null,
     error_traceback: null,
     owner_id: null,
+    in_current_config: true,
     ...overrides,
   } satisfies AppInstance;
 }

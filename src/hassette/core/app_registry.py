@@ -328,6 +328,8 @@ class AppRegistry:
                 if entry.app is None and error_message is None:
                     error_message = info.error_message
                     error_traceback = info.error_traceback
+                if index >= configured_count:
+                    info = dataclasses.replace(info, in_current_config=False)
             else:
                 info = AppInstanceInfo(
                     app_key=app_key,
