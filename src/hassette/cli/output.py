@@ -43,9 +43,19 @@ def make_stdout_console() -> Console:
     itself); only a non-TTY stdout with no ``$COLUMNS`` gets :data:`PIPE_FALLBACK_WIDTH`.
     """
     console = Console(file=sys.stdout, highlight=False)
-    if not console.is_terminal and not os.environ.get("COLUMNS", "").isdigit():
+    if not writes_to_tty(console) and not os.environ.get("COLUMNS", "").isdigit():
         console.width = PIPE_FALLBACK_WIDTH
     return console
+
+
+def writes_to_tty(console: Console) -> bool:
+    """Return whether ``console`` writes to a physical TTY.
+
+    Deliberately not ``Console.is_terminal``: ``FORCE_COLOR`` or ``TTY_COMPATIBLE=1`` (common in CI)
+    make that report ``True`` on a pipe, which would truncate piped tables. Those variables are
+    about color and escape-code support, not about whether a human is reading a sized terminal.
+    """
+    return console.file.isatty()
 
 
 stdout_console = make_stdout_console()
@@ -271,8 +281,7 @@ def render_table(
         stderr_console.print("No results.", highlight=False)
         return
 
-    is_terminal = stdout_console.is_terminal
-    table = _build_table(columns, is_terminal)
+    table = _build_table(columns, is_terminal=writes_to_tty(stdout_console))
     fallback_meta = _resolve_cli_format_meta(type(items[0]))
     for item in items:
         row = [

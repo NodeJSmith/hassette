@@ -458,6 +458,27 @@ class TestMakeStdoutConsole:
             console = make_stdout_console()
         assert console.width == 60
 
+    @pytest.mark.parametrize(("var", "value"), [("FORCE_COLOR", "1"), ("TTY_COMPATIBLE", "1")])
+    def test_piped_with_forced_terminal_env_keeps_cells_greppable(
+        self, monkeypatch: pytest.MonkeyPatch, var: str, value: str
+    ) -> None:
+        """FORCE_COLOR/TTY_COMPATIBLE make Rich call a pipe a terminal; piped output still isn't truncated."""
+        monkeypatch.setenv(var, value)
+        buf = StringIO()
+        with patch("sys.stdout", buf):
+            console = make_stdout_console()
+        assert console.is_terminal  # the env override Rich honors
+        assert console.width == PIPE_FALLBACK_WIDTH
+
+        items = [SimpleItem(name="motion_lights_upstairs_hallway", count=1, note="n" * 120)]
+        columns = [Column("name", "Name", max_width=10), Column("count", "Count"), Column("note", "Note")]
+        with patch.object(output_module, "stdout_console", console):
+            render_table(items, columns, json_mode=False)
+
+        output = buf.getvalue()
+        assert "motion_lights_upstairs_hallway" in output
+        assert "n" * 120 in output
+
     def test_piped_table_keeps_cells_greppable(self) -> None:
         """A wide table piped through the real stdout console renders every cell untruncated."""
         buf = StringIO()
