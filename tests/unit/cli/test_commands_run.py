@@ -217,6 +217,21 @@ class TestRunCheck:
         assert "bogus" in err
         assert err.count("Invalid configuration") == 1
 
+    @pytest.mark.parametrize("name", ["HASSETTE__DATABASE", "HASSETTE__ONLY_APPS"])
+    def test_malformed_json_env_value_exits_78(
+        self,
+        clean_hassette_env: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+        name: str,
+    ) -> None:
+        """A complex setting's env value that isn't JSON is a config error, not a traceback."""
+        monkeypatch.setenv(name, "not-json")
+
+        assert f'error parsing value for field "{name.removeprefix("HASSETTE__").lower()}"' in (
+            check_config_error_stderr(clean_hassette_env, capsys)
+        )
+
     def test_malformed_toml_is_a_config_error_naming_the_file(
         self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
