@@ -13,6 +13,9 @@ from hassette.config.classes import AppManifest, is_path_annotation, model_annot
 from hassette.config.helpers import get_log_level
 from hassette.config.locations import resolve_locations
 from hassette.config.models import AppsConfig
+from hassette.exceptions import ConfigError
+
+UNKNOWN_USER = "hassette-no-such-user"
 
 
 @pytest.fixture
@@ -179,6 +182,17 @@ class TestRelativePaths:
 
         assert config.apps.directory == tmp_path / "apps"
         assert ".." not in config.apps.directory.parts
+
+    def test_unknown_user_in_a_toml_path_is_a_config_error(self, tmp_path: Path) -> None:
+        cfg = tmp_path / "cfg"
+        write(cfg / "hassette.toml", f'data_dir = "~{UNKNOWN_USER}/data"\n')
+
+        with pytest.raises(ConfigError, match=f"~{UNKNOWN_USER}/data"):
+            config_from_dir(cfg)
+
+    def test_unknown_user_in_the_config_dir_is_a_config_error(self) -> None:
+        with pytest.raises(ConfigError, match=f"~{UNKNOWN_USER}/config"):
+            config_from_dir(Path(f"~{UNKNOWN_USER}/config"))
 
     def test_local_overlay_paths_are_relative_to_the_overlay(self, tmp_path: Path) -> None:
         base = write(tmp_path / "base" / "hassette.toml", '[apps]\ndirectory = "from_base"\n')
