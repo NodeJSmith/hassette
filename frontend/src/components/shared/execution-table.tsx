@@ -292,7 +292,12 @@ function ExecutionRows({ table, kind, ...target }: ExecutionRowsProps) {
   const rovingIndices: (number | null)[] = [];
   let navigableCount = 0;
   for (const href of hrefs) {
-    rovingIndices.push(href ? navigableCount++ : null);
+    if (href) {
+      rovingIndices.push(navigableCount);
+      navigableCount++;
+    } else {
+      rovingIndices.push(null);
+    }
   }
   const { containerRef, onContainerKeyDown, getTabIndex, setActiveIndex } =
     useRovingTabIndex<HTMLTableSectionElement>(navigableCount);
@@ -310,6 +315,8 @@ function ExecutionRows({ table, kind, ...target }: ExecutionRowsProps) {
             kind={kind}
             href={href}
             tabIndex={rovingIndex === null ? undefined : getTabIndex(rovingIndex)}
+            // ExecutionRow only invokes these for rows with an href, so the null checks below
+            // narrow types rather than guard a reachable branch.
             onSelect={() => {
               if (rovingIndex !== null) {
                 setActiveIndex(rovingIndex);

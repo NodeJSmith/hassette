@@ -360,7 +360,7 @@ describe("ExecutionTable", () => {
     expect(rows[1].tabIndex).toBe(-1);
 
     await user.keyboard("{Enter}");
-    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/job/1/exec/exec-b");
+    expect(mockNavigate).toHaveBeenCalledWith(EXPECTED_DETAIL_PATH.replace(TEST_EXECUTION_ID, "exec-b"));
 
     await user.keyboard("{ArrowUp}");
     expect(document.activeElement).toBe(rows[1]);
