@@ -378,8 +378,6 @@ Show recent log entries.
 
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ APP --app                  Filter by app key.                                                    │
-│ INSTANCE --instance        Filter by app instance (integer index or instance name). Requires     │
-│                            --app.                                                                │
 │ SINCE --since              Filter by time. Accepts relative (1h, 7d, 30m, 2w, 30s) or absolute   │
 │                            (2026-05-22, 2026-05-22T14:00:00) timestamps. Naive timestamps use    │
 │                            local time.                                                           │
