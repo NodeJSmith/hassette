@@ -304,29 +304,33 @@ def run_project_container_and_diff(project_dir: Path) -> tuple[subprocess.Comple
     return result, output, diff.stdout.splitlines()
 
 
-def installed_packages(diff_lines: list[str]) -> set[str]:
-    """Return the site-packages entries that ``docker diff`` lines (``<A|C|D> <path>``) show as newly added.
+def installed_distributions(diff_lines: list[str]) -> set[str]:
+    """Return the distributions whose ``.dist-info`` directory ``docker diff`` lines (``<A|C|D> <path>``) show as added.
 
-    Only an entry added at the top of site-packages counts: importing an image package adds files
-    under its existing directory (``__pycache__``), which is not an install.
+    Every installed distribution gets a ``<name>-<version>.dist-info`` directory, whether it ships a
+    package directory or a single module, so this doesn't depend on the distribution's layout.
     """
     added = (line.removeprefix("A ") for line in diff_lines if line.startswith("A "))
     return {
-        entry
+        entry.split("-", 1)[0]
         for path in added
-        if "/site-packages/" in path and "/" not in (entry := path.split("/site-packages/", 1)[1])
+        if "/site-packages/" in path
+        and "/" not in (entry := path.split("/site-packages/", 1)[1])
+        and entry.endswith(".dist-info")
     }
 
 
 @pytest.mark.parametrize(
-    ("pyproject_content", "expected_packages"),
+    ("pyproject_content", "expected_distributions"),
     [
         pytest.param(project_pyproject(), {"test_proj"}, id="with_lockfile"),
         pytest.param(project_pyproject(build_system=False), {"test_proj"}, id="without_build_system"),
         pytest.param(project_pyproject(["tabulate>=0.9"]), {"test_proj", "tabulate"}, id="with_real_dep"),
     ],
 )
-def test_docker_project_install_succeeds(docker_project_dir: Path, pyproject_content: str, expected_packages: set[str]):
+def test_docker_project_install_succeeds(
+    docker_project_dir: Path, pyproject_content: str, expected_distributions: set[str]
+):
     """Test that a locked project and its dependencies install via the export-then-install path.
 
     Covers a bare project, one without ``[build-system]`` (uv's default backend), and one with a
@@ -336,7 +340,7 @@ def test_docker_project_install_succeeds(docker_project_dir: Path, pyproject_con
     result, output, diff_lines = run_project_container_and_diff(docker_project_dir)
 
     assert result.returncode == 0, f"Project install failed. Output:\n{output}"
-    missing = expected_packages - installed_packages(diff_lines)
+    missing = expected_distributions - installed_distributions(diff_lines)
     assert not missing, f"Not installed: {sorted(missing)}. Output:\n{output}"
 
 
