@@ -19,6 +19,7 @@ from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.summary_models import AppHealthAggregates
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
 from hassette.web.app import create_fastapi_app
+from tests.support.factories import make_closing_task_bucket
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
 from tests.support.web_manifest_helpers import make_full_snapshot
 
@@ -319,8 +320,7 @@ def create_mock_runtime_query_service(
     svc._ws_drops_last_logged = 0.0
     svc._pending_completions = []
     svc._flush_scheduled = False
-    svc.task_bucket = MagicMock()
-    svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())
+    svc.task_bucket = make_closing_task_bucket()
     svc.logger = MagicMock()
     mock_hassette._runtime_query_service = svc
     mock_hassette.runtime_query_service = svc

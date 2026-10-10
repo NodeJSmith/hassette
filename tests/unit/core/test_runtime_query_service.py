@@ -24,6 +24,7 @@ from hassette.utils import get_version
 from tests.support.helpers import create_app_manifest
 from tests.support.mock_hassette import make_mock_hassette
 from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
+from tests.support.web_mocks import create_mock_runtime_query_service
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -106,21 +107,7 @@ def mock_hassette():
 @pytest.fixture
 def runtime(mock_hassette):
     """Create a RuntimeQueryService instance with mocked Hassette."""
-    svc = RuntimeQueryService.__new__(RuntimeQueryService)
-    svc.hassette = mock_hassette
-    svc._ws_clients = set()
-    svc._lock = asyncio.Lock()
-    svc._ws_drops = 0
-    svc._ws_drops_since_last_log = 0
-    svc._ws_drops_last_logged = 0.0
-    svc._start_time = 1704067200.0  # 2024-01-01 00:00:00
-    svc._subscriptions = []
-    svc.logger = MagicMock()
-    svc._pending_completions = []
-    svc._flush_scheduled = False
-    svc.task_bucket = MagicMock()
-    svc.task_bucket.spawn = MagicMock(side_effect=lambda coro, **_kw: coro.close())
-    return svc
+    return create_mock_runtime_query_service(mock_hassette)
 
 
 class TestDependencyDecoupling:
