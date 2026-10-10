@@ -370,7 +370,7 @@ class Scheduler(Resource):
             )
         self.scheduler_service.dequeue_job(job)
 
-    def remove_all_jobs(self) -> asyncio.Task:
+    def remove_all_jobs(self) -> asyncio.Future[None]:
         """Remove all jobs for the owner of this scheduler.
 
         Passes this scheduler's own ``_jobs_by_name`` values to
