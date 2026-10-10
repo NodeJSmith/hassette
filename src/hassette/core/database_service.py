@@ -43,9 +43,10 @@ _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
 _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
 
-_STARTUP_CLEANUP_ROLLBACK_TIMEOUT_SECONDS = 5
-"""Bound on the rollback after a failed or timed-out startup cleanup catch-up, so recovery can't
-push on_initialize() past the readiness budget the catch-up's own timeout is meant to protect."""
+_STARTUP_CLEANUP_ROLLBACK_SHARE = 0.2
+"""Fraction of the startup cleanup budget reserved for the recovery rollback after a failed or
+timed-out catch-up. The catch-up itself gets the rest, so cleanup plus recovery together never
+exceed the budget, however long the rollback waits behind a statement the interrupt didn't stop."""
 
 # dup-ignore-start: production source of truth for the log_records column set, asserted against
 # verbatim by tests/unit/core/test_log_records.py and mirrored independently in
@@ -447,13 +448,15 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         # restart: both passes commit per batch, so already-deleted rows stay deleted and a
         # re-run just picks up whatever remains past the cutoff or over the size limit.
         #
-        # Both share one bound of half the configured startup readiness budget. A large backlog
-        # could otherwise itself exhaust the readiness timeout that wait_for_ready() enforces
-        # around this whole on_initialize() call. A timeout here degrades to "startup skipped
-        # cleanup," not a failed startup, and the hourly serve() loop keeps grinding afterward.
-        startup_cleanup_timeout = self.hassette.config.lifecycle.startup_timeout_seconds / 2
+        # Both passes and the recovery rollback share one budget of half the configured startup
+        # readiness timeout. A large backlog could otherwise itself exhaust the readiness timeout
+        # that wait_for_ready() enforces around this whole on_initialize() call. A timeout here
+        # degrades to "startup skipped cleanup," not a failed startup, and the hourly serve()
+        # loop keeps grinding afterward.
+        startup_cleanup_budget = self.hassette.config.lifecycle.startup_timeout_seconds / 2
+        rollback_timeout = startup_cleanup_budget * _STARTUP_CLEANUP_ROLLBACK_SHARE
         try:
-            async with asyncio.timeout(startup_cleanup_timeout):
+            async with asyncio.timeout(startup_cleanup_budget - rollback_timeout):
                 await self._check_size_failsafe()
                 await self._do_run_retention_cleanup()
         except Exception as exc:
@@ -465,7 +468,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             # back so the write worker doesn't inherit an open transaction (a no-op when none is
             # open). Earlier batches stay committed.
             try:
-                async with asyncio.timeout(_STARTUP_CLEANUP_ROLLBACK_TIMEOUT_SECONDS):
+                async with asyncio.timeout(rollback_timeout):
                     await safe_rollback(self.db, self, "startup cleanup catch-up")
             except TimeoutError:
                 self.logger.error("Startup cleanup rollback timed out — write connection state is now unknown")
