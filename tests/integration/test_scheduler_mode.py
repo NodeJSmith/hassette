@@ -1069,7 +1069,7 @@ async def test_job_replaces_itself_from_own_callback(mode: str) -> None:
         original = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
 
         harness.freeze_time(original.next_run.add(seconds=1))
-        count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=5.0)
+        count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=2.0)
 
         assert count == 1
         assert app.callback_finished, "the self-replacing invocation must run to completion"
@@ -1079,7 +1079,7 @@ async def test_job_replaces_itself_from_own_callback(mode: str) -> None:
         assert replacement in await scheduler_service.get_all_jobs(), "the replacement should be on the heap"
 
         harness.freeze_time(replacement.next_run.add(seconds=1))
-        assert await asyncio.wait_for(harness.trigger_due_jobs(), timeout=5.0) == 1
+        assert await asyncio.wait_for(harness.trigger_due_jobs(), timeout=2.0) == 1
         assert app.fire_count == 2, "the replacement should fire on its own schedule"
 
 
@@ -1104,6 +1104,7 @@ class _SyncSelfReplaceApp(App[_SelfReplaceConfig]):
         self.callback_finished = True
 
 
+# parallel is omitted: its guard tracks no invocation, so removal never cancels it either way.
 @pytest.mark.parametrize("mode", ["single", "queued", "restart"])
 async def test_sync_job_replaces_itself_from_own_callback(mode: str) -> None:
     """A sync callback re-arming itself is not cancelled; the dispatch waits for the worker thread.
@@ -1116,7 +1117,7 @@ async def test_sync_job_replaces_itself_from_own_callback(mode: str) -> None:
         original = next(j for j in app.scheduler.list_jobs() if j.name == "hold")
 
         harness.freeze_time(original.next_run.add(seconds=1))
-        count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=5.0)
+        count = await asyncio.wait_for(harness.trigger_due_jobs(), timeout=2.0)
 
         assert count == 1
         assert app.callback_finished, "the dispatch must wait for the sync callback to finish"

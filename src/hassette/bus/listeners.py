@@ -337,7 +337,7 @@ class HandlerInvoker:
 
         Queued triggers still parked in the guard's deque never spawn a child once released, so
         their outer dispatch tasks are parked on ``done`` futures that nothing else will resolve.
-        ``drain_pending_done`` resolves every remaining one so those tasks unwind and
+        ``release_and_drain`` resolves every remaining one so those tasks unwind and
         ``_dispatch_pending`` settles.
         """
         await release_and_drain(self.guard, self.pending_done)

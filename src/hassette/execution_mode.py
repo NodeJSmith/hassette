@@ -8,10 +8,11 @@ machinery; the guard decides whether and when to call it, retains the returned t
 cancellable handle, and (for ``queued``) drains pending factories one at a time.
 
 This module also provides the stateless dispatch-bridge helpers — ``run_with_stall_watch``,
-``run_through_guard``, ``drain_pending_done`` — that both the bus (``HandlerInvoker``) and the
-scheduler (``SchedulerService``) call to wrap the guard with a completion-future bridge, a stall
-watchdog, and the drain. The module also provides ``resolve_execution_mode()``, the tier-aware
-mode resolution shared by both subsystems' registration paths. The module stays a dependency-free
+``run_through_guard``, ``release_and_drain`` (wrapping ``drain_pending_done``) — that both the
+bus (``HandlerInvoker``) and the scheduler (``SchedulerService``) call to wrap the guard with a
+completion-future bridge, a stall watchdog, and the drain. The module also provides
+``resolve_execution_mode()``, the tier-aware mode resolution shared by both subsystems'
+registration paths. The module stays a dependency-free
 leaf (stdlib + ``hassette.types.enums`` + ``hassette.types.types``) so neither subsystem has to
 import the other.
 """
