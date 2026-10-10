@@ -427,7 +427,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         if job.db_id is not None and self._jobs_by_id.get(job.db_id) is job:
             del self._jobs_by_id[job.db_id]
 
-    def remove_jobs(self, jobs: "list[Job]") -> asyncio.Task[None]:
+    def remove_jobs(self, jobs: "list[Job]") -> asyncio.Future[None]:
         """Remove exactly the given live jobs: heap, registry, guard, and persistence.
 
         Used by ``Scheduler.remove_all_jobs()`` for owner cleanup — the per-app ``Scheduler``
@@ -440,10 +440,35 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         survive the caller resource's own shutdown/cancellation window — the same reasoning as
         ``remove_job()``'s ``mark_job_removed`` spawn.
 
+        When that bucket is already sealed (reachable only after a force-terminal teardown,
+        which seals without running hooks), the rejection is absorbed rather than raised: every
+        job's live state is still removed inline (registry, heap, removal callbacks), the
+        guard-release/persistence tail is skipped exactly as ``dequeue_job()`` skips it, and an
+        already-completed future is returned so awaiting callers on the shutdown path
+        (``Scheduler.remove_all_jobs()``) proceed normally. Only that sealed rejection is
+        absorbed — any other ``spawn()`` failure still propagates.
+
         Args:
             jobs: The jobs to remove.
+
+        Returns:
+            The spawned removal task, or an already-completed future when the bucket is sealed.
+            Callers should only await the result.
         """
-        return self.task_bucket.spawn(self._remove_jobs(jobs), name="scheduler:remove_jobs")
+        try:
+            return self.task_bucket.spawn(self._remove_jobs(jobs), name="scheduler:remove_jobs")
+        except TaskBucketSealedError:
+            # Same accepted force-terminal gap as dequeue_job(): guards stay unreleased and
+            # removed_at is never persisted for these jobs. Caught at the spawn boundary rather
+            # than pre-checked via is_sealed — see TaskBucketSealedError.
+            self.logger.debug("Task bucket sealed, removing %d job(s) from live state only", len(jobs))
+            for job in jobs:
+                self._remove_from_live_state(job)
+            # Constructing a future and resolving it before anything is attached schedules no
+            # loop callbacks, so this is safe from a worker-thread caller (SyncScheduler).
+            done: asyncio.Future[None] = self.hassette.loop.create_future()
+            done.set_result(None)
+            return done
 
     async def _remove_jobs(self, jobs: "list[Job]") -> None:
         """Async body for ``remove_jobs()``: removes each job via the unified removal
@@ -475,6 +500,11 @@ class SchedulerService(SchedulerDispatchMixin, Service):
                 maps to this same live object in the registry (the registration was removed
                 — via ``Job.remove()``, ``Scheduler.remove_job()``/``remove_group()``, owner
                 shutdown, or ``if_exists="replace"`` — after the caller obtained its handle).
+            TaskBucketSealedError: When this service's task bucket is sealed (only after a
+                force-terminal teardown). Propagated rather than absorbed: unlike removal, a
+                submission is new work, so a rejected one must not look accepted. Not translated
+                to ``JobRemovedError`` because the registration is still live — the service
+                itself is what can no longer run work.
         """
         if job.db_id is None or self._jobs_by_id.get(job.db_id) is not job:
             raise JobRemovedError(job.name, job.db_id)

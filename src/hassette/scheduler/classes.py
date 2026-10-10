@@ -471,6 +471,8 @@ class Job:
             RuntimeError: When called on a job that has no owning SchedulerService — register
                 the job via ``Scheduler.schedule()`` or ``Scheduler.register()`` first.
             JobRemovedError: When the job's registration has since been removed.
+            TaskBucketSealedError: When the owning SchedulerService has been force-terminated
+                and can no longer accept work.
         """
         if self._scheduler_service is None:
             raise RuntimeError(

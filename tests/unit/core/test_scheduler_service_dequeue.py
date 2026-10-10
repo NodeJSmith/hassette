@@ -9,6 +9,7 @@ Tests verify:
 - dequeue_job is synchronous (no yield point)
 """
 
+import asyncio
 import inspect
 from unittest.mock import AsyncMock, MagicMock
 
@@ -392,3 +393,52 @@ class TestDequeueJobSealedBucket:
 
         with pytest.raises(RuntimeError, match="congested"):
             svc.dequeue_job(job)
+
+
+class TestRemoveJobsSealedBucket:
+    """Regression tests for remove_jobs against a sealed task bucket (#2250).
+
+    remove_jobs() is reached from shutdown paths (Scheduler.remove_all_jobs via
+    App.on_shutdown and AppLifecycleService.cleanup_failed_instance), exactly when a
+    force-terminal teardown may have sealed the bucket. It absorbs the rejection, removes live
+    state inline, and hands back an already-completed future the caller can still await.
+    """
+
+    async def test_remove_jobs_on_sealed_bucket_returns_awaitable_completed_future(self) -> None:
+        svc = make_dequeue_service()
+        svc.hassette.loop = asyncio.get_running_loop()
+        svc.task_bucket = make_rejecting_task_bucket()
+
+        result = svc.remove_jobs([make_scheduled_job(db_id=7)])
+
+        assert result.done()
+        assert await result is None
+        svc.task_bucket.spawn.assert_called_once()
+
+    async def test_remove_jobs_on_sealed_bucket_still_removes_live_state(self) -> None:
+        svc = make_dequeue_service()
+        svc.hassette.loop = asyncio.get_running_loop()
+        jobs = [make_scheduled_job(db_id=7), make_scheduled_job(db_id=8)]
+        for job in jobs:
+            svc._jobs_by_id[job.db_id] = job
+            await svc._job_queue.add(job)
+        callback = MagicMock()
+        svc._removal_callbacks[jobs[0].owner_id] = callback
+        svc._executor.mark_job_removed = AsyncMock()
+        svc.task_bucket = make_rejecting_task_bucket()
+
+        await svc.remove_jobs(jobs)
+
+        assert svc._jobs_by_id == {}
+        assert all(job._dequeued for job in jobs)
+        assert list(svc._job_queue._queue) == []
+        assert callback.call_count == len(jobs)
+        svc._executor.mark_job_removed.assert_not_awaited()
+
+    async def test_remove_jobs_still_propagates_unrelated_spawn_failures(self) -> None:
+        """Only the sealed rejection is absorbed — other spawn failures must surface."""
+        svc = make_dequeue_service()
+        svc.task_bucket = make_rejecting_task_bucket(RuntimeError("loop is congested"))
+
+        with pytest.raises(RuntimeError, match="congested"):
+            svc.remove_jobs([make_scheduled_job(db_id=7)])

@@ -10,6 +10,7 @@ Tests cover:
 - trigger_job() finds a job in the live registry by db_id, or raises ValueError when absent
 - submit_job() spawns a manual invocation for a live registered job across all execution modes
 - submit_job() raises JobRemovedError for an unregistered or stale-handle job
+- submit_job() propagates TaskBucketSealedError when the service's bucket is sealed
 - submit_job() bypasses the job's predicate and does not mutate its automatic schedule
 """
 
@@ -21,7 +22,8 @@ from hassette_wire import ExecutionMode
 
 import hassette.utils.date_utils as date_utils
 from hassette.commands import ExecuteJob
-from hassette.exceptions import JobRemovedError
+from hassette.exceptions import JobRemovedError, TaskBucketSealedError
+from tests.support.helpers import make_rejecting_task_bucket
 from tests.support.web_job_helpers import make_real_job
 
 from .conftest import make_scheduler_service
@@ -200,6 +202,23 @@ class TestSubmitJob:
         with pytest.raises(JobRemovedError):
             svc.submit_job(stale_job)
 
+        svc._executor.execute.assert_not_called()
+
+    async def test_submit_job_propagates_sealed_bucket_rejection(self) -> None:
+        """A sealed bucket rejects the manual invocation, and submit_job() lets that surface.
+
+        Submission is new work rather than cleanup, so a rejected one must not be silently
+        dropped as if it had been accepted (#2250).
+        """
+        svc = _make_trigger_service()
+        job = make_real_job(db_id=7)
+        svc._jobs_by_id[7] = job
+        svc.task_bucket = make_rejecting_task_bucket()
+
+        with pytest.raises(TaskBucketSealedError):
+            svc.submit_job(job)
+
+        svc.task_bucket.spawn.assert_called_once()
         svc._executor.execute.assert_not_called()
 
     async def test_submit_job_bypasses_predicate(self) -> None:
