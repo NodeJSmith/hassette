@@ -12,6 +12,7 @@ from pathlib import Path, PurePath
 
 import platformdirs
 
+from hassette.exceptions import ConfigError
 from hassette.utils import get_parsed_version
 
 CONFIG_FILE_NAME = "hassette.toml"
@@ -163,8 +164,16 @@ def anchored(path: str | PurePath, base: Path) -> Path:
     Symlinks are not resolved, so a path the user wrote keeps its spelling. A config file reached
     through a symlinked directory therefore anchors its relative paths at the link, whether it was
     found by search or named with ``--config-file``.
+
+    Raises:
+        ConfigError: `path` starts with ``~`` and its home directory can't be found (an unknown ``~user``,
+            or no home directory set).
     """
-    return Path(os.path.normpath(base / Path(path).expanduser()))
+    try:
+        expanded = Path(path).expanduser()
+    except RuntimeError as exc:  # pathlib's error for an unknown ``~user`` or an unset home directory
+        raise ConfigError(f"Can't expand '~' in path {str(path)!r}: {exc}") from exc
+    return Path(os.path.normpath(base / expanded))
 
 
 def file_list(files: FileList, cwd: Path) -> tuple[Path, ...]:

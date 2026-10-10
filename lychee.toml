@@ -32,7 +32,7 @@ index_files = ["index.md"]
 
 # A snippet's relative links resolve from the page that includes it, not from the snippet's own
 # directory, so lychee would check them against the wrong path. `mkdocs build --strict` checks them
-# in the including page instead.
+# in the including page instead. `exclude_path` entries are regexes.
 exclude_path = ["docs/pages/.*/snippets/"]
 
 # Docs use RFC 1918 addresses (e.g. 192.168.1.10) as example hosts; a CI runner can't reach them.

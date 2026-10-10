@@ -15,7 +15,7 @@ from hassette.config.locations import resolve_locations
 from hassette.config.models import AppsConfig
 from hassette.exceptions import ConfigError
 
-UNKNOWN_USER = "hassette-no-such-user"
+UNKNOWN_USER = "hassette-no-such-user"  # must not exist on the test machine, so ``~UNKNOWN_USER`` fails to expand
 
 
 @pytest.fixture
@@ -266,7 +266,7 @@ class TestBootstrapLogLevel:
 
 
 def config_from_dir(config_dir: Path) -> HassetteConfig:
-    """Load the config whose ``HASSETTE__CONFIG_DIR`` is `config_dir`, without the unknown-key checks."""
+    """Load the config whose ``HASSETTE__CONFIG_DIR`` is `config_dir`, with ``strict_inputs=False``."""
     return HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(config_dir)}, strict_inputs=False)
 
 
