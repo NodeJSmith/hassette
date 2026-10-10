@@ -1,12 +1,14 @@
-"""Unit tests for DatabaseService retention-target definitions and batched delete helpers.
+"""Unit tests for DatabaseService retention-target definitions, batched delete helpers, and parent-guard skip logging.
 
 Split out of ``test_database_service.py`` (see that file's docstring and
 .claude/rules/tests-unit-core.md) once the write-queue/submit tests there grew the file past
-house-lint's HSL102 threshold -- this file's tests are an independent concern (retention-target metadata and the
-batched-delete SQL helpers), not a companion to any other split file.
+house-lint's HSL102 threshold. These tests call the retention helpers directly, without a seeded
+telemetry database; the end-to-end retention cleanup tests (which also cover the parent-guard skip
+streak through ``_do_run_retention_cleanup``) live in ``test_log_records_retention.py``.
 """
 
 import dataclasses
+import logging
 from collections.abc import AsyncIterator
 from unittest.mock import MagicMock, patch
 
@@ -14,7 +16,7 @@ import aiosqlite
 import pytest
 
 from hassette.core.database_failsafe import _execute_failsafe_delete
-from hassette.core.database_retention import _execute_target_delete
+from hassette.core.database_retention import PARENT_GUARD_SKIP_ESCALATION_CYCLES, _execute_target_delete
 from hassette.core.database_service import DatabaseService
 from hassette.core.retention_targets import _FAILSAFE_TABLES, _RETENTION_TABLES, RetentionTarget
 from tests.unit.core._fixtures_database_service import mock_hassette, service
@@ -259,3 +261,26 @@ async def test_vacuum_and_checkpoint_busy_checkpoint_treated_as_failure(
         result = await service._vacuum_and_checkpoint_with_retry(memory_db, vacuum_pages=100, group_label="test")
 
     assert result is False
+
+
+def test_parent_guard_skip_escalates_to_error_after_consecutive_cycles(
+    service: DatabaseService, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Each skipped cycle extends the streak; the skip is a WARNING naming the streak length until
+    ``PARENT_GUARD_SKIP_ESCALATION_CYCLES`` is reached, then an ERROR saying retired rows aren't pruned.
+    """
+    for cycle in range(1, PARENT_GUARD_SKIP_ESCALATION_CYCLES + 1):
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            service._record_parent_guard_skip({"blocking events"}, set())
+
+        assert service._consecutive_parent_guard_skips == cycle
+        [record] = [r for r in caplog.records if "skipping parent-guard deletes" in r.getMessage()]
+        assert "failed: blocking events" in record.getMessage()
+        if cycle < PARENT_GUARD_SKIP_ESCALATION_CYCLES:
+            assert record.levelno == logging.WARNING
+            assert f"({cycle} consecutive cycle(s))" in record.getMessage()
+        else:
+            assert record.levelno == logging.ERROR
+            assert f"({cycle} consecutive cycles)" in record.getMessage()
+            assert "not being pruned" in record.getMessage()

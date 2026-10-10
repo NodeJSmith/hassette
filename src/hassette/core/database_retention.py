@@ -19,6 +19,11 @@ if typing.TYPE_CHECKING:
     from hassette.config.config import HassetteConfig
     from hassette.core.database_write_queue import _WriteQueueItem
 
+PARENT_GUARD_SKIP_ESCALATION_CYCLES = 3
+"""Consecutive retention cycles with parent-guard deletes skipped before the skip is logged as
+an ERROR instead of a WARNING — separates a transient one-off target failure from a target that
+is chronically blocking retired listener/scheduled_job cleanup."""
+
 
 class _RetentionBatchError(Exception):
     """Raised by ``_delete_target_batched()`` when a batch DELETE fails.
@@ -82,6 +87,7 @@ class DatabaseRetentionMixin:
     logger: "logging.Logger"
     _db: aiosqlite.Connection | None
     _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
+    _consecutive_parent_guard_skips: int
 
     db: aiosqlite.Connection
     enqueue: "Callable[[Coroutine[Any, Any, Any]], bool]"
@@ -202,6 +208,31 @@ class DatabaseRetentionMixin:
         await self.db.commit()
         return cursor_rl.rowcount or 0, cursor_rj.rowcount or 0
 
+    def _record_parent_guard_skip(self, failed_labels: set[str], incomplete_labels: set[str]) -> None:
+        """Count a skipped parent-guard cycle and log it, escalating a sustained streak to ERROR.
+
+        The skip is a WARNING naming the streak length until it reaches
+        ``PARENT_GUARD_SKIP_ESCALATION_CYCLES``, then an ERROR, so a chronically failing target is
+        distinguishable from a one-off. Unlike the size-failsafe counters, which only ever warn,
+        this streak escalates: while it lasts, retired listener/scheduled_job rows are never pruned.
+        """
+        self._consecutive_parent_guard_skips += 1
+        streak = self._consecutive_parent_guard_skips
+        reasons = "; ".join(_target_failure_reasons(failed_labels, incomplete_labels))
+        if streak >= PARENT_GUARD_SKIP_ESCALATION_CYCLES:
+            self.logger.error(
+                "Retention cleanup: skipping parent-guard deletes (%d consecutive cycles) — retired "
+                "listeners/scheduled_jobs are not being pruned; target(s) %s",
+                streak,
+                reasons,
+            )
+            return
+        self.logger.warning(
+            "Retention cleanup: skipping parent-guard deletes (%d consecutive cycle(s)) — target(s) %s",
+            streak,
+            reasons,
+        )
+
     async def _do_run_retention_cleanup(self) -> None:
         """Execute the retention DELETE queries; called by the write-queue worker.
 
@@ -215,6 +246,9 @@ class DatabaseRetentionMixin:
         is known to be incomplete. A parent-guard failure is rolled back, logged individually,
         and also folded into the "Retention cleanup summary" line below (as
         "parent-guard deletes failed") so it isn't only visible in a separate log line.
+
+        Skipped cycles are counted by ``_record_parent_guard_skip``; the counter resets whenever
+        the parent-guard actually runs, whether or not it succeeds.
         """
         config = self.hassette.config
         now = time.time()
@@ -242,6 +276,7 @@ class DatabaseRetentionMixin:
         parent_guard_failed = False
 
         if not failed_labels and not incomplete_labels:
+            self._consecutive_parent_guard_skips = 0
             try:
                 # Use the standard retention window for parent-guard deletes.
                 cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
@@ -251,10 +286,7 @@ class DatabaseRetentionMixin:
                 self.logger.exception("Retention cleanup failed for parent-guard deletes")
                 parent_guard_failed = True
         else:
-            self.logger.warning(
-                "Retention cleanup: skipping parent-guard deletes — target(s) %s",
-                "; ".join(_target_failure_reasons(failed_labels, incomplete_labels)),
-            )
+            self._record_parent_guard_skip(failed_labels, incomplete_labels)
 
         deleted_summary = {label: count for label, count in deleted_by_label.items() if count > 0}
         if deleted_summary or failed_labels or incomplete_labels or parent_guard_failed:
