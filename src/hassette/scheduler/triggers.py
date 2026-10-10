@@ -135,6 +135,7 @@ class After:
         After(seconds=30)       # fires 30 seconds from now
         After(minutes=5)        # fires 5 minutes from now
         After(hours=2)          # fires 2 hours from now
+        After(minutes=1, seconds=30)  # fires 90 seconds from now
     """
 
     def __init__(
