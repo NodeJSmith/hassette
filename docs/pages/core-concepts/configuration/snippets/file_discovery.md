@@ -44,7 +44,7 @@ CONFIG_HOME=/home/you/project
 APPS_DIR=/home/you/project/apps
 ```
 
-On a configuration error it prints the problem to stderr, prints nothing to stdout, and exits 78 (see [Exit Codes](#exit-codes)). That makes it a cheap CI step.
+On a configuration error it prints the problem to stderr, prints nothing to stdout, and exits 78 (see [Exit Codes](#exit-codes)). That makes it a cheap CI step. An apps directory that doesn't exist only prints a warning to stderr, naming the directory the path reaches from the working directory when that one exists (see [Relative Paths](#relative-paths)).
 
 ### Unknown Keys {#unknown-keys}
 

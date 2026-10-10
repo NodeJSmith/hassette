@@ -17,6 +17,7 @@ from hassette.config.helpers import get_log_level
 from hassette.exceptions import AppPrecheckFailedError, ConfigError, FatalError
 from hassette.logging_ import enable_basic_logging
 from hassette.server import main as run_server
+from hassette.utils.app_utils import missing_apps_dir_warning
 
 LOGGER = getLogger("hassette.cli")
 
@@ -138,7 +139,8 @@ def check_config(init_kwargs: dict[str, Any]) -> None:
 
     A config error prints nothing to stdout and exits 78. Its message is printed to stderr as plain
     text, not logged, so its lines stay readable when stderr isn't a terminal (where logging renders
-    JSON).
+    JSON). A missing apps directory is a warning, printed the same way, with startup's hint when the
+    path was likely written relative to the working directory instead of its config file.
     """
     try:
         config = HassetteConfig(**init_kwargs)
@@ -147,6 +149,11 @@ def check_config(init_kwargs: dict[str, Any]) -> None:
     except ConfigError as exc:
         print(f"Invalid configuration: {exc}", file=sys.stderr)
         raise SystemExit(EX_CONFIG) from None
+    # apps aren't detected here, so only a missing directory is reported, not an empty one
+    if warning := missing_apps_dir_warning(
+        config.apps.directory, config_files=config.toml_files | config.env_files, cwd=config.locations.cwd
+    ):
+        print(f"Warning: {warning}", file=sys.stderr)
     print_shell_var("CONFIG_DIR", config.config_dir)
     print_shell_var("CONFIG_HOME", config.locations.config_home)
     print_shell_var("APPS_DIR", config.apps.directory.resolve())

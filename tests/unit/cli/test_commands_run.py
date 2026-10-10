@@ -240,6 +240,33 @@ class TestRunCheck:
         assert [line.split("=")[0] for line in result.stdout.splitlines()] == ["CONFIG_DIR", "CONFIG_HOME", "APPS_DIR"]
         assert "not valid" in result.stderr
 
+    def test_missing_apps_dir_warns_with_the_config_relative_hint(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A src-layout apps path written cwd-relative in config/hassette.toml passes the check with a hint."""
+        project = clean_hassette_env.parent
+        (project / "src" / "mypkg").mkdir(parents=True)
+        (clean_hassette_env / "hassette.toml").write_text('[apps]\ndirectory = "src/mypkg"\n', encoding="utf-8")
+
+        cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
+
+        captured = capsys.readouterr()
+        # the warning stays off stdout, which docker_start.sh evals
+        assert [line.split("=")[0] for line in captured.out.splitlines()] == ["CONFIG_DIR", "CONFIG_HOME", "APPS_DIR"]
+        assert f"APPS_DIR={clean_hassette_env / 'src' / 'mypkg'}" in captured.out
+        assert f"Did you mean {project / 'src' / 'mypkg'}?" in captured.err
+        assert "it is written ../src/mypkg" in captured.err
+
+    def test_existing_apps_dir_prints_no_warning(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The default apps directory exists, so the check prints only the locations."""
+        (clean_hassette_env / "apps").mkdir()
+
+        cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
+
+        assert "Warning" not in capsys.readouterr().err
+
 
 def check_config_error_stderr(config_dir: Path, capsys: pytest.CaptureFixture[str]) -> str:
     """Run ``hassette run --check`` against `config_dir`, assert it exits 78 with nothing on stdout, return stderr."""

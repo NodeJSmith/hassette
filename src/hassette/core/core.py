@@ -171,7 +171,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         if warning := apps_dir_warning(
             apps_dir,
             has_apps=bool(self.config.apps.manifests),
-            config_file_dirs=sorted({path.parent for path in config_files}),
+            config_files=config_files,
             cwd=self.config.locations.cwd,
         ):
             self.logger.warning(warning, stacklevel=3)

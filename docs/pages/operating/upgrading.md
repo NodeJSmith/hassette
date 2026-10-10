@@ -98,6 +98,16 @@ Invalid configuration: Unknown configuration keys (they match no Hassette settin
 See the configuration reference: https://hassette.readthedocs.io/en/stable/pages/core-concepts/configuration/
 ```
 
+An apps directory that doesn't exist is a warning, not an error: the check still exits 0. If the path in `hassette.toml` was written relative to the working directory, the warning names the directory you probably meant and how to write it from the file's directory:
+
+```console
+$ hassette run --check
+Warning: Apps directory /home/you/project/config/src/myapps does not exist. Did you mean /home/you/project/src/myapps? A path in a config file is relative to that file's directory, so from /home/you/project/config it is written ../src/myapps
+CONFIG_DIR=/home/you/project/config
+CONFIG_HOME=/home/you/project
+APPS_DIR=/home/you/project/config/src/myapps
+```
+
 In Docker, run it inside the running container (the entrypoint would pass the extra arguments on to `hassette run`):
 
 ```bash

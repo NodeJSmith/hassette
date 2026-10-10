@@ -548,21 +548,28 @@ def _ensure_on_sys_path(dir_path: Path) -> None:
         sys.path.insert(0, str(dir_path))
 
 
-def apps_dir_warning(apps_dir: Path, *, has_apps: bool, config_file_dirs: Iterable[Path], cwd: Path) -> str | None:
-    """Return the startup warning for an apps directory that is missing or holds no apps, else None.
-
-    When it is missing, the warning also names the directory the same relative path reaches from
-    `cwd`, if one exists: a path written in a config file is relative to that file's directory, and
-    reading it from the launch directory instead is the likeliest mistake.
-    """
-    if not apps_dir.is_dir():
-        warning = f"Apps directory {apps_dir} does not exist"
-        if hint := cwd_relative_hint(apps_dir, config_file_dirs, cwd):
-            warning += f". {hint}"
+def apps_dir_warning(apps_dir: Path, *, has_apps: bool, config_files: Iterable[Path], cwd: Path) -> str | None:
+    """Return the startup warning for an apps directory that is missing or holds no apps, else None."""
+    if warning := missing_apps_dir_warning(apps_dir, config_files=config_files, cwd=cwd):
         return warning
     if not has_apps:
         return f"No apps found or configured in apps directory {apps_dir}"
     return None
+
+
+def missing_apps_dir_warning(apps_dir: Path, *, config_files: Iterable[Path], cwd: Path) -> str | None:
+    """Return the warning for an apps directory that doesn't exist, else None.
+
+    The warning also names the directory the same relative path reaches from `cwd`, if one exists:
+    a path written in one of `config_files` is relative to that file's directory, and reading it
+    from the launch directory instead is the likeliest mistake.
+    """
+    if apps_dir.is_dir():
+        return None
+    warning = f"Apps directory {apps_dir} does not exist"
+    if hint := cwd_relative_hint(apps_dir, sorted({path.parent for path in config_files}), cwd):
+        warning += f". {hint}"
+    return warning
 
 
 def cwd_relative_hint(apps_dir: Path, config_file_dirs: Iterable[Path], cwd: Path) -> str | None:
