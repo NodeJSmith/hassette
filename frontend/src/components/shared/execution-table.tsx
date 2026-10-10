@@ -241,7 +241,8 @@ interface ExecutionRowProps {
   row: Row<ExecutionRecord>;
   kind: ExecutionKind;
   href: string | null;
-  tabIndex: number;
+  // Undefined for inert rows (no href): they have no action, so they are not roving-tabindex stops.
+  tabIndex: number | undefined;
   onSelect: () => void;
   onOpenDetail: () => void;
 }
@@ -259,11 +260,15 @@ function ExecutionRow({ row, kind, href, tabIndex, onSelect, onOpenDetail }: Exe
       tabIndex={tabIndex}
       role="row"
       aria-label={href ? "View execution detail" : undefined}
-      data-roving-item
-      onClick={() => {
-        onSelect();
-        onOpenDetail();
-      }}
+      data-roving-item={href ? true : undefined}
+      onClick={
+        href
+          ? () => {
+              onSelect();
+              onOpenDetail();
+            }
+          : undefined
+      }
       onKeyDown={href ? onActivateKeyDown(onOpenDetail) : undefined}
     >
       {row.getVisibleCells().map((cell) => (
@@ -278,26 +283,45 @@ interface ExecutionRowsProps extends DetailTarget {
   kind: ExecutionKind;
 }
 
-// Owns the roving-tabindex wiring: the table body is the roving container, each row an item.
+// Owns the roving-tabindex wiring: the table body is the roving container, each row with a
+// detail href an item. Inert rows (no href) are skipped, so the hook's indices count only
+// navigable rows, in DOM order.
 function ExecutionRows({ table, kind, ...target }: ExecutionRowsProps) {
   const rows = table.getRowModel().rows;
-  const { containerRef, onContainerKeyDown, getTabIndex, setActiveIndex } = useRovingTabIndex<HTMLTableSectionElement>(
-    rows.length,
-  );
+  const hrefs = rows.map((row) => detailHref(row.original, target));
+  const rovingIndices: (number | null)[] = [];
+  let navigableCount = 0;
+  for (const href of hrefs) {
+    if (href) {
+      rovingIndices.push(navigableCount);
+      navigableCount++;
+    } else {
+      rovingIndices.push(null);
+    }
+  }
+  const { containerRef, onContainerKeyDown, getTabIndex, setActiveIndex } =
+    useRovingTabIndex<HTMLTableSectionElement>(navigableCount);
   const [, navigate] = useLocation();
 
   return (
     <TableBody ref={containerRef} onKeyDown={onContainerKeyDown}>
       {rows.map((row, i) => {
-        const href = detailHref(row.original, target);
+        const href = hrefs[i];
+        const rovingIndex = rovingIndices[i];
         return (
           <ExecutionRow
             key={row.id}
             row={row}
             kind={kind}
             href={href}
-            tabIndex={getTabIndex(i)}
-            onSelect={() => setActiveIndex(i)}
+            tabIndex={rovingIndex === null ? undefined : getTabIndex(rovingIndex)}
+            // ExecutionRow only invokes these for rows with an href, so the null checks below
+            // narrow types rather than guard a reachable branch.
+            onSelect={() => {
+              if (rovingIndex !== null) {
+                setActiveIndex(rovingIndex);
+              }
+            }}
             onOpenDetail={() => {
               if (href) {
                 navigate(href);
