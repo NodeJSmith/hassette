@@ -323,8 +323,8 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         Releases ``job``'s ``ExecutionModeGuard`` — cancels an active ``single``/
         ``restart`` invocation, drains a queued ``queued``-mode factory (so a dispatch task
         parked on ``await done`` unwinds instead of hanging — see
-        ``run_through_guard``/``drain_pending_done``), or releases every active task for
-        ``parallel``. An invocation removing its own job (``if_exists="replace"`` from the
+        ``run_through_guard``/``drain_pending_done``); a no-op for ``parallel``, whose guard
+        tracks no invocation. An invocation removing its own job (``if_exists="replace"`` from the
         job's callback) is left to finish rather than cancelled — see
         ``ExecutionModeGuard.release``. Then persists ``removed_at`` when the job was ever assigned a
         ``db_id`` — no-op for a job whose registration never reached persistence.

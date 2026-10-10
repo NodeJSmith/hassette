@@ -19,6 +19,7 @@ import the other.
 import asyncio
 from collections import deque
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from logging import getLogger
 from typing import Final
 
@@ -42,6 +43,15 @@ default binds at definition time and would defeat test patches)."""
 
 RunAndTrack = Callable[[], "asyncio.Task[None]"]
 """A caller-supplied callable that spawns one handler invocation and returns its task."""
+
+CURRENT_INVOCATION: ContextVar["asyncio.Task[None] | None"] = ContextVar("CURRENT_INVOCATION", default=None)
+"""The invocation task whose callback is running in the current context.
+
+Set by ``run_with_stall_watch`` inside the invocation task. Context propagates into a sync
+callback's worker thread and from there into any coroutine it submits back to the loop (the sync
+facades), so ``ExecutionModeGuard.release`` can recognize a release issued from the invocation's
+own callback even when it runs in a different task.
+"""
 
 
 def resolve_execution_mode(mode: "ExecutionMode | str | None", source_tier: SourceTier) -> ExecutionMode:
@@ -185,12 +195,14 @@ class ExecutionModeGuard:
         Called when a listener is cancelled or re-registered. Pending ``queued`` factories are
         discarded rather than run, even when ``release`` is called mid-drain.
 
-        When called from inside the tracked task itself (a job replacing itself from its own
-        callback), that task is detached instead of cancelled: cancelling and then gathering the
-        task ``release`` is running in would wait on itself forever.
+        When called from the tracked invocation's own callback (a job replacing itself), that
+        task is detached instead of cancelled. For an async callback ``release`` runs inside the
+        tracked task, so cancelling and gathering it would wait on itself forever; for a sync
+        callback it runs in a facade task while the tracked task awaits the worker thread, so
+        cancelling would abandon the callback mid-run. ``CURRENT_INVOCATION`` covers both.
 
         Returns:
-            The detached tracked task when ``release`` ran inside it, otherwise ``None``.
+            The detached tracked task when ``release`` ran from its callback, otherwise ``None``.
         """
         async with self._lock:
             self.pending.clear()
@@ -198,7 +210,7 @@ class ExecutionModeGuard:
             self.current_task = None
             if task is None or task.done():
                 return None
-            if task is asyncio.current_task():
+            if task is asyncio.current_task() or task is CURRENT_INVOCATION.get():
                 return task
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
@@ -216,9 +228,11 @@ async def run_with_stall_watch(
     message can never disagree with when the watchdog fired.
     """
     watchdog = asyncio.get_running_loop().call_later(threshold, warn, threshold)
+    token = CURRENT_INVOCATION.set(asyncio.current_task())
     try:
         await invoke()
     finally:
+        CURRENT_INVOCATION.reset(token)
         watchdog.cancel()
 
 

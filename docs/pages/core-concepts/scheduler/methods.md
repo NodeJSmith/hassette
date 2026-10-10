@@ -231,7 +231,7 @@ Job names must be unique within an app instance. Registering a second job with a
 |---|---|
 | `"error"` (default) | Raises `ValueError` when a job with the same name already exists. |
 | `"skip"` | Returns the existing job when its configuration matches the new registration. Raises `ValueError` when names match but configurations differ. Two jobs match when they share the same callable, trigger (by `trigger_id()`), group, jitter, timeout, `timeout_disabled`, `args`, `kwargs`, `on_error` handler, `mode`, and `where` predicate. |
-| `"replace"` | Removes the existing job and registers the new one. The new job's configuration does not need to match the old one. Removing a job cancels its running invocation, except when the replace is called from that job's own callback: the callback then runs to completion, so a one-shot job can re-arm itself under its own name. |
+| `"replace"` | Removes the existing job and registers the new one. The new job's configuration does not need to match the old one. Removing a `single`, `restart`, or `queued` job cancels its running invocation; a running `parallel` invocation always finishes. When the replace is called from the job's own callback (sync or async), that invocation runs to completion, so a one-shot job can re-arm itself under its own name. |
 
 `if_exists` matters most in `on_initialize`, which re-runs on app reload (triggered by `hassette reload`, or by config changes when automatic reloads are on).
 
