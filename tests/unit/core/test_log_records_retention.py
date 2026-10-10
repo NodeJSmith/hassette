@@ -291,7 +291,7 @@ class TestRetentionCleanup:
             assert cursor.lastrowid is not None
             return cursor.lastrowid
 
-        # First run: no target fails, so the parent-guard deletes the retired listener.
+        # First run: no target fails, so the parent-guard deletes the retired listener and resets any prior skip streak.
         listener1_id = await insert_retired_listener("listener1")
         retention_service._consecutive_parent_guard_skips = 2  # pyright: ignore[reportPrivateUsage]
         await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
@@ -299,14 +299,14 @@ class TestRetentionCleanup:
         assert await cursor.fetchone() is None
         assert retention_service._consecutive_parent_guard_skips == 0  # pyright: ignore[reportPrivateUsage]
 
-        # Second run: force a target failure, so the parent-guard must be skipped entirely.
+        # Next two runs: force a target failure, so the parent-guard is skipped and the skip streak grows.
         listener2_id = await insert_retired_listener("listener2")
-
         monkeypatch.setattr(db, "execute", make_failing_execute(db, "DELETE FROM blocking_events"))
-        await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
+        for _ in range(2):
+            await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
         cursor = await db.execute("SELECT id FROM listeners WHERE id = ?", (listener2_id,))
         assert await cursor.fetchone() is not None  # survives: parent-guard was gated off
-        assert retention_service._consecutive_parent_guard_skips == 1  # pyright: ignore[reportPrivateUsage]
+        assert retention_service._consecutive_parent_guard_skips == 2  # pyright: ignore[reportPrivateUsage]
 
     async def test_parent_guard_failure_appears_in_cleanup_summary(
         self,

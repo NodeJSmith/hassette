@@ -2,8 +2,9 @@
 
 Split out of ``test_database_service.py`` (see that file's docstring and
 .claude/rules/tests-unit-core.md) once the write-queue/submit tests there grew the file past
-house-lint's HSL102 threshold -- this file's tests are an independent concern (retention-target metadata and the
-batched-delete SQL helpers), not a companion to any other split file.
+house-lint's HSL102 threshold. These tests call the retention helpers directly, without a seeded
+telemetry database; the end-to-end retention cleanup tests (which also cover the parent-guard skip
+streak through ``_do_run_retention_cleanup``) live in ``test_log_records_retention.py``.
 """
 
 import dataclasses
