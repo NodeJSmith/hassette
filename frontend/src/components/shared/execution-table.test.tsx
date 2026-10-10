@@ -312,10 +312,12 @@ describe("ExecutionTable", () => {
   it("moves the roving tabindex between rows with arrow keys", async () => {
     const user = userEvent.setup();
     const records = [
-      createExecution("job", { execution_start_ts: BASE_TIMESTAMP_SECONDS + 1 }),
-      createExecution("job", { execution_start_ts: BASE_TIMESTAMP_SECONDS + 2 }),
+      createExecution("job", { execution_id: "exec-1", execution_start_ts: BASE_TIMESTAMP_SECONDS + 1 }),
+      createExecution("job", { execution_id: "exec-2", execution_start_ts: BASE_TIMESTAMP_SECONDS + 2 }),
     ];
-    const { container } = render(<ExecutionTable records={records} kind="job" tableId={INCIDENTAL_TABLE_ID} />);
+    const { container } = render(
+      <ExecutionTable records={records} kind="job" tableId={INCIDENTAL_TABLE_ID} {...NAVIGABLE_PROPS} />,
+    );
     const rows = container.querySelectorAll<HTMLElement>("[data-testid='execution-row']");
 
     expect(rows[0].tabIndex).toBe(0);
@@ -326,6 +328,41 @@ describe("ExecutionTable", () => {
 
     expect(rows[0].tabIndex).toBe(-1);
     expect(rows[1].tabIndex).toBe(0);
+    expect(document.activeElement).toBe(rows[1]);
+  });
+
+  it("skips rows without an execution_id in the keyboard tab order", async () => {
+    const user = userEvent.setup();
+    const records = [
+      createExecution("job", { execution_id: null, execution_start_ts: BASE_TIMESTAMP_SECONDS + 1 }),
+      createExecution("job", { execution_id: "exec-a", execution_start_ts: BASE_TIMESTAMP_SECONDS + 2 }),
+      createExecution("job", { execution_id: null, execution_start_ts: BASE_TIMESTAMP_SECONDS + 3 }),
+      createExecution("job", { execution_id: "exec-b", execution_start_ts: BASE_TIMESTAMP_SECONDS + 4 }),
+    ];
+    const { container, getByRole } = render(
+      <>
+        <button type="button">before</button>
+        <ExecutionTable records={records} kind="job" tableId={INCIDENTAL_TABLE_ID} {...NAVIGABLE_PROPS} />
+      </>,
+    );
+    const rows = container.querySelectorAll<HTMLElement>("[data-testid='execution-row']");
+
+    expect(rows[0].hasAttribute("tabindex")).toBe(false);
+    expect(rows[2].hasAttribute("tabindex")).toBe(false);
+
+    getByRole("button", { name: "before" }).focus();
+    await user.tab();
+    expect(document.activeElement).toBe(rows[1]);
+
+    await user.keyboard("{ArrowDown}");
+    expect(document.activeElement).toBe(rows[3]);
+    expect(rows[3].tabIndex).toBe(0);
+    expect(rows[1].tabIndex).toBe(-1);
+
+    await user.keyboard("{Enter}");
+    expect(mockNavigate).toHaveBeenCalledWith("/apps/my_app/handlers/job/1/exec/exec-b");
+
+    await user.keyboard("{ArrowUp}");
     expect(document.activeElement).toBe(rows[1]);
   });
 
