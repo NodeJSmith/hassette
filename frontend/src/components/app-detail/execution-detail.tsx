@@ -142,7 +142,7 @@ export function ExecutionDetailContent({ record }: ContentProps) {
       </div>
 
       {(record.trigger_mode || record.trigger_context_id) && (
-        <div className="mb-4">
+        <div className="mb-4" data-testid="execution-trigger">
           <h3 className="mb-2 font-sans text-sm font-semibold text-foreground">trigger</h3>
           <div className="flex gap-6 font-mono text-xs">
             {record.trigger_mode && (
@@ -187,7 +187,7 @@ export function ExecutionDetailContent({ record }: ContentProps) {
       {record.status === "success" && (
         <div className="mb-4 flex items-center gap-2 rounded-sm bg-[var(--status-success-bg)] px-3 py-2">
           <StatusShape kind="ok" size={STATUS_SHAPE_SIZE} />
-          <span className="font-mono text-sm text-foreground-secondary">
+          <span className="font-mono text-sm text-foreground-secondary" data-testid="execution-success-duration">
             completed in {formatDuration(record.duration_ms)}
           </span>
         </div>
