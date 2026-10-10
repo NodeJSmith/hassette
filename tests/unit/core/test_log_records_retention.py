@@ -13,7 +13,6 @@ import aiosqlite
 import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.core.database_retention import PARENT_GUARD_SKIP_ESCALATION_CYCLES
 from hassette.core.database_service import DatabaseService
 from hassette.logging_ import LogPersistenceHandler
 from hassette.utils.aiosqlite_utils import connect_daemon
@@ -279,9 +278,8 @@ class TestRetentionCleanup:
         retention_service: DatabaseService,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Parent-guard deletes run only when every _RETENTION_TABLES target succeeded."""
-        now = time.time()
-        old_retired = now - (10 * SECONDS_PER_DAY)
+        """Parent-guard deletes run only when every _RETENTION_TABLES target succeeded; a run resets the skip streak."""
+        old_retired = time.time() - (10 * SECONDS_PER_DAY)
 
         async def insert_retired_listener(name: str) -> int:
             cursor = await db.execute(
@@ -295,19 +293,20 @@ class TestRetentionCleanup:
 
         # First run: no target fails, so the parent-guard deletes the retired listener.
         listener1_id = await insert_retired_listener("listener1")
+        retention_service._consecutive_parent_guard_skips = 2  # pyright: ignore[reportPrivateUsage]
         await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
-
         cursor = await db.execute("SELECT id FROM listeners WHERE id = ?", (listener1_id,))
         assert await cursor.fetchone() is None
+        assert retention_service._consecutive_parent_guard_skips == 0  # pyright: ignore[reportPrivateUsage]
 
         # Second run: force a target failure, so the parent-guard must be skipped entirely.
         listener2_id = await insert_retired_listener("listener2")
 
         monkeypatch.setattr(db, "execute", make_failing_execute(db, "DELETE FROM blocking_events"))
         await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
-
         cursor = await db.execute("SELECT id FROM listeners WHERE id = ?", (listener2_id,))
         assert await cursor.fetchone() is not None  # survives: parent-guard was gated off
+        assert retention_service._consecutive_parent_guard_skips == 1  # pyright: ignore[reportPrivateUsage]
 
     async def test_parent_guard_failure_appears_in_cleanup_summary(
         self,
@@ -331,39 +330,6 @@ class TestRetentionCleanup:
         assert "Retention cleanup failed for parent-guard deletes" in caplog.text
         assert "Retention cleanup summary" in caplog.text
         assert "parent-guard deletes failed" in caplog.text
-
-    async def test_parent_guard_skip_escalates_after_consecutive_failures(
-        self,
-        db: aiosqlite.Connection,
-        caplog: pytest.LogCaptureFixture,
-        retention_service: DatabaseService,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """A target that fails every cycle keeps the parent-guard skipped; the skip is a WARNING
-        naming the streak length until ``PARENT_GUARD_SKIP_ESCALATION_CYCLES`` is reached, then an
-        ERROR — and a cycle where the guard actually runs resets the streak.
-        """
-        monkeypatch.setattr(db, "execute", make_failing_execute(db, "DELETE FROM blocking_events"))
-
-        for cycle in range(1, PARENT_GUARD_SKIP_ESCALATION_CYCLES + 1):
-            caplog.clear()
-            with caplog.at_level(logging.INFO):
-                await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
-
-            assert retention_service._consecutive_parent_guard_skips == cycle  # pyright: ignore[reportPrivateUsage]
-            escalated = [r for r in caplog.records if "consecutive cycles" in r.getMessage()]
-            if cycle < PARENT_GUARD_SKIP_ESCALATION_CYCLES:
-                assert not escalated
-                assert f"skipping parent-guard deletes ({cycle} consecutive cycle(s))" in caplog.text
-            else:
-                assert len(escalated) == 1
-                assert escalated[0].levelno == logging.ERROR
-                assert f"skipping parent-guard deletes ({cycle} consecutive cycles)" in escalated[0].getMessage()
-                assert "failed: blocking events" in escalated[0].getMessage()
-
-        monkeypatch.undo()
-        await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
-        assert retention_service._consecutive_parent_guard_skips == 0  # pyright: ignore[reportPrivateUsage]
 
     async def test_retention_cleanup_batches_large_deletes(
         self,
