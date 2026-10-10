@@ -11,7 +11,7 @@ import pytest
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 
-from .test_log_records_retention import (
+from ._fixtures_retention import (
     SOURCE_TIER_APP,
     SOURCE_TIER_FRAMEWORK,
     db,
@@ -22,7 +22,7 @@ from .test_log_records_retention import (
 
 __all__ = ["db", "mock_hassette_for_db", "retention_service"]  # re-exposed as fixtures
 
-FAILURE_LOG_PREFIX = "Retention cleanup failed for framework executions"
+FRAMEWORK_FAILURE_LOG_PREFIX = "Retention cleanup failed for framework executions"
 
 
 async def test_mid_batch_failure_reports_partial_progress_with_traceback(
@@ -68,7 +68,7 @@ async def test_mid_batch_failure_reports_partial_progress_with_traceback(
     cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'app'")
     assert (await cursor.fetchone())[0] == 0  # a later target is unaffected by the failure
 
-    failure_records = [r for r in caplog.records if r.getMessage().startswith(FAILURE_LOG_PREFIX)]
+    failure_records = [r for r in caplog.records if r.getMessage().startswith(FRAMEWORK_FAILURE_LOG_PREFIX)]
     assert len(failure_records) == 1
     assert failure_records[0].levelno == logging.ERROR
     assert "sqlite3.OperationalError: simulated mid-batch failure" in caplog.text  # traceback rendered

@@ -2,6 +2,7 @@
 
 import time
 import typing
+from dataclasses import dataclass
 from typing import Any
 
 import aiosqlite
@@ -25,25 +26,29 @@ an ERROR instead of a WARNING — separates a transient one-off target failure f
 is chronically blocking retired listener/scheduled_job cleanup."""
 
 
-class _RetentionBatchError(Exception):
-    """Raised by ``_delete_target_batched()`` when a batch DELETE fails.
+@dataclass(frozen=True, slots=True)
+class TargetDeleteResult:
+    """Outcome of ``_delete_target_batched()`` for one retention target.
 
-    Carries ``partial_deleted`` — the count of rows already committed by earlier batches for
-    this target — so the caller can record real partial progress instead of a false zero. The
-    stack frame holding the local accumulator is gone once this propagates, so the count has
-    to ride out on the exception itself rather than a return value.
-
-    ``partial_deleted`` is a lower bound, not necessarily exact: if the failure occurs during
-    ``commit()`` itself (e.g. ``SQLITE_BUSY`` mid-fsync, or an ``OSError`` from a full disk), the
-    current batch's rows are counted as not deleted even though the commit's actual outcome may
-    be ambiguous. This is safe (age-based deletes are idempotent and a retry re-selects any rows
-    not actually committed) but means the reported count can undercount when correlating with
-    other operational symptoms.
+    ``exhausted`` and ``error`` never both hold: a failure returns before the exhaustion check.
     """
 
-    def __init__(self, partial_deleted: int, cause: BaseException) -> None:
-        super().__init__(str(cause))
-        self.partial_deleted = partial_deleted
+    deleted: int
+    """Rows committed by this target's batches this cycle.
+
+    On failure this is the progress made before the failing batch, and is a lower bound: if the
+    failure occurs during ``commit()`` itself (e.g. ``SQLITE_BUSY`` mid-fsync, or an ``OSError``
+    from a full disk), the current batch's rows are counted as not deleted even though the
+    commit's actual outcome may be ambiguous. This is safe (age-based deletes are idempotent and a
+    retry re-selects any rows not actually committed) but the reported count can undercount when
+    correlating with other operational symptoms.
+    """
+
+    exhausted: bool = False
+    """The per-cycle batch cap ran out with rows matching the cutoff still present."""
+
+    error: Exception | None = None
+    """The exception that aborted the target's deletes, or None if it completed."""
 
 
 async def _execute_target_delete(
@@ -100,23 +105,18 @@ class DatabaseRetentionMixin:
 
     async def _delete_target_batched(
         self, target: RetentionTarget, now: float, config: "HassetteConfig"
-    ) -> tuple[int, bool]:
+    ) -> TargetDeleteResult:
         """Batched age-based delete for one retention target.
 
-        ``exhausted`` is True when the per-cycle batch cap ran out with rows matching the
-        cutoff still present. This is a normal return, not an exception, but the caller must
-        treat it the same as a raised failure for parent-guard gating purposes: an exhausted
-        target's cutoff window still has known-stale rows, the exact condition the
-        parent-guard's own NOT EXISTS check assumes can't happen for any target it isn't told
-        about. The remainder is picked up on the next hourly cycle either way.
+        A DB error from a batch or the stale-row probe is returned in ``error`` rather than
+        raised, alongside the rows earlier batches already committed. The caller owns rolling
+        back the failed batch's transaction and logging the error.
 
-        Returns:
-            tuple[int, bool]: ``(total_deleted, exhausted)``.
-
-        Raises:
-            _RetentionBatchError: On failure, carrying the count of rows already committed by
-                earlier batches — the caller is responsible for recording failed_labels and
-                preserving that partial progress from the exception.
+        ``exhausted`` is set when the per-cycle batch cap ran out with rows matching the cutoff
+        still present. The caller must treat it the same as a failure for parent-guard gating
+        purposes: an exhausted target's cutoff window still has known-stale rows, the exact
+        condition the parent-guard's own NOT EXISTS check assumes can't happen for any target it
+        isn't told about. The remainder is picked up on the next hourly cycle either way.
         """
         target_start = time.monotonic()
         cutoff = now - (target.retention_days_getter(config) * SECONDS_PER_DAY)
@@ -131,7 +131,7 @@ class DatabaseRetentionMixin:
                 batch_count = await _execute_target_delete(self.db, target, cutoff=cutoff, batch_limit=batch_size)
                 await self.db.commit()
             except Exception as exc:
-                raise _RetentionBatchError(total_deleted, exc) from exc
+                return TargetDeleteResult(total_deleted, error=exc)
             total_deleted += batch_count
             if batch_count < batch_size:
                 break
@@ -145,7 +145,7 @@ class DatabaseRetentionMixin:
                 stale_cursor = await self.db.execute(f"SELECT 1 FROM {target.table} WHERE {where} LIMIT 1", params)
                 stale_row = await stale_cursor.fetchone()
             except Exception as exc:
-                raise _RetentionBatchError(total_deleted, exc) from exc
+                return TargetDeleteResult(total_deleted, error=exc)
             if stale_row is not None:
                 exhausted = True
                 self.logger.warning(
@@ -164,7 +164,7 @@ class DatabaseRetentionMixin:
                 target.failsafe_label,
                 elapsed,
             )
-        return total_deleted, exhausted
+        return TargetDeleteResult(total_deleted, exhausted=exhausted)
 
     async def _run_parent_guard_deletes(self, cutoff: float) -> tuple[int, int]:
         """NOT EXISTS-guarded deletes for retired listeners/scheduled_jobs.
@@ -240,7 +240,7 @@ class DatabaseRetentionMixin:
         gets its own per-batch transaction, bounding per-batch lock duration, and a failure
         on one target does not roll back deletes already committed for another.
         Parent-guard deletes for listeners/scheduled_jobs only run once every target has both
-        succeeded AND fully cleared its cutoff window this cycle; a target that raised or hit
+        succeeded AND fully cleared its cutoff window this cycle; a target that failed or hit
         the per-cycle batch cap (see ``_delete_target_batched``'s ``exhausted`` return) skips
         the guard for this cycle so it can never run against a state where an upstream delete
         is known to be incomplete. A parent-guard failure is rolled back, logged individually,
@@ -257,18 +257,16 @@ class DatabaseRetentionMixin:
         incomplete_labels: set[str] = set()
 
         for target in _RETENTION_TABLES:
-            try:
-                deleted, exhausted = await self._delete_target_batched(target, now, config)
-            except _RetentionBatchError as exc:
+            result = await self._delete_target_batched(target, now, config)
+            # On failure, batches committed before it are real, durable progress — record them
+            # alongside the failure rather than reporting a false zero.
+            deleted_by_label[target.failsafe_label] = result.deleted
+            if result.error is not None:
                 await safe_rollback(self.db, self, target.failsafe_label)
-                self.logger.exception("Retention cleanup failed for %s", target.failsafe_label)
-                # Batches already committed before the failure are real, durable progress —
-                # record them alongside the failure rather than reporting a false zero.
-                deleted_by_label[target.failsafe_label] = exc.partial_deleted
+                self.logger.error("Retention cleanup failed for %s", target.failsafe_label, exc_info=result.error)
                 failed_labels.add(target.failsafe_label)
                 continue
-            deleted_by_label[target.failsafe_label] = deleted
-            if exhausted:
+            if result.exhausted:
                 incomplete_labels.add(target.failsafe_label)
 
         listeners_deleted = 0
