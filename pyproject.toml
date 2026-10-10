@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "hassette"
-version = "0.56.0"
+version = "0.57.0"
 description = "Hassette is a simple, modern, async-first Python framework for building Home Assistant automations."
 readme = "README.md"
 authors = [{ name = "Jessica", email = "12jessicasmith34@gmail.com" }]
@@ -67,8 +67,8 @@ dependencies = [
     # (the `version` above is bumped by its python release-type, so it needs no marker). The
     # [cli] extra is empty until the CLI moves into hassette-client; it is declared now so
     # the published metadata never changes shape.
-    "hassette-wire==0.56.0",  # x-release-please-version
-    "hassette-client[cli]==0.56.0",  # x-release-please-version
+    "hassette-wire==0.57.0",  # x-release-please-version
+    "hassette-client[cli]==0.57.0",  # x-release-please-version
 ]
 
 [project.optional-dependencies]
