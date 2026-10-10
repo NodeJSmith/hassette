@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from hassette.exceptions import FatalError
+from hassette.exceptions import ConfigError
 from hassette.resources.lifecycle import request_shutdown
 from hassette.server import _handle_sigint_signal, _sigint_wait_loop, main
 
@@ -233,12 +233,12 @@ def test_sigint_wait_loop_calls_handler_once_per_wakeup() -> None:
     mock_handle.assert_called_once_with(mock_core, mock_loop, sigint_seen)
 
 
-async def test_main_raises_fatal_error_when_token_is_none() -> None:
-    """main() raises FatalError before creating Hassette when token is None."""
+async def test_main_checks_the_token_before_creating_hassette() -> None:
+    """A missing token is a config error raised before Hassette is created."""
     mock_config = MagicMock()
-    mock_config.token = None
+    mock_config.require_token.side_effect = ConfigError("HA token is required")
 
-    with patch("hassette.server.Hassette") as mock_hassette, pytest.raises(FatalError, match="HA token is required"):
+    with patch("hassette.server.Hassette") as mock_hassette, pytest.raises(ConfigError, match="HA token is required"):
         await main(mock_config)
 
     mock_hassette.assert_not_called()

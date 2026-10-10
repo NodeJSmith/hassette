@@ -7,7 +7,6 @@ import threading
 from logging import getLogger
 
 from hassette import Hassette, HassetteConfig
-from hassette.exceptions import FatalError
 from hassette.resources.lifecycle import request_shutdown
 
 LOGGER = getLogger(__name__)
@@ -59,11 +58,7 @@ def _sigint_wait_loop(core: Hassette, loop: asyncio.AbstractEventLoop, sigint_se
 
 async def main(config: HassetteConfig) -> None:
     """Start the Hassette framework server with the provided configuration."""
-    if not config.token:
-        raise FatalError(
-            "HA token is required for server startup. Set HASSETTE__TOKEN or HA_TOKEN in your environment or .env file."
-        )
-
+    config.require_token()
     config.ensure_directories()
     core = Hassette(config=config)
     core.wire_services()

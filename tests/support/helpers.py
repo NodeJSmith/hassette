@@ -220,23 +220,21 @@ def write_app_toml(
     app_dir: Path,
     dev_mode: bool = True,
     apps: list[AppManifest] | None = None,
+    only_apps: tuple[str, ...] = (),
 ) -> None:
-    """Write a hassette.toml with specified apps."""
+    """Write a hassette.toml with specified apps, and `only_apps` (the file form of ``hassette run --app``) if given."""
     apps = apps or []
 
-    apps_section: dict[str, Any] = {
-        "directory": app_dir.as_posix(),
-        "autodetect": False,
-    }
-
-    if apps:
-        for app in apps:
-            apps_section[app.app_key] = get_app_manifest_for_toml(app)
+    apps_section: dict[str, Any] = {"directory": app_dir.as_posix(), "autodetect": False}
+    for app in apps:
+        apps_section[app.app_key] = get_app_manifest_for_toml(app)
 
     hassette_dict: dict[str, Any] = {
         "dev_mode": dev_mode,
         "apps": apps_section,
     }
+    if only_apps:
+        hassette_dict["only_apps"] = list(only_apps)
 
     toml_dict = {"hassette": hassette_dict}
 

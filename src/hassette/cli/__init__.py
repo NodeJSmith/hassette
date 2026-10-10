@@ -5,7 +5,6 @@ from typing import Annotated, Literal
 
 from cyclopts import App, Group, Parameter
 
-from hassette.app.app_config import AppConfig
 from hassette.cli.commands.app import (
     cmd_app,
     cmd_app_activity,
@@ -24,7 +23,6 @@ from hassette.cli.commands.misc import cmd_config
 from hassette.cli.commands.run import cmd_run
 from hassette.cli.commands.status import cmd_dashboard, cmd_status, cmd_telemetry
 from hassette.cli.context import CLIContext
-from hassette.config.config import HassetteConfig
 from hassette.utils import get_version
 
 # Root App
@@ -128,11 +126,20 @@ blocking_app.default(cmd_blocking)
 @app.meta.default
 def launcher(
     *tokens: Annotated[str, Parameter(show=False, allow_leading_hyphen=True)],
+    config_dir: Annotated[
+        Path | None,
+        Parameter(
+            name=["--config-dir"],
+            help="Directory to read hassette.toml and .env from, and the default home of the apps directory.",
+        ),
+    ] = None,
     config_file: Annotated[
-        str | None, Parameter(name=["--config-file", "-c"], help="Path to the TOML configuration file.")
+        Path | None,
+        Parameter(name=["--config-file", "-c"], help="Path to the TOML configuration file, instead of searching."),
     ] = None,
     env_file: Annotated[
-        str | None, Parameter(name=["--env-file", "-e", "--env"], help="Path to the .env file.")
+        Path | None,
+        Parameter(name=["--env-file", "-e", "--env"], help="Path to the .env file, instead of searching."),
     ] = None,
     json: Annotated[bool, Parameter(name=["--json"], help="Output results as JSON.", negative=[])] = False,
     debug: Annotated[
@@ -157,16 +164,13 @@ def launcher(
     ctx = CLIContext(
         json_mode=json,
         debug_mode=debug,
+        config_dir=config_dir,
+        config_file=config_file,
+        env_file=env_file,
         server_url=server_url,
         token_file=token_file,
         verify_ssl=verify_ssl,
     )
-
-    if env_file:
-        HassetteConfig.model_config["env_file"] = env_file
-        AppConfig.model_config["env_file"] = env_file
-    if config_file:
-        HassetteConfig.model_config["toml_file"] = config_file
 
     command, bound, _ignored = app.parse_args(tokens)
     bound.arguments["ctx"] = ctx

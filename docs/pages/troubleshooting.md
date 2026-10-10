@@ -19,7 +19,7 @@ The app precheck runs before the WebSocket connection opens. It imports each app
 **Syntax error or bad import.** Look for this pattern in the log:
 
 ```
-ERROR hassette.utils.app_utils — Failed to load app 'MyApp': SyntaxError: invalid syntax (at /apps/my_app.py:12)
+ERROR hassette.utils.app_utils — Failed to load app 'MyApp': SyntaxError: invalid syntax (at /config/apps/my_app.py:12)
 ```
 
 Fix the syntax error or install the missing dependency.
@@ -58,7 +58,7 @@ Fix the spelling in `hassette.toml`. A bare `AppConfig` with no fields of its ow
 **Symptom:** A handler never fires, or a scheduled job never runs, even though the registration call looks correct. Shortly after the call, a warning appears:
 
 ```
-Coroutine from 'on_state_change' was never awaited (app: Hassette.LightingApp.0, call site: /apps/lighting.py:42). Did you forget 'await'?
+Coroutine from 'on_state_change' was never awaited (app: Hassette.LightingApp.0, call site: /config/apps/lighting.py:42). Did you forget 'await'?
 ```
 
 **Cause:** The registration call was made without `await`. The following methods all return a coroutine — without `await`, the coroutine is created and immediately dropped, so the listener never registers, the job never schedules, and the service call never fires:

@@ -21,8 +21,10 @@ Hassette — async-first Home Assistant automation framework.
 │ --version (-v)         Display application version.                                              │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -46,8 +48,10 @@ List and inspect apps.
 │ stop      Stop an app or app instance (POST /api/apps/{key}/stop).                               │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -70,8 +74,10 @@ Show recent activity for an app (GET /api/telemetry/app/{key}/activity).
 │    LIMIT --limit        Maximum number of results to return.                                     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -93,8 +99,10 @@ reader needs.
 │ *  KEY --key  [required]                                                                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -119,8 +127,10 @@ Show health metrics for an app instance (GET /api/telemetry/app/{key}/health).
 │                               [choices: app, framework, all]                                     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -140,8 +150,10 @@ Reload an app or app instance (POST /api/apps/{key}/reload).
 │    YES --yes            Skip the confirmation prompt. [default: False]                           │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -159,8 +171,10 @@ Show app source code (GET /api/apps/{key}/source).
 │ *  KEY --key  [required]                                                                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -179,8 +193,10 @@ Start an app or app instance (POST /api/apps/{key}/start).
 │    INSTANCE --instance  Targets a specific app instance (index or name).                         │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -200,8 +216,10 @@ Stop an app or app instance (POST /api/apps/{key}/stop).
 │    YES --yes            Skip the confirmation prompt. [default: False]                           │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -223,8 +241,10 @@ Show blocking-IO findings: calls that stalled the event loop.
 │                      time.                                                                       │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -239,8 +259,10 @@ Usage: hassette config [OPTIONS]
 Show current configuration.
 
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -255,8 +277,10 @@ Usage: hassette dashboard [OPTIONS]
 Show app dashboard grid.
 
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -275,8 +299,10 @@ Show logs for a specific execution.
 │    LIMIT --limit  Maximum number of results to return.                                           │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -303,8 +329,10 @@ List scheduled jobs and execution history.
 │ LIMIT --limit              Maximum number of results to return.                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -331,8 +359,10 @@ List listeners and invocation history.
 │ LIMIT --limit              Maximum number of results to return.                                  │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -358,8 +388,10 @@ Show recent log entries.
 │                            [choices: app, framework, all]                                        │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -381,10 +413,16 @@ Start the Hassette framework server.
 │ DEV-MODE --dev-mode            Enable developer mode.                                            │
 │ APP --app -a                   Run only this app key, excluding all others. Repeatable, or       │
 │                                comma-separated.                                                  │
+│ CHECK --check                  Load and check the configuration, print the resolved CONFIG_DIR,  │
+│                                CONFIG_HOME and APPS_DIR as shell-quoted KEY=VALUE lines, and     │
+│                                exit without importing apps or starting Hassette. [default:       │
+│                                False]                                                            │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -399,8 +437,10 @@ Usage: hassette status [OPTIONS]
 Show system status.
 
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
@@ -415,8 +455,10 @@ Usage: hassette telemetry [OPTIONS]
 Show telemetry status.
 
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
-│ --config-file -c              Path to the TOML configuration file.                               │
-│ --env-file --env -e           Path to the .env file.                                             │
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
 │ --json                        Output results as JSON. [default: False]                           │
 │ --debug                       Show full HTTP response on CLI errors. [default: False]            │
 │ --server-url -s               Base URL of a remote Hassette instance to connect to.              │

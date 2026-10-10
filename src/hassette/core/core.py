@@ -29,7 +29,7 @@ from hassette.resources.teardown import (
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.utils.app_utils import run_apps_pre_check
+from hassette.utils.app_utils import apps_dir_warning, run_apps_pre_check
 from hassette.utils.service_utils import topological_levels, topological_sort, validate_dependency_graph, wait_for_ready
 
 from .api_resource import ApiResource
@@ -160,7 +160,21 @@ class Hassette(HassetteAccessorsMixin, Resource):
                     self.logger.debug("Loading environment variables from %s", env_file)
                     load_dotenv(env_file)
 
+        # After the .env import above: autodetect imports app modules, which may read os.environ at import.
         self.config.set_validated_app_manifests()
+
+        config_files = sorted(self.config.toml_files | self.config.env_files)
+        self.logger.info("Config files read: %s", ", ".join(map(str, config_files)) or "none", stacklevel=3)
+
+        apps_dir = self.config.apps.directory
+        self.logger.info("Apps directory: %s", apps_dir, stacklevel=3)
+        if warning := apps_dir_warning(
+            apps_dir,
+            has_apps=bool(self.config.apps.manifests),
+            config_files=config_files,
+            cwd=self.config.locations.cwd,
+        ):
+            self.logger.warning(warning, stacklevel=3)
 
         active_apps = [app for app in self.config.apps.manifests.values() if app.enabled]
         self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)

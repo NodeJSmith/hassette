@@ -12,6 +12,63 @@ log_phase() {
 
 log_phase "entrypoint started"
 
+# Script-only settings live outside the HASSETTE__ namespace, which is reserved for Hassette settings.
+INSTALL_DEPS="${HASSETTE_DOCKER_INSTALL_DEPS:-0}"
+PRUNE_UV_CACHE="${HASSETTE_DOCKER_PRUNE_UV_CACHE:-1}"
+RETRY_DELAY="${HASSETTE_DOCKER_RETRY_DELAY:-300}"
+CONSTRAINTS="/app/constraints.txt"
+IMAGE_APP_DIR="/app"  # Hassette's own install, with its own pyproject.toml and uv.lock; never a user project
+
+REMEDY_DEPS="Fix the dependency file named above, then run: docker restart <container>"
+REMEDY_CONFIG="Fix the setting named above (in its file or your compose environment), then run: docker compose up -d
+  (docker restart keeps the old environment)"
+REMEDY_IMAGE="Pull the image again: docker compose pull && docker compose up -d"
+REMEDY_UNEXPECTED="Check the error above: fix the container's command arguments if it names one,
+  otherwise report it at https://github.com/NodeJSmith/hassette/issues"
+EX_CONFIG=78  # EX_CONFIG in hassette/cli/commands/run.py; a test keeps them in sync
+# Args that make `hassette run` print and exit instead of starting: cyclopts' help flags and the
+# root app's version_flags (hassette/cli/__init__.py). A test keeps this list in sync.
+PASSTHROUGH_FLAGS=(--help -h --version -v)
+
+# Temp files, removed on exit and before a halt's idle.
+user_deps_file=""
+tmp_project=""
+cleanup_tmp() {
+    if [ -n "${user_deps_file}" ]; then rm -f "${user_deps_file}"; fi
+    if [ -n "${tmp_project}" ]; then rm -rf "${tmp_project}"; fi
+    user_deps_file=""
+    tmp_project=""
+}
+trap cleanup_tmp EXIT
+
+# ── helper: halt on an unrecoverable startup error ────────────────────────────
+# Usage: halt <exit_code> <what failed> <remedy>
+# Docker restarts a container that exits non-zero, so exiting at once would hot-loop (and repeat any
+# dependency install). Instead: print one banner, idle RETRY_DELAY seconds, then exit so Docker
+# retries, which still heals a transient cause (a mount not ready yet, the network).
+halt() {
+    local exit_code="$1" what="$2" remedy="$3"
+    cleanup_tmp
+    echo ""
+    echo "─────────────────────────────────────────────────────────"
+    echo "  HASSETTE CAN'T START: ${what}"
+    echo ""
+    echo "  ${remedy}"
+    if [ "${RETRY_DELAY}" != "0" ]; then
+        echo ""
+        echo "  Retrying in ${RETRY_DELAY}s (HASSETTE_DOCKER_RETRY_DELAY; 0 exits at once)."
+    fi
+    echo "─────────────────────────────────────────────────────────"
+    if [ "${RETRY_DELAY}" != "0" ]; then
+        # sleep in the background so `docker stop` (SIGTERM, forwarded by tini) ends the idle at once
+        sleep "${RETRY_DELAY}" &
+        HALT_SLEEP_PID=$!
+        trap 'kill "${HALT_SLEEP_PID}" 2>/dev/null; exit 143' TERM INT
+        wait "${HALT_SLEEP_PID}" || true
+    fi
+    exit "${exit_code}"
+}
+
 # shellcheck disable=SC1091
 . /app/.venv/bin/activate
 log_phase "venv activated"
@@ -20,25 +77,81 @@ log_phase "venv activated"
 HASSETTE_VERSION=$(python -c "import importlib.metadata; print(importlib.metadata.version('hassette'))" 2>&1) || {
     echo "ERROR: Failed to import hassette — the Docker image may be corrupt."
     echo "       Details: ${HASSETTE_VERSION}"
-    exit 1
+    halt 1 "the Docker image is corrupt" "${REMEDY_IMAGE}"
 }
 log_phase "venv health check passed (v${HASSETTE_VERSION})"
 
-# APP_DIR drives pre-launch requirements scanning (fd search roots, section 2 below).
-# PROJECT_DIR is where to look for a uv.lock or pyproject.toml file for a package
-APP_DIR="${HASSETTE__APPS__DIRECTORY:-${HASSETTE__APP_DIR:-/apps}}"
-PROJECT_DIR="${HASSETTE__PROJECT_DIR:-/apps}"
-CONFIG="${HASSETTE__CONFIG_DIR:-/config}"
-INSTALL_DEPS="${HASSETTE__INSTALL_DEPS:-0}"
-PRUNE_UV_CACHE="${HASSETTE__PRUNE_UV_CACHE:-1}"
-CONSTRAINTS="/app/constraints.txt"
+# Help and version args (anywhere in the args) print and exit, so they need no check and nothing installed.
+for arg in "$@"; do
+    for flag in "${PASSTHROUGH_FLAGS[@]}"; do
+        if [ "${arg}" = "${flag}" ]; then
+            exec hassette run "$@"
+        fi
+    done
+done
+
+# ── config check and locations ────────────────────────────────────────────────
+# Hassette resolves its own config, apps and project locations, from the same args as the final
+# `hassette run`, and rejects an invalid config before anything is installed.
+check_args=()
+for arg in "$@"; do
+    # the container may itself be asked for --check; passing it twice is a usage error
+    [ "${arg}" = "--check" ] || check_args+=("${arg}")
+done
+set +e
+# stdout is only shell-quoted KEY=VALUE lines (see check_config in hassette/cli/commands/run.py);
+# the check's error text goes to stderr, straight to the container log
+check_stdout=$(hassette run --check "${check_args[@]}")
+check_code=$?
+set -e
+
+CONFIG_DIR=""
+CONFIG_HOME=""
+APPS_DIR=""
+while IFS= read -r line; do
+    case "${line}" in
+        CONFIG_DIR=* | CONFIG_HOME=* | APPS_DIR=*)
+            # safe to eval: `hassette run --check` shlex-quotes each value, and only these names pass
+            eval "${line}"
+            ;;
+    esac
+done <<< "${check_stdout}"
+
+# Recreating the container rereads both its environment and its mounted files, so one remedy
+# covers a config error from either.
+if [ "${check_code}" -eq "${EX_CONFIG}" ]; then
+    halt "${EX_CONFIG}" "the configuration is invalid (see above)" "${REMEDY_CONFIG}"
+elif [ "${check_code}" -ne 0 ]; then
+    halt "${check_code}" "'hassette run --check' failed unexpectedly (see above)" "${REMEDY_UNEXPECTED}"
+fi
+
+# Success is exit 0 with every location printed; anything less never passes for a checked config.
+if [ -z "${CONFIG_DIR}" ] || [ -z "${CONFIG_HOME}" ] || [ -z "${APPS_DIR}" ]; then
+    halt 1 "'hassette run --check' exited 0 without printing the config locations" "${REMEDY_UNEXPECTED}"
+fi
+log_phase "config checked (config dir ${CONFIG_DIR}, apps dir ${APPS_DIR})"
+
+# Project dir: explicit, else the nearest directory at or above the apps dir holding a pyproject.toml
+# (the uv/pytest walk-up), else the config home.
+find_project_dir() {
+    local dir="${APPS_DIR}"
+    while [ "${dir}" != "/" ] && [ "${dir}" != "${IMAGE_APP_DIR}" ]; do
+        if [ -f "${dir}/pyproject.toml" ]; then
+            echo "${dir}"
+            return
+        fi
+        dir="$(dirname "${dir}")"
+    done
+    echo "${CONFIG_HOME}"
+}
+PROJECT_DIR="${HASSETTE_DOCKER_PROJECT_DIR:-$(find_project_dir)}"
 
 # Debian package is `fd-find`; binary name is usually `fdfind`.
 FD_BIN="$(command -v fdfind || command -v fd || true)"
 if [ -z "$FD_BIN" ] && [ "${INSTALL_DEPS}" = "1" ]; then
-    echo "WARNING: fd (fdfind) not found — HASSETTE__INSTALL_DEPS=1 will not work."
+    echo "WARNING: fd (fdfind) not found — HASSETTE_DOCKER_INSTALL_DEPS=1 will not work."
 elif [ -z "$FD_BIN" ]; then
-    echo "NOTE: fd (fdfind) not found — if you enable HASSETTE__INSTALL_DEPS=1 later, it will require fd."
+    echo "NOTE: fd (fdfind) not found — if you enable HASSETTE_DOCKER_INSTALL_DEPS=1 later, it will require fd."
 fi
 
 # ── helper: run a uv command with timeout and friendly error messages ─────────
@@ -77,7 +190,7 @@ run_uv_install() {
     if [ "${exit_code}" -eq 124 ]; then
         rm -f "${uv_log}"
         echo "ERROR: dependency install timed out after ${timeout_secs}s"
-        exit 1
+        halt 1 "the dependency install timed out" "Check the container's network access."
     fi
 
     # User-friendly error banner — uv output was already streamed live above
@@ -119,7 +232,7 @@ run_uv_install() {
 
     rm -f "${uv_log}"
     echo "ERROR: dependency install failed (exit ${exit_code})"
-    exit 1
+    halt 1 "a dependency conflict (see above)" "${REMEDY_DEPS}"
 }
 
 # ---------------------------------------------------------------------------
@@ -128,11 +241,8 @@ run_uv_install() {
 if [ -f "$PROJECT_DIR/uv.lock" ]; then
     log_phase "project install: starting (from $PROJECT_DIR)"
 
-    # Temp files — cleaned up on exit (including early termination)
     user_deps_file=$(mktemp /tmp/user-deps.XXXXXX)
     tmp_project=$(mktemp -d /tmp/project-build.XXXXXX)
-    cleanup_project_tmp() { rm -f "${user_deps_file}"; rm -rf "${tmp_project}"; }
-    trap cleanup_project_tmp EXIT
 
     log_phase "project install: exporting locked deps"
     run_uv_install 300 "export" export \
@@ -152,10 +262,9 @@ if [ -f "$PROJECT_DIR/uv.lock" ]; then
     run_uv_install 120 "project" pip install \
         --no-deps "$tmp_project"
 
-    # Explicit cleanup — the EXIT trap above never fires on the happy path because
+    # Explicit cleanup — the EXIT trap never fires on the happy path because
     # the script ends in `exec`, which replaces the shell process instead of exiting it.
-    # The trap remains as a safety net for early-exit failures inside run_uv_install.
-    cleanup_project_tmp
+    cleanup_tmp
 
     log_phase "project install: complete"
 
@@ -166,18 +275,21 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2. Requirements.txt discovery (only when HASSETTE__INSTALL_DEPS=1)
+# 2. Requirements.txt discovery (only when HASSETTE_DOCKER_INSTALL_DEPS=1)
 # ---------------------------------------------------------------------------
 if [ "${INSTALL_DEPS}" = "1" ]; then
     log_phase "requirements install: starting"
     if [ -z "$FD_BIN" ]; then
-        echo "ERROR: HASSETTE__INSTALL_DEPS=1 but fd is not installed in this image."
-        exit 1
+        echo "ERROR: HASSETTE_DOCKER_INSTALL_DEPS=1 but fd is not installed in this image."
+        halt 1 "fd is missing from the image" "${REMEDY_IMAGE}"
     fi
 
     ROOTS=()
-    [ -d "$CONFIG" ] && ROOTS+=("$CONFIG")
-    [ -d "$APP_DIR" ] && ROOTS+=("$APP_DIR")
+    [ -d "$CONFIG_DIR" ] && ROOTS+=("$CONFIG_DIR")
+    case "${APPS_DIR}/" in
+        "${CONFIG_DIR}"/*) ;;  # already scanned under the config dir
+        *) [ -d "$APPS_DIR" ] && ROOTS+=("$APPS_DIR") ;;
+    esac
 
     found_files=0
 
@@ -198,10 +310,10 @@ else
     # Hint if user tried a truthy value other than "1"
     case "${INSTALL_DEPS}" in
         true|yes|on|TRUE|YES|ON)
-            echo "WARNING: HASSETTE__INSTALL_DEPS='${INSTALL_DEPS}' is not recognized — use '1' to enable. Your requirements.txt files will NOT be installed."
+            echo "WARNING: HASSETTE_DOCKER_INSTALL_DEPS='${INSTALL_DEPS}' is not recognized — use '1' to enable. Your requirements.txt files will NOT be installed."
             ;;
     esac
-    log_phase "requirements install: disabled (set HASSETTE__INSTALL_DEPS=1 to enable)"
+    log_phase "requirements install: disabled (set HASSETTE_DOCKER_INSTALL_DEPS=1 to enable)"
 fi
 
 if [ "${PRUNE_UV_CACHE}" = "1" ]; then
@@ -211,7 +323,7 @@ if [ "${PRUNE_UV_CACHE}" = "1" ]; then
 else
     case "${PRUNE_UV_CACHE}" in
         true|yes|on|TRUE|YES|ON)
-            echo "WARNING: HASSETTE__PRUNE_UV_CACHE='${PRUNE_UV_CACHE}' is not recognized — use '1' to enable or '0' to disable. Cache will NOT be pruned."
+            echo "WARNING: HASSETTE_DOCKER_PRUNE_UV_CACHE='${PRUNE_UV_CACHE}' is not recognized — use '1' to enable or '0' to disable. Cache will NOT be pruned."
             ;;
     esac
     log_phase "uv cache prune: disabled"

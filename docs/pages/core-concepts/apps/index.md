@@ -37,6 +37,10 @@ The example defines every method with `async def` and awaits the registration ca
 
 With `env_prefix="MYAPP_"`, the field `api_key` reads from `MYAPP_API_KEY`. Fields without a matching environment variable fall back to their declared defaults. Required fields (no default) raise a validation error at startup if absent.
 
+Choose a prefix that doesn't start with `HASSETTE__`. Hassette reads its own settings from variables with that prefix, using `__` to separate nested levels (`HASSETTE__LOGGING__LOG_LEVEL` is `[hassette.logging] log_level`). It [refuses to start](../configuration/index.md#unknown-keys) on a `HASSETTE__` name that matches none of its settings, so with `env_prefix="hassette__myapp_"` a variable like `HASSETTE__MYAPP_API_KEY` stops startup.
+
+Hassette's own variables can still carry app config, through the app's entry in `hassette.toml`. `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` overrides one `config` value for the app registered under `<APP_KEY>`: `HASSETTE__APPS__MY_MONITOR__CONFIG__LOCATION_NAME=Kitchen` sets `location_name` for the `my_monitor` app. Hassette reads that variable itself and passes the value to the app, so it works whatever the app's `env_prefix` is. Use it to override a value set in `hassette.toml` for one deployment; use the app's own prefix for values the app should read straight from the environment, such as secrets. See [App Configuration](configuration.md) for the TOML side.
+
 ### Base Fields
 
 Every `AppConfig` includes four built-in fields. Two identify and log the app:

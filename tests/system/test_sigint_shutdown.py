@@ -12,10 +12,8 @@ Ctrl+C can force an exit even while a shutdown hook has the event loop thread ge
 (see ``server.py``).
 """
 
-import os
 import signal
 import subprocess
-import sys
 import threading
 import time
 from pathlib import Path
@@ -23,7 +21,7 @@ from pathlib import Path
 import httpx2 as httpx
 import pytest
 
-from .conftest import HA_TOKEN, free_port
+from .conftest import free_port, hassette_run_env, spawn_hassette_run
 
 pytestmark = [pytest.mark.system_destructive]
 
@@ -59,31 +57,18 @@ def _spawn_hassette(tmp_path: Path, ha_url: str, *, apps_dir: Path | None = None
     Uses env vars (not a config file) so ``cwd=tmp_path`` never picks up a stray
     ``.env``/``hassette.toml`` from elsewhere on disk.
     """
-    data_dir = tmp_path / "data"
     resolved_apps_dir = apps_dir or (tmp_path / "apps")
     resolved_apps_dir.mkdir(parents=True, exist_ok=True)
     port = free_port()
 
-    env = {
-        **os.environ,
-        "HASSETTE__DATA_DIR": str(data_dir),
-        "HASSETTE__APPS__DIRECTORY": str(resolved_apps_dir),
-        "HASSETTE__APPS__AUTODETECT": "true" if apps_dir else "false",
-        "HASSETTE__WEB_API__RUN": "true",
-        "HASSETTE__WEB_API__PORT": str(port),
-        "HASSETTE__WEB_API__HOST": "127.0.0.1",
-        "HASSETTE__WEB_API__AUTH_ENABLED": "false",
-        "HASSETTE__LIFECYCLE__STARTUP_TIMEOUT_SECONDS": "30",
-    }
-
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "hassette", "run", "--token", HA_TOKEN, "--ha-url", ha_url],
-        cwd=tmp_path,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
+    env = hassette_run_env(
+        tmp_path / "data",
+        port,
+        HASSETTE__APPS__DIRECTORY=str(resolved_apps_dir),
+        HASSETTE__APPS__AUTODETECT="true" if apps_dir else "false",
+        HASSETTE__LIFECYCLE__STARTUP_TIMEOUT_SECONDS="30",
     )
+    proc = spawn_hassette_run(tmp_path, env, ha_url, subprocess.PIPE)
     return proc, f"http://127.0.0.1:{port}"
 
 

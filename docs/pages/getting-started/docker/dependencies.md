@@ -11,15 +11,16 @@ when you tell it to. `requirements.txt` works for most projects.
 ```
 
 Place this file at `config/requirements.txt` on your host. That maps to
-`/config/requirements.txt` inside the container.
+`/config/requirements.txt` inside the container. Hassette also finds a
+`requirements.txt` inside your apps directory.
 
-Add `HASSETTE__INSTALL_DEPS: "1"` to your compose file:
+Add `HASSETTE_DOCKER_INSTALL_DEPS: "1"` to your compose file:
 
 ```yaml
 --8<-- "pages/getting-started/docker/snippets/deps-install-deps-env.yml"
 ```
 
-Without `HASSETTE__INSTALL_DEPS`, Hassette skips installation entirely.
+Without `HASSETTE_DOCKER_INSTALL_DEPS`, Hassette installs no `requirements.txt` files (a locked project is still installed, see below).
 The `uv_cache` volume keeps downloaded packages across restarts.
 Only the first startup is slow.
 
@@ -29,12 +30,12 @@ Restart the container — the install runs during startup, and you can watch it 
 --8<-- "pages/getting-started/docker/snippets/deps-app-using-package.py"
 ```
 
-The app imports `apprise` directly. No extra configuration needed. (The `# pyright: ignore` comment in the example quiets an editor warning when the package isn't installed on your local machine — your own code doesn't need it.)
+The app imports `apprise` directly. No extra configuration needed.
 
 !!! tip
     After adding new packages to `requirements.txt`, restart the container
     with `docker compose restart hassette`. Hassette re-runs the install on
-    every startup when `HASSETTE__INSTALL_DEPS` is set.
+    every startup when `HASSETTE_DOCKER_INSTALL_DEPS` is set.
 
 ## Using pyproject.toml
 
@@ -42,11 +43,11 @@ The app imports `apprise` directly. No extra configuration needed. (The `# pyrig
 --8<-- "pages/getting-started/docker/snippets/pyproject-example.toml"
 ```
 
-If you already have a `pyproject.toml`, place it in your `apps/`
+If you already have a `pyproject.toml`, place it in your `config/apps/`
 directory alongside your app files. You also need a `uv.lock` next to it —
 a file recording the exact version of every package, so the container
 installs the same versions you tested locally. Generate one by running
-this in your `apps/` directory before starting the container:
+this in your `config/apps/` directory before starting the container:
 
 ```bash
 uv lock
@@ -59,13 +60,23 @@ environment variables are needed:
 --8<-- "pages/getting-started/docker/snippets/deps-pyproject-compose.yml"
 ```
 
-Hassette checks `/apps` for a `uv.lock` on startup. If it finds one,
-it installs the locked dependencies automatically.
-`HASSETTE__INSTALL_DEPS` is not needed.
+On startup, Hassette looks for the project directory: the nearest
+directory at or above your apps directory that contains a
+`pyproject.toml`, falling back to the config directory. If that
+directory has a `uv.lock`, Hassette installs the locked dependencies
+automatically. `HASSETTE_DOCKER_INSTALL_DEPS` is not needed.
 
-If your `pyproject.toml` lives somewhere other than `apps/`, set
-`HASSETTE__PROJECT_DIR` to point Hassette at it. Add the variable to
-your compose environment and mount the directory.
+The walk-up supports a project mounted outside the config directory. Mount
+the project at `/apps` and point the apps directory inside it with
+`HASSETTE__APPS__DIRECTORY=/apps/src/mypkg`; Hassette finds the project at
+`/apps`:
+
+```yaml
+--8<-- "pages/getting-started/docker/snippets/deps-project-mount-compose.yml"
+```
+
+To skip the search, set `HASSETTE_DOCKER_PROJECT_DIR` to the directory and
+mount it.
 
 Hassette pins its own dependencies via a constraints file. Your packages
 cannot conflict with packages Hassette depends on. If a conflict occurs,
@@ -85,7 +96,7 @@ code as a volume with a relative path that matches the container layout,
 or publish it as a package.
 
 **First startup is slower with new dependencies.** Hassette runs
-`uv pip install` on every start when `HASSETTE__INSTALL_DEPS` is set.
+`uv pip install` on every start when `HASSETTE_DOCKER_INSTALL_DEPS` is set.
 New packages download on the first run. The `uv_cache` volume persists
 the cache, so subsequent starts skip the download. If your cache volume
 is missing or was pruned, the next startup downloads everything again.

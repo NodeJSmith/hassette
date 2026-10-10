@@ -1,7 +1,8 @@
 from copy import deepcopy
 from logging import getLogger
-from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
-from typing import Any
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from types import UnionType
+from typing import Any, Union, get_args, get_origin
 from warnings import warn
 
 from mergedeep import merge
@@ -15,57 +16,13 @@ from pydantic import (
     model_validator,
 )
 from pydantic_settings import BaseSettings
-from pydantic_settings.sources import InitSettingsSource, PathType, TomlConfigSettingsSource
 
 from hassette.types.types import is_framework_key
 from hassette.utils.alias_utils import alias_groups, canonicalize_aliases
 
-DEFAULT_PATH = Path()
 LOCAL_OVERLAY_INFIX = ".local"
 
 LOGGER = getLogger(__name__)
-
-
-class HassetteTomlConfigSettingsSource(TomlConfigSettingsSource):
-    """TOML source that hoists the ``[hassette]`` section and applies ``*.local.toml`` overlays.
-
-    The configured TOML files are read first (a later file replaces whole top-level keys of an
-    earlier one). Each file's local overlay sibling (``hassette.toml`` -> ``hassette.local.toml``)
-    is then deep-merged on top, so an overlay can override a single nested key without restating
-    the rest of its table.
-    """
-
-    def __init__(self, settings_cls: type[BaseSettings], toml_file: PathType | None = DEFAULT_PATH):
-        self.toml_file_path = toml_file if toml_file != DEFAULT_PATH else settings_cls.model_config.get("toml_file")
-        base_files = toml_paths(self.toml_file_path)
-
-        # Normalize each file before combining, so a later file replaces an earlier one's logical
-        # top-level table whether either file spells it `[apps]` or `[hassette.apps]`, and a later
-        # field value wins whichever alias (`token` vs `ha_token`) either file uses.
-        self.toml_data: dict[str, Any] = {}
-        for path in base_files:
-            if path.is_file():
-                self.toml_data.update(normalize_toml_file(settings_cls, self._read_file(path)))
-
-        for overlay in local_overlay_paths(base_files):
-            if overlay.is_file():
-                LOGGER.debug("Applying local TOML overlay %s", overlay)
-                self.toml_data = dict(
-                    merge({}, self.toml_data, normalize_toml_file(settings_cls, self._read_file(overlay)))
-                )
-
-        # need to call InitSettingSource directly, as super() expects a file path
-        # as the second argument
-        InitSettingsSource.__init__(self, settings_cls, self.toml_data)
-
-
-def toml_paths(files: PathType | None) -> list[Path]:
-    """Normalize a ``toml_file`` setting (one path, a list, or ``None``) to a list of expanded paths."""
-    if files is None:
-        return []
-    if isinstance(files, str | PurePath):
-        files = [files]
-    return [Path(f).expanduser() for f in files]
 
 
 def local_overlay_paths(files: list[Path]) -> list[Path]:
@@ -74,6 +31,25 @@ def local_overlay_paths(files: list[Path]) -> list[Path]:
     Paths are derived, not checked; callers filter to the overlays that exist.
     """
     return [p.with_name(f"{p.stem}{LOCAL_OVERLAY_INFIX}{p.suffix}") for p in files]
+
+
+def model_annotation(annotation: Any) -> type[BaseModel] | None:
+    """Return the pydantic model `annotation` names, or None."""
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        return annotation
+    return None
+
+
+def is_path_annotation(annotation: Any) -> bool:
+    """True when `annotation` is ``Path`` or a union containing it (``Path | None``)."""
+    if annotation is Path:
+        return True
+    return get_origin(annotation) in (Union, UnionType) and Path in get_args(annotation)
+
+
+def is_mapping_annotation(annotation: Any) -> bool:
+    """True when `annotation` is ``dict`` or a parameterized ``dict[...]``."""
+    return getattr(annotation, "__origin__", annotation) is dict
 
 
 def canonicalize_table(settings_cls: type[BaseSettings], data: dict[str, Any]) -> dict[str, Any]:
@@ -190,7 +166,7 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     """Display name of the app, will use class_name if not set"""
 
     app_dir: Path = Field(..., examples=["./apps"])
-    """Path to the app directory, relative to current working directory or absolute"""
+    """Path to the app directory: absolute, or relative to the config file that sets it"""
 
     app_config: dict[str, Any] | list[dict[str, Any]] = Field(
         default_factory=dict, validation_alias=AliasChoices("config", "app_config"), validate_default=True

@@ -23,6 +23,7 @@ from pydantic import (
     model_validator,
 )
 
+from hassette.config.build import default_apps_dir
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.helpers import coerce_log_level, log_level_default_factory
@@ -55,7 +56,8 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Database storage, retention, write-queue, and operational-interval settings."""
 
     path: Path | None = Field(default=None)
-    """Path to the SQLite database file. Defaults to data_dir / "hassette.db" when None."""
+    """Path to the SQLite database file: absolute, or relative to the config file that sets it. Defaults to
+    data_dir / "hassette.db" when None."""
 
     retention_days: int = Field(default=7, ge=1)
     """Number of days to retain app-tier execution records in the ``executions`` table.
@@ -578,8 +580,11 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
     apps: dict[str, RawAppDict] = Field(default_factory=dict)
     """Raw configuration for Hassette apps, keyed by app name."""
 
-    directory: Path = Field(default_factory=lambda: Path.cwd() / "apps")
-    """Directory to load user apps from."""
+    # <config home>/apps during a config build (see hassette.config.build), else ./apps
+    directory: Path = Field(default_factory=default_apps_dir)
+    """Directory to load user apps from: absolute, or relative to the config file that sets it. Defaults to
+    ``apps`` in the config home: ``config_dir`` when it is set explicitly, else ``/config`` if it exists, else
+    the working directory."""
 
     @model_validator(mode="before")
     @classmethod
@@ -728,8 +733,9 @@ class CliConfig(ExcludeExtrasMixin, BaseModel):
     a self-signed deployment."""
 
     token_file: Path | None = Field(default=None, json_schema_extra={"ui": {"label": "Token File"}})
-    """Path to a file containing the bearer credential for the target Hassette instance. Applies
-    to any target, unlike the loopback-only ``<data_dir>/.web_api_token`` fallback."""
+    """Path to a file containing the bearer credential for the target Hassette instance (absolute, or
+    relative to the config file that sets it). Applies to any target, unlike the loopback-only
+    ``<data_dir>/.web_api_token`` fallback."""
 
     auth_token: SecretStr | None = Field(default=None, json_schema_extra={"ui": {"label": "Auth Token"}})
     """Bearer credential for the target Hassette instance.

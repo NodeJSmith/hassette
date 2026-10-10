@@ -1,13 +1,16 @@
 """Integration tests for Docker container behavior.
 
-These tests verify that the Docker container correctly finds and installs
-user's requirements.txt files from mounted volumes.
+These tests verify that the Docker entrypoint finds and installs the user's dependencies from the
+config volume, and halts instead of hot-looping on an unrecoverable startup error. The container's
+args default to ``--check``, so the final ``hassette run`` prints the resolved locations and exits
+instead of starting the server.
 """
 
 import os
 import shutil
 import subprocess
 import tempfile
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -15,6 +18,7 @@ import pytest
 
 DOCKER_IMAGE = os.getenv("HASSETTE_TEST_IMAGE", "hassette:test")
 DOCKER_CLEANUP_TIMEOUT = 30
+NO_RETRY = {"HASSETTE_DOCKER_RETRY_DELAY": "0"}
 
 pytestmark = [
     pytest.mark.integration,
@@ -30,8 +34,9 @@ def run_hassette_container(
     timeout: int = 60,
     name: str | None = None,
     remove: bool = True,
+    args: list[str] | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], str]:
-    """Run the hassette Docker image with ``--version``, returning (result, combined output).
+    """Run the hassette Docker image with `args` (default ``--check``), returning (result, combined output).
 
     Pass ``name`` and ``remove=False`` to keep the stopped container around for inspection
     (e.g. via ``docker diff``) instead of letting ``--rm`` discard it on exit.
@@ -44,30 +49,31 @@ def run_hassette_container(
     for vol in volumes or []:
         cmd.extend(["-v", vol])
     merged_env = {
-        "HASSETTE__APPS__DIRECTORY": "/apps",
         "HASSETTE__TOKEN": "test_token",
         "HASSETTE__BASE_URL": "http://test",
     }
     merged_env.update(env or {})
     for key, value in merged_env.items():
         cmd.extend(["-e", f"{key}={value}"])
-    cmd.extend([DOCKER_IMAGE, "--version"])
+    cmd.extend([DOCKER_IMAGE, *(args if args is not None else ["--check"])])
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     return result, result.stderr + result.stdout
 
 
-def run_requirements_container(apps_dir: Path) -> tuple[subprocess.CompletedProcess[str], str]:
-    """Run the container with INSTALL_DEPS=1 and a read-only apps mount, returning (result, combined output)."""
-    return run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"], env={"HASSETTE__INSTALL_DEPS": "1"})
-
-
-def run_project_container(project_dir: Path, *, timeout: int = 120) -> tuple[subprocess.CompletedProcess[str], str]:
-    """Run the container with PROJECT_DIR pointing to the mounted project, returning (result, combined output)."""
+def run_requirements_container(
+    apps_dir: Path, *, env: dict[str, str] | None = None
+) -> tuple[subprocess.CompletedProcess[str], str]:
+    """Run the container with INSTALL_DEPS=1 and apps mounted read-only at /config/apps."""
     return run_hassette_container(
-        volumes=[f"{project_dir}:/apps"],
-        env={"HASSETTE__PROJECT_DIR": "/apps"},
-        timeout=timeout,
+        volumes=[f"{apps_dir}:/config/apps:ro"], env={"HASSETTE_DOCKER_INSTALL_DEPS": "1", **(env or {})}
     )
+
+
+def run_project_container(
+    project_dir: Path, *, timeout: int = 120, env: dict[str, str] | None = None
+) -> tuple[subprocess.CompletedProcess[str], str]:
+    """Run the container with the project mounted as the config volume, found by walking up from /config/apps."""
+    return run_hassette_container(volumes=[f"{project_dir}:/config"], env=env, timeout=timeout)
 
 
 def create_project_package(project_dir: Path, pyproject_content: str) -> None:
@@ -151,7 +157,7 @@ def test_docker_finds_nested_requirements(tmp_path: Path):
 
 
 def test_docker_installs_from_config_and_apps(tmp_path: Path):
-    """Test that requirements.txt in both /config and /apps are found."""
+    """Test that requirements.txt in both the config dir and an apps dir outside it are found."""
     config_dir = tmp_path / "config"
     apps_dir = tmp_path / "apps"
     config_dir.mkdir()
@@ -161,11 +167,11 @@ def test_docker_installs_from_config_and_apps(tmp_path: Path):
     (apps_dir / "requirements.txt").write_text("httpx>=0.25\n")
 
     _, output = run_hassette_container(
-        volumes=[f"{config_dir}:/config:ro", f"{apps_dir}:/apps:ro"],
-        env={"HASSETTE__CONFIG_DIR": "/config", "HASSETTE__INSTALL_DEPS": "1"},
+        volumes=[f"{config_dir}:/config:ro", f"{apps_dir}:/srv/apps:ro"],
+        env={"HASSETTE__APPS__DIRECTORY": "/srv/apps", "HASSETTE_DOCKER_INSTALL_DEPS": "1"},
     )
 
-    assert output.count("Installing requirements from") >= 2, f"Not all requirements found. Output:\n{output}"
+    assert output.count("Installing requirements from") == 2, f"Expected exactly 2 installs. Output:\n{output}"
 
 
 def test_docker_skips_empty_requirements(tmp_path: Path):
@@ -226,7 +232,7 @@ def test_docker_skips_requirements_by_default(tmp_path: Path):
     apps_dir.mkdir()
     (apps_dir / "requirements.txt").write_text("requests\n")
 
-    result, output = run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"])
+    result, output = run_hassette_container(volumes=[f"{apps_dir}:/config/apps:ro"])
 
     assert result.returncode == 0
     assert "requirements install: disabled" in output
@@ -241,10 +247,11 @@ def test_docker_constraint_conflict(tmp_path: Path):
     # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
     (apps_dir / "requirements.txt").write_text("aiohttp==3.0.0\n")
 
-    result, output = run_requirements_container(apps_dir)
+    result, output = run_requirements_container(apps_dir, env=NO_RETRY)
 
-    assert result.returncode != 0, f"Expected non-zero exit for conflict. Output:\n{output}"
+    assert result.returncode == 1, f"Expected exit 1 for conflict. Output:\n{output}"
     assert "DEPENDENCY CONFLICT" in output, f"Expected DEPENDENCY CONFLICT banner. Output:\n{output}"
+    assert "HASSETTE CAN'T START" in output
 
 
 def test_docker_project_install_with_lockfile(docker_project_dir: Path):
@@ -279,8 +286,7 @@ def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path
     container_name = f"hassette-tmp-leak-test-{os.getpid()}"
     try:
         result, output = run_hassette_container(
-            volumes=[f"{docker_project_dir}:/apps"],
-            env={"HASSETTE__PROJECT_DIR": "/apps"},
+            volumes=[f"{docker_project_dir}:/config"],
             timeout=120,
             name=container_name,
             remove=False,
@@ -346,9 +352,9 @@ def test_docker_project_constraint_conflict(docker_project_dir: Path):
         'requires-python = ">=3.11"\ndependencies = ["aiohttp==3.0.0"]\n'
         '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n',
     )
-    result, output = run_project_container(docker_project_dir)
+    result, output = run_project_container(docker_project_dir, env=NO_RETRY)
 
-    assert result.returncode != 0, f"Expected non-zero exit for project constraint conflict. Output:\n{output}"
+    assert result.returncode == 1, f"Expected exit 1 for project constraint conflict. Output:\n{output}"
     assert "DEPENDENCY CONFLICT" in output, f"Expected DEPENDENCY CONFLICT banner. Output:\n{output}"
 
 
@@ -357,8 +363,127 @@ def test_docker_no_project_no_deps_starts_clean(tmp_path: Path):
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
 
-    result, output = run_hassette_container(volumes=[f"{apps_dir}:/apps:ro"])
+    result, output = run_hassette_container(volumes=[f"{apps_dir}:/config/apps:ro"])
 
     assert result.returncode == 0, f"Clean start failed. Output:\n{output}"
     assert "project install: skipped" in output
     assert "requirements install: disabled" in output
+
+
+def test_docker_apps_default_to_the_config_volume():
+    """With no apps setting, the apps dir is <config dir>/apps."""
+    result, output = run_hassette_container()
+
+    assert result.returncode == 0, output
+    assert "APPS_DIR=/config/apps" in output
+
+
+def test_docker_finds_project_by_walking_up_from_the_apps_dir(docker_project_dir: Path):
+    """A hautomate-style layout (project at /apps, apps in /apps/src/<pkg>) is found with no project setting."""
+    create_project_package(
+        docker_project_dir,
+        '[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = []\n',
+    )
+    (docker_project_dir / "src" / "test_proj").mkdir(parents=True)
+
+    result, output = run_hassette_container(
+        volumes=[f"{docker_project_dir}:/apps"],
+        env={"HASSETTE__APPS__DIRECTORY": "/apps/src/test_proj"},
+        timeout=120,
+    )
+
+    assert result.returncode == 0, output
+    assert "project install: starting (from /apps)" in output
+
+
+def test_docker_config_error_halts_with_exit_78():
+    """An unknown key fails `hassette run --check`, which halts before installing anything."""
+    result, output = run_hassette_container(env={"HASSETTE__APP_DIR": "/apps", **NO_RETRY})
+
+    assert result.returncode == 78, output
+    assert "HASSETTE__APP_DIR (from environment)" in output
+    assert "HASSETTE CAN'T START" in output
+    assert "docker compose up -d" in output
+    assert "project install" not in output
+
+
+def test_docker_file_config_error_gets_the_recreate_remedy(tmp_path: Path):
+    """A config error from a mounted file gets the same recreate remedy as one from the environment."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "hassette.toml").write_text("bogus = 1\n")
+
+    result, output = run_hassette_container(volumes=[f"{config_dir}:/config:ro"], env=NO_RETRY)
+
+    assert result.returncode == 78, output
+    assert "bogus (from /config/hassette.toml)" in output
+    assert "docker compose up -d" in output
+
+
+@pytest.mark.parametrize("flag", ["--help", "--version"])
+def test_docker_help_and_version_skip_the_check(flag: str):
+    """Help and version args print and exit 0 without a config check or any install, even with a bad config."""
+    result, output = run_hassette_container(env={"HASSETTE__APP_DIR": "/apps", **NO_RETRY}, args=[flag])
+
+    assert result.returncode == 0, output
+    assert "HASSETTE CAN'T START" not in output
+    assert "project install" not in output
+
+
+def test_docker_parent_relative_apps_dir_is_normalized(tmp_path: Path):
+    """``directory = "../apps"`` in /config/hassette.toml is the /apps volume, not a path inside /config."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / "hassette.toml").write_text('[apps]\ndirectory = "../apps"\n')
+    apps_dir = tmp_path / "apps"
+    apps_dir.mkdir()
+    (apps_dir / "my_app.py").write_text("")
+
+    result, output = run_hassette_container(volumes=[f"{config_dir}:/config:ro", f"{apps_dir}:/apps:ro"])
+
+    assert result.returncode == 0, output
+    assert "config checked (config dir /config, apps dir /apps)" in output
+
+
+def test_docker_config_dir_arg_reaches_both_invocations(tmp_path: Path):
+    """`--config-dir` passed as container args reaches the check and the final `hassette run`."""
+    config_dir = tmp_path / "alt"
+    config_dir.mkdir()
+
+    result, output = run_hassette_container(volumes=[f"{config_dir}:/alt:ro"], args=["--check", "--config-dir", "/alt"])
+
+    assert result.returncode == 0, output
+    assert "config checked (config dir /alt, apps dir /alt/apps)" in output
+    assert "CONFIG_DIR=/alt" in output
+
+
+def test_docker_stop_ends_a_halt_promptly():
+    """The halt's idle is interruptible: `docker stop` returns well before the stop timeout."""
+    container_name = f"hassette-halt-stop-test-{os.getpid()}"
+    try:
+        subprocess.run(
+            [
+                "docker", "run", "-d", "--name", container_name,
+                "-e", "HASSETTE__APP_DIR=/apps", "-e", "HASSETTE_DOCKER_RETRY_DELAY=300",
+                DOCKER_IMAGE, "--check",
+            ],
+            check=True, capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT,
+        )  # fmt: skip
+        deadline = time.monotonic() + 60
+        while "HASSETTE CAN'T START" not in (logs := docker_logs(container_name)):
+            assert time.monotonic() < deadline, logs
+            time.sleep(0.5)
+
+        started = time.monotonic()
+        subprocess.run(["docker", "stop", "-t", "30", container_name], check=True, capture_output=True, timeout=60)
+
+        assert time.monotonic() - started < 10
+    finally:
+        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
+
+
+def docker_logs(container_name: str) -> str:
+    logs = subprocess.run(
+        ["docker", "logs", container_name], capture_output=True, text=True, timeout=DOCKER_CLEANUP_TIMEOUT
+    )
+    return logs.stdout + logs.stderr

@@ -10,7 +10,7 @@ from pathlib import Path
 import hassette.event_handling.accessors as A
 from hassette.core.app_change_detector import ChangeSet
 from hassette.events.hassette import HassetteSimpleEvent
-from hassette.exceptions import AppBlockedError
+from hassette.exceptions import AppBlockedError, ConfigError
 from hassette.types import Topic
 from hassette.utils.exception_utils import get_short_traceback
 
@@ -355,13 +355,11 @@ class AppChangeReconcilerMixin:
         an app that's disabled on both sides (see `ChangeSet.metadata_apps`).
         """
         original_apps_config = {k: deepcopy(v) for k, v in self.registry.manifests.items()}
-
-        # Reinitialize config to pick up changes.
-        # https://docs.pydantic.dev/latest/concepts/pydantic_settings/#in-place-reloading
-        try:
+        try:  # reload() swaps in only a valid config: on failure, config and registry stay as they are
             self.hassette.config.reload()
-        except Exception as exc:
-            self.logger.exception("Failed to reload configuration: %s", exc)
+        except Exception as exc:  # an invalid config on disk (ConfigError) needs no traceback; a bug does
+            self.logger.error("Config reload rejected: %s", exc, exc_info=not isinstance(exc, ConfigError))
+            return original_apps_config, {k: deepcopy(v) for k, v in original_apps_config.items()}
 
         self.set_apps_configs(self.hassette.config.apps.manifests)
         await self.persist_manifests()

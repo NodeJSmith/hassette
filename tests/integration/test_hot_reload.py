@@ -6,7 +6,6 @@ timing flakiness while still exercising the full change-detection
 and app-lifecycle pipeline.
 """
 
-import json
 import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -146,7 +145,7 @@ class TestBasicHotReload(HotReloadTestBase):
 class TestOnlyAppsConfigFilter(HotReloadTestBase):
     """Tests for the `hassette run --app` filter (config.only_apps) through the reload pipeline."""
 
-    async def test_only_apps_starts_named_apps_and_blocks_the_rest(self, monkeypatch: pytest.MonkeyPatch):
+    async def test_only_apps_starts_named_apps_and_blocks_the_rest(self):
         """With two keys in the filter, both named apps run and the third is blocked."""
         kept_a = create_app_manifest(suffix="kepta", app_dir=self.app_dir)
         kept_b = create_app_manifest(suffix="keptb", app_dir=self.app_dir)
@@ -154,11 +153,14 @@ class TestOnlyAppsConfigFilter(HotReloadTestBase):
         for manifest in (kept_a, kept_b, excluded):
             write_test_app_with_decorator(app_file=manifest.full_path, class_name=manifest.class_name)
 
-        # HASSETTE__ONLY_APPS is the env-var form of `hassette run --app <a> --app <b>`; unlike a
+        # only_apps in the file is the file form of `hassette run --app <a> --app <b>`; unlike a
         # direct attribute set, it survives the config.reload() inside handle_change_event.
-        monkeypatch.setenv("HASSETTE__ONLY_APPS", json.dumps([kept_a.app_key, kept_b.app_key]))
-
-        write_app_toml(self.toml_file, app_dir=self.app_dir, apps=[kept_a, kept_b, excluded])
+        write_app_toml(
+            self.toml_file,
+            app_dir=self.app_dir,
+            apps=[kept_a, kept_b, excluded],
+            only_apps=(kept_a.app_key, kept_b.app_key),
+        )
         await emit_change_and_wait_for_app_status(
             self.hassette,
             {self.toml_file, kept_a.full_path, kept_b.full_path, excluded.full_path},

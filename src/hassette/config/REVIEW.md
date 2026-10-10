@@ -28,3 +28,11 @@ If a new field in `src/hassette/config/models.py` carries a
 `model_config` (for nested groups) or on the `Field()` (for scalar fields)?
 Putting a `ui` block on a `$ref`-emitted nested group `Field()` silently loses it
 (documented at `WebApiConfig` in `src/hassette/config/models.py`).
+
+## File-Relative Paths
+Is a new path-valued field in `src/hassette/config/models.py` or
+`src/hassette/config/config.py` typed `Path` or `Path | None`? Relative paths
+from a config file are anchored to that file's directory only for fields
+`is_path_annotation()` in `src/hassette/config/classes.py` recognizes. A path
+typed `str`, `list[Path]`, or another union silently resolves against the
+working directory instead.

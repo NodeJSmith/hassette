@@ -28,9 +28,6 @@ When the same setting appears in multiple sources, the higher-precedence source 
 
 --8<-- "pages/core-concepts/configuration/snippets/file_discovery.md"
 
-!!! tip "Docker"
-    In Docker, the configuration volume mounts to `/config`, so `/config/hassette.toml` is normally the only config file present.
-
 ## Local Overrides {#local-overrides}
 
 A `hassette.local.toml` next to `hassette.toml` overrides it on the current machine. It holds values that shouldn't be committed or shared: a development `base_url`, a debug log level, an app setting that only applies to one host. The same pattern in a project's `.gitignore` keeps overlays out of version control:
@@ -106,11 +103,11 @@ Docker containers commonly default to UTC. Home Assistant uses a local zone conf
 
 ### Data Directory and Upgrades
 
-`data_dir` sets the root for all persistent data Hassette writes, including the telemetry database and caches. The default is platform-specific. Changing `data_dir` between major versions requires migrating the existing data manually. No automatic migration runs. `database.path` defaults to a file inside `data_dir` but can be overridden to an independent location.
+`data_dir` sets the root for all persistent data Hassette writes, including the telemetry database and caches. The default is platform-specific. A relative `data_dir` resolves against the file or directory it was set from — see [Relative Paths](#relative-paths). Changing `data_dir` between major versions requires migrating the existing data manually. No automatic migration runs. `database.path` defaults to a file inside `data_dir` but can be overridden to an independent location.
 
 ### App Discovery
 
-`apps.directory` is the root from which Hassette loads app modules. Auto-detection (`apps.autodetect`, default `true`) scans that directory recursively for Python files that define an [`App`](../apps/index.md) subclass — the base class for all Hassette automations.
+`apps.directory` is the root from which Hassette loads app modules. It defaults to `apps` inside the config home (see [Relative Paths](#relative-paths)). Startup logs `Apps directory: <path>` and warns when the directory doesn't exist or holds no apps. Auto-detection (`apps.autodetect`, default `true`) scans that directory recursively for Python files that define an [`App`](../apps/index.md) subclass — the base class for all Hassette automations.
 
 `extend_exclude_dirs` adds directories to the built-in exclusion list (`.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.git`). `exclude_dirs` replaces it entirely. Setting `exclude_dirs` directly removes the framework defaults and can cause Hassette to scan directories it would normally skip.
 
@@ -128,7 +125,7 @@ Filtering at this level removes the events from every app simultaneously. Per-ha
 
 `hassette_event_buffer_size` (default 1000) sets the capacity of the internal channel that carries events from the WebSocket to the bus. When the buffer fills, event intake pauses until handlers catch up — events are delayed, not dropped. Raising the buffer absorbs longer bursts; excluding noisy domains is usually the better first move.
 
-`lifecycle.max_concurrent_dispatches` (default 50) caps how many handler invocations run at once. The bus delivers each event to every matching handler as a separate task, so an event that matches many handlers would otherwise spawn that many tasks at once. When the cap is reached, the bus waits for a running handler to finish before starting the next — and that wait flows back through the event buffer to the WebSocket reader, so a slow handler throttles intake instead of exhausting memory.
+`lifecycle.max_concurrent_dispatches` (default 50) caps how many handler invocations run at once. The bus delivers each event to every matching handler as a separate task, so an event that matches many handlers would otherwise spawn that many tasks at once. When the cap is reached, the bus waits for a running handler to finish before starting the next (listeners with the `DROP_NEWEST` backpressure policy skip the event instead) — and that wait flows back through the event buffer to the WebSocket reader, so a slow handler throttles intake instead of exhausting memory.
 
 A running handler holds its slot until it returns or reaches `event_handler_timeout_seconds`. Raise the cap for workloads with many fast handlers; lower it to bound peak concurrency on constrained hardware.
 
@@ -146,7 +143,7 @@ A running handler holds its slot until it returns or reaches `event_handler_time
 
 ### File Watcher
 
-The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). `[hassette.file_watcher]` tunes it: `debounce_milliseconds` (default 3000) is the quiet period required after the last change before a reload fires, `step_milliseconds` (default 500) is how long the watcher waits for additional changes to batch into the same reload, and `watch_files = false` disables watching entirely.
+The file watcher reloads apps when their source files change (in `dev_mode`, or with `allow_reload_in_prod`). `[hassette.file_watcher]` tunes it: `debounce_milliseconds` (default 3000, or 6000 in `dev_mode`) is the longest the watcher groups changes into one reload, `step_milliseconds` (default 500, or 1000 in `dev_mode`) is the quiet period after the last change before that reload fires, and `watch_files = false` disables watching entirely.
 
 ### State Proxy Polling
 
@@ -197,7 +194,9 @@ The [`StateManager`](../states/index.md) — the local entity-state cache apps a
 
 ## Verify the Configuration
 
-Run `hassette status` to confirm Hassette can reach Home Assistant with the current config:
+Run `hassette run --check` first. It validates the configuration without starting Hassette, prints the resolved `CONFIG_DIR`, `CONFIG_HOME`, and `APPS_DIR`, and exits 78 on a problem — see [Checking the Resolved Locations](#check-config).
+
+Then start `hassette run` and, from another terminal, run `hassette status` to confirm Hassette can reach Home Assistant with the current config:
 
 ```
 hassette status

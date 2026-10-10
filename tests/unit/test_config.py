@@ -8,10 +8,11 @@ from pathlib import Path
 
 import dotenv
 import pytest
-from pydantic import SecretStr, ValidationError
+from pydantic import SecretStr
 
 from hassette import HassetteConfig, context
 from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
+from hassette.exceptions import ConfigError
 from hassette.testing.config import TEST_TOKEN
 from hassette.utils import app_utils
 from tests.support.fixtures import run_hassette_startup_tasks
@@ -71,16 +72,14 @@ def test_extended_autodetect_exclude_dirs(test_config_class):
 
 
 def test_env_files_can_be_configured_as_multiple_files(monkeypatch, tmp_path):
-    """env_file accepts multiple paths; env_files returns existing resolved paths.
+    """env_file accepts multiple paths; env_files returns them resolved.
 
-    Current behavior (documented by this test):
     - `HassetteConfig.model_config['env_file']` may be a list/tuple of paths.
     - `HassetteConfig.env_files` is a `set[Path]` (order is not preserved).
-    - Missing files are silently filtered out.
+    - A pinned file that doesn't exist is a startup error, like ``--env-file`` (see test_unknown_keys.py).
     """
     env1 = tmp_path / "one.env"
     env2 = tmp_path / "two.env"
-    missing = tmp_path / "missing.env"
     env1.write_text("HASSETTE_TEST_ENV_ONE=1\n", encoding="utf-8")
     env2.write_text("HASSETTE_TEST_ENV_TWO=2\n", encoding="utf-8")
 
@@ -90,7 +89,7 @@ def test_env_files_can_be_configured_as_multiple_files(monkeypatch, tmp_path):
     class MultiEnvConfig(HassetteConfig):
         model_config = HassetteConfig.model_config.copy() | {
             "cli_parse_args": False,
-            "env_file": [env1, env2, missing],
+            "env_file": [env1, env2],
             "toml_file": [],
         }
 
@@ -577,11 +576,11 @@ class TestRestRequestTimeout:
     """Tests for HassetteConfig.rest_request_timeout_seconds field."""
 
     def test_rejects_infinity(self) -> None:
-        with pytest.raises(ValidationError):
+        with pytest.raises(ConfigError):
             LogLevelTestConfig(rest_request_timeout_seconds=math.inf)
 
     def test_rejects_nan(self) -> None:
-        with pytest.raises(ValidationError):
+        with pytest.raises(ConfigError):
             LogLevelTestConfig(rest_request_timeout_seconds=math.nan)
 
     def test_accepts_positive_float(self) -> None:
@@ -622,12 +621,14 @@ class TestOnlyApps:
         assert config.only_apps == ("kitchen",)
         assert config.dev_mode is True
 
-    def test_reload_without_init_kwargs_rereads_sources(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_reload_without_init_kwargs_rereads_sources(self, tmp_path: Path) -> None:
         """Replaying init kwargs must not pin values that were never passed in."""
-        config = LogLevelTestConfig()
+        toml_file = tmp_path / "hassette.toml"
+        toml_file.write_text("", encoding="utf-8")
+        config = LogLevelTestConfig(config_file=toml_file)
         assert config.only_apps == ()
 
-        monkeypatch.setenv("HASSETTE__ONLY_APPS", '["porch"]')
+        toml_file.write_text('only_apps = ["porch"]\n', encoding="utf-8")
         config.reload()
 
         assert config.only_apps == ("porch",)
@@ -636,8 +637,8 @@ class TestOnlyApps:
         """The retained kwargs must not hold a second, unmasked copy of the token."""
         config = LogLevelTestConfig(token=TEST_TOKEN)
 
-        assert isinstance(config._init_kwargs["token"], SecretStr)
-        assert TEST_TOKEN not in repr(config._init_kwargs)
+        assert isinstance(config._load_inputs.init_kwargs["token"], SecretStr)
+        assert TEST_TOKEN not in repr(config._load_inputs.init_kwargs)
 
         config.reload()
 

@@ -8,5 +8,5 @@ scripts/docker/.env:jwt:38
 tests/data/events/state_change_events.jsonl:generic-api-key:32
 tests/data/events/state_change_events.jsonl:generic-api-key:33
 tests/data/events/state_change_events.jsonl:generic-api-key:34
-tests/unit/test_config.py:generic-api-key:511
-tests/unit/test_config.py:generic-api-key:515
+tests/unit/test_config.py:generic-api-key:510
+tests/unit/test_config.py:generic-api-key:514

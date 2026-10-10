@@ -15,7 +15,7 @@ Run Hassette in a container with Docker Compose.
 --8<-- "pages/getting-started/docker/snippets/mkdir-project.sh"
 ```
 
-`project_dir` is a placeholder — name the directory whatever you like. `config/` holds your token and settings. `apps/` holds your automation code.
+`project_dir` is a placeholder — name the directory whatever you like. `config/` holds your token and settings. `config/apps/` holds your automation code, because Hassette loads apps from `apps/` inside the config directory by default.
 
 ### Step 2: Create docker-compose.yml
 
@@ -25,7 +25,7 @@ Run Hassette in a container with Docker Compose.
 
 The `image:` line pulls Hassette from GitHub Container Registry (`ghcr.io`) — Docker downloads it automatically on first run. The volumes break down like this:
 
-- `./config` and `./apps` mount your local directories into the container.
+- `./config` mounts your local config directory into the container as `/config`. It holds `hassette.toml`, `.env`, and your apps in `config/apps/`.
 - `data` and `uv_cache` are named volumes for persistent data and the package cache. Docker Compose creates them automatically — no action needed.
 
 Port `8126` exposes the web UI. Hassette requires a credential for it — on first start it generates one and logs it (see Step 4). Add `HASSETTE__TIMEZONE=America/Chicago` (with your own timezone) to `config/.env` so scheduled automations fire at the right times. The `TZ` environment variable on the container works as a fallback.
@@ -78,7 +78,7 @@ Hassette is running, and the web UI is available at `http://localhost:8126`. Ope
 
 ## Write Your First App
 
-Create `apps/my_app.py`:
+Create `config/apps/my_app.py`:
 
 ```python
 --8<-- "pages/getting-started/docker/snippets/my_app.py"
@@ -88,7 +88,7 @@ Create `apps/my_app.py`:
 
 Two pieces of syntax worth knowing: `App[MyAppConfig]` pairs your app with its config class — that's how `self.app_config` knows its type. And lifecycle hooks like `on_initialize` are `async def` — Hassette runs the event loop for you, so you can follow the pattern without prior async experience.
 
-Restart the container to pick up the new file:
+Dropping a `.py` file with an `App` subclass into `config/apps/` is enough: Hassette finds it by autodetection, so no `hassette.toml` entry is needed. Restart the container to pick up the new file:
 
 ```bash
 docker compose restart hassette
@@ -99,6 +99,9 @@ Check the logs again. You see `Hello from Docker!` from your app:
 ```
 INFO hassette.MyApp.0 ... ─ Hello from Docker!
 ```
+
+!!! note "Upgrading from the `/apps` volume"
+    Earlier images mounted apps at `/apps`. Move them under `config/apps/` — [Upgrading](../../operating/upgrading.md#config-paths-and-unknown-keys) has the before and after compose files.
 
 !!! tip "Having trouble?"
     If Hassette fails to connect, check `HASSETTE__BASE_URL` and your token in `config/.env`. If your app doesn't show up in the logs, see [Troubleshooting](troubleshooting.md) for app-loading and other common issues.

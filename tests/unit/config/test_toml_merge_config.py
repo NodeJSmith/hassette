@@ -7,8 +7,16 @@ from pydantic import SecretStr
 from pydantic_settings import SettingsConfigDict
 
 from hassette import HassetteConfig
-from hassette.config.classes import HassetteTomlConfigSettingsSource
+from hassette.config.build import ConfigBuild
+from hassette.config.locations import resolve_locations
+from hassette.config.sources import HassetteTomlConfigSettingsSource
 from hassette.testing.config import TEST_TOKEN
+
+
+def scratch_build() -> ConfigBuild:
+    """A build for constructing a TOML source directly; it only collects the tables the source reads."""
+    locations = resolve_locations({}, config_file=[], env_file=[])
+    return ConfigBuild({}, locations, locations.cwd)
 
 
 def make_config_cls(toml_file: Path) -> type[HassetteConfig]:
@@ -26,7 +34,7 @@ def make_config_cls(toml_file: Path) -> type[HassetteConfig]:
 
 
 def make_source(toml_file: Path) -> HassetteTomlConfigSettingsSource:
-    return HassetteTomlConfigSettingsSource(make_config_cls(toml_file), toml_file=toml_file)
+    return HassetteTomlConfigSettingsSource(make_config_cls(toml_file), [toml_file], scratch_build())
 
 
 def write_toml(path: Path, content: str) -> Path:
@@ -54,7 +62,7 @@ class TestTomlDeepMerge:
 
         assert isinstance(source.toml_data.get("apps"), dict)
         apps = source.toml_data["apps"]
-        assert apps.get("directory") == "custom_apps"
+        assert apps.get("directory") == tmp_path / "custom_apps"
         assert isinstance(apps.get("my_app"), dict)
         assert apps["my_app"]["filename"] == "my_app.py"
 
@@ -69,7 +77,7 @@ class TestTomlDeepMerge:
         )
         source = make_source(toml_file)
 
-        assert source.toml_data["apps"]["directory"] == "my_apps"
+        assert source.toml_data["apps"]["directory"] == tmp_path / "my_apps"
 
     def test_top_level_only_no_hassette_section(self, tmp_path: Path) -> None:
         """No [hassette] section — standard path, no merge logic triggered."""
@@ -82,7 +90,7 @@ class TestTomlDeepMerge:
         )
         source = make_source(toml_file)
 
-        assert source.toml_data["apps"]["directory"] == "plain_apps"
+        assert source.toml_data["apps"]["directory"] == tmp_path / "plain_apps"
 
     def test_deep_merge_non_apps_nested_key(self, tmp_path: Path) -> None:
         """Non-apps nested keys also deep-merge rather than overwrite."""
@@ -162,7 +170,7 @@ class TestLocalTomlOverlay:
             """,
         )
 
-        source = HassetteTomlConfigSettingsSource(make_config_cls(first), toml_file=[first, second])
+        source = HassetteTomlConfigSettingsSource(make_config_cls(first), [first, second], scratch_build())
 
         assert set(source.toml_data["apps"]) == {"new_app"}
 
@@ -195,7 +203,7 @@ class TestLocalTomlOverlay:
         base = write_toml(tmp_path / "prod.toml", 'base_url = "http://shared:8123"\n')
         write_toml(tmp_path / "prod.local.toml", 'base_url = "http://localhost:8123"\n')
 
-        source = HassetteTomlConfigSettingsSource(make_config_cls(base), toml_file=str(base))
+        source = HassetteTomlConfigSettingsSource(make_config_cls(base), [base], scratch_build())
 
         assert source.toml_data["base_url"] == "http://localhost:8123"
 
@@ -253,7 +261,7 @@ class TestAliasCanonicalization:
         )
         write_toml(tmp_path / "hassette.local.toml", "[apps.my_app]\napp_config = {a = 2}\n")
 
-        source = HassetteTomlConfigSettingsSource(make_aliased_config_cls([base]), toml_file=base)
+        source = HassetteTomlConfigSettingsSource(make_aliased_config_cls([base]), [base], scratch_build())
 
         entry = source.toml_data["apps"]["my_app"]
         assert entry["config"] == {"a": 2}
@@ -280,7 +288,7 @@ class TestAliasCanonicalization:
         """When one table has several spellings, the first in the field's alias order is kept."""
         toml_file = write_toml(tmp_path / "hassette.toml", 'ha_token = "ALIAS"\ntoken = "CANONICAL"\n')
 
-        source = HassetteTomlConfigSettingsSource(make_aliased_config_cls([toml_file]), toml_file=toml_file)
+        source = HassetteTomlConfigSettingsSource(make_aliased_config_cls([toml_file]), [toml_file], scratch_build())
 
         assert source.toml_data["token"] == "CANONICAL"
         assert "ha_token" not in source.toml_data
@@ -296,7 +304,7 @@ class TestAliasCanonicalization:
             """,
         )
 
-        source = HassetteTomlConfigSettingsSource(make_aliased_config_cls([base]), toml_file=base)
+        source = HassetteTomlConfigSettingsSource(make_aliased_config_cls([base]), [base], scratch_build())
 
         assert source.toml_data["apps"]["my_app"] == {
             "filename": "my_app.py",

@@ -243,10 +243,10 @@ async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPat
     cleanup_env(ENV_SETTINGS_KEY)
 
 
-async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_files(
+async def test_app_config_reads_hassette_env_files_without_import_dot_env_files(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    """If an env var exists only in HassetteConfig.env_files, AppConfig won't see it unless imported to os.environ."""
+    """AppConfig reads the same .env files as HassetteConfig, so it sees their values without an os.environ import."""
     monkeypatch.chdir(tmp_path)
 
     cleanup_env(ENV_SETTINGS_KEY)
@@ -274,19 +274,11 @@ async def test_app_config_does_not_see_custom_env_file_without_import_dot_env_fi
 
     async with build_harness(HassetteHarness(config).with_app_handler().with_scheduler()) as harness:
         await wait_for(
-            lambda: (
-                (harness.hassette.get_app("env_reader") is not None)
-                or (
-                    "env_reader"
-                    in (harness.app_handler.registry.get_snapshot().failed_apps if harness.app_handler else {})
-                )
-            ),
+            lambda: getattr(harness.hassette.get_app("env_reader"), "seen", None) == "from_custom_env",
             timeout=2,
-            desc="SettingsApp started or failed",
+            desc="SettingsApp initialized with the value from Hassette's .env file",
         )
-        assert harness.hassette.get_app("env_reader") is None
-        assert harness.app_handler is not None
-        assert "env_reader" in harness.app_handler.registry.get_snapshot().failed_apps
+        assert ENV_SETTINGS_KEY not in os.environ
 
     cleanup_env(ENV_SETTINGS_KEY)
 

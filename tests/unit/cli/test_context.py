@@ -1,6 +1,8 @@
 """Tests for CLIContext frozen dataclass and injection pipeline."""
 
 import dataclasses
+import json
+from pathlib import Path
 from typing import Annotated
 from unittest.mock import patch
 
@@ -93,3 +95,20 @@ class TestLauncherInjectsCtx:
 
         assert len(received) == 1
         assert received[0].json_mode is True
+
+
+class TestMakeClientConfigErrors:
+    def test_invalid_config_is_a_usage_error_not_a_traceback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A malformed env value stops a client command with the config error, as ``hassette run`` reports it."""
+        monkeypatch.setenv("HASSETTE__DATABASE", "not-json")
+
+        with pytest.raises(SystemExit) as exc_info:
+            make_client(CLIContext(json_mode=True, config_dir=tmp_path))
+
+        assert exc_info.value.code == 1
+        doc = json.loads(capsys.readouterr().out)
+        assert doc["error"] is True
+        assert doc["detail"].startswith("Invalid configuration: ")
+        assert 'field "database"' in doc["detail"]

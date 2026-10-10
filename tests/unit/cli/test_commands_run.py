@@ -1,14 +1,19 @@
 """Unit tests for the hassette run command."""
 
 import errno
+import os
+import subprocess
+import sys
 from io import StringIO
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from hassette.cli import app
-from hassette.cli.commands.run import cmd_run
-from hassette.exceptions import AppPrecheckFailedError, FatalError
+from hassette.cli.commands.run import EX_CONFIG, cmd_run
+from hassette.cli.context import CLIContext
+from hassette.exceptions import AppPrecheckFailedError, ConfigError, FatalError
 from tests.unit.cli.conftest import capture_stderr
 
 
@@ -32,7 +37,6 @@ class TestCmdRun:
         "failure",
         [
             pytest.param(OSError(errno.EADDRINUSE, "Address already in use"), id="port-in-use"),
-            pytest.param(AppPrecheckFailedError("bad app"), id="precheck-failure"),
             pytest.param(FatalError("token missing"), id="fatal-error"),
         ],
     )
@@ -41,6 +45,19 @@ class TestCmdRun:
         with pytest.raises(SystemExit) as exc_info:
             cmd_run()
         assert exc_info.value.code == 1
+
+    @pytest.mark.parametrize(
+        "failure",
+        [
+            pytest.param(AppPrecheckFailedError("bad app"), id="precheck-failure"),
+            pytest.param(ConfigError("reserved app key"), id="manifest-validation"),
+        ],
+    )
+    def test_config_failure_during_startup_exits_78(self, mock_run_server: AsyncMock, failure: Exception) -> None:
+        mock_run_server.side_effect = failure
+        with pytest.raises(SystemExit) as exc_info:
+            cmd_run()
+        assert exc_info.value.code == EX_CONFIG
 
     def test_other_oserror_reraises(self, mock_run_server: AsyncMock) -> None:
         exc = OSError(errno.EACCES, "Permission denied")
@@ -97,3 +114,188 @@ class TestCmdRun:
         assert exc_info.value.code == 1
         assert "--app requires at least one non-empty app key" in buf.getvalue()
         mock_run_server.assert_not_called()
+
+
+@pytest.fixture
+def clean_hassette_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """Drop the developer's HASSETTE* env vars and run from an empty directory; returns a config dir."""
+    for key in list(os.environ):
+        if key.upper().startswith("HASSETTE"):
+            monkeypatch.delenv(key)
+    monkeypatch.chdir(tmp_path)
+    config_dir = tmp_path / "cfg"
+    config_dir.mkdir()
+    return config_dir
+
+
+@patch("hassette.cli.commands.run.run_server", new_callable=AsyncMock)
+def test_unknown_key_exits_78_before_starting(
+    mock_run_server: AsyncMock, clean_hassette_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HASSETTE__APP_DIR", "/apps")
+
+    with pytest.raises(SystemExit) as exc_info:
+        cmd_run(ctx=CLIContext(config_dir=clean_hassette_env))
+
+    assert exc_info.value.code == EX_CONFIG
+    mock_run_server.assert_not_called()
+
+
+def test_server_logs_to_stdout(clean_hassette_env: Path) -> None:
+    """`hassette run` keeps its whole log on stdout; only data commands route bootstrap logging to stderr."""
+    env = {**os.environ, "HASSETTE__CONFIG_DIR": str(clean_hassette_env)}  # no token: fails at config check
+
+    result = run_hassette(["run"], env)
+
+    assert result.returncode == EX_CONFIG, result.stderr
+    assert "HA token is required" in result.stdout
+    assert "HA token is required" not in result.stderr
+
+
+class TestRunCheck:
+    @pytest.fixture(autouse=True)
+    def token(self, clean_hassette_env: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HASSETTE__TOKEN", "test-token")
+
+    def test_prints_only_the_resolved_locations(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        (clean_hassette_env / "hassette.toml").write_text('[apps]\ndirectory = "my apps"\n', encoding="utf-8")
+
+        cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
+
+        assert capsys.readouterr().out.splitlines() == [
+            f"CONFIG_DIR={clean_hassette_env}",
+            f"CONFIG_HOME={clean_hassette_env}",
+            f"APPS_DIR='{clean_hassette_env / 'my apps'}'",
+        ]
+
+    @patch("hassette.config.config.autodetect_apps")
+    def test_does_not_autodetect_apps_or_start(
+        self, mock_autodetect: AsyncMock, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Autodetect imports app modules, which `--check` must never do."""
+        with patch("hassette.cli.commands.run.run_server", new_callable=AsyncMock) as mock_run_server:
+            cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
+
+        mock_autodetect.assert_not_called()
+        mock_run_server.assert_not_called()
+        assert len(capsys.readouterr().out.splitlines()) == 3
+
+    def test_missing_token_exits_78(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("HASSETTE__TOKEN")
+
+        assert "HA token is required" in check_config_error_stderr(clean_hassette_env, capsys)
+
+    @pytest.mark.parametrize(
+        ("entry", "error"),
+        [
+            pytest.param('[apps.porch]\nfilename = "porch.py"\nclass_name = "Porch"\ncache_key = "../escape"\n',
+                         "Invalid app 'porch'", id="unsafe-cache-key"),
+            pytest.param('[apps."a/b"]\nfilename = "ab.py"\nclass_name = "AB"\n', "App key 'a/b'", id="unsafe-key"),
+            pytest.param('[apps.porch]\nfilename = ""\nclass_name = "Porch"\n',
+                         "Invalid app 'porch'", id="empty-filename"),
+            pytest.param('[apps.porch]\nfilename = 123\nclass_name = "Porch"\n',
+                         "apps.apps.porch.filename", id="int-filename"),
+        ],
+    )  # fmt: skip
+    def test_invalid_explicit_app_entry_exits_78(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str], entry: str, error: str
+    ) -> None:
+        (clean_hassette_env / "hassette.toml").write_text(entry, encoding="utf-8")
+
+        assert error in check_config_error_stderr(clean_hassette_env, capsys)
+
+    def test_config_error_exits_78_with_the_error_on_stderr(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        (clean_hassette_env / "hassette.toml").write_text("bogus = 1\n", encoding="utf-8")
+
+        err = check_config_error_stderr(clean_hassette_env, capsys)
+        assert "bogus" in err
+        assert err.count("Invalid configuration") == 1
+
+    @pytest.mark.parametrize("name", ["HASSETTE__DATABASE", "HASSETTE__ONLY_APPS"])
+    def test_malformed_json_env_value_exits_78(
+        self,
+        clean_hassette_env: Path,
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+        name: str,
+    ) -> None:
+        """A complex setting's env value that isn't JSON is a config error, not a traceback."""
+        monkeypatch.setenv(name, "not-json")
+
+        assert f'error parsing value for field "{name.removeprefix("HASSETTE__").lower()}"' in (
+            check_config_error_stderr(clean_hassette_env, capsys)
+        )
+
+    def test_malformed_toml_is_a_config_error_naming_the_file(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        toml = clean_hassette_env / "hassette.toml"
+        toml.write_text("[apps\n", encoding="utf-8")
+
+        assert str(toml) in check_config_error_stderr(clean_hassette_env, capsys)
+
+    def test_warnings_stay_off_stdout(self, clean_hassette_env: Path) -> None:
+        """A warning logged during the check goes to stderr; the entrypoint's logging is what's under test."""
+        env = {
+            **os.environ,
+            "HASSETTE__LOGGING__LOG_LEVEL": "bogus",
+            "HASSETTE__CONFIG_DIR": str(clean_hassette_env),
+            "HASSETTE__TOKEN": "test-token",
+        }
+
+        result = run_hassette(["run", "--check"], env)
+
+        assert result.returncode == 0, result.stderr
+        assert [line.split("=")[0] for line in result.stdout.splitlines()] == ["CONFIG_DIR", "CONFIG_HOME", "APPS_DIR"]
+        assert "not valid" in result.stderr
+
+    def test_missing_apps_dir_warns_with_the_config_relative_hint(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A src-layout apps path written cwd-relative in config/hassette.toml passes the check with a hint."""
+        project = clean_hassette_env.parent
+        (project / "src" / "mypkg").mkdir(parents=True)
+        (clean_hassette_env / "hassette.toml").write_text('[apps]\ndirectory = "src/mypkg"\n', encoding="utf-8")
+
+        cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
+
+        captured = capsys.readouterr()
+        # the warning stays off stdout, which docker_start.sh evals
+        assert [line.split("=")[0] for line in captured.out.splitlines()] == ["CONFIG_DIR", "CONFIG_HOME", "APPS_DIR"]
+        assert f"APPS_DIR={clean_hassette_env / 'src' / 'mypkg'}" in captured.out
+        assert f"Did you mean {project / 'src' / 'mypkg'}?" in captured.err
+        assert "it is written ../src/mypkg" in captured.err
+
+    def test_existing_apps_dir_prints_no_warning(
+        self, clean_hassette_env: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The default apps directory exists, so the check prints only the locations."""
+        (clean_hassette_env / "apps").mkdir()
+
+        cmd_run(check=True, ctx=CLIContext(config_dir=clean_hassette_env))
+
+        assert "Warning" not in capsys.readouterr().err
+
+
+def check_config_error_stderr(config_dir: Path, capsys: pytest.CaptureFixture[str]) -> str:
+    """Run ``hassette run --check`` against `config_dir`, assert it exits 78 with nothing on stdout, return stderr."""
+    with pytest.raises(SystemExit) as exc_info:
+        cmd_run(check=True, ctx=CLIContext(config_dir=config_dir))
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == EX_CONFIG
+    assert captured.out == ""
+    return captured.err
+
+
+def run_hassette(args: list[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    """Run ``python -m hassette`` in a subprocess, so the real entrypoint's logging setup is under test."""
+    return subprocess.run(
+        [sys.executable, "-m", "hassette", *args], env=env, capture_output=True, text=True, timeout=60, check=False
+    )

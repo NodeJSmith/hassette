@@ -27,7 +27,6 @@ from unittest.mock import patch
 
 import coverage
 import pytest
-from pydantic import ValidationError
 
 import hassette.task_bucket.interruptible_executor as ie_module
 from hassette.config import HassetteConfig, LifecycleConfig
@@ -38,6 +37,7 @@ from hassette.core.sync_executor import (  # pyright: ignore[reportPrivateUsage]
     SyncExecutor,
 )
 from hassette.core.sync_executor_service import SyncExecutorService
+from hassette.exceptions import ConfigError
 from hassette.task_bucket.interruptible_executor import InterruptibleThreadPoolExecutor
 from hassette.task_bucket.task_bucket import TaskBucket
 from tests.unit.conftest import (
@@ -582,7 +582,7 @@ class TestConfigBehavior:
 
     def test_validator_rejects_shutdown_timeout_gte_total(self) -> None:
         """sync_executor_shutdown_timeout_seconds >= total_shutdown_timeout_seconds is rejected."""
-        with pytest.raises(ValidationError, match="sync_executor_shutdown_timeout_seconds"):
+        with pytest.raises(ConfigError, match="sync_executor_shutdown_timeout_seconds"):
             HassetteConfig(
                 token=TEST_TOKEN,
                 lifecycle={
@@ -619,7 +619,7 @@ class TestConfigBehavior:
 
     def test_validator_rejects_threshold_outside_unit_interval(self) -> None:
         """sync_executor_saturation_warn_threshold must be within [0, 1]."""
-        with pytest.raises(ValidationError, match="sync_executor_saturation_warn_threshold"):
+        with pytest.raises(ConfigError, match="sync_executor_saturation_warn_threshold"):
             HassetteConfig(token=TEST_TOKEN, lifecycle={"sync_executor_saturation_warn_threshold": 1.5})
 
 

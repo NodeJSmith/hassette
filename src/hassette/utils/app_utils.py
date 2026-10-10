@@ -2,9 +2,11 @@ import importlib.machinery
 import importlib.util
 import inspect
 import json
+import os
 import sys
 import traceback
 import typing
+from collections.abc import Iterable
 from logging import getLogger
 from pathlib import Path
 
@@ -544,3 +546,40 @@ def _ensure_on_sys_path(dir_path: Path) -> None:
 
     if str(dir_path) not in sys.path:
         sys.path.insert(0, str(dir_path))
+
+
+def apps_dir_warning(apps_dir: Path, *, has_apps: bool, config_files: Iterable[Path], cwd: Path) -> str | None:
+    """Return the startup warning for an apps directory that is missing or holds no apps, else None."""
+    if warning := missing_apps_dir_warning(apps_dir, config_files=config_files, cwd=cwd):
+        return warning
+    if not has_apps:
+        return f"No apps found or configured in apps directory {apps_dir}"
+    return None
+
+
+def missing_apps_dir_warning(apps_dir: Path, *, config_files: Iterable[Path], cwd: Path) -> str | None:
+    """Return the warning for an apps directory that doesn't exist, else None.
+
+    The warning also names the directory the same relative path reaches from `cwd`, if one exists:
+    a path written in one of `config_files` is relative to that file's directory, and reading it
+    from the launch directory instead is the likeliest mistake.
+    """
+    if apps_dir.is_dir():
+        return None
+    warning = f"Apps directory {apps_dir} does not exist"
+    if hint := cwd_relative_hint(apps_dir, sorted({path.parent for path in config_files}), cwd):
+        warning += f". {hint}"
+    return warning
+
+
+def cwd_relative_hint(apps_dir: Path, config_file_dirs: Iterable[Path], cwd: Path) -> str | None:
+    """Name the existing directory `apps_dir`'s path reaches when read from `cwd` instead of a file's directory."""
+    for file_dir in config_file_dirs:
+        relative = os.path.relpath(apps_dir, file_dir)
+        candidate = Path(os.path.normpath(cwd / relative))
+        if candidate != apps_dir and candidate.is_dir():
+            return (
+                f"Did you mean {candidate}? A path in a config file is relative to that file's directory, "
+                f"so from {file_dir} it is written {os.path.relpath(candidate, file_dir)}"
+            )
+    return None

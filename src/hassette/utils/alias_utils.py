@@ -3,6 +3,18 @@ from functools import cache
 from typing import Any
 
 from pydantic import AliasChoices, BaseModel
+from pydantic.fields import FieldInfo
+
+
+def str_aliases(info: FieldInfo) -> tuple[str, ...]:
+    """Return the string aliases pydantic validates `info`'s field by, in lookup order.
+
+    A ``validation_alias`` replaces ``alias`` for validation, so only one of them counts. ``AliasPath`` choices
+    are ignored.
+    """
+    alias = info.validation_alias or info.alias
+    choices = alias.choices if isinstance(alias, AliasChoices) else (alias,)
+    return tuple(c for c in choices if isinstance(c, str))
 
 
 @cache
@@ -13,9 +25,7 @@ def alias_groups(model: type[BaseModel]) -> tuple[tuple[str, ...], ...]:
     """
     groups: list[tuple[str, ...]] = []
     for info in model.model_fields.values():
-        alias = info.validation_alias or info.alias
-        choices = alias.choices if isinstance(alias, AliasChoices) else (alias,)
-        names = tuple(c for c in choices if isinstance(c, str))
+        names = str_aliases(info)
         if len(names) > 1:
             groups.append(names)
     return tuple(groups)
