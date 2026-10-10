@@ -344,7 +344,7 @@ class AppActivity(BaseModel):
     last_error: LastErrorResult | None
     """The last-error lookup. ``None`` when it failed or the request had no ``since``."""
     blocking_event_count: int | None
-    """Attributed blocking-IO events for this app in the requested window. ``None`` when the count query
+    """Attributed blocking events for this app in the requested window. ``None`` when the count query
     failed."""
 
 

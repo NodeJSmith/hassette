@@ -39,7 +39,7 @@
         },
         "blocking_io": {
           "$ref": "#/$defs/BlockingIODetectionConfig",
-          "description": "Blocking-I/O detection settings for the shared event loop."
+          "description": "Blocking-call detection settings for the shared event loop."
         },
         "cli": {
           "$ref": "#/$defs/CliConfig"
@@ -381,7 +381,7 @@
       "type": "object"
     },
     "BlockingIOBehavior": {
-      "description": "Controls what happens when blocking I/O is detected on the shared event loop.",
+      "description": "Controls what happens when a blocking call is detected on the shared event loop.",
       "enum": [
         "ignore",
         "warn",
@@ -391,7 +391,7 @@
       "type": "string"
     },
     "BlockingIODetectionConfig": {
-      "description": "Blocking-I/O detection settings for the shared event loop.\n\nControls the two-tier detection system: Tier 1 (always-on responsiveness watchdog) and\nTier 2 (call-site interception of known blocking primitives, dev-default / prod-opt-in).",
+      "description": "Blocking-call detection settings for the shared event loop.\n\nControls the two-tier detection system: Tier 1 (always-on responsiveness watchdog, which\ncatches any loop stall, including CPU-bound work) and Tier 2 (call-site interception of\nknown blocking I/O primitives, dev-default / prod-opt-in).",
       "properties": {
         "behavior": {
           "anyOf": [
@@ -403,7 +403,7 @@
             }
           ],
           "default": null,
-          "description": "Global default behavior for blocking-IO detection.\n\nWhen ``None`` (default), the effective behavior is ``\"warn\"``. Per-app\n``AppConfig.blocking_io_behavior`` overrides this when set. Set to ``\"ignore\"`` to\nsuppress detection globally, or ``\"error\"`` to escalate via ``filterwarnings(\"error\")``."
+          "description": "Global default behavior for blocking-call detection.\n\nWhen ``None`` (default), the effective behavior is ``\"warn\"``. Per-app\n``AppConfig.blocking_io_behavior`` overrides this when set. Set to ``\"ignore\"`` to\nsuppress detection globally, or ``\"error\"`` to escalate via ``filterwarnings(\"error\")``."
         },
         "watchdog_enabled": {
           "default": true,
@@ -454,7 +454,7 @@
       "title": "BlockingIODetectionConfig",
       "type": "object",
       "ui": {
-        "group_label": "Blocking I/O"
+        "group_label": "Blocking Calls"
       }
     },
     "CliConfig": {

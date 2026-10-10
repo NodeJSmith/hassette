@@ -2,7 +2,7 @@
 
 Demo app used to populate the blocking-calls findings for documentation screenshots. Two jobs
 call one shared helper that makes a synchronous, loop-blocking call, the way an app might use a
-synchronous HTTP client. Blocking-IO detection groups both jobs' events under that one call site.
+synchronous HTTP client. Blocking-call detection groups both jobs' events under that one call site.
 It runs as two instances, so the app-wide overview lists the call site under both.
 
 A third job hands the same helper to a loop callback and to a separate task while it waits, so

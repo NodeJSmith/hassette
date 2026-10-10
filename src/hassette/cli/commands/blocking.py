@@ -1,4 +1,4 @@
-"""Blocking-IO findings CLI command."""
+"""Blocking findings CLI command."""
 
 from hassette_wire import BlockingFinding, BlockingFindingsResponse, UnattributedBlockingResponse, UnattributedStall
 
@@ -73,7 +73,7 @@ def cmd_blocking(
     *,
     ctx: CLIContextParam = DEFAULT_CLI_CONTEXT,
 ) -> None:
-    """Show blocking-IO findings: calls that stalled the event loop, grouped by app call site.
+    """Show blocking findings: calls that stalled the event loop, grouped by app call site.
 
     With --app, shows that app's findings (GET /api/telemetry/app/{key}/blocking). Without it,
     shows findings for every app plus loop stalls no app is credited with.

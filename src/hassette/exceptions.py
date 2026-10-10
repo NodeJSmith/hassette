@@ -43,9 +43,10 @@ class HassetteForgottenAwaitWarning(RuntimeWarning):
 
 
 class HassetteBlockingIOWarning(RuntimeWarning):
-    """Warning emitted when blocking I/O is detected on the shared event loop.
+    """Warning emitted when a blocking call is detected on the shared event loop.
 
     Fired by Tier 1 (responsiveness watchdog) when loop lag exceeds the configured threshold,
+    whatever held the loop (blocking I/O or CPU-bound work),
     and by Tier 2 (call-site interception) when a blocking primitive is called on the loop thread.
     The message names the offending app, handler/job, and (where available) the source line.
 

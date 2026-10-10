@@ -170,11 +170,11 @@ The [`StateManager`](../states/index.md) — the local entity-state cache apps a
 
     See [Forgotten `await`](../../troubleshooting.md#forgotten-await) for diagnosis and [Pyright](../../troubleshooting.md#enabling-pyright) for the earliest static signal.
 
-## Blocking-IO Detection {#blocking-io-detection}
+## Blocking-Call Detection {#blocking-io-detection}
 
-`[hassette.blocking_io]` controls both detection tiers. See [Blocking-IO Detection](../blocking-io-detection.md) for how the two tiers work and how to fix detected calls.
+`[hassette.blocking_io]` controls both detection tiers. See [Blocking-Call Detection](../blocking-io-detection.md) for how the two tiers work and how to fix detected calls.
 
-- **`behavior`** (string or `null`): Global default behavior when blocking I/O is detected. Valid values: `"ignore"`, `"warn"`, `"error"`. Default: not set (effective: `"warn"`). Per-app `blocking_io_behavior` overrides this — see [App Configuration](../apps/configuration.md#developer-settings).
+- **`behavior`** (string or `null`): Global default behavior when a blocking call is detected. Valid values: `"ignore"`, `"warn"`, `"error"`. Default: not set (effective: `"warn"`). Per-app `blocking_io_behavior` overrides this — see [App Configuration](../apps/configuration.md#developer-settings).
 
 - **`watchdog_enabled`** (bool): Whether to run the Tier 1 loop-responsiveness watchdog. Default: `true`.
 
