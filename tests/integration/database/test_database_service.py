@@ -683,6 +683,64 @@ async def test_startup_cleanup_timeout_interrupts_in_flight_statement(
     await fresh_service.on_shutdown()
 
 
+async def test_startup_cleanup_recovery_stays_within_readiness_budget(
+    fresh_service: DatabaseService, mock_hassette_fresh: MagicMock
+) -> None:
+    """If the interrupt fails to free the sqlite worker, the recovery rollback queues behind the
+    still-running statement until its own bound expires. That bound must come out of the same
+    startup budget as the catch-up, or on_initialize() overruns the readiness deadline that
+    wait_for_ready() enforces.
+    """
+    startup_timeout = 2.0
+    mock_hassette_fresh.config.lifecycle = mock_hassette_fresh.config.lifecycle.model_copy(
+        update={"startup_timeout_seconds": startup_timeout}
+    )
+    mock_hassette_fresh.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+
+    statement_started = asyncio.Event()
+    real_connect_daemon = database_service_module.connect_daemon
+    real_interrupts: list[Any] = []
+
+    async def connect_daemon_with_uninterruptible_delete(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
+        """Run an endless statement in place of the first DELETE and make interrupt() a no-op, so
+        the rollback stays queued behind the statement for as long as its bound allows.
+        """
+        conn = await real_connect_daemon(*args, **kwargs)
+        real_execute = conn.execute
+        real_interrupts.append(conn.interrupt)
+
+        async def endless_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
+            if sql.strip().upper().startswith("DELETE FROM"):
+                statement_started.set()
+                return await real_execute(
+                    "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c"
+                )
+            return await real_execute(sql, parameters)
+
+        async def ignored_interrupt() -> None:
+            return None
+
+        conn.execute = endless_execute
+        conn.interrupt = ignored_interrupt
+        return conn
+
+    loop = asyncio.get_running_loop()
+    with patch.object(database_service_module, "connect_daemon", connect_daemon_with_uninterruptible_delete):
+        started = loop.time()
+        try:
+            await asyncio.wait_for(fresh_service.on_initialize(), timeout=10.0)
+            elapsed = loop.time() - started
+        finally:
+            # Free the worker thread so shutdown's close() isn't queued behind the endless statement.
+            for interrupt in real_interrupts:
+                await interrupt()
+
+    assert statement_started.is_set(), "size failsafe never reached its DELETE statement"
+    assert elapsed < startup_timeout, f"on_initialize() took {elapsed:.2f}s, past the {startup_timeout}s budget"
+
+    await fresh_service.on_shutdown()
+
+
 async def test_restart_resumes_interrupted_retention_on_startup(
     initialized_service: DatabaseService, db_hassette: MagicMock
 ) -> None:
