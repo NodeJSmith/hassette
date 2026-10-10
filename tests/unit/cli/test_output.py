@@ -442,7 +442,7 @@ class TestMakeStdoutConsole:
     @pytest.fixture(autouse=True)
     def clear_terminal_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Clear env vars that set the width or would force Rich into terminal mode on piped stdout."""
-        for var in ("COLUMNS", "FORCE_COLOR", "TTY_COMPATIBLE", "TTY_INTERACTIVE"):
+        for var in ("COLUMNS", "FORCE_COLOR", "TTY_COMPATIBLE", "TTY_INTERACTIVE", "TERM"):
             monkeypatch.delenv(var, raising=False)
 
     def test_piped_without_columns_uses_wide_fallback(self) -> None:
@@ -491,6 +491,19 @@ class TestMakeStdoutConsole:
         output = buf.getvalue()
         assert "motion_lights_upstairs_hallway" in output
         assert "n" * 120 in output
+
+    @pytest.mark.parametrize("forced_terminal_var", ["FORCE_COLOR", "TTY_COMPATIBLE"])
+    def test_forced_dumb_terminal_still_uses_wide_fallback(
+        self, monkeypatch: pytest.MonkeyPatch, forced_terminal_var: str
+    ) -> None:
+        """TERM=dumb plus a forced-terminal var makes Rich pin its size to 80 columns; piping still widens."""
+        monkeypatch.setenv(forced_terminal_var, "1")
+        monkeypatch.setenv("TERM", "dumb")
+        with patch("sys.stdout", StringIO()):
+            console = make_stdout_console()
+        # Precondition: Rich really sees a dumb terminal, so this exercises its fixed-size path.
+        assert console.is_dumb_terminal
+        assert console.width == PIPE_FALLBACK_WIDTH
 
 
 # render_detail — JSON mode
