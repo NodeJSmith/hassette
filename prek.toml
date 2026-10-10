@@ -1,6 +1,11 @@
 # Configuration file for prek, a fast Rust-based Git hook manager.
 # See https://prek.j178.dev for more information.
 #:schema https://www.schemastore.org/prek.json
+#
+# prek splits a hook's matched files into batches and runs batches of the same hook in
+# parallel (up to the CPU count). A hook that loads whole-project state (type-aware linters)
+# or starts a heavy runtime per invocation (`npx`, `uv run`) sets `require_serial = true`,
+# so prek runs one process for it instead of one per batch. New hooks follow the same rule.
 
 # ---------------------------------------------------------------------------
 # Builtin hooks — Rust-native reimplementations, no venv or network fetch
@@ -46,7 +51,7 @@ hooks = [
 repo = "https://github.com/crate-ci/typos"
 rev = "v1.46.3"
 hooks = [
-    { id = "typos", args = ["--force-exclude"], stages = ["pre-commit", "pre-push"] },
+    { id = "typos", args = ["--force-exclude"], require_serial = true, stages = ["pre-commit", "pre-push"] },
 ]
 
 [[repos]]
@@ -103,6 +108,7 @@ id = "prettier"
 name = "prettier (frontend)"
 language = "system"
 entry = "npx --prefix frontend prettier --write"
+require_serial = true
 types_or = ["ts", "tsx", "css"]
 files = "^frontend/src/"
 exclude = '(generated-types\.ts|\.module\.css\.d\.ts)$'
@@ -113,6 +119,7 @@ id = "eslint"
 name = "eslint (frontend)"
 language = "system"
 entry = "npx --prefix frontend eslint"
+require_serial = true
 types_or = ["ts", "tsx"]
 files = "^frontend/src/"
 groups = ["frontend"]
@@ -122,6 +129,7 @@ id = "stylelint"
 name = "stylelint (frontend)"
 language = "system"
 entry = "npx --prefix frontend stylelint"
+require_serial = true
 types = ["css"]
 files = "^frontend/src/"
 groups = ["frontend"]
@@ -317,6 +325,7 @@ id = "check-test-factories"
 name = "Check test factory shadowing"
 language = "system"
 entry = "uv run ./tools/check_test_factories.py"
+require_serial = true
 files = '^tests/.*\.py$'
 stages = ["pre-commit", "pre-push"]
 
