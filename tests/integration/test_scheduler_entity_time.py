@@ -5,6 +5,7 @@ state-change listener for the entity, and moves the job between WAITING and SCHE
 the entity reports (or loses) a usable time.
 """
 
+import asyncio
 import typing
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock
@@ -23,6 +24,7 @@ if typing.TYPE_CHECKING:
     from hassette import Hassette
 
 ALARM_ENTITY = "sensor.phone_next_alarm"
+CHANGE_DISPATCH_TIMEOUT_SECONDS = 5.0
 
 
 @pytest.fixture
@@ -51,10 +53,33 @@ async def seed_alarm(harness: HassetteHarness, value: str) -> None:
 
 
 async def change_alarm(harness: HassetteHarness, old_value: str, new_value: str) -> None:
-    """Send a state change for the alarm entity and wait for dispatch to settle."""
+    """Send a state change for the alarm entity and wait until its handlers have finished.
+
+    ``await_dispatch_idle`` alone is not enough: its stability check is a short wall-clock
+    sleep, and on a starved event loop it can expire before the bus loop has pulled the event
+    off the stream, returning while the dispatch bus is still idle. A throwaway sentinel
+    listener matching this exact event proves dispatch reached it, so every matching handler
+    task is already counted as pending when ``await_dispatch_idle`` runs. The sentinel matches
+    regardless of whether the scheduler still watches the entity (e.g. after the job was removed).
+    """
     event = create_state_change_event(entity_id=ALARM_ENTITY, old_value=old_value, new_value=new_value)
-    await harness.hassette.send_event(event)
-    await harness.bus_service.await_dispatch_idle()
+    fired = asyncio.Event()
+
+    async def sentinel() -> None:
+        fired.set()
+
+    sub = await harness.bus.on(
+        topic=entity_topic(ALARM_ENTITY),
+        handler=sentinel,
+        where=lambda candidate: candidate is event,
+        name=f"test.entity_time.change_sentinel.{new_value}",
+    )
+    try:
+        await harness.hassette.send_event(event)
+        await asyncio.wait_for(fired.wait(), timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
+        await harness.bus_service.await_dispatch_idle(timeout=CHANGE_DISPATCH_TIMEOUT_SECONDS)
+    finally:
+        sub.cancel()
 
 
 def iso_in(minutes: int) -> str:
