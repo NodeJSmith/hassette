@@ -10,6 +10,7 @@ to the stderr console. The stdout console is used only by render functions.
 """
 
 import json
+import os
 import re
 import sys
 import time
@@ -28,7 +29,47 @@ from whenever import Instant, OffsetDateTime, PlainDateTime
 
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 
-stdout_console = Console(file=sys.stdout, highlight=False)
+#: Width used for stdout when it isn't a terminal and ``$COLUMNS`` is unset. Rich's own non-TTY
+#: default is 80 columns, which ellipsizes table cells in piped output (``hassette app | grep``
+#: can't match a truncated name). Tables and panels don't expand to fill the console, so a wide
+#: fallback only stops truncation; it doesn't pad short output.
+PIPE_FALLBACK_WIDTH = 1000
+
+
+def make_stdout_console() -> Console:
+    """Build the stdout console, widening Rich's 80-column default when piped.
+
+    A terminal keeps its detected width, and an explicit ``$COLUMNS`` always wins (Rich reads it
+    itself); only a non-TTY stdout with no ``$COLUMNS`` gets :data:`PIPE_FALLBACK_WIDTH`.
+
+    The fallback sets width and height together: Rich only honors an assigned width ahead of its
+    fixed 80x25 ``TERM=dumb`` size when both dimensions are set, and ``TERM=dumb`` with
+    ``FORCE_COLOR`` is a common CI combination.
+    """
+    console = Console(file=sys.stdout, highlight=False)
+    has_explicit_columns = os.environ.get("COLUMNS", "").isdigit()
+    if not writes_to_tty(console) and not has_explicit_columns:
+        console.size = (PIPE_FALLBACK_WIDTH, console.height)
+    return console
+
+
+def writes_to_tty(console: Console) -> bool:
+    """Return whether ``console`` writes to a physical TTY.
+
+    Deliberately not ``Console.is_terminal``: ``FORCE_COLOR`` or ``TTY_COMPATIBLE=1`` (common in CI)
+    make that report ``True`` on a pipe, which would truncate piped tables. Those variables are
+    about color and escape-code support, not about whether a human is reading a sized terminal.
+
+    A closed stream counts as not a TTY: this runs at import time (via :func:`make_stdout_console`),
+    and ``isatty()`` on a closed file raises ``ValueError``, which Rich's own check also absorbs.
+    """
+    try:
+        return console.file.isatty()
+    except ValueError:
+        return False
+
+
+stdout_console = make_stdout_console()
 stderr_console = Console(file=sys.stderr, stderr=True, highlight=False)
 
 
@@ -251,8 +292,7 @@ def render_table(
         stderr_console.print("No results.", highlight=False)
         return
 
-    is_terminal = stdout_console.is_terminal
-    table = _build_table(columns, is_terminal)
+    table = _build_table(columns, is_tty=writes_to_tty(stdout_console))
     fallback_meta = _resolve_cli_format_meta(type(items[0]))
     for item in items:
         row = [
@@ -374,7 +414,7 @@ def _render_detail_panel(
     stdout_console.print(panel)
 
 
-def _build_table(columns: list[Column], is_terminal: bool) -> Table:
+def _build_table(columns: list[Column], is_tty: bool) -> Table:
     """Build a Rich Table from column definitions.
 
     In non-TTY (pipe) mode, ``max_width`` is ignored so piped output
@@ -382,7 +422,7 @@ def _build_table(columns: list[Column], is_terminal: bool) -> Table:
     """
     table = Table(show_header=True, header_style="bold")
     for col in columns:
-        effective_max_width = col.max_width if is_terminal else None
+        effective_max_width = col.max_width if is_tty else None
         table.add_column(
             col.header,
             max_width=effective_max_width,

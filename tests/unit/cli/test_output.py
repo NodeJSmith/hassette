@@ -14,6 +14,7 @@ from whenever import Instant
 
 import hassette.cli.output as output_module
 from hassette.cli.output import (
+    PIPE_FALLBACK_WIDTH,
     Column,
     _build_table,
     _cell_text,
@@ -21,6 +22,7 @@ from hassette.cli.output import (
     fmt_duration_ms,
     fmt_duration_s,
     fmt_relative_time,
+    make_stdout_console,
     render_detail,
     render_table,
 )
@@ -404,7 +406,7 @@ class TestRenderTablePipeDetection:
     def test_pipe_mode_disables_max_width(self) -> None:
         """In non-TTY mode, columns should not be created with max_width."""
         columns = [Column("name", "Name", max_width=10)]
-        table = _build_table(columns, is_terminal=False)
+        table = _build_table(columns, is_tty=False)
         # Verify first column has no max_width (None)
         col_obj = table.columns[0]
         assert col_obj.max_width is None
@@ -412,7 +414,7 @@ class TestRenderTablePipeDetection:
     def test_terminal_mode_uses_max_width(self) -> None:
         """In TTY mode, columns should respect max_width."""
         columns = [Column("name", "Name", max_width=10)]
-        table = _build_table(columns, is_terminal=True)
+        table = _build_table(columns, is_tty=True)
         col_obj = table.columns[0]
         assert col_obj.max_width == 10
 
@@ -423,7 +425,7 @@ class TestRenderTablePipeDetection:
         columns = [Column("name", "Name", max_width=20)]
 
         stdout_buf = StringIO()
-        # Simulate non-TTY: is_terminal=False, large width so content isn't wrapped
+        # Simulate a pipe: StringIO isn't a TTY; large width so content isn't wrapped
         new_stdout_console = Console(file=stdout_buf, highlight=False, no_color=True, width=CAPTURE_CONSOLE_WIDTH)
         new_stderr_console = Console(file=StringIO(), highlight=False, no_color=True)
         with (
@@ -434,6 +436,74 @@ class TestRenderTablePipeDetection:
 
         output = stdout_buf.getvalue()
         assert long_name in output
+
+
+class TestMakeStdoutConsole:
+    @pytest.fixture(autouse=True)
+    def clear_terminal_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Clear env vars that set the width or would force Rich into terminal mode on piped stdout."""
+        for var in ("COLUMNS", "FORCE_COLOR", "TTY_COMPATIBLE", "TTY_INTERACTIVE", "TERM"):
+            monkeypatch.delenv(var, raising=False)
+
+    def test_piped_without_columns_uses_wide_fallback(self) -> None:
+        """Piped stdout with no $COLUMNS gets the wide fallback instead of Rich's 80-column default."""
+        with patch("sys.stdout", StringIO()):
+            console = make_stdout_console()
+        assert console.width == PIPE_FALLBACK_WIDTH
+
+    def test_closed_stdout_counts_as_piped(self) -> None:
+        """A closed stdout falls back to pipe mode instead of raising at console construction."""
+        closed = StringIO()
+        closed.close()
+        with patch("sys.stdout", closed):
+            console = make_stdout_console()
+        assert console.width == PIPE_FALLBACK_WIDTH
+
+    def test_piped_respects_columns(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An explicit $COLUMNS wins over the fallback."""
+        monkeypatch.setenv("COLUMNS", "60")
+        with patch("sys.stdout", StringIO()):
+            console = make_stdout_console()
+        assert console.width == 60
+
+    @pytest.mark.parametrize("forced_terminal_var", [None, "FORCE_COLOR", "TTY_COMPATIBLE"])
+    def test_piped_table_keeps_cells_greppable(
+        self, monkeypatch: pytest.MonkeyPatch, forced_terminal_var: str | None
+    ) -> None:
+        """A wide table piped through the real stdout console renders every cell untruncated.
+
+        FORCE_COLOR/TTY_COMPATIBLE make Rich call a pipe a terminal; output must still not be truncated.
+        """
+        if forced_terminal_var is not None:
+            monkeypatch.setenv(forced_terminal_var, "1")
+        buf = StringIO()
+        with patch("sys.stdout", buf):
+            console = make_stdout_console()
+        # Precondition: the env override really reached Rich, so those cases exercise the override path.
+        assert console.is_terminal == (forced_terminal_var is not None)
+        assert console.width == PIPE_FALLBACK_WIDTH
+
+        items = [SimpleItem(name="motion_lights_upstairs_hallway", count=1, note="n" * 120)]
+        columns = [Column("name", "Name", max_width=10), Column("count", "Count"), Column("note", "Note")]
+        with patch.object(output_module, "stdout_console", console):
+            render_table(items, columns, json_mode=False)
+
+        output = buf.getvalue()
+        assert "motion_lights_upstairs_hallway" in output
+        assert "n" * 120 in output
+
+    @pytest.mark.parametrize("forced_terminal_var", ["FORCE_COLOR", "TTY_COMPATIBLE"])
+    def test_forced_dumb_terminal_still_uses_wide_fallback(
+        self, monkeypatch: pytest.MonkeyPatch, forced_terminal_var: str
+    ) -> None:
+        """TERM=dumb plus a forced-terminal var makes Rich pin its size to 80 columns; piping still widens."""
+        monkeypatch.setenv(forced_terminal_var, "1")
+        monkeypatch.setenv("TERM", "dumb")
+        with patch("sys.stdout", StringIO()):
+            console = make_stdout_console()
+        # Precondition: Rich really sees a dumb terminal, so this exercises its fixed-size path.
+        assert console.is_dumb_terminal
+        assert console.width == PIPE_FALLBACK_WIDTH
 
 
 # render_detail — JSON mode

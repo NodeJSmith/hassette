@@ -8,10 +8,12 @@ without executing the command.
 """
 
 import re
+from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from rich.console import Console
 from whenever import Instant
 
 from hassette.cli import app
@@ -249,3 +251,20 @@ class TestGlobalFlagWiring:
         _cmd, bound, _ = app.meta.parse_args(["status"])
 
         assert bound.arguments.get("verify_ssl") is None
+
+
+class TestHiddenFlags:
+    def test_log_instance_hidden_from_help(self) -> None:
+        """Log --help doesn't advertise --instance, since the flag only exists to reject itself."""
+        buf = StringIO()
+        app.help_print(["log"], console=Console(file=buf, width=200))
+
+        help_text = buf.getvalue()
+        assert "--source-tier" in help_text
+        assert "--instance" not in help_text
+
+    def test_log_instance_still_parses(self) -> None:
+        """Hidden --instance still binds, so cmd_log can reject it with a targeted usage error."""
+        _cmd, bound, _ = app.parse_args(["log", "--instance", "0"])
+
+        assert bound.arguments["instance"] == "0"
