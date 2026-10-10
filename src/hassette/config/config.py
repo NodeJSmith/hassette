@@ -8,7 +8,13 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from pydantic import AliasChoices, Field, PrivateAttr, SecretStr, ValidationError, field_validator, model_validator
-from pydantic_settings import BaseSettings, InitSettingsSource, PydanticBaseSettingsSource, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    InitSettingsSource,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    SettingsError,
+)
 
 from hassette import context as ctx
 from hassette.config.build import ACTIVE_BUILD, ConfigBuild, default_build_data_dir, open_build
@@ -428,6 +434,8 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         try:
             with open_build(build):
                 super().__init__(**kwargs)
+        except SettingsError as exc:  # a source couldn't parse a value, e.g. HASSETTE__DATABASE=not-json
+            raise ConfigError(f"{exc}: a nested or list setting set by environment variable must be JSON") from exc
         except ValidationError as exc:
             raise ConfigError(str(exc)) from exc
 
