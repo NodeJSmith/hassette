@@ -266,7 +266,11 @@ $ hassette job
 └────┴──────────────────┴──────────────────────┴──────────┴───────────┴─────────┴───────┴────┴──────┴─────────┴─────┴────────────────────┘
 ```
 
-Each row shows the job ID, app key, handler method, trigger type, schedule status (`scheduled`, `waiting`, `completed`, or `manual`), mode, execution counts, average duration, and next run time. `Skipped` counts runs where the job's predicate returned `False` and the handler never ran. Those runs still count toward `Total`, so a job showing `Total 68 / OK 0 / Fail 0 / Skipped 68` is being filtered out entirely rather than failing. The Next Run column shows a relative time when one is scheduled, or status-aware placeholder text otherwise — `Timing unavailable.`, `Waiting for entity time.`, `Schedule completed.`, or `Manual only.` — rather than a blank cell.
+Each row shows the job ID, app key, handler method, trigger type, schedule status (`scheduled`, `waiting`, `completed`, or `manual`), mode, execution counts, average duration, and next run time. `Skipped` counts runs where the job's predicate returned `False` and the handler never ran. Those runs still count toward `Total`, so a job showing `Total 68 / OK 0 / Fail 0 / Skipped 68` is being filtered out entirely rather than failing.
+
+`Total` also counts two outcomes the table leaves out: `cancelled` (the run was cancelled before it finished, usually because Hassette or the app shut down mid-run) and `timed_out` (the run exceeded its job timeout). In practice these are almost always zero, so they don't get a column of their own. When `Total` is larger than `OK + Fail + Skipped`, the difference is cancelled or timed-out runs. `hassette job --json` reports both counters per job, and `hassette job <id>` shows the status of each individual run.
+
+The Next Run column shows a relative time when one is scheduled, or status-aware placeholder text otherwise — `Timing unavailable.`, `Waiting for entity time.`, `Schedule completed.`, or `Manual only.` — rather than a blank cell.
 
 Passing a job ID shows its execution history:
 
