@@ -771,6 +771,11 @@ class SchedulerSyncFacade(Resource):
         A caller that is discarding this scheduler for good (``on_shutdown``,
         ``AppLifecycleService.cleanup_failed_instance``) must call
         ``scheduler_service.deregister_removal_callback(self.owner_id)`` itself afterward.
+
+        If the scheduler service has already been force-terminated (its task bucket sealed),
+        the jobs are still removed from live state and the returned future is already
+        complete, so a shutdown path awaiting it does not see ``TaskBucketSealedError`` — see
+        ``SchedulerService.remove_jobs()``.
         """
         return self._scheduler.remove_all_jobs()
 

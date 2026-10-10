@@ -453,7 +453,8 @@ class SchedulerService(SchedulerDispatchMixin, Service):
 
         Returns:
             The spawned removal task, or an already-completed future when the bucket is sealed.
-            Callers should only await the result.
+            Typed as ``Future`` because the sealed path is not a ``Task``: callers should only
+            await the result, not rely on ``Task``-only methods such as ``get_name()``.
         """
         try:
             return self.task_bucket.spawn(self._remove_jobs(jobs), name="scheduler:remove_jobs")
