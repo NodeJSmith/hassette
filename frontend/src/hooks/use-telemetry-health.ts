@@ -22,15 +22,17 @@ const SERVICE_UNAVAILABLE_STATUS = 503;
 async function fetchTelemetryHealth({ signal }: { signal: AbortSignal }): Promise<TelemetryStatus> {
   const { setTelemetryHealth } = useAppStore.getState();
   try {
-    const result = await getTelemetryStatus(signal);
+    const status = await getTelemetryStatus(signal);
+    // A response that settles after navigation cancelled the query must not overwrite the store.
+    if (signal.aborted) return status;
     setTelemetryHealth({
-      telemetryDegraded: result.degraded,
-      droppedOverflow: result.dropped_overflow ?? 0,
-      droppedExhausted: result.dropped_exhausted ?? 0,
-      droppedShutdown: result.dropped_shutdown ?? 0,
-      errorHandlerFailures: result.error_handler_failures ?? 0,
+      telemetryDegraded: status.degraded,
+      droppedOverflow: status.dropped_overflow ?? 0,
+      droppedExhausted: status.dropped_exhausted ?? 0,
+      droppedShutdown: status.dropped_shutdown ?? 0,
+      errorHandlerFailures: status.error_handler_failures ?? 0,
     });
-    return result;
+    return status;
   } catch (err) {
     if (!signal.aborted && err instanceof ApiError && err.status === SERVICE_UNAVAILABLE_STATUS) {
       setTelemetryHealth({ telemetryDegraded: true });
