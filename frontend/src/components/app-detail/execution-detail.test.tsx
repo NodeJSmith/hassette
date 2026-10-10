@@ -63,8 +63,8 @@ describe("ExecutionDetailContent", () => {
       status: "success",
       duration_ms: 42,
     });
-    const { container } = render(<ExecutionDetailContent record={record} />);
-    expect(container.textContent).toContain("completed in");
+    const { getByTestId } = render(<ExecutionDetailContent record={record} />);
+    expect(getByTestId("execution-success-duration").textContent).toContain("completed in");
   });
 
   it("renders failed badge for error status", () => {
@@ -137,9 +137,10 @@ describe("ExecutionDetailContent", () => {
       execution_id: TEST_EXECUTION_ID,
       trigger_mode: "manual",
     });
-    const { container } = render(<ExecutionDetailContent record={record} />);
-    expect(container.textContent).toContain("trigger");
-    expect(container.textContent).toContain("manual");
+    const { getByTestId } = render(<ExecutionDetailContent record={record} />);
+    const trigger = getByTestId("execution-trigger");
+    expect(trigger.textContent).toContain("trigger");
+    expect(trigger.textContent).toContain("manual");
   });
 
   it("renders trigger context and origin when present", () => {
@@ -160,8 +161,8 @@ describe("ExecutionDetailContent", () => {
       trigger_mode: null,
       trigger_context_id: null,
     });
-    const { container } = render(<ExecutionDetailContent record={record} />);
-    expect(container.textContent).not.toContain("trigger");
+    const { queryByTestId } = render(<ExecutionDetailContent record={record} />);
+    expect(queryByTestId("execution-trigger")).toBeNull();
   });
 
   it("renders ExecutionLogs component with execution ID", () => {
@@ -199,8 +200,8 @@ describe("ExecutionDetailContent", () => {
       error_type: "TimeoutError",
       error_message: "Handler exceeded deadline",
     });
-    const { container } = render(<ExecutionDetailContent record={record} />);
-    expect(container.textContent).not.toContain("completed in");
+    const { queryByTestId } = render(<ExecutionDetailContent record={record} />);
+    expect(queryByTestId("execution-success-duration")).toBeNull();
   });
 });
 
