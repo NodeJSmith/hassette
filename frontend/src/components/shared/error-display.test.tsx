@@ -1,6 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { STATUS_TONE_CLASSES } from "../../utils/status";
 import { ErrorDisplay, resolveResultDisplay } from "./error-display";
 
 describe("resolveResultDisplay", () => {
@@ -8,25 +9,28 @@ describe("resolveResultDisplay", () => {
     const result = resolveResultDisplay("timed_out", 5000);
     expect(result.label).toBe("timeout");
     expect(result.message).toBe("exceeded 5.0s budget");
+    expect(result.toneClass).toBe(STATUS_TONE_CLASSES.warn);
   });
 
   it("returns a cancelled message for cancelled", () => {
     const result = resolveResultDisplay("cancelled", 250);
     expect(result.label).toBe("result");
     expect(result.message).toBe("cancelled after 250.0ms");
+    expect(result.toneClass).toBe(STATUS_TONE_CLASSES.cancel);
   });
 
   it("returns the error type and message for error", () => {
     const result = resolveResultDisplay("error", 100, "ValueError", "bad input");
     expect(result.label).toBe("result");
     expect(result.message).toBe("ValueError: bad input");
-    expect(result.toneClass).toBe("text-destructive");
+    expect(result.toneClass).toBe(STATUS_TONE_CLASSES.err);
   });
 
   it("returns a completed message for success", () => {
     const result = resolveResultDisplay("success", 42);
     expect(result.label).toBe("result");
     expect(result.message).toBe("completed in 42.0ms");
+    expect(result.toneClass).toBe(STATUS_TONE_CLASSES.ok);
   });
 
   it("returns a skipped message for skipped, not a completed-in-Xms message", () => {
@@ -34,7 +38,7 @@ describe("resolveResultDisplay", () => {
     expect(result.label).toBe("result");
     expect(result.message).toBe("skipped");
     expect(result.message).not.toContain("completed in");
-    expect(result.toneClass).toBe("text-muted-foreground");
+    expect(result.toneClass).toBe(STATUS_TONE_CLASSES.mute);
   });
 });
 

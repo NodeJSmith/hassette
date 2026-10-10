@@ -1,6 +1,7 @@
 import type { components } from "@/api/generated-types";
 import { cn } from "@/lib/utils";
 import { formatDuration } from "@/utils/format";
+import { executionStatusKind, STATUS_TONE_CLASSES } from "@/utils/status";
 
 import { FIELD_LABEL_CLASS } from "./field-label";
 
@@ -15,7 +16,7 @@ interface Props {
 
 interface ResultDisplay {
   label: string;
-  toneClass?: string;
+  toneClass: string;
   message: string;
 }
 
@@ -25,31 +26,24 @@ export function resolveResultDisplay(
   errorType?: string | null,
   errorMessage?: string | null,
 ): ResultDisplay {
+  const toneClass = STATUS_TONE_CLASSES[executionStatusKind(status)];
   switch (status) {
     case "timed_out":
-      return {
-        label: "timeout",
-        toneClass: "text-[var(--status-warning)]",
-        message: `exceeded ${formatDuration(durationMs)} budget`,
-      };
+      return { label: "timeout", toneClass, message: `exceeded ${formatDuration(durationMs)} budget` };
     case "cancelled":
-      return {
-        label: "result",
-        toneClass: "text-[var(--status-cancel)]",
-        message: `cancelled after ${formatDuration(durationMs)}`,
-      };
+      return { label: "result", toneClass, message: `cancelled after ${formatDuration(durationMs)}` };
     case "error":
       return {
         label: "result",
-        toneClass: "text-destructive",
+        toneClass,
         message: errorMessage
           ? `${errorType ?? "Error"}: ${errorMessage}`
           : `completed in ${formatDuration(durationMs)}`,
       };
     case "skipped":
-      return { label: "result", toneClass: "text-muted-foreground", message: "skipped" };
+      return { label: "result", toneClass, message: "skipped" };
     case "success":
-      return { label: "result", message: `completed in ${formatDuration(durationMs)}` };
+      return { label: "result", toneClass, message: `completed in ${formatDuration(durationMs)}` };
   }
 }
 
