@@ -69,6 +69,17 @@ class TestAfterValidation:
         trigger = After(seconds=30, minutes=1)
         assert trigger.trigger_id() == "after:90"
 
+    def test_hours_argument(self) -> None:
+        """hours= contributes to the delay and combines with seconds/minutes."""
+        assert After(hours=2).trigger_id() == "after:7200"
+        assert After(seconds=5, minutes=1, hours=1).trigger_id() == "after:3665"
+
+    @pytest.mark.parametrize("unit", ["seconds", "minutes", "hours"])
+    def test_timedelta_with_unit_argument_raises(self, unit: str) -> None:
+        """Combining timedelta= with seconds/minutes/hours raises instead of silently ignoring one."""
+        with pytest.raises(ValueError, match="either timedelta or seconds/minutes/hours"):
+            After(timedelta=TimeDelta(minutes=2), **{unit: 1})
+
     def test_metadata_methods(self) -> None:
         """trigger_label/trigger_detail/trigger_db_type return the expected values."""
         trigger = After(seconds=45)

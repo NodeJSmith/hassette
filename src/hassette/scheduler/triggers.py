@@ -119,28 +119,38 @@ def parse_hh_mm(at: str, label: str) -> tuple[int, int]:
 class After:
     """One-shot trigger that fires once after a fixed delay.
 
-    Accepts seconds, minutes, or a TimeDelta directly.
+    Accepts seconds, minutes, hours (or a combination), or a TimeDelta directly.
 
     Args:
-        seconds: Delay in seconds.
-        minutes: Delay in minutes.
-        timedelta: Delay as a TimeDelta object. Mutually exclusive with seconds/minutes.
+        seconds: Delay component in seconds.
+        minutes: Delay component in minutes.
+        hours: Delay component in hours.
+        timedelta: Delay as a TimeDelta object. Mutually exclusive with seconds/minutes/hours.
+
+    Raises:
+        ValueError: If ``timedelta`` is combined with ``seconds``, ``minutes``, or ``hours``,
+            or if the total delay is not positive.
 
     Example:
         After(seconds=30)       # fires 30 seconds from now
         After(minutes=5)        # fires 5 minutes from now
+        After(hours=2)          # fires 2 hours from now
+        After(minutes=1, seconds=30)  # fires 90 seconds from now
     """
 
     def __init__(
         self,
         seconds: float = 0,
         minutes: float = 0,
+        hours: float = 0,
         timedelta: TimeDelta | None = None,
     ) -> None:
         if timedelta is not None:
+            if seconds or minutes or hours:
+                raise ValueError("After trigger accepts either timedelta or seconds/minutes/hours, not both")
             self._delay = timedelta
         else:
-            self._delay = TimeDelta(seconds=seconds, minutes=minutes)
+            self._delay = TimeDelta(seconds=seconds, minutes=minutes, hours=hours)
         if self._delay.total("seconds") <= 0:
             raise ValueError("After trigger delay must be positive")
 
