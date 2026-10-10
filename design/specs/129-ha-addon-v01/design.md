@@ -893,3 +893,13 @@ docs should. **Pick "both out" instead if** you'd rather keep the milestone to t
 **Calls made during the build:**
 
 ## Addendum
+
+**2026-10-10 — D12 credentials.** The bump job uses the existing `nodejsmith-release-please` GitHub App
+instead of a new one. That app is installed on all of the account's repositories with `contents: write`,
+and hassette already holds its credentials as repo secrets (`RELEASE_PLEASE_APP_ID`,
+`RELEASE_PLEASE_APP_PRIVATE_KEY`). Any workflow in hassette can already mint a token for `hassette-addon`,
+so putting a second app's key in the `release` environment would add no isolation. Tighter scoping means
+narrowing that installation to selected repositories, which is web-UI-only and out of scope here. The job
+requests a token limited to `hassette-addon` (`repositories:` on `actions/create-github-app-token`), and the
+`hassette-addon` ruleset lists the app as an `always` bypass actor so the job can commit to `main`
+directly.
