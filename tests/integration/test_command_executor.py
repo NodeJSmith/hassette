@@ -160,6 +160,45 @@ async def test_execute_timeout_none_is_noop(executor: CommandExecutor) -> None:
     assert pop_execution_record(executor).status == "success"
 
 
+@pytest.mark.parametrize("effective_timeout", [None, 10.0], ids=["no_timeout", "unexpired_timeout"])
+async def test_handler_raised_timeout_error_recorded_as_error(
+    executor: CommandExecutor, effective_timeout: float | None
+) -> None:
+    """A TimeoutError raised by the handler itself is a user-code error, not a framework timeout."""
+    listener = make_mock_listener(invoke_side_effect=TimeoutError("upstream"))
+
+    await executor.execute(invoke_cmd(listener, effective_timeout=effective_timeout))
+
+    record = pop_execution_record(executor)
+    assert record.status == "error"
+    assert record.error_type == "TimeoutError"
+    assert record.error_message == "upstream"
+    assert record.error_traceback is not None
+    assert "TimeoutError" in record.error_traceback
+
+
+@pytest.mark.parametrize("effective_timeout", [None, 10.0], ids=["no_timeout", "unexpired_timeout"])
+async def test_job_raised_timeout_error_recorded_as_error(
+    executor: CommandExecutor, effective_timeout: float | None
+) -> None:
+    """A TimeoutError raised by the job callable itself is recorded as an error with a traceback."""
+    callable_mock = AsyncMock(side_effect=TimeoutError("upstream"))
+
+    cmd = ExecuteJob(
+        job=make_mock_job(),
+        callable=callable_mock,
+        job_db_id=42,
+        source_tier="app",
+        effective_timeout=effective_timeout,
+    )
+    await executor.execute(cmd)
+
+    record = pop_execution_record(executor)
+    assert record.status == "error"
+    assert record.error_type == "TimeoutError"
+    assert record.error_traceback is not None
+
+
 async def test_timeout_warning_rate_limited(executor: CommandExecutor) -> None:
     """Multiple rapid timeouts produce at most one WARNING per 60s window."""
 
