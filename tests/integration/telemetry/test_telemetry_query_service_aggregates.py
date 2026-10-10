@@ -488,6 +488,52 @@ class TestCrossSessionAndRetiredRows:
         cursor = await db_svc.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (recent_job_id,))
         assert await cursor.fetchone() is not None, "Recent retired job must survive"
 
+    async def test_retention_cleanup_preserves_old_retired_rows_with_recent_executions(self, db: DbFixture) -> None:
+        """An old retired_at does not delete a listener/job whose executions are still recent.
+
+        retired_at is set at restart time and can predate the last execution, so the
+        parent-guard's NOT EXISTS check must keep the row while any of its executions
+        fall inside retention_days — otherwise that history loses its parent.
+
+        Unguarded siblings (old retired_at, no executions) must be deleted in the same run.
+        Without them the test can't tell the guard firing apart from the whole parent-guard
+        transaction rolling back: deleting a parent with children violates the executions
+        listener_id/job_id CHECK constraint, which also leaves every row in place.
+        """
+        db_svc, session_id = db
+
+        now = time.time()
+        old_retired_at = now - (8 * SECONDS_PER_DAY)  # beyond 7-day retention
+        recent_execution_ts = now - (1 * SECONDS_PER_DAY)  # within retention
+
+        listener_id = await insert_listener(db_svc, handler_method="on_guarded")
+        job_id = await insert_job(db_svc, job_name="guarded_job", handler_method="run_guarded")
+        await set_listener_retired_at(db_svc, listener_id, old_retired_at)
+        await set_job_retired_at(db_svc, job_id, old_retired_at)
+        invocation_id = await insert_invocation(db_svc, listener_id, session_id, execution_start_ts=recent_execution_ts)
+        execution_id = await insert_execution(db_svc, job_id, session_id, execution_start_ts=recent_execution_ts)
+
+        unguarded_listener_id = await insert_listener(db_svc, handler_method="on_unguarded")
+        unguarded_job_id = await insert_job(db_svc, job_name="unguarded_job", handler_method="run_unguarded")
+        await set_listener_retired_at(db_svc, unguarded_listener_id, old_retired_at)
+        await set_job_retired_at(db_svc, unguarded_job_id, old_retired_at)
+
+        await db_svc._do_run_retention_cleanup()
+
+        cursor = await db_svc.db.execute("SELECT id FROM listeners WHERE id = ?", (unguarded_listener_id,))
+        assert await cursor.fetchone() is None, "Parent-guard deletes must have committed"
+        cursor = await db_svc.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (unguarded_job_id,))
+        assert await cursor.fetchone() is None, "Parent-guard deletes must have committed"
+
+        cursor = await db_svc.db.execute("SELECT id FROM listeners WHERE id = ?", (listener_id,))
+        assert await cursor.fetchone() is not None, "Retired listener with a recent execution must survive"
+
+        cursor = await db_svc.db.execute("SELECT id FROM scheduled_jobs WHERE id = ?", (job_id,))
+        assert await cursor.fetchone() is not None, "Retired job with a recent execution must survive"
+
+        cursor = await db_svc.db.execute("SELECT id FROM executions WHERE id IN (?, ?)", (invocation_id, execution_id))
+        assert len(await cursor.fetchall()) == 2, "Recent executions must survive and stay joinable"
+
 
 class TestGetAllAppSummariesSourceTier:
     async def test_get_all_app_summaries_excludes_hassette(
