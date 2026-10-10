@@ -386,3 +386,15 @@ is that the pass is now bounded and the writers stuck behind it no longer wait w
   second pass cannot stack behind a still-running one in practice. Measured on desktop hardware
   against a 150k-row framework backlog: one capped pass deleted 100k rows in 0.46s, leaving 50k
   for the next cycle.
+
+**2026-10-10 — Restart mid-backlog now resumes cleanup at startup (#2266).** This replaces the
+"does not self-heal" caveat in the first-run-backlog accepted risk under Constraints.
+`on_initialize()` now runs the size failsafe and then retention cleanup as one startup catch-up,
+bounded together by half of `startup_timeout_seconds`. `serve()` still starts both interval clocks
+fresh on every restart. That no longer costs a full interval, because a restart has already
+re-run both passes before `serve()` begins. No progress state is persisted: both passes commit per
+batch, so a re-run deletes whatever is still past the cutoff or over the limit. A timeout in the
+catch-up rolls back any open batch and leaves the remainder to the hourly loop. While a pass holds
+the write worker, a heartbeat-timeout warning names that pass instead of reporting an unexplained
+wedge. Long passes also log an "in progress" line every 10 batches (retention) or iterations
+(size failsafe).

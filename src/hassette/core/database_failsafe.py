@@ -7,6 +7,7 @@ from typing import Any
 
 import aiosqlite
 
+from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, tracks_active_cleanup
 from hassette.core.retention_targets import _FAILSAFE_TABLES, RetentionTarget, build_tier_where
 
 if typing.TYPE_CHECKING:
@@ -53,6 +54,7 @@ class DatabaseSizeFailsafeMixin:
     _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
     _consecutive_size_triggers: int
     _consecutive_exhaustion_triggers: int
+    _active_cleanup: str | None
     db: aiosqlite.Connection
     enqueue: "Callable[[Coroutine[Any, Any, Any]], bool]"
 
@@ -103,6 +105,7 @@ class DatabaseSizeFailsafeMixin:
                     )
         return False
 
+    @tracks_active_cleanup("size failsafe")
     async def _check_size_failsafe(self) -> None:
         """Delete oldest records if database exceeds the configured size limit.
 
@@ -192,7 +195,15 @@ class DatabaseSizeFailsafeMixin:
             # max_iterations is a shared per-run budget, not a per-tier one -- each tier
             # only gets whatever's left after higher-priority tiers already spent theirs.
             remaining_iterations = max_iterations - iterations_used
-            for _iteration in range(remaining_iterations):
+            for iteration in range(1, remaining_iterations + 1):
+                if iteration % CLEANUP_PROGRESS_LOG_INTERVAL == 0:
+                    self.logger.info(
+                        "Size failsafe in progress: %s — iteration %d, database %.1f MB (limit %.1f MB)",
+                        group_label,
+                        iteration,
+                        current_size,
+                        max_size_mb,
+                    )
                 group_deleted = 0
                 group_failed = False
                 for target in group:
