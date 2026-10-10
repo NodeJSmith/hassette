@@ -673,8 +673,6 @@ async def test_restart_resumes_interrupted_retention_on_startup(
         assert restarted._active_cleanup is None
     finally:
         await restarted.on_shutdown()
-        # Hand the fixture's teardown a live service to shut down again.
-        await initialized_service.on_initialize()
 
 
 async def test_active_cleanup_names_the_pass_holding_the_write_worker(

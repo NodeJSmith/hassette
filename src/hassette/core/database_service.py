@@ -233,8 +233,9 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 await self._check_size_failsafe()
                 await self._do_run_retention_cleanup()
         except Exception:
-            # A timeout can cancel a retention batch between its BEGIN and commit; roll back so
-            # the write worker doesn't inherit an open transaction. Earlier batches stay committed.
+            # A failure or timeout can leave a retention batch between its BEGIN and commit; roll
+            # back so the write worker doesn't inherit an open transaction (a no-op when none is
+            # open). Earlier batches stay committed.
             await safe_rollback(self.db, self, "startup cleanup catch-up")
             self.logger.warning("Startup cleanup catch-up failed; continuing without cleanup", exc_info=True)
 
