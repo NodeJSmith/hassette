@@ -71,8 +71,9 @@ Behavior to pin:
   declared as `ports: {8126/tcp: null}`, so it is unmapped until the user enters a host port, with a
   `ports_description` entry naming it as the direct web UI and API with token login.
 - The backend injects `<base href>` from `X-Ingress-Path` only when the request comes from a
-  `trusted_proxies` peer and the value matches `^/api/hassio_ingress/[A-Za-z0-9_-]+$`, and it HTML-escapes the
-  value on output. Any other request gets `/`.
+  `trusted_proxies` peer and the value matches `^/api/hassio_ingress/[A-Za-z0-9_-]+$`. It emits the value with
+  a trailing `/` appended, HTML-escaped. Without the slash the browser treats the token as a filename and
+  resolves relative URLs one segment too high. Any other request gets `/`.
 
 | | A: Ingress in v0.1; direct port optional, off by default | B: Direct port + token login only; ingress in v0.2 |
 |---|---|---|
@@ -151,7 +152,11 @@ Building the variant in hassette's own workflow means the variant can't be publi
 extends, and the add-on repo stays pure metadata (`config.yaml`, docs, icons), as Music Assistant's and
 Frigate's are. The variant is published as `ghcr.io/nodejsmith/hassette-addon:<version>`, multi-arch (amd64,
 arm64), with the bare tag equal to `config.yaml`'s `version:`, because Supervisor pulls `image:` at that tag
-(Assumed: image pull). The stock image's `<version>-py3.<minor>` tags don't fit that scheme.
+(Assumed: image pull). The stock image's `<version>-py3.<minor>` tags don't fit that scheme. The variant
+carries the `io.hass.type=app`, `io.hass.arch` and `io.hass.version` labels HA's docs ask prebuilt images for.
+Supervisor's install check compares the image's OS architecture, not these labels
+(`~/source/supervisor/supervisor/docker/interface.py:611-641`), and takes the version from `config.yaml`
+(`docker/app.py:206-208`), so they follow convention rather than gate installation.
 **Pick B instead if** you'd rather publish one image for everything and accept a privilege-drop step in every
 Docker user's entrypoint.
 **Pick C instead if** you want no CI change at all and accept being the only surveyed add-on built on-device.
@@ -475,11 +480,12 @@ than files are also visible in the add-on UI and survive config folder edits. DO
 
 Behavior to pin:
 
-- `config.yaml` declares `log_level: list(DEBUG|INFO|WARNING|ERROR|CRITICAL)?` with `options` default `INFO`.
+- `config.yaml` declares `log_level: list(DEBUG|INFO|WARNING|ERROR|CRITICAL)?` with no entry in `options`,
+  since any default makes an option required (HA developer docs, `web-research-config.md`).
   These are exactly hassette's `LogLevel` values (`wire/src/hassette_wire/literals.py:8`, used by
   `LoggingConfig.log_level` at `src/hassette/config/models.py:202`). When the option is set, the glue exports
-  it as `HASSETTE__LOGGING__LOG_LEVEL` on every start, so it overrides `hassette.toml`; when the user clears
-  it, nothing is exported and `hassette.toml` or hassette's own default (`INFO`) applies.
+  it as `HASSETTE__LOGGING__LOG_LEVEL` on every start, so it overrides `hassette.toml`; when it is unset,
+  nothing is exported and `hassette.toml` or hassette's own default (`INFO`) applies.
 - `config.yaml` declares the `python_packages` option's schema as
   `python_packages: ['match(^[A-Za-z0-9][A-Za-z0-9._\-\[\],<>=!~ ;]*$)']`, single-quoted because `\-`, `\[` and
   `\]` are invalid escapes in a YAML double-quoted string. Supervisor rejects anything but a plain requirement
@@ -615,8 +621,10 @@ Behavior to pin:
 
 - The bump job is in `release-verify`'s `needs:` and result checks (`.github/workflows/release-please.yml:369-388`),
   so a failed bump fails the release the same way a failed PyPI or Docker publish does.
-- The job refuses a version that isn't greater than `hassette-addon`'s current `version`. `workflow_dispatch`
-  accepts any `tag_name` (`release-please.yml:6-11`), and a re-run of an old tag must not downgrade add-on users.
+- The job refuses a version lower than `hassette-addon`'s current `version`. `workflow_dispatch` accepts any
+  `tag_name` (`release-please.yml:6-11`), and a re-run of an old tag must not downgrade add-on users. An equal
+  version is a successful no-op, so re-running a release whose bump already landed (after a later step failed)
+  passes without committing.
 - Before committing, an anonymous `docker manifest inspect` confirms the add-on image exists for amd64 and
   arm64, so a private or missing package fails the release instead of reaching the store. Supervisor pulls
   anonymously (Assumed: image pull).
