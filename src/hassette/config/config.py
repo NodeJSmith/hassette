@@ -573,6 +573,8 @@ def clean_explicit_apps(apps: AppsConfig) -> dict[str, AppDict]:
             cleaned[k] = clean_app(k, v, apps.directory)
         except (KeyError, TypeError):
             LOGGER.warning("Skipping app %r: missing required keys (filename or class_name)", k)
+        except ValueError as exc:  # e.g. filename = "", which pathlib can't give a .py suffix
+            raise ConfigError(f"Invalid app {k!r}: filename {v.get('filename')!r} is not a file name ({exc})") from exc
     return cleaned
 
 
