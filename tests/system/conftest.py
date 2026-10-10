@@ -8,10 +8,12 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import IO
 
 import httpx2 as httpx
 import pytest
@@ -319,6 +321,33 @@ def free_port() -> int:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(("", 0))
         return sock.getsockname()[1]
+
+
+def hassette_run_env(data_dir: Path, port: int, **settings: str) -> dict[str, str]:
+    """Environment for a ``hassette run`` subprocess: the test's own, plus a data dir, a local web API with
+    auth off on `port`, and any extra `settings` (``HASSETTE__...`` names to values).
+    """
+    return {
+        **os.environ,
+        "HASSETTE__DATA_DIR": str(data_dir),
+        "HASSETTE__WEB_API__RUN": "true",
+        "HASSETTE__WEB_API__PORT": str(port),
+        "HASSETTE__WEB_API__HOST": "127.0.0.1",
+        "HASSETTE__WEB_API__AUTH_ENABLED": "false",
+        **settings,
+    }
+
+
+def spawn_hassette_run(cwd: Path, env: dict[str, str], ha_url: str, stdout: int | IO[str]) -> subprocess.Popen[str]:
+    """Start ``python -m hassette run`` against `ha_url` from `cwd`, with stderr merged into `stdout`."""
+    return subprocess.Popen(
+        [sys.executable, "-m", "hassette", "run", "--token", HA_TOKEN, "--ha-url", ha_url],
+        cwd=cwd,
+        env=env,
+        stdout=stdout,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
 
 
 def make_web_system_config(
