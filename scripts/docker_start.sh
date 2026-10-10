@@ -220,27 +220,14 @@ run_uv_install() {
     local failure_type="$2"
     shift 2
 
-    local uv_log
-    uv_log=$(mktemp "${TMP_ROOT}/uv-output.XXXXXX")
-
-    # Stream live output AND capture to file for error replay.
-    # Temporarily disable set -e so the pipeline doesn't abort the function,
-    # then capture PIPESTATUS immediately (it's reset by the next command).
+    # uv's output streams straight to the container log; set -e is off so a failure reaches the checks below
+    local exit_code
     set +e
-    timeout "${timeout_secs}" uv "$@" 2>&1 | tee "${uv_log}"
-    local -a pipe_status=("${PIPESTATUS[@]}")
+    timeout "${timeout_secs}" uv "$@" 2>&1
+    exit_code=$?
     set -e
-    local exit_code="${pipe_status[0]}"
-    local tee_code="${pipe_status[1]:-0}"
-    rm -f "${uv_log}"
 
-    if [ "${exit_code}" -eq 0 ] && [ "${tee_code}" -eq 0 ]; then
-        return 0
-    fi
-
-    # tee failure (disk full, permission denied) — warn but use the uv exit code for decision
-    if [ "${tee_code}" -ne 0 ] && [ "${exit_code}" -eq 0 ]; then
-        echo "WARNING: output capture failed (tee exit ${tee_code}) — install may have succeeded but logs are incomplete"
+    if [ "${exit_code}" -eq 0 ]; then
         return 0
     fi
 
@@ -249,7 +236,6 @@ run_uv_install() {
         halt 1 "the dependency install timed out" "Check the container's network access."
     fi
 
-    # uv output was already streamed live above
     print_install_failure_banner "${failure_type}"
     echo "ERROR: dependency install failed (exit ${exit_code})"
     halt 1 "a dependency conflict (see above)" "${REMEDY_DEPS}"

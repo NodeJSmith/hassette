@@ -23,19 +23,19 @@ CONTAINER_TIMEOUT = 60
 PROJECT_CONTAINER_TIMEOUT = 120
 UV_LOCK_TIMEOUT = 60
 DOCKER_CLEANUP_TIMEOUT = 30
+# `docker stop` grace period, and how fast a halted container must stop within it
+DOCKER_STOP_GRACE_SECS = 30
+MAX_HALT_STOP_SECS = 10
 
-FAKE_TOKEN = "test_token"
-FAKE_BASE_URL = "http://test"
 BASE_CONTAINER_ENV = {
-    "HASSETTE__TOKEN": FAKE_TOKEN,
-    "HASSETTE__BASE_URL": FAKE_BASE_URL,
+    "HASSETTE__TOKEN": "test_token",
+    "HASSETTE__BASE_URL": "http://test",
 }
+NO_RETRY = {"HASSETTE_DOCKER_RETRY_DELAY": "0"}
 
 # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
 CONFLICTING_REQUIREMENT = "aiohttp==3.0.0"
-
-HATCHLING_BUILD_SYSTEM = '\n[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
-NO_RETRY = {"HASSETTE_DOCKER_RETRY_DELAY": "0"}
+HATCHLING_BUILD_SYSTEM = '[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
 
 pytestmark = [
     pytest.mark.integration,
@@ -268,12 +268,13 @@ def test_docker_constraint_conflict(tmp_path: Path):
     assert "HASSETTE CAN'T START" in output
 
 
-def project_pyproject(dependencies: str = "[]", *, build_system: bool = True) -> str:
+def project_pyproject(dependencies: list[str] | None = None, *, build_system: bool = True) -> str:
     """Return a minimal ``test-proj`` pyproject.toml, optionally with a hatchling ``[build-system]``."""
-    content = (
-        f'[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = {dependencies}\n'
-    )
-    return content + HATCHLING_BUILD_SYSTEM if build_system else content
+    deps = ", ".join(f'"{dep}"' for dep in dependencies or [])
+    content = f'[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = [{deps}]\n'
+    if build_system:
+        content += "\n" + HATCHLING_BUILD_SYSTEM
+    return content
 
 
 @pytest.mark.parametrize(
@@ -281,7 +282,7 @@ def project_pyproject(dependencies: str = "[]", *, build_system: bool = True) ->
     [
         pytest.param(project_pyproject(), id="with_lockfile"),
         pytest.param(project_pyproject(build_system=False), id="without_build_system"),
-        pytest.param(project_pyproject('["tabulate>=0.9"]'), id="with_real_dep"),
+        pytest.param(project_pyproject(["tabulate>=0.9"]), id="with_real_dep"),
     ],
 )
 def test_docker_project_install_succeeds(docker_project_dir: Path, pyproject_content: str):
@@ -324,7 +325,7 @@ def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path
             timeout=DOCKER_CLEANUP_TIMEOUT,
             check=True,
         )
-        leaked = [line for line in diff.stdout.splitlines() if "/tmp/project-build." in line]
+        leaked = [line for line in diff.stdout.splitlines() if "/project-build." in line]
         assert not leaked, f"Leftover project-build tmp dir(s) found:\n{diff.stdout}"
     finally:
         subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
@@ -343,7 +344,7 @@ def test_docker_project_without_lockfile_warns(docker_project_dir: Path):
 
 def test_docker_project_constraint_conflict(docker_project_dir: Path):
     """Test that a project whose lockfile conflicts with hassette's constraints fails with a clear error."""
-    create_project_package(docker_project_dir, project_pyproject(f'["{CONFLICTING_REQUIREMENT}"]'))
+    create_project_package(docker_project_dir, project_pyproject([CONFLICTING_REQUIREMENT]))
     result, output = run_project_container(docker_project_dir, env=NO_RETRY)
 
     assert result.returncode == 1, f"Expected exit 1 for project constraint conflict. Output:\n{output}"
@@ -458,15 +459,20 @@ def test_docker_stop_ends_a_halt_promptly():
             ],
             check=True, capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT,
         )  # fmt: skip
-        deadline = time.monotonic() + 60
+        deadline = time.monotonic() + CONTAINER_TIMEOUT
         while "HASSETTE CAN'T START" not in (logs := docker_logs(container_name)):
             assert time.monotonic() < deadline, logs
             time.sleep(0.5)
 
         started = time.monotonic()
-        subprocess.run(["docker", "stop", "-t", "30", container_name], check=True, capture_output=True, timeout=60)
+        subprocess.run(
+            ["docker", "stop", "-t", str(DOCKER_STOP_GRACE_SECS), container_name],
+            check=True,
+            capture_output=True,
+            timeout=CONTAINER_TIMEOUT,
+        )
 
-        assert time.monotonic() - started < 10
+        assert time.monotonic() - started < MAX_HALT_STOP_SECS
     finally:
         subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
 
