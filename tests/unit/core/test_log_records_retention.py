@@ -358,7 +358,7 @@ class TestRetentionCleanup:
             else:
                 assert len(escalated) == 1
                 assert escalated[0].levelno == logging.ERROR
-                assert f"skipped {cycle} consecutive cycles" in escalated[0].getMessage()
+                assert f"skipping parent-guard deletes ({cycle} consecutive cycles)" in escalated[0].getMessage()
                 assert "failed: blocking events" in escalated[0].getMessage()
 
         monkeypatch.undo()
