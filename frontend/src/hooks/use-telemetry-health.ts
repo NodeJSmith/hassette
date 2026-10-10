@@ -9,6 +9,7 @@ import { useAppStore } from "../state/store";
 
 export const BASE_INTERVAL_MS = 30_000;
 export const MAX_INTERVAL_MS = 120_000;
+export const REQUEST_TIMEOUT_MS = 10_000;
 const SERVICE_UNAVAILABLE_STATUS = 503;
 
 /**

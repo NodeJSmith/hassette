@@ -12,7 +12,7 @@ import {
   expectPollNotDegraded,
   renderAndWaitForFirstPoll,
 } from "../test/telemetry-health-test-utils";
-import { BASE_INTERVAL_MS } from "./use-telemetry-health";
+import { BASE_INTERVAL_MS, REQUEST_TIMEOUT_MS } from "./use-telemetry-health";
 
 let mockLocation = "/";
 const mockSetLocation = vi.fn();
@@ -156,6 +156,22 @@ describe("useTelemetryHealth", () => {
     // Wait for the initial poll to complete, and confirm AbortError did NOT set degraded —
     // it's a navigation cancellation, not a failure
     await expectFirstPollNotDegraded(mockedGetTelemetryStatus);
+  });
+
+  it("times out a stalled request so polling recovers", async () => {
+    // A request that never settles unless aborted, like a fetch over a stalled connection.
+    mockedGetTelemetryStatus.mockImplementationOnce(
+      (signal) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+        }),
+    );
+    await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
+
+    // The timeout fails the stalled request, which starts the retry chain (first retry after 60s).
+    advanceTime(REQUEST_TIMEOUT_MS + BASE_INTERVAL_MS * 2);
+
+    await expectPollNotDegraded(mockedGetTelemetryStatus, 2);
   });
 
   it("stops polling on unmount", async () => {
