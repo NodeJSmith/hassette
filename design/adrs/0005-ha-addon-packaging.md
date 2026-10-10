@@ -1,7 +1,13 @@
 # ADR-0005: HA Add-on Packaging — Derived Image, Ingress-First Web UI
 
 **Date:** 2026-07-07
-**Status:** Accepted
+**Status:** Superseded (2026-10-10) by `design/specs/129-ha-addon-v01/design.md`
+
+> Spec 129 re-decided the add-on against what shipped after this ADR: web API auth with `trusted_proxies`
+> (spec 091), config locations and exit code 78 (spec 128), the conventional-client companion integration
+> (ADR-0006), and Supervisor's rename of add-ons to apps. Where the two differ, spec 129 wins. Notably, the
+> variant image and its glue are built in hassette's CI (the add-on repo holds only metadata), `base_url` keeps
+> its path prefix in place of `api_url`/`ws_url` overrides, and token auth replaces `allowed_client_ips`.
 **Context:** `epic:ha-addon` (#71). Full analysis in
 `design/research/2026-07-07-ha-addon-architecture/research.md`.
 
