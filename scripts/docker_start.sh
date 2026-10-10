@@ -274,6 +274,45 @@ if [ -f "$PROJECT_DIR/uv.lock" ]; then
 
     log_phase "project install: complete"
 
+    # A build backend misconfiguration can install a package with nothing importable in it while
+    # every install step exits 0. App loading reads the apps dir directly, so warn rather than halt:
+    # most deployments still run, but the packaging is broken. The import names come from the
+    # installed distribution's RECORD, not [project].name, since the two may legitimately differ.
+    # -P keeps the cwd off sys.path, so a module there can't mask a broken install.
+    project_package_problem=$(python -P -c '
+import importlib.metadata
+import importlib.util
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as f:
+    name = tomllib.load(f).get("project", {}).get("name")
+if not name:
+    sys.exit()
+try:
+    files = importlib.metadata.distribution(name).files or []
+except importlib.metadata.PackageNotFoundError:
+    print(f"distribution {name!r} is not installed")
+    sys.exit()
+top_level_names = set()
+for path in files:
+    top = path.parts[0]
+    if len(path.parts) == 1:
+        if top.endswith((".py", ".so", ".pyd")):
+            top_level_names.add(top.split(".")[0])
+    # ".." entries are files installed outside site-packages, such as console scripts in bin/
+    elif top not in ("..", "__pycache__") and not top.endswith((".dist-info", ".data")):
+        top_level_names.add(top)
+missing = sorted(t for t in top_level_names if importlib.util.find_spec(t) is None)
+if not top_level_names:
+    print(f"distribution {name!r} installed no importable modules")
+elif missing:
+    print(f"distribution {name!r} ships {missing} but they are not importable")
+' "$PROJECT_DIR/pyproject.toml" || echo "NOTE: skipped the project package check (it failed; see above)" >&2)
+    if [ -n "${project_package_problem}" ]; then
+        echo "WARNING: installed project package is misconfigured: ${project_package_problem} — check [build-system] / [tool.uv.build-backend] in pyproject.toml (apps under HASSETTE__APPS__DIRECTORY still load)"
+    fi
+
 elif [ -f "$PROJECT_DIR/pyproject.toml" ]; then
     log_phase "project install: skipped (pyproject.toml found but no uv.lock — run 'uv lock' to generate a lockfile, then restart)"
 else
