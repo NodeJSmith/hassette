@@ -191,6 +191,17 @@ class TestRelativePaths:
         assert config.data_dir == tmp_path / "data"
         assert config.database.path == tmp_path / "h.db"
 
+    @pytest.mark.parametrize("name", ["HASSETTE_DATA_DIR", "HASSETTE__DATA_DIR"])
+    def test_env_data_dir_alias_is_relative_to_the_supplied_cwd(
+        self, tmp_path: Path, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch, name: str
+    ) -> None:
+        """A relative data-dir env value anchors to the build's cwd, not the process cwd."""
+        monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
+
+        config = HassetteConfig(environ={name: "data"}, cwd=tmp_path, config_file=[], env_file=[])
+
+        assert config.data_dir == tmp_path / "data"
+
 
 class TestAppsDirectoryDefault:
     def test_defaults_to_apps_in_explicit_config_dir(self, tmp_path: Path) -> None:

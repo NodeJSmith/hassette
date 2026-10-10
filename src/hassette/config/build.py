@@ -83,5 +83,8 @@ def default_apps_dir() -> Path:
 
 
 def default_build_data_dir() -> Path:
-    """Default ``data_dir``, reading ``HASSETTE_DATA_DIR`` from the build's environment snapshot."""
-    return default_data_dir(build_environ())
+    """Default ``data_dir``, reading ``HASSETTE_DATA_DIR`` from the build's environment snapshot and cwd."""
+    build = ACTIVE_BUILD.get()
+    if build is None:
+        return default_data_dir(os.environ, Path.cwd())
+    return default_data_dir(build.environ, build.cwd)

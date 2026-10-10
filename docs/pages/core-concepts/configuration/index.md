@@ -103,7 +103,7 @@ Docker containers commonly default to UTC. Home Assistant uses a local zone conf
 
 ### Data Directory and Upgrades
 
-`data_dir` sets the root for all persistent data Hassette writes, including the telemetry database and caches. The default is platform-specific. A relative `data_dir` resolves against the file that sets it — see [Relative Paths](#relative-paths). Changing `data_dir` between major versions requires migrating the existing data manually. No automatic migration runs. `database.path` defaults to a file inside `data_dir` but can be overridden to an independent location.
+`data_dir` sets the root for all persistent data Hassette writes, including the telemetry database and caches. The default is platform-specific. A relative `data_dir` resolves against the file or directory it was set from — see [Relative Paths](#relative-paths). Changing `data_dir` between major versions requires migrating the existing data manually. No automatic migration runs. `database.path` defaults to a file inside `data_dir` but can be overridden to an independent location.
 
 ### App Discovery
 

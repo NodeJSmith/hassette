@@ -131,14 +131,14 @@ def default_config_dir() -> Path:
     return platformdirs.user_config_path("hassette", version=f"v{VERSION.major}")
 
 
-def default_data_dir(environ: Mapping[str, str]) -> Path:
+def default_data_dir(environ: Mapping[str, str], cwd: Path) -> Path:
     """Return the data directory used when no settings source sets ``data_dir``.
 
     Resolution order: ``HASSETTE__DATA_DIR`` or ``HASSETTE_DATA_DIR`` in `environ`, then ``/data``
-    when it exists, then the platformdirs user data path.
+    when it exists, then the platformdirs user data path. A relative env value is anchored to `cwd`.
     """
     if (env := env_lookup(environ, DATA_DIR_ENV_NAMES)) is not None:
-        return Path(env).expanduser()
+        return anchored(env, cwd)
     if DOCKER_DATA_DIR.exists():
         return DOCKER_DATA_DIR
     return platformdirs.user_data_path("hassette", version=f"v{VERSION.major}")
