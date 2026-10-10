@@ -444,9 +444,9 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         Runs directly on the write connection, before the write worker starts.
         """
         # A restart that interrupted a pass on a large backlog resumes it here instead of a full
-        # interval later (serve() starts both interval clocks fresh). No progress state needs to survive the
-        # restart: both passes commit per batch, so already-deleted rows stay deleted and a
-        # re-run just picks up whatever remains past the cutoff or over the size limit.
+        # interval later (serve() starts both interval clocks fresh). No progress state needs to
+        # survive the restart: both passes commit per batch, so already-deleted rows stay deleted
+        # and a re-run just picks up whatever remains past the cutoff or over the size limit.
         #
         # Both passes and the recovery rollback share one budget of half the configured startup
         # readiness timeout. A large backlog could otherwise itself exhaust the readiness timeout

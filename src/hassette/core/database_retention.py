@@ -217,7 +217,7 @@ class DatabaseRetentionMixin:
 
     @tracks_active_cleanup("retention cleanup")
     async def _do_run_retention_cleanup(self) -> None:
-        """Execute the retention DELETE queries; called by the write-queue worker.
+        """Execute the retention DELETE queries; called by the write-queue worker or the startup catch-up.
 
         Iterates _RETENTION_TABLES for tier-aware, batched age-based deletes — each target
         gets its own per-batch transaction, bounding per-batch lock duration, and a failure

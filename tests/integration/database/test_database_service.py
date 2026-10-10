@@ -18,6 +18,9 @@ from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.integration.database.conftest import seed_app_executions
 from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, async_noop, seed_listener_for_fk
 
+ENDLESS_STATEMENT = "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c"
+"""Unbounded recursive CTE: never terminates unless interrupted."""
+
 
 async def test_fresh_db_creates_all_tables(initialized_fresh_service: DatabaseService) -> None:
     """on_initialize creates all tables and indexes on a fresh database."""
@@ -641,6 +644,36 @@ async def test_startup_size_failsafe_check_is_bounded_by_timeout(
     await fresh_service.on_shutdown()
 
 
+def endless_delete_connect(
+    statement_started: asyncio.Event, real_interrupts: list[Any], *, ignore_interrupt: bool
+) -> Any:
+    """Build a connect_daemon replacement whose first DELETE runs an endless statement instead,
+    occupying the real sqlite worker thread the way a huge batch or slow vacuum would.
+
+    Each connection's real interrupt() is appended to ``real_interrupts`` so the test can free the
+    worker before shutdown. ``ignore_interrupt`` makes the service's own interrupt() a no-op.
+    """
+    real_connect_daemon = database_service_module.connect_daemon
+
+    async def connect(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
+        conn = await real_connect_daemon(*args, **kwargs)
+        real_execute = conn.execute
+        real_interrupts.append(conn.interrupt)
+
+        async def endless_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
+            if sql.strip().upper().startswith("DELETE FROM"):
+                statement_started.set()
+                return await real_execute(ENDLESS_STATEMENT)
+            return await real_execute(sql, parameters)
+
+        conn.execute = endless_execute
+        if ignore_interrupt:
+            conn.interrupt = async_noop
+        return conn
+
+    return connect
+
+
 async def test_startup_cleanup_timeout_interrupts_in_flight_statement(
     fresh_service: DatabaseService, mock_hassette_fresh: MagicMock
 ) -> None:
@@ -654,28 +687,8 @@ async def test_startup_cleanup_timeout_interrupts_in_flight_statement(
     mock_hassette_fresh.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
     statement_started = asyncio.Event()
-    real_connect_daemon = database_service_module.connect_daemon
-
-    async def connect_daemon_with_endless_delete(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
-        """Replace the first DELETE with a statement that never finishes on its own, occupying
-        the real sqlite worker thread the way a huge batch or slow vacuum would.
-        """
-        conn = await real_connect_daemon(*args, **kwargs)
-        real_execute = conn.execute
-
-        async def endless_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
-            if sql.strip().upper().startswith("DELETE FROM"):
-                statement_started.set()
-                # Unbounded recursive CTE: never terminates unless interrupted.
-                return await real_execute(
-                    "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c"
-                )
-            return await real_execute(sql, parameters)
-
-        conn.execute = endless_execute
-        return conn
-
-    with patch.object(database_service_module, "connect_daemon", connect_daemon_with_endless_delete):
+    connect = endless_delete_connect(statement_started, [], ignore_interrupt=False)
+    with patch.object(database_service_module, "connect_daemon", connect):
         await asyncio.wait_for(fresh_service.on_initialize(), timeout=5.0)
 
     assert statement_started.is_set(), "size failsafe never reached its DELETE statement"
@@ -691,41 +704,19 @@ async def test_startup_cleanup_recovery_stays_within_readiness_budget(
     startup budget as the catch-up, or on_initialize() overruns the readiness deadline that
     wait_for_ready() enforces.
     """
-    startup_timeout = 2.0
+    # Generous enough that migrations plus the cleanup budget (half of this) fit with CI headroom,
+    # yet far short of the half-budget plus a fixed multi-second rollback wait on top of it.
+    startup_timeout = 4.0
     mock_hassette_fresh.config.lifecycle = mock_hassette_fresh.config.lifecycle.model_copy(
         update={"startup_timeout_seconds": startup_timeout}
     )
     mock_hassette_fresh.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
     statement_started = asyncio.Event()
-    real_connect_daemon = database_service_module.connect_daemon
     real_interrupts: list[Any] = []
-
-    async def connect_daemon_with_uninterruptible_delete(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
-        """Run an endless statement in place of the first DELETE and make interrupt() a no-op, so
-        the rollback stays queued behind the statement for as long as its bound allows.
-        """
-        conn = await real_connect_daemon(*args, **kwargs)
-        real_execute = conn.execute
-        real_interrupts.append(conn.interrupt)
-
-        async def endless_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
-            if sql.strip().upper().startswith("DELETE FROM"):
-                statement_started.set()
-                return await real_execute(
-                    "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c"
-                )
-            return await real_execute(sql, parameters)
-
-        async def ignored_interrupt() -> None:
-            return None
-
-        conn.execute = endless_execute
-        conn.interrupt = ignored_interrupt
-        return conn
-
+    connect = endless_delete_connect(statement_started, real_interrupts, ignore_interrupt=True)
     loop = asyncio.get_running_loop()
-    with patch.object(database_service_module, "connect_daemon", connect_daemon_with_uninterruptible_delete):
+    with patch.object(database_service_module, "connect_daemon", connect):
         started = loop.time()
         try:
             await asyncio.wait_for(fresh_service.on_initialize(), timeout=10.0)
