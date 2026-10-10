@@ -195,7 +195,10 @@ class TestRunCheck:
             pytest.param('[apps.porch]\nfilename = "porch.py"\nclass_name = "Porch"\ncache_key = "../escape"\n',
                          "Invalid app 'porch'", id="unsafe-cache-key"),
             pytest.param('[apps."a/b"]\nfilename = "ab.py"\nclass_name = "AB"\n', "App key 'a/b'", id="unsafe-key"),
-            pytest.param('[apps.porch]\nfilename = ""\nclass_name = "Porch"\n', "Invalid app 'porch'", id="empty-filename"),
+            pytest.param('[apps.porch]\nfilename = ""\nclass_name = "Porch"\n',
+                         "Invalid app 'porch'", id="empty-filename"),
+            pytest.param('[apps.porch]\nfilename = 123\nclass_name = "Porch"\n',
+                         "apps.apps.porch.filename", id="int-filename"),
         ],
     )  # fmt: skip
     def test_invalid_explicit_app_entry_exits_78(
