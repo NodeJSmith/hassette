@@ -19,7 +19,7 @@ All six built-in trigger types and [`TriggerProtocol`][hassette.types.types.Trig
 | `Cron("expr")` | On a cron schedule (5- or 6-field) | No |
 | `EntityTime("sensor.x")` | At a time read from an entity, rescheduling when it changes | No |
 
-`After` also accepts `minutes=` or a `whenever.TimeDelta` via `timedelta=` — `After(minutes=5)` reads better than `After(seconds=300)`. `Every` accepts an optional `start=` anchor (a `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/) library, which ships with Hassette): with `Every(minutes=15, start=anchor)`, runs align to the anchor's minute marks (`:00`, `:15`, `:30`, `:45`) instead of starting from registration time.
+`After` also accepts `minutes=`, `hours=`, or a `whenever.TimeDelta` via `timedelta=` — `After(minutes=5)` reads better than `After(seconds=300)`. `Every` accepts an optional `start=` anchor (a `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/) library, which ships with Hassette): with `Every(minutes=15, start=anchor)`, runs align to the anchor's minute marks (`:00`, `:15`, `:30`, `:45`) instead of starting from registration time.
 
 !!! warning "Wall-clock times use the configured timezone"
     `Once(at="07:00")` and `Daily(at="07:00")` interpret the time in the configured timezone. The [`timezone`](../configuration/index.md#timezone) field in `hassette.toml` controls which timezone the scheduler uses; when unset, the process timezone applies. Docker containers commonly default to UTC while Home Assistant uses a local zone, so the job fires at 07:00 UTC with no warning. `timezone = "America/Chicago"` in `hassette.toml` (or `HASSETTE__TIMEZONE`) resolves this. The `TZ` environment variable works as a fallback.
