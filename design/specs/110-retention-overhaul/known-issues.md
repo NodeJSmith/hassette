@@ -4,7 +4,7 @@ Durable issues discovered during orchestration that were intentionally not fixed
 
 ## KI-001: `_RetentionBatchError` uses exception-as-control-flow to carry a partial-delete count
 
-Status: filed (#2268)
+Status: resolved (#2268) — replaced by `TargetDeleteResult` in `src/hassette/core/database_retention.py`; line references below are historical
 Run: 135
 Source: clean-code
 Reason not fixed now: behavior-change

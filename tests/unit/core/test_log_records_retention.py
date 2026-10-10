@@ -5,7 +5,6 @@ import logging
 import sqlite3
 import time
 from collections.abc import Callable, Coroutine
-from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -15,19 +14,21 @@ import pytest
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from hassette.logging_ import LogPersistenceHandler
-from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.factories import make_log_record
 from tests.support.helpers import (
-    DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS,
-    DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
     SIZE_FAILSAFE_TRIGGER_MB,
 )
-from tests.support.mock_hassette import make_mock_hassette
 
-from .conftest import TELEMETRY_TEST_DDL as DDL
+from ._fixtures_retention import (
+    SOURCE_TIER_APP,
+    SOURCE_TIER_FRAMEWORK,
+    db,
+    insert_tiered_execution,
+    mock_hassette_for_db,
+    retention_service,
+)
 
-SOURCE_TIER_FRAMEWORK = "framework"
-SOURCE_TIER_APP = "app"
+__all__ = ["db", "mock_hassette_for_db", "retention_service"]  # re-exposed as fixtures
 
 
 def make_log_record_row(seq: int, timestamp: float, message: str) -> dict[str, Any]:
@@ -51,47 +52,6 @@ def make_log_record_row(seq: int, timestamp: float, message: str) -> dict[str, A
         "execution_id": None,
         "source_tier": SOURCE_TIER_APP,
     }
-
-
-@pytest.fixture
-def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
-    """Mock Hassette for DatabaseService tests."""
-    return make_mock_hassette(
-        data_dir=tmp_path,
-        set_ready=False,
-        database={"telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX},
-        lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
-    )
-
-
-@pytest.fixture
-async def db() -> aiosqlite.Connection:
-    """In-memory aiosqlite connection with log_records schema."""
-    conn = await connect_daemon(":memory:")
-    conn.row_factory = aiosqlite.Row
-    await conn.executescript(DDL)
-    try:
-        yield conn
-    finally:
-        await conn.close()
-
-
-async def insert_tiered_execution(db: aiosqlite.Connection, timestamp: float, source_tier: str) -> None:
-    """Insert a minimal executions row with an explicit source_tier.
-
-    ``insert_execution_row()`` (``tests/support/sql.py``) deliberately omits ``source_tier`` and
-    relies on the schema default — not usable here since tier-aware retention tests need rows in
-    both tiers.
-
-    Always ``kind='handler'``, so ``listener_id`` is set to a placeholder id (foreign key
-    enforcement is off in these tests) to satisfy the production
-    ``CHECK ((listener_id IS NOT NULL) + (job_id IS NOT NULL) = 1)`` constraint now mirrored in
-    the unit test DDL.
-    """
-    await db.execute(
-        "INSERT INTO executions (kind, listener_id, execution_start_ts, source_tier) VALUES ('handler', 1, ?, ?)",
-        (timestamp, source_tier),
-    )
 
 
 async def insert_blocking_event(db: aiosqlite.Connection, detected_ts: float) -> None:
@@ -125,14 +85,6 @@ def db_service_writer(db: aiosqlite.Connection) -> DatabaseService:
     mock_hassette = MagicMock()
     svc = DatabaseService.__new__(DatabaseService)
     svc.hassette = mock_hassette
-    svc._db = db  # pyright: ignore[reportPrivateUsage]
-    return svc
-
-
-@pytest.fixture
-def retention_service(db: aiosqlite.Connection, mock_hassette_for_db: MagicMock) -> DatabaseService:
-    """Real DatabaseService wired to the in-memory test DB, for retention/failsafe cleanup tests."""
-    svc = DatabaseService(mock_hassette_for_db, parent=None)
     svc._db = db  # pyright: ignore[reportPrivateUsage]
     return svc
 
@@ -468,9 +420,9 @@ class TestRetentionCleanup:
         """A failure on the 2nd+ batch of a target still reports the 1st batch's real count.
 
         Regression test: `_delete_target_batched()` accumulates `total_deleted` in a local
-        variable that is lost if a later batch's DELETE raises — the caller must recover the
-        partial count from the exception, not report a false zero for a target that already
-        committed real, durable progress before failing.
+        variable — a later batch's DELETE failing must still hand that count back to the caller,
+        not report a false zero for a target that already committed real, durable progress
+        before failing.
         """
         now = time.time()
         old_ts = now - (5 * SECONDS_PER_DAY)  # older than framework_retention_days=1
@@ -550,10 +502,10 @@ class TestRetentionCleanup:
         uncaught exception that aborts the whole cleanup and skips every other target.
 
         Regression test: the probe's ``execute()``/``fetchone()`` calls previously sat outside
-        the target's ``try/except _RetentionBatchError`` isolation, so a transient SQLite error
-        there propagated straight out of ``_delete_target_batched()`` uncaught by
-        ``_do_run_retention_cleanup()``'s ``except _RetentionBatchError`` handler, aborting the
-        entire cleanup run.
+        the target's per-batch error isolation, so a transient SQLite error there propagated
+        straight out of ``_delete_target_batched()`` uncaught by
+        ``_do_run_retention_cleanup()``'s per-target failure handling, aborting the entire
+        cleanup run.
         """
         retention_service.hassette.config.database.retention_delete_batch = 2
         retention_service.hassette.config.database.retention_max_batches_per_target = 3
