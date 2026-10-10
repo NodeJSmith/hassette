@@ -322,7 +322,7 @@ def make_scheduler(
     mock_service.remove_jobs = Mock(side_effect=lambda _jobs: Mock())
     mock_service.mark_job_removed = AsyncMock()
 
-    async def _remove_job(job: Job) -> bool:
+    async def _remove_job(job: Job, *, detach_self: bool = False) -> bool:  # noqa: ARG001
         """Mirrors the real unified removal operation at the mock boundary: sets the
         removed flag, fires _on_job_removed when wired (matching dequeue_job's mock), and
         persists removed_at via mark_job_removed when the job has a db_id — so tests that

@@ -317,22 +317,24 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         self.fire_removal_callbacks([job])
         return removed_from_heap
 
-    async def _finish_removal(self, job: "Job") -> None:
+    async def _finish_removal(self, job: "Job", *, detach_self: bool = False) -> None:
         """Async tail of the unified removal operation: guard release, drain, persistence.
 
         Releases ``job``'s ``ExecutionModeGuard`` — cancels an active ``single``/
         ``restart`` invocation, drains a queued ``queued``-mode factory (so a dispatch task
         parked on ``await done`` unwinds instead of hanging — see
         ``run_through_guard``/``drain_pending_done``); a no-op for ``parallel``, whose guard
-        tracks no invocation. An invocation removing its own job (``if_exists="replace"`` from the
-        job's callback) is left to finish rather than cancelled — see
+        tracks no invocation. With ``detach_self`` (``if_exists="replace"``), an invocation removing
+        its own job from its callback is left to finish rather than cancelled — see
         ``ExecutionModeGuard.release``. Then persists ``removed_at`` when the job was ever assigned a
         ``db_id`` — no-op for a job whose registration never reached persistence.
 
         Args:
             job: The job whose guard/pending futures/persistence should be finalized.
+            detach_self: Detach rather than cancel the job's invocation when the removal runs
+                from that invocation's own callback.
         """
-        await release_and_drain(job.guard, job.pending_done)
+        await release_and_drain(job.guard, job.pending_done, detach_self=detach_self)
         if job.db_id is not None:
             await self.mark_job_removed(job.db_id)
 
@@ -373,7 +375,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
             self.logger.debug("Task bucket sealed, skipping guard release for job %r", job.name)
         return removed_from_heap
 
-    async def remove_job(self, job: "Job") -> bool:
+    async def remove_job(self, job: "Job", *, detach_self: bool = False) -> bool:
         """Awaited entry point for the unified removal operation.
 
         Used where the caller must observe the guard-release/persistence tail complete
@@ -388,12 +390,14 @@ class SchedulerService(SchedulerDispatchMixin, Service):
 
         Args:
             job: The job to remove.
+            detach_self: Passed by destructive replacement so a job replacing itself from its own
+                callback keeps running — see ``_finish_removal``.
 
         Returns:
             True if the job was found and removed from the heap, False otherwise.
         """
         removed_from_heap = self._remove_from_live_state(job)
-        await self._finish_removal(job)
+        await self._finish_removal(job, detach_self=detach_self)
         return removed_from_heap
 
     async def mark_job_removed(self, db_id: int) -> None:

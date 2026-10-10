@@ -369,7 +369,7 @@ class TestSelfRelease:
         resume = asyncio.Event()
 
         async def do_release() -> None:
-            await release_and_drain(guard, pending_done)
+            await release_and_drain(guard, pending_done, detach_self=True)
             log.append("released")
             released.set()
 
@@ -400,6 +400,29 @@ class TestSelfRelease:
         """A release in another task carrying the invocation's context (sync facade shape) detaches too."""
         log = await self.run_self_releasing(release_from_child_task=True)
         assert log == ["released", "callback finished"]
+
+    async def test_release_from_invocation_context_without_detach_self_cancels(self) -> None:
+        """Without ``detach_self`` a release carrying the invocation's context still cancels it.
+
+        The bus shape: ``Listener.cancel`` spawns ``release_guard`` from the handler's context.
+        """
+        guard = ExecutionModeGuard(ExecutionMode.SINGLE)
+        pending_done: set[asyncio.Future[None]] = set()
+        spawn, tasks = make_spawn()
+        release_task: list[asyncio.Task[None]] = []
+
+        async def invoke() -> None:
+            release_task.append(asyncio.create_task(release_and_drain(guard, pending_done)))
+            await asyncio.Event().wait()
+
+        dispatch = asyncio.create_task(
+            run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "self-release", STALL_THRESHOLD_SECONDS)
+        )
+        await asyncio.wait_for(dispatch, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(release_task[0], timeout=HANG_GUARD_TIMEOUT)
+
+        assert tasks[0].cancelled()
+        assert not pending_done
 
     async def test_release_from_unrelated_task_cancels(self) -> None:
         guard = ExecutionModeGuard(ExecutionMode.SINGLE)
