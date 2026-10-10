@@ -19,6 +19,11 @@ if typing.TYPE_CHECKING:
     from hassette.config.config import HassetteConfig
     from hassette.core.database_write_queue import _WriteQueueItem
 
+PARENT_GUARD_SKIP_ESCALATION_CYCLES = 3
+"""Consecutive retention cycles with parent-guard deletes skipped before the skip is logged as
+an ERROR instead of a WARNING — separates a transient one-off target failure from a target that
+is chronically blocking retired listener/scheduled_job cleanup."""
+
 
 class _RetentionBatchError(Exception):
     """Raised by ``_delete_target_batched()`` when a batch DELETE fails.
@@ -82,6 +87,7 @@ class DatabaseRetentionMixin:
     logger: "logging.Logger"
     _db: aiosqlite.Connection | None
     _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
+    _consecutive_parent_guard_skips: int
 
     db: aiosqlite.Connection
     enqueue: "Callable[[Coroutine[Any, Any, Any]], bool]"
@@ -215,6 +221,11 @@ class DatabaseRetentionMixin:
         is known to be incomplete. A parent-guard failure is rolled back, logged individually,
         and also folded into the "Retention cleanup summary" line below (as
         "parent-guard deletes failed") so it isn't only visible in a separate log line.
+
+        Consecutive skipped cycles are counted in ``_consecutive_parent_guard_skips`` and named in
+        the skip warning; once the streak reaches ``PARENT_GUARD_SKIP_ESCALATION_CYCLES`` the skip
+        is logged at ERROR so a chronically failing target is distinguishable from a one-off. The
+        counter resets whenever the parent-guard actually runs, whether or not it succeeds.
         """
         config = self.hassette.config
         now = time.time()
@@ -242,6 +253,7 @@ class DatabaseRetentionMixin:
         parent_guard_failed = False
 
         if not failed_labels and not incomplete_labels:
+            self._consecutive_parent_guard_skips = 0
             try:
                 # Use the standard retention window for parent-guard deletes.
                 cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
@@ -251,10 +263,21 @@ class DatabaseRetentionMixin:
                 self.logger.exception("Retention cleanup failed for parent-guard deletes")
                 parent_guard_failed = True
         else:
-            self.logger.warning(
-                "Retention cleanup: skipping parent-guard deletes — target(s) %s",
-                "; ".join(_target_failure_reasons(failed_labels, incomplete_labels)),
-            )
+            self._consecutive_parent_guard_skips += 1
+            reasons = "; ".join(_target_failure_reasons(failed_labels, incomplete_labels))
+            if self._consecutive_parent_guard_skips >= PARENT_GUARD_SKIP_ESCALATION_CYCLES:
+                self.logger.error(
+                    "Retention cleanup: parent-guard deletes skipped %d consecutive cycles — retired "
+                    "listeners/scheduled_jobs are not being pruned; target(s) %s",
+                    self._consecutive_parent_guard_skips,
+                    reasons,
+                )
+            else:
+                self.logger.warning(
+                    "Retention cleanup: skipping parent-guard deletes (%d consecutive cycle(s)) — target(s) %s",
+                    self._consecutive_parent_guard_skips,
+                    reasons,
+                )
 
         deleted_summary = {label: count for label, count in deleted_by_label.items() if count > 0}
         if deleted_summary or failed_labels or incomplete_labels or parent_guard_failed:

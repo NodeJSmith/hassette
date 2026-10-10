@@ -129,6 +129,10 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
     """Counter for consecutive size failsafe runs that drained every retention tier and left
     the database still over the configured size limit; logged as a warning."""
 
+    _consecutive_parent_guard_skips: int
+    """Counter for consecutive retention cycles that skipped parent-guard deletes because a
+    retention target failed or was incomplete; escalated to an error past a threshold."""
+
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._db = None
@@ -137,6 +141,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._consecutive_heartbeat_failures = 0
         self._consecutive_size_triggers = 0
         self._consecutive_exhaustion_triggers = 0
+        self._consecutive_parent_guard_skips = 0
         self._db_write_queue = None
         self._db_worker_task = None
         self._write_queue_detached = False
@@ -188,6 +193,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._consecutive_heartbeat_failures = 0
         self._consecutive_size_triggers = 0
         self._consecutive_exhaustion_triggers = 0
+        self._consecutive_parent_guard_skips = 0
         # Cleared up front, not at queue-creation time below: a restart whose initialization
         # fails before it gets that far must still report the pre-init cause rather than a
         # stale post-teardown one left over from the previous lifecycle.
