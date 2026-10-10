@@ -73,7 +73,6 @@ async def change_alarm(harness: HassetteHarness, old_value: str, new_value: str)
         handler=sentinel,
         where=lambda candidate: candidate is event,
         name=f"test.entity_time.change_sentinel.{new_value}",
-        once=True,
     )
     try:
         await harness.hassette.send_event(event)
