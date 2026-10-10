@@ -168,8 +168,14 @@ describe("useTelemetryHealth", () => {
     );
     await renderAndWaitForFirstPoll(mockedGetTelemetryStatus);
 
-    // The timeout fails the stalled request, which starts the retry chain (first retry after 60s).
-    advanceTime(REQUEST_TIMEOUT_MS + BASE_INTERVAL_MS * 2);
+    // The 30s interval joins the stalled request instead of replacing it, so no new call lands.
+    advanceTime(BASE_INTERVAL_MS);
+    await waitForCallCount(mockedGetTelemetryStatus, 1);
+
+    // Past the timeout, the stalled request fails and starts the retry chain (first retry after 60s).
+    advanceTime(REQUEST_TIMEOUT_MS);
+    await waitForCallCount(mockedGetTelemetryStatus, 1);
+    advanceTime(BASE_INTERVAL_MS * 2);
 
     await expectPollNotDegraded(mockedGetTelemetryStatus, 2);
   });

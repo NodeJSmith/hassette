@@ -22,8 +22,15 @@ const SERVICE_UNAVAILABLE_STATUS = 503;
  */
 async function fetchTelemetryHealth({ signal }: { signal: AbortSignal }): Promise<TelemetryStatus> {
   const { setTelemetryHealth } = useAppStore.getState();
+  // TanStack's interval refetch joins an in-flight request rather than replacing it, so a request
+  // that never settles would stall polling forever. Bounding it turns a stall into a failure,
+  // which the retry chain recovers from.
+  const requestController = new AbortController();
+  const abortRequest = () => requestController.abort();
+  signal.addEventListener("abort", abortRequest);
+  const timeoutId = setTimeout(abortRequest, REQUEST_TIMEOUT_MS);
   try {
-    const status = await getTelemetryStatus(signal);
+    const status = await getTelemetryStatus(requestController.signal);
     // A response that settles after navigation cancelled the query must not overwrite the store.
     if (signal.aborted) return status;
     setTelemetryHealth({
@@ -39,6 +46,9 @@ async function fetchTelemetryHealth({ signal }: { signal: AbortSignal }): Promis
       setTelemetryHealth({ telemetryDegraded: true });
     }
     throw err;
+  } finally {
+    clearTimeout(timeoutId);
+    signal.removeEventListener("abort", abortRequest);
   }
 }
 
@@ -51,6 +61,7 @@ async function fetchTelemetryHealth({ signal }: { signal: AbortSignal }): Promis
  *   indicator should recover on its own; the fixed interval pauses during the chain so the two
  *   never overlap, and resumes once a fetch succeeds. TanStack pauses a retry chain while the
  *   tab is hidden and resumes it immediately when the tab regains focus.
+ * - Each request is bounded by `REQUEST_TIMEOUT_MS`; a request that hits it counts as a failure.
  * - Page navigation cancels any in-flight fetch or pending retry and polls immediately,
  *   resetting the backoff.
  */
