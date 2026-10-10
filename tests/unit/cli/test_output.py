@@ -406,7 +406,7 @@ class TestRenderTablePipeDetection:
     def test_pipe_mode_disables_max_width(self) -> None:
         """In non-TTY mode, columns should not be created with max_width."""
         columns = [Column("name", "Name", max_width=10)]
-        table = _build_table(columns, is_terminal=False)
+        table = _build_table(columns, is_tty=False)
         # Verify first column has no max_width (None)
         col_obj = table.columns[0]
         assert col_obj.max_width is None
@@ -414,7 +414,7 @@ class TestRenderTablePipeDetection:
     def test_terminal_mode_uses_max_width(self) -> None:
         """In TTY mode, columns should respect max_width."""
         columns = [Column("name", "Name", max_width=10)]
-        table = _build_table(columns, is_terminal=True)
+        table = _build_table(columns, is_tty=True)
         col_obj = table.columns[0]
         assert col_obj.max_width == 10
 
@@ -425,7 +425,7 @@ class TestRenderTablePipeDetection:
         columns = [Column("name", "Name", max_width=20)]
 
         stdout_buf = StringIO()
-        # Simulate non-TTY: is_terminal=False, large width so content isn't wrapped
+        # Simulate a pipe: StringIO isn't a TTY; large width so content isn't wrapped
         new_stdout_console = Console(file=stdout_buf, highlight=False, no_color=True, width=CAPTURE_CONSOLE_WIDTH)
         new_stderr_console = Console(file=StringIO(), highlight=False, no_color=True)
         with (
@@ -458,32 +458,23 @@ class TestMakeStdoutConsole:
             console = make_stdout_console()
         assert console.width == 60
 
-    @pytest.mark.parametrize(("var", "value"), [("FORCE_COLOR", "1"), ("TTY_COMPATIBLE", "1")])
-    def test_piped_with_forced_terminal_env_keeps_cells_greppable(
-        self, monkeypatch: pytest.MonkeyPatch, var: str, value: str
+    @pytest.mark.parametrize("forced_terminal_var", [None, "FORCE_COLOR", "TTY_COMPATIBLE"])
+    def test_piped_table_keeps_cells_greppable(
+        self, monkeypatch: pytest.MonkeyPatch, forced_terminal_var: str | None
     ) -> None:
-        """FORCE_COLOR/TTY_COMPATIBLE make Rich call a pipe a terminal; piped output still isn't truncated."""
-        monkeypatch.setenv(var, value)
+        """A wide table piped through the real stdout console renders every cell untruncated.
+
+        FORCE_COLOR/TTY_COMPATIBLE make Rich call a pipe a terminal; output must still not be truncated.
+        """
+        if forced_terminal_var is not None:
+            monkeypatch.setenv(forced_terminal_var, "1")
         buf = StringIO()
         with patch("sys.stdout", buf):
             console = make_stdout_console()
-        assert console.is_terminal  # the env override Rich honors
+        # Precondition: the env override really reached Rich, so those cases exercise the override path.
+        assert console.is_terminal == (forced_terminal_var is not None)
         assert console.width == PIPE_FALLBACK_WIDTH
 
-        items = [SimpleItem(name="motion_lights_upstairs_hallway", count=1, note="n" * 120)]
-        columns = [Column("name", "Name", max_width=10), Column("count", "Count"), Column("note", "Note")]
-        with patch.object(output_module, "stdout_console", console):
-            render_table(items, columns, json_mode=False)
-
-        output = buf.getvalue()
-        assert "motion_lights_upstairs_hallway" in output
-        assert "n" * 120 in output
-
-    def test_piped_table_keeps_cells_greppable(self) -> None:
-        """A wide table piped through the real stdout console renders every cell untruncated."""
-        buf = StringIO()
-        with patch("sys.stdout", buf):
-            console = make_stdout_console()
         items = [SimpleItem(name="motion_lights_upstairs_hallway", count=1, note="n" * 120)]
         columns = [Column("name", "Name", max_width=10), Column("count", "Count"), Column("note", "Note")]
         with patch.object(output_module, "stdout_console", console):

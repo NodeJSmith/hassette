@@ -43,7 +43,8 @@ def make_stdout_console() -> Console:
     itself); only a non-TTY stdout with no ``$COLUMNS`` gets :data:`PIPE_FALLBACK_WIDTH`.
     """
     console = Console(file=sys.stdout, highlight=False)
-    if not writes_to_tty(console) and not os.environ.get("COLUMNS", "").isdigit():
+    has_explicit_columns = os.environ.get("COLUMNS", "").isdigit()
+    if not writes_to_tty(console) and not has_explicit_columns:
         console.width = PIPE_FALLBACK_WIDTH
     return console
 
@@ -281,7 +282,7 @@ def render_table(
         stderr_console.print("No results.", highlight=False)
         return
 
-    table = _build_table(columns, is_terminal=writes_to_tty(stdout_console))
+    table = _build_table(columns, is_tty=writes_to_tty(stdout_console))
     fallback_meta = _resolve_cli_format_meta(type(items[0]))
     for item in items:
         row = [
@@ -403,7 +404,7 @@ def _render_detail_panel(
     stdout_console.print(panel)
 
 
-def _build_table(columns: list[Column], is_terminal: bool) -> Table:
+def _build_table(columns: list[Column], is_tty: bool) -> Table:
     """Build a Rich Table from column definitions.
 
     In non-TTY (pipe) mode, ``max_width`` is ignored so piped output
@@ -411,7 +412,7 @@ def _build_table(columns: list[Column], is_terminal: bool) -> Table:
     """
     table = Table(show_header=True, header_style="bold")
     for col in columns:
-        effective_max_width = col.max_width if is_terminal else None
+        effective_max_width = col.max_width if is_tty else None
         table.add_column(
             col.header,
             max_width=effective_max_width,
