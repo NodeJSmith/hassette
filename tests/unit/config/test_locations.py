@@ -131,6 +131,22 @@ class TestRelativePaths:
         assert config.cli.token_file == cfg / "token"
         assert config.apps.apps["my_app"]["app_dir"] == cfg / "sub"
 
+    def test_empty_toml_path_is_unset_not_the_working_directory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``""`` falls back to the default, as an empty env var does, instead of becoming ``Path(".")``."""
+        cfg = tmp_path / "cfg"
+        write(
+            cfg / "hassette.toml",
+            '[apps]\ndirectory = ""\n[apps.my_app]\nfilename = "a.py"\nclass_name = "A"\napp_dir = ""\n',
+        )
+        monkeypatch.chdir(tmp_path)
+
+        config = HassetteConfig(environ={"HASSETTE__CONFIG_DIR": str(cfg)}, strict_inputs=False)
+
+        assert config.apps.directory == cfg / "apps"
+        assert "app_dir" not in config.apps.apps["my_app"]
+
     def test_symlinked_config_file_anchors_at_the_link(self, tmp_path: Path) -> None:
         link = symlinked_config_dir(tmp_path)
 

@@ -50,6 +50,13 @@ class TestFlagged:
         assert f"{name} (from environment)" in message
         assert "reserved for Hassette settings" in message
 
+    def test_key_inside_a_json_group_env_value(self, cfg: Path) -> None:
+        """``HASSETTE__DATABASE='{...}'`` is checked like ``HASSETTE__DATABASE__<KEY>``."""
+        message = unknown_error(cfg, env={"HASSETTE__DATABASE": '{"retentin_days": 99}'})
+
+        assert "HASSETTE__DATABASE.retentin_days (from environment)" in message
+        assert "did you mean HASSETTE__DATABASE.retention_days?" in message
+
     @pytest.mark.parametrize("name", ["HASSETTE__DOTENV_TYPO", "hassette__dotenv_typo"])
     def test_dotenv_var_any_case(self, cfg: Path, name: str) -> None:
         message = unknown_error(cfg, dotenv=f"{name}=1\n")
