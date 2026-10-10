@@ -26,10 +26,10 @@ FRAMEWORK_FAILURE_LOG_PREFIX = "Retention cleanup failed for framework execution
 
 
 async def test_mid_batch_failure_reports_partial_progress_with_traceback(
-    db: aiosqlite.Connection,
-    caplog: pytest.LogCaptureFixture,
     retention_service: DatabaseService,
+    db: aiosqlite.Connection,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """A DELETE failing on a later batch keeps the rows earlier batches committed, reports them
     in the cleanup summary alongside the failure, and logs the original error's traceback.
@@ -58,9 +58,9 @@ async def test_mid_batch_failure_reports_partial_progress_with_traceback(
         return await original_execute(sql, *args, **kwargs)
 
     monkeypatch.setattr(db, "execute", fail_third_delete)
+    caplog.set_level(logging.INFO)
 
-    with caplog.at_level(logging.INFO):
-        await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
+    await retention_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
     cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
     assert (await cursor.fetchone())[0] == 2  # two committed batches removed 4 of 6 rows
