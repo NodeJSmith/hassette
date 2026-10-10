@@ -1,6 +1,6 @@
 """Unit tests for the shared dispatch-bridge helpers in execution_mode.
 
-Covers: run_with_stall_watch, run_through_guard, drain_pending_done, STALL_THRESHOLD_SECONDS.
+Covers: run_with_stall_watch, run_through_guard, drain_pending_done, release_and_drain, STALL_THRESHOLD_SECONDS.
 """
 
 import asyncio
@@ -15,6 +15,7 @@ from hassette.execution_mode import (
     STALL_THRESHOLD_SECONDS,
     ExecutionModeGuard,
     drain_pending_done,
+    release_and_drain,
     run_through_guard,
     run_with_stall_watch,
 )
@@ -348,3 +349,89 @@ class TestRunThroughGuard:
         await asyncio.wait_for(primed.queued_task, timeout=HANG_GUARD_TIMEOUT)
         await asyncio.wait_for(primed.running_task, timeout=HANG_GUARD_TIMEOUT)
         assert len(pending_done) == 0
+
+
+class TestSelfRelease:
+    """``release``/``release_and_drain`` called from the tracked invocation's own callback."""
+
+    async def run_self_releasing(self, release_from_child_task: bool) -> list[str]:
+        """Dispatch one ``single`` invocation that releases its own guard mid-callback.
+
+        Returns the event log. With ``release_from_child_task`` the release runs in a separate
+        task created from the callback's context, the way a sync callback's facade call does;
+        otherwise it runs inside the tracked task itself.
+        """
+        guard = ExecutionModeGuard(ExecutionMode.SINGLE)
+        pending_done: set[asyncio.Future[None]] = set()
+        spawn, _tasks = make_spawn()
+        log: list[str] = []
+        released = asyncio.Event()
+        resume = asyncio.Event()
+
+        async def do_release() -> None:
+            await release_and_drain(guard, pending_done, detach_self=True)
+            log.append("released")
+            released.set()
+
+        async def invoke() -> None:
+            if release_from_child_task:
+                await asyncio.create_task(do_release())
+            else:
+                await do_release()
+            await resume.wait()
+            log.append("callback finished")
+
+        dispatch = asyncio.create_task(
+            run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "self-release", STALL_THRESHOLD_SECONDS)
+        )
+        await asyncio.wait_for(released.wait(), timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.sleep(0)
+        assert not dispatch.done(), "the dispatch must keep waiting while the detached callback runs"
+        assert guard.current_task is None
+        resume.set()
+        await asyncio.wait_for(dispatch, timeout=HANG_GUARD_TIMEOUT)
+        return log
+
+    async def test_release_inside_tracked_task_detaches_it(self) -> None:
+        log = await self.run_self_releasing(release_from_child_task=False)
+        assert log == ["released", "callback finished"]
+
+    async def test_release_from_invocation_context_detaches_it(self) -> None:
+        """A release in another task carrying the invocation's context (sync facade shape) detaches too."""
+        log = await self.run_self_releasing(release_from_child_task=True)
+        assert log == ["released", "callback finished"]
+
+    async def test_release_from_invocation_context_without_detach_self_cancels(self) -> None:
+        """Without ``detach_self`` a release carrying the invocation's context still cancels it.
+
+        The bus shape: ``Listener.cancel`` spawns ``release_guard`` from the handler's context.
+        """
+        guard = ExecutionModeGuard(ExecutionMode.SINGLE)
+        pending_done: set[asyncio.Future[None]] = set()
+        spawn, tasks = make_spawn()
+        release_task: list[asyncio.Task[None]] = []
+
+        async def invoke() -> None:
+            release_task.append(asyncio.create_task(release_and_drain(guard, pending_done)))
+            await asyncio.Event().wait()
+
+        dispatch = asyncio.create_task(
+            run_through_guard(guard, spawn, pending_done, invoke, MagicMock(), "self-release", STALL_THRESHOLD_SECONDS)
+        )
+        await asyncio.wait_for(dispatch, timeout=HANG_GUARD_TIMEOUT)
+        await asyncio.wait_for(release_task[0], timeout=HANG_GUARD_TIMEOUT)
+
+        assert tasks[0].cancelled()
+        assert not pending_done
+
+    async def test_release_from_unrelated_task_cancels(self) -> None:
+        guard = ExecutionModeGuard(ExecutionMode.SINGLE)
+        pending_done: set[asyncio.Future[None]] = set()
+        spawn, tasks = make_spawn()
+        primed = await prime_guard(guard, spawn, pending_done)
+
+        await release_and_drain(guard, pending_done)
+
+        assert tasks[0].cancelled()
+        assert not pending_done
+        primed.gate.set()

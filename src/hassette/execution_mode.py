@@ -8,10 +8,11 @@ machinery; the guard decides whether and when to call it, retains the returned t
 cancellable handle, and (for ``queued``) drains pending factories one at a time.
 
 This module also provides the stateless dispatch-bridge helpers — ``run_with_stall_watch``,
-``run_through_guard``, ``drain_pending_done`` — that both the bus (``HandlerInvoker``) and the
-scheduler (``SchedulerService``) call to wrap the guard with a completion-future bridge, a stall
-watchdog, and the drain. The module also provides ``resolve_execution_mode()``, the tier-aware
-mode resolution shared by both subsystems' registration paths. The module stays a dependency-free
+``run_through_guard``, ``release_and_drain`` (wrapping ``drain_pending_done``) — that both the
+bus (``HandlerInvoker``) and the scheduler (``SchedulerService``) call to wrap the guard with a
+completion-future bridge, a stall watchdog, and the drain. The module also provides
+``resolve_execution_mode()``, the tier-aware mode resolution shared by both subsystems'
+registration paths. The module stays a dependency-free
 leaf (stdlib + ``hassette.types.enums`` + ``hassette.types.types``) so neither subsystem has to
 import the other.
 """
@@ -19,6 +20,7 @@ import the other.
 import asyncio
 from collections import deque
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from logging import getLogger
 from typing import Final
 
@@ -42,6 +44,15 @@ default binds at definition time and would defeat test patches)."""
 
 RunAndTrack = Callable[[], "asyncio.Task[None]"]
 """A caller-supplied callable that spawns one handler invocation and returns its task."""
+
+CURRENT_INVOCATION: ContextVar["asyncio.Task[None] | None"] = ContextVar("CURRENT_INVOCATION", default=None)
+"""The invocation task whose callback is running in the current context.
+
+Set by ``run_with_stall_watch`` inside the invocation task. Context propagates into a sync
+callback's worker thread and from there into any coroutine it submits back to the loop (the sync
+facades), so ``ExecutionModeGuard.release`` can recognize a release issued from the invocation's
+own callback even when it runs in a different task.
+"""
 
 
 def resolve_execution_mode(mode: "ExecutionMode | str | None", source_tier: SourceTier) -> ExecutionMode:
@@ -179,20 +190,34 @@ class ExecutionModeGuard:
     def is_running(self) -> bool:
         return self.current_task is not None and not self.current_task.done()
 
-    async def release(self) -> None:
+    async def release(self, *, detach_self: bool = False) -> "asyncio.Task[None] | None":
         """Cancel the tracked task and drop all pending factories, retaining no references.
 
         Called when a listener is cancelled or re-registered. Pending ``queued`` factories are
         discarded rather than run, even when ``release`` is called mid-drain.
+
+        With ``detach_self`` (a scheduler job replacing itself), a release issued from the tracked
+        invocation's own callback detaches that task instead of cancelling it. Without it the
+        task is always cancelled — a bus handler that cancels its own subscription is stopped,
+        as ``Listener.cancel`` promises. For an async callback ``release`` runs inside the
+        tracked task, so cancelling and gathering it would wait on itself forever; for a sync
+        callback it runs in a facade task while the tracked task awaits the worker thread, so
+        cancelling would abandon the callback mid-run. ``CURRENT_INVOCATION`` covers both.
+
+        Returns:
+            The detached tracked task when ``release`` ran from its callback, otherwise ``None``.
         """
         async with self._lock:
             self.pending.clear()
             task = self.current_task
             self.current_task = None
             if task is None or task.done():
-                return
+                return None
+            if detach_self and (task is asyncio.current_task() or task is CURRENT_INVOCATION.get()):
+                return task
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+            return None
 
 
 async def run_with_stall_watch(
@@ -206,9 +231,11 @@ async def run_with_stall_watch(
     message can never disagree with when the watchdog fired.
     """
     watchdog = asyncio.get_running_loop().call_later(threshold, warn, threshold)
+    token = CURRENT_INVOCATION.set(asyncio.current_task())
     try:
         await invoke()
     finally:
+        CURRENT_INVOCATION.reset(token)
         watchdog.cancel()
 
 
@@ -242,9 +269,9 @@ async def run_through_guard(
       never reach a caller: ``guard.drain_next`` drops such a factory and keeps draining.
       Resolving here rather than in ``drain_next`` is not a preference — ``drain_next`` holds
       only the opaque factory and never sees ``pending_done``.
-    - ``drain_pending_done(pending_done)``, which the caller must invoke after every
-      ``guard.release()`` to cover futures whose factory was dropped without ever running (the
-      QUEUED_ACCEPTED-then-released case).
+    - ``drain_pending_done(pending_done)``, which must run after every ``guard.release()`` to
+      cover futures whose factory was dropped without ever running (the QUEUED_ACCEPTED-then-
+      released case). Callers use ``release_and_drain``, which does both.
 
     A future missed by all three parks its outer task forever.
 
@@ -280,6 +307,23 @@ async def run_through_guard(
         resolve_done()
         return
     await done
+
+
+async def release_and_drain(
+    guard: ExecutionModeGuard, pending_done: "set[asyncio.Future[None]]", *, detach_self: bool = False
+) -> None:
+    """Release ``guard``, then resolve every completion future in ``pending_done``.
+
+    ``detach_self`` is forwarded to ``ExecutionModeGuard.release``. When the release detached the
+    tracked invocation, the drain waits for that invocation to finish: resolving its future now
+    would unpark its dispatch task while the callback is still running, so the dispatch would
+    report completion early. In that case this returns before the drain has run.
+    """
+    detached = await guard.release(detach_self=detach_self)
+    if detached is None:
+        drain_pending_done(pending_done)
+    else:
+        detached.add_done_callback(lambda _t: drain_pending_done(pending_done))
 
 
 def drain_pending_done(pending_done: "set[asyncio.Future[None]]") -> None:

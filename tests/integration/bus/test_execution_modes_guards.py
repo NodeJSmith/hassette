@@ -351,3 +351,35 @@ async def test_queued_trigger_pending_done_resolved_on_release(
     assert len(sub.listener.invoker.pending_done) == 0, (
         "release_guard() must drain all pending_done futures so outer dispatch tasks unwind"
     )
+
+
+async def test_handler_cancelling_own_subscription_is_cancelled(
+    bus_harness: "tuple[HassetteHarness, Hassette, Bus]",
+) -> None:
+    """A non-parallel handler that cancels its own subscription is cancelled mid-run.
+
+    ``Listener.cancel()`` spawns ``release_guard()`` from the handler's context, so the release
+    carries the invocation's context — it must still cancel the in-flight handler rather than
+    detach it the way a scheduler job replacing itself is detached.
+    """
+    harness, _hassette, bus = bus_harness
+    await seed(harness, ENTITY, "v0")
+
+    subs: list = []
+    never = asyncio.Event()
+    handler_cancelled = asyncio.Event()
+
+    async def handler(_event: RawStateChangeEvent) -> None:
+        subs[0].cancel()
+        try:
+            await never.wait()
+        except asyncio.CancelledError:
+            handler_cancelled.set()
+            raise
+
+    subs.append(await bus.on_state_change(ENTITY, handler=handler, name="self_unsubscribe", mode="single"))
+
+    await fire(harness, "v0", "a")
+
+    await asyncio.wait_for(handler_cancelled.wait(), timeout=2.0)
+    await asyncio.wait_for(harness.bus_service.await_dispatch_idle(), timeout=2.0)

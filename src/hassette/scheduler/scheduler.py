@@ -293,8 +293,8 @@ class Scheduler(Resource):
                 # spawn): both this write and the new registration's upsert below target the
                 # same DB row via the natural key. Spawning here would let the new upsert
                 # reach the write queue first, and the old job's removed_at write would then
-                # land on the live row.
-                await self.scheduler_service.remove_job(existing)
+                # land on the live row. detach_self lets a self-replacing job's in-flight run finish.
+                await self.scheduler_service.remove_job(existing, detach_self=True)
             elif if_exists == "skip" and existing.matches(job):
                 return existing
             elif if_exists == "skip":

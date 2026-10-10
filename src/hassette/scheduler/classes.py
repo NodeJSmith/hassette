@@ -321,9 +321,8 @@ class Job:
     Each ``run_job_with_guard`` call for single/restart/queued parks the outer dispatch task on
     a future that resolves when the invocation actually runs (or is dropped/released). A queued
     invocation accepted into the guard deque has no live child until drain time, so its future
-    would hang forever if the job is cancelled first. ``dequeue_job`` and ``_remove_jobs`` call
-    ``drain_pending_done(job.pending_done)`` after ``guard.release()`` so those dispatch tasks
-    unwind.
+    would hang forever if the job is cancelled first. ``SchedulerService._finish_removal`` calls
+    ``release_and_drain(job.guard, job.pending_done)`` so those dispatch tasks unwind.
     """
 
     def __hash__(self) -> int:
