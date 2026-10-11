@@ -30,7 +30,7 @@ The outcome depends on three things: the exception type, how many restarts have 
 | `SchedulerService` | `PERMANENT` | 2 | 30 | Core job execution |
 | `WebsocketService` | `TRANSIENT` | 5 | 300 | `startup_timeout_seconds=60` |
 | `DatabaseService` | `TRANSIENT` | 3 | 120 | `fatal_error_names=("SchemaVersionError",)` |
-| `WebApiService` | `TRANSIENT` | 3 | 60 | HTTP API and UI |
+| `WebApiService` | `TRANSIENT` | 3 | 60 | HTTP API and UI; a bind failure (port in use) raises `FatalError` |
 | `FileWatcherService` | `TEMPORARY` | 3 | 60 | Config hot-reload |
 | `WebUiWatcherService` | `TEMPORARY` | 3 | 60 | Web UI live-reload |
 

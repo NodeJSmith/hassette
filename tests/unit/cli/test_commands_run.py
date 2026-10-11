@@ -33,15 +33,8 @@ class TestBareHassetteShowsHelp:
 
 @patch("hassette.cli.commands.run.run_server", new_callable=AsyncMock)
 class TestCmdRun:
-    @pytest.mark.parametrize(
-        "failure",
-        [
-            pytest.param(OSError(errno.EADDRINUSE, "Address already in use"), id="port-in-use"),
-            pytest.param(FatalError("token missing"), id="fatal-error"),
-        ],
-    )
-    def test_startup_failure_exits_with_code_1(self, mock_run_server: AsyncMock, failure: Exception) -> None:
-        mock_run_server.side_effect = failure
+    def test_fatal_error_exits_with_code_1(self, mock_run_server: AsyncMock) -> None:
+        mock_run_server.side_effect = FatalError("token missing")
         with pytest.raises(SystemExit) as exc_info:
             cmd_run()
         assert exc_info.value.code == 1
@@ -59,7 +52,7 @@ class TestCmdRun:
             cmd_run()
         assert exc_info.value.code == EX_CONFIG
 
-    def test_other_oserror_reraises(self, mock_run_server: AsyncMock) -> None:
+    def test_unexpected_error_reraises(self, mock_run_server: AsyncMock) -> None:
         exc = OSError(errno.EACCES, "Permission denied")
         mock_run_server.side_effect = exc
         with pytest.raises(OSError, match="Permission denied"):

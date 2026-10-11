@@ -181,10 +181,10 @@ The server is reachable but not responding. Server logs may show blocking operat
 **Port already in use (on `hassette run`):**
 
 ```
-Port 8126 is already in use — is another hassette instance running?
+Web API could not bind to 0.0.0.0:8126 — is the port already in use (another hassette instance running?) or the host not a local address?
 ```
 
-Another process — usually a second Hassette instance — holds the web API port. Stop it, or change `port` under `[hassette.web_api]`. `run` exits with code 1.
+Another process — usually a second Hassette instance — holds the web API port. Stop it, or change `port` under `[hassette.web_api]`. Hassette shuts down cleanly, records the session as failed, and `run` exits with code 1.
 
 **Unknown instance name:**
 
