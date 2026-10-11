@@ -8,8 +8,8 @@ function mockErrorResponse(status: number, statusText: string, body: unknown) {
 }
 
 /** Builds a mock non-ok `fetch` response whose `json()` rejects, as if the body were not JSON. */
-function mockNonJsonErrorResponse(status: number, statusText: string) {
-  return { ok: false, status, statusText, json: () => Promise.reject(new Error("not json")) };
+function mockNonJsonErrorResponse(status: number, statusText: string, error: Error = new Error("not json")) {
+  return { ok: false, status, statusText, json: () => Promise.reject(error) };
 }
 
 /** Builds a mock ok `fetch` response whose `json()` resolves to `body`. */
@@ -86,12 +86,9 @@ describe("apiFetch", () => {
   });
 
   it("does not navigate anywhere on a 401 — it only throws ApiError", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: "Unauthorized",
-      json: () => Promise.resolve({ detail: "Not authenticated" }),
-    });
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(mockErrorResponse(401, "Unauthorized", { detail: "Not authenticated" }));
 
     await expect(apiFetch("/protected")).rejects.toThrow(ApiError);
     await expect(apiFetch("/protected")).rejects.toMatchObject({ status: 401 });
@@ -124,13 +121,8 @@ describe("apiFetch", () => {
 
   it("treats Hassette's 401 with a body a proxy truncated as session-expired, like any foreign 401", async () => {
     // The session-expired view offers Hassette's login at root base for exactly this case.
-    const truncated = {
-      ok: false,
-      status: 401,
-      statusText: "Unauthorized",
-      json: () => Promise.reject(new SyntaxError('Unterminated string in JSON: {"detail":"Not authent')),
-    };
-    globalThis.fetch = vi.fn().mockResolvedValue(truncated);
+    const truncated = new SyntaxError('Unterminated string in JSON: {"detail":"Not authent');
+    globalThis.fetch = vi.fn().mockResolvedValue(mockNonJsonErrorResponse(401, "Unauthorized", truncated));
 
     const err = await apiFetch("/protected").catch((e: unknown) => e);
     expect(unauthorizedOutcome(err)).toBe("session-expired");
@@ -166,12 +158,7 @@ describe("postSession", () => {
   });
 
   it("returns ok: false with the detail message on a rejected token, without throwing", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: "Unauthorized",
-      json: () => Promise.resolve({ detail: "Invalid token" }),
-    });
+    globalThis.fetch = vi.fn().mockResolvedValue(mockErrorResponse(401, "Unauthorized", { detail: "Invalid token" }));
 
     const result = await postSession("wrong-token");
 
