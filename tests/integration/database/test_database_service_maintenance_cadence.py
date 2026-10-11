@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from hassette.core.database_service import DatabaseService
+from hassette.core.database_service import CleanupAttempt, DatabaseService
 
 
 @pytest.mark.parametrize(
@@ -56,8 +56,8 @@ async def test_maintenance_interval_shorter_than_heartbeat_is_honored(
 async def test_reloaded_shorter_retention_interval_applies_at_next_wake(initialized_service: DatabaseService) -> None:
     """A retention interval lowered after serve() starts takes effect at the loop's next wake.
 
-    Regression: serve() fixed each deadline from the interval in effect when it was scheduled, so
-    lowering the interval at runtime (a config reload) left cleanup waiting out the old interval.
+    A config reload can lower an interval at runtime, so deadlines must follow the current config
+    rather than the interval in effect when the previous attempt ran.
     """
     svc = initialized_service
     config = svc.hassette.config.database
@@ -81,6 +81,14 @@ async def test_reloaded_shorter_retention_interval_applies_at_next_wake(initiali
     await lower_task
 
     run_retention.assert_called_once()
+
+
+@pytest.mark.parametrize(("enqueued", "expected"), [(True, 3600.0), (False, 300.0)])
+def test_cleanup_attempt_retries_dropped_enqueue_at_retry_interval(enqueued: bool, expected: float) -> None:
+    """A dropped cleanup enqueue retries after the shorter retry interval instead of a full interval."""
+    attempt = CleanupAttempt(attempted_at=0.0, enqueued=enqueued)
+
+    assert attempt.next_due(3600, retry_interval=300) == expected
 
 
 async def read_last_heartbeat(svc: DatabaseService, session_id: int | None) -> float:

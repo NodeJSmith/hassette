@@ -281,15 +281,18 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         # deadline, so a maintenance interval shorter than the heartbeat interval runs on its own cadence.
         start = time.monotonic()
         last_heartbeat = start
-        retention = CleanupAttempt(at=start, enqueued=True)
-        size_failsafe = CleanupAttempt(at=start, enqueued=True)
+        # Seeded as a successful attempt at startup, so each cleanup's first run waits a full interval.
+        retention_attempt = CleanupAttempt(attempted_at=start, enqueued=True)
+        size_failsafe_attempt = CleanupAttempt(attempted_at=start, enqueued=True)
 
         while True:
             config = self.hassette.config.database
             next_heartbeat = last_heartbeat + config.heartbeat_interval_seconds
-            next_retention = retention.next_due(config.retention_interval_seconds, config.heartbeat_interval_seconds)
-            next_size_failsafe = size_failsafe.next_due(
-                config.size_failsafe_interval_seconds, config.heartbeat_interval_seconds
+            next_retention = retention_attempt.next_due(
+                config.retention_interval_seconds, retry_interval=config.heartbeat_interval_seconds
+            )
+            next_size_failsafe = size_failsafe_attempt.next_due(
+                config.size_failsafe_interval_seconds, retry_interval=config.heartbeat_interval_seconds
             )
             timeout = max(0.0, min(next_heartbeat, next_retention, next_size_failsafe) - time.monotonic())
             try:
@@ -300,20 +303,21 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             except TimeoutError:
                 pass
 
-            if time.monotonic() >= next_heartbeat:
+            now = time.monotonic()
+            if now >= next_heartbeat:
                 await self.update_heartbeat()
                 last_heartbeat = time.monotonic()
 
                 if self._consecutive_heartbeat_failures >= config.max_consecutive_heartbeat_failures:
                     raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
 
-            if time.monotonic() >= next_retention:
+            if now >= next_retention:
                 enqueued = await self.run_retention_cleanup()
-                retention = CleanupAttempt(at=time.monotonic(), enqueued=enqueued)
+                retention_attempt = CleanupAttempt(attempted_at=time.monotonic(), enqueued=enqueued)
 
-            if time.monotonic() >= next_size_failsafe:
+            if now >= next_size_failsafe:
                 enqueued = await self.run_size_failsafe()
-                size_failsafe = CleanupAttempt(at=time.monotonic(), enqueued=enqueued)
+                size_failsafe_attempt = CleanupAttempt(attempted_at=time.monotonic(), enqueued=enqueued)
 
     async def on_shutdown(self) -> None:
         """Drain the write queue, cancel the worker, then close the database connection."""
@@ -581,14 +585,15 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
 class CleanupAttempt:
     """When a maintenance task last tried to enqueue its cleanup, and whether the enqueue went through."""
 
-    at: float
+    attempted_at: float
     enqueued: bool
 
-    def next_due(self, interval: float, heartbeat_interval: float) -> float:
+    def next_due(self, interval: float, *, retry_interval: float) -> float:
         """Return the monotonic time of the next attempt.
 
         A successful enqueue waits the full ``interval``. A dropped one retries after
-        ``min(interval, heartbeat_interval)``: skipping a whole interval would starve the cleanup
+        ``min(interval, retry_interval)``: skipping a whole interval would starve the cleanup
         under the sustained write-queue backlog it exists to relieve.
         """
-        return self.at + (interval if self.enqueued else min(interval, heartbeat_interval))
+        delay = interval if self.enqueued else min(interval, retry_interval)
+        return self.attempted_at + delay
