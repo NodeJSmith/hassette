@@ -886,7 +886,7 @@ docs should. **Pick "both out" instead if** you'd rather keep the milestone to t
 
 ## Build
 
-- [ ] Run the D13 spike against its pass criteria; on failure, v0.1 ships manual pairing
+- [x] Run the D13 spike against its pass criteria; on failure, v0.1 ships manual pairing. Passed 2026-10-11 (#2663): v0.1 ships discovery (A) with the R1 refresh; results in the Addendum
 - [ ] D1 prefix e2e gate: the frontend passes an e2e test served under a URL prefix, and a grep finds no remaining absolute paths, before the `hassette-addon` repo is created
 - [ ] Verify `uv --offline` installs from a warm `/data/uv_cache` with the network blocked, with per-start pruning off as the add-on runs it (D4)
 - [ ] Verify on real HAOS that Supervisor holds the add-on in `STARTUP` until the image `HEALTHCHECK` passes (D14)
@@ -911,3 +911,24 @@ narrowing that installation to selected repositories, which is web-UI-only and o
 requests a token limited to `hassette-addon` (`repositories:` on `actions/create-github-app-token`), and the
 `hassette-addon` ruleset lists the app as an `always` bypass actor so the job can commit to `main`
 directly.
+
+**2026-10-11 — D13 discovery spike (#2663): both parts pass.** Run on HAOS (Raspberry Pi 5, Core 2026.10.0,
+Supervisor 2026.09.3) with a stub local add-on (`discovery: [hassette]`, slug `local_hassette`) that serves
+canned `/api/health` and `/api/apps` and checks a bearer token set as an add-on option, against a
+`hass-hassette` branch (`spike/2663-discovery`) copied over the HACS install.
+
+- **Receipt:** the add-on's POST to `http://supervisor/discovery` returned a uuid, and Core opened a
+  `source=hassio` flow for the custom integration at `hassio_confirm`. The "Discovered" card appeared and
+  Configure created the entry with `addon_slug` stored. No `hassio_api` role is needed: Supervisor lets any
+  add-on reach `/discovery` and checks only its `discovery:` list.
+- **Refresh:** after the token option changed and the add-on restarted, Supervisor re-sent the payload under
+  the same uuid, and Core created no flow and no second entry (consistent with the `single_config_entry` abort,
+  which Core doesn't log). The next poll got a 401; the integration read
+  `AddonManager.async_get_addon_discovery_info()`, got the new token, updated the entry in place and reloaded,
+  and the following poll succeeded. No reauth flow was raised.
+- **Assumptions:** hostname holds for a local add-on (`local-hassette`, matching the slug); a repository
+  add-on's hashed hostname wasn't exercised. Exit 143 holds: Supervisor warned when the stub, which doesn't
+  trap SIGTERM, was stopped. Discovery storage holds for a changed payload: it was re-pushed under the
+  same uuid. The unchanged-payload no-op wasn't exercised (`supervisor/discovery/__init__.py` `send()`).
+- **Carry into the real implementation:** `async_step_reconfigure` replaces the entry data, so it drops
+  `addon_slug`; keep the slug across reconfigure.
