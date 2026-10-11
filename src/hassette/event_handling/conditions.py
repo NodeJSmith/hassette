@@ -264,7 +264,7 @@ class Exact:
 
     Examples:
     ```python
-    self.on_state_change("sensor.flag", changed_to=C.Exact(1), name="flag_is_int_one")
+    ValueIs(source=get_attr_new("level"), condition=Exact(1))
     ```
     """
 
@@ -487,6 +487,8 @@ class Comparison:
         object.__setattr__(self, "op_fn", op_fn)
 
     def __call__(self, value: Any) -> bool:
+        # A value that can't be coerced or compared fails closed for every operator, including "!=":
+        # an "unavailable" state never satisfies a numeric or bool comparison.
         try:
             return self.op_fn(coerce_to_literal_type(value, self.compare_to), self.compare_to)
         except (TypeError, ValueError, UnableToConvertValueError):
