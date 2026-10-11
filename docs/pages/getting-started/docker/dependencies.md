@@ -84,15 +84,20 @@ The project install and app loading are two separate import paths.
 
 The install exports your locked dependencies, installs them against
 Hassette's constraints, then installs a copy of your project into the
-container with `--no-deps`. Your declared dependencies are the part your
-apps rely on.
+container with `--no-deps`. Your apps use the dependencies from this step,
+but not the project copy.
 
 Your apps don't come from that installed copy. Hassette loads them straight
 from the apps directory, under a package named after that directory's last
 path segment. With `HASSETTE__APPS__DIRECTORY=/apps/src/mypkg`, the package
 is `mypkg`, so `from mypkg.helpers import notify` inside an app reads the
-mounted files, not the copy in `site-packages`. Edits on the host show up on
-the next reload without reinstalling.
+mounted files, not the copy in `site-packages`.
+
+Because apps read the mounted files, an edit on the host never needs a
+reinstall. It may still need a restart: a reload re-imports only the app's
+own module, and Python keeps already-imported modules like `mypkg.helpers`
+cached, so edits to a helper take effect after
+`docker compose restart hassette`.
 
 The installed copy matters when code outside the apps directory needs to
 import your project as an installed package. If your build backend is
