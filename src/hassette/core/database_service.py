@@ -10,6 +10,7 @@ from typing import Any, ClassVar
 import aiosqlite
 from hassette_wire import LogLevel
 
+from hassette.config.models import DatabaseConfig
 from hassette.core.database_failsafe import DatabaseSizeFailsafeMixin
 from hassette.core.database_retention import DatabaseRetentionMixin
 from hassette.core.database_sql import SQL_BEGIN, safe_rollback
@@ -277,9 +278,10 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
         mark_ready(self, reason="Database service started")
 
-        # Each task remembers its last attempt; deadlines are derived from it and the current config on
-        # every pass, so a config reload takes effect at the next wake. The loop sleeps until the earliest
-        # deadline, so a maintenance interval shorter than the heartbeat interval runs on its own cadence.
+        # Each task remembers its last attempt; deadlines are derived from it and the current config, once
+        # to size the sleep and again after waking to decide what's due, so a config reload during the sleep
+        # is honored either way. Sleeping until the earliest deadline lets a maintenance interval shorter
+        # than the heartbeat interval run on its own cadence.
         start = time.monotonic()
         last_heartbeat = start
         # Seeded as a successful attempt at startup, so each cleanup's first run waits a full interval.
@@ -287,15 +289,10 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         size_failsafe_attempt = CleanupAttempt(attempted_at=start, enqueued=True)
 
         while True:
-            config = self.hassette.config.database
-            next_heartbeat = last_heartbeat + config.heartbeat_interval_seconds
-            next_retention = retention_attempt.next_due(
-                config.retention_interval_seconds, retry_interval=config.heartbeat_interval_seconds
+            deadlines = maintenance_deadlines(
+                self.hassette.config.database, last_heartbeat, retention_attempt, size_failsafe_attempt
             )
-            next_size_failsafe = size_failsafe_attempt.next_due(
-                config.size_failsafe_interval_seconds, retry_interval=config.heartbeat_interval_seconds
-            )
-            timeout = max(0.0, min(next_heartbeat, next_retention, next_size_failsafe) - time.monotonic())
+            timeout = max(0.0, min(deadlines) - time.monotonic())
             # An overdue deadline makes the timeout 0, and wait_for(timeout=0) raises TimeoutError even when
             # the event is already set, so check the event directly rather than trusting the wait's outcome.
             if not self.shutdown_event.is_set():
@@ -305,6 +302,10 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 mark_not_ready(self, reason="Shutting down")
                 return
 
+            config = self.hassette.config.database
+            next_heartbeat, next_retention, next_size_failsafe = maintenance_deadlines(
+                config, last_heartbeat, retention_attempt, size_failsafe_attempt
+            )
             now = time.monotonic()
             if now >= next_heartbeat:
                 await self.update_heartbeat()
@@ -599,3 +600,21 @@ class CleanupAttempt:
         """
         delay = interval if self.enqueued else min(interval, retry_interval)
         return self.attempted_at + delay
+
+
+def maintenance_deadlines(
+    config: DatabaseConfig,
+    last_heartbeat: float,
+    retention_attempt: CleanupAttempt,
+    size_failsafe_attempt: CleanupAttempt,
+) -> tuple[float, float, float]:
+    """Return the monotonic (heartbeat, retention, size failsafe) deadlines under ``config``.
+
+    A dropped cleanup enqueue retries on the heartbeat cadence (see ``CleanupAttempt.next_due``).
+    """
+    retry = config.heartbeat_interval_seconds
+    return (
+        last_heartbeat + config.heartbeat_interval_seconds,
+        retention_attempt.next_due(config.retention_interval_seconds, retry_interval=retry),
+        size_failsafe_attempt.next_due(config.size_failsafe_interval_seconds, retry_interval=retry),
+    )
