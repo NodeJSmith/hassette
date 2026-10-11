@@ -23,22 +23,22 @@ afterEach(() => {
 
 describe("reloadTop", () => {
   it("reloads a same-origin top frame, not this one", () => {
-    const top = { location: fakeLocation() } as unknown as Window;
-    vi.spyOn(window, "top", "get").mockReturnValue(top);
+    const topFrame = { location: fakeLocation() } as unknown as Window;
+    vi.spyOn(window, "top", "get").mockReturnValue(topFrame);
 
     reloadTop();
 
-    expect(top.location.reload).toHaveBeenCalledOnce();
+    expect(topFrame.location.reload).toHaveBeenCalledOnce();
     expect(window.location.reload).not.toHaveBeenCalled();
   });
 
   it("falls back to this window when the top frame is cross-origin", () => {
-    const top = {
+    const topFrame = {
       get location(): Location {
         throw new DOMException("Blocked a frame with origin", "SecurityError");
       },
     } as unknown as Window;
-    vi.spyOn(window, "top", "get").mockReturnValue(top);
+    vi.spyOn(window, "top", "get").mockReturnValue(topFrame);
 
     reloadTop();
 

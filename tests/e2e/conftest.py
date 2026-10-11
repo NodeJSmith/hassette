@@ -5,7 +5,7 @@ import logging
 import shutil
 import subprocess
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
@@ -415,8 +415,14 @@ def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -
 
 
 @contextmanager
-def serve_ws(app: "FastAPI", runtime_query_service: "RuntimeQueryService") -> Iterator[str]:
+def serve_ws(
+    app: "FastAPI",
+    runtime_query_service: "RuntimeQueryService",
+    on_startup: Callable[[], None] | None = None,
+) -> Iterator[str]:
     """Run ``app`` under a WebSocket-enabled uvicorn server; yields its base URL.
+
+    ``on_startup`` runs on the server's event loop just before it begins serving.
 
     Uses ws='websockets-sansio' to avoid the websockets.legacy DeprecationWarning
     that is promoted to an error by pytest's filterwarnings=["error"] setting.
@@ -434,7 +440,9 @@ def serve_ws(app: "FastAPI", runtime_query_service: "RuntimeQueryService") -> It
     # releases it, so we cannot wait forever. Cancel lingering connections
     # after 1 second and proceed. The daemon thread ensures the process
     # does not hang if the server does not exit cleanly.
-    server, thread, port = start_uvicorn_server(app, ws="websockets-sansio", timeout_graceful_shutdown=1)
+    server, thread, port = start_uvicorn_server(
+        app, ws="websockets-sansio", timeout_graceful_shutdown=1, on_startup=on_startup
+    )
     try:
         yield f"http://127.0.0.1:{port}"
     finally:
@@ -467,11 +475,7 @@ def live_server_ws_inject(fastapi_app, runtime_query_service):
     - ``url``  — base URL string (e.g. ``http://127.0.0.1:<port>``)
     - ``broadcast_sync(msg)``  — synchronously pushes ``msg`` to WS clients
     """
-    original_lock = runtime_query_service._lock
-    runtime_query_service._lock = asyncio.Lock()
-
-    # Capture the server's event loop via start_uvicorn_server's on_startup hook,
-    # which runs on the server's own event loop just before it begins serving.
+    # Capture the server's event loop via serve_ws's on_startup hook.
     loop_ready = threading.Event()
     _captured: list[asyncio.AbstractEventLoop] = []
 
@@ -479,23 +483,14 @@ def live_server_ws_inject(fastapi_app, runtime_query_service):
         _captured.append(asyncio.get_running_loop())
         loop_ready.set()
 
-    server, thread, port = start_uvicorn_server(
-        fastapi_app, ws="websockets-sansio", timeout_graceful_shutdown=1, on_startup=_capture_loop
-    )
+    with serve_ws(fastapi_app, runtime_query_service, on_startup=_capture_loop) as url:
+        if not loop_ready.wait(timeout=5):
+            raise RuntimeError("uvicorn server loop did not become available within 5s")
+        loop = _captured[0]
 
-    # Wait for the loop capture to be signalled.
-    if not loop_ready.wait(timeout=5):
-        raise RuntimeError("uvicorn server loop did not become available within 5s")
-    loop = _captured[0]
+        def broadcast_sync(msg: dict) -> None:
+            """Push msg to all connected WS clients synchronously from the test thread."""
+            future = asyncio.run_coroutine_threadsafe(runtime_query_service.broadcast(msg), loop)
+            future.result(timeout=5)
 
-    def broadcast_sync(msg: dict) -> None:
-        """Push msg to all connected WS clients synchronously from the test thread."""
-        future = asyncio.run_coroutine_threadsafe(runtime_query_service.broadcast(msg), loop)
-        future.result(timeout=5)
-
-    yield SimpleNamespace(url=f"http://127.0.0.1:{port}", broadcast_sync=broadcast_sync)
-
-    try:
-        stop_uvicorn_server(server, thread)
-    finally:
-        runtime_query_service._lock = original_lock
+        yield SimpleNamespace(url=url, broadcast_sync=broadcast_sync)

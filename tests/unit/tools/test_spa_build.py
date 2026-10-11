@@ -46,6 +46,12 @@ def test_source_newer_than_build(frontend: Path, tmp_path: Path, changed: str) -
     assert run_steps(frontend, index) == ["run"]
 
 
+def test_any_top_level_file_is_a_build_input(frontend: Path, tmp_path: Path) -> None:
+    spa_index = touch(tmp_path / "spa" / "index.html", T0 + 20)
+    touch(frontend / "hassette-version.ts", T0 + 30)
+    assert run_steps(frontend, spa_index) == ["run"]
+
+
 def test_missing_node_modules_installs_then_builds(frontend: Path, tmp_path: Path) -> None:
     (frontend / "node_modules" / ".package-lock.json").unlink()
     assert run_steps(frontend, tmp_path / "spa" / "index.html") == ["ci", "run"]

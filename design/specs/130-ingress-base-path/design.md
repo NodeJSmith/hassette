@@ -460,8 +460,9 @@ build state.
   `BASE_MARKER` tag.
 - The error body is read through a type keyed by the generated `ProblemDetail`, so a backend rename of `code`
   fails tsc; `ApiError.code` stays `string`, since a newer backend may send a code the generated union lacks.
-- The skip-link handler is `focusInPageTarget` in `frontend/src/lib/in-page-anchor.ts`; a test fails on any
-  component with a `#` href that doesn't use it (D10's "new in-page anchors must reuse").
+- The skip-link handler is `focusInPageTarget` in `frontend/src/lib/in-page-anchor.ts`; lint fails on any
+  element with a `#` href and no `onClick` (D10's "new in-page anchors must reuse"): a `no-restricted-syntax` rule
+  in `frontend/eslint.config.js`, matched on the JSX AST.
 - The session-expired view's `offerLogin` prop defaults to `ROUTER_BASE === ""`, so tests set it directly.
 - No `BREAKING CHANGE:` footer for the 403 on a base header from a non-trusted peer: deployments that sent one
   and worked were mostly direct-port clients with a stray header, and stripping proxies were already broken

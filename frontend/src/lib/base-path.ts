@@ -4,7 +4,7 @@
  * The backend substitutes `index.html`'s `<base href>` per request, so behind Home Assistant ingress or a
  * sub-path reverse proxy it names the prefix the proxy stripped (e.g. `/api/hassio_ingress/<token>/`), and
  * `/` otherwise. Every URL the app builds goes through this module so it lands under that prefix; the
- * built bundle holds no absolute same-origin paths (enforced by the build plugin in `vite.config.ts`).
+ * built bundle holds no absolute same-origin paths (enforced by the build plugin in `no-absolute-paths.ts`).
  */
 
 const BASE = new URL(document.baseURI);

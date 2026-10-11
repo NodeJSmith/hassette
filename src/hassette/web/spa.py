@@ -12,6 +12,7 @@ import html
 import logging
 import re
 from dataclasses import dataclass, field
+from http import HTTPStatus
 from pathlib import Path
 
 from starlette.datastructures import Headers
@@ -170,7 +171,8 @@ class SpaShell:
             self.log_rejection(resolution, client_address)
             reason = resolution.reason
             body = _DIAGNOSTIC_PAGE.format(header=resolution.header, cause=reason.cause, remedy=reason.remedy)
-            return HTMLResponse(body, status_code=403, headers=SHELL_HEADERS)
+            return HTMLResponse(body, status_code=HTTPStatus.FORBIDDEN, headers=SHELL_HEADERS)
+        # Backstop: resolve_base's allowlist already rules out every character html.escape would change.
         tag = f'<base href="{html.escape(resolution)}" />'
         return HTMLResponse(self.template.replace(BASE_MARKER, tag, 1), headers=SHELL_HEADERS)
 

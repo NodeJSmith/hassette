@@ -1,8 +1,8 @@
 import type { Plugin } from "vite";
 
 /**
- * The URL prefixes the backend serves the app under: the API, built assets (fonts included), and the
- * pre-relative-base `/fonts` mount. Only these are checked; an absolute route path like `"/apps"` is a
+ * The URL prefixes the backend serves the app under: the API, built assets (fonts included), and `/fonts`
+ * (font URLs written by hand in CSS). Only these are checked; an absolute route path like `"/apps"` is a
  * router path, resolved against `<Router base>`, and is fine.
  */
 const SERVED_PREFIXES = ["api", "fonts", "assets"];
@@ -15,10 +15,8 @@ const SERVED_PREFIXES = ["api", "fonts", "assets"];
  */
 const ABSOLUTE_PATH = new RegExp(`(?:["'\`]|url\\(\\s*["']?)/(?:${SERVED_PREFIXES.join("|")})\\b`, "g");
 
-/** How much of the bundle to quote after each hit, so the build error shows where it is. */
 const CONTEXT_CHARS = 40;
 
-/** The absolute same-origin paths in `source`, each with a little context. */
 export function findAbsolutePaths(source: string): string[] {
   return [...source.matchAll(ABSOLUTE_PATH)].map((m) => source.slice(m.index, m.index + CONTEXT_CHARS));
 }

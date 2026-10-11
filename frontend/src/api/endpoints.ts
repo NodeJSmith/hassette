@@ -2,7 +2,7 @@
 /** Typed API endpoint functions for all Hassette REST endpoints. */
 
 import { DETAIL_FETCH_LIMIT } from "../utils/constants";
-import { apiFetch, apiPost } from "./client";
+import { apiFetch, apiPost, BASE_URL } from "./client";
 import type { ConfigRecord, SchemaNode } from "./config-view-types";
 import type { components } from "./generated-types";
 
@@ -44,7 +44,7 @@ export type UnattributedBlockingData = components["schemas"]["UnattributedBlocki
 export type UnattributedStall = components["schemas"]["UnattributedStall"];
 
 /** App-relative; resolve it with `resolveWsUrl` (`lib/base-path.ts`). */
-export const WS_PATH = "api/ws";
+export const WS_PATH = `${BASE_URL}/ws`;
 
 function buildUrl(path: string, params: Record<string, string | number | null | undefined>): string {
   const search = new URLSearchParams();

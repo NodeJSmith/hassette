@@ -13,7 +13,7 @@ type ProblemDetail = components["schemas"]["ProblemDetail"];
 type RawErrorBody = { [K in keyof ProblemDetail]?: unknown } & { message?: unknown };
 
 /** App-relative, so requests resolve under the `<base href>` (see `lib/base-path.ts`). */
-const BASE_URL = "api";
+export const BASE_URL = "api";
 const JSON_CONTENT_TYPE = "application/json";
 const FETCH_CREDENTIALS: RequestCredentials = "same-origin";
 

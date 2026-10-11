@@ -16,12 +16,15 @@ FRONTEND_DIR = REPO_ROOT / "frontend"
 SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
 
 _SOURCE_DIRS = ("src", "public")
-_SOURCE_FILES = ("index.html", "vite.config.ts", "no-absolute-paths.ts", "package.json", "package-lock.json")
 
 
 def newest_mtime(frontend_dir: Path) -> float:
-    """The newest mtime among the frontend's build inputs."""
-    files = [frontend_dir / name for name in _SOURCE_FILES]
+    """The newest mtime among the frontend's build inputs.
+
+    Every top-level file counts (configs, ``vite.config.ts`` and the modules it imports, the lockfile), so a
+    new build input needs no list update; a top-level file the build ignores only costs a spurious rebuild.
+    """
+    files = [p for p in frontend_dir.iterdir() if p.is_file() and not p.name.startswith(".")]
     for directory in _SOURCE_DIRS:
         files.extend(p for p in (frontend_dir / directory).rglob("*") if p.is_file())
     return max((p.stat().st_mtime for p in files if p.exists()), default=0.0)
