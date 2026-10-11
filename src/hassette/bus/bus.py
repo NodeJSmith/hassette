@@ -90,6 +90,7 @@ Examples:
 
 import asyncio
 import logging
+import threading
 import typing
 from collections.abc import Coroutine, Mapping
 from functools import partial
@@ -214,8 +215,8 @@ class Bus(Resource):
         telemetry write in a narrow teardown window — no routing impact — and is not worth guarding.
         """
         # wait_for cleanup: fires on every removal path (shutdown, explicit cancel, once-fire). A once-fire
-        # handler already resolved the future, so `not fut.done()` skips it. The cancel is marshalled to the loop
-        # because sync-facade removals run this on a worker thread, where Future.cancel() is not thread-safe.
+        # handler already resolved the future, so `not fut.done()` skips it. Sync-facade removals run this on a worker
+        # thread, where Future.cancel() is not thread-safe, so off-loop calls marshal the cancel back to the loop.
         if listener.db_id is not None:
             fut = self._wait_for_futures.pop(listener.db_id, None)
             if fut is not None and not fut.done():
@@ -233,7 +234,10 @@ class Bus(Resource):
                         listener.db_id,
                         len(self._wait_for_futures),
                     )
-                fut.get_loop().call_soon_threadsafe(fut.cancel)
+                if threading.get_ident() == self.hassette.loop_thread_id:
+                    fut.cancel()
+                else:
+                    fut.get_loop().call_soon_threadsafe(fut.cancel)
 
         if listener.identity.name is None:
             # Cancel-listeners (create_cancel_listener) are never tracked in _registered_listeners,
