@@ -105,12 +105,50 @@ enough for anything but the app's own module. It re-imports only that module,
 and Python keeps already-imported modules like `mypkg.helpers` cached.
 
 The installed copy matters for those other packages, and for any code that
-imports your project as an installed package. If your build backend is
-misconfigured (for example, a wrong `module-name` or `module-root` under
-`[tool.uv.build-backend]`), the installed copy can end up under the wrong
-name, and nothing fails at startup when your apps never import it that way.
-To check, run `uv build --wheel` locally and confirm the wheel's top-level
-directory matches your package name.
+imports your project as an installed package. Your build backend, the tool
+named in your `pyproject.toml`'s `[build-system]` table, decides what that
+copy is called. If it's misconfigured, the copy can end up under the wrong
+name, and nothing fails at startup because your apps never import it that way.
+
+The common case is a `src` layout built with `uv_build`, where your package
+lives in a folder under `src/`:
+
+```text
+pyproject.toml
+src/
+  mypkg/          <- your package; replace "mypkg" with its name
+    __init__.py
+    helpers.py
+```
+
+`uv_build` already looks in `src/`, so set `module-name` to the folder name,
+which is also the name you import:
+
+```toml
+[build-system]
+requires = ["uv_build"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "mypkg"
+```
+
+Avoid `module-root = ""` combined with `module-name = "src.mypkg"`. It builds
+without error, but installs the package as `src.mypkg`, so `import mypkg`
+fails.
+
+To confirm the package is named correctly, build a wheel (the zip file your
+project installs from) and list its files. Run this on your host, in the
+directory that holds `pyproject.toml`:
+
+```bash
+uv build --wheel
+unzip -l dist/*.whl
+```
+
+The paths should start with `mypkg/` (for example `mypkg/__init__.py`). If
+they start with `src/mypkg/`, remove `module-root`, set
+`module-name = "mypkg"`, and build again.
 
 Hassette pins its own dependencies via a constraints file. Your packages
 cannot conflict with packages Hassette depends on. If a conflict occurs,
