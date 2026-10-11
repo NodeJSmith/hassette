@@ -120,7 +120,7 @@ If fixes were applied in 2c (CI fixes included):
    uv run python tools/check_duplicate_code.py --gate-new-code origin/main HEAD
    ```
 
-   If either fails, fix it and amend before pushing.
+   If either fails, fix it, amend, and repeat steps 1 and 3 on the amended commit before pushing. Moving code to fix a file-size failure can break imports or types or add duplication, and a duplication fix can grow a file, so earlier results don't cover the amended `HEAD`.
 4. Push: `git push origin {branch}`
 
 ### 2f. Ensure the PR Closes Its Issue
