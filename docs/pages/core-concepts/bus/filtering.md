@@ -12,7 +12,7 @@ from hassette import P, C, A
 
 ## Filtering State Changes
 
-Filters and predicates compare against **raw Home Assistant state strings**, not typed state models. HA reports state values as strings: `"on"`, `"off"`, `"unavailable"`, `"72.5"`. Filtering runs before type conversion for performance. Hassette avoids deserializing every event into a Pydantic model when most events will be filtered out. This means `changed_to="on"` is correct, not `changed_to=True`, even though `LightState.value` is a `bool` after dependency injection delivers it to the handler.
+Filters and predicates compare against **raw Home Assistant state strings**, not typed state models. HA reports state values as strings: `"on"`, `"off"`, `"unavailable"`, `"72.5"`. Filtering runs before type conversion for performance. Hassette avoids deserializing every event into a Pydantic model when most events will be filtered out. Bool and number literals are the exception: Hassette coerces the raw string to the literal's type before comparing, so `changed_to=True` matches a light turning `"on"` and `changed_to=20` matches `"20.0"`. String literals like `changed_to="on"` compare exactly, as before. Wrap a literal in `C.Exact` to skip coercion. See [Literal coercion](predicate-reference.md#literal-coercion) for the full rules.
 
 `on_state_change` accepts three built-in parameters that handle the majority of state-change filtering without predicates.
 
@@ -68,7 +68,7 @@ The handler runs only when `app_name` becomes `"Home Assistant Lovelace"` or `"N
 --8<-- "pages/core-concepts/bus/snippets/filtering_predicate_lambda.py"
 ```
 
-Supported operators: `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="`, and their named forms (`"gt"`, `"lt"`, `"ge"`, `"le"`, `"eq"`, `"ne"`).
+Supported operators: `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="`, and their named forms (`"gt"`, `"lt"`, `"ge"`, `"le"`, `"eq"`, `"ne"`). The raw state string is coerced to the threshold's type the same way bare literals are, so `C.Comparison(">", 20)` compares `"21.5"` as a number. A state that can't be coerced, such as `"unavailable"`, never matches.
 
 ### Numeric direction: `C.Increased` and `C.Decreased`
 

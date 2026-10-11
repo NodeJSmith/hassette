@@ -59,6 +59,8 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from hassette.const import MISSING_VALUE
+from hassette.conversion.type_registry import TYPE_REGISTRY
+from hassette.exceptions import UnableToConvertValueError
 from hassette.utils.glob_utils import matches_globs
 
 OPS = Literal[">", "<", ">=", "<=", "==", "!=", "gt", "lt", "ge", "le", "eq", "ne"]
@@ -77,6 +79,33 @@ def _format_collection(items: Sequence[Any]) -> str:
         return "[" + ", ".join(str(i) for i in items) + "]"
     shown = ", ".join(str(i) for i in items[:_COLLECTION_DISPLAY_LIMIT])
     return f"[{shown}, {ELLIPSIS_CHAR}]"
+
+
+def coerce_to_literal_type(value: Any, literal: Any) -> Any:
+    """Convert a raw string value to the type of the bool or numeric literal it is compared against.
+
+    Home Assistant sends every state as a string (``"on"``, ``"21.5"``), so a literal like ``True`` or ``20``
+    never equals the raw value. Bool literals coerce via ``TYPE_REGISTRY`` (``on/off``, ``true/false``,
+    ``yes/no``, ``1/0``); int and float literals coerce the value to ``float``. Non-string values and any other
+    literal type (including ``str``) are returned unchanged, so string comparisons keep their exact semantics.
+
+    Args:
+        value: The value extracted from the event.
+        literal: The literal the value will be compared against.
+
+    Returns:
+        The coerced value, or ``value`` unchanged when no coercion applies.
+
+    Raises:
+        UnableToConvertValueError: If ``value`` is a string that cannot be converted to the literal's type.
+    """
+    if not isinstance(value, str):
+        return value
+    if isinstance(literal, bool):
+        return TYPE_REGISTRY.convert(value, bool)
+    if isinstance(literal, int | float):
+        return TYPE_REGISTRY.convert(value, float)
+    return value
 
 
 def _validate_collection(collection: Sequence[Any]) -> None:
@@ -216,6 +245,29 @@ class Regex:
 
     def __repr__(self) -> str:
         return f"Regex({self.pattern!r})"
+
+
+@dataclass(frozen=True)
+class Exact:
+    """Condition that matches when the value equals ``value`` exactly, with no type coercion.
+
+    A bare literal passed to ``changed_to``/``changed_from`` coerces the raw Home Assistant string to the literal's
+    type first (so ``changed_to=True`` matches ``"on"``). Wrap the literal in ``Exact`` to compare against the raw
+    value instead.
+
+    Examples:
+    ```python
+    self.on_state_change("sensor.flag", changed_to=C.Exact(1), name="flag_is_int_one")
+    ```
+    """
+
+    value: Any
+
+    def __call__(self, value: Any) -> bool:
+        return value == self.value
+
+    def summarize(self) -> str:
+        return f"exactly {self.value!r}"
 
 
 @dataclass(frozen=True)
@@ -429,10 +481,8 @@ class Comparison:
 
     def __call__(self, value: Any) -> bool:
         try:
-            if isinstance(self.compare_to, (int, float)) and isinstance(value, str):
-                return self.op_fn(float(value), float(self.compare_to))
-            return self.op_fn(value, self.compare_to)
-        except (TypeError, ValueError):
+            return self.op_fn(coerce_to_literal_type(value, self.compare_to), self.compare_to)
+        except (TypeError, ValueError, UnableToConvertValueError):
             return False
 
     def summarize(self) -> str:

@@ -134,7 +134,7 @@ Work through this checklist in order.
 
 **1. Entity ID typo.** Hassette does not error on a non-existent entity ID. The handler simply never fires. Double-check the entity ID string. Use `hassette status` or the web UI to confirm the entity exists and its exact ID.
 
-**2. `changed_to` type mismatch.** Home Assistant state values are strings. `changed_to="on"` works. `changed_to=True` does not. It compares a Python `bool` against a string and never matches. Use the string form.
+**2. `changed_to` literal doesn't fit the state.** Home Assistant state values are strings. A bool or number literal is coerced before comparing, so `changed_to=True` matches `"on"`, `"true"`, `"yes"`, or `"1"`, and `changed_to=20` matches `"20.0"`. Any other string never matches it: a cover reports `"open"`, not `"on"`, so `changed_to=True` never fires there. Compare against the exact state string instead. See [Literal coercion](core-concepts/bus/predicate-reference.md#literal-coercion).
 
 **3. Domain excluded by config.** Check `bus_excluded_domains` and `bus_excluded_entities` in `hassette.toml`. Events from excluded domains are dropped before reaching any handler.
 
