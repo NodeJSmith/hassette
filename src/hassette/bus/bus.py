@@ -160,20 +160,16 @@ class Bus(Resource):
         # Populated in wait_for(), consumed/cancelled in _on_listener_removed().
         self._wait_for_futures: dict[int, asyncio.Future[Event[Any]]] = {}
 
-        # Set for the duration of on_shutdown()'s remove_all_listeners() call so
-        # _on_listener_removed batches cancellation logging into one summary line instead of
-        # one WARNING per pending wait_for future (a clean teardown with several concurrent
-        # waits in flight is routine, not a problem worth N individual WARNING lines).
+        # Set during on_shutdown()'s remove_all_listeners() so _on_listener_removed logs one summary line instead of
+        # a WARNING per pending wait_for future — concurrent waits at a clean teardown are routine, not a problem.
         self._shutting_down = False
         self._shutdown_cancelled_wait_for_count = 0
 
-        # Register removal callback so once-fired listeners release their natural key and
-        # record removed_at, mirroring Scheduler's register_removal_callback pattern.
-        # owner_id derives from self.parent; the callback registry key must stay stable across
-        # register/deregister even if a test fixture swaps self.parent after construction
-        # (production never does — a hot-reload builds a fresh Bus). Freezing the key here keeps
-        # on_shutdown's deregister matched to this register; listener removal still uses the live
-        # self.owner_id because listeners register under the live owner too.
+        # Register removal callback so once-fired listeners release their natural key and record removed_at,
+        # mirroring Scheduler's register_removal_callback pattern. owner_id derives from self.parent, so the key is
+        # frozen here to stay stable across register/deregister even if a test fixture swaps self.parent after
+        # construction (production never does — a hot-reload builds a fresh Bus). Listener removal still uses the
+        # live self.owner_id because listeners register under the live owner too.
         self._removal_callback_owner_id = self.owner_id
         self.bus_service.register_removal_callback(self._removal_callback_owner_id, self._on_listener_removed)
 
