@@ -47,6 +47,9 @@ with no ``ETag``/``Last-Modified`` is what stops a cache reusing one request's b
 keeps a shared cache from storing a single copy for every header value.
 """
 
+WARNED_PAIRS_CAP = 16
+"""How many distinct (reason, peer) pairs one :class:`SpaShell` logs at WARNING; later new pairs log at DEBUG."""
+
 
 _DIAGNOSTIC_PAGE = """<!DOCTYPE html>
 <html lang="en">
@@ -70,6 +73,10 @@ _DIAGNOSTIC_PAGE = """<!DOCTYPE html>
 """
 
 
+REJECTION_LOG = "Rejected %s header from %s (%s); serving the base-path diagnostic page%s"
+"""Log line for a rejected base header: header name, peer, reason label, and an optional trailing note."""
+
+
 class BaseRejection(enum.Enum):
     """Why a present base header was not honored, in the order the checks run.
 
@@ -89,8 +96,8 @@ class BaseRejection(enum.Enum):
     MALFORMED_VALUE = (
         "malformed value",
         "The header's value is not a valid path prefix.",
-        "Fix the prefix the proxy sends: one or more <code>/segment</code> parts, with no empty, "
-        "<code>.</code> or <code>..</code> segments.",
+        "Fix the prefix the proxy sends: a single header holding one or more <code>/segment</code> parts, "
+        "with no empty, <code>.</code> or <code>..</code> segments.",
     )
 
     def __init__(self, label: str, cause: str, remedy: str) -> None:
@@ -116,23 +123,27 @@ def resolve_base(
 ) -> BaseResolution:
     """Resolve the ``<base href>`` for a request, or why its base header was rejected.
 
-    The first base header present decides; one whose value is empty, whitespace-only or ``/`` counts as
-    absent. A present header is then checked in a fixed order (trust inactive, untrusted peer, malformed
-    value), so an untrusted peer's value is never parsed. A header that fails does not fall through to the
-    next one.
+    The first base header present decides; one whose values are all empty, whitespace-only or ``/`` counts
+    as absent. A present header is then checked in a fixed order (trust inactive, untrusted peer, malformed
+    value), so an untrusted peer's value is never parsed. More than one value counts as malformed: a proxy
+    that appends instead of replacing would otherwise let the client's copy decide. A header that fails does
+    not fall through to the next one.
 
     Returns:
         The base, always ending in ``/`` (``"/"`` when no base header is present), or a :class:`Rejected`.
     """
     for header, pattern in _BASE_HEADER_PATTERNS:
-        value = (headers.get(header) or "").strip()
-        if value in ("", "/"):
+        values = [value.strip() for value in headers.getlist(header)]
+        if all(value in ("", "/") for value in values):
             continue
         if not auth_enabled:
             return Rejected(BaseRejection.TRUST_INACTIVE, header)
         if client_address is None or not is_trusted_peer(client_address, trusted):
             return Rejected(BaseRejection.UNTRUSTED_PEER, header)
-        prefix = value.removesuffix("/")
+        # Any repeat is malformed, even beside a blank copy: only one value may decide the base.
+        if len(values) > 1:
+            return Rejected(BaseRejection.MALFORMED_VALUE, header)
+        prefix = values[0].removesuffix("/")
         if not pattern.fullmatch(prefix):
             return Rejected(BaseRejection.MALFORMED_VALUE, header)
         base = f"{prefix}/"
@@ -147,8 +158,8 @@ class SpaShell:
 
     template: str
     """The built ``index.html``, still carrying :data:`BASE_MARKER`."""
-    warned: set[BaseRejection] = field(default_factory=set)
-    """Rejection reasons already logged at WARNING; later occurrences log at DEBUG."""
+    warned_pairs: set[tuple[BaseRejection, str]] = field(default_factory=set)
+    """(reason, peer) pairs already logged at WARNING, at most :data:`WARNED_PAIRS_CAP`; repeats log at DEBUG."""
 
     def render(self, resolution: BaseResolution, client_address: str | None) -> HTMLResponse:
         """The shell with its base substituted, or the diagnostic page (status 403) for a rejection.
@@ -164,30 +175,43 @@ class SpaShell:
         return HTMLResponse(self.template.replace(BASE_MARKER, tag, 1), headers=SHELL_HEADERS)
 
     def log_rejection(self, rejected: Rejected, client_address: str | None) -> None:
-        """WARNING the first time each reason occurs, DEBUG after; never logs the header's value."""
-        level = logging.DEBUG if rejected.reason in self.warned else logging.WARNING
-        self.warned.add(rejected.reason)
-        LOGGER.log(
-            level,
-            "Rejected %s header from %s (%s); serving the base-path diagnostic page",
-            rejected.header,
-            client_address or "unknown",
-            rejected.reason.label,
-        )
+        """WARNING the first time each (reason, peer) pair occurs, DEBUG after; never logs the header's value.
+
+        Keying on the peer keeps the address the UNTRUSTED_PEER remedy asks for in the log even when another
+        peer was rejected first. The WARNING that fills :data:`WARNED_PAIRS_CAP` says later new pairs log at
+        DEBUG, so a missing address isn't a mystery.
+        """
+        peer = client_address or "unknown"
+        pair = (rejected.reason, peer)
+        if pair in self.warned_pairs or len(self.warned_pairs) >= WARNED_PAIRS_CAP:
+            LOGGER.debug(REJECTION_LOG, rejected.header, peer, rejected.reason.label, "")
+            return
+        self.warned_pairs.add(pair)
+        cap_note = "; further new peers log at DEBUG" if len(self.warned_pairs) == WARNED_PAIRS_CAP else ""
+        LOGGER.warning(REJECTION_LOG, rejected.header, peer, rejected.reason.label, cap_note)
 
 
 def load_spa_shell(spa_dir: Path) -> SpaShell | None:
-    """Read the built ``index.html`` and check it carries the base marker.
+    """Read the built ``index.html`` and check the build is servable: the file is readable, carries the base marker,
+    and has an ``assets/`` directory beside it.
 
     Returns:
-        The shell, or ``None`` (after logging an ERROR) when ``index.html`` is missing or lacks the marker,
-        in which case the caller mounts no SPA routes and the API keeps running.
+        The shell, or ``None`` (after logging an ERROR) when ``index.html`` or ``assets/`` is missing, the
+        file can't be read, or it lacks the marker, in which case the caller mounts no SPA routes and the API
+        keeps running.
     """
     index = spa_dir / "index.html"
     if not index.is_file():
         LOGGER.error("SPA build at %s has no index.html; rebuild the SPA. The web UI is not served.", spa_dir)
         return None
-    text = index.read_text(encoding="utf-8")
+    if not (spa_dir / "assets").is_dir():
+        LOGGER.error("SPA build at %s has no assets directory; rebuild the SPA. The web UI is not served.", spa_dir)
+        return None
+    try:
+        text = index.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        LOGGER.exception("Could not read %s; rebuild the SPA. The web UI is not served.", index)
+        return None
     if BASE_MARKER not in text:
         LOGGER.error(
             "%s lacks the %s marker (a stale or foreign build); rebuild the SPA. The web UI is not served.",

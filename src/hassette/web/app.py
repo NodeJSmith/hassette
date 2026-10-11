@@ -137,8 +137,8 @@ def create_fastapi_app(
     app.include_router(telemetry_router, prefix=API_PREFIX)
     app.include_router(scheduler_router, prefix=API_PREFIX)
 
-    # SPA serving (Preact). A missing or marker-less index.html logs ERROR inside load_spa_shell and
-    # mounts no SPA routes, so a stale build costs the UI but never the API.
+    # SPA serving (Preact). A bad build (no index.html or assets/, unreadable, or marker-less) logs ERROR inside
+    # load_spa_shell and mounts no SPA routes, so a stale build costs the UI but never the API.
     shell = load_spa_shell(_SPA_DIR) if hassette.config.web_api.run_ui and _SPA_DIR.exists() else None
     if shell is not None:
         app.mount("/assets", StaticFiles(directory=str(_SPA_DIR / "assets")), name="spa-assets")

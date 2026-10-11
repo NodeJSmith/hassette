@@ -97,11 +97,11 @@ For your own reverse proxy, three things make it work:
 - **The proxy strips the prefix.** Hassette receives `/apps`, not `/hassette/apps`.
 - **The proxy sends `X-Forwarded-Prefix`** with the prefix it stripped, on every
   request. Hassette uses it to point the page's links, API calls, and WebSocket at
-  the prefix. Set it (or clear it) unconditionally, so a value a browser sends
-  can't pass through.
+  the prefix. Replace it (or clear it) unconditionally, so a value a browser sends
+  can't pass through; a request carrying the header twice gets the error page.
 - **The proxy is listed under `trusted_proxies`**, with `auth_enabled` left on.
-  From any other peer, Hassette never reads the header's value and serves the
-  error page described below instead of the UI. Trusting the proxy also skips
+  From any other peer, Hassette never trusts or parses the header's value and
+  serves the error page described below instead of the UI. Trusting the proxy also skips
   Hassette's token check for it (see the note above), so put the login at the
   proxy.
 
@@ -124,7 +124,8 @@ For your own reverse proxy, three things make it work:
 If the setup is off, the page names the problem instead of loading blank: a
 proxy missing from `trusted_proxies`, `auth_enabled` turned off, or a prefix that
 isn't a plain path like `/hassette` or `/tools/hassette`. Hassette also logs a
-warning the first time each problem occurs.
+warning, naming the peer's address, the first time each problem occurs for each
+peer.
 
 ## Configuration
 

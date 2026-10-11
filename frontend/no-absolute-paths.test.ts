@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findAbsolutePaths } from "./no-absolute-paths";
+import { BASE_MARKER, findAbsolutePaths, findBundleProblems } from "./no-absolute-paths";
 
 describe("findAbsolutePaths", () => {
   it.each([
@@ -26,5 +26,28 @@ describe("findAbsolutePaths", () => {
     '"/apis"',
   ])("ignores %s", (source) => {
     expect(findAbsolutePaths(source)).toEqual([]);
+  });
+});
+
+describe("findBundleProblems", () => {
+  const index = `<head>${BASE_MARKER}</head>`;
+
+  it("passes a bundle whose index.html keeps the marker and has no absolute paths", () => {
+    expect(findBundleProblems({ "index.html": index, "assets/app.js": 'fetch("api/apps")' })).toEqual([]);
+  });
+
+  it.each(['<base href="/">', "<base href='/' />", '<base  href="/" />'])(
+    "flags an index.html whose marker was rewritten to %s",
+    (tag) => {
+      const problems = findBundleProblems({ "index.html": `<head>${tag}</head>` });
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toContain(BASE_MARKER);
+    },
+  );
+
+  it("names the file of each absolute path", () => {
+    const problems = findBundleProblems({ "index.html": index, "assets/app.js": 'fetch("/api/apps")' });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('assets/app.js: "/api/apps');
   });
 });

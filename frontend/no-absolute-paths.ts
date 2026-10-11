@@ -23,27 +23,62 @@ export function findAbsolutePaths(source: string): string[] {
   return [...source.matchAll(ABSOLUTE_PATH)].map((m) => source.slice(m.index, m.index + CONTEXT_CHARS));
 }
 
-/** Fails `vite build` when any emitted chunk or asset, vendor chunks included, contains an absolute path. */
+/**
+ * The exact `<base>` tag the emitted `index.html` must keep. The backend substitutes it per request and
+ * serves no UI when it's missing; `BASE_MARKER` in `src/hassette/web/spa.py` is the other half of this
+ * contract, and the two must match byte for byte.
+ */
+export const BASE_MARKER = '<base href="/" />';
+
+/**
+ * Build errors for the emitted files (path to text): absolute served paths, and an `index.html` that is missing
+ * or lost its `<base>` marker (the backend serves no UI without one).
+ */
+export function findBundleProblems(files: Record<string, string>): string[] {
+  const offenders: string[] = [];
+  for (const [fileName, source] of Object.entries(files)) {
+    for (const hit of findAbsolutePaths(source)) offenders.push(`  ${fileName}: ${hit}`);
+  }
+  const problems: string[] = [];
+  if (offenders.length > 0) {
+    problems.push(
+      `Absolute ${SERVED_PREFIXES.map((p) => `/${p}`).join(", ")} paths in the build output; ` +
+        "they escape the <base href> prefix. " +
+        "Use an app-relative path resolved through src/lib/base-path.ts.\n" +
+        offenders.join("\n"),
+    );
+  }
+  const index = files["index.html"];
+  if (index === undefined) {
+    problems.push("The build emitted no index.html; the backend has no shell to serve.");
+  } else if (!index.includes(BASE_MARKER)) {
+    problems.push(
+      `The built index.html lacks the exact ${BASE_MARKER} tag the backend substitutes; ` +
+        "keep it verbatim in frontend/index.html (and check no HTML transform rewrites it).",
+    );
+  }
+  return problems;
+}
+
+/**
+ * Fails `vite build` when any emitted chunk or asset, vendor chunks included, contains an absolute path,
+ * or the emitted `index.html` lost its `<base>` marker.
+ */
 export function noAbsolutePaths(): Plugin {
   return {
     name: "hassette-no-absolute-paths",
     apply: "build",
-    // writeBundle sees the final bundle, after the HTML plugin emits index.html and Vite's URL rewrites.
-    writeBundle(_options, bundle) {
-      const offenders: string[] = [];
+    // Post-enforced generateBundle sees the final bundle (the HTML plugin's index.html, Vite's CSS URL
+    // rewrites) before anything is written, so a failing build leaves no output a freshness check could reuse.
+    enforce: "post",
+    generateBundle(_options, bundle) {
+      const files: Record<string, string> = {};
       for (const [fileName, output] of Object.entries(bundle)) {
         const source = output.type === "chunk" ? output.code : output.source;
-        if (typeof source !== "string") continue;
-        for (const hit of findAbsolutePaths(source)) offenders.push(`  ${fileName}: ${hit}`);
+        if (typeof source === "string") files[fileName] = source;
       }
-      if (offenders.length > 0) {
-        this.error(
-          `Absolute ${SERVED_PREFIXES.map((p) => `/${p}`).join(", ")} paths in the build output; ` +
-            "they escape the <base href> prefix. " +
-            "Use an app-relative path resolved through src/lib/base-path.ts.\n" +
-            offenders.join("\n"),
-        );
-      }
+      const problems = findBundleProblems(files);
+      if (problems.length > 0) this.error(problems.join("\n"));
     },
   };
 }

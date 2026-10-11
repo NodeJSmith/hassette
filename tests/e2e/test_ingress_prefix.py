@@ -4,7 +4,9 @@ The browser talks only to an ingress-shaped aiohttp proxy (``tests/support/ingre
 ``/api/hassio_ingress/<token>``, sets ``X-Ingress-Path``, and 404s anything outside the prefix. Hassette runs
 with auth on and trusts the proxy's loopback address, as the add-on trusts Supervisor, so no login view
 appears. Any frontend URL that escapes the prefix (an asset, font, REST call, WebSocket or navigation) fails
-a request, which this test asserts never happens. See design/specs/130-ingress-base-path/design.md (D8).
+a request, which this test asserts never happens. The browser also sends a stray ``X-Forwarded-Prefix``, which
+the proxy passes through as core does; ``X-Ingress-Path`` must still decide the base (D1). See
+design/specs/130-ingress-base-path/design.md (D8).
 """
 
 from collections.abc import Iterator
@@ -12,7 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi import FastAPI
-from playwright.sync_api import Page, Request, Response, expect
+from playwright.sync_api import Page, Request, Response, WebSocket, expect
 
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
@@ -24,6 +26,8 @@ from tests.support.web_mocks import LOOPBACK, create_mock_runtime_query_service,
 pytestmark = pytest.mark.e2e
 
 LOAD_TIMEOUT_MS = 10000
+STRAY_PREFIX = "/evil"
+"""A client-sent ``X-Forwarded-Prefix``; HA core forwards it, so the app must ignore it under ingress."""
 FONT_LOADED_JS = (
     "document.fonts.ready.then(() => "
     "[...document.fonts].some(f => f.family.includes('Geist') && f.status === 'loaded'))"
@@ -63,6 +67,7 @@ def ingress_url(fastapi_app_ingress: FastAPI, runtime_query_service_ingress: Run
 def test_ui_works_under_ingress_prefix(page: Page, ingress_url: str) -> None:
     escaped: list[str] = []
     failed: list[str] = []
+    websockets: list[str] = []
 
     def on_request(request: Request) -> None:
         if INGRESS_PATH not in request.url:
@@ -77,7 +82,13 @@ def test_ui_works_under_ingress_prefix(page: Page, ingress_url: str) -> None:
         if request.failure != "net::ERR_ABORTED":
             failed.append(f"{request.failure} {request.url}")
 
+    def on_websocket(ws: WebSocket) -> None:
+        # page.on("request") never sees WebSocket handshakes.
+        websockets.append(ws.url)
+
+    page.set_extra_http_headers({"X-Forwarded-Prefix": STRAY_PREFIX})
     page.on("request", on_request)
+    page.on("websocket", on_websocket)
     page.on("response", on_response)
     page.on("requestfailed", on_request_failed)
 
@@ -106,3 +117,5 @@ def test_ui_works_under_ingress_prefix(page: Page, ingress_url: str) -> None:
 
     assert escaped == []
     assert failed == []
+    assert websockets
+    assert all(INGRESS_PATH in url and STRAY_PREFIX not in url for url in websockets)

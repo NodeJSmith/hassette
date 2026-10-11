@@ -4,6 +4,13 @@ import { resolveAppUrl } from "../lib/base-path";
 import type { components } from "./generated-types";
 
 type ProblemCode = components["schemas"]["ProblemCode"];
+type ProblemDetail = components["schemas"]["ProblemDetail"];
+
+/**
+ * A non-ok response's parsed JSON, unvalidated. Keyed by the generated `ProblemDetail` members, so a rename
+ * of one on the backend fails tsc here; `message` covers bodies that aren't problem details.
+ */
+type RawErrorBody = { [K in keyof ProblemDetail]?: unknown } & { message?: unknown };
 
 /** App-relative, so requests resolve under the `<base href>` (see `lib/base-path.ts`). */
 const BASE_URL = "api";
@@ -15,7 +22,10 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly statusText: string,
     message?: string,
-    /** The problem body's `code`, when the response carried one. */
+    /**
+     * The problem body's `code`, when the response carried one. A `string`, not `ProblemCode`: a newer
+     * backend may send a code this build's generated union doesn't list.
+     */
     public readonly code?: string,
   ) {
     super(message ?? formatApiError(status, statusText));
@@ -54,7 +64,7 @@ interface ErrorBody {
 /** Extracts a human-readable message and problem code from a non-ok response's JSON body, if present. */
 async function extractErrorBody(response: Response): Promise<ErrorBody> {
   try {
-    const body: Record<string, unknown> = await response.json();
+    const body: RawErrorBody = await response.json();
     const raw = body.detail ?? body.message;
     return {
       message: typeof raw === "string" ? raw : undefined,

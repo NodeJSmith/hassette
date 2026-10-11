@@ -35,6 +35,7 @@ import { useServerUpdatePrompt } from "./hooks/use-server-update-prompt";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
 import { ROUTER_BASE } from "./lib/base-path";
+import { focusInPageTarget } from "./lib/in-page-anchor";
 import { createQueryClient } from "./lib/query-client";
 import { queryKeys } from "./lib/query-keys";
 import { AppDetailPage } from "./pages/app-detail";
@@ -55,6 +56,8 @@ import { isFailureStatus, statusToKind } from "./utils/status";
 
 const PALETTE_STALE_TIME_MS = 300_000;
 export const MAIN_CONTENT_ID = "main-content";
+/** The skip link's click handler (a handler, built once): see `lib/in-page-anchor.ts`. */
+const skipToMainContent = focusInPageTarget(MAIN_CONTENT_ID);
 const SKIP_LINK_CLASS =
   "sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[var(--z-skip-link)] focus:rounded-md focus:border-2 focus:border-primary focus:bg-card focus:px-4 focus:py-2 focus:text-foreground";
 const LAYOUT_CLASS =
@@ -75,15 +78,6 @@ function isTypingTarget(target: EventTarget | null): boolean {
     target instanceof HTMLTextAreaElement ||
     target instanceof HTMLSelectElement
   );
-}
-
-/** Focus (and scroll to) the main content without navigating: under a `<base href>`, a bare `#id` href
- * resolves against the base and would leave the current route. */
-function skipToMainContent(e: React.MouseEvent<HTMLAnchorElement>): void {
-  e.preventDefault();
-  const main = document.getElementById(MAIN_CONTENT_ID);
-  main?.focus();
-  main?.scrollIntoView();
 }
 
 /** Routes are relative to the `<base href>` the backend injected (see `lib/base-path.ts`). */

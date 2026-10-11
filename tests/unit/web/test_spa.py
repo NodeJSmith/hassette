@@ -1,5 +1,6 @@
 """Base-href resolution and shell rendering for the SPA (design/specs/130-ingress-base-path)."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -10,6 +11,7 @@ from hassette.web.spa import (
     BASE_MARKER,
     FORWARDED_PREFIX_HEADER,
     INGRESS_PATH_HEADER,
+    WARNED_PAIRS_CAP,
     BaseRejection,
     Rejected,
     SpaShell,
@@ -17,6 +19,9 @@ from hassette.web.spa import (
     resolve_base,
 )
 from tests.support.web_mocks import trusted_proxy_set
+
+FRONTEND_PLUGIN = Path(__file__).parents[3] / "frontend" / "no-absolute-paths.ts"
+"""Declares the TS half of the ``BASE_MARKER`` contract, which the build checks ``index.html`` against."""
 
 PROXY = "172.30.32.2"
 STRANGER = "203.0.113.9"
@@ -26,6 +31,16 @@ INGRESS = "/api/hassio_ingress/abc_DEF-123"
 
 def resolve(headers: dict[str, str], peer: str | None = PROXY, *, auth_enabled: bool = True) -> str | Rejected:
     return resolve_base(Headers(headers), peer, TRUSTED, auth_enabled=auth_enabled)
+
+
+def resolve_raw(pairs: list[tuple[str, str]], peer: str | None = PROXY) -> str | Rejected:
+    raw = [(name.lower().encode(), value.encode()) for name, value in pairs]
+    return resolve_base(Headers(raw=raw), peer, TRUSTED, auth_enabled=True)
+
+
+def write_build(spa_dir: Path, index: bytes) -> None:
+    (spa_dir / "assets").mkdir()
+    (spa_dir / "index.html").write_bytes(index)
 
 
 class TestResolveBase:
@@ -88,6 +103,17 @@ class TestResolveBase:
     )
     def test_malformed_ingress_path(self, value: str) -> None:
         assert resolve({INGRESS_PATH_HEADER: value}) == Rejected(BaseRejection.MALFORMED_VALUE, INGRESS_PATH_HEADER)
+
+    def test_repeated_header_is_malformed(self) -> None:
+        result = resolve_raw([(FORWARDED_PREFIX_HEADER, "/evil"), (FORWARDED_PREFIX_HEADER, "/hassette")])
+        assert result == Rejected(BaseRejection.MALFORMED_VALUE, FORWARDED_PREFIX_HEADER)
+
+    def test_repeated_header_from_untrusted_peer_is_untrusted(self) -> None:
+        pairs = [(FORWARDED_PREFIX_HEADER, "/evil"), (FORWARDED_PREFIX_HEADER, "/hassette")]
+        assert resolve_raw(pairs, STRANGER) == Rejected(BaseRejection.UNTRUSTED_PEER, FORWARDED_PREFIX_HEADER)
+
+    def test_repeated_blank_header_counts_as_absent(self) -> None:
+        assert resolve_raw([(FORWARDED_PREFIX_HEADER, ""), (FORWARDED_PREFIX_HEADER, "/")]) == "/"
 
     def test_untrusted_peer(self) -> None:
         assert resolve({INGRESS_PATH_HEADER: INGRESS}, STRANGER) == Rejected(
@@ -153,25 +179,51 @@ class TestSpaShell:
         assert "web_api.trusted_proxies" in untrusted.body.decode()
         assert "web_api.auth_enabled" in inactive.body.decode()
 
-    def test_each_reason_is_warned_once(self) -> None:
+    def test_each_reason_and_peer_is_warned_once(self) -> None:
         shell = SpaShell(self.SHELL)
         for _ in range(3):
             shell.render(Rejected(BaseRejection.UNTRUSTED_PEER, INGRESS_PATH_HEADER), STRANGER)
-        assert shell.warned == {BaseRejection.UNTRUSTED_PEER}
-        shell.render(Rejected(BaseRejection.MALFORMED_VALUE, INGRESS_PATH_HEADER), PROXY)
-        assert shell.warned == {BaseRejection.UNTRUSTED_PEER, BaseRejection.MALFORMED_VALUE}
+        assert shell.warned_pairs == {(BaseRejection.UNTRUSTED_PEER, STRANGER)}
+        shell.render(Rejected(BaseRejection.UNTRUSTED_PEER, INGRESS_PATH_HEADER), PROXY)
+        shell.render(Rejected(BaseRejection.MALFORMED_VALUE, INGRESS_PATH_HEADER), None)
+        assert shell.warned_pairs == {
+            (BaseRejection.UNTRUSTED_PEER, STRANGER),
+            (BaseRejection.UNTRUSTED_PEER, PROXY),
+            (BaseRejection.MALFORMED_VALUE, "unknown"),
+        }
+
+    def test_warned_pairs_are_capped(self) -> None:
+        shell = SpaShell(self.SHELL)
+        for i in range(WARNED_PAIRS_CAP + 5):
+            shell.render(Rejected(BaseRejection.UNTRUSTED_PEER, INGRESS_PATH_HEADER), f"203.0.113.{i}")
+        assert len(shell.warned_pairs) == WARNED_PAIRS_CAP
 
 
 class TestLoadSpaShell:
     def test_loads_shell_with_marker(self, tmp_path: Path) -> None:
-        (tmp_path / "index.html").write_text(f"<head>{BASE_MARKER}</head>")
+        write_build(tmp_path, f"<head>{BASE_MARKER}</head>".encode())
         shell = load_spa_shell(tmp_path)
         assert shell is not None
         assert BASE_MARKER in shell.template
 
     def test_missing_marker(self, tmp_path: Path) -> None:
-        (tmp_path / "index.html").write_text("<head></head>")
+        write_build(tmp_path, b"<head></head>")
         assert load_spa_shell(tmp_path) is None
 
     def test_missing_index(self, tmp_path: Path) -> None:
+        (tmp_path / "assets").mkdir()
         assert load_spa_shell(tmp_path) is None
+
+    def test_missing_assets_dir(self, tmp_path: Path) -> None:
+        (tmp_path / "index.html").write_text(f"<head>{BASE_MARKER}</head>")
+        assert load_spa_shell(tmp_path) is None
+
+    def test_undecodable_index(self, tmp_path: Path) -> None:
+        write_build(tmp_path, BASE_MARKER.encode() + b"\xff\xfe")
+        assert load_spa_shell(tmp_path) is None
+
+
+def test_base_marker_matches_the_frontend_build_check() -> None:
+    match = re.search(r"export const BASE_MARKER = '(.+)';", FRONTEND_PLUGIN.read_text())
+    assert match is not None
+    assert match.group(1) == BASE_MARKER

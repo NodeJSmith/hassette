@@ -221,11 +221,12 @@ like success.
 
 **How often the WARNING fires.**
 
-| | A: WARNING the first time each reason occurs in the process (with the peer address, never the header value), DEBUG after | B: WARNING per (peer, reason) in a time window with a suppressed count | C: WARNING every request |
-|---|---|---|---|
-| Flood resistance | Bounded: at most three lines per process | Bounded per peer; a scanner sweep still logs one line per peer | None |
-| New state | A set of at most three reasons | A time-windowed map that grows with peers | None |
-| Misconfiguration visible after the first line | On the diagnostic page, every time | Periodically in the log | Every request |
+| | A: WARNING the first time each reason occurs in the process (with the peer address, never the header value), DEBUG after | B: WARNING per (peer, reason) in a time window with a suppressed count | C: WARNING every request | D: WARNING the first time each (reason, peer) pair occurs, capped at 16 pairs, DEBUG after |
+|---|---|---|---|---|
+| Flood resistance | Bounded: at most three lines per process | Bounded per peer; a scanner sweep still logs one line per peer | None | Bounded: at most 16 lines per `SpaShell` |
+| New state | A set of at most three reasons | A time-windowed map that grows with peers | None | A set of at most 16 pairs |
+| Misconfiguration visible after the first line | On the diagnostic page, every time | Periodically in the log | Every request | On the diagnostic page, every time |
+| Address the untrusted-peer remedy needs | Lost if another peer was rejected first | Logged per window | Every request | Logged once per peer, up to the cap |
 
 **Whether a successful resolution is logged.**
 
@@ -241,7 +242,7 @@ stateless and silent by default.
 **Pick C (response) instead if** spec 129 D1 must stay untouched.
 **Pick B (log) instead if** you want each misconfigured peer named in the log.
 **Reversibility:** easy
-**Ratified:** Chose reasons checked in the order trust inactive, untrusted peer, malformed value (first match decides page and log key), a self-contained diagnostic page (status 403 for every reason, no request-supplied values, `no-cache`) for any present-but-rejected D1 header, a WARNING the first time each of three reasons (untrusted peer, malformed value, trust inactive with auth off) occurs per process with DEBUG after, and DEBUG on every successful resolution, over base `/` with a per-request WARNING, so the user sees the cause in the panel and anonymous traffic can't flood the log, accepting an amendment to spec 129 D1 and a stray-header direct-port client seeing the error page.
+**Ratified:** Chose reasons checked in the order trust inactive, untrusted peer, malformed value (first match decides page and log key), a self-contained diagnostic page (status 403 for every reason, no request-supplied values, `no-cache`) for any present-but-rejected D1 header, a WARNING the first time each (reason, peer) pair occurs (log option D, capped at 16 pairs per `SpaShell`, chosen at the ship-time challenge over the reason-only set so the address the untrusted-peer remedy asks for always reaches the log) with DEBUG after, and DEBUG on every successful resolution, over base `/` with a per-request WARNING, so the user sees the cause in the panel and anonymous traffic can't flood the log, accepting an amendment to spec 129 D1 and a stray-header direct-port client seeing the error page.
 
 ### D7: How is "no absolute same-origin paths" enforced?
 
@@ -347,12 +348,14 @@ Today both 401 sites send the user to hassette's login view: `frontend/src/lib/q
 there: its POST gets Supervisor's 401 too. Hassette's own 401 is a problem response carrying
 `ProblemCode.NOT_AUTHENTICATED` (`src/hassette/web/middleware.py`).
 
-| | A: Redirect to login only on hassette's own 401 (problem code `NOT_AUTHENTICATED`); any other 401 shows a "session expired, reload from Home Assistant" state | B: Under a non-root base, never redirect; always show the reload state | C: Keep the redirect on every 401 |
-|---|---|---|---|
-| Expired ingress session | Correct message | Correct message | Broken login view or raw 401 |
-| Basis of the decision | Response body (evidence) | Base path (a heuristic about who sent it) | Status code alone |
-| Direct-port login | Unchanged | Unchanged | Unchanged |
-| Size | A check at the two 401 sites | Smaller | None |
+| | A: Redirect to login only on hassette's own 401 (problem code `NOT_AUTHENTICATED`); any other 401 shows a "session expired, reload from Home Assistant" state | B: Under a non-root base, never redirect; always show the reload state | C: Keep the redirect on every 401 | D: A, with the view's copy proxy-neutral and a secondary "Log in to Hassette" action at root base |
+|---|---|---|---|---|
+| Expired ingress session | Correct message | Correct message | Broken login view or raw 401 | Correct message |
+| Basis of the decision | Response body (evidence) | Base path (a heuristic about who sent it) | Status code alone | Response body; the base only adds an affordance |
+| Direct-port login | Unchanged | Unchanged | Unchanged | Unchanged |
+| Root base, Hassette 401 whose body a proxy mangled | Dead end (Reload repeats it) | Login | Login | Login reachable from the view |
+| Forward-auth proxy (non-HA) 401 | Copy names Home Assistant | Copy names Home Assistant | Login form that can't succeed | Neutral copy; Reload reaches the proxy's sign-in |
+| Size | A check at the two 401 sites | Smaller | None | A, plus a copy tweak and one conditional action |
 
 The "session expired" state is a full-page view that replaces the app, the way the login view already
 bypasses the shell in `frontend/src/app.tsx`, driven by a store flag both sites set. `ApiError`
@@ -366,7 +369,7 @@ already in the response.
 **Pick B instead if** you'd rather not couple the frontend to the problem-code body.
 **Pick C instead if** expired ingress sessions are rare enough for a follow-up.
 **Reversibility:** easy
-**Ratified:** Chose redirecting to login only on hassette's own 401 (problem code `NOT_AUTHENTICATED`) and showing a full-page "session expired, reload from Home Assistant" view (store flag; `ApiError` gains the problem code; the WebSocket site uses the `confirmAuthRejection` REST probe) for any other 401, at both the query-client and WebSocket sites with frontend tests for each branch, over a base-path heuristic or redirecting on every 401, so an expired ingress session gets an actionable message instead of a dead login form, accepting a frontend dependency on the problem-code body.
+**Ratified:** Chose redirecting to login only on hassette's own 401 (problem code `NOT_AUTHENTICATED`) and showing a full-page "session expired" view (option D, amended at the ship-time challenge: proxy-neutral copy, and a secondary "Log in to Hassette" action when served at root base, so a Hassette 401 whose body a proxy mangled isn't a dead end) (store flag; `ApiError` gains the problem code; the WebSocket site uses the `confirmAuthRejection` REST probe) for any other 401, at both the query-client and WebSocket sites with frontend tests for each branch, over a base-path heuristic or redirecting on every 401, so an expired ingress session gets an actionable message instead of a dead login form, accepting a frontend dependency on the problem-code body.
 
 ### D12: When does local e2e rebuild the SPA?
 
@@ -430,8 +433,8 @@ build state.
 - Backend lives in a new `src/hassette/web/spa.py` (`resolve_base`, `SpaShell`, `load_spa_shell`);
   `app.py` only wires it. Each `BaseRejection` member carries its log label and the page's cause and remedy.
 - The diagnostic page names which header was rejected (a fixed header name, not a request-supplied value).
-- The WARNING-once set lives on the app's `SpaShell`, so "once per process" is once per app instance; one
-  app runs per process.
+- The WARNING-once set lives on the app's `SpaShell`, so it lasts one `WebApiService.serve()` lifetime: a web
+  service restart rebuilds the app and resets it, the same restart that re-reads `index.html` (D4).
 - `App` is a `<Router base={ROUTER_BASE}>` around the former body (now `AppShell`), because `App` itself calls
   `useLocation`.
 - `resolveAppUrl` treats a leading `/` as the app root, so route constants like `LOGIN_PATH` resolve without a
@@ -447,5 +450,21 @@ build state.
   rule).
 - Spec 129's D1 amendment is an addendum entry there, not a body edit, since that ledger is ratified for its own
   build.
+- A deciding header sent more than once is a malformed value, checked after the trust checks: an append-style
+  proxy would otherwise let the client's copy come first and pick the base.
+- `load_spa_shell` also serves no UI (ERROR logged) when `assets/` is missing or `index.html` can't be read
+  or decoded, so every bad-build state D4 names degrades to no UI rather than a startup crash.
+- D7's plugin checks in a post-enforced `generateBundle`, before anything is written, so a failing build leaves
+  no `index.html` for D12's freshness check to reuse (verified by builds with a planted absolute JS path, CSS
+  `url()` and rewritten marker). The same plugin fails the build when the emitted `index.html` lacks the exact
+  `BASE_MARKER` tag.
+- The error body is read through a type keyed by the generated `ProblemDetail`, so a backend rename of `code`
+  fails tsc; `ApiError.code` stays `string`, since a newer backend may send a code the generated union lacks.
+- The skip-link handler is `focusInPageTarget` in `frontend/src/lib/in-page-anchor.ts`; a test fails on any
+  component with a `#` href that doesn't use it (D10's "new in-page anchors must reuse").
+- The session-expired view's `offerLogin` prop defaults to `ROUTER_BASE === ""`, so tests set it directly.
+- No `BREAKING CHANGE:` footer for the 403 on a base header from a non-trusted peer: deployments that sent one
+  and worked were mostly direct-port clients with a stray header, and stripping proxies were already broken
+  by the old absolute asset paths; the docs page describes the error page.
 
 ## Addendum

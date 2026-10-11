@@ -121,6 +121,20 @@ describe("apiFetch", () => {
     expect(err).toMatchObject({ status: 401, code: undefined });
     expect(unauthorizedOutcome(err)).toBe("session-expired");
   });
+
+  it("treats Hassette's 401 with a body a proxy truncated as session-expired, like any foreign 401", async () => {
+    // The session-expired view offers Hassette's login at root base for exactly this case.
+    const truncated = {
+      ok: false,
+      status: 401,
+      statusText: "Unauthorized",
+      json: () => Promise.reject(new SyntaxError('Unterminated string in JSON: {"detail":"Not authent')),
+    };
+    globalThis.fetch = vi.fn().mockResolvedValue(truncated);
+
+    const err = await apiFetch("/protected").catch((e: unknown) => e);
+    expect(unauthorizedOutcome(err)).toBe("session-expired");
+  });
 });
 
 describe("postSession", () => {
