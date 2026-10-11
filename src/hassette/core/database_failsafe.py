@@ -10,12 +10,10 @@ import aiosqlite
 from hassette.core.retention_targets import _FAILSAFE_TABLES, RetentionTarget, build_tier_where
 
 if typing.TYPE_CHECKING:
-    import asyncio
     import logging
     from collections.abc import Callable, Coroutine
 
     from hassette import Hassette
-    from hassette.core.database_write_queue import _WriteQueueItem
 
 _VACUUM_CHECKPOINT_RETRY_ATTEMPTS = 2
 """Attempts _vacuum_and_checkpoint_with_retry() makes for the incremental_vacuum/wal_checkpoint
@@ -48,13 +46,11 @@ class DatabaseSizeFailsafeMixin:
 
     hassette: "Hassette"
     logger: "logging.Logger"
-    _db: aiosqlite.Connection | None
     _db_path: Path
-    _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
     _consecutive_size_triggers: int
     _consecutive_exhaustion_triggers: int
     db: aiosqlite.Connection
-    enqueue: "Callable[[Coroutine[Any, Any, Any]], bool]"
+    enqueue_if_ready: "Callable[[Callable[[], Coroutine[Any, Any, Any]]], bool]"
 
     def get_db_size_mb(self) -> float:
         """Return total database size (main + WAL + SHM) in megabytes."""
@@ -368,6 +364,4 @@ class DatabaseSizeFailsafeMixin:
 
     async def run_size_failsafe(self) -> bool:
         """Enqueue a size failsafe check; False if dropped (no database, or write queue full)."""
-        if self._db is None or self._db_write_queue is None:
-            return False
-        return self.enqueue(self._check_size_failsafe())
+        return self.enqueue_if_ready(self._check_size_failsafe)
