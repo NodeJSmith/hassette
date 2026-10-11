@@ -12,13 +12,11 @@ from hassette.core.database_sql import SQL_BEGIN, safe_rollback
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget, build_age_where
 
 if typing.TYPE_CHECKING:
-    import asyncio
     import logging
     from collections.abc import Callable, Coroutine
 
     from hassette import Hassette
     from hassette.config.config import HassetteConfig
-    from hassette.core.database_write_queue import _WriteQueueItem
 
 PARENT_GUARD_SKIP_ESCALATION_CYCLES = 3
 """Consecutive retention cycles with parent-guard deletes skipped before the skip is logged as
@@ -90,18 +88,14 @@ class DatabaseRetentionMixin:
 
     hassette: "Hassette"
     logger: "logging.Logger"
-    _db: aiosqlite.Connection | None
-    _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
     _consecutive_parent_guard_skips: int
 
     db: aiosqlite.Connection
-    enqueue: "Callable[[Coroutine[Any, Any, Any]], bool]"
+    enqueue_if_ready: "Callable[[Callable[[], Coroutine[Any, Any, Any]]], bool]"
 
     async def run_retention_cleanup(self) -> bool:
         """Enqueue a retention cleanup; False if dropped (no database, or write queue full)."""
-        if self._db is None or self._db_write_queue is None:
-            return False
-        return self.enqueue(self._do_run_retention_cleanup())
+        return self.enqueue_if_ready(self._do_run_retention_cleanup)
 
     async def _delete_target_batched(
         self, target: RetentionTarget, now: float, config: "HassetteConfig"

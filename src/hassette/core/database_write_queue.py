@@ -10,7 +10,7 @@ inherits.
 
 import asyncio
 import typing
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 from hassette.exceptions import WriteQueueUnavailableError
@@ -18,6 +18,8 @@ from hassette.resources.shutdown_budget import hooks_pool_remaining
 
 if typing.TYPE_CHECKING:
     import logging
+
+    import aiosqlite
 
     from hassette import Hassette
     from hassette.core.database_service import DatabaseService
@@ -139,6 +141,7 @@ class DatabaseWriteQueueMixin:
 
     hassette: "Hassette"
     logger: "logging.Logger"
+    _db: "aiosqlite.Connection | None"
     _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
     _executing_future: "asyncio.Future[Any] | None"
     _write_queue_detached: bool
@@ -283,3 +286,13 @@ class DatabaseWriteQueueMixin:
         if qsize > 0 and qsize % 100 == 0:
             self.logger.warning("DB write queue depth at %d items — potential backlog", qsize)
         return True
+
+    def enqueue_if_ready(self, make_coro: Callable[[], Coroutine[Any, Any, Any]]) -> bool:
+        """Enqueue ``make_coro()`` if the database and write queue are up; False if dropped.
+
+        Takes a factory rather than a coroutine so nothing is created (and left unawaited)
+        when the database is not ready.
+        """
+        if self._db is None or self._db_write_queue is None:
+            return False
+        return self.enqueue(make_coro())
