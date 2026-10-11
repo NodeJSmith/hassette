@@ -7,6 +7,11 @@ import aiosqlite
 
 SQL_BEGIN = "BEGIN"
 
+CLEANUP_PROGRESS_LOG_INTERVAL = 10
+"""Batches (retention) or iterations (size failsafe) between "in progress" log lines during a
+long cleanup pass, so a pass that runs for minutes on a large backlog leaves a visible trail
+instead of going silent until its final summary."""
+
 
 class LoggerOwner(Protocol):
     """Anything exposing a ``logger`` -- the only attribute ``safe_rollback`` reads from its owner."""
