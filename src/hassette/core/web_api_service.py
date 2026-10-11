@@ -180,6 +180,16 @@ class WebApiService(Service):
                 except Exception:
                     self.logger.warning("uvicorn shutdown raised during cancellation", exc_info=True)
             raise
+        except SystemExit as exc:
+            # uvicorn's Server.startup() logs the bind OSError and calls sys.exit(1) when it can't
+            # bind host:port — its only sys.exit. Left alone, SystemExit escapes the serve task and
+            # ends the process with no teardown. A bind failure is fatal rather than TRANSIENT-
+            # restartable: the usual cause is another instance holding the port, which a restart
+            # inside the budget window won't clear, and a bad host/port never self-corrects.
+            raise FatalError(
+                f"Web API could not bind to {self.host}:{self.port} — is the port already in use "
+                "(another hassette instance running?) or the host not a local address?"
+            ) from exc
         except Exception:
             self.logger.exception("Web API server encountered an error")
             raise

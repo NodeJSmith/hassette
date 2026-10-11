@@ -2,6 +2,7 @@
 
 import asyncio
 import ipaddress
+import socket
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
@@ -99,6 +100,18 @@ class TestShutdownSocketCleanup:
                 await web_api_service.serve()
 
             mock_server.shutdown.assert_awaited_once()
+
+
+class TestBindFailure:
+    async def test_port_in_use_raises_fatal_error_naming_the_port(self, unused_tcp_port_factory, tmp_path) -> None:
+        """Uvicorn's sys.exit(1) on a bind failure must surface as a FatalError, not a SystemExit."""
+        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as holder:
+            holder.bind(("127.0.0.1", service.port))
+            holder.listen()
+
+            with pytest.raises(FatalError, match=f"127.0.0.1:{service.port}"):
+                await service.serve()
 
 
 async def collect_warning_messages(service: WebApiService) -> list[str]:

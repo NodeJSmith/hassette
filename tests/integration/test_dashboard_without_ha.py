@@ -7,11 +7,17 @@ dependency-decoupling fix end-to-end: WebApiService must still reach ready and s
 apps must still bootstrap, and the health endpoint must report "starting" rather than hanging
 or tearing down the process.
 
+The same boot also covers the opposite case: when the web API's port is already taken, the
+bind failure must tear the process down through Hassette's own shutdown and finalize the
+session as 'failure', instead of uvicorn's sys.exit(1) ending it with no teardown.
+
 See design/specs/018-dashboard-without-ha/design.md for the full rationale.
 """
 
 import asyncio
 import contextlib
+import socket
+import sqlite3
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -21,6 +27,8 @@ from httpx2 import ASGITransport, AsyncClient, Response
 
 from hassette import Hassette
 from hassette import context as hassette_context
+from hassette.core.session_manager import SESSION_STATUS_FAILURE
+from hassette.exceptions import FatalError
 from hassette.testing import make_light_state_dict, wait_for
 from hassette.types.enums import ConnectionState
 from hassette.web.app import create_fastapi_app
@@ -91,19 +99,17 @@ async def _teardown_bare_hassette(
                 hassette_context.HASSETTE_INSTANCE.reset(instance_token)  # pyright: ignore[reportArgumentType]
 
 
-@contextlib.asynccontextmanager
-async def _running_hassette_without_ha(
-    tmp_path: Path, unused_tcp_port_factory: Callable[[], int]
-) -> AsyncIterator[Hassette]:
-    """Boot a real Hassette instance whose WebsocketService never connects.
+def _wire_hassette_without_ha(tmp_path: Path, port: int) -> tuple[Hassette, asyncio.Event, object]:
+    """Build and wire a real Hassette instance whose WebsocketService never connects.
 
     ``StateProxy.load_cache()`` is short-circuited (``hassette.api.get_states_raw`` raises
     immediately) instead of letting the real retry/backoff run against an unreachable HA —
     that boundary-level patch is the same pattern ``tests/integration/test_state_proxy.py``
-    uses, and it keeps this test fast and deterministic. ``WebsocketService.serve()`` is
-    replaced with a coroutine that awaits an ``asyncio.Event`` that is never set, so the
-    connection state stays DISCONNECTED and ``has_ever_connected`` stays False for the
-    lifetime of the test.
+    uses, and it keeps these tests fast and deterministic. ``WebsocketService.serve()`` is
+    replaced with a coroutine that awaits the returned ``asyncio.Event``, so the connection
+    state stays DISCONNECTED and ``has_ever_connected`` stays False until the caller sets it.
+
+    Returns the instance, that event, and the ``HASSETTE_INSTANCE`` token to reset on teardown.
     """
     # house-lint: ignore-next[HSL002] - a module-level import makes pytest try to collect TestConfig as a test class
     from tests.conftest import TEST_APPS_PATH, TestConfig
@@ -114,7 +120,7 @@ async def _running_hassette_without_ha(
         # `_get_health()`, and auth is on by default now that the default-deny middleware actually
         # enforces it. Pinning host to loopback alongside disabling auth matches the project's
         # startup guard (a non-loopback host with auth disabled refuses to start).
-        web_api={"run": True, "port": unused_tcp_port_factory(), "auth_enabled": False, "host": "127.0.0.1"},
+        web_api={"run": True, "port": port, "auth_enabled": False, "host": "127.0.0.1"},
         websocket={"total_timeout_seconds": TEST_TOTAL_TIMEOUT_SECONDS},
         apps={
             "directory": TEST_APPS_PATH,
@@ -133,13 +139,11 @@ async def _running_hassette_without_ha(
     )
 
     hassette = Hassette(config)
-    loop = asyncio.get_running_loop()
-    previous_task_factory = loop.get_task_factory()
     # wire_services() calls context.set_global_hassette(hassette) internally and does not
     # expose the returned Token, so set it ourselves first to capture the Token — wire_services()'s
-    # own call then early-returns None (same instance already set) and is a no-op. This function
-    # runs setup and teardown in the same coroutine/Context (unlike a pytest-asyncio generator
-    # fixture), so resetting a manually-captured Token in the finally block below is valid — see
+    # own call then early-returns None (same instance already set) and is a no-op. Callers run
+    # setup and teardown in the same coroutine/Context (unlike a pytest-asyncio generator
+    # fixture), so resetting a manually-captured Token in their teardown is valid — see
     # tests/integration/conftest.py's hassette_instance docstring for why that would NOT be true
     # across a fixture setup/teardown boundary.
     instance_token = hassette_context.set_global_hassette(hassette)
@@ -152,6 +156,17 @@ async def _running_hassette_without_ha(
 
     hassette.websocket_service.serve = hang_serve  # pyright: ignore[reportAttributeAccessIssue]
     hassette.api.get_states_raw = AsyncMock(side_effect=RuntimeError("HA unreachable in test"))
+    return hassette, never_connects, instance_token
+
+
+@contextlib.asynccontextmanager
+async def _running_hassette_without_ha(
+    tmp_path: Path, unused_tcp_port_factory: Callable[[], int]
+) -> AsyncIterator[Hassette]:
+    """Boot a real Hassette instance whose WebsocketService never connects (see ``_wire_hassette_without_ha``)."""
+    loop = asyncio.get_running_loop()
+    previous_task_factory = loop.get_task_factory()
+    hassette, never_connects, instance_token = _wire_hassette_without_ha(tmp_path, unused_tcp_port_factory())
 
     run_task = asyncio.create_task(hassette.run_forever())
     try:
@@ -213,6 +228,44 @@ class TestDashboardWithoutHA:
             body = response.json()
             assert body["status"] == "starting"
             assert body["websocket_connected"] is False
+
+
+class TestWebApiPortInUse:
+    async def test_port_in_use_tears_down_and_finalizes_session_as_failure(
+        self, tmp_path: Path, unused_tcp_port_factory: Callable[[], int]
+    ) -> None:
+        """A web API bind failure goes through Hassette's teardown instead of uvicorn's sys.exit.
+
+        run_forever() must raise FatalError (not SystemExit) after a full shutdown, and the
+        session row must be finalized as 'failure' rather than left 'running'.
+        """
+        port = unused_tcp_port_factory()
+        loop = asyncio.get_running_loop()
+        previous_task_factory = loop.get_task_factory()
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as holder:
+            holder.bind(("127.0.0.1", port))
+            holder.listen()
+
+            hassette, never_connects, instance_token = _wire_hassette_without_ha(tmp_path, port)
+            run_task = asyncio.create_task(hassette.run_forever())
+            try:
+                with pytest.raises(FatalError):
+                    await asyncio.wait_for(run_task, timeout=WEBAPI_READY_TIMEOUT)
+            finally:
+                never_connects.set()
+                await _teardown_bare_hassette(
+                    hassette, run_task, loop, previous_task_factory=previous_task_factory, instance_token=instance_token
+                )
+
+        with contextlib.closing(sqlite3.connect(hassette.database_service.resolve_db_path())) as conn:
+            rows = conn.execute("SELECT status, stopped_at, error_message FROM sessions").fetchall()
+
+        assert len(rows) == 1
+        status, stopped_at, error_message = rows[0]
+        assert status == SESSION_STATUS_FAILURE
+        assert stopped_at is not None
+        assert f"127.0.0.1:{port}" in error_message
 
 
 class TestInitialStateSyncBeforeApps:

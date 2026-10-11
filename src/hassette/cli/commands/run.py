@@ -1,7 +1,6 @@
 """Run command — starts the Hassette framework server."""
 
 import asyncio
-import errno
 import shlex
 import sys
 from logging import getLogger
@@ -96,10 +95,8 @@ def cmd_run(
     # fallback wrote to stderr so commands whose stdout is data keep it clean.
     enable_basic_logging(get_log_level(), log_format="auto")
 
-    config: HassetteConfig | None = None
     try:
-        config = HassetteConfig(**init_kwargs)
-        asyncio.run(run_server(config))
+        asyncio.run(run_server(HassetteConfig(**init_kwargs)))
     except KeyboardInterrupt:
         # Only reachable before server.main() installs its own SIGINT handler, or if that
         # registration itself fails — once installed, Ctrl+C is handled there, not here.
@@ -115,12 +112,6 @@ def cmd_run(
         LOGGER.error("Fatal error occurred: %s", exc)
         LOGGER.error("Hassette is shutting down due to a fatal error")
         raise SystemExit(1) from None
-    except OSError as exc:
-        if exc.errno == errno.EADDRINUSE and config is not None:
-            LOGGER.error("Port %s is already in use — is another hassette instance running?", config.web_api.port)
-            raise SystemExit(1) from None
-        LOGGER.exception("OS error in Hassette: %s", exc)
-        raise
     except Exception as exc:
         LOGGER.exception("Unexpected error in Hassette: %s", exc)
         raise
