@@ -20,10 +20,10 @@ The skill runs either **interactively** (a user invoked it and can answer questi
 Find open autofix PRs by label (autofix PR creation attaches `source:autofix`):
 
 ```bash
-gh pr list --label "source:autofix" --state open --json number,title,headRefName --jq '.[] | "\(.number) | \(.title) | \(.headRefName)"'
+gh pr list --label "source:autofix" --state open --json number,title,headRefName,labels --jq '.[] | "\(.number) | \(.title) | \(.headRefName) | \([.labels[].name] | join(","))"'
 ```
 
-Unattended, drop PRs labelled `autofix:needs-human`: they're parked until a human looks at them, and reprocessing them would repeat the same park on every run. A human returns one to the loop by swapping `autofix:needs-human` for `autofix:human-cleared`. Removing `needs-human` alone isn't enough, because the convergence is still in the PR's history and the next run would park it again. Interactively, keep parked PRs, since the user is likely the human pass they're waiting for.
+Unattended, drop PRs whose labels include `autofix:needs-human`: they're parked until a human looks at them, and reprocessing them would repeat the same park on every run. A human returns one to the loop by swapping `autofix:needs-human` for `autofix:human-cleared`. Removing `needs-human` alone isn't enough, because the convergence is still in the PR's history and the next run would park it again. Interactively, keep parked PRs, since the user is likely the human pass they're waiting for.
 
 Present the list (to the user, or in the run's output when unattended). If no open PRs, report that and stop.
 
@@ -62,16 +62,16 @@ If the ledger can't be completed (the check still fails after two fix rounds, or
 **Convergences:** stop before fixing anything on this PR.
 
 - **Interactive:** ask as mine-address-pr-issues's "Convergence gate" does. "Stop and discuss" ends work on this PR only. Move on to the next PR and record it as "stopped to discuss" in the summary. If the user picks "Patch individually", continue to 2b and note in the summary that the convergence was patched individually by choice.
-- **Unattended:** never patch individually. Park the PR for a human, reading its state first with `gh pr view {PR} --json labels,isDraft,autoMergeRequest` so nothing is repeated:
-  1. Add `autofix:needs-human` if it's missing. That label takes the PR out of later unattended runs (Phase 1).
-  2. Turn off any auto-merge an earlier run queued: `gh pr merge --disable-auto {PR}`.
-  3. If the PR isn't a draft, convert it: `gh pr ready {PR} --undo`.
-  4. Remove any `codex-rounds:N` label, so the Codex round counter doesn't keep driving automated re-review while the PR waits.
-  5. Post one comment, written to a temp file and posted with `gh pr comment {PR} --body-file`. For each convergence, include:
+- **Unattended:** never patch individually. Park the PR for a human, reading its state first with `gh pr view {PR} --json labels,isDraft,autoMergeRequest` so nothing is repeated. Do the steps in this order. The label goes on last because it takes the PR out of later unattended runs (Phase 1): if a run dies partway, the next run must still see the PR so it can finish making it safe.
+  1. Turn off any auto-merge an earlier run queued: `gh pr merge --disable-auto {PR}`.
+  2. If the PR isn't a draft, convert it: `gh pr ready {PR} --undo`.
+  3. Remove any `codex-rounds:N` label, so the Codex round counter doesn't keep driving automated re-review while the PR waits.
+  4. Post one comment, written to a temp file and posted with `gh pr comment {PR} --body-file`. For each convergence, include:
      - its `mechanism`
      - its members, one line each: the finding, its round, and its outcome or open status
      - its `summary`
      - its `open_questions`, unanswered. Don't propose a redesign; these are for the human to decide.
+  5. Add `autofix:needs-human` if it's missing.
 
   Then skip the rest of Phase 2 for this PR and record it in the summary as parked.
 
@@ -145,7 +145,7 @@ If the PR is a parked draft (`autofix:needs-human`, reachable only in an interac
 gh pr merge --auto --squash {PR}
 ```
 
-This queues the PR to merge automatically once CI passes. If the command fails with a merge conflict (base branch was modified), the PR needs a rebase — note it in the summary and move on.
+This queues the PR to merge automatically once CI passes. It's safe to queue right after pushing fixes. Codex reviews each new head well before the test suite finishes, and an unresolved review thread blocks the merge, so an unreviewed fix can't slip through. If the command fails with a merge conflict (base branch was modified), the PR needs a rebase — note it in the summary and move on.
 
 ## Phase 3: Summary
 
