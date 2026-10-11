@@ -5,6 +5,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from hassette_codegen.extractors._common import parse_module_or_none
+
 
 @dataclass
 class ExtractedEnum:
@@ -23,10 +25,8 @@ def extract_features(component_dir: Path) -> list[ExtractedEnum]:
         if not filepath.exists():
             continue
 
-        try:
-            source = filepath.read_text(encoding="utf-8")
-            tree = ast.parse(source, filename=str(filepath))
-        except SyntaxError:
+        tree = parse_module_or_none(filepath)
+        if tree is None:
             continue
 
         for node in ast.walk(tree):
@@ -57,10 +57,8 @@ def extract_strenum(component_dir: Path) -> list[ExtractedEnum]:
         if not filepath.exists():
             continue
 
-        try:
-            source = filepath.read_text(encoding="utf-8")
-            tree = ast.parse(source, filename=str(filepath))
-        except SyntaxError:
+        tree = parse_module_or_none(filepath)
+        if tree is None:
             continue
 
         for node in ast.walk(tree):

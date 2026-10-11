@@ -4,7 +4,7 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
-from hassette_codegen.extractors._common import find_entity_class
+from hassette_codegen.extractors._common import find_entity_class, parse_module_or_none
 
 
 @dataclass
@@ -19,11 +19,8 @@ class ExtractedProperty:
 
 def extract_properties(entity_module: Path) -> list[ExtractedProperty]:
     """Extract _attr_* fields from the entity class defined in ``entity_module``."""
-    source = entity_module.read_text(encoding="utf-8")
-
-    try:
-        tree = ast.parse(source, filename=str(entity_module))
-    except SyntaxError:
+    tree = parse_module_or_none(entity_module)
+    if tree is None:
         return []
 
     entity_class = find_entity_class(tree)
