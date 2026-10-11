@@ -1,7 +1,7 @@
 """DatabaseService.serve() wakes for each maintenance task on that task's own interval."""
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -32,21 +32,25 @@ async def test_maintenance_interval_shorter_than_heartbeat_is_honored(
     config.size_failsafe_interval_seconds = 3600
     setattr(config, interval_field, 0.05)
 
+    session_id = svc.hassette.session_id
+    initial_heartbeat = await read_last_heartbeat(svc, session_id)
+
+    real_method = getattr(svc, method_name)
     calls = 0
 
-    async def spy() -> bool:
+    async def run_and_count() -> bool:
         nonlocal calls
         calls += 1
         if calls >= 2:
             svc.shutdown_event.set()
-        return True
+        return await real_method()
 
-    heartbeat = AsyncMock()
-    with patch.object(svc, method_name, spy), patch.object(svc, "update_heartbeat", heartbeat):
+    with patch.object(svc, method_name, side_effect=run_and_count):
         await asyncio.wait_for(svc.serve(), timeout=5.0)
+    await svc._db_write_queue.join()
 
     assert calls == 2
-    heartbeat.assert_not_called()
+    assert await read_last_heartbeat(svc, session_id) == initial_heartbeat
 
 
 async def test_reloaded_shorter_retention_interval_applies_at_next_wake(initialized_service: DatabaseService) -> None:
@@ -77,3 +81,10 @@ async def test_reloaded_shorter_retention_interval_applies_at_next_wake(initiali
     await lower_task
 
     run_retention.assert_called_once()
+
+
+async def read_last_heartbeat(svc: DatabaseService, session_id: int | None) -> float:
+    cursor = await svc.db.execute("SELECT last_heartbeat_at FROM sessions WHERE id = ?", (session_id,))
+    row = await cursor.fetchone()
+    assert row is not None
+    return row[0]
