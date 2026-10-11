@@ -43,6 +43,10 @@ _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
 _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
 
+_STARTUP_CLEANUP_BUDGET_FRACTION = 0.5
+"""Share of ``startup_timeout_seconds`` the startup cleanup catch-up may spend before it yields
+to the hourly cleanup loop, leaving the rest of the readiness budget for the remaining startup."""
+
 # dup-ignore-start: production source of truth for the log_records column set, asserted against
 # verbatim by tests/unit/core/test_log_records.py and mirrored independently in
 # tests/integration/database/test_database_service_migrations.py's EXPECTED_TABLES literal (a
@@ -212,7 +216,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         await self._read_db.execute(f"PRAGMA busy_timeout = {_BUSY_TIMEOUT_MS}")
 
         await self.set_pragmas()
-        await self.run_startup_cleanup_catchup()
+        await self.catch_up_cleanup_at_startup()
 
         self._db_write_queue = asyncio.Queue(maxsize=self.hassette.config.database.write_queue_max)
         # Bypass the loop's global task factory so the worker is not tracked by any TaskBucket. A bare
@@ -428,36 +432,37 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         """
         run_migrations(self._db_path)
 
-    async def run_startup_cleanup_catchup(self) -> None:
+    async def catch_up_cleanup_at_startup(self) -> None:
         """Run the size failsafe, then retention cleanup, once during on_initialize().
 
         Runs directly on the write connection, before the write worker starts.
         """
-        # A restart that interrupted a pass on a large backlog resumes it here instead of a full
-        # interval later (serve() starts both interval clocks fresh). No progress state needs to
-        # survive the restart: both passes commit per batch, so already-deleted rows stay deleted
-        # and a re-run just picks up whatever remains past the cutoff or over the size limit.
-        #
-        # Both passes share one budget of half the configured startup readiness timeout. A large
-        # backlog could otherwise itself exhaust the readiness timeout that wait_for_ready()
-        # enforces around this whole on_initialize() call. A timeout here degrades to "startup
-        # skipped cleanup," not a failed startup, and the hourly serve() loop keeps grinding
-        # afterward.
-        startup_cleanup_budget = self.hassette.config.lifecycle.startup_timeout_seconds / 2
+        # Both passes commit per batch, so a re-run after a restart converges without saved
+        # progress. They share one budget so a large backlog can't exhaust the readiness timeout
+        # wait_for_ready() enforces around on_initialize(). The rollback after an interrupt is
+        # unbudgeted, but it waits on at most one batch-bounded statement.
+        budget = self.hassette.config.lifecycle.startup_timeout_seconds * _STARTUP_CLEANUP_BUDGET_FRACTION
         try:
-            async with asyncio.timeout(startup_cleanup_budget):
+            async with asyncio.timeout(budget):
                 await self._check_size_failsafe()
                 await self._do_run_retention_cleanup()
-        except Exception as exc:
-            if isinstance(exc, TimeoutError):
-                # Cancelling the await doesn't stop a statement already running on aiosqlite's
-                # worker thread; interrupt it so the rollback below isn't queued behind it.
+        except TimeoutError:
+            # Cancelling the await doesn't stop a statement already running on aiosqlite's worker
+            # thread; interrupt it so the rollback isn't queued behind it.
+            try:
                 await self.db.interrupt()
-            # A failure or timeout can leave a retention batch between its BEGIN and commit; roll
-            # back so the write worker doesn't inherit an open transaction (a no-op when none is
-            # open). Earlier batches stay committed.
+            except Exception:
+                self.logger.exception("Interrupting the startup cleanup catch-up statement failed")
             await safe_rollback(self.db, self, "startup cleanup catch-up")
-            self.logger.warning("Startup cleanup catch-up failed; continuing without cleanup", exc_info=exc)
+            self.logger.warning(
+                "Startup cleanup catch-up exceeded its %.1fs budget; the hourly cleanup loop will pick up the rest",
+                budget,
+            )
+        except Exception:
+            # A failure can leave a retention batch between its BEGIN and commit; roll back so the
+            # write worker doesn't inherit an open transaction. Earlier batches stay committed.
+            await safe_rollback(self.db, self, "startup cleanup catch-up")
+            self.logger.exception("Startup cleanup catch-up failed; continuing without cleanup")
 
     async def set_pragmas(self) -> None:
         """Configure SQLite PRAGMAs for performance and safety."""

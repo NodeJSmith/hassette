@@ -6,11 +6,9 @@ import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import aiosqlite
 import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.core import database_service as database_service_module
 from hassette.core.database_service import DatabaseService
 from hassette.core.database_write_queue import detach_write_queue
 from hassette.resources.shutdown_budget import compute_shutdown_budget
@@ -590,55 +588,6 @@ async def test_size_failsafe_logs_warning_on_exhaustion(initialized_service: Dat
 
     await initialized_service._check_size_failsafe()
     assert initialized_service._consecutive_exhaustion_triggers == 2
-
-
-async def test_startup_size_failsafe_check_is_bounded_by_timeout(
-    fresh_service: DatabaseService, mock_hassette_fresh: MagicMock
-) -> None:
-    """on_initialize() does not hang past its readiness budget if the startup size failsafe
-    check runs long — it degrades gracefully and lets startup proceed, rather than blocking
-    on_initialize() (and therefore wait_for_ready()'s startup_timeout_seconds) for as long as
-    vacuum/checkpoint work on a large backlog happens to take.
-    """
-    # config.lifecycle is a real, fixture-owned Pydantic model — replace it with a copy rather
-    # than mutating the shared instance in place.
-    mock_hassette_fresh.config.lifecycle = mock_hassette_fresh.config.lifecycle.model_copy(
-        update={"startup_timeout_seconds": 0.2}
-    )
-    # Tiny enough that a fresh, just-migrated (empty) DB is already "over" the limit, so
-    # _check_size_failsafe() reaches its real DELETE loop instead of returning immediately.
-    mock_hassette_fresh.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-
-    delete_reached = asyncio.Event()
-    real_connect_daemon = database_service_module.connect_daemon
-
-    async def connect_daemon_with_delayed_delete(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
-        """Wrap a real connection so its first DELETE hangs, faking slow I/O at the actual
-        boundary (the sqlite driver call) instead of stubbing out DatabaseService's own logic.
-        """
-        conn = await real_connect_daemon(*args, **kwargs)
-        real_execute = conn.execute
-
-        async def delayed_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
-            if sql.strip().upper().startswith("DELETE FROM"):
-                delete_reached.set()
-                await asyncio.sleep(10)
-            return await real_execute(sql, parameters)
-
-        conn.execute = delayed_execute
-        return conn
-
-    with patch.object(database_service_module, "connect_daemon", connect_daemon_with_delayed_delete):
-        # on_initialize() itself must return well within the sleep duration — proves the
-        # asyncio.wait_for() deadline actually bounds the call rather than merely being present
-        # in the source.
-        await asyncio.wait_for(fresh_service.on_initialize(), timeout=5.0)
-
-    # Proves the real size-failsafe path was exercised (and hung on its own DELETE), not
-    # skipped because there was nothing over the limit to clean up.
-    assert delete_reached.is_set(), "size failsafe never reached its DELETE statement"
-
-    await fresh_service.on_shutdown()
 
 
 async def test_run_size_failsafe_enqueues_check_size_failsafe(initialized_service: DatabaseService) -> None:

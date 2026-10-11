@@ -39,65 +39,11 @@ def endless_delete_connect(statement_started: asyncio.Event) -> Any:
     return connect
 
 
-async def test_startup_cleanup_timeout_interrupts_in_flight_statement(
-    fresh_service: DatabaseService, mock_hassette_fresh: MagicMock
-) -> None:
-    """When the catch-up deadline fires mid-statement, the statement keeps running on aiosqlite's
-    worker thread (cancelling the await doesn't stop it). The recovery rollback queues behind it,
-    so without an interrupt on_initialize() would block past the half-budget it promises.
-    """
-    mock_hassette_fresh.config.lifecycle = mock_hassette_fresh.config.lifecycle.model_copy(
-        update={"startup_timeout_seconds": 0.2}
-    )
-    mock_hassette_fresh.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-
-    statement_started = asyncio.Event()
-    connect = endless_delete_connect(statement_started)
-    with patch.object(database_service_module, "connect_daemon", connect):
-        await asyncio.wait_for(fresh_service.on_initialize(), timeout=5.0)
-
-    assert statement_started.is_set(), "size failsafe never reached its DELETE statement"
-
-    await fresh_service.on_shutdown()
-
-
-async def test_restart_resumes_interrupted_retention_on_startup(
-    initialized_service: DatabaseService, db_hassette: MagicMock
-) -> None:
-    """A restart that leaves a stale backlog behind (the same state an interrupted retention
-    pass leaves, since it commits per batch) gets it cleaned during on_initialize(), not a full
-    retention interval later — serve() starts its interval clock fresh on every restart.
-    """
-    session_id = initialized_service.hassette.session_id
-    await seed_listener_for_fk(initialized_service.db)
-    old_ts = time.time() - (8 * SECONDS_PER_DAY)  # past the 7-day retention window
-    for _ in range(5):
-        await initialized_service.db.execute(
-            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
-            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
-            (session_id, old_ts),
-        )
-    await initialized_service.db.commit()
-
-    # The service "dies" with the backlog still in place — the equivalent of a restart that
-    # landed before the in-flight retention pass finished.
-    await initialized_service.on_shutdown()
-
-    restarted = DatabaseService(db_hassette, parent=None)
-    await restarted.on_initialize()
-    try:
-        cursor = await restarted.db.execute("SELECT COUNT(*) FROM executions")
-        row = await cursor.fetchone()
-        assert row is not None
-        assert row[0] == 0, "startup did not resume retention cleanup of the stale backlog"
-    finally:
-        await restarted.on_shutdown()
-
-
 async def seed_stale_executions(service: DatabaseService, count: int) -> None:
-    """Insert ``count`` committed handler executions past the 7-day retention window."""
+    """Insert ``count`` committed handler executions one day past the configured retention window."""
     await seed_listener_for_fk(service.db)
-    old_ts = time.time() - (8 * SECONDS_PER_DAY)
+    retention_days = service.hassette.config.database.retention_days
+    old_ts = time.time() - ((retention_days + 1) * SECONDS_PER_DAY)
     for _ in range(count):
         await service.db.execute(
             "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
@@ -114,11 +60,55 @@ async def count_executions(service: DatabaseService) -> int:
     return row[0]
 
 
-async def test_retention_pass_longer_than_progress_interval_drains_backlog(
+async def test_startup_cleanup_timeout_interrupts_in_flight_statement(
+    fresh_service: DatabaseService, mock_hassette_fresh: MagicMock
+) -> None:
+    """When the catch-up deadline fires mid-statement, the statement keeps running on aiosqlite's
+    worker thread (cancelling the await doesn't stop it). The recovery rollback queues behind it,
+    so without an interrupt on_initialize() would block past the half-budget it promises.
+    """
+    mock_hassette_fresh.config.lifecycle = mock_hassette_fresh.config.lifecycle.model_copy(
+        update={"startup_timeout_seconds": 0.2}
+    )
+    mock_hassette_fresh.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+
+    statement_started = asyncio.Event()
+    connect = endless_delete_connect(statement_started)
+    try:
+        with patch.object(database_service_module, "connect_daemon", connect):
+            await asyncio.wait_for(fresh_service.on_initialize(), timeout=5.0)
+
+        assert statement_started.is_set(), "size failsafe never reached its DELETE statement"
+    finally:
+        await fresh_service.on_shutdown()
+
+
+async def test_restart_resumes_interrupted_retention_on_startup(
+    initialized_service: DatabaseService, db_hassette: MagicMock
+) -> None:
+    """A restart that leaves a stale backlog behind (the same state an interrupted retention
+    pass leaves, since it commits per batch) gets it cleaned during on_initialize(), not a full
+    retention interval later — serve() starts its interval clock fresh on every restart.
+    """
+    await seed_stale_executions(initialized_service, 5)
+
+    # The service "dies" with the backlog still in place — the equivalent of a restart that
+    # landed before the in-flight retention pass finished.
+    await initialized_service.on_shutdown()
+
+    restarted = DatabaseService(db_hassette, parent=None)
+    await restarted.on_initialize()
+    try:
+        assert await count_executions(restarted) == 0, "startup did not resume retention cleanup of the stale backlog"
+    finally:
+        await restarted.on_shutdown()
+
+
+async def test_retention_batch_loop_continues_past_progress_checkpoint(
     initialized_service: DatabaseService,
 ) -> None:
-    """A retention pass that runs past CLEANUP_PROGRESS_LOG_INTERVAL batches keeps going until
-    the backlog is gone, rather than stopping at the progress checkpoint.
+    """The retention batch loop doesn't stop at the CLEANUP_PROGRESS_LOG_INTERVAL checkpoint:
+    a backlog needing more batches than that is still drained in one pass.
     """
     batches = CLEANUP_PROGRESS_LOG_INTERVAL + 2
     initialized_service.hassette.config.database.retention_delete_batch = 1
@@ -129,11 +119,11 @@ async def test_retention_pass_longer_than_progress_interval_drains_backlog(
     assert await count_executions(initialized_service) == 0
 
 
-async def test_size_failsafe_pass_longer_than_progress_interval_spends_full_budget(
+async def test_size_failsafe_iteration_loop_continues_past_progress_checkpoint(
     initialized_service: DatabaseService,
 ) -> None:
-    """A size failsafe pass that runs past CLEANUP_PROGRESS_LOG_INTERVAL iterations keeps
-    deleting until its iteration budget is spent, rather than stopping at the progress checkpoint.
+    """The size failsafe iteration loop doesn't stop at the CLEANUP_PROGRESS_LOG_INTERVAL
+    checkpoint: it keeps deleting until its iteration budget is spent.
     """
     iterations = CLEANUP_PROGRESS_LOG_INTERVAL + 2
     config = initialized_service.hassette.config.database

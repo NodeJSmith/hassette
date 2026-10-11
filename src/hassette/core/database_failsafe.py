@@ -196,7 +196,7 @@ class DatabaseSizeFailsafeMixin:
             for iteration in range(1, remaining_iterations + 1):
                 if iteration % CLEANUP_PROGRESS_LOG_INTERVAL == 0:
                     self.logger.info(
-                        "Size failsafe in progress: %s — iteration %d, database %.1f MB (limit %.1f MB)",
+                        "Size failsafe in progress: %s — tier iteration %d, database %.1f MB (limit %.1f MB)",
                         group_label,
                         iteration,
                         current_size,
