@@ -1,7 +1,7 @@
 # Design: Serve the web UI under a URL prefix
 
 **Date:** 2026-10-11
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 
 ## Summary
@@ -418,7 +418,7 @@ build state.
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 

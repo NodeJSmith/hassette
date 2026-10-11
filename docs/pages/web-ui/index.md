@@ -89,8 +89,10 @@ The UI can be disabled independently while the REST API stays active:
 ## Serving under a sub-path
 
 The UI can live under a path on your proxy, like `https://example.com/hassette/`,
-instead of at the root of its own host. The Home Assistant add-on works this way
-out of the box: its sidebar panel goes through HA ingress, which needs no setup.
+instead of at the root of its own host. Skip this section if you open Hassette
+at its own address, like `http://<host>:8126/`. The Home Assistant add-on works
+this way out of the box: its sidebar panel goes through HA ingress, which needs
+no setup.
 
 For your own reverse proxy, three things make it work:
 
@@ -98,10 +100,11 @@ For your own reverse proxy, three things make it work:
 - **The proxy sends `X-Forwarded-Prefix`** with the prefix it stripped, on every
   request. Hassette uses it to point the page's links, API calls, and WebSocket at
   the prefix. Replace it (or clear it) unconditionally, so a value a browser sends
-  can't pass through; a request carrying the header twice gets the error page.
+  can't pass through; a request carrying the header twice gets the
+  [error page](#sub-path-errors).
 - **The proxy is listed under `trusted_proxies`**, with `auth_enabled` left on.
   From any other peer, Hassette never trusts or parses the header's value and
-  serves the error page described below instead of the UI. Trusting the proxy also skips
+  serves the [error page](#sub-path-errors) instead of the UI. Trusting the proxy also skips
   Hassette's token check for it (see the note above), so put the login at the
   proxy.
 
@@ -121,11 +124,25 @@ For your own reverse proxy, three things make it work:
 --8<-- "pages/web-ui/snippets/subpath-trusted-proxies.toml"
 ```
 
-If the setup is off, the page names the problem instead of loading blank: a
-proxy missing from `trusted_proxies`, `auth_enabled` turned off, or a prefix that
-isn't a plain path like `/hassette` or `/tools/hassette`. Hassette also logs a
-warning, naming the peer's address, the first time each problem occurs for each
-peer.
+The examples assume Hassette and the proxy run as Docker Compose services named
+`hassette` and `nginx`, so each reaches the other by service name. Swap in your
+own hostnames or IPs.
+
+!!! warning "These examples add no login"
+    Because the proxy is trusted, Hassette skips its token check for every
+    request the proxy forwards. Anyone who can reach the proxy can use the UI
+    until you add a login there, such as the forward-auth layer described in
+    the authentication note above.
+
+When it works, `https://example.com/hassette/` opens the dashboard, and its
+links and live updates stay under `/hassette/`.
+
+If the setup is off, the page names the problem and the setting to change instead
+of loading blank: a proxy missing from `trusted_proxies`, `auth_enabled` turned
+off, or a prefix that isn't a plain path like `/hassette` or `/tools/hassette`.
+Hassette also logs a warning, naming the peer's address, the first time each
+problem occurs for each peer.
+{: #sub-path-errors }
 
 ## Configuration
 

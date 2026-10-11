@@ -384,6 +384,12 @@ Each connected client gets its own `asyncio.Queue` of bounded size (`_WS_CLIENT_
 
 ### SPA Routing
 
-`create_fastapi_app()` reads the built `index.html` once and checks it carries the `<base href="/" />` marker (`load_spa_shell` in `hassette/web/spa.py`). A missing, unreadable, or marker-less file, or a missing `assets/` directory, logs an error and mounts no SPA routes; the API keeps running. Otherwise it mounts `/assets` via `StaticFiles`, and a `spa_catch_all` handler covers all remaining paths: it serves root-level static files directly, returns 404 for API paths and filenames matching `_STATIC_EXTENSIONS`, and renders the shell for everything else, `index.html` included. This enables client-side routing inside the React SPA.
+`create_fastapi_app()` reads the built `index.html` once and checks the build is servable (`load_spa_shell` in `hassette/web/spa.py`). If it isn't, Hassette logs an error and mounts no SPA routes, while the API keeps running. That happens when:
 
-The shell's `<base href>` is set per request. `X-Ingress-Path` (Home Assistant ingress) or `X-Forwarded-Prefix` from a `trusted_proxies` peer names the prefix the proxy stripped, and the frontend resolves every URL against it. A base header that is present but rejected (untrusted peer, malformed or repeated value, or auth disabled) gets a 403 page naming the cause instead of the shell.
+- `index.html` is missing or can't be read
+- `index.html` lacks the `<base href="/" />` marker (a stale build)
+- the `assets/` directory is missing
+
+Otherwise it mounts `/assets` via `StaticFiles`, and a `spa_catch_all` handler covers all remaining paths: it serves root-level static files directly, returns 404 for API paths and filenames matching `_STATIC_EXTENSIONS`, and renders the shell for everything else, `index.html` included. This enables client-side routing inside the React SPA.
+
+The shell's `<base href>` is set per request. `X-Ingress-Path` (Home Assistant ingress) or `X-Forwarded-Prefix` from a `trusted_proxies` peer names the prefix the proxy stripped, and the frontend resolves every URL against it. A base header that is present but rejected (untrusted peer, malformed or repeated value, or auth disabled) gets a 403 page naming the cause instead of the shell; [Serving under a sub-path](../../web-ui/index.md#serving-under-a-sub-path) covers the setup and each fix.
