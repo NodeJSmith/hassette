@@ -250,10 +250,6 @@ async def test_serve_runs_size_failsafe(initialized_service: DatabaseService) ->
 
     shutdown_task = asyncio.create_task(shutdown_after_loop())
 
-    # heartbeat_interval_seconds drives the loop's own wait_for cadence, so it must be small
-    # too -- otherwise the loop never wakes up to check whether size_failsafe_interval_seconds
-    # has elapsed.
-    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.1
     initialized_service.hassette.config.database.size_failsafe_interval_seconds = 0.1
 
     with patch.object(
@@ -620,7 +616,7 @@ async def test_cleanup_returns_false_when_db_is_none(initialized_service: Databa
         assert initialized_service._db_write_queue is not None
         qsize_before = initialized_service._db_write_queue.qsize()
 
-        # False is the signal serve() reads to leave this cleanup's timer alone and retry.
+        # False is the signal serve() records in this cleanup's CleanupAttempt so it retries sooner.
         assert await getattr(initialized_service, method_name)() is False
 
         # Nothing was enqueued -- the _db is None guard fired, proven by real observable queue state.
@@ -654,7 +650,7 @@ async def test_serve_retries_cleanup_after_dropped_enqueue(
 ) -> None:
     """A dropped cleanup enqueue must not advance that cleanup's clock.
 
-    Regression: serve() reset last_retention_run/last_size_failsafe_run unconditionally, so an
+    Regression: serve() restarted each cleanup's interval unconditionally after an attempt, so an
     enqueue dropped by a full write queue -- the sustained-backlog condition these cleanups
     exist to relieve -- silently skipped the cleanup for a whole interval. The retry must land
     on the next heartbeat tick instead. Both timers are parametrized here because each one
