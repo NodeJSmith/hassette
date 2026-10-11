@@ -1,4 +1,4 @@
-"""Integration tests for DatabaseService's startup cleanup catch-up and active-cleanup tracking (#2266)."""
+"""Integration tests for DatabaseService's startup cleanup catch-up and long cleanup passes (#2266)."""
 
 import asyncio
 import time
@@ -10,27 +10,22 @@ import aiosqlite
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core import database_service as database_service_module
 from hassette.core.database_service import DatabaseService
-from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, async_noop, seed_listener_for_fk
+from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL
+from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, seed_listener_for_fk
 
 ENDLESS_STATEMENT = "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c"
 """Unbounded recursive CTE: never terminates unless interrupted."""
 
 
-def endless_delete_connect(
-    statement_started: asyncio.Event, real_interrupts: list[Any], *, ignore_interrupt: bool
-) -> Any:
+def endless_delete_connect(statement_started: asyncio.Event) -> Any:
     """Build a connect_daemon replacement whose first DELETE runs an endless statement instead,
     occupying the real sqlite worker thread the way a huge batch or slow vacuum would.
-
-    Each connection's real interrupt() is appended to ``real_interrupts`` so the test can free the
-    worker before shutdown. ``ignore_interrupt`` makes the service's own interrupt() a no-op.
     """
     real_connect_daemon = database_service_module.connect_daemon
 
     async def connect(*args: Any, **kwargs: Any) -> aiosqlite.Connection:
         conn = await real_connect_daemon(*args, **kwargs)
         real_execute = conn.execute
-        real_interrupts.append(conn.interrupt)
 
         async def endless_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
             if sql.strip().upper().startswith("DELETE FROM"):
@@ -39,8 +34,6 @@ def endless_delete_connect(
             return await real_execute(sql, parameters)
 
         conn.execute = endless_execute
-        if ignore_interrupt:
-            conn.interrupt = async_noop
         return conn
 
     return connect
@@ -59,47 +52,11 @@ async def test_startup_cleanup_timeout_interrupts_in_flight_statement(
     mock_hassette_fresh.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
     statement_started = asyncio.Event()
-    connect = endless_delete_connect(statement_started, [], ignore_interrupt=False)
+    connect = endless_delete_connect(statement_started)
     with patch.object(database_service_module, "connect_daemon", connect):
         await asyncio.wait_for(fresh_service.on_initialize(), timeout=5.0)
 
     assert statement_started.is_set(), "size failsafe never reached its DELETE statement"
-
-    await fresh_service.on_shutdown()
-
-
-async def test_startup_cleanup_recovery_stays_within_readiness_budget(
-    fresh_service: DatabaseService, mock_hassette_fresh: MagicMock
-) -> None:
-    """If the interrupt fails to free the sqlite worker, the recovery rollback queues behind the
-    still-running statement until its own bound expires. That bound must come out of the same
-    startup budget as the catch-up, or on_initialize() overruns the readiness deadline that
-    wait_for_ready() enforces.
-    """
-    # Generous enough that migrations plus the cleanup budget (half of this) fit with CI headroom,
-    # yet far short of the half-budget plus a fixed multi-second rollback wait on top of it.
-    startup_timeout = 4.0
-    mock_hassette_fresh.config.lifecycle = mock_hassette_fresh.config.lifecycle.model_copy(
-        update={"startup_timeout_seconds": startup_timeout}
-    )
-    mock_hassette_fresh.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-
-    statement_started = asyncio.Event()
-    real_interrupts: list[Any] = []
-    connect = endless_delete_connect(statement_started, real_interrupts, ignore_interrupt=True)
-    loop = asyncio.get_running_loop()
-    with patch.object(database_service_module, "connect_daemon", connect):
-        started = loop.time()
-        try:
-            await asyncio.wait_for(fresh_service.on_initialize(), timeout=10.0)
-            elapsed = loop.time() - started
-        finally:
-            # Free the worker thread so shutdown's close() isn't queued behind the endless statement.
-            for interrupt in real_interrupts:
-                await interrupt()
-
-    assert statement_started.is_set(), "size failsafe never reached its DELETE statement"
-    assert elapsed < startup_timeout, f"on_initialize() took {elapsed:.2f}s, past the {startup_timeout}s budget"
 
     await fresh_service.on_shutdown()
 
@@ -133,47 +90,58 @@ async def test_restart_resumes_interrupted_retention_on_startup(
         row = await cursor.fetchone()
         assert row is not None
         assert row[0] == 0, "startup did not resume retention cleanup of the stale backlog"
-        assert restarted._active_cleanup is None
     finally:
         await restarted.on_shutdown()
 
 
-async def test_active_cleanup_names_the_pass_holding_the_write_worker(
+async def seed_stale_executions(service: DatabaseService, count: int) -> None:
+    """Insert ``count`` committed handler executions past the 7-day retention window."""
+    await seed_listener_for_fk(service.db)
+    old_ts = time.time() - (8 * SECONDS_PER_DAY)
+    for _ in range(count):
+        await service.db.execute(
+            "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
+            " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
+            (service.hassette.session_id, old_ts),
+        )
+    await service.db.commit()
+
+
+async def count_executions(service: DatabaseService) -> int:
+    cursor = await service.db.execute("SELECT COUNT(*) FROM executions")
+    row = await cursor.fetchone()
+    assert row is not None
+    return row[0]
+
+
+async def test_retention_pass_longer_than_progress_interval_drains_backlog(
     initialized_service: DatabaseService,
 ) -> None:
-    """While a retention pass occupies the write worker, _active_cleanup names it, so a heartbeat
-    that times out behind it is attributable to that pass rather than an unexplained wedge.
+    """A retention pass that runs past CLEANUP_PROGRESS_LOG_INTERVAL batches keeps going until
+    the backlog is gone, rather than stopping at the progress checkpoint.
     """
-    session_id = initialized_service.hassette.session_id
-    await seed_listener_for_fk(initialized_service.db)
-    await initialized_service.db.execute(
-        "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status)"
-        " VALUES ('handler', 1, ?, ?, 10.0, 'success')",
-        (session_id, time.time() - (8 * SECONDS_PER_DAY)),
-    )
-    await initialized_service.db.commit()
+    batches = CLEANUP_PROGRESS_LOG_INTERVAL + 2
+    initialized_service.hassette.config.database.retention_delete_batch = 1
+    await seed_stale_executions(initialized_service, batches)
 
-    gate = asyncio.Event()
-    delete_reached = asyncio.Event()
-    real_execute = initialized_service.db.execute
+    await initialized_service._do_run_retention_cleanup()
 
-    async def gated_execute(sql: str, parameters: Any = None) -> aiosqlite.Cursor:
-        if sql.strip().upper().startswith("DELETE FROM"):
-            delete_reached.set()
-            await gate.wait()
-        return await real_execute(sql, parameters)
+    assert await count_executions(initialized_service) == 0
 
-    with patch.object(initialized_service.db, "execute", gated_execute):
-        assert await initialized_service.run_retention_cleanup() is True
-        await asyncio.wait_for(delete_reached.wait(), timeout=2)
-        assert initialized_service._active_cleanup == "retention cleanup"
 
-        with patch("hassette.core.database_service._HEARTBEAT_WRITE_TIMEOUT_SECONDS", 0.05):
-            await initialized_service.update_heartbeat()
-        assert initialized_service._consecutive_heartbeat_failures == 1
+async def test_size_failsafe_pass_longer_than_progress_interval_spends_full_budget(
+    initialized_service: DatabaseService,
+) -> None:
+    """A size failsafe pass that runs past CLEANUP_PROGRESS_LOG_INTERVAL iterations keeps
+    deleting until its iteration budget is spent, rather than stopping at the progress checkpoint.
+    """
+    iterations = CLEANUP_PROGRESS_LOG_INTERVAL + 2
+    config = initialized_service.hassette.config.database
+    config.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+    config.size_failsafe_delete_batch = 1
+    config.size_failsafe_max_iterations = iterations
+    await seed_stale_executions(initialized_service, iterations + 3)
 
-        gate.set()
-        assert initialized_service._db_write_queue is not None
-        await asyncio.wait_for(initialized_service._db_write_queue.join(), timeout=2)
+    await initialized_service._check_size_failsafe()
 
-    assert initialized_service._active_cleanup is None
+    assert await count_executions(initialized_service) == 3

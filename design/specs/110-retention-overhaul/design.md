@@ -394,7 +394,7 @@ bounded together by half of `startup_timeout_seconds`. `serve()` still starts bo
 fresh on every restart. That no longer costs a full interval, because a restart has already
 re-run both passes before `serve()` begins. No progress state is persisted: both passes commit per
 batch, so a re-run deletes whatever is still past the cutoff or over the limit. A timeout in the
-catch-up rolls back any open batch and leaves the remainder to the hourly loop. While a pass holds
-the write worker, a heartbeat-timeout warning names that pass instead of reporting an unexplained
-wedge. Long passes also log an "in progress" line every 10 batches (retention) or iterations
-(size failsafe).
+catch-up interrupts the in-flight statement, rolls back any open batch, and leaves the remainder
+to the hourly loop. Long passes log an "in progress" line every 10 batches (retention) or
+iterations (size failsafe), so a heartbeat timeout during a large backlog can be matched to a
+running cleanup pass rather than read as an unexplained wedge.

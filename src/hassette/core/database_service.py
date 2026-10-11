@@ -43,11 +43,6 @@ _HEARTBEAT_WRITE_TIMEOUT_SECONDS = 30
 _BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to both read and write connections."""
 
-_STARTUP_CLEANUP_ROLLBACK_SHARE = 0.2
-"""Fraction of the startup cleanup budget reserved for the recovery rollback after a failed or
-timed-out catch-up. The catch-up itself gets the rest, so cleanup plus recovery together never
-exceed the budget, however long the rollback waits behind a statement the interrupt didn't stop."""
-
 # dup-ignore-start: production source of truth for the log_records column set, asserted against
 # verbatim by tests/unit/core/test_log_records.py and mirrored independently in
 # tests/integration/database/test_database_service_migrations.py's EXPECTED_TABLES literal (a
@@ -134,10 +129,6 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
     """Counter for consecutive size failsafe runs that drained every retention tier and left
     the database still over the configured size limit; logged as a warning."""
 
-    _active_cleanup: str | None
-    """Label of the retention/size-failsafe pass currently running, if any — set by
-    ``tracks_active_cleanup`` so a heartbeat timeout can name the pass holding the write worker."""
-
     def __init__(self, hassette: "Hassette", *, parent: "Resource | None" = None) -> None:
         super().__init__(hassette, parent=parent)
         self._db = None
@@ -150,7 +141,6 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         self._db_worker_task = None
         self._write_queue_detached = False
         self._executing_future = None
-        self._active_cleanup = None
 
     @property
     def config_log_level(self) -> LogLevel:
@@ -448,15 +438,14 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         # survive the restart: both passes commit per batch, so already-deleted rows stay deleted
         # and a re-run just picks up whatever remains past the cutoff or over the size limit.
         #
-        # Both passes and the recovery rollback share one budget of half the configured startup
-        # readiness timeout. A large backlog could otherwise itself exhaust the readiness timeout
-        # that wait_for_ready() enforces around this whole on_initialize() call. A timeout here
-        # degrades to "startup skipped cleanup," not a failed startup, and the hourly serve()
-        # loop keeps grinding afterward.
+        # Both passes share one budget of half the configured startup readiness timeout. A large
+        # backlog could otherwise itself exhaust the readiness timeout that wait_for_ready()
+        # enforces around this whole on_initialize() call. A timeout here degrades to "startup
+        # skipped cleanup," not a failed startup, and the hourly serve() loop keeps grinding
+        # afterward.
         startup_cleanup_budget = self.hassette.config.lifecycle.startup_timeout_seconds / 2
-        rollback_timeout = startup_cleanup_budget * _STARTUP_CLEANUP_ROLLBACK_SHARE
         try:
-            async with asyncio.timeout(startup_cleanup_budget - rollback_timeout):
+            async with asyncio.timeout(startup_cleanup_budget):
                 await self._check_size_failsafe()
                 await self._do_run_retention_cleanup()
         except Exception as exc:
@@ -467,11 +456,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             # A failure or timeout can leave a retention batch between its BEGIN and commit; roll
             # back so the write worker doesn't inherit an open transaction (a no-op when none is
             # open). Earlier batches stay committed.
-            try:
-                async with asyncio.timeout(rollback_timeout):
-                    await safe_rollback(self.db, self, "startup cleanup catch-up")
-            except TimeoutError:
-                self.logger.error("Startup cleanup rollback timed out — write connection state is now unknown")
+            await safe_rollback(self.db, self, "startup cleanup catch-up")
             self.logger.warning("Startup cleanup catch-up failed; continuing without cleanup", exc_info=exc)
 
     async def set_pragmas(self) -> None:
@@ -523,14 +508,8 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 await self.submit(self._do_update_heartbeat())
         except TimeoutError:
             self._consecutive_heartbeat_failures += 1
-            cause = (
-                f"{self._active_cleanup} pass still running on the write worker"
-                if self._active_cleanup is not None
-                else "write queue backed up or worker wedged"
-            )
             self.logger.exception(
-                "Heartbeat write timed out — %s (failure %d/%d)",
-                cause,
+                "Heartbeat write timed out — write queue backed up or worker wedged (failure %d/%d)",
                 self._consecutive_heartbeat_failures,
                 max_consecutive_heartbeat_failures,
             )

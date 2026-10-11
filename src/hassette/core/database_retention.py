@@ -7,12 +7,7 @@ from typing import Any
 import aiosqlite
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.core.database_sql import (
-    CLEANUP_PROGRESS_LOG_INTERVAL,
-    SQL_BEGIN,
-    safe_rollback,
-    tracks_active_cleanup,
-)
+from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, SQL_BEGIN, safe_rollback
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget, build_age_where
 
 if typing.TYPE_CHECKING:
@@ -87,7 +82,6 @@ class DatabaseRetentionMixin:
     logger: "logging.Logger"
     _db: aiosqlite.Connection | None
     _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
-    _active_cleanup: str | None
 
     db: aiosqlite.Connection
     enqueue: "Callable[[Coroutine[Any, Any, Any]], bool]"
@@ -215,7 +209,6 @@ class DatabaseRetentionMixin:
         await self.db.commit()
         return cursor_rl.rowcount or 0, cursor_rj.rowcount or 0
 
-    @tracks_active_cleanup("retention cleanup")
     async def _do_run_retention_cleanup(self) -> None:
         """Execute the retention DELETE queries; called by the write-queue worker or the startup catch-up.
 

@@ -7,7 +7,7 @@ from typing import Any
 
 import aiosqlite
 
-from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, tracks_active_cleanup
+from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL
 from hassette.core.retention_targets import _FAILSAFE_TABLES, RetentionTarget, build_tier_where
 
 if typing.TYPE_CHECKING:
@@ -54,7 +54,6 @@ class DatabaseSizeFailsafeMixin:
     _db_write_queue: "asyncio.Queue[_WriteQueueItem] | None"
     _consecutive_size_triggers: int
     _consecutive_exhaustion_triggers: int
-    _active_cleanup: str | None
     db: aiosqlite.Connection
     enqueue: "Callable[[Coroutine[Any, Any, Any]], bool]"
 
@@ -105,7 +104,6 @@ class DatabaseSizeFailsafeMixin:
                     )
         return False
 
-    @tracks_active_cleanup("size failsafe")
     async def _check_size_failsafe(self) -> None:
         """Delete oldest records if database exceeds the configured size limit.
 
