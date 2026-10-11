@@ -110,8 +110,8 @@ named in your `pyproject.toml`'s `[build-system]` table, decides what that
 copy is called. If it's misconfigured, the copy can end up under the wrong
 name, and nothing fails at startup because your apps never import it that way.
 
-The common case is a `src` layout built with `uv_build`, where your package
-lives in a folder under `src/`:
+The usual culprit is a `src` layout, where your package lives in a folder
+under `src/`:
 
 ```text
 pyproject.toml
@@ -121,21 +121,21 @@ src/
     helpers.py
 ```
 
-`uv_build` already looks in `src/`, so set `module-name` to the folder name,
-which is also the name you import:
+`uv_build`, hatchling, and setuptools all handle this layout with no extra
+configuration, as long as the folder name matches your project's `name`. The
+trouble starts when a setting overrides that default and points the backend at
+`src/` itself. These all build without error but install the package as
+`src.mypkg`, so `import mypkg` fails:
 
-```toml
-[build-system]
-requires = ["uv_build"]
-build-backend = "uv_build"
+| Backend | Override to remove |
+|---|---|
+| `uv_build` | `module-root = ""` with `module-name = "src.mypkg"` under `[tool.uv.build-backend]` |
+| hatchling | `only-include = ["src"]` under `[tool.hatch.build.targets.wheel]` |
+| setuptools | `where = ["."]` under `[tool.setuptools.packages.find]`, or `packages = ["src.mypkg"]` |
 
-[tool.uv.build-backend]
-module-name = "mypkg"
-```
-
-Avoid `module-root = ""` combined with `module-name = "src.mypkg"`. It builds
-without error, but installs the package as `src.mypkg`, so `import mypkg`
-fails.
+If your folder name differs from the project `name`, tell the backend the
+folder name rather than the path. With `uv_build`, that's
+`module-name = "mypkg"`.
 
 To confirm the package is named correctly, build a wheel (the zip file your
 project installs from) and list its files. Run this on your host, in the
@@ -147,8 +147,8 @@ unzip -l dist/*.whl
 ```
 
 The paths should start with `mypkg/` (for example `mypkg/__init__.py`). If
-they start with `src/mypkg/`, remove `module-root`, set
-`module-name = "mypkg"`, and build again.
+they start with `src/mypkg/`, remove the override from the table above and
+build again.
 
 Hassette pins its own dependencies via a constraints file. Your packages
 cannot conflict with packages Hassette depends on. If a conflict occurs,
