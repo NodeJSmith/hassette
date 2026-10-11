@@ -250,10 +250,6 @@ async def test_serve_runs_size_failsafe(initialized_service: DatabaseService) ->
 
     shutdown_task = asyncio.create_task(shutdown_after_loop())
 
-    # heartbeat_interval_seconds drives the loop's own wait_for cadence, so it must be small
-    # too -- otherwise the loop never wakes up to check whether size_failsafe_interval_seconds
-    # has elapsed.
-    initialized_service.hassette.config.database.heartbeat_interval_seconds = 0.1
     initialized_service.hassette.config.database.size_failsafe_interval_seconds = 0.1
 
     with patch.object(

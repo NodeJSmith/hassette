@@ -275,36 +275,46 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
         mark_ready(self, reason="Database service started")
 
-        last_retention_run = time.monotonic()
-        last_size_failsafe_run = time.monotonic()
+        # Monotonic deadlines for each task. The loop sleeps until the earliest one, so a
+        # maintenance interval shorter than the heartbeat interval still runs on its own cadence.
+        config = self.hassette.config.database
+        start = time.monotonic()
+        next_heartbeat = start + config.heartbeat_interval_seconds
+        next_retention = start + config.retention_interval_seconds
+        next_size_failsafe = start + config.size_failsafe_interval_seconds
 
         while True:
             config = self.hassette.config.database
+            timeout = max(0.0, min(next_heartbeat, next_retention, next_size_failsafe) - time.monotonic())
             try:
-                await asyncio.wait_for(self.shutdown_event.wait(), timeout=config.heartbeat_interval_seconds)
+                await asyncio.wait_for(self.shutdown_event.wait(), timeout=timeout)
                 # shutdown_event was set — exit
                 mark_not_ready(self, reason="Shutting down")
                 return
             except TimeoutError:
                 pass
 
-            await self.update_heartbeat()
+            if time.monotonic() >= next_heartbeat:
+                await self.update_heartbeat()
+                next_heartbeat = time.monotonic() + config.heartbeat_interval_seconds
 
-            if self._consecutive_heartbeat_failures >= config.max_consecutive_heartbeat_failures:
-                raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
+                if self._consecutive_heartbeat_failures >= config.max_consecutive_heartbeat_failures:
+                    raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
 
-            # Each timer advances only on a successful enqueue: advancing it on a dropped
-            # cleanup would skip that cleanup for a whole interval, including under the
-            # sustained write-queue backlog it exists to relieve. A drop retries next tick.
-            time_since_retention = time.monotonic() - last_retention_run
-            if time_since_retention >= config.retention_interval_seconds:
-                if await self.run_retention_cleanup():
-                    last_retention_run = time.monotonic()
+            # A dropped cleanup enqueue retries after min(interval, heartbeat interval) rather than a
+            # full interval: skipping a whole interval would starve the cleanup under the sustained
+            # write-queue backlog it exists to relieve.
+            if time.monotonic() >= next_retention:
+                enqueued = await self.run_retention_cleanup()
+                next_retention = time.monotonic() + cleanup_delay(
+                    enqueued, config.retention_interval_seconds, config.heartbeat_interval_seconds
+                )
 
-            time_since_size_failsafe = time.monotonic() - last_size_failsafe_run
-            if time_since_size_failsafe >= config.size_failsafe_interval_seconds:
-                if await self.run_size_failsafe():
-                    last_size_failsafe_run = time.monotonic()
+            if time.monotonic() >= next_size_failsafe:
+                enqueued = await self.run_size_failsafe()
+                next_size_failsafe = time.monotonic() + cleanup_delay(
+                    enqueued, config.size_failsafe_interval_seconds, config.heartbeat_interval_seconds
+                )
 
     async def on_shutdown(self) -> None:
         """Drain the write queue, cancel the worker, then close the database connection."""
@@ -566,3 +576,12 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         except Exception:
             await safe_rollback(db, self, "log record insert")
             raise
+
+
+def cleanup_delay(enqueued: bool, interval: float, heartbeat_interval: float) -> float:
+    """Return seconds until a maintenance task's next attempt.
+
+    A successful enqueue waits the full ``interval``; a dropped one retries after
+    ``min(interval, heartbeat_interval)``.
+    """
+    return interval if enqueued else min(interval, heartbeat_interval)
