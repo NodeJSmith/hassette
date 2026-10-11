@@ -84,23 +84,28 @@ The project install and app loading are two separate import paths.
 
 The install exports your locked dependencies, installs them against
 Hassette's constraints, then installs a copy of your project into the
-container with `--no-deps`. Your apps use the dependencies from this step,
-but not the project copy.
+container with `--no-deps`. Your apps use the dependencies from this step.
 
-Your apps don't come from that installed copy. Hassette loads them straight
-from the apps directory, under a package named after that directory's last
-path segment. With `HASSETTE__APPS__DIRECTORY=/apps/src/mypkg`, the package
-is `mypkg`, so `from mypkg.helpers import notify` inside an app reads the
-mounted files, not the copy in `site-packages`.
+Your apps themselves don't come from that installed copy. Hassette loads them
+straight from the apps directory, under a package named after that
+directory's last path segment. With `HASSETTE__APPS__DIRECTORY=/apps/src/mypkg`,
+the package is `mypkg`, so `from mypkg.helpers import notify` inside an app
+reads the mounted files, not the copy in `site-packages`. Hassette also puts
+the apps directory and its parent at the front of `sys.path`, so a package
+sitting next to the apps directory (`/apps/src/mylib` in this example) is
+read from the mounted files too.
 
-Because apps read the mounted files, an edit on the host never needs a
-reinstall. It may still need a restart: a reload re-imports only the app's
-own module, and Python keeps already-imported modules like `mypkg.helpers`
-cached, so edits to a helper take effect after
-`docker compose restart hassette`.
+Any other package your project ships resolves to the installed copy. If the
+apps directory is `/apps/automations` and your wheel contains `mylib` from
+`/apps/src/mylib`, an app's `import mylib` reads `site-packages`.
 
-The installed copy matters when code outside the apps directory needs to
-import your project as an installed package. If your build backend is
+Either way, `docker compose restart hassette` picks up an edit on the host:
+the startup reinstalls the project copy on every start. A reload alone is not
+enough for anything but the app's own module. It re-imports only that module,
+and Python keeps already-imported modules like `mypkg.helpers` cached.
+
+The installed copy matters for those other packages, and for any code that
+imports your project as an installed package. If your build backend is
 misconfigured (for example, a wrong `module-name` or `module-root` under
 `[tool.uv.build-backend]`), the installed copy can end up under the wrong
 name, and nothing fails at startup when your apps never import it that way.
