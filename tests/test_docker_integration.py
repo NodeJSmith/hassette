@@ -346,17 +346,15 @@ def test_docker_project_install_succeeds(
     assert MISCONFIGURED_PACKAGE_WARNING not in output, output
 
 
-def test_docker_project_with_no_importable_modules_warns(docker_project_dir: Path):
-    """A project whose build installs nothing importable warns but still starts (#2331)."""
+def test_docker_project_with_no_python_modules_warns(docker_project_dir: Path):
+    """A project whose build installs no Python modules warns but still starts (#2331)."""
     create_project_package(
         docker_project_dir, project_pyproject(build_system=False) + "\n[tool.setuptools]\npackages = []\n"
     )
     result, output = run_project_container(docker_project_dir)
 
     assert result.returncode == 0, f"Container should still start. Output:\n{output}"
-    assert f"{MISCONFIGURED_PACKAGE_WARNING}: distribution 'test-proj' installed no importable modules" in output, (
-        output
-    )
+    assert f"{MISCONFIGURED_PACKAGE_WARNING}: distribution 'test-proj' installed no Python modules" in output, output
 
 
 def test_docker_project_import_name_differing_from_project_name_does_not_warn(docker_project_dir: Path):
