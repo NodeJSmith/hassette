@@ -456,3 +456,24 @@ async def test_wait_for_removes_future_from_registry_on_completion(bus: "Bus") -
         await asyncio.wait_for(task, timeout=1)
 
         assert listener.db_id not in bus._wait_for_futures
+
+
+async def test_off_loop_removal_marshals_cancel_to_loop_thread(bus: "Bus") -> None:
+    """A removal fired from a sync worker thread (e.g. `bus.sync.remove_listener`) must not call
+    `Future.cancel()` off the loop thread; the cancel is marshalled back and still wakes the waiter.
+    """
+    loop = asyncio.get_running_loop()
+    loop.set_debug(True)  # debug mode makes Future.cancel() raise when called off the loop thread
+    try:
+        with wait_for_add_listener_mock(bus) as (registered, ready):
+            task = asyncio.create_task(bus.wait_for("test.topic", timeout=5, name="off_loop_cancel"))
+            await _await_registration(ready)
+
+            callback = get_bus_removal_callback(bus)
+            assert callback is not None
+            await asyncio.to_thread(callback, registered[0])
+
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(task, timeout=1)
+    finally:
+        loop.set_debug(False)
