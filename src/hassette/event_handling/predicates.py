@@ -50,6 +50,7 @@ from logging import getLogger
 from typing import Any, Generic, Self, TypeVar
 
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
+from hassette.exceptions import UnableToConvertValueError
 from hassette.types import ChangeType, ComparisonCondition, EventT
 from hassette.types.types import WhereClause
 from hassette.utils import date_utils
@@ -70,7 +71,7 @@ from .accessors import (
     get_state_value_old,
     get_state_value_old_new,
 )
-from .conditions import ARROW, Glob, Present
+from .conditions import ARROW, Glob, Present, coerce_to_literal_type
 from .predicate_collections import ensure_tuple, is_predicate_collection
 
 if typing.TYPE_CHECKING:
@@ -731,7 +732,9 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
 
     Behavior:
         - If condition is NOT_PROVIDED, treat as 'no constraint' (True).
-        - If condition is a non-callable, compare for equality only.
+        - If condition is a non-callable, compare for equality only. A string ``actual`` is first coerced to a
+          bool or numeric condition's type (see ``coerce_to_literal_type``); a string that cannot be coerced does
+          not match. Wrap the literal in ``C.Exact`` to compare the raw value instead.
         - If condition is a callable, call and ensure bool.
         - Async/coroutine predicates are explicitly disallowed (raise).
 
@@ -743,7 +746,10 @@ def compare_value(actual: Any, condition: "ChangeType") -> bool:
         return True
 
     if not callable(condition):
-        return actual == condition
+        try:
+            return coerce_to_literal_type(actual, condition) == condition
+        except UnableToConvertValueError:
+            return False
 
     if is_async_callable(condition):
         raise TypeError("Async predicates are not supported; make the condition synchronous.")

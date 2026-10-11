@@ -16,7 +16,7 @@ Three things go wrong with handlers: they don't fire, they fire but error, or th
 
 **Wrong entity pattern.** The handler is registered for `"light.kitchen"` but the entity is `"light.kitchen_ceiling"`. The handler exists in the Handlers page but shows zero invocations. Check the listener's trigger column for the exact pattern that was registered, then correct it in the source.
 
-**`changed_to` type mismatch.** Home Assistant state values are strings. `changed_to=True` never matches because the value on the wire is `"on"`, not `True`. Use `changed_to="on"` and `changed_to="off"`.
+**`changed_to` literal doesn't fit the state.** Home Assistant state values are strings. Bool and number literals are coerced first, so `changed_to=True` matches `"on"`, but only boolean-like strings (`on/off`, `true/false`, `yes/no`, `1/0`) coerce. On an entity reporting `"open"` or `"home"`, `changed_to=True` never matches. Use the exact state string. See [literal coercion](../core-concepts/bus/predicate-reference.md#literal-coercion).
 
 **DI annotation mismatch.** A handler annotated with the wrong state type raises [`DependencyResolutionError`][hassette.exceptions.DependencyResolutionError] at invocation time. The error banner in the handler detail panel shows the exception class and message. Check the parameter annotation against the entity's domain and see [dependency injection](../core-concepts/bus/dependency-injection.md) for the available types.
 

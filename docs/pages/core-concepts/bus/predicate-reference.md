@@ -38,7 +38,7 @@ Works with: any event type.
 
 | Predicate | Signature | Description |
 |---|---|---|
-| `P.ValueIs` | `ValueIs(source: Callable, condition: ChangeType = ANY_VALUE)` | Extracts a value via `source`, then tests it against `condition`. When `condition` is `ANY_VALUE`, always returns `True`. |
+| `P.ValueIs` | `ValueIs(source: Callable, condition: ChangeType = ANY_VALUE)` | Extracts a value via `source`, then tests it against `condition`. When `condition` is `ANY_VALUE`, always returns `True`. A bool or number literal coerces a string value first — see [Literal coercion](#literal-coercion). |
 | `P.DidChange` | `DidChange(source: Callable[..., tuple[Any, Any]])` | Returns `True` when the two values returned by `source` differ. |
 | `P.IsPresent` | `IsPresent(source: Callable)` | Returns `True` when the value extracted by `source` is not `MISSING_VALUE`. |
 | `P.IsMissing` | `IsMissing(source: Callable)` | Returns `True` when the value extracted by `source` is `MISSING_VALUE`. |
@@ -86,6 +86,30 @@ No `StateFromTo` predicate exists. For from-to matching, combine `P.StateFrom` a
 P.AllOf((P.StateFrom("off"), P.StateTo("on")))
 ```
 
+### Literal Coercion
+
+Home Assistant sends every state value as a string, and attributes can be strings too. Literal conditions of type `bool`, `int`, or `float` trigger coercion. Hassette converts a string value to the literal's type before comparing:
+
+| Literal | Converts the string with | Example matches |
+|---|---|---|
+| `True` / `False` | `TYPE_REGISTRY`'s bool converter (case-insensitive) | `True` matches `"on"`, `"true"`, `"yes"`, `"1"`; `False` matches `"off"`, `"false"`, `"no"`, `"0"` |
+| `int` | `int()` via `TYPE_REGISTRY`, falling back to `float()` for decimal strings | `20` matches `"20"` and `"20.0"` |
+| `float` | `float()` via `TYPE_REGISTRY` | `21.5` matches `"21.5"` |
+
+A string that can't be converted (`"unavailable"`, `"open"`) does not match. String literals are never coerced, and non-string values (most attributes) are compared as-is.
+
+Coercion applies to literal conditions on `P.ValueIs` and everything built on it. That covers `P.StateFrom`, `P.StateTo`, `P.AttrFrom`, `P.AttrTo`, and `P.ServiceDataWhere`. It also covers the `changed_from=` / `changed_to=` arguments of `on_state_change()` and `on_attribute_change()`. `C.Comparison` uses the same conversion. So `changed_to=True` and `changed_to=C.Comparison("==", True)` match the same states.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/filtering/literal_coercion.py:literal_coercion"
+```
+
+To compare the raw value without coercion, wrap the literal in `C.Exact`. It works anywhere a condition does, including `changed_to=`:
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/filtering/exact_match.py:exact_match"
+```
+
 ## Conditions (`C`)
 
 A condition is a single-value callable `(value) -> bool`. Predicates like `P.ValueIs` accept a condition as their `condition` argument. The `changed_to=` and `changed_from=` subscription helpers also accept conditions directly.
@@ -99,6 +123,12 @@ A condition is a single-value callable `(value) -> bool`. Predicates like `P.Val
 | `C.EndsWith` | `EndsWith(suffix: str)` | Returns `True` when the string value ends with `suffix`. |
 | `C.Contains` | `Contains(substring: str)` | Returns `True` when the string value contains `substring`. |
 | `C.Regex` | `Regex(pattern: str)` | Returns `True` when the string value matches the compiled regex pattern. |
+
+### Exact Match
+
+| Condition | Signature | Description |
+|---|---|---|
+| `C.Exact` | `Exact(value: Any)` | Returns `True` when the value equals `value` with no [literal coercion](#literal-coercion). |
 
 ### Collection Membership
 
@@ -127,7 +157,7 @@ A condition is a single-value callable `(value) -> bool`. Predicates like `P.Val
 
 | Condition | Signature | Description |
 |---|---|---|
-| `C.Comparison` | `Comparison(op: OPS, value: Any)` | Returns `True` when `extracted_value op value` holds. `op` is one of `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="` (or their spelled-out equivalents `"gt"`, `"lt"`, `"ge"`, `"le"`, `"eq"`, `"ne"`). |
+| `C.Comparison` | `Comparison(op: OPS, value: Any)` | Returns `True` when `extracted_value op value` holds. A string value goes through [literal coercion](#literal-coercion) first. An unconvertible string returns `False`. `op` is one of `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="` (or their spelled-out equivalents `"gt"`, `"lt"`, `"ge"`, `"le"`, `"eq"`, `"ne"`). |
 | `C.Increased` | `Increased()` | Two-argument condition. Returns `True` when `float(new) > float(old)`. For use with `P.StateComparison` or `P.AttrComparison`. |
 | `C.Decreased` | `Decreased()` | Two-argument condition. Returns `True` when `float(new) < float(old)`. For use with `P.StateComparison` or `P.AttrComparison`. |
 
