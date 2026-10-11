@@ -41,13 +41,15 @@ Check out the PR branch first (`gh pr checkout {PR}`). The ledger is built from 
 gh-pr-threads {PR} --json --all > <tmpdir>/feedback.json
 ```
 
-**When to skip.** Skip straight to 2b if any of these hold:
-- The PR carries `autofix:human-cleared`. A human already reviewed it and wants the loop to keep going.
-- It's a first-round PR. A convergence needs findings from more than one round, so run the gate only when `feedback.json` shows resolved threads (`.threadCounts.resolved > 0`) or some reviewer has submitted more than one review (this prints a number greater than 1):
+**When to run it.**
+- **Never** when the PR carries `autofix:human-cleared`. A human already reviewed it and wants the loop to keep going, so go straight to 2b.
+- **Always** when the PR has had more than one review round: `feedback.json` shows resolved threads (`.threadCounts.resolved > 0`), or some reviewer has submitted more than one review (this prints a number greater than 1):
 
   ```bash
   gh pr view {PR} --json reviews --jq '[.reviews[].author.login] | group_by(.) | map(length) | max // 0'
   ```
+
+- **Your call** on a first-round PR. Findings from a single round can still converge, for example several findings that each probe a different edge of one mechanism. Run the gate when the findings plausibly share a mechanism. Skip to 2b when they plainly don't: two fully separate items, or a batch that's all documentation or style nits.
 
 **Build the ledger.** Follow `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/mine-address-pr-issues/SKILL.md` for these parts, rather than a copy here, which would drift:
 1. "Review threads & non-thread comments" describes the `feedback.json` you just fetched.
