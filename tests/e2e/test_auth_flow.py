@@ -18,7 +18,6 @@ that fixture's backing app has ``auth_enabled=False`` and no known token to mint
 against.
 """
 
-import asyncio
 from collections.abc import Iterator
 from unittest.mock import MagicMock
 
@@ -30,8 +29,7 @@ from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
-from tests.e2e.conftest import build_mock_hassette
-from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
+from tests.e2e.conftest import build_mock_hassette, serve_ws
 from tests.support.web_mocks import create_mock_runtime_query_service
 
 pytestmark = pytest.mark.e2e
@@ -57,9 +55,8 @@ def mock_hassette_auth(ensure_spa_built: None) -> MagicMock:  # noqa: ARG001
 
 @pytest.fixture
 def runtime_query_service_auth(mock_hassette_auth: MagicMock) -> RuntimeQueryService:
-    """Built with a mock lock -- swapped for a real ``asyncio.Lock`` in ``live_server_ws_auth``
-    right before the server starts, mirroring ``conftest.py``'s ``live_server_ws`` fixture (see
-    its docstring for why the swap happens that late rather than up front).
+    """Built with a mock lock -- ``conftest.serve_ws`` swaps in a real ``asyncio.Lock`` right before
+    the server starts (see its docstring for why the swap happens that late rather than up front).
     """
     return create_mock_runtime_query_service(mock_hassette_auth, use_real_lock=False)
 
@@ -75,23 +72,13 @@ def fastapi_app_auth(
 
 @pytest.fixture
 def live_server_ws_auth(fastapi_app_auth: FastAPI, runtime_query_service_auth: RuntimeQueryService) -> Iterator[str]:
-    """WebSocket-enabled uvicorn server (``ws='websockets-sansio'``) backed by an auth-enabled app.
+    """WebSocket-enabled uvicorn server backed by an auth-enabled app (see ``conftest.serve_ws``).
 
-    Function-scoped, mirroring ``conftest.py``'s ``live_server_ws`` -- the WS half of this test
-    needs the real backend and its real ``websockets-sansio`` handshake, not the in-process ASGI
-    transport the integration suite uses.
+    The WS half of this test needs the real backend and its real ``websockets-sansio`` handshake, not the
+    in-process ASGI transport the integration suite uses.
     """
-    original_lock = runtime_query_service_auth._lock
-    runtime_query_service_auth._lock = asyncio.Lock()
-
-    server, thread, port = start_uvicorn_server(fastapi_app_auth, ws="websockets-sansio", timeout_graceful_shutdown=1)
-
-    yield f"http://127.0.0.1:{port}"
-
-    try:
-        stop_uvicorn_server(server, thread)
-    finally:
-        runtime_query_service_auth._lock = original_lock
+    with serve_ws(fastapi_app_auth, runtime_query_service_auth) as url:
+        yield url
 
 
 def test_cookie_authenticates_rest_and_websocket(page: Page, live_server_ws_auth: str) -> None:

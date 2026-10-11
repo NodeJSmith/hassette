@@ -5,7 +5,8 @@ import logging
 import shutil
 import subprocess
 import threading
-from pathlib import Path
+from collections.abc import Iterator
+from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
@@ -13,6 +14,7 @@ from unittest.mock import MagicMock
 import pytest
 from hassette_wire import QuerySourceTier
 from playwright.sync_api import Locator, Page, expect
+from spa_build import FRONTEND_DIR, SPA_INDEX, spa_build_steps
 
 from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
@@ -40,6 +42,9 @@ from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
 
 if TYPE_CHECKING:
+    from fastapi import FastAPI
+
+    from hassette.core.runtime_query_service import RuntimeQueryService
     from hassette.logging_ import LogRecordEntry
 
 # Shared viewport constants for e2e tests.
@@ -95,9 +100,6 @@ _READY_STATES = {
         "last_updated": MOCK_LAST_CHANGED,
     },
 }
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
 
 
 def build_mock_hassette(*, is_ready: bool = True, auth_enabled: bool = False) -> MagicMock:
@@ -213,16 +215,16 @@ def log_handler():
 
 @pytest.fixture(scope="session")
 def ensure_spa_built():
-    """Build the frontend SPA if the build output is missing."""
-    if SPA_INDEX.exists():
-        return
-    frontend_dir = REPO_ROOT / "frontend"
-    if not (frontend_dir / "package.json").exists():
+    """Build the frontend SPA if the build output is missing or older than the frontend sources."""
+    if not (FRONTEND_DIR / "package.json").exists():
         pytest.skip("frontend/ directory not found — cannot build SPA for e2e tests")
+    steps = spa_build_steps()
+    if not steps:
+        return
     if not shutil.which("npm"):
         pytest.skip("npm not found — cannot build SPA for e2e tests")
-    subprocess.run(["npm", "ci", "--prefix", str(frontend_dir)], check=True)
-    subprocess.run(["npm", "run", "build", "--prefix", str(frontend_dir)], check=True)
+    for step in steps:
+        subprocess.run(step, check=True)
     if not SPA_INDEX.exists():
         pytest.fail("Frontend build completed but spa/index.html not found")
 
@@ -412,21 +414,19 @@ def set_time_preset_to_1h(request: pytest.FixtureRequest, page, base_url: str) -
 #    connected message — nothing is mocked.
 
 
-@pytest.fixture
-def live_server_ws(fastapi_app, runtime_query_service):
-    """Start a WebSocket-enabled uvicorn server for session-path tests.
+@contextmanager
+def serve_ws(app: "FastAPI", runtime_query_service: "RuntimeQueryService") -> Iterator[str]:
+    """Run ``app`` under a WebSocket-enabled uvicorn server; yields its base URL.
 
     Uses ws='websockets-sansio' to avoid the websockets.legacy DeprecationWarning
     that is promoted to an error by pytest's filterwarnings=["error"] setting.
-    Function-scoped: the server starts and stops per test to keep WS tests isolated.
 
-    The session-scoped runtime_query_service was created with use_real_lock=False
-    (a MagicMock for _lock) because asyncio.Lock was loop-bound in older Pythons.
-    Since Python 3.10+, Lock picks up the running loop on first use, so we can
-    safely replace the mock with a real Lock here for the duration of this fixture.
-    The original mock is restored after the test to avoid cross-test contamination.
+    Runtime query services built for e2e use use_real_lock=False (a MagicMock for
+    _lock) because asyncio.Lock was loop-bound in older Pythons. Since Python 3.10+,
+    Lock picks up the running loop on first use, so a real Lock is swapped in while
+    the server runs (register_ws_client / unregister_ws_client need it) and the
+    original mock is restored afterwards to avoid cross-test contamination.
     """
-    # Swap in a real asyncio.Lock so register_ws_client / unregister_ws_client work.
     original_lock = runtime_query_service._lock
     runtime_query_service._lock = asyncio.Lock()
 
@@ -434,14 +434,24 @@ def live_server_ws(fastapi_app, runtime_query_service):
     # releases it, so we cannot wait forever. Cancel lingering connections
     # after 1 second and proceed. The daemon thread ensures the process
     # does not hang if the server does not exit cleanly.
-    server, thread, port = start_uvicorn_server(fastapi_app, ws="websockets-sansio", timeout_graceful_shutdown=1)
-
-    yield f"http://127.0.0.1:{port}"
-
+    server, thread, port = start_uvicorn_server(app, ws="websockets-sansio", timeout_graceful_shutdown=1)
     try:
-        stop_uvicorn_server(server, thread)
+        yield f"http://127.0.0.1:{port}"
     finally:
-        runtime_query_service._lock = original_lock
+        try:
+            stop_uvicorn_server(server, thread)
+        finally:
+            runtime_query_service._lock = original_lock
+
+
+@pytest.fixture
+def live_server_ws(fastapi_app, runtime_query_service):
+    """WebSocket-enabled uvicorn server for session-path tests (see ``serve_ws``).
+
+    Function-scoped: the server starts and stops per test to keep WS tests isolated.
+    """
+    with serve_ws(fastapi_app, runtime_query_service) as url:
+        yield url
 
 
 @pytest.fixture

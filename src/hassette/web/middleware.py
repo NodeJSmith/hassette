@@ -50,7 +50,7 @@ LOGGER = getLogger(__name__)
 GATED_PREFIX = "/api/"
 """Only requests whose path starts with this prefix are subject to default-deny.
 
-Everything else — the SPA shell, ``/assets``, ``/fonts`` — is served by the same app but stays
+Everything else — the SPA shell, ``/assets`` — is served by the same app but stays
 reachable with no credential, because the login view lives in that bundle. See design.md's
 Architecture → Middleware and routing for why this is load-bearing, not an optimization.
 """

@@ -98,6 +98,10 @@ Catch `TelemetryUnavailableError` yourself only when the route still has a usefu
 
 To find every inline site, grep `src/hassette/web/` for `TelemetryUnavailableError`.
 
+## SPA Shell and Base Path
+
+`hassette/web/spa.py` owns serving the SPA shell: it reads the built `index.html` once, substitutes its `<base href="/" />` marker per request from `X-Ingress-Path`/`X-Forwarded-Prefix` (trusted peers only), and renders the 403 diagnostic page for a rejected header. `app.py` only wires it into `spa_catch_all`. Every response that serves `index.html` goes through `SpaShell.render`, never `FileResponse`. Decisions: `design/specs/130-ingress-base-path/design.md`.
+
 ## Route Registration Pattern
 
 Add routers in `src/hassette/web/app.py`:

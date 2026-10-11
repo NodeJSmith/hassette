@@ -6,7 +6,9 @@ components for integration tests (bus routing, scheduler, state propagation).
 """
 
 import asyncio
+import ipaddress
 import threading
+from types import MappingProxyType
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -19,6 +21,7 @@ from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.summary_models import AppHealthAggregates
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
 from hassette.web.app import create_fastapi_app
+from hassette.web.auth.trusted_proxies import TrustedProxySet
 from tests.support.factories import make_closing_task_bucket
 from tests.support.state_proxy_mocks import configure_state_proxy_mock
 from tests.support.web_manifest_helpers import make_full_snapshot
@@ -40,6 +43,16 @@ STUB_DEFAULT_DELAY = 15
 STUB_DEBOUNCE_MS = 3000
 STUB_CORS_ORIGINS = ("http://localhost:3000",)
 STUB_RETENTION_DAYS = 7
+
+LOOPBACK = "127.0.0.1"
+"""The peer address ``ASGITransport`` reports and a local uvicorn server sees."""
+
+
+def trusted_proxy_set(*addresses: str) -> TrustedProxySet:
+    """A resolved ``trusted_proxies`` set matching exactly these IP or CIDR literals (no hostnames)."""
+    return TrustedProxySet(
+        literal_networks=frozenset(ipaddress.ip_network(a) for a in addresses), hostname_entries=MappingProxyType({})
+    )
 
 
 def wire_telemetry_stubs(hassette: MagicMock) -> None:

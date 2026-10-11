@@ -3,7 +3,8 @@ import { act, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/client";
-import { getSystemStatus, type SystemStatus } from "../api/endpoints";
+import { getSystemStatus, type SystemStatus, WS_PATH } from "../api/endpoints";
+import { resolveWsUrl } from "../lib/base-path";
 import { useAppStore } from "../state/store";
 import { createSystemStatus } from "../test/factories";
 // dup-ignore-end
@@ -33,6 +34,7 @@ vi.mock("../api/endpoints", async () => {
 const mockedGetSystemStatus = vi.mocked(getSystemStatus);
 
 const HEALTHY_SYSTEM_STATUS: SystemStatus = createSystemStatus();
+const HASSETTE_401 = new ApiError(401, "Unauthorized", undefined, "not_authenticated");
 
 describe("useWebSocket", () => {
   beforeEach(() => {
@@ -40,9 +42,9 @@ describe("useWebSocket", () => {
     vi.stubGlobal("WebSocket", MockWebSocket);
     mockNavigate.mockClear();
     mockedGetSystemStatus.mockReset();
-    // Default: the REST auth check confirms a real 401, so a close-before-onopen redirects.
+    // Default: the REST auth check confirms Hassette's own 401, so a close-before-onopen redirects.
     // Tests exercising the "false positive" path (still authenticated) override this.
-    mockedGetSystemStatus.mockRejectedValue(new ApiError(401, "Unauthorized"));
+    mockedGetSystemStatus.mockRejectedValue(HASSETTE_401);
   });
 
   afterEach(() => {
@@ -61,6 +63,12 @@ describe("useWebSocket", () => {
     rerender();
 
     expect(MockWebSocket.instances).toHaveLength(1);
+  });
+
+  it("connects to the WebSocket resolved against the base", () => {
+    renderWebSocketHook();
+
+    expect(MockWebSocket.instances[0].url).toBe(resolveWsUrl(WS_PATH));
   });
 
   it("sets uptimeSeconds from connected message", () => {
@@ -109,9 +117,9 @@ describe("useWebSocket", () => {
   });
 
   describe("closed before onopen ever fires (ambiguous signal: could be a rejected handshake or any other pre-open failure)", () => {
-    it("redirects to /login only after a REST check confirms a real 401", async () => {
+    it("redirects to /login only after a REST check confirms Hassette's own 401", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
-      mockedGetSystemStatus.mockRejectedValue(new ApiError(401, "Unauthorized"));
+      mockedGetSystemStatus.mockRejectedValue(HASSETTE_401);
 
       // Close arrives before onopen ever fired for this attempt.
       renderAndCloseBeforeOpen();
@@ -119,8 +127,27 @@ describe("useWebSocket", () => {
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalledWith(LOGIN_PATH);
       });
+      expect(useAppStore.getState().sessionExpired).toBe(false);
 
       // Advance well past the backoff window — no reconnect attempt should have been scheduled.
+      act(() => {
+        vi.advanceTimersByTime(MAX_BACKOFF_MS);
+      });
+      expect(MockWebSocket.instances).toHaveLength(1);
+    });
+
+    it("shows the session-expired view, without redirecting or reconnecting, on a 401 that isn't Hassette's", async () => {
+      // Supervisor answers an expired HA ingress session with a bare 401 (no problem code).
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      mockedGetSystemStatus.mockRejectedValue(new ApiError(401, "Unauthorized"));
+
+      renderAndCloseBeforeOpen();
+
+      await waitFor(() => {
+        expect(useAppStore.getState().sessionExpired).toBe(true);
+      });
+      expect(mockNavigate).not.toHaveBeenCalled();
+
       act(() => {
         vi.advanceTimersByTime(MAX_BACKOFF_MS);
       });

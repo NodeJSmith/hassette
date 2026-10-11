@@ -4,11 +4,15 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 import { hassetteDefines } from "./hassette-version";
+import { noAbsolutePaths } from "./no-absolute-paths";
 
 const apiTarget = process.env.VITE_PROXY_TARGET || "http://localhost:8126";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), noAbsolutePaths()],
+  // Relative, so the bundle works under any prefix the backend's <base href> names
+  // (HA ingress, sub-path proxies). See src/hassette/web/spa.py.
+  base: "./",
   define: hassetteDefines(),
   // Match tsconfig.json paths["@/*"] so the dev server resolves @/ imports
   resolve: {

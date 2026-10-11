@@ -84,7 +84,12 @@ export interface AppStore extends TelemetryHealth {
    * and its generated types match only the server version they were built for, so a different
    * version means the tab must reload; it stays true until then. */
   serverUpdated: boolean;
+  /** True once a request gets a 401 that isn't Hassette's own (an expired Home Assistant ingress
+   * session). Logging in can't fix that, so the app is replaced by a reload prompt; it stays true
+   * until the page reloads. */
+  sessionExpired: boolean;
   setConnection: (status: ConnectionStatus) => void;
+  setSessionExpired: () => void;
 
   // --- telemetry (health fields inherited from TelemetryHealth) ---
   appStatus: Record<string, AppStatusEntry>;
@@ -129,6 +134,7 @@ export interface AppStore extends TelemetryHealth {
 export function initialState(): Omit<
   AppStore,
   | "setConnection"
+  | "setSessionExpired"
   | "updateAppStatus"
   | "updateServiceStatus"
   | "setExecutionCompleted"
@@ -148,6 +154,7 @@ export function initialState(): Omit<
     uptimeSeconds: null,
     systemVersion: null,
     serverUpdated: false,
+    sessionExpired: false,
 
     // --- telemetry ---
     appStatus: {},
@@ -175,6 +182,7 @@ export const useAppStore = create<AppStore>()((set) => ({
 
   // --- connection ---
   setConnection: (status) => set({ connection: status }),
+  setSessionExpired: () => set({ sessionExpired: true }),
 
   // --- telemetry ---
   updateAppStatus: (key, entry) => set((state) => ({ appStatus: { ...state.appStatus, [key]: entry } })),

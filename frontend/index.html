@@ -2,6 +2,9 @@
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
+    <!-- The backend replaces this exact tag per request with the prefix a trusted proxy stripped
+         (src/hassette/web/spa.py, BASE_MARKER). Keep it first after the charset and unchanged. -->
+    <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hassette</title>
     <link rel="icon" type="image/png" href="/hassette-logo.png" />

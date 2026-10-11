@@ -43,7 +43,8 @@ export type BlockingFrameRef = components["schemas"]["BlockingFrameRef"];
 export type UnattributedBlockingData = components["schemas"]["UnattributedBlockingResponse"];
 export type UnattributedStall = components["schemas"]["UnattributedStall"];
 
-export const WS_PATH = "/api/ws";
+/** App-relative; resolve it with `resolveWsUrl` (`lib/base-path.ts`). */
+export const WS_PATH = "api/ws";
 
 function buildUrl(path: string, params: Record<string, string | number | null | undefined>): string {
   const search = new URLSearchParams();

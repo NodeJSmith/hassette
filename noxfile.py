@@ -278,10 +278,9 @@ def tests(session: "Session"):
 
 @nox.session(python=SUPPORTED_PYTHONS)
 def e2e(session: "Session"):
-    # Build frontend if not already built
-    if not _SPA_INDEX.exists():
-        session.run("npm", "ci", "--prefix", "frontend", external=True)
-        session.run("npm", "run", "build", "--prefix", "frontend", external=True)
+    # Build the frontend if it's missing or stale (ensure_spa_built in tests/e2e/conftest.py uses the same check).
+    # Run as a script: nox loads this file without putting the repo root on sys.path.
+    session.run("python", "tools/frontend/spa_build.py")
     # Install just the browser binary: idempotent, no root, and a no-op when it's already in
     # ``~/.cache/ms-playwright``. System libraries need root, so they're installed separately —
     # by the e2e workflow in CI (which also caches the browser), and locally as a one-time

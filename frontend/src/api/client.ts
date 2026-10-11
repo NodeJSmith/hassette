@@ -1,6 +1,12 @@
 /** Base API client for fetching JSON from the Hassette backend. */
 
-const BASE_URL = "/api";
+import { resolveAppUrl } from "../lib/base-path";
+import type { components } from "./generated-types";
+
+type ProblemCode = components["schemas"]["ProblemCode"];
+
+/** App-relative, so requests resolve under the `<base href>` (see `lib/base-path.ts`). */
+const BASE_URL = "api";
 const JSON_CONTENT_TYPE = "application/json";
 const FETCH_CREDENTIALS: RequestCredentials = "same-origin";
 
@@ -9,6 +15,8 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly statusText: string,
     message?: string,
+    /** The problem body's `code`, when the response carried one. */
+    public readonly code?: string,
   ) {
     super(message ?? formatApiError(status, statusText));
     this.name = "ApiError";
@@ -20,20 +28,45 @@ function formatApiError(status: number, statusText: string): string {
   return `API error: ${status} ${statusText}`;
 }
 
-/** Extracts a human-readable error message from a non-ok response's JSON body, if present. */
-async function extractErrorMessage(response: Response): Promise<string | undefined> {
+const UNAUTHORIZED = 401;
+const NOT_AUTHENTICATED: ProblemCode = "not_authenticated";
+
+/** What a 401 asks the UI to do. */
+export type UnauthorizedOutcome = "login" | "session-expired";
+
+/**
+ * How to respond to `error` if it's a 401, or `null` if it isn't one.
+ *
+ * Hassette's own 401 (`not_authenticated`) means logging in helps. Any other 401 comes from something in
+ * front of Hassette (Home Assistant's Supervisor answers one when an ingress session expires), where the
+ * login form's request would get the same 401, so the UI shows a reload prompt instead.
+ */
+export function unauthorizedOutcome(error: unknown): UnauthorizedOutcome | null {
+  if (!(error instanceof ApiError) || error.status !== UNAUTHORIZED) return null;
+  return error.code === NOT_AUTHENTICATED ? "login" : "session-expired";
+}
+
+interface ErrorBody {
+  message?: string;
+  code?: string;
+}
+
+/** Extracts a human-readable message and problem code from a non-ok response's JSON body, if present. */
+async function extractErrorBody(response: Response): Promise<ErrorBody> {
   try {
     const body: Record<string, unknown> = await response.json();
     const raw = body.detail ?? body.message;
-    return typeof raw === "string" ? raw : undefined;
+    return {
+      message: typeof raw === "string" ? raw : undefined,
+      code: typeof body.code === "string" ? body.code : undefined,
+    };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${BASE_URL}${path}`;
-  const response = await fetch(url, {
+  const response = await fetch(resolveAppUrl(`${BASE_URL}${path}`), {
     ...init,
     credentials: FETCH_CREDENTIALS,
     headers: {
@@ -43,8 +76,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
 
   if (!response.ok) {
-    const detail = await extractErrorMessage(response);
-    throw new ApiError(response.status, response.statusText, detail);
+    const { message, code } = await extractErrorBody(response);
+    throw new ApiError(response.status, response.statusText, message, code);
   }
 
   return response.json() as Promise<T>;
@@ -71,7 +104,7 @@ export type PostSessionResult = { ok: true } | { ok: false; message: string };
 export async function postSession(token: string): Promise<PostSessionResult> {
   let response: Response;
   try {
-    response = await fetch(`${BASE_URL}/auth/session`, {
+    response = await fetch(resolveAppUrl(`${BASE_URL}/auth/session`), {
       method: "POST",
       credentials: FETCH_CREDENTIALS,
       headers: { "Content-Type": JSON_CONTENT_TYPE },
@@ -83,7 +116,6 @@ export async function postSession(token: string): Promise<PostSessionResult> {
 
   if (response.ok) return { ok: true };
 
-  const detail = await extractErrorMessage(response);
-  const message = detail ?? formatApiError(response.status, response.statusText);
-  return { ok: false, message };
+  const { message } = await extractErrorBody(response);
+  return { ok: false, message: message ?? formatApiError(response.status, response.statusText) };
 }

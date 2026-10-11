@@ -1,7 +1,7 @@
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster } from "sonner";
-import { Redirect, Route, Switch, useLocation, useSearch } from "wouter";
+import { Redirect, Route, Router, Switch, useLocation, useSearch } from "wouter";
 
 import {
   CommandDialog,
@@ -34,6 +34,7 @@ import { BREAKPOINT_SIDEBAR, useMediaQuery } from "./hooks/use-media-query";
 import { useServerUpdatePrompt } from "./hooks/use-server-update-prompt";
 import { useTelemetryHealth } from "./hooks/use-telemetry-health";
 import { useWebSocket } from "./hooks/use-websocket";
+import { ROUTER_BASE } from "./lib/base-path";
 import { createQueryClient } from "./lib/query-client";
 import { queryKeys } from "./lib/query-keys";
 import { AppDetailPage } from "./pages/app-detail";
@@ -45,6 +46,7 @@ import { HandlersPage } from "./pages/handlers";
 import { LoginPage } from "./pages/login";
 import { LogsPage } from "./pages/logs";
 import { NotFoundPage } from "./pages/not-found";
+import { SessionExpiredPage } from "./pages/session-expired";
 import { type AppStatusEntry, RELATIVE_TIME_TICK_MS, useAppStore } from "./state/store";
 import { appLiveStatus } from "./utils/app-data";
 import { HOME_PATH, LOGIN_PATH } from "./utils/app-routes";
@@ -75,9 +77,28 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
+/** Focus (and scroll to) the main content without navigating: under a `<base href>`, a bare `#id` href
+ * resolves against the base and would leave the current route. */
+function skipToMainContent(e: React.MouseEvent<HTMLAnchorElement>): void {
+  e.preventDefault();
+  const main = document.getElementById(MAIN_CONTENT_ID);
+  main?.focus();
+  main?.scrollIntoView();
+}
+
+/** Routes are relative to the `<base href>` the backend injected (see `lib/base-path.ts`). */
 export function App() {
+  return (
+    <Router base={ROUTER_BASE}>
+      <AppShell />
+    </Router>
+  );
+}
+
+function AppShell() {
   const queryClient = useMemo(() => createQueryClient(), []);
   const theme = useAppStore((s) => s.theme);
+  const sessionExpired = useAppStore((s) => s.sessionExpired);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const [location] = useLocation();
   const search = useSearch();
@@ -168,6 +189,9 @@ export function App() {
     return () => document.removeEventListener("keydown", handler);
   }, [drawerOpen, belowSidebarBreakpoint, closeDrawer]);
 
+  // An expired outer session (see SessionExpiredPage) replaces everything: every control would fail.
+  if (sessionExpired) return <SessionExpiredPage />;
+
   // The login view bypasses the always-mounted shell entirely: WebSocketEffect and
   // TelemetryHealthEffect would immediately hit a rejected handshake / 401 against an
   // unauthenticated request, and the rejected-handshake redirect in use-websocket.ts would
@@ -190,7 +214,7 @@ export function App() {
         <Toaster position="bottom-right" theme={theme} closeButton richColors />
 
         {/* Skip link */}
-        <a href={`#${MAIN_CONTENT_ID}`} className={SKIP_LINK_CLASS} data-testid="skip-link">
+        <a href={`#${MAIN_CONTENT_ID}`} onClick={skipToMainContent} className={SKIP_LINK_CLASS} data-testid="skip-link">
           Skip to main content
         </a>
 

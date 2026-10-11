@@ -932,3 +932,8 @@ canned `/api/health` and `/api/apps` and checks a bearer token set as an add-on 
   same uuid. The unchanged-payload no-op wasn't exercised (`supervisor/discovery/__init__.py` `send()`).
 - **Carry into the real implementation:** `async_step_reconfigure` replaces the entry data, so it drops
   `addon_slug`; keep the slug across reconfigure.
+
+**2026-10-11 — D1 amended by spec 130 (#2664).** `design/specs/130-ingress-base-path/design.md` builds the
+`<base href>` injection. It also honors `X-Forwarded-Prefix` from the same trusted peers (its D1), and a
+base header that is present but rejected now gets a 403 diagnostic page, not a `/` shell (its D6). "Any
+other request gets `/`" still holds for requests carrying neither header.

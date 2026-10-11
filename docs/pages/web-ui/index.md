@@ -86,6 +86,46 @@ The UI can be disabled independently while the REST API stays active:
     run and handlers fire. As your apps react to Home Assistant activity, the
     tables fill in with timing data, log entries, and run history.
 
+## Serving under a sub-path
+
+The UI can live under a path on your proxy, like `https://example.com/hassette/`,
+instead of at the root of its own host. The Home Assistant add-on works this way
+out of the box: its sidebar panel goes through HA ingress, which needs no setup.
+
+For your own reverse proxy, three things make it work:
+
+- **The proxy strips the prefix.** Hassette receives `/apps`, not `/hassette/apps`.
+- **The proxy sends `X-Forwarded-Prefix`** with the prefix it stripped, on every
+  request. Hassette uses it to point the page's links, API calls, and WebSocket at
+  the prefix. Set it (or clear it) unconditionally, so a value a browser sends
+  can't pass through.
+- **The proxy is listed under `trusted_proxies`**, with `auth_enabled` left on.
+  From any other peer, Hassette never reads the header's value and serves the
+  error page described below instead of the UI. Trusting the proxy also skips
+  Hassette's token check for it (see the note above), so put the login at the
+  proxy.
+
+=== "nginx"
+
+    ```nginx
+    --8<-- "pages/web-ui/snippets/subpath-nginx.conf"
+    ```
+
+=== "Traefik"
+
+    ```yaml title="dynamic configuration"
+    --8<-- "pages/web-ui/snippets/subpath-traefik.yml"
+    ```
+
+```toml title="hassette.toml"
+--8<-- "pages/web-ui/snippets/subpath-trusted-proxies.toml"
+```
+
+If the setup is off, the page names the problem instead of loading blank: a
+proxy missing from `trusted_proxies`, `auth_enabled` turned off, or a prefix that
+isn't a plain path like `/hassette` or `/tools/hassette`. Hassette also logs a
+warning the first time each problem occurs.
+
 ## Configuration
 
 ??? "Configuration quick reference"

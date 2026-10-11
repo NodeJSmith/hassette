@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, apiFetch, postSession } from "./client";
+import { ApiError, apiFetch, postSession, unauthorizedOutcome } from "./client";
 
 /** Builds a mock non-ok `fetch` response whose `json()` resolves to `body`. */
 function mockErrorResponse(status: number, statusText: string, body: unknown) {
@@ -79,7 +79,10 @@ describe("apiFetch", () => {
 
     await apiFetch("/ok");
 
-    expect(fetchSpy).toHaveBeenCalledWith("/api/ok", expect.objectContaining({ credentials: "same-origin" }));
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${location.origin}/api/ok`,
+      expect.objectContaining({ credentials: "same-origin" }),
+    );
   });
 
   it("does not navigate anywhere on a 401 — it only throws ApiError", async () => {
@@ -92,6 +95,31 @@ describe("apiFetch", () => {
 
     await expect(apiFetch("/protected")).rejects.toThrow(ApiError);
     await expect(apiFetch("/protected")).rejects.toMatchObject({ status: 401 });
+  });
+
+  it("carries the problem body's code, which tells Hassette's own 401 from anyone else's", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockErrorResponse(401, "Unauthorized", { detail: "Not authenticated", code: "not_authenticated" }),
+      );
+
+    const err = await apiFetch("/protected").catch((e: unknown) => e);
+    expect(err).toMatchObject({ status: 401, code: "not_authenticated" });
+    expect(unauthorizedOutcome(err)).toBe("login");
+  });
+
+  it("classifies only 401s", () => {
+    expect(unauthorizedOutcome(new ApiError(403, "Forbidden", undefined, "not_authenticated"))).toBeNull();
+    expect(unauthorizedOutcome(new Error("network"))).toBeNull();
+  });
+
+  it("leaves code undefined for a 401 without a problem body (Supervisor's)", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(mockNonJsonErrorResponse(401, "Unauthorized"));
+
+    const err = await apiFetch("/protected").catch((e: unknown) => e);
+    expect(err).toMatchObject({ status: 401, code: undefined });
+    expect(unauthorizedOutcome(err)).toBe("session-expired");
   });
 });
 
@@ -113,7 +141,7 @@ describe("postSession", () => {
     const result = await postSession("my-token");
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/auth/session",
+      `${location.origin}/api/auth/session`,
       expect.objectContaining({
         method: "POST",
         credentials: "same-origin",

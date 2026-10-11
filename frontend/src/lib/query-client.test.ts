@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/client";
+import { useAppStore } from "../state/store";
 import { LOGIN_PATH } from "../utils/app-routes";
+import { resolveAppUrl } from "./base-path";
 import { createQueryClient, DEFAULT_STALE_TIME_MS } from "./query-client";
 
 describe("createQueryClient", () => {
@@ -116,10 +118,18 @@ describe("createQueryClient", () => {
       ).rejects.toThrow(error);
     }
 
-    it("redirects to /login on a 401 ApiError", async () => {
+    it("redirects to the base-relative login view on Hassette's own 401", async () => {
+      await triggerQueryError(new ApiError(401, "Unauthorized", undefined, "not_authenticated"));
+
+      expect(window.location.assign).toHaveBeenCalledWith(resolveAppUrl(LOGIN_PATH));
+      expect(useAppStore.getState().sessionExpired).toBe(false);
+    });
+
+    it("shows the session-expired view on a 401 that isn't Hassette's (e.g. Supervisor's)", async () => {
       await triggerQueryError(new ApiError(401, "Unauthorized"));
 
-      expect(window.location.assign).toHaveBeenCalledWith(LOGIN_PATH);
+      expect(window.location.assign).not.toHaveBeenCalled();
+      expect(useAppStore.getState().sessionExpired).toBe(true);
     });
 
     it("does not redirect on a non-401 ApiError", async () => {
