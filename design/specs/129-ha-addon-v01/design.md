@@ -886,7 +886,7 @@ docs should. **Pick "both out" instead if** you'd rather keep the milestone to t
 
 ## Build
 
-- [ ] Run the D13 spike against its pass criteria; on failure, v0.1 ships manual pairing
+- [x] Run the D13 spike against its pass criteria; on failure, v0.1 ships manual pairing. Passed 2026-10-11 (#2663): v0.1 ships discovery (A) with the R1 refresh; results in the Addendum
 - [ ] D1 prefix e2e gate: the frontend passes an e2e test served under a URL prefix, and a grep finds no remaining absolute paths, before the `hassette-addon` repo is created
 - [ ] Verify `uv --offline` installs from a warm `/data/uv_cache` with the network blocked, with per-start pruning off as the add-on runs it (D4)
 - [ ] Verify on real HAOS that Supervisor holds the add-on in `STARTUP` until the image `HEALTHCHECK` passes (D14)
