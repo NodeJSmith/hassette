@@ -20,6 +20,7 @@ from tests.support.helpers import create_attr_change_event
         pytest.param("yes", True, True, id="yes_true"),
         pytest.param("0", False, False, id="zero_false"),
         pytest.param("21.5", 20, 21.5, id="numeric_int_literal"),
+        pytest.param("20.0", 20, 20.0, id="decimal_string_int_literal"),
         pytest.param("20", 20.0, 20.0, id="numeric_float_literal"),
         pytest.param("on", "on", "on", id="str_literal_untouched"),
         pytest.param(5, True, 5, id="non_string_untouched"),
@@ -92,3 +93,18 @@ def test_literal_and_comparison_eq_agree(raw: str, literal: object) -> None:
 @pytest.mark.parametrize("raw", ["unavailable", "unknown"])
 def test_comparison_ne_unconvertible_returns_false(raw: str) -> None:
     assert C.Comparison("!=", True)(raw) is False
+
+
+@pytest.mark.parametrize(
+    ("raw", "literal", "expected"),
+    [
+        pytest.param("9007199254740993", 9007199254740993, True, id="exact_large_int"),
+        pytest.param("9007199254740993", 9007199254740992, False, id="adjacent_large_int"),
+    ],
+)
+def test_int_literal_preserves_precision(raw: str, literal: int, expected: bool) -> None:
+    """Integer strings beyond float precision compare exactly against int literals."""
+    event = create_state_change_event(entity_id="sensor.counter", old_value="0", new_value=raw)
+
+    assert P.StateTo(literal)(event) is expected
+    assert C.Comparison("==", literal)(raw) is expected

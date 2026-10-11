@@ -86,8 +86,10 @@ def coerce_to_literal_type(value: Any, literal: Any) -> Any:
 
     Home Assistant sends every state as a string (``"on"``, ``"21.5"``), so a literal like ``True`` or ``20``
     never equals the raw value. Bool literals coerce via ``TYPE_REGISTRY`` (``on/off``, ``true/false``,
-    ``yes/no``, ``1/0``); int and float literals coerce the value to ``float``. Non-string values and any other
-    literal type (including ``str``) are returned unchanged, so string comparisons keep their exact semantics.
+    ``yes/no``, ``1/0``). Int literals parse the value as an ``int`` first, so large integers keep full precision,
+    and fall back to ``float`` for decimal strings like ``"20.0"``; float literals coerce the value to ``float``.
+    Non-string values and any other literal type (including ``str``) are returned unchanged, so string comparisons
+    keep their exact semantics.
 
     Args:
         value: The value extracted from the event.
@@ -103,7 +105,12 @@ def coerce_to_literal_type(value: Any, literal: Any) -> Any:
         return value
     if isinstance(literal, bool):
         return TYPE_REGISTRY.convert(value, bool)
-    if isinstance(literal, int | float):
+    if isinstance(literal, int):
+        try:
+            return TYPE_REGISTRY.convert(value, int)
+        except UnableToConvertValueError:
+            return TYPE_REGISTRY.convert(value, float)
+    if isinstance(literal, float):
         return TYPE_REGISTRY.convert(value, float)
     return value
 
