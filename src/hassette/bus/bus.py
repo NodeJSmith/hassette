@@ -90,6 +90,7 @@ Examples:
 
 import asyncio
 import logging
+import threading
 import typing
 from collections.abc import Coroutine, Mapping
 from functools import partial
@@ -159,20 +160,16 @@ class Bus(Resource):
         # Populated in wait_for(), consumed/cancelled in _on_listener_removed().
         self._wait_for_futures: dict[int, asyncio.Future[Event[Any]]] = {}
 
-        # Set for the duration of on_shutdown()'s remove_all_listeners() call so
-        # _on_listener_removed batches cancellation logging into one summary line instead of
-        # one WARNING per pending wait_for future (a clean teardown with several concurrent
-        # waits in flight is routine, not a problem worth N individual WARNING lines).
+        # Set during on_shutdown()'s remove_all_listeners() so _on_listener_removed logs one summary line instead of
+        # a WARNING per pending wait_for future — concurrent waits at a clean teardown are routine, not a problem.
         self._shutting_down = False
         self._shutdown_cancelled_wait_for_count = 0
 
-        # Register removal callback so once-fired listeners release their natural key and
-        # record removed_at, mirroring Scheduler's register_removal_callback pattern.
-        # owner_id derives from self.parent; the callback registry key must stay stable across
-        # register/deregister even if a test fixture swaps self.parent after construction
-        # (production never does — a hot-reload builds a fresh Bus). Freezing the key here keeps
-        # on_shutdown's deregister matched to this register; listener removal still uses the live
-        # self.owner_id because listeners register under the live owner too.
+        # Register removal callback so once-fired listeners release their natural key and record removed_at,
+        # mirroring Scheduler's register_removal_callback pattern. owner_id derives from self.parent, so the key is
+        # frozen here to stay stable across register/deregister even if a test fixture swaps self.parent after
+        # construction (production never does — a hot-reload builds a fresh Bus). Listener removal still uses the
+        # live self.owner_id because listeners register under the live owner too.
         self._removal_callback_owner_id = self.owner_id
         self.bus_service.register_removal_callback(self._removal_callback_owner_id, self._on_listener_removed)
 
@@ -213,9 +210,9 @@ class Bus(Resource):
         with teardown finds was_present=False and skips its removed_at write. This loses only a
         telemetry write in a narrow teardown window — no routing impact — and is not worth guarding.
         """
-        # wait_for cleanup: fires on every removal path (shutdown, explicit cancel, once-fire).
-        # On a successful once-fire, the handler already resolved the future via set_result
-        # before removal runs, so `not fut.done()` skips cancellation there.
+        # wait_for cleanup: fires on every removal path; `not fut.done()` skips futures a once-fire already resolved.
+        # Sync-facade removals run this on a worker thread: the dict pops are GIL-atomic, but Future.cancel() isn't
+        # thread-safe, so the cancel goes through the future's own loop (also when loop_thread_id is still None).
         if listener.db_id is not None:
             fut = self._wait_for_futures.pop(listener.db_id, None)
             if fut is not None and not fut.done():
@@ -233,7 +230,10 @@ class Bus(Resource):
                         listener.db_id,
                         len(self._wait_for_futures),
                     )
-                fut.cancel()
+                if threading.get_ident() == self.hassette.loop_thread_id:
+                    fut.cancel()
+                else:
+                    fut.get_loop().call_soon_threadsafe(fut.cancel)
 
         if listener.identity.name is None:
             # Cancel-listeners (create_cancel_listener) are never tracked in _registered_listeners,
