@@ -6,7 +6,7 @@ user-invocable: true
 
 # Review Autofix PRs
 
-Daily review of auto-generated PRs on `autofix/*` branches. For each open PR: check whether review findings keep converging on one mechanism (and park the PR for a human if so), triage the bot review findings, fix what's valid, push, and queue auto-merge. The autofix service already ran the full reviewer battery before opening the PR, so this skill doesn't repeat it.
+Daily review of auto-generated PRs on `autofix/*` branches. For each open PR: check whether review findings keep converging on one mechanism (and park the PR for a human if so), triage the bot review findings, fix what's valid, push, and queue auto-merge. It doesn't run a reviewer battery. CodeRabbit and Codex have already reviewed the PR head, so this skill's job is to answer their findings, the same way `/mine-address-pr-issues` does interactively.
 
 The skill runs either **interactively** (a user invoked it and can answer questions) or **unattended** (a scheduled reviewer invoked it, and the invoking prompt says so). Steps that differ say how.
 
