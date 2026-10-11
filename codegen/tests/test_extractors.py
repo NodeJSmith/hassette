@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from hassette_codegen.extractors._common import parse_module_or_none
 from hassette_codegen.extractors.base_class import determine_base_class
 from hassette_codegen.extractors.constants import _extract_enum_ref_set, extract_numeric_state_expected_source
 from hassette_codegen.extractors.features import extract_features
@@ -183,3 +184,34 @@ class TestNumericStateExpectedSourceExtraction:
             encoding="utf-8",
         )
         assert extract_numeric_state_expected_source(tmp_path) is None
+
+
+class TestParseModuleOrNone:
+    def test_parses_valid_source(self, tmp_path: Path) -> None:
+        src = tmp_path / "mod.py"
+        src.write_text("X = 1\n", encoding="utf-8")
+        tree = parse_module_or_none(src)
+        assert tree is not None
+        assert len(tree.body) == 1
+
+    def test_syntax_error_returns_none(self, tmp_path: Path) -> None:
+        src = tmp_path / "mod.py"
+        src.write_text("def broken(:\n", encoding="utf-8")
+        assert parse_module_or_none(src) is None
+
+    def test_unreadable_path_returns_none(self, tmp_path: Path) -> None:
+        # A directory raises IsADirectoryError (an OSError) on read_text, on every platform.
+        assert parse_module_or_none(tmp_path) is None
+
+    def test_missing_file_returns_none(self, tmp_path: Path) -> None:
+        assert parse_module_or_none(tmp_path / "absent.py") is None
+
+
+class TestEntityModuleReadFailures:
+    """An unreadable entity module degrades to the extractor's empty default instead of raising."""
+
+    def test_determine_base_class_falls_back_to_string(self, tmp_path: Path) -> None:
+        assert determine_base_class(tmp_path / "absent.py") == "StringBaseState"
+
+    def test_extract_properties_returns_empty(self, tmp_path: Path) -> None:
+        assert extract_properties(tmp_path / "absent.py") == []
