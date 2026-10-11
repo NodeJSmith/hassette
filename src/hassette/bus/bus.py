@@ -213,9 +213,9 @@ class Bus(Resource):
         with teardown finds was_present=False and skips its removed_at write. This loses only a
         telemetry write in a narrow teardown window — no routing impact — and is not worth guarding.
         """
-        # wait_for cleanup: fires on every removal path (shutdown, explicit cancel, once-fire).
-        # On a successful once-fire, the handler already resolved the future via set_result
-        # before removal runs, so `not fut.done()` skips cancellation there.
+        # wait_for cleanup: fires on every removal path (shutdown, explicit cancel, once-fire). A once-fire
+        # handler already resolved the future, so `not fut.done()` skips it. The cancel is marshalled to the loop
+        # because sync-facade removals run this on a worker thread, where Future.cancel() is not thread-safe.
         if listener.db_id is not None:
             fut = self._wait_for_futures.pop(listener.db_id, None)
             if fut is not None and not fut.done():
@@ -233,7 +233,7 @@ class Bus(Resource):
                         listener.db_id,
                         len(self._wait_for_futures),
                     )
-                fut.cancel()
+                fut.get_loop().call_soon_threadsafe(fut.cancel)
 
         if listener.identity.name is None:
             # Cancel-listeners (create_cancel_listener) are never tracked in _registered_listeners,
