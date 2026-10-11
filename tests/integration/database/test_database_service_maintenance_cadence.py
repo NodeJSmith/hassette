@@ -83,6 +83,32 @@ async def test_reloaded_shorter_retention_interval_applies_at_next_wake(initiali
     run_retention.assert_called_once()
 
 
+async def test_reloaded_longer_retention_interval_applies_to_pending_wake(initialized_service: DatabaseService) -> None:
+    """A retention interval raised while serve() sleeps is honored at the wake already scheduled.
+
+    The loop sizes its sleep from the deadlines in effect when it went to sleep; deciding what is due
+    from those same stale deadlines would run a cleanup the reloaded config no longer wants.
+    """
+    svc = initialized_service
+    config = svc.hassette.config.database
+    config.heartbeat_interval_seconds = 60
+    config.retention_interval_seconds = 0.2
+    config.size_failsafe_interval_seconds = 3600
+
+    async def raise_interval_then_stop() -> None:
+        await asyncio.sleep(0.05)
+        config.retention_interval_seconds = 3600
+        await asyncio.sleep(0.4)
+        svc.shutdown_event.set()
+
+    stop_task = asyncio.create_task(raise_interval_then_stop())
+    with patch.object(svc, "run_retention_cleanup", return_value=True) as run_retention:
+        await asyncio.wait_for(svc.serve(), timeout=2.0)
+    await stop_task
+
+    run_retention.assert_not_called()
+
+
 async def test_shutdown_requested_with_overdue_deadline_skips_maintenance(initialized_service: DatabaseService) -> None:
     """A shutdown already requested exits serve() even when a maintenance deadline is overdue.
 
