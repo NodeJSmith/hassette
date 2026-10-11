@@ -491,3 +491,31 @@
   wait: 2000
   wait_for: "document.querySelector('[data-testid=\"alert-banner\"]')?.textContent.includes('degraded_demo')"
   javascript: "fetch('/api/apps/degraded_demo/start',{method:'POST'})"
+
+# ===========================================================================
+# Session-expired view
+# Shown after a 401 that isn't Hassette's own (Home Assistant ingress session
+# expired, or a forward-auth proxy's sign-in lapsed). The demo never produces
+# one, so the javascript makes every /api call answer a bodyless 401 (the
+# shape Supervisor sends), then navigates so a fresh query hits it and the
+# app's real 401 handling swaps in the view.
+# ===========================================================================
+
+- url: "http://localhost:{port}/apps"
+  output: docs/_static/web_ui_session_expired.png
+  selector: "[data-testid='session-expired-page']"
+  width: 1400
+  height: 900
+  wait: 2000
+  javascript: >-
+    (async()=>{
+    const realFetch=window.fetch.bind(window);
+    window.fetch=(input,init)=>String(input instanceof Request?input.url:input).includes('/api/')
+    ?Promise.resolve(new Response('',{status:401,statusText:'Unauthorized'}))
+    :realFetch(input,init);
+    document.querySelector('[data-testid=\"nav-logs\"]').click();
+    for(let i=0;i<50;i++){
+    if(document.querySelector('[data-testid=\"session-expired-page\"]'))break;
+    await new Promise(r=>setTimeout(r,100));
+    }
+    })()

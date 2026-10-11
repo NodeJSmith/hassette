@@ -144,6 +144,13 @@ Hassette also logs a warning, naming the peer's address, the first time each
 problem occurs for each peer.
 {: #sub-path-errors }
 
+When the session in front of Hassette ends, such as an expired Home Assistant
+ingress session or a lapsed proxy sign-in, the UI shows a session-expired page.
+Its **Reload** button reloads the whole page, so Home Assistant or the proxy can
+start a new session.
+
+![Session-expired page with a Reload button](../../_static/web_ui_session_expired.png)
+
 ## Configuration
 
 ??? "Configuration quick reference"
