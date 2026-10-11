@@ -2,6 +2,7 @@ import asyncio
 import sqlite3
 import time
 import typing
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -275,16 +276,21 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
         mark_ready(self, reason="Database service started")
 
-        # Monotonic deadlines for each task. The loop sleeps until the earliest one, so a
-        # maintenance interval shorter than the heartbeat interval still runs on its own cadence.
-        config = self.hassette.config.database
+        # Each task remembers its last attempt; deadlines are derived from it and the current config on
+        # every pass, so a config reload takes effect at the next wake. The loop sleeps until the earliest
+        # deadline, so a maintenance interval shorter than the heartbeat interval runs on its own cadence.
         start = time.monotonic()
-        next_heartbeat = start + config.heartbeat_interval_seconds
-        next_retention = start + config.retention_interval_seconds
-        next_size_failsafe = start + config.size_failsafe_interval_seconds
+        last_heartbeat = start
+        retention = CleanupAttempt(at=start, enqueued=True)
+        size_failsafe = CleanupAttempt(at=start, enqueued=True)
 
         while True:
             config = self.hassette.config.database
+            next_heartbeat = last_heartbeat + config.heartbeat_interval_seconds
+            next_retention = retention.next_due(config.retention_interval_seconds, config.heartbeat_interval_seconds)
+            next_size_failsafe = size_failsafe.next_due(
+                config.size_failsafe_interval_seconds, config.heartbeat_interval_seconds
+            )
             timeout = max(0.0, min(next_heartbeat, next_retention, next_size_failsafe) - time.monotonic())
             try:
                 await asyncio.wait_for(self.shutdown_event.wait(), timeout=timeout)
@@ -296,25 +302,18 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
 
             if time.monotonic() >= next_heartbeat:
                 await self.update_heartbeat()
-                next_heartbeat = time.monotonic() + config.heartbeat_interval_seconds
+                last_heartbeat = time.monotonic()
 
                 if self._consecutive_heartbeat_failures >= config.max_consecutive_heartbeat_failures:
                     raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
 
-            # A dropped cleanup enqueue retries after min(interval, heartbeat interval) rather than a
-            # full interval: skipping a whole interval would starve the cleanup under the sustained
-            # write-queue backlog it exists to relieve.
             if time.monotonic() >= next_retention:
                 enqueued = await self.run_retention_cleanup()
-                next_retention = time.monotonic() + cleanup_delay(
-                    enqueued, config.retention_interval_seconds, config.heartbeat_interval_seconds
-                )
+                retention = CleanupAttempt(at=time.monotonic(), enqueued=enqueued)
 
             if time.monotonic() >= next_size_failsafe:
                 enqueued = await self.run_size_failsafe()
-                next_size_failsafe = time.monotonic() + cleanup_delay(
-                    enqueued, config.size_failsafe_interval_seconds, config.heartbeat_interval_seconds
-                )
+                size_failsafe = CleanupAttempt(at=time.monotonic(), enqueued=enqueued)
 
     async def on_shutdown(self) -> None:
         """Drain the write queue, cancel the worker, then close the database connection."""
@@ -578,10 +577,18 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             raise
 
 
-def cleanup_delay(enqueued: bool, interval: float, heartbeat_interval: float) -> float:
-    """Return seconds until a maintenance task's next attempt.
+@dataclass(frozen=True)
+class CleanupAttempt:
+    """When a maintenance task last tried to enqueue its cleanup, and whether the enqueue went through."""
 
-    A successful enqueue waits the full ``interval``; a dropped one retries after
-    ``min(interval, heartbeat_interval)``.
-    """
-    return interval if enqueued else min(interval, heartbeat_interval)
+    at: float
+    enqueued: bool
+
+    def next_due(self, interval: float, heartbeat_interval: float) -> float:
+        """Return the monotonic time of the next attempt.
+
+        A successful enqueue waits the full ``interval``. A dropped one retries after
+        ``min(interval, heartbeat_interval)``: skipping a whole interval would starve the cleanup
+        under the sustained write-queue backlog it exists to relieve.
+        """
+        return self.at + (interval if self.enqueued else min(interval, heartbeat_interval))
