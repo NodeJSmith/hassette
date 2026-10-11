@@ -10,6 +10,8 @@ from typing import Literal
 
 import yaml
 
+from hassette_codegen.extractors._common import parse_module_or_none
+
 _KEY_REF = re.compile(r"^\[%key:(.+?)%\]$")
 _MAX_KEY_REF_DEPTH = 6  # bounds recursion through chained [%key:...%] references
 
@@ -242,10 +244,8 @@ def _extract_service_registrations(module: Path) -> dict[str, _ServiceRegistrati
     if not module.exists():
         return {}
 
-    try:
-        source = module.read_text(encoding="utf-8")
-        tree = ast.parse(source, filename=str(module))
-    except SyntaxError:
+    tree = parse_module_or_none(module)
+    if tree is None:
         return {}
 
     result: dict[str, _ServiceRegistration] = {}

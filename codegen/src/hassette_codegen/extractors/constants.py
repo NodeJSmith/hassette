@@ -4,6 +4,8 @@ import ast
 from dataclasses import dataclass
 from pathlib import Path
 
+from hassette_codegen.extractors._common import parse_module_or_none
+
 _NUMERIC_STATE_EXPECTED_FUNC_NAME = "_numeric_state_expected"
 """Name of HA's numeric-branch predicate, matched by ``extract_numeric_state_expected_source``
 below. Named here once so the AST comparison and any other code that needs the exact function
@@ -54,20 +56,6 @@ def extract_sensor_constants(ha_core_path: Path) -> list[ExtractedConstantSet]:
     return results
 
 
-def _parse_module_or_none(filepath: Path) -> ast.Module | None:
-    """Parse a Python source file into an AST module, tolerating an unreadable file or a ``SyntaxError``.
-
-    Shared by every extractor below: each reads an upstream Home Assistant source file that may
-    be unreadable (permissions, a partial checkout) or fail to parse (an unexpected format
-    change), and each must treat that as "no members found" rather than propagate the exception.
-    """
-    try:
-        source = filepath.read_text(encoding="utf-8")
-        return ast.parse(source, filename=str(filepath))
-    except (OSError, SyntaxError):
-        return None
-
-
 def _extract_strenum_members(filepath: Path, class_name: str) -> list[str]:
     """Extract string values from a StrEnum class."""
     return list(_extract_strenum_name_to_value(filepath, class_name).values())
@@ -83,7 +71,7 @@ def _extract_enum_ref_set(filepath: Path, target_name: str, enum_class_name: str
     from its lowercased name. Tolerates a ``SyntaxError`` by returning empty, matching
     ``_extract_strenum_members``.
     """
-    tree = _parse_module_or_none(filepath)
+    tree = parse_module_or_none(filepath)
     if tree is None:
         return []
 
@@ -118,7 +106,7 @@ def _extract_strenum_name_to_value(filepath: Path, class_name: str) -> dict[str,
     Keeps the member name (unlike ``_extract_strenum_members``, which discards it), which is what
     ``_extract_enum_ref_set`` needs to resolve ``EnumClass.MEMBER`` attribute references.
     """
-    tree = _parse_module_or_none(filepath)
+    tree = parse_module_or_none(filepath)
     if tree is None:
         return {}
 
@@ -158,7 +146,7 @@ def extract_numeric_state_expected_source(ha_core_path: Path) -> str | None:
     if not init_py.exists():
         return None
 
-    tree = _parse_module_or_none(init_py)
+    tree = parse_module_or_none(init_py)
     if tree is None:
         return None
 
@@ -175,7 +163,7 @@ def extract_numeric_state_expected_source(ha_core_path: Path) -> str | None:
 
 def _extract_unit_enums(ha_const: Path) -> list[str]:
     """Extract all unit values from UnitOf* enums in homeassistant/const.py."""
-    tree = _parse_module_or_none(ha_const)
+    tree = parse_module_or_none(ha_const)
     if tree is None:
         return []
 

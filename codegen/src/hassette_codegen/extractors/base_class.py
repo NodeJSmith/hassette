@@ -3,7 +3,7 @@
 import ast
 from pathlib import Path
 
-from hassette_codegen.extractors._common import find_entity_class
+from hassette_codegen.extractors._common import find_entity_class, parse_module_or_none
 
 
 def determine_base_class(entity_module: Path) -> str:
@@ -14,11 +14,8 @@ def determine_base_class(entity_module: Path) -> str:
     - state property returns float|None or int|None → NumericBaseState
     - Otherwise → StringBaseState
     """
-    source = entity_module.read_text(encoding="utf-8")
-
-    try:
-        tree = ast.parse(source, filename=str(entity_module))
-    except SyntaxError:
+    tree = parse_module_or_none(entity_module)
+    if tree is None:
         return "StringBaseState"
 
     entity_class = find_entity_class(tree)
