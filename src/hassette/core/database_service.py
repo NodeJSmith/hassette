@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import sqlite3
 import time
 import typing
@@ -295,13 +296,14 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 config.size_failsafe_interval_seconds, retry_interval=config.heartbeat_interval_seconds
             )
             timeout = max(0.0, min(next_heartbeat, next_retention, next_size_failsafe) - time.monotonic())
-            try:
-                await asyncio.wait_for(self.shutdown_event.wait(), timeout=timeout)
-                # shutdown_event was set — exit
+            # An overdue deadline makes the timeout 0, and wait_for(timeout=0) raises TimeoutError even when
+            # the event is already set, so check the event directly rather than trusting the wait's outcome.
+            if not self.shutdown_event.is_set():
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self.shutdown_event.wait(), timeout=timeout)
+            if self.shutdown_event.is_set():
                 mark_not_ready(self, reason="Shutting down")
                 return
-            except TimeoutError:
-                pass
 
             now = time.monotonic()
             if now >= next_heartbeat:
