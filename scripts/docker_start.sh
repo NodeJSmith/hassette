@@ -274,30 +274,11 @@ if [ -f "$PROJECT_DIR/uv.lock" ]; then
 
     log_phase "project install: complete"
 
-    # A build backend pointed at the wrong place (module-name, module-root) can build and install a
-    # package with no Python code in it while every step exits 0. App loading reads the apps dir
-    # directly, so warn rather than halt. Only the empty case is detectable: a distribution may
-    # legitimately ship a package named differently from [project].name.
-    project_package_problem=$(python -c '
-import importlib.metadata
-import sys
-import tomllib
-
-with open(sys.argv[1], "rb") as f:
-    name = tomllib.load(f).get("project", {}).get("name")
-if not name:
-    sys.exit()
-try:
-    files = importlib.metadata.distribution(name).files or []
-except importlib.metadata.PackageNotFoundError:
-    print(f"distribution {name!r} is not installed")
-    sys.exit()
-# ".." entries live outside site-packages (console scripts in bin/)
-if not any(f.suffix in (".py", ".so", ".pyd") and f.parts[0] != ".." for f in files):
-    print(f"distribution {name!r} installed no Python modules")
-' "$PROJECT_DIR/pyproject.toml" || echo "NOTE: skipped the project package check (it failed; see above)" >&2)
+    # Warn rather than halt: app loading reads the apps dir directly, not the installed package.
+    project_package_problem=$(python -P /app/scripts/check_project_package.py "$PROJECT_DIR/pyproject.toml" \
+        || echo "NOTE: skipped the project package check (it failed; see above)" >&2)
     if [ -n "${project_package_problem}" ]; then
-        echo "WARNING: installed project package is misconfigured: ${project_package_problem} — check [build-system] / [tool.uv.build-backend] in pyproject.toml (apps under HASSETTE__APPS__DIRECTORY still load)"
+        echo "WARNING: project package: ${project_package_problem} — check the build backend settings in pyproject.toml"
     fi
 
 elif [ -f "$PROJECT_DIR/pyproject.toml" ]; then

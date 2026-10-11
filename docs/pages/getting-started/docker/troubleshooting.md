@@ -94,13 +94,16 @@ Then check whether the install ran at startup:
 
 If you see no install output, `HASSETTE_DOCKER_INSTALL_DEPS` was not picked up. Run `docker compose down && docker compose up -d` to reload the environment — `down` stops and removes the container (data in your mounted volumes is safe), and `up -d` recreates it from the current compose file.
 
-## "Installed Project Package Is Misconfigured" Warning
+## "Project Package" Warning
 
-Startup logs show `WARNING: installed project package is misconfigured`, but Hassette keeps running.
+Startup logs show `WARNING: project package: ...`, but Hassette keeps running.
 
-When your config directory holds a `pyproject.toml` and `uv.lock`, the start script installs your project as a package, then checks that the package contains Python code. The warning means the build produced a package with no Python modules in it. Usually the build backend is pointed at the wrong place: check `[build-system]` and any `[tool.uv.build-backend]` `module-name`/`module-root` settings against where your code actually lives.
+When your config directory holds a `pyproject.toml` and `uv.lock`, the start script installs your project as a package, then checks the installed result:
 
-Apps under `HASSETTE__APPS__DIRECTORY` still load, because Hassette imports them from that directory rather than from the installed package. The broken package only matters for code outside the apps directory that imports your project by name. To inspect what your build produces, run `uv build --wheel` on the host and list the wheel's contents.
+- **`contains no Python modules`**: the build produced a package with no code in it. Usually the build backend is looking in the wrong place. Check the `[build-system]` table and your backend's package settings (for example `[tool.uv.build-backend]` `module-name`/`module-root`, or `[tool.setuptools]` `packages`) against where your code actually lives. To see what the build produces, run `uv build --wheel` on the host and list the wheel with `unzip -l dist/*.whl`. A project that deliberately ships no modules, only dependencies, can ignore this warning.
+- **`is not installed`**: no installed distribution matches `[project].name`, even though the install step finished. Check the install output above the warning for skipped or renamed packages.
+
+Apps under `HASSETTE__APPS__DIRECTORY` still load, because Hassette imports them from that directory rather than from the installed package. The warning only matters for code outside the apps directory that imports your project by name.
 
 ## Can't Access the Web UI
 

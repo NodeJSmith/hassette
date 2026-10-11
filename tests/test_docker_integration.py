@@ -36,7 +36,9 @@ NO_RETRY = {"HASSETTE_DOCKER_RETRY_DELAY": "0"}
 
 # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
 CONFLICTING_REQUIREMENT = "aiohttp==3.0.0"
-MISCONFIGURED_PACKAGE_WARNING = "WARNING: installed project package is misconfigured"
+
+# Prefix of the warning docker_start.sh prints when scripts/check_project_package.py reports a problem
+PROJECT_PACKAGE_WARNING = "WARNING: project package:"
 HATCHLING_BUILD_SYSTEM = '[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
 
 pytestmark = [
@@ -270,10 +272,15 @@ def test_docker_constraint_conflict(tmp_path: Path):
     assert "HASSETTE CAN'T START" in output
 
 
-def project_pyproject(dependencies: list[str] | None = None, *, build_system: bool = True) -> str:
-    """Return a minimal ``test-proj`` pyproject.toml, optionally with a hatchling ``[build-system]``."""
+def project_pyproject(
+    dependencies: list[str] | None = None, *, build_system: bool = True, name: str = "test-proj"
+) -> str:
+    """Return a minimal pyproject.toml, optionally with a hatchling ``[build-system]``.
+
+    Without ``[build-system]``, pip falls back to setuptools, which discovers ``test_proj/`` by flat layout.
+    """
     deps = ", ".join(f'"{dep}"' for dep in dependencies or [])
-    content = f'[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = [{deps}]\n'
+    content = f'[project]\nname = "{name}"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = [{deps}]\n'
     if build_system:
         content += "\n" + HATCHLING_BUILD_SYSTEM
     return content
@@ -343,27 +350,26 @@ def test_docker_project_install_succeeds(
     assert result.returncode == 0, f"Project install failed. Output:\n{output}"
     missing = expected_distributions - installed_distributions(diff_lines)
     assert not missing, f"Not installed: {sorted(missing)}. Output:\n{output}"
-    assert MISCONFIGURED_PACKAGE_WARNING not in output, output
+    assert PROJECT_PACKAGE_WARNING not in output, output
 
 
 def test_docker_project_with_no_python_modules_warns(docker_project_dir: Path):
     """A project whose build installs no Python modules warns but still starts (#2331)."""
-    create_project_package(
-        docker_project_dir, project_pyproject(build_system=False) + "\n[tool.setuptools]\npackages = []\n"
-    )
+    no_packages = "\n[tool.setuptools]\npackages = []\n"
+    create_project_package(docker_project_dir, project_pyproject(build_system=False) + no_packages)
     result, output = run_project_container(docker_project_dir)
 
     assert result.returncode == 0, f"Container should still start. Output:\n{output}"
-    assert f"{MISCONFIGURED_PACKAGE_WARNING}: distribution 'test-proj' installed no Python modules" in output, output
+    assert f"{PROJECT_PACKAGE_WARNING} distribution 'test-proj' contains no Python modules" in output, output
 
 
-def test_docker_project_import_name_differing_from_project_name_does_not_warn(docker_project_dir: Path):
+def test_docker_project_named_differently_from_its_package_does_not_warn(docker_project_dir: Path):
     """A distribution name that differs from the package it ships is valid packaging, not a misconfiguration."""
-    create_project_package(docker_project_dir, project_pyproject(build_system=False).replace("test-proj", "other-name"))
+    create_project_package(docker_project_dir, project_pyproject(build_system=False, name="other-name"))
     result, output = run_project_container(docker_project_dir)
 
     assert result.returncode == 0, f"Container should still start. Output:\n{output}"
-    assert MISCONFIGURED_PACKAGE_WARNING not in output, output
+    assert PROJECT_PACKAGE_WARNING not in output, output
 
 
 def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path):
