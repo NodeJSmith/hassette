@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from hassette.core.service_watcher import RestartBudget
+from hassette.core.restart_budget import RestartBudget
 
 DEFAULT_INTENSITY = 5
 DEFAULT_PERIOD = 300.0

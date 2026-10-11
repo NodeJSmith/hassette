@@ -10,7 +10,7 @@ When a `Service` raises an unhandled exception, Hassette transitions it to `FAIL
 
 The outcome depends on three things: the exception type, how many restarts have already occurred within the current time window, and the service's `restart_type`. Most failures result in an exponential backoff delay followed by a fresh `initialize()` call. Structural failures that no retry will fix skip the backoff and, depending on `restart_type`, enter a long cooldown period (`TRANSIENT`), stop that service permanently while Hassette keeps running (`TEMPORARY`), or shut the system down entirely (`PERMANENT`).
 
-`ServiceWatcher` keeps one [`RestartBudget`][hassette.core.service_watcher.RestartBudget] per service. A `RestartBudget` caps how many restarts a service gets within a sliding time window. Each failed restart records a timestamp. Attempts that fall outside the budget window expire automatically. The budget resets as soon as the restarted service reaches `RUNNING` and signals readiness with `mark_ready()`. `ServiceWatcher` waits up to that service's `startup_timeout_seconds` (default 30 s) for the signal.
+`ServiceWatcher` keeps one [`RestartBudget`][hassette.core.restart_budget.RestartBudget] per service. A `RestartBudget` caps how many restarts a service gets within a sliding time window. Each failed restart records a timestamp. Attempts that fall outside the budget window expire automatically. The budget resets as soon as the restarted service reaches `RUNNING` and signals readiness with `mark_ready()`. `ServiceWatcher` waits up to that service's `startup_timeout_seconds` (default 30 s) for the signal.
 
 ## Restart Types
 

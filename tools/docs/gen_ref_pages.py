@@ -60,6 +60,7 @@ PUBLIC_MODULES: frozenset[str] = frozenset(
         "hassette.types.types",  # Type definitions for handler, predicate, trigger, and change types
         "hassette.resources.restart",  # RestartSpec referenced in lifecycle docs
         "hassette.core.service_watcher",  # ServiceWatcher referenced in internals/operating docs
+        "hassette.core.restart_budget",  # RestartBudget referenced in lifecycle docs
         "hassette.core.websocket_service",  # WebsocketService referenced in internals/operating docs
         "hassette.core.bus_service",  # BusService referenced in internals docs
         "hassette.core.scheduler_service",  # SchedulerService referenced in internals docs
