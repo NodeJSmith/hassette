@@ -78,6 +78,30 @@ the project at `/apps` and point the apps directory inside it with
 To skip the search, set `HASSETTE_DOCKER_PROJECT_DIR` to the directory and
 mount it.
 
+### Installing your project vs. loading your apps
+
+The project install and app loading are two separate import paths.
+
+The install exports your locked dependencies, installs them against
+Hassette's constraints, then installs a copy of your project into the
+container with `--no-deps`. Your declared dependencies are the part your
+apps rely on.
+
+Your apps don't come from that installed copy. Hassette loads them straight
+from the apps directory, under a package named after that directory's last
+path segment. With `HASSETTE__APPS__DIRECTORY=/apps/src/mypkg`, the package
+is `mypkg`, so `from mypkg.helpers import notify` inside an app reads the
+mounted files, not the copy in `site-packages`. Edits on the host show up on
+the next reload without reinstalling.
+
+The installed copy matters when code outside the apps directory needs to
+import your project as an installed package. If your build backend is
+misconfigured (for example, a wrong `module-name` or `module-root` under
+`[tool.uv.build-backend]`), the installed copy can end up under the wrong
+name, and nothing fails at startup when your apps never import it that way.
+To check, run `uv build --wheel` locally and confirm the wheel's top-level
+directory matches your package name.
+
 Hassette pins its own dependencies via a constraints file. Your packages
 cannot conflict with packages Hassette depends on. If a conflict occurs,
 the install fails at startup — see
