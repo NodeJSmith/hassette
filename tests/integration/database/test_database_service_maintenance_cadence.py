@@ -83,6 +83,26 @@ async def test_reloaded_shorter_retention_interval_applies_at_next_wake(initiali
     run_retention.assert_called_once()
 
 
+async def test_shutdown_requested_with_overdue_deadline_skips_maintenance(initialized_service: DatabaseService) -> None:
+    """A shutdown already requested exits serve() even when a maintenance deadline is overdue.
+
+    An overdue deadline clamps the wait to zero, and ``asyncio.wait_for(event.wait(), timeout=0)``
+    raises ``TimeoutError`` even when the event is already set, so the loop must check the event
+    itself rather than rely on the wait to report it.
+    """
+    svc = initialized_service
+    config = svc.hassette.config.database
+    config.heartbeat_interval_seconds = 60
+    config.retention_interval_seconds = 0
+    config.size_failsafe_interval_seconds = 3600
+    svc.shutdown_event.set()
+
+    with patch.object(svc, "run_retention_cleanup", return_value=True) as run_retention:
+        await asyncio.wait_for(svc.serve(), timeout=2.0)
+
+    run_retention.assert_not_called()
+
+
 @pytest.mark.parametrize(("enqueued", "expected"), [(True, 3600.0), (False, 300.0)])
 def test_cleanup_attempt_retries_dropped_enqueue_at_retry_interval(enqueued: bool, expected: float) -> None:
     """A dropped cleanup enqueue retries after the shorter retry interval instead of a full interval."""
