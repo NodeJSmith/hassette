@@ -73,7 +73,9 @@ async def test_reloaded_shorter_retention_interval_applies_at_next_wake(initiali
 
     async def lower_interval() -> None:
         await asyncio.sleep(0.05)
-        config.retention_interval_seconds = 0.05
+        # Replace the sub-model the way HassetteConfig.reload() does, so a serve() that cached
+        # config.database would miss the change.
+        svc.hassette.config.database = config.model_copy(update={"retention_interval_seconds": 0.05})
 
     lower_task = asyncio.create_task(lower_interval())
     with patch.object(svc, "run_retention_cleanup", side_effect=run_and_stop) as run_retention:
@@ -92,18 +94,18 @@ async def test_reloaded_longer_retention_interval_applies_to_pending_wake(initia
     svc = initialized_service
     config = svc.hassette.config.database
     config.heartbeat_interval_seconds = 60
-    config.retention_interval_seconds = 0.2
+    config.retention_interval_seconds = 1.0
     config.size_failsafe_interval_seconds = 3600
 
     async def raise_interval_then_stop() -> None:
         await asyncio.sleep(0.05)
         config.retention_interval_seconds = 3600
-        await asyncio.sleep(0.4)
+        await asyncio.sleep(1.5)
         svc.shutdown_event.set()
 
     stop_task = asyncio.create_task(raise_interval_then_stop())
     with patch.object(svc, "run_retention_cleanup", return_value=True) as run_retention:
-        await asyncio.wait_for(svc.serve(), timeout=2.0)
+        await asyncio.wait_for(svc.serve(), timeout=4.0)
     await stop_task
 
     run_retention.assert_not_called()

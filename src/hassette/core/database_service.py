@@ -278,10 +278,10 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         """Run the heartbeat, retention, and size failsafe loop until shutdown."""
         mark_ready(self, reason="Database service started")
 
-        # Each task remembers its last attempt; deadlines are derived from it and the current config, once
-        # to size the sleep and again after waking to decide what's due, so a config reload during the sleep
-        # is honored either way. Sleeping until the earliest deadline lets a maintenance interval shorter
-        # than the heartbeat interval run on its own cadence.
+        # Each task remembers its last attempt, and every pass derives the deadlines from it and the current
+        # config. Every wake goes back to the top, so a config reload in either direction and a shutdown
+        # request are all handled by that one derivation. Sleeping until the earliest deadline lets a
+        # maintenance interval shorter than the heartbeat interval run on its own cadence.
         start = time.monotonic()
         last_heartbeat = start
         # Seeded as a successful attempt at startup, so each cleanup's first run waits a full interval.
@@ -289,15 +289,6 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
         size_failsafe_attempt = CleanupAttempt(attempted_at=start, enqueued=True)
 
         while True:
-            deadlines = maintenance_deadlines(
-                self.hassette.config.database, last_heartbeat, retention_attempt, size_failsafe_attempt
-            )
-            timeout = max(0.0, min(deadlines) - time.monotonic())
-            # An overdue deadline makes the timeout 0, and wait_for(timeout=0) raises TimeoutError even when
-            # the event is already set, so check the event directly rather than trusting the wait's outcome.
-            if not self.shutdown_event.is_set():
-                with contextlib.suppress(TimeoutError):
-                    await asyncio.wait_for(self.shutdown_event.wait(), timeout=timeout)
             if self.shutdown_event.is_set():
                 mark_not_ready(self, reason="Shutting down")
                 return
@@ -306,19 +297,25 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             next_heartbeat, next_retention, next_size_failsafe = maintenance_deadlines(
                 config, last_heartbeat, retention_attempt, size_failsafe_attempt
             )
+            earliest = min(next_heartbeat, next_retention, next_size_failsafe)
             now = time.monotonic()
-            if now >= next_heartbeat:
+            if now < earliest:
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self.shutdown_event.wait(), timeout=earliest - now)
+                continue
+
+            if time.monotonic() >= next_heartbeat:
                 await self.update_heartbeat()
                 last_heartbeat = time.monotonic()
 
                 if self._consecutive_heartbeat_failures >= config.max_consecutive_heartbeat_failures:
                     raise RuntimeError(f"Heartbeat failed {self._consecutive_heartbeat_failures} consecutive times")
 
-            if now >= next_retention:
+            if time.monotonic() >= next_retention:
                 enqueued = await self.run_retention_cleanup()
                 retention_attempt = CleanupAttempt(attempted_at=time.monotonic(), enqueued=enqueued)
 
-            if now >= next_size_failsafe:
+            if time.monotonic() >= next_size_failsafe:
                 enqueued = await self.run_size_failsafe()
                 size_failsafe_attempt = CleanupAttempt(attempted_at=time.monotonic(), enqueued=enqueued)
 
