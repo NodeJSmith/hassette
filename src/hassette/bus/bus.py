@@ -210,9 +210,9 @@ class Bus(Resource):
         with teardown finds was_present=False and skips its removed_at write. This loses only a
         telemetry write in a narrow teardown window — no routing impact — and is not worth guarding.
         """
-        # wait_for cleanup: fires on every removal path (shutdown, explicit cancel, once-fire). A once-fire
-        # handler already resolved the future, so `not fut.done()` skips it. Sync-facade removals run this on a worker
-        # thread, where Future.cancel() is not thread-safe, so off-loop calls marshal the cancel back to the loop.
+        # wait_for cleanup: fires on every removal path; `not fut.done()` skips futures a once-fire already resolved.
+        # Sync-facade removals run this on a worker thread: the dict pops are GIL-atomic, but Future.cancel() isn't
+        # thread-safe, so the cancel goes through the future's own loop (also when loop_thread_id is still None).
         if listener.db_id is not None:
             fut = self._wait_for_futures.pop(listener.db_id, None)
             if fut is not None and not fut.done():
