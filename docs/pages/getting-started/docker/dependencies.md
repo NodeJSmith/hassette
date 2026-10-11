@@ -142,7 +142,7 @@ project installs from) and list its files. Run this on your host, in the
 directory that holds `pyproject.toml`:
 
 ```bash
-uv build --wheel
+uv build --wheel --clear
 unzip -l dist/*.whl
 ```
 
