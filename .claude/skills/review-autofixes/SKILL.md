@@ -84,6 +84,8 @@ Work from the `<tmpdir>/feedback.json` fetched in 2a. Triage every unresolved th
 
 Severity doesn't decide it: a valid LOW finding is a **Fix** too.
 
+**Failing CI is a finding too.** Review threads aren't the only thing that blocks a merge. List the PR's failed checks (`gh pr checks {PR}`) and read each failure's log (`gh run view {run-id} --log-failed`). The `file-sizes` and `duplicate-code` gates are the ones autofix PRs trip most: a red one always means this PR grew an oversized file or added a duplicate block, so it's a **Fix**, never a skip (`.claude/reference/github-workflow.md` explains both gates). Shrink or move code to fix a file-size failure; don't contort it just to hit the count. An aggregate job like `lint-complete` fails whenever one of its inputs does, so fix the input.
+
 **Named failure mode:** agents accept bot findings as correct without verifying — "great catch" before checking. Always read the actual code first. CodeRabbit alone has a ~30% false positive rate on this codebase.
 
 Present a summary table of all findings with verdicts before fixing anything (in the run's output when unattended).
@@ -105,11 +107,19 @@ For each triaged thread, reply and resolve. Findings from `.reviewComments` have
 
 ### 2e. Commit & Push
 
-If fixes were applied in 2c:
+If fixes were applied in 2c (CI fixes included):
 
-1. Run affected tests to verify.
+1. Run affected tests to verify, plus `prek -a` and `prek run pyright -a --stage pre-push`.
 2. Stage, commit: `refactor: address review findings in {short description}`
-3. Push: `git push origin {branch}`
+3. Run the two merge-blocking gates the way CI's new-code steps do (`.github/workflows/lint.yml`). Local hooks don't cover them, and a fix can trip them on its own. Both compare commits, so run them after committing. `check_duplicate_code.py` needs Java, because it runs PMD CPD.
+
+   ```bash
+   uv run python tools/check_file_size_regressions.py origin/main HEAD
+   uv run python tools/check_duplicate_code.py --gate-new-code origin/main HEAD
+   ```
+
+   If either fails, fix it and amend before pushing.
+4. Push: `git push origin {branch}`
 
 ### 2f. Ensure the PR Closes Its Issue
 
