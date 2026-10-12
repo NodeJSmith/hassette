@@ -117,6 +117,7 @@ from hassette.utils.source_capture import capture_registration_source, capture_s
 from .listeners import DurationConfig, HandlerInvoker, Listener, ListenerIdentity, ListenerOptions, Subscription
 from .options import Options
 from .sync import BusSyncFacade
+from .wait_for_cancellations import WaitForCancellationLog
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -163,6 +164,8 @@ class Bus(Resource):
         # a WARNING per pending wait_for future — concurrent waits at a clean teardown are routine, not a problem.
         self._shutting_down = False
         self._shutdown_cancelled_wait_for_count = 0
+        # Outside shutdown, cancellations get a rate-limited WARNING so they can't bury the pending-count leak WARNING.
+        self._wait_for_cancel_log = WaitForCancellationLog(self.logger)
 
         # Register removal callback so once-fired listeners release their natural key and record removed_at,
         # mirroring Scheduler's register_removal_callback pattern. owner_id derives from self.parent, so the key is
@@ -218,17 +221,7 @@ class Bus(Resource):
                 if self._shutting_down:
                     self._shutdown_cancelled_wait_for_count += 1
                 else:
-                    self.logger.warning(
-                        "Cancelling pending wait_for future for listener '%s' on topic '%s' "
-                        "(app_key=%s, instance=%s, db_id=%s; listener removed before a matching event arrived; "
-                        "%d wait_for future(s) still pending)",
-                        listener.identity.name,
-                        listener.topic,
-                        listener.identity.app_key,
-                        listener.identity.instance_index,
-                        listener.db_id,
-                        len(self._wait_for_futures),
-                    )
+                    self._wait_for_cancel_log.record(listener, len(self._wait_for_futures))
                 if threading.get_ident() == self.hassette.loop_thread_id:
                     fut.cancel()
                 else:
