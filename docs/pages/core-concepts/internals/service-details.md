@@ -353,7 +353,7 @@ flowchart TD
 
     subgraph data["Data Sources"]
         RQS["RuntimeQueryService<br/><i>live state,<br/>WS broadcast</i>"]
-        TQS["TelemetryQueryService<br/><i>SQLite: listeners, jobs,<br/>errors, sessions</i>"]
+        TQS["TelemetryQueryService<br/><i>SQLite: listeners, jobs,<br/>errors</i>"]
     end
 
     SPA -- "fetch" --> rest
