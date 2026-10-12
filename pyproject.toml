@@ -94,6 +94,7 @@ dev = [
 ]
 test = [
     "coverage[toml]>=7.10.7",
+    "filelock>=3.12.0",
     "nox>=2025.5.1",
     "playwright>=1.52.0",
     "pytest-asyncio>=1.0.0",

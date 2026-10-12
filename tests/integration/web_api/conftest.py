@@ -14,6 +14,7 @@ from hassette.exceptions import TelemetryUnavailableError
 from hassette.schemas.app_snapshots import AppInstanceInfo, AppStatusSnapshot
 from hassette.testing.config import TEST_SESSION_TTL, WEB_API_TEST_TOKEN
 from hassette.web.app import create_fastapi_app
+from hassette.web.spa import BASE_MARKER
 from tests.support.problem_codes import checking_handler
 from tests.support.web_manifest_helpers import make_app_instance_info, make_manifest_db_row
 from tests.support.web_mocks import create_hassette_stub, create_mock_runtime_query_service
@@ -36,6 +37,9 @@ AUTH_SESSION_PATH = "/api/auth/session"
 
 STUB_SPA_FILES = ("index.html", "assets/index-abc123.js")
 """Files `stub_spa` writes: the SPA shell and one hashed asset."""
+
+STUB_SPA_SHELL = f"<!DOCTYPE html><html><head>{BASE_MARKER}</head><body><!-- stub --></body></html>"
+"""The stub `index.html`: carries the `<base>` marker, without which `create_fastapi_app()` serves no SPA."""
 
 
 @pytest.fixture(autouse=True)
@@ -149,7 +153,7 @@ def stub_spa(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (spa_dir / "assets").mkdir(parents=True)
     for relative in STUB_SPA_FILES:
         f = spa_dir / relative
-        f.write_text("<!-- stub -->" if relative.endswith(".html") else "/* stub */")
+        f.write_text(STUB_SPA_SHELL if relative.endswith(".html") else "/* stub */")
 
     monkeypatch.setattr(web_app, "_SPA_DIR", spa_dir)
     return spa_dir

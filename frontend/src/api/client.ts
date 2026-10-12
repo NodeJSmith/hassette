@@ -1,6 +1,21 @@
 /** Base API client for fetching JSON from the Hassette backend. */
 
-const BASE_URL = "/api";
+import { resolveAppUrl } from "../lib/base-path";
+import { useAppStore } from "../state/store";
+import { LOGIN_PATH } from "../utils/app-routes";
+import type { components } from "./generated-types";
+
+type ProblemCode = components["schemas"]["ProblemCode"];
+type ProblemDetail = components["schemas"]["ProblemDetail"];
+
+/**
+ * A non-ok response's parsed JSON, unvalidated. Keyed by the generated `ProblemDetail` members, so a rename
+ * of one on the backend fails tsc here; `message` covers bodies that aren't problem details.
+ */
+type RawErrorBody = { [K in keyof ProblemDetail]?: unknown } & { message?: unknown };
+
+/** App-relative, so requests resolve under the `<base href>` (see `lib/base-path.ts`). */
+export const BASE_URL = "api";
 const JSON_CONTENT_TYPE = "application/json";
 const FETCH_CREDENTIALS: RequestCredentials = "same-origin";
 
@@ -9,6 +24,11 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly statusText: string,
     message?: string,
+    /**
+     * The problem body's `code`, when the response carried one. A `string`, not `ProblemCode`: a newer
+     * backend may send a code this build's generated union doesn't list.
+     */
+    public readonly code?: string,
   ) {
     super(message ?? formatApiError(status, statusText));
     this.name = "ApiError";
@@ -20,20 +40,65 @@ function formatApiError(status: number, statusText: string): string {
   return `API error: ${status} ${statusText}`;
 }
 
-/** Extracts a human-readable error message from a non-ok response's JSON body, if present. */
-async function extractErrorMessage(response: Response): Promise<string | undefined> {
+const UNAUTHORIZED = 401;
+const NOT_AUTHENTICATED: ProblemCode = "not_authenticated";
+
+/** What a 401 asks the UI to do. */
+export type UnauthorizedOutcome = "login" | "session-expired";
+
+/**
+ * How to respond to `error` if it's a 401, or `null` if it isn't one.
+ *
+ * Hassette's own 401 (`not_authenticated`) means logging in helps. Any other 401 comes from something in
+ * front of Hassette (Home Assistant's Supervisor answers one when an ingress session expires), where the
+ * login form's request would get the same 401, so the UI shows a reload prompt instead.
+ */
+export function unauthorizedOutcome(error: unknown): UnauthorizedOutcome | null {
+  if (!(error instanceof ApiError) || error.status !== UNAUTHORIZED) return null;
+  return error.code === NOT_AUTHENTICATED ? "login" : "session-expired";
+}
+
+/**
+ * Acts on a 401 by sending the operator to login or showing the session-expired view. Returns whether
+ * `error` was a 401, so a caller can skip its own error handling. Called from the QueryCache's `onError`,
+ * from `apiPost`, and from the WebSocket's auth check, which together cover every authenticated call;
+ * `apiFetch` itself stays side-effect-free, so code that catches an `ApiError` instead of letting it reach
+ * the QueryCache (the app config and source tabs) calls this itself.
+ *
+ * Idempotent, so it may fire twice for one failure (e.g. a query whose fetcher calls `apiPost`).
+ * `navigate` replaces the default full page load for callers that have a router (the WebSocket hook).
+ */
+export function handleUnauthorized(
+  error: unknown,
+  navigate: (path: string) => void = (path) => window.location.assign(resolveAppUrl(path)),
+): boolean {
+  const outcome = unauthorizedOutcome(error);
+  if (outcome === "login") navigate(LOGIN_PATH);
+  if (outcome === "session-expired") useAppStore.getState().setSessionExpired();
+  return outcome !== null;
+}
+
+interface ErrorBody {
+  message?: string;
+  code?: string;
+}
+
+/** Extracts a human-readable message and problem code from a non-ok response's JSON body, if present. */
+async function extractErrorBody(response: Response): Promise<ErrorBody> {
   try {
-    const body: Record<string, unknown> = await response.json();
+    const body: RawErrorBody = await response.json();
     const raw = body.detail ?? body.message;
-    return typeof raw === "string" ? raw : undefined;
+    return {
+      message: typeof raw === "string" ? raw : undefined,
+      code: typeof body.code === "string" ? body.code : undefined,
+    };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = `${BASE_URL}${path}`;
-  const response = await fetch(url, {
+  const response = await fetch(resolveAppUrl(`${BASE_URL}${path}`), {
     ...init,
     credentials: FETCH_CREDENTIALS,
     headers: {
@@ -43,19 +108,28 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
 
   if (!response.ok) {
-    const detail = await extractErrorMessage(response);
-    throw new ApiError(response.status, response.statusText, detail);
+    const { message, code } = await extractErrorBody(response);
+    throw new ApiError(response.status, response.statusText, message, code);
   }
 
   return response.json() as Promise<T>;
 }
 
-export function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  return apiFetch<T>(path, {
-    method: "POST",
-    headers: { "Content-Type": JSON_CONTENT_TYPE },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+/**
+ * POSTs JSON and routes a 401 through `handleUnauthorized` before rethrowing, because action calls
+ * (buttons, palette) don't go through a query and so never reach the QueryCache's handler.
+ */
+export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  try {
+    return await apiFetch<T>(path, {
+      method: "POST",
+      headers: { "Content-Type": JSON_CONTENT_TYPE },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (error) {
+    handleUnauthorized(error);
+    throw error;
+  }
 }
 
 export type PostSessionResult = { ok: true } | { ok: false; message: string };
@@ -63,15 +137,15 @@ export type PostSessionResult = { ok: true } | { ok: false; message: string };
 /**
  * Exchange a bearer token for a session cookie via `POST /api/auth/session`.
  *
- * Deliberately bypasses `apiFetch`/`apiPost` — those throw `ApiError` on a non-ok response,
- * which would trip the global 401 handling in `query-client.ts`'s `QueryCache.onError` and
- * bounce the caller straight back to the login view with no error shown. Wrong-token rejection
- * is exactly the case this route's own caller (the login form) needs to render inline instead.
+ * Deliberately bypasses `apiPost`: it runs `handleUnauthorized`, which would bounce a wrong-token
+ * login straight back to the login view with no error shown. Wrong-token rejection is exactly the
+ * case the login form needs to render inline. (`apiFetch` has no such side effect, but it throws
+ * `ApiError` on a non-ok response, which this function maps to a result instead.)
  */
 export async function postSession(token: string): Promise<PostSessionResult> {
   let response: Response;
   try {
-    response = await fetch(`${BASE_URL}/auth/session`, {
+    response = await fetch(resolveAppUrl(`${BASE_URL}/auth/session`), {
       method: "POST",
       credentials: FETCH_CREDENTIALS,
       headers: { "Content-Type": JSON_CONTENT_TYPE },
@@ -83,7 +157,6 @@ export async function postSession(token: string): Promise<PostSessionResult> {
 
   if (response.ok) return { ok: true };
 
-  const detail = await extractErrorMessage(response);
-  const message = detail ?? formatApiError(response.status, response.statusText);
-  return { ok: false, message };
+  const { message } = await extractErrorBody(response);
+  return { ok: false, message: message ?? formatApiError(response.status, response.statusText) };
 }

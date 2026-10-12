@@ -9,9 +9,15 @@ from fastapi.staticfiles import StaticFiles
 from hassette_wire import ProblemCode
 from starlette.convertors import Convertor, register_url_convertor
 from starlette.middleware.cors import CORSMiddleware
-from starlette.responses import FileResponse
+from starlette.requests import Request
+from starlette.responses import FileResponse, Response
 
-from hassette.web.auth.trusted_proxies import EMPTY_TRUSTED_PROXY_SET, TrustedProxySet
+from hassette.web.auth.trusted_proxies import (
+    EMPTY_TRUSTED_PROXY_SET,
+    TrustedProxySet,
+    get_trusted_proxies,
+    peer_address,
+)
 from hassette.web.body_limit import RequestBodySizeLimitMiddleware
 from hassette.web.errors import WebApiError, install_problem_handlers, install_problem_openapi
 from hassette.web.middleware import DefaultDenyMiddleware
@@ -26,6 +32,7 @@ from hassette.web.routes.logs import router as logs_router
 from hassette.web.routes.scheduler import router as scheduler_router
 from hassette.web.routes.telemetry import router as telemetry_router
 from hassette.web.routes.ws import router as ws_router
+from hassette.web.spa import load_spa_shell, resolve_base
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -130,30 +137,42 @@ def create_fastapi_app(
     app.include_router(telemetry_router, prefix=API_PREFIX)
     app.include_router(scheduler_router, prefix=API_PREFIX)
 
-    # SPA serving (Preact)
-    if hassette.config.web_api.run_ui and _SPA_DIR.exists():
+    # SPA serving (Preact). A bad build (no index.html or assets/, unreadable, or marker-less) logs ERROR inside
+    # load_spa_shell and mounts no SPA routes, so a stale build costs the UI but never the API.
+    shell = load_spa_shell(_SPA_DIR) if hassette.config.web_api.run_ui and _SPA_DIR.exists() else None
+    if shell is not None:
         app.mount("/assets", StaticFiles(directory=str(_SPA_DIR / "assets")), name="spa-assets")
-        if (_SPA_DIR / "fonts").exists():
-            app.mount("/fonts", StaticFiles(directory=str(_SPA_DIR / "fonts")), name="spa-fonts")
+        index_file = (_SPA_DIR / "index.html").resolve()
 
         # Out of the schema: an HTML route, and the OpenAPI document must not depend on run_ui.
         @app.get(f"/{{path:{SPA_PATH_CONVERTOR}}}", include_in_schema=False)
-        async def spa_catch_all(path: str) -> FileResponse:  # pyright: ignore[reportUnusedFunction]
-            """Serve index.html for SPA client-side routing.
+        async def spa_catch_all(path: str, request: Request) -> Response:  # pyright: ignore[reportUnusedFunction]
+            """Serve the SPA shell, with this request's ``<base href>``, for client-side routing.
 
-            Static files in the SPA build output (e.g., hassette-logo.png) are
-            served directly.  Other static-looking paths get a 404. API paths never
-            reach this route (see ``SpaPathConvertor``).
+            Static files in the SPA build output (e.g., hassette-logo.png) are served directly, except
+            ``index.html`` itself, which always goes through the shell renderer. Other static-looking
+            paths get a 404. API paths never reach this route (see ``SpaPathConvertor``).
             """
-            # Serve root-level SPA static files (logo, favicon, etc.)
-            candidate = _SPA_DIR / path
-            if candidate.is_file() and candidate.resolve().is_relative_to(_SPA_DIR.resolve()):
-                return FileResponse(str(candidate))
+            # is_file() first: it returns False for a path resolve() would raise on (an embedded NUL).
+            # index.html is excluded so every response serving the shell gets its base substituted.
+            raw = _SPA_DIR / path
+            if raw.is_file():
+                candidate = raw.resolve()
+                if candidate != index_file and candidate.is_relative_to(_SPA_DIR.resolve()):
+                    return FileResponse(str(candidate))
 
             last_segment = path.rsplit("/", 1)[-1]
             is_static = any(last_segment.endswith(ext) for ext in _STATIC_EXTENSIONS)
             if is_static:
                 raise WebApiError(ProblemCode.NOT_FOUND, f"/{path} not found")
-            return FileResponse(str(_SPA_DIR / "index.html"))
+
+            client_address = peer_address(request)
+            resolution = resolve_base(
+                request.headers,
+                client_address,
+                get_trusted_proxies(request.app.state),
+                auth_enabled=hassette.config.web_api.auth_enabled,
+            )
+            return shell.render(resolution, client_address)
 
     return app

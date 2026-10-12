@@ -32,7 +32,7 @@ export class MockWebSocket {
   readyState = MockWebSocket.OPEN;
   sent: string[] = [];
 
-  constructor() {
+  constructor(readonly url: string) {
     MockWebSocket.instances.push(this);
   }
 

@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, apiFetch, postSession } from "./client";
+import { resolveAppUrl } from "../lib/base-path";
+import { useAppStore } from "../state/store";
+import { LOGIN_PATH } from "../utils/app-routes";
+import { ApiError, apiFetch, apiPost, handleUnauthorized, postSession, unauthorizedOutcome } from "./client";
 
 /** Builds a mock non-ok `fetch` response whose `json()` resolves to `body`. */
 function mockErrorResponse(status: number, statusText: string, body: unknown) {
@@ -8,8 +11,8 @@ function mockErrorResponse(status: number, statusText: string, body: unknown) {
 }
 
 /** Builds a mock non-ok `fetch` response whose `json()` rejects, as if the body were not JSON. */
-function mockNonJsonErrorResponse(status: number, statusText: string) {
-  return { ok: false, status, statusText, json: () => Promise.reject(new Error("not json")) };
+function mockNonJsonErrorResponse(status: number, statusText: string, error: Error = new Error("not json")) {
+  return { ok: false, status, statusText, json: () => Promise.reject(error) };
 }
 
 /** Builds a mock ok `fetch` response whose `json()` resolves to `body`. */
@@ -79,19 +82,118 @@ describe("apiFetch", () => {
 
     await apiFetch("/ok");
 
-    expect(fetchSpy).toHaveBeenCalledWith("/api/ok", expect.objectContaining({ credentials: "same-origin" }));
+    expect(fetchSpy).toHaveBeenCalledWith(
+      `${location.origin}/api/ok`,
+      expect.objectContaining({ credentials: "same-origin" }),
+    );
   });
 
   it("does not navigate anywhere on a 401 — it only throws ApiError", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: "Unauthorized",
-      json: () => Promise.resolve({ detail: "Not authenticated" }),
-    });
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(mockErrorResponse(401, "Unauthorized", { detail: "Not authenticated" }));
 
     await expect(apiFetch("/protected")).rejects.toThrow(ApiError);
     await expect(apiFetch("/protected")).rejects.toMatchObject({ status: 401 });
+    expect(useAppStore.getState()).toMatchObject({ sessionExpired: false });
+  });
+
+  it("carries the problem body's code, which tells Hassette's own 401 from anyone else's", async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue(
+        mockErrorResponse(401, "Unauthorized", { detail: "Not authenticated", code: "not_authenticated" }),
+      );
+
+    const err = await apiFetch("/protected").catch((e: unknown) => e);
+    expect(err).toMatchObject({ status: 401, code: "not_authenticated" });
+    expect(unauthorizedOutcome(err)).toBe("login");
+  });
+
+  it("classifies only 401s", () => {
+    expect(unauthorizedOutcome(new ApiError(403, "Forbidden", undefined, "not_authenticated"))).toBeNull();
+    expect(unauthorizedOutcome(new Error("network"))).toBeNull();
+  });
+
+  it("leaves code undefined for a 401 without a problem body (Supervisor's)", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(mockNonJsonErrorResponse(401, "Unauthorized"));
+
+    const err = await apiFetch("/protected").catch((e: unknown) => e);
+    expect(err).toMatchObject({ status: 401, code: undefined });
+    expect(unauthorizedOutcome(err)).toBe("session-expired");
+  });
+
+  it("treats Hassette's 401 with a body a proxy truncated as session-expired, like any foreign 401", async () => {
+    // The session-expired view offers Hassette's login at root base for exactly this case.
+    const truncated = new SyntaxError('Unterminated string in JSON: {"detail":"Not authent');
+    globalThis.fetch = vi.fn().mockResolvedValue(mockNonJsonErrorResponse(401, "Unauthorized", truncated));
+
+    const err = await apiFetch("/protected").catch((e: unknown) => e);
+    expect(unauthorizedOutcome(err)).toBe("session-expired");
+  });
+});
+
+describe("401 handling", () => {
+  const originalFetch = globalThis.fetch;
+  const assign = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState({ sessionExpired: false });
+    vi.stubGlobal("location", { origin: window.location.origin, pathname: "/", assign });
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.unstubAllGlobals();
+  });
+
+  function mockFetchError(status: number, statusText: string, body: unknown) {
+    globalThis.fetch = vi.fn().mockResolvedValue(mockErrorResponse(status, statusText, body));
+  }
+
+  it("apiPost redirects to login on Hassette's own 401", async () => {
+    mockFetchError(401, "Unauthorized", { detail: "Not authenticated", code: "not_authenticated" });
+
+    await expect(apiPost("/apps/x/start")).rejects.toMatchObject({ status: 401, code: "not_authenticated" });
+
+    expect(assign).toHaveBeenCalledWith(resolveAppUrl(LOGIN_PATH));
+    expect(useAppStore.getState().sessionExpired).toBe(false);
+  });
+
+  it("apiPost marks the session expired on a foreign 401", async () => {
+    mockFetchError(401, "Unauthorized", {});
+
+    await expect(apiPost("/apps/x/start")).rejects.toBeInstanceOf(ApiError);
+
+    expect(useAppStore.getState().sessionExpired).toBe(true);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("apiPost does nothing extra on a non-401 error", async () => {
+    mockFetchError(500, "Internal Server Error", { detail: "boom" });
+
+    await expect(apiPost("/apps/x/start")).rejects.toMatchObject({ status: 500 });
+
+    expect(useAppStore.getState().sessionExpired).toBe(false);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("handleUnauthorized uses the caller's navigate for login and reports whether it was a 401", () => {
+    const navigate = vi.fn();
+    const login = new ApiError(401, "Unauthorized", "Not authenticated", "not_authenticated");
+
+    expect(handleUnauthorized(login, navigate)).toBe(true);
+    expect(navigate).toHaveBeenCalledWith(LOGIN_PATH);
+    expect(assign).not.toHaveBeenCalled();
+
+    expect(handleUnauthorized(new ApiError(401, "Unauthorized"), navigate)).toBe(true);
+    expect(useAppStore.getState().sessionExpired).toBe(true);
+    expect(navigate).toHaveBeenCalledTimes(1);
+
+    expect(handleUnauthorized(new ApiError(500, "Internal Server Error"), navigate)).toBe(false);
+    expect(handleUnauthorized(new Error("network"), navigate)).toBe(false);
+    expect(navigate).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -113,7 +215,7 @@ describe("postSession", () => {
     const result = await postSession("my-token");
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/auth/session",
+      `${location.origin}/api/auth/session`,
       expect.objectContaining({
         method: "POST",
         credentials: "same-origin",
@@ -124,12 +226,7 @@ describe("postSession", () => {
   });
 
   it("returns ok: false with the detail message on a rejected token, without throwing", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      statusText: "Unauthorized",
-      json: () => Promise.resolve({ detail: "Invalid token" }),
-    });
+    globalThis.fetch = vi.fn().mockResolvedValue(mockErrorResponse(401, "Unauthorized", { detail: "Invalid token" }));
 
     const result = await postSession("wrong-token");
 

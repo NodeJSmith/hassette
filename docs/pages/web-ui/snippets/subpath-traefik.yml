@@ -1,0 +1,20 @@
+http:
+  routers:
+    hassette:
+      rule: "PathPrefix(`/hassette`)"
+      # Clear any client-sent X-Forwarded-Prefix first; stripPrefix then sets it to /hassette.
+      middlewares: [hassette-clear-prefix, hassette-strip]
+      service: hassette
+  middlewares:
+    hassette-clear-prefix:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Prefix: ""  # an empty value removes the header
+    hassette-strip:
+      stripPrefix:
+        prefixes: ["/hassette"]
+  services:
+    hassette:
+      loadBalancer:
+        servers:
+          - url: "http://hassette:8126"

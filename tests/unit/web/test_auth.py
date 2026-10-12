@@ -2,7 +2,6 @@
 precedence between a presented bearer token, trusted-peer match, and a session cookie.
 """
 
-import ipaddress
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -11,14 +10,12 @@ from starlette.datastructures import Headers
 from hassette.web.auth import authorize_ws
 from hassette.web.auth.session import SESSION_COOKIE_NAME, mint_session_cookie
 from hassette.web.auth.trusted_proxies import EMPTY_TRUSTED_PROXY_SET, TrustedProxySet
+from tests.support.web_mocks import trusted_proxy_set
 
 _WS_TEST_TOKEN = "the-real-token"
 _WS_TRUSTED_PEER_IP = "203.0.113.5"
 _WS_UNTRUSTED_PEER_IP = "198.51.100.9"
-_WS_TRUSTED_SET = TrustedProxySet(
-    literal_networks=frozenset({ipaddress.ip_network(_WS_TRUSTED_PEER_IP)}),
-    hostname_entries={},
-)
+_WS_TRUSTED_SET = trusted_proxy_set(_WS_TRUSTED_PEER_IP)
 
 
 def _make_websocket(

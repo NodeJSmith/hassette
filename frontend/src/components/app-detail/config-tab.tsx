@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+import { handleUnauthorized } from "../../api/client";
 import type { ConfigRecord, SchemaNode } from "../../api/config-view-types";
 import type { AppConfigData } from "../../api/endpoints";
 import { getAppConfig } from "../../api/endpoints";
@@ -202,7 +203,7 @@ export function ConfigTab({ appKey }: Props) {
           // Highlighting is best-effort — the plain-text fallback renders config_toml as-is.
         }
       } catch (err) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || handleUnauthorized(err)) return;
         setError(err instanceof Error ? err.message : String(err));
       } finally {
         if (!controller.signal.aborted) setLoading(false);

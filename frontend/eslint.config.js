@@ -26,7 +26,7 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/switch-exhaustiveness-check": "error",
-      "eqeqeq": ["error", "always"],
+      eqeqeq: ["error", "always"],
       "no-console": ["warn", { allow: ["warn", "error"] }],
       "simple-import-sort/imports": "error",
       "simple-import-sort/exports": "error",
@@ -54,10 +54,20 @@ export default tseslint.config(
       "no-restricted-syntax": [
         "error",
         {
-          selector:
-            "VariableDeclarator[init.type=/^(Literal|TemplateLiteral)$/] > Identifier.id[name=/ClassNames?$/]",
+          selector: "VariableDeclarator[init.type=/^(Literal|TemplateLiteral)$/] > Identifier.id[name=/ClassNames?$/]",
           message: "Name class-string constants with a _CLASS/_CLASSES suffix (e.g. FOO_CLASS), not *ClassName(s).",
         },
+        // Under the backend's <base href>, a bare `#id` href resolves against the base, not the current
+        // route, so following it leaves the page. Each selector matches one way to write such an href
+        // (quoted, braced string, template literal) on an element with no onClick to intercept it.
+        ...[
+          "JSXAttribute[name.name='href'] > Literal[value=/^#/]",
+          "JSXAttribute[name.name='href'] > JSXExpressionContainer > Literal[value=/^#/]",
+          "JSXAttribute[name.name='href'] > JSXExpressionContainer > TemplateLiteral > TemplateElement:first-child[value.raw=/^#/]",
+        ].map((href) => ({
+          selector: `JSXOpeningElement:has(${href}):not(:has(JSXAttribute[name.name='onClick']))`,
+          message: "An in-page `#` href needs onClick={focusInPageTarget(id)} (src/lib/in-page-anchor.ts).",
+        })),
       ],
     },
   },

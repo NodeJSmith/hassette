@@ -3,6 +3,7 @@ import { delay, http, HttpResponse } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components } from "../../api/generated-types";
+import { useAppStore } from "../../state/store";
 import { server } from "../../test/server";
 import { getShikiHighlighter } from "../../utils/shiki";
 import { ConfigTab } from "./config-tab";
@@ -153,6 +154,14 @@ describe("ConfigTab", () => {
     server.use(http.get(CONFIG_ENDPOINT, () => HttpResponse.json(null, { status: 500 })));
     renderConfigTab();
     await waitForTestId("config-tab-error");
+  });
+
+  it("shows the session-expired view instead of an inline error on a 401 that isn't Hassette's", async () => {
+    useAppStore.setState({ sessionExpired: false });
+    server.use(http.get(CONFIG_ENDPOINT, () => HttpResponse.json({}, { status: 401 })));
+    renderConfigTab();
+    await waitFor(() => expect(useAppStore.getState().sessionExpired).toBe(true));
+    expect(screen.queryByTestId("config-tab-error")).toBeNull();
   });
 
   it("falls back to a plain <pre> block when syntax highlighting fails", async () => {

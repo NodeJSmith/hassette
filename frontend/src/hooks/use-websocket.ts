@@ -2,13 +2,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 
-import { ApiError } from "../api/client";
+import { handleUnauthorized } from "../api/client";
 import { getSystemStatus, WS_PATH } from "../api/endpoints";
 import type { WsServerMessage } from "../api/ws-types";
 import { validateWsMessage, WsValidationError } from "../api/ws-validator";
+import { resolveWsUrl } from "../lib/base-path";
 import { queryKeys } from "../lib/query-keys";
 import { appStatusKey, useAppStore } from "../state/store";
-import { LOGIN_PATH } from "../utils/app-routes";
 
 export const MAX_BACKOFF_MS = 30_000;
 export const INITIAL_BACKOFF_MS = 1_000;
@@ -16,7 +16,6 @@ const BACKOFF_MULTIPLIER = 1.5;
 export const HANDSHAKE_TIMEOUT_MS = 10_000;
 export const AUTH_CHECK_TIMEOUT_MS = 5_000;
 const DEFAULT_LOG_LEVEL = "INFO";
-const UNAUTHORIZED_STATUS = 401;
 
 function buildSubscribePayload(level: string): string {
   return JSON.stringify({
@@ -47,8 +46,7 @@ export function useWebSocket(): void {
         useAppStore.getState().setConnection("connecting");
       }
 
-      const proto = location.protocol === "https:" ? "wss:" : "ws:";
-      const socket = new WebSocket(`${proto}//${location.host}${WS_PATH}`);
+      const socket = new WebSocket(resolveWsUrl(WS_PATH));
       wsRef.current = socket;
 
       // Tracks whether onopen has fired for THIS connection attempt (reset on every connect()
@@ -209,10 +207,8 @@ export function useWebSocket(): void {
         try {
           await getSystemStatus(controller.signal);
         } catch (err) {
-          if (err instanceof ApiError && err.status === UNAUTHORIZED_STATUS) {
-            if (!unmounted) navigateRef.current(LOGIN_PATH);
-            return;
-          }
+          if (unmounted) return;
+          if (handleUnauthorized(err, navigateRef.current)) return;
         } finally {
           clearTimeout(timeoutId);
         }

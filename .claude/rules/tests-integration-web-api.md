@@ -12,7 +12,7 @@ paths:
 - `app` — FastAPI app via `create_fastapi_app(mock_hassette)`
 - `client` — httpx2 `AsyncClient` wrapping `app` via `ASGITransport`
 - `auth_hassette`, `auth_app`, `auth_client` — the same chain with `auth_enabled=True`, a real `session_ttl`, and a known auth token, for bearer/cookie/session tests
-- `stub_spa` — writes a stub SPA build to `tmp_path` and points `hassette.web.app._SPA_DIR` at it, so an app built with `run_ui = True` registers the SPA routes
+- `stub_spa` — writes a stub SPA build to `tmp_path` and points `hassette.web.app._SPA_DIR` at it, so an app built with `run_ui = True` registers the SPA routes. Its `index.html` (`STUB_SPA_SHELL`) carries `BASE_MARKER`; a custom stub without the marker gets no SPA routes at all (`load_spa_shell` in `hassette/web/spa.py`)
 - `problem_code_violations` (autouse) — fails any test in which a route raises an operation-specific `ProblemCode` its `problem_responses(...)` doesn't declare (check in `tests/support/problem_codes.py`)
 
 ## Shared helpers (this directory's conftest.py)

@@ -58,6 +58,7 @@ vi.mock("wouter", async () => {
       return null;
     },
     Redirect: () => null,
+    Router: ({ children }: { children: unknown }) => children,
     Switch: ({ children }: { children: unknown }) => children,
   };
 });
@@ -151,6 +152,31 @@ describe("App — layout structure", () => {
     render(<App />);
     const skipLink = screen.getByTestId("skip-link");
     expect(skipLink.getAttribute("href")).toBe(`#${MAIN_CONTENT_ID}`);
+  });
+
+  it("skip link moves focus to main content without navigating", () => {
+    render(<App />);
+    const skipLink = screen.getByTestId("skip-link");
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+
+    act(() => {
+      skipLink.dispatchEvent(click);
+    });
+
+    // Under a <base href>, following the bare `#id` href would leave the current route.
+    expect(click.defaultPrevented).toBe(true);
+    expect(document.activeElement?.id).toBe(MAIN_CONTENT_ID);
+  });
+});
+
+describe("App — session expired", () => {
+  it("replaces the shell with the session-expired view", () => {
+    act(() => useAppStore.getState().setSessionExpired());
+    render(<App />);
+
+    expect(screen.getByTestId("session-expired-page")).toBeTruthy();
+    expect(screen.queryByTestId("skip-link")).toBeNull();
+    expect(document.querySelector(SELECTORS.layout)).toBeNull();
   });
 });
 
