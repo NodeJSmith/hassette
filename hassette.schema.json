@@ -14,7 +14,7 @@
         },
         "websocket": {
           "$ref": "#/$defs/WebSocketConfig",
-          "description": "WebSocket connection, retry, and recovery timing settings."
+          "description": "WebSocket connection and timeout settings. Reconnect pacing is fixed, not configurable."
         },
         "logging": {
           "$ref": "#/$defs/LoggingConfig",

@@ -1,7 +1,7 @@
 """send_json/send_and_wait/dispatch tests for WebsocketService.
 
-Complements test_connection.py (connection/auth), test_reconnect.py (disconnect/reconnect-retry),
-and test_subscribe_events_retry.py.
+Complements test_connection.py (connection/auth), test_reconnect.py (partial_cleanup and the
+connection-lost event), test_reconnect_loop.py (serve()'s reconnect loop), and test_subscribe_events_retry.py.
 """
 
 from types import SimpleNamespace

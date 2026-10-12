@@ -23,6 +23,7 @@ import hassette.core.websocket_service as websocket_service_module
 from hassette.core.websocket_reconnect import (
     AUTH_REJECTED_REASON,
     CONNECTED_REASON,
+    CORE_NOT_RUNNING_REASON,
     NOT_CONNECTED_REASON,
     Disposition,
     RetryPlan,
@@ -140,31 +141,22 @@ async def test_ha_restart_reconnects_in_the_same_serve_call(
 
 
 @pytest.mark.usefixtures("fast_reconnect")
-async def test_handshake_502_retries_at_fast_pace(
-    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
+@pytest.mark.parametrize(
+    "status",
+    [
+        pytest.param(502, id="supervisor-proxy-while-core-restarts"),
+        pytest.param(404, id="reverse-proxy-backend-stopped"),
+    ],
+)
+async def test_restart_handshake_status_retries_at_fast_pace(
+    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant, status: int
 ) -> None:
-    """The Supervisor proxy's 502 while Core restarts is a Fast failure, not a Slow one."""
-    fake_ha.handshake_status = 502
+    """A proxy's 502 or 404 while HA restarts behind it heals on its own, so it is Fast, not Slow."""
+    fake_ha.handshake_status = status
     plans = record_plans(websocket_service)
 
     async with serving(websocket_service, fake_ha):
-        await wait_for(lambda: len(plans) >= 3, timeout=WAIT_SECONDS, desc="502 attempts retried")
-        assert {plan.disposition for plan in plans} == {Disposition.FAST}
-
-        fake_ha.handshake_status = None
-        await wait_connected(websocket_service)
-
-
-@pytest.mark.usefixtures("fast_reconnect")
-async def test_handshake_404_retries_at_fast_pace(
-    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
-) -> None:
-    """A reverse proxy's 404 while the HA backend it routes to is stopped heals on its own, so it stays Fast."""
-    fake_ha.handshake_status = 404
-    plans = record_plans(websocket_service)
-
-    async with serving(websocket_service, fake_ha):
-        await wait_for(lambda: len(plans) >= 3, timeout=WAIT_SECONDS, desc="404 attempts retried")
+        await wait_for(lambda: len(plans) >= 3, timeout=WAIT_SECONDS, desc=f"{status} attempts retried")
         assert {plan.disposition for plan in plans} == {Disposition.FAST}
 
         fake_ha.handshake_status = None
@@ -298,7 +290,7 @@ async def test_running_gate_holds_connecting_and_drops_events_until_ha_started(
     async with serving(websocket_service, fake_ha):
         await wait_for(lambda: fake_ha.get_config_calls >= 1, timeout=WAIT_SECONDS, desc="core state read")
         await wait_for(
-            lambda: websocket_service._ready_reason == "Home Assistant core state is STARTING, waiting for RUNNING",
+            lambda: websocket_service._ready_reason == CORE_NOT_RUNNING_REASON.format("STARTING"),
             timeout=WAIT_SECONDS,
             desc="waiting reason recorded",
         )

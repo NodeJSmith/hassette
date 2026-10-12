@@ -127,7 +127,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Database storage, retention, and operational settings."""
 
     websocket: WebSocketConfig = Field(default_factory=WebSocketConfig)
-    """WebSocket connection, retry, and recovery timing settings."""
+    """WebSocket connection and timeout settings. Reconnect pacing is fixed, not configurable."""
 
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     """Logging level, format, queue, and per-service log-level settings."""

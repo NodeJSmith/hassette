@@ -319,7 +319,7 @@ class TestInitialStateSyncBeforeApps:
             hassette.websocket_service.set_connection_state(ConnectionState.CONNECTED)
             await hassette.websocket_service.send_connection_established_event()
             hassette.websocket_service._connected_event.set()  # pyright: ignore[reportPrivateUsage]  # coordinator-internal
-            # mark_connected() notifies connected observers; StateProxy's initial sync starts from that.
+            # Mirrors mark_connected(): notifying connected observers starts StateProxy's initial sync.
             await hassette.websocket_service.connected_observers.notify(1)
             await keep_ws_alive.wait()
 

@@ -122,8 +122,8 @@ async def test_send_connection_lost_event_skips_before_first_connection(websocke
 async def test_send_connection_lost_event_self_suppressing(websocket_service: WebsocketService) -> None:
     """send_connection_lost_event does not propagate bus exceptions."""
     websocket_service.hassette.send_event = AsyncMock(side_effect=RuntimeError("bus is down"))
-    # The guard now keys off has_ever_connected, not is_ready() — simulate a prior successful
-    # connection so the event actually attempts to fire and self-suppression is exercised.
+    # The event fires only for an announced connection — simulate one so the send is attempted
+    # and self-suppression is exercised.
     mark_websocket_service_connected(websocket_service, reason="test: make service ready so event fires")
 
     # Should not raise even though the bus raises

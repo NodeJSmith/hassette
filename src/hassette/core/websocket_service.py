@@ -20,6 +20,7 @@ from hassette.core.websocket_inbound import log_dispatch_failure, parse_text_fra
 from hassette.core.websocket_reconnect import (
     AUTH_REJECTED_REASON,
     CONNECTED_REASON,
+    CORE_NOT_RUNNING_REASON,
     CORE_RUNNING_RECHECK_SECONDS,
     CORE_STATE_RUNNING,
     CORE_STATES_SHUTTING_DOWN,
@@ -467,7 +468,7 @@ class WebsocketService(Service):
             if core_state in CORE_STATES_SHUTTING_DOWN:
                 raise CoreShuttingDownError(core_state)
 
-            await self.report_connection_status(f"Home Assistant core state is {core_state}, waiting for RUNNING")
+            await self.report_connection_status(CORE_NOT_RUNNING_REASON.format(core_state))
             self._outage_log.record_core_wait(
                 core_state, now=time.monotonic(), has_ever_connected=self.has_ever_connected
             )
@@ -497,14 +498,13 @@ class WebsocketService(Service):
             raise_recv_task_end(recv_task)
         self._connected_signal_active = True
         await self.connected_observers.notify(generation)
-        with suppress(Exception):
+        started, self._held_started_event = self._held_started_event, None
+        try:
             await self.send_connection_established_event()
-        if (started := self._held_started_event) is not None:
-            self._held_started_event = None
-            try:
+            if started is not None:
                 await self.hassette.send_event(create_event_from_hass(started))
-            except Exception:
-                self.logger.exception("Failed to dispatch the held homeassistant_started event")
+        except Exception:
+            self.logger.exception("Failed to send the connection events to the bus")
 
     def _handle_recv_task_done(self, task: asyncio.Task) -> None:
         """Invalidate connection state and fail pending replies the instant the recv task dies.

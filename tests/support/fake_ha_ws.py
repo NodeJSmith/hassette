@@ -29,7 +29,6 @@ class FakeHomeAssistant:
 
         self.handshake_status: int | None = None
         """When set, answer the upgrade request with this HTTP status instead of a WebSocket."""
-        self.handshake_headers: dict[str, str] = {}
         self.auth_valid = True
         self.core_states: list[str] = ["RUNNING"]
         """States returned by successive ``get_config`` calls on one connection; the last repeats."""
@@ -37,8 +36,6 @@ class FakeHomeAssistant:
         self.unanswered_commands: set[str] = set()
         """Command types the server receives but never replies to."""
 
-        self.handshakes = 0
-        """Upgrade requests received, including ones refused via ``handshake_status``."""
         self.connections = 0
         """WebSocket upgrades accepted."""
         self.auth_attempts = 0
@@ -84,9 +81,8 @@ class FakeHomeAssistant:
             )
 
     async def handle(self, request: web.Request) -> web.StreamResponse:
-        self.handshakes += 1
         if self.handshake_status is not None:
-            return web.Response(status=self.handshake_status, headers=self.handshake_headers)
+            return web.Response(status=self.handshake_status)
 
         ws = web.WebSocketResponse()
         await ws.prepare(request)

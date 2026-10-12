@@ -108,23 +108,17 @@ class TestFastCurveReset:
 
 
 class TestAuthRejection:
-    def test_never_connected_token_gets_three_auth_retries_then_parks(self) -> None:
-        """The policy keeps no ever-connected state: a fresh process's rejections are retried too."""
-        policy = ReconnectPolicy()
-
-        plans = [policy.on_failure(InvalidAuthError("bad")) for _ in range(4)]
-
-        assert [p.disposition for p in plans] == [Disposition.AUTH_RETRY] * 3 + [Disposition.PARK]
-        assert plans[3].delay is None
-
     def test_retries_three_times_sixty_seconds_apart_then_parks(self) -> None:
-        """A fresh process gets the same retries as a long-running one: the rejection can be a false one."""
+        """The policy keeps no ever-connected state, so a fresh process gets the same retries as a
+        long-running one: the rejection can be a false one.
+        """
         policy = ReconnectPolicy()
 
         plans = [policy.on_failure(InvalidAuthError("bad")) for _ in range(4)]
 
         assert [p.disposition for p in plans] == [Disposition.AUTH_RETRY] * 3 + [Disposition.PARK]
         assert [p.delay for p in plans[:3]] == [AUTH_RETRY_SECONDS] * 3
+        assert plans[3].delay is None
         assert AUTH_RETRY_SECONDS == 60.0
         assert AUTH_RETRIES == 3
 

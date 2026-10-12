@@ -1,7 +1,7 @@
 """Unit tests for WebsocketService readiness event emission.
 
-Verifies that _emit_readiness_event() is called after mark_not_ready() and mark_ready()
-on serve()'s connection-state transitions, and only on those (D11).
+Lifecycle readiness never tracks the HA connection; the ready reason carries its status. These
+tests pin that serve() emits a status event each time that reason changes, and not per retry (D11).
 """
 
 import asyncio
@@ -14,6 +14,7 @@ import hassette.core.websocket_service as service_module
 from hassette.core.websocket_reconnect import (
     AUTH_REJECTED_REASON,
     CONNECTED_REASON,
+    CORE_NOT_RUNNING_REASON,
     NOT_CONNECTED_REASON,
     OutageLog,
 )
@@ -123,7 +124,7 @@ class TestWebsocketReadinessEvents:
         await websocket_service.wait_for_core_running(recv_task)
         recv_task.cancel()
 
-        assert status_reasons(event_capture) == ["Home Assistant core state is NOT_RUNNING, waiting for RUNNING"]
+        assert status_reasons(event_capture) == [CORE_NOT_RUNNING_REASON.format("NOT_RUNNING")]
         assert websocket_service.is_ready() is True
 
     async def test_park_reports_the_auth_rejection_and_stays_ready(

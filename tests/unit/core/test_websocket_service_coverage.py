@@ -273,7 +273,7 @@ class TestCleanup:
 
 
 class TestRecvTaskDeathDuringObserverNotification:
-    """Regression coverage for the P1 bug: a dead recv task must be visible immediately.
+    """A dead recv task must be visible immediately, even while mark_connected() is in an observer.
 
     `mark_connected()` awaits `connected_observers.notify()` before it returns, and `serve()`
     can't notice the recv task died until `mark_connected()` returns and it awaits the task.
@@ -307,13 +307,13 @@ class TestRecvTaskDeathDuringObserverNotification:
         websocket_service._connection_state = ConnectionState.CONNECTING
 
         recv_task = await websocket_service.start_recv_and_subscribe()
-        start_task = asyncio.create_task(websocket_service.mark_connected(recv_task))
+        mark_connected_task = asyncio.create_task(websocket_service.mark_connected(recv_task))
 
         # Deterministic gate: wait for the observer to actually be parked, not a scheduler-tick guess.
         await asyncio.wait_for(observer_entered.wait(), timeout=1)
-        assert not start_task.done(), "mark_connected must still be parked in the observer"
+        assert not mark_connected_task.done(), "mark_connected must still be parked in the observer"
 
-        # Kill the recv task while the observer is still parked — the exact race from the bug report.
+        # Kill the recv task while the observer is still parked.
         fail_trigger.set()
         with pytest.raises(RetryableConnectionClosedError):
             await asyncio.wait_for(recv_task, timeout=1)
@@ -329,7 +329,7 @@ class TestRecvTaskDeathDuringObserverNotification:
 
         # Let the observer (and mark_connected) finish so the test cleans up.
         observer_may_continue.set()
-        await asyncio.wait_for(start_task, timeout=1)
+        await asyncio.wait_for(mark_connected_task, timeout=1)
 
 
 def feed_frame(service: WebsocketService, msg_type: WSMsgType, data: object) -> AsyncMock:

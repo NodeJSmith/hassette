@@ -18,6 +18,7 @@ import traceback
 from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
+from http import HTTPStatus
 from typing import NoReturn, TypeVar
 
 import aiohttp
@@ -98,8 +99,11 @@ NOT_CONNECTED_REASON = "Not connected to Home Assistant"
 CONNECTED_REASON = "WebSocket connected, authenticated, and subscribed"
 """The ready reason while the connection is CONNECTED."""
 
+CORE_NOT_RUNNING_REASON = "Home Assistant core state is {}, waiting for RUNNING"
+"""The ready reason while the RUNNING gate waits (D12); format with the reported core state."""
+
 FIRST_CONNECT_HINT = "Check that base_url points at your Home Assistant instance and that it is running."
-"""D11: appended to outage logs until a connection has ever succeeded, replacing the old fail-fast exit."""
+"""D11: appended to outage logs until a connection has ever succeeded."""
 
 PROPAGATED_EXCEPTIONS: tuple[type[BaseException], ...] = (InvalidLifecycleTransitionError, MemoryError)
 """D9 Propagate: exceptions the loop never catches. Cancellation is a ``BaseException`` and
@@ -199,12 +203,15 @@ class ReconnectPolicy:
                 Disposition.SLOW,
                 SLOW_RETRY_SECONDS,
                 f"Home Assistant sent a message larger than the {WS_MAX_MSG_SIZE // (1024 * 1024)} MiB "
-                f"limit (close code 1009) on {self.oversize_streak} consecutive connections",
+                f"limit (close code {CLOSE_CODE_MESSAGE_TOO_BIG}) on {self.oversize_streak} consecutive connections",
             )
 
         if isinstance(exc, aiohttp.WSServerHandshakeError) and exc.status in SLOW_HANDSHAKE_STATUSES:
             delay = SLOW_RETRY_SECONDS
-            if exc.status == 429 and (retry_after := parse_retry_after(exc.headers)) is not None:
+            if (
+                exc.status == HTTPStatus.TOO_MANY_REQUESTS
+                and (retry_after := parse_retry_after(exc.headers)) is not None
+            ):
                 # Floored at the Fast cap: a Retry-After of 0 must not turn the Slow tier into a hot loop.
                 delay = max(min(retry_after, RETRY_AFTER_CAP_SECONDS), FAST_BACKOFF_CAP_SECONDS)
             return RetryPlan(Disposition.SLOW, delay, f"WebSocket handshake rejected with HTTP {exc.status}")
@@ -271,7 +278,7 @@ class OutageLog:
             else:
                 self.repeated_unexpected += 1
 
-        delay = f"{plan.delay:.0f}s" if plan.delay is not None else ""
+        delay_text = f"{plan.delay:.0f}s" if plan.delay is not None else ""
         match plan.disposition:
             case Disposition.PARK:
                 self.logger.critical(
@@ -281,7 +288,7 @@ class OutageLog:
                 )
             case Disposition.SLOW | Disposition.AUTH_RETRY:
                 self.logger.error(
-                    "Cannot connect to Home Assistant at %s: %s; retrying in %s", self.url, plan.cause, delay
+                    "Cannot connect to Home Assistant at %s: %s; retrying in %s", self.url, plan.cause, delay_text
                 )
             case Disposition.FAST if first_in_episode and not has_ever_connected:
                 self.logger.error(
@@ -290,7 +297,9 @@ class OutageLog:
             case Disposition.FAST if first_in_episode:
                 self.logger.warning("Lost connection to Home Assistant at %s: %s; reconnecting", self.url, plan.cause)
             case Disposition.FAST:
-                self.logger.debug("Connection attempt %d failed: %s; retrying in %s", self.attempts, plan.cause, delay)
+                self.logger.debug(
+                    "Connection attempt %d failed: %s; retrying in %s", self.attempts, plan.cause, delay_text
+                )
 
         self.maybe_summarize(now, has_ever_connected=has_ever_connected)
 

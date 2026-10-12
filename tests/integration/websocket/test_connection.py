@@ -299,7 +299,7 @@ async def test_on_initialize_marks_ready_unconditionally(websocket_service: Webs
     """on_initialize() marks the service lifecycle-ready regardless of HA reachability.
 
     Every other test in this file simulates readiness via a direct mark_ready() call;
-    this test exercises the actual method the task introduced so a regression that drops
+    this test calls on_initialize() itself, so a regression that drops
     or conditions the mark_ready() call inside on_initialize() is caught here.
     """
     assert not websocket_service.is_ready()
