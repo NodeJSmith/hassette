@@ -156,8 +156,7 @@ class Bus(Resource):
         self._error_handler: BusErrorHandlerType | None = None
         self.sync = self.add_child(BusSyncFacade, bus=self)
 
-        # Registry of pending `wait_for` futures, keyed by the underlying listener's db_id.
-        # Populated in wait_for(), consumed/cancelled in _on_listener_removed().
+        # Pending `wait_for` futures keyed by listener db_id: filled in wait_for(), cancelled in _on_listener_removed().
         self._wait_for_futures: dict[int, asyncio.Future[Event[Any]]] = {}
 
         # Set during on_shutdown()'s remove_all_listeners() so _on_listener_removed logs one summary line instead of
@@ -1761,12 +1760,12 @@ class Bus(Resource):
             subscription.cancel()
             raise RuntimeError("listener db_id was None after registration — listener has been cancelled")
         self._wait_for_futures[db_id] = fut
+        self.bus_service.wait_for_started()
 
         if len(self._wait_for_futures) == WAIT_FOR_PENDING_WARNING_THRESHOLD:
             self.logger.warning(
-                "Bus has %d pending wait_for futures (app_key=%s, instance=%s) — this may indicate a leak "
-                "(e.g. a retry loop that never lets prior waits resolve or time out). "
-                "Note: this count is per-Bus instance, not process-wide",
+                "Bus has %d pending wait_for futures (app_key=%s, instance=%s) — this may indicate a leak (e.g. a retry"
+                " loop that never lets prior waits resolve or time out). Per-Bus count; BusService warns on the total",
                 len(self._wait_for_futures),
                 subscription.listener.identity.app_key,
                 subscription.listener.identity.instance_index,
@@ -1782,6 +1781,7 @@ class Bus(Resource):
             return event
         finally:
             self._wait_for_futures.pop(db_id, None)
+            self.bus_service.wait_for_finished()
             if not subscription.listener.is_cancelled:
                 subscription.cancel()
 

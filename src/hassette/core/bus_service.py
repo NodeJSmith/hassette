@@ -95,6 +95,10 @@ class BusService(Service):
         )
         self._last_saturation_warn_ts: float = 0.0
 
+        # Pending `Bus.wait_for` calls across every Bus; one awaited inside a handler holds a dispatch slot.
+        self.pending_wait_for_count: int = 0
+        self._wait_for_warning_threshold = max(1, hassette.config.lifecycle.max_concurrent_dispatches * 4 // 5)
+
         self._event_filter = EventFilter(
             excluded_domains=hassette.config.bus_excluded_domains,
             excluded_entities=hassette.config.bus_excluded_entities,
@@ -172,6 +176,21 @@ class BusService(Service):
             "Raise lifecycle.max_concurrent_dispatches or speed up slow handlers.",
             self.hassette.config.lifecycle.max_concurrent_dispatches,
         )
+
+    def wait_for_started(self) -> None:
+        """Count a pending `Bus.wait_for`, warning once the process-wide total nears the dispatch ceiling."""
+        self.pending_wait_for_count += 1
+        if self.pending_wait_for_count == self._wait_for_warning_threshold:
+            self.logger.warning(
+                "%d wait_for calls pending across all apps (max_concurrent_dispatches=%d) — this may indicate a leak; "
+                "each wait_for awaited inside an event handler holds a dispatch slot until it resolves or times out",
+                self.pending_wait_for_count,
+                self.hassette.config.lifecycle.max_concurrent_dispatches,
+            )
+
+    def wait_for_finished(self) -> None:
+        """Release the count taken by `wait_for_started`."""
+        self.pending_wait_for_count -= 1
 
     async def add_listener(self, listener: "Listener") -> int:
         """Add a listener to the bus.
