@@ -26,6 +26,12 @@ if typing.TYPE_CHECKING:
     from hassette.core.command_executor import CommandExecutor
     from hassette.scheduler.classes import Job
 
+MAX_SLEEP_SECONDS = 30.0
+"""Upper bound on one scheduler sleep, used when no jobs are queued or the next job is far off.
+
+Adding or removing a job wakes the loop immediately, so this only bounds how long the loop goes
+without re-reading the wall clock (e.g. after a system clock change)."""
+
 
 class SchedulerService(SchedulerDispatchMixin, Service):
     """Service that manages scheduled jobs."""
@@ -56,6 +62,10 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     a ``db_id`` with a freshly re-registered live job (the upsert reuses the natural-key row).
     """
 
+    @property
+    def config_log_level(self) -> LogLevel:
+        return self.hassette.config.logging.scheduler_service
+
     def __init__(self, hassette: "Hassette", *, executor: "CommandExecutor", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._executor = executor
@@ -64,22 +74,6 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         self._exit_event = asyncio.Event()
         self._removal_callbacks = {}
         self._jobs_by_id = {}
-
-    @property
-    def min_delay(self) -> float:
-        return self.hassette.config.scheduler.min_delay_seconds
-
-    @property
-    def max_delay(self) -> float:
-        return self.hassette.config.scheduler.max_delay_seconds
-
-    @property
-    def default_delay(self) -> float:
-        return self.hassette.config.scheduler.default_delay_seconds
-
-    @property
-    def config_log_level(self) -> LogLevel:
-        return self.hassette.config.logging.scheduler_service
 
     async def before_initialize(self) -> None:
         await self.hassette.ready_event.wait()
@@ -142,7 +136,7 @@ class SchedulerService(SchedulerDispatchMixin, Service):
 
         Args:
             next_run_time: Pre-fetched next run time to avoid an extra lock acquisition.
-                If None, uses the default delay.
+                If None, sleeps for ``MAX_SLEEP_SECONDS``.
         """
         try:
             timeout = self.calculate_sleep_time(next_run_time).total("seconds")
@@ -159,16 +153,17 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     def calculate_sleep_time(self, next_run_time: ZonedDateTime | None) -> TimeDelta:
         """Calculate the time to sleep until the next job is due.
 
+        Sleeps exactly until ``next_run_time`` (never negative), capped at ``MAX_SLEEP_SECONDS``.
+
         Args:
             next_run_time: The next scheduled run time, or None if no jobs are queued.
         """
-        if next_run_time is not None:
-            self.logger.debug("Next job scheduled at %s", next_run_time)
-            delay = max((next_run_time - date_utils.now()).total("seconds"), self.min_delay)
+        if next_run_time is None:
+            delay = MAX_SLEEP_SECONDS
         else:
-            delay = self.default_delay
-
-        delay = min(delay, self.max_delay)
+            self.logger.debug("Next job scheduled at %s", next_run_time)
+            until_due = max((next_run_time - date_utils.now()).total("seconds"), 0.0)
+            delay = min(until_due, MAX_SLEEP_SECONDS)
         self.logger.debug("Scheduler sleeping for %s seconds", delay)
 
         return TimeDelta(seconds=delay)

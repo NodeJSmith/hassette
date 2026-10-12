@@ -182,11 +182,9 @@ Apps that fetch external data or open slow connections in `on_initialize` are th
 
 ## Scheduler Cadence
 
-The scheduler checks for due jobs on a sleep-wake loop. It sleeps until the next due job, bounded between `scheduler.min_delay_seconds` (default 1) and `scheduler.max_delay_seconds` (default 30), and sleeps `scheduler.default_delay_seconds` (default 15) when no jobs are queued.
+The scheduler checks for due jobs on a sleep-wake loop. It sleeps until the next due job, waking at least every 30 seconds to re-check the queue. Adding or removing a job wakes it immediately. The sleep cadence is not configurable.
 
 A job that fires more than `scheduler.behind_schedule_threshold_seconds` (default 5) after its scheduled time logs a "behind schedule" WARNING. That warning means too many handlers are running at once or the host is overloaded.
-
-These bounds do not affect timing accuracy for already-queued jobs — only how often the loop re-checks. Lowering `max_delay_seconds` only matters when a newly registered job needs to start within 30 seconds of registration.
 
 ## Database Degraded Mode
 

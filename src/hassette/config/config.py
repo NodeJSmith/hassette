@@ -142,7 +142,7 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """App directory, auto-detection, and manifest settings."""
 
     scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
-    """Scheduler delay, threshold, and job-timeout settings."""
+    """Scheduler threshold and job-timeout settings."""
 
     file_watcher: FileWatcherConfig = Field(default_factory=FileWatcherConfig)
     """File watcher debounce, step, and enable/disable settings."""

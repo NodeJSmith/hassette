@@ -134,7 +134,6 @@ def db_hassette(premigrated_db_path: Path, sync_executor: SyncExecutor) -> Async
             "max_size_mb": DB_HASSETTE_DATABASE_MAX_SIZE_MB,
         },
         lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
-        scheduler={"min_delay_seconds": 0.1, "max_delay_seconds": 60.0, "default_delay_seconds": 1.0},
     )
     # _create_task_bucket reads hassette.sync_executor when wiring every Resource built
     # from this mock (CommandExecutor, BusService, SchedulerService) — wire the real

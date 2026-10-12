@@ -265,9 +265,6 @@ class TestSchedulerConfig:
     def test_defaults(self):
         """SchedulerConfig constructs with all defaults."""
         cfg = SchedulerConfig()
-        assert cfg.min_delay_seconds == 1
-        assert cfg.max_delay_seconds == 30
-        assert cfg.default_delay_seconds == 15
         assert cfg.behind_schedule_threshold_seconds == 5
         assert cfg.job_timeout_seconds == 600.0
 

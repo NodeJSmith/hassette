@@ -18,11 +18,6 @@ connection_timeout_seconds = 5
 total_timeout_seconds = 40
 heartbeat_interval_seconds = 30
 
-[hassette.scheduler]
-min_delay_seconds = 1
-max_delay_seconds = 30
-default_delay_seconds = 15
-
 [hassette.file_watcher]
 debounce_milliseconds = 3000
 step_milliseconds = 500

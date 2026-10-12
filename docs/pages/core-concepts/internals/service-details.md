@@ -131,9 +131,9 @@ flowchart TD
 
 1. Calls `_ScheduledJobQueue.pop_due_and_peek_next(now)`: pops all jobs whose dispatch time (`fire_at`) is at or before `now` and returns the next scheduled time.
 2. Spawns a `TaskBucket` task for each due job via [`CommandExecutor`][hassette.core.command_executor.CommandExecutor].
-3. Sleeps until the next job's `fire_at` time, clamped between `min_delay` and `max_delay`.
+3. Sleeps until the next job's `fire_at` time, capped at `MAX_SLEEP_SECONDS`.
 
-When no jobs are queued, the loop sleeps for `default_delay` seconds. The `kick()` method interrupts the sleep immediately. It fires whenever a job is enqueued and when a queued job is removed, so schedule changes are noticed without waiting for the previous sleep target.
+When no jobs are queued, the loop sleeps for `MAX_SLEEP_SECONDS`. The `kick()` method interrupts the sleep immediately. It fires whenever a job is enqueued or a queued job is removed. The loop then sees schedule changes without waiting out the previous sleep.
 
 ### Trigger-to-Job Translation
 
