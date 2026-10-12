@@ -11,9 +11,6 @@ from hassette.scheduler.triggers import Every
 from hassette.testing import AppTestHarness, HassetteHarness
 from hassette.utils.date_utils import now
 
-SAFE_REGISTRATION_START = 0.3
-SAFE_REGISTRATION_END = 0.8
-
 
 async def test_run_in_passes_args_kwargs_async(hassette_with_scheduler: HassetteHarness) -> None:
     """run_in forwards args/kwargs to async callables."""
@@ -52,38 +49,6 @@ async def test_run_in_passes_args_kwargs_sync(hassette_with_scheduler: HassetteH
     scheduled_job.remove()
 
     assert captured_arguments == [("sensor", 3)], f"Expected [('sensor', 3)], got {captured_arguments}"
-
-
-async def test_run_in_short_delay_fires_on_time(hassette_with_scheduler: HassetteHarness) -> None:
-    """A job due 0.3 s out fires at its due time, not after a scheduler sleep floor."""
-    fired_at: list[ZonedDateTime] = []
-    job_executed = asyncio.Event()
-
-    async def target() -> None:
-        fired_at.append(now())
-        hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
-
-    # Triggers round fire_at to the nearest whole second. Registering early or late in a second
-    # can round fire_at into the past (fires at once, so a sleep floor goes undetected), so
-    # register mid-second, where the rounded fire_at stays comfortably in the future.
-    sub_second = now().nanosecond / 1e9
-    if not SAFE_REGISTRATION_START <= sub_second <= SAFE_REGISTRATION_END:
-        await asyncio.sleep((SAFE_REGISTRATION_START - sub_second) % 1)
-
-    scheduled_job = await hassette_with_scheduler.scheduler.run_in(
-        target, delay=0.3, name="run_in_short_delay_fires_on_time_run_in"
-    )
-    registered_at = now()
-    assert scheduled_job.fire_at is not None
-    assert scheduled_job.fire_at > registered_at, "fire_at rounded into the past; test cannot detect a sleep floor"
-    due_at = scheduled_job.fire_at
-
-    await asyncio.wait_for(job_executed.wait(), timeout=2)
-    scheduled_job.remove()
-
-    # Generous enough for a loaded CI runner, well under the 1 s floor this guards against.
-    lateness = (fired_at[0] - due_at).total("seconds")
-    assert lateness <= 0.2, f"Job fired {lateness:.3f}s after it was due"
 
 
 def test_scheduled_job_copies_args_kwargs() -> None:

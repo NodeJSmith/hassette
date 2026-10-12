@@ -57,8 +57,9 @@ def test_config_page_shows_scheduler_section(page: Page, base_url: str) -> None:
     """Scheduler group section is present."""
     page.goto(base_url + "/config")
     page.wait_for_load_state("networkidle")
-    expect(page.locator("[data-testid='config-section-scheduler']")).to_be_visible()
-    expect(page.locator("[data-testid='config-section-scheduler']")).to_contain_text("Min Delay Seconds")
+    section = page.locator("[data-testid='config-section-scheduler']")
+    expect(section).to_be_visible()
+    expect(section).to_contain_text("Behind Schedule Threshold Seconds")
 
 
 def test_config_page_shows_lifecycle_section(page: Page, base_url: str) -> None:
