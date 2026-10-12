@@ -1,19 +1,32 @@
-"""Decide which npm steps bring the built SPA up to date with the frontend sources.
+"""Decide which npm steps bring the built SPA up to date with the frontend sources, and run them.
 
 Shared by the ``e2e`` nox session and e2e's ``ensure_spa_built`` fixture, so local e2e runs against the
 current frontend (and the build's absolute-path check in ``frontend/no-absolute-paths.ts`` runs on it)
-instead of reusing a build from before the last frontend change. CI always builds fresh.
+instead of reusing a build from before the last frontend change. CI always builds fresh. The steps run
+under a per-checkout file lock, so concurrent xdist workers and nox sessions build one at a time.
 
 Staleness is by mtime: a checkout that bumps mtimes causes a spurious rebuild (safe); only clock skew
 can cause a missed one.
 """
 
 import subprocess
+import tempfile
+from hashlib import sha256
 from pathlib import Path
+
+from filelock import FileLock
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIR = REPO_ROOT / "frontend"
 SPA_INDEX = REPO_ROOT / "src" / "hassette" / "web" / "static" / "spa" / "index.html"
+
+# One lock per checkout, outside the repo: pytest-xdist workers and nox sessions of a checkout all build into
+# its node_modules and static/spa directories, and Vite's emptyOutDir would delete files another build is
+# writing. Keyed on the SPA output path so separate worktrees don't serialize against each other.
+_CHECKOUT_KEY = sha256(str(SPA_INDEX).encode()).hexdigest()[:12]
+BUILD_LOCK_PATH = Path(tempfile.gettempdir()) / f"hassette-spa-build-{_CHECKOUT_KEY}.lock"
+# A cold `npm ci` plus the Vite build can take several minutes; waiters only need to outlast one build.
+BUILD_LOCK_TIMEOUT_SECONDS = 30 * 60
 
 _SOURCE_DIRS = ("src", "public")
 
@@ -47,11 +60,28 @@ def spa_build_steps(frontend_dir: Path = FRONTEND_DIR, spa_index: Path = SPA_IND
     return steps
 
 
+def build_spa_if_stale(
+    frontend_dir: Path = FRONTEND_DIR,
+    spa_index: Path = SPA_INDEX,
+    lock_path: Path = BUILD_LOCK_PATH,
+    lock_timeout: float = BUILD_LOCK_TIMEOUT_SECONDS,
+) -> list[list[str]]:
+    """Run whichever steps the SPA needs, serialized across processes; return the steps that ran.
+
+    The steps are computed after the lock is acquired, so a caller that waited on another build finds the
+    SPA already current and runs nothing.
+    """
+    with FileLock(lock_path, timeout=lock_timeout):
+        steps = spa_build_steps(frontend_dir, spa_index)
+        for step in steps:
+            print("+", " ".join(step), flush=True)
+            subprocess.run(step, check=True)
+    return steps
+
+
 def main() -> int:
-    """Run whichever steps the SPA needs. The ``e2e`` nox session runs this file as a script."""
-    for step in spa_build_steps():
-        print("+", " ".join(step), flush=True)
-        subprocess.run(step, check=True)
+    """Bring the SPA up to date. The ``e2e`` nox session runs this file as a script."""
+    build_spa_if_stale()
     return 0
 
 

@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import shutil
-import subprocess
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -14,7 +13,7 @@ from unittest.mock import MagicMock
 import pytest
 from hassette_wire import QuerySourceTier
 from playwright.sync_api import Locator, Page, expect
-from spa_build import FRONTEND_DIR, SPA_INDEX, spa_build_steps
+from spa_build import FRONTEND_DIR, SPA_INDEX, build_spa_if_stale, spa_build_steps
 
 from hassette.web.app import create_fastapi_app
 from tests.e2e.mock_fixtures import (
@@ -218,13 +217,15 @@ def ensure_spa_built():
     """Build the frontend SPA if the build output is missing or older than the frontend sources."""
     if not (FRONTEND_DIR / "package.json").exists():
         pytest.skip("frontend/ directory not found — cannot build SPA for e2e tests")
-    steps = spa_build_steps()
-    if not steps:
+    # Unlocked precheck, only to return early and to skip (rather than fail) when npm is missing;
+    # build_spa_if_stale recomputes the steps under the lock.
+    if not spa_build_steps():
         return
     if not shutil.which("npm"):
         pytest.skip("npm not found — cannot build SPA for e2e tests")
-    for step in steps:
-        subprocess.run(step, check=True)
+    # Each xdist worker has its own session fixture; the lock makes them build one at a time, and the
+    # late ones find the SPA fresh once they hold it.
+    build_spa_if_stale()
     if not SPA_INDEX.exists():
         pytest.fail("Frontend build completed but spa/index.html not found")
 

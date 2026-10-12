@@ -17,7 +17,7 @@ uv run pytest -m e2e --headed                     # debug with a visible browser
 uv run pytest -m e2e --headed --tracing on -k test_sidebar_navigation
 ```
 
-**SPA build:** `ensure_spa_built()` in `conftest.py` and the `e2e` nox session rebuild the frontend when `spa/index.html` is missing or older than any frontend source (`tools/frontend/spa_build.py`), so local runs exercise the current UI.
+**SPA build:** `ensure_spa_built()` in `conftest.py` and the `e2e` nox session rebuild the frontend when `spa/index.html` is missing or older than any frontend source (`tools/frontend/spa_build.py`), so local runs exercise the current UI. Builds are serialized across xdist workers and nox sessions by a per-checkout file lock in the temp dir.
 
 **Ingress prefix:** `test_ingress_prefix.py` runs the UI behind `tests/support/ingress_proxy.py`, an HA-ingress-shaped aiohttp proxy that 404s anything outside the prefix. A frontend URL built from an absolute path fails it.
 

@@ -1,10 +1,14 @@
 """The e2e SPA staleness check (tools/frontend/spa_build.py)."""
 
 import os
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from spa_build import spa_build_steps
+import spa_build
+from filelock import FileLock
+from spa_build import build_spa_if_stale, spa_build_steps
 
 T0 = 1_700_000_000.0
 
@@ -61,3 +65,53 @@ def test_lockfile_newer_than_install(frontend: Path, tmp_path: Path) -> None:
     index = touch(tmp_path / "spa" / "index.html", T0 + 40)
     touch(frontend / "package-lock.json", T0 + 30)
     assert run_steps(frontend, index) == ["ci"]
+
+
+def fake_subprocess(ran: list[list[str]]) -> SimpleNamespace:
+    """A stand-in for the ``subprocess`` module as seen by spa_build; records each step instead of running it."""
+
+    def run(step: list[str], check: bool = False) -> None:
+        assert check, "build steps must fail loudly"
+        ran.append(step)
+
+    return SimpleNamespace(run=run)
+
+
+def test_build_runs_stale_steps(frontend: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    ran: list[list[str]] = []
+    monkeypatch.setattr(spa_build, "subprocess", fake_subprocess(ran))
+    steps = build_spa_if_stale(frontend, tmp_path / "spa" / "index.html", tmp_path / "build.lock", lock_timeout=5)
+    assert ran == steps == [["npm", "run", "build", "--prefix", str(frontend)]]
+
+
+def test_waiter_recomputes_steps_after_another_build_finishes(
+    frontend: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A caller blocked on the lock finds the SPA fresh once it gets the lock, and runs nothing."""
+    index = tmp_path / "spa" / "index.html"
+    lock_path = tmp_path / "build.lock"
+    ran: list[list[str]] = []
+    monkeypatch.setattr(spa_build, "subprocess", fake_subprocess(ran))
+    results: list[list[list[str]]] = []
+    about_to_build = threading.Event()
+    finished = threading.Event()
+
+    def waiter_body() -> None:
+        about_to_build.set()
+        results.append(build_spa_if_stale(frontend, index, lock_path, lock_timeout=10))
+        finished.set()
+
+    holder = FileLock(lock_path)
+    holder.acquire()
+    waiter = threading.Thread(target=waiter_body)
+    waiter.start()
+    assert about_to_build.wait(timeout=5)
+    assert not finished.wait(timeout=0.2), "waiter should be blocked on the held lock"
+
+    touch(index, T0 + 20)  # the holder's build finishes
+    holder.release()
+    waiter.join(timeout=10)
+
+    assert finished.is_set()
+    assert results == [[]]
+    assert ran == []

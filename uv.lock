@@ -1048,6 +1048,7 @@ docs = [
 ]
 test = [
     { name = "coverage", extra = ["toml"] },
+    { name = "filelock" },
     { name = "nox" },
     { name = "playwright" },
     { name = "pytest" },
@@ -1124,6 +1125,7 @@ docs = [
 ]
 test = [
     { name = "coverage", extras = ["toml"], specifier = ">=7.10.7" },
+    { name = "filelock", specifier = ">=3.12.0" },
     { name = "nox", specifier = ">=2025.5.1" },
     { name = "playwright", specifier = ">=1.52.0" },
     { name = "pytest", specifier = ">=8.4.0" },
