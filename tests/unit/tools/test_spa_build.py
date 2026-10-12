@@ -56,6 +56,12 @@ def test_any_top_level_file_is_a_build_input(frontend: Path, tmp_path: Path) -> 
     assert run_steps(frontend, spa_index) == ["run"]
 
 
+def test_root_pyproject_is_a_build_input(frontend: Path, tmp_path: Path) -> None:
+    spa_index = touch(tmp_path / "spa" / "index.html", T0 + 20)
+    touch(tmp_path / "pyproject.toml", T0 + 30)
+    assert run_steps(frontend, spa_index) == ["run"]
+
+
 def test_missing_node_modules_installs_then_builds(frontend: Path, tmp_path: Path) -> None:
     (frontend / "node_modules" / ".package-lock.json").unlink()
     assert run_steps(frontend, tmp_path / "spa" / "index.html") == ["ci", "run"]

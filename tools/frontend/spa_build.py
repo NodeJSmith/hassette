@@ -36,8 +36,11 @@ def newest_mtime(frontend_dir: Path) -> float:
 
     Every top-level file counts (configs, ``vite.config.ts`` and the modules it imports, the lockfile), so a
     new build input needs no list update; a top-level file the build ignores only costs a spurious rebuild.
+    The root ``pyproject.toml`` counts too: ``hassette-version.ts`` reads the release version from it at build
+    time, so a version bump alone makes the built bundle stale.
     """
     files = [p for p in frontend_dir.iterdir() if p.is_file() and not p.name.startswith(".")]
+    files.append(frontend_dir.parent / "pyproject.toml")
     for directory in _SOURCE_DIRS:
         files.extend(p for p in (frontend_dir / directory).rglob("*") if p.is_file())
     return max((p.stat().st_mtime for p in files if p.exists()), default=0.0)
