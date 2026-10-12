@@ -13,7 +13,9 @@ import pytest
 
 from hassette import context
 from hassette.config.config import HassetteConfig
+from hassette.core.app_registry import AppRegistry
 from hassette.testing import make_test_config
+from hassette.web.mappers import app_summary_from
 from tests.support.helpers import write_app
 
 
@@ -407,6 +409,28 @@ class TestValidateApps:
             config.set_validated_app_manifests()
 
         assert all(manifest.cache_shared for manifest in config.apps.manifests.values())
+
+    @pytest.mark.parametrize(
+        ("extra", "expected"),
+        [
+            pytest.param({"display_name": "Front door: cast cameras"}, "Front door: cast cameras", id="configured"),
+            pytest.param({}, "my_app", id="defaults_to_app_key"),
+        ],
+    )
+    def test_display_name_reaches_manifest_and_summary(
+        self, tmp_path: Path, app_dir: Path, extra: dict[str, str], expected: str
+    ) -> None:
+        """`display_name` in config is carried onto the manifest and the API summary; unset, it is the app key."""
+        apps = {"my_app": {"filename": "my_app.py", "class_name": "MyApp", **extra}}
+        config = self.make_config(tmp_path, directory=app_dir, apps=apps)
+
+        with context.use_hassette_config(config):
+            config.set_validated_app_manifests()
+        manifest = config.apps.manifests["my_app"]
+        summary = app_summary_from(AppRegistry().build_manifest_info("my_app", manifest))
+
+        assert manifest.display_name == expected
+        assert summary.display_name == expected
 
     def test_validate_apps_warns_on_partial_cache_shared_opt_in(
         self, tmp_path: Path, app_dir: Path, caplog: pytest.LogCaptureFixture

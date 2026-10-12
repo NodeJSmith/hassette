@@ -1154,6 +1154,10 @@
           "title": "Class Name",
           "type": "string"
         },
+        "display_name": {
+          "title": "Display Name",
+          "type": "string"
+        },
         "app_dir": {
           "anyOf": [
             {
