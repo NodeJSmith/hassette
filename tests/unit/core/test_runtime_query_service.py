@@ -591,9 +591,8 @@ class TestSystemStatus:
     def test_system_status_ws_connected_reflects_readiness(self, runtime: RuntimeQueryService) -> None:
         """ws_connected is False when websocket_service.is_connected returns False.
 
-        This covers the early-drop retry case: status is RUNNING but the connection
-        is not currently established (the WebSocket dropped post-auth and a retry is
-        in progress).
+        This covers a reconnect in progress: status is RUNNING but the connection
+        is not currently established (the WebSocket dropped and serve() is retrying).
         """
         runtime.hassette.websocket_service.is_connected = False
         status = runtime.get_system_status()

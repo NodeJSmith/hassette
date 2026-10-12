@@ -283,12 +283,6 @@ class TestInitialStateSyncBeforeApps:
         config = TestConfig(
             data_dir=tmp_path / "data",
             web_api={"run": True, "port": unused_tcp_port_factory()},
-            # Must stay well above this test's own real-time hold further down (the
-            # asyncio.wait_for(..., timeout=1) wrapped in pytest.raises(TimeoutError), just before
-            # release_connection.set() is called) or StateProxy._bootstrap_initial_sync gives up on
-            # the connection before that release fires — this raced and flaked under CI scheduling
-            # jitter at 2s. See regression-test-patterns.md's "Config-driven real-clock timeouts" pattern.
-            websocket={"total_timeout_seconds": TEST_TOTAL_TIMEOUT_SECONDS},
             apps={
                 "directory": app_dir,
                 "autodetect": False,
@@ -325,7 +319,8 @@ class TestInitialStateSyncBeforeApps:
             hassette.websocket_service.set_connection_state(ConnectionState.CONNECTED)
             await hassette.websocket_service.send_connection_established_event()
             hassette.websocket_service._connected_event.set()  # pyright: ignore[reportPrivateUsage]  # coordinator-internal
-            hassette.websocket_service._first_connection_attempt_done_event.set()  # pyright: ignore[reportPrivateUsage]  # coordinator-internal
+            # Mirrors mark_connected(): notifying connected observers starts StateProxy's initial sync.
+            await hassette.websocket_service.connected_observers.notify(1)
             await keep_ws_alive.wait()
 
         async def load_states() -> list[dict]:

@@ -12,6 +12,7 @@ from hassette.bus import Bus
 from hassette.core.api_resource import ApiResource
 from hassette.core.bus_service import BusService
 from hassette.core.scheduler_service import SchedulerService
+from hassette.core.websocket_reconnect import fast_backoff_delay
 from hassette.events import RawStateChangeEvent
 from hassette.events.metadata import get_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
@@ -20,9 +21,6 @@ from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.scheduler import Job, Scheduler
 from hassette.types import Topic
 from hassette.utils.hass_utils import extract_domain
-
-# Base of the exponential backoff used by `_compute_retry_delay` for synchronization retries.
-SYNC_RETRY_BACKOFF_BASE = 2
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -247,16 +245,8 @@ class StateProxy(Resource):
         # its own, so WebsocketService routinely reaches CONNECTED before StateProxy's own dependencies
         # (gated behind DatabaseService/SyncExecutorService) let it register its connected-observer. This
         # explicit post-registration check is what catches that race and starts sync anyway — it is not
-        # redundant with the observer callbacks.
-        websocket_service = self.hassette.websocket_service
-        timeout = websocket_service.total_timeout_seconds
-        self.logger.debug("Waiting up to %.1fs for initial WebSocket connection before state sync", timeout)
-        connected = await websocket_service.wait_initial_connection(timeout=timeout)
-        if not connected:
-            self.logger.warning("Initial WebSocket connection did not complete within %.1fs", timeout)
-            return
-
-        generation = websocket_service.get_connected_generation()
+        # redundant with the observer callbacks. Any later connection reaches the observer.
+        generation = self.hassette.websocket_service.get_connected_generation()
         if generation is not None:
             await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.CONNECTED_SIGNAL)
 
@@ -826,9 +816,7 @@ class StateProxy(Resource):
             )
 
     def _compute_retry_delay(self, attempt: int) -> float:
-        initial = self.hassette.config.websocket.connect_retry_initial_wait_seconds
-        max_wait = self.hassette.config.websocket.connect_retry_max_wait_seconds
-        return min(initial * (SYNC_RETRY_BACKOFF_BASE ** max(attempt - 1, 0)), max_wait)
+        return fast_backoff_delay(attempt)
 
     async def _run_retry_after_delay(self, *, generation: int, delay: float) -> None:
         """Sleep for ``delay``, then attempt the connected synchronization for ``generation``.

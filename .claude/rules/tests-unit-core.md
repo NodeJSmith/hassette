@@ -39,6 +39,7 @@ to keep its generic `db` fixture name out of the directory-wide namespace.
 - `set_registry_apps(registry, apps)` — configures a `mock_registry`'s `__contains__`, `app_keys()`, `get_running_apps()`, and `get()` from an `apps`-shaped dict (`dict[str, dict[int, App]]`); use instead of assigning `mock_registry.apps = ...` directly (that attribute no longer exists on the real `AppRegistry`)
 - `make_manifest_obj(app_key, **kw)` — `SimpleNamespace` AppManifest stand-in for `AppRegistry` tests; shared by `test_app_registry.py` and `test_app_registry_snapshot.py`
 - `make_app_instance(app_key, index=0)` — `SimpleNamespace` App stand-in for `AppRegistry` tests; shared by the same two files
+- `stub_refused_attempts(websocket_service, *, failures)` — make `run_connection` raise `ConnectionRefusedError` `failures` times, then return so `serve()` ends; returns the `AsyncMock` (assert `await_count` for the attempt total)
 - `run_cleanup(websocket_service)` — run `WebsocketService.cleanup()` with the parent `Service.cleanup` stubbed out; `cleanup_disconnected(websocket_service)` does the same after detaching `_ws`, `_session`, and `_recv_task`
 - `make_executor(**kw)` — real `CommandExecutor` with dependencies mocked out
 - `init_executor(queue_max=10)` — real `CommandExecutor` set up for write-pipeline tests (bounded queue, capacity-warning config, real `ready_event`); shared by `test_command_executor_pipeline_queue.py`, `test_command_executor_pipeline_persist.py`, `test_command_executor_pipeline_serve.py`

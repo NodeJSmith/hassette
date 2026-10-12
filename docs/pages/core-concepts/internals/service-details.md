@@ -200,11 +200,11 @@ flowchart TD
 
 ### Cache Population
 
-`StateProxy` declares `depends_on: [ApiResource, BusService, SchedulerService]`. WebSocket lifecycle readiness is decoupled from the initial Home Assistant connection, so `StateProxy` waits separately for the first connection attempt before its initial cache load.
+`StateProxy` declares `depends_on: [ApiResource, BusService, SchedulerService]`. WebSocket lifecycle readiness is decoupled from the Home Assistant connection, so `StateProxy` starts its initial cache load from the connection itself, not from its dependencies.
 
 First, `subscribe_to_events()` registers a bus subscription on `Topic.HASS_EVENT_STATE_CHANGED` at priority 100. Priority 100 means `StateProxy`'s handler updates the cache before any user handler sees the event. App handlers always observe current state.
 
-Second, a background bootstrap task waits for the first WebSocket connection, then runs a synchronization pass: it fetches all entity states via `get_states_raw()` and merges them into the `states` dict, replaying any `state_changed` events that arrived during the fetch so they are not overwritten by older data. Unless `disable_state_proxy_polling` is set, a periodic `run_every` job calls `load_cache()` at `state_proxy_poll_interval_seconds` intervals, which requests the same synchronization to recover from any missed events.
+Second, a background bootstrap task runs a synchronization pass if the WebSocket is already connected. Otherwise the connected observer `StateProxy` registered in the first step starts the pass when the connection arrives. The pass fetches all entity states via `get_states_raw()` and builds a candidate states dict from the result. It applies the `state_changed` events that arrived during the fetch on top of that candidate, so older fetched data never overwrites them. Then it replaces the `states` dict with the candidate. Unless `disable_state_proxy_polling` is set, a periodic `run_every` job calls `load_cache()` at `state_proxy_poll_interval_seconds` intervals, which requests the same synchronization to recover from any missed events.
 
 ### Lock-Free Reads
 
@@ -271,11 +271,11 @@ flowchart TD
 
 ### Authentication
 
-`HassetteConfig.token` holds a long-lived access token. `ApiResource` injects it as a `Bearer` header on every REST request. The WebSocket auth handshake sends an `auth` frame immediately after connection. Auth failures raise [`InvalidAuthError`][hassette.exceptions.InvalidAuthError], a [`FatalError`][hassette.exceptions.FatalError] subclass. The system shuts down immediately rather than retrying.
+`HassetteConfig.token` holds a long-lived access token. `ApiResource` injects it as a `Bearer` header on every REST request. The WebSocket auth handshake sends an `auth` frame immediately after connection. Every rejected token gets three retries 60 seconds apart, whether or not it ever worked. The fourth consecutive rejection parks the WebSocket in `ConnectionState.AUTH_FAILED`, and the process stays up without reconnecting. The service stays ready throughout. Its ready reason carries the connection status. See [Rejected access token](../../operating/index.md#rejected-access-token) for what the user sees.
 
 ### Connection Management
 
-`ApiResource` holds a single `aiohttp.ClientSession`. `WebsocketService` manages the WebSocket connection with tenacity retry logic (default 5 attempts with exponential jitter, configurable via `connect_retry_max_attempts`). On reconnect, `StateProxy` runs a full state synchronization; its subscription stays registered across the disconnect. Per-app `Api` instances share the same underlying connections. There is no per-app connection pool.
+`ApiResource` holds a single `aiohttp.ClientSession`. `WebsocketService.serve()` owns the WebSocket connection's only retry loop and never gives up on an unreachable HA; [Operating Hassette](../../operating/index.md#websocket-reconnection) covers its pacing. A connection counts as up (`CONNECTED`) only once HA reports, over the WebSocket, that its own startup state has reached `RUNNING`. On reconnect, `StateProxy` runs a full state synchronization; its subscription stays registered across the disconnect. Per-app `Api` instances share the same underlying connections. There is no per-app connection pool.
 
 ## Database Internals
 

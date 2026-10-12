@@ -1,8 +1,6 @@
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from yarl import URL
-
 if TYPE_CHECKING:
     from hassette.models.states import BaseState
     from hassette.resources.teardown import TeardownReport
@@ -10,7 +8,7 @@ if TYPE_CHECKING:
 __all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and wrap by hand
     "AppBlockedError", "AppBootstrapNotReleasedError", "AppPrecheckFailedError", "AuthTokenWriteError",
     "BaseUrlRequiredError", "CannotOverrideFinalError", "ConfigError", "ConnectionClosedError",
-    "ConvertedTypeDoesNotMatchError", "CouldNotFindHomeAssistantError", "CredentialResolutionError", "DependencyError",
+    "ConvertedTypeDoesNotMatchError", "CredentialResolutionError", "DependencyError",
     "DependencyInjectionError", "DependencyResolutionError", "DomainNotFoundError", "DomainRequiredError",
     "DuplicateListenerError", "EntityNotFoundError", "EntityNotInViewError", "EntityShapeError", "FailedMessageError",
     "FatalError", "HassetteBlockingIOWarning", "HassetteError", "HassetteForgottenAwaitWarning",
@@ -156,17 +154,6 @@ class SchemaVersionError(HassetteError):
     """
 
 
-class CouldNotFindHomeAssistantError(FatalError):
-    """Custom exception to indicate that the Home Assistant instance could not be found."""
-
-    def __init__(self, url: str):
-        yurl = URL(url)
-        msg = f"Could not find Home Assistant instance at {url}, ensure it is running and accessible"
-        if not yurl.explicit_port:
-            msg += " and that the port is specified if necessary"
-        super().__init__(msg)
-
-
 class RetryableConnectionClosedError(ConnectionClosedError):
     """Custom exception to indicate that the WebSocket connection was closed but can be retried."""
 
@@ -245,8 +232,13 @@ class ResponseLostError(OutcomeUnknownError, RetryableConnectionClosedError):
     """
 
 
-class InvalidAuthError(FatalError):
-    """Custom exception to indicate that the authentication token is invalid."""
+class InvalidAuthError(HassetteError):
+    """Home Assistant rejected the access token.
+
+    Not fatal: an expired or not-yet-valid token can recover, so on the WebSocket ``WebsocketService``
+    retries ``AUTH_RETRIES`` times (``hassette.core.websocket_reconnect``) and then stays up without
+    reconnecting until the process restarts.
+    """
 
 
 class AuthTokenWriteError(HassetteError):

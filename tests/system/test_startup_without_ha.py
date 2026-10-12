@@ -30,10 +30,9 @@ async def test_starts_and_serves_without_ha(tmp_path, system_app_dir) -> None:
 
     Uses ``dashboard_ready_without_apps`` rather than the default ``session_ready`` predicate:
     under ``AppBootstrapCoordinator`` (design/specs/089-issue-1484-lifecycle), app bootstrap
-    stays blocked until Home Assistant reaches external readiness, so waiting on
-    ``app_handler.has_bootstrapped()`` here would loop until the WebSocket's connect-retry
-    budget exhausts and the service crashes fatally (``CouldNotFindHomeAssistantError`` is a
-    ``FatalError``).
+    stays blocked until Home Assistant reaches external readiness, which never happens here,
+    so waiting on ``app_handler.has_bootstrapped()`` would wait forever while the WebSocket
+    keeps retrying.
     """
     config, base_url = make_web_system_config(UNREACHABLE_HA_URL, tmp_path)
     config = config.model_copy(deep=True)

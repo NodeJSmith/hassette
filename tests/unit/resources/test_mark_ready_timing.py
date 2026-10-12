@@ -86,7 +86,7 @@ MARK_READY_HOOKS: dict[type, tuple[str, ...]] = {
     FileWatcherService: ("on_initialize", "serve"),
     WebApiService: ("on_initialize",),
     WebUiWatcherService: ("on_initialize", "serve"),
-    WebsocketService: ("on_initialize", "start_recv_and_subscribe"),
+    WebsocketService: ("on_initialize",),
 }
 
 # Resource subclasses that never call mark_ready(self), and who marks them ready instead. Matched by identity:

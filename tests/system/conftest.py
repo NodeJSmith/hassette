@@ -176,8 +176,8 @@ def session_ready(hassette: Hassette) -> bool:
     ``AppBootstrapCoordinator`` only resolves once Home Assistant reaches external readiness and
     an initial state snapshot commits. This predicate is therefore only reachable when HA is
     available — no-HA scenarios must use ``dashboard_ready_without_apps`` instead, or bootstrap
-    never completes and this loops until the WebSocket's connect-retry budget exhausts and
-    ``run_forever()`` raises a fatal error.
+    never completes and this loops until the caller's timeout, since the WebSocket retries
+    without end.
     """
     try:
         return (
@@ -225,7 +225,7 @@ async def startup_context(
         ready_check: Predicate deciding when Hassette has reached the state under test. Defaults
             to ``session_ready`` (full readiness, including app bootstrap). No-HA scenarios must
             pass ``dashboard_ready_without_apps`` — waiting on ``session_ready`` would loop until
-            the WebSocket's connect-retry budget is exhausted and ``run_forever()`` raises.
+            ``timeout``, since the WebSocket retries without end.
 
     Yields:
         The running Hassette instance.
@@ -499,8 +499,8 @@ def ws_probe(ws_url: str, hold_seconds: float = 3) -> None:
     the connection during the hold window. Uses the synchronous websockets
     client to avoid conflicts with the test's running event loop.
 
-    Defense-in-depth: production code (WebsocketService early-drop retry loop) now
-    handles post-authentication drops automatically, so system tests no longer rely
+    Defense-in-depth: production code (WebsocketService.serve()'s reconnect loop)
+    handles post-authentication drops automatically, so system tests don't rely
     on this probe as their primary stability guard. However, the probe is retained
     here because it catches the same HA startup-window flakiness at the fixture
     level — before any test starts — which reduces test noise and avoids waiting

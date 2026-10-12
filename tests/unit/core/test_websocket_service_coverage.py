@@ -2,7 +2,7 @@
 
 Targets branches not already exercised by test_ws_connection_state.py,
 test_websocket_readiness_events.py, and tests/integration/websocket/:
-cleanup() teardown branches, make_connection()'s tenacity retry wrapper,
+cleanup() teardown branches, the recv-task done callback,
 subscribe_events() payload construction, connect_ws()'s non-refused error path,
 send_json()'s send-failure redaction,
 raw_recv()'s binary/unexpected-type branches, respond_if_necessary()'s guard
@@ -19,7 +19,7 @@ from aiohttp import WSMsgType
 from aiohttp.client_exceptions import ClientConnectorError
 
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
+from hassette.exceptions import FailedMessageError, RetryableConnectionClosedError
 from hassette.testing import EventCapture
 from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types import Topic
@@ -46,7 +46,7 @@ class TestConnectWsErrorHandling:
     async def test_connect_ws_reraises_client_connector_error_without_refused_cause(
         self, websocket_service: WebsocketService
     ) -> None:
-        """connect_ws re-raises ClientConnectorError as-is when its cause is not ConnectionRefusedError."""
+        """connect_ws re-raises ClientConnectorError as-is, leaving classification to serve()'s loop."""
         fake_session = MagicMock()
         other_cause = OSError("dns lookup failed")
         connector_error = ClientConnectorError.__new__(ClientConnectorError)
@@ -143,52 +143,6 @@ class TestSendAndWaitRetryOnTimeout:
             await websocket_service.send_and_wait(type="get_states")
 
         assert websocket_service.send_json.await_count == 2
-
-
-class TestMakeConnectionRetries:
-    async def test_make_connection_retries_transient_failures_then_succeeds(
-        self, websocket_service: WebsocketService
-    ) -> None:
-        """make_connection retries connect_ws failures (not in NON_RETRYABLE) up to the configured attempts."""
-        attempts = 0
-
-        async def flaky_connect_ws(_session):
-            nonlocal attempts
-            attempts += 1
-            if attempts < 3:
-                raise RuntimeError("transient connect failure")
-
-        websocket_service.connect_ws = flaky_connect_ws
-        websocket_service.partial_cleanup = AsyncMock()
-        websocket_service.start_recv_and_subscribe = AsyncMock(return_value="recv-task-sentinel")
-
-        max_attempts = 3
-        websocket_service.hassette.config.websocket.connect_retry_max_attempts = max_attempts
-
-        result = await websocket_service.make_connection(MagicMock())
-
-        assert attempts == max_attempts, f"Expected {max_attempts} connect_ws attempts, got {attempts}"
-        assert result == "recv-task-sentinel"
-        assert websocket_service.partial_cleanup.await_count == max_attempts, (
-            "partial_cleanup runs before every attempt"
-        )
-
-    async def test_make_connection_does_not_retry_invalid_auth(self, websocket_service: WebsocketService) -> None:
-        """make_connection propagates InvalidAuthError immediately without retrying (NON_RETRYABLE)."""
-        attempts = 0
-
-        async def bad_auth_connect_ws(_session):
-            nonlocal attempts
-            attempts += 1
-            raise InvalidAuthError("token rejected")
-
-        websocket_service.connect_ws = bad_auth_connect_ws
-        websocket_service.partial_cleanup = AsyncMock()
-
-        with pytest.raises(InvalidAuthError):
-            await websocket_service.make_connection(MagicMock())
-
-        assert attempts == 1, f"Expected exactly 1 attempt for a non-retryable error, got {attempts}"
 
 
 class TestBeforeShutdown:
@@ -319,11 +273,11 @@ class TestCleanup:
 
 
 class TestRecvTaskDeathDuringObserverNotification:
-    """Regression coverage for the P1 bug: a dead recv task must be visible immediately.
+    """A dead recv task must be visible immediately, even while mark_connected() is in an observer.
 
-    `start_recv_and_subscribe()` awaits `connected_observers.notify()` before it returns, and
-    `serve()` can't notice the recv task died until it gets the task handle back from
-    `start_recv_and_subscribe()` and awaits it. If the recv task dies while a slow observer
+    `mark_connected()` awaits `connected_observers.notify()` before it returns, and `serve()`
+    can't notice the recv task died until `mark_connected()` returns and it awaits the task.
+    If the recv task dies while a slow observer
     (e.g. StateProxy's initial sync) is still running, `get_connected_generation()` must reflect
     the disconnect immediately — not only after the whole notification pass completes.
     """
@@ -349,35 +303,33 @@ class TestRecvTaskDeathDuringObserverNotification:
         websocket_service.recv_loop = failing_recv_loop  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-        # start_recv_and_subscribe transitions to CONNECTED; CONNECTING is the valid predecessor.
+        # mark_connected transitions to CONNECTED; CONNECTING is the valid predecessor.
         websocket_service._connection_state = ConnectionState.CONNECTING
 
-        start_task = asyncio.create_task(websocket_service.start_recv_and_subscribe())
+        recv_task = await websocket_service.start_recv_and_subscribe()
+        mark_connected_task = asyncio.create_task(websocket_service.mark_connected(recv_task))
 
         # Deterministic gate: wait for the observer to actually be parked, not a scheduler-tick guess.
         await asyncio.wait_for(observer_entered.wait(), timeout=1)
-        assert not start_task.done(), "start_recv_and_subscribe must still be parked in the observer"
+        assert not mark_connected_task.done(), "mark_connected must still be parked in the observer"
 
-        recv_task = websocket_service._recv_task
-        assert recv_task is not None
-
-        # Kill the recv task while the observer is still parked — the exact race from the bug report.
+        # Kill the recv task while the observer is still parked.
         fail_trigger.set()
         with pytest.raises(RetryableConnectionClosedError):
             await asyncio.wait_for(recv_task, timeout=1)
         await asyncio.sleep(0)  # let the recv task's done-callback actually run
 
         # The regression assertion: the connection must already look invalid here, even though
-        # connected_observers.notify() (and therefore start_recv_and_subscribe()) has not returned.
+        # connected_observers.notify() (and therefore mark_connected()) has not returned.
         assert websocket_service.get_connected_generation() is None, (
             "recv task death must invalidate the connection generation immediately, not only "
             "after the slow observer returns"
         )
         assert websocket_service.is_connected is False
 
-        # Let the observer (and start_recv_and_subscribe) finish so the test cleans up.
+        # Let the observer (and mark_connected) finish so the test cleans up.
         observer_may_continue.set()
-        await asyncio.wait_for(start_task, timeout=1)
+        await asyncio.wait_for(mark_connected_task, timeout=1)
 
 
 def feed_frame(service: WebsocketService, msg_type: WSMsgType, data: object) -> AsyncMock:
@@ -492,6 +444,7 @@ class TestDispatchSuppressesErrors:
         """
         sentinel = "s3cret-sentinel-value"
         logger_mock = Mock()
+        mark_websocket_service_connected(websocket_service, reason="test: events dispatch only once connected")
 
         with patch.object(websocket_service, "logger", logger_mock):
             await websocket_service.dispatch(

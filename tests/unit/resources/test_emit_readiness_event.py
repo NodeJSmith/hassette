@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 from hassette_wire import ResourceStatus
 
-from hassette.resources.lifecycle import handle_running, mark_ready
+from hassette.resources.lifecycle import handle_running, mark_ready, set_ready_reason
 from hassette.testing import EventCapture
 from tests.support.mock_hassette import make_mock_hassette
 
@@ -62,3 +62,24 @@ class TestEmitReadinessEvent:
 
         assert payload.ready is False
         assert payload.status == ResourceStatus.RUNNING
+
+
+class TestSetReadyReason:
+    """set_ready_reason replaces the reason and nothing else."""
+
+    async def test_replaces_the_reason_without_touching_ready_event_when_ready(self) -> None:
+        resource, _ = await make_resource()
+        mark_ready(resource, "first")
+
+        set_ready_reason(resource, "second")
+
+        assert resource.is_ready() is True
+        assert resource._ready_reason == "second"
+
+    async def test_replaces_the_reason_without_touching_ready_event_when_not_ready(self) -> None:
+        resource, _ = await make_resource()
+
+        set_ready_reason(resource, "waiting")
+
+        assert resource.is_ready() is False
+        assert resource._ready_reason == "waiting"

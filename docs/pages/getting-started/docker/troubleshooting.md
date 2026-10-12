@@ -35,7 +35,7 @@ A config error includes a missing token and unknown settings. If you copied sett
 HASSETTE__TOKEN=your_long_lived_token_here
 ```
 
-**No banner: Home Assistant unreachable.** Without a banner, the most common cause is a Home Assistant instance Hassette can't reach. Check these two:
+**No banner, but no connection.** An unreachable Home Assistant does not restart the container. Hassette stays up and retries in place, logging an ERROR line that starts with `Cannot reach Home Assistant` and ends with a hint to check `base_url`. Every 5 minutes after that, it logs a `still unreachable after` ERROR with the same hint. If those keep coming, check these two:
 
 **Wrong base URL.** `HASSETTE__BASE_URL` must point to Home Assistant's HTTP interface. Use `http://homeassistant:8123` when HA runs as a container on the same Docker network (for example, in the same compose file); otherwise use your HA instance's IP address. Match the scheme to the URL you use for HA in your browser — `http://` or `https://`. Using `https://` when HA serves plain HTTP causes a connection failure.
 

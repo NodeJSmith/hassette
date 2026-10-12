@@ -4,13 +4,19 @@
 
 **Token not accepted.** Set `HASSETTE__TOKEN` in your `.env` file or environment. The value must be a long-lived access token from Home Assistant's profile page. See [Authentication](getting-started/ha_token.md).
 
-**Connection refused or timeout.** Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme (`http://`) and port explicitly — `homeassistant.local` without the scheme raises [`SchemeRequiredInBaseUrlError`][hassette.exceptions.SchemeRequiredInBaseUrlError] at startup. Use `http://homeassistant.local:8123` instead.
+**Connection refused or timeout.** Hassette keeps retrying every few seconds and logs an ERROR every 5 minutes until the first connection succeeds. Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme (`http://`) and port explicitly — `homeassistant.local` without the scheme raises [`SchemeRequiredInBaseUrlError`][hassette.exceptions.SchemeRequiredInBaseUrlError] at startup. Use `http://homeassistant.local:8123` instead.
 
 **Running in Docker.** Hassette must reach Home Assistant's network. If Home Assistant runs in a separate container or on a different host, `base_url` must point to its actual address, not `127.0.0.1`. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#cant-access-the-web-ui).
 
-**Invalid token at startup.** Look for [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] in the startup log. This is fatal. Hassette will not retry. Generate a new long-lived token and update `HASSETTE__TOKEN`.
+**Invalid token.** Look for a CRITICAL "rejected the access token" line in the log. Hassette retries 3 times, 60 seconds apart, then stays up but stops connecting. The [Diagnostics page](web-ui/diagnostics.md) in the web UI shows the WebSocket service (Hassette's connection to HA) as running, with the reason "Home Assistant rejected the access token". Generate a new long-lived token, update `HASSETTE__TOKEN`, and restart Hassette. See [Rejected access token](operating/index.md#rejected-access-token).
 
-**During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ConnectionClosedError` while the WebSocket is down because it depends on an active connection. `.get_state()` returns the last-known cached value — the data may be stale, but reads do not fail. To react to connection loss, subscribe to `on_websocket_disconnected` / `on_websocket_connected` on the bus. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
+**During reconnection**, your app code keeps running. The bus, scheduler, and state manager stay active, and bus handlers resume receiving events after the reconnect with no re-registration.
+
+- `self.states` reads return the last-known cached value. The data may be stale, but reads do not fail once the cache has synchronized, and it refreshes after the reconnect.
+- `self.api.call_service()` raises `ConnectionClosedError`, since it needs the WebSocket.
+- `self.api.get_state()` is a live REST call, not a cache read, so it fails while HA is unreachable.
+
+To react to connection loss, subscribe to [`on_websocket_disconnected` / `on_websocket_connected`](core-concepts/bus/methods.md) on the bus. See [What apps see during reconnection](operating/index.md#what-apps-see-during-reconnection).
 
 ## Apps Not Loading
 
@@ -216,9 +222,7 @@ For container startup failures, dependency installation, health check failures, 
 
 ### Connection
 
-**`CouldNotFindHomeAssistantError`** Raised when Hassette cannot reach the Home Assistant WebSocket at startup. Extends [`FatalError`][hassette.exceptions.FatalError]. Hassette will not retry. Check `base_url` and confirm Home Assistant is running and accessible.
-
-**`InvalidAuthError`** The token was rejected by Home Assistant. Generate a new long-lived access token and update `HASSETTE__TOKEN`.
+**`InvalidAuthError`** Extends `HassetteError`. Home Assistant rejected the token. App code never sees it from the WebSocket. Hassette retries 3 times, 60 seconds apart. Then it stays up and stops connecting. Generate a new long-lived access token, update `HASSETTE__TOKEN`, and restart.
 
 **`BaseUrlRequiredError`** `base_url` is missing entirely. Set it in `hassette.toml`.
 
@@ -226,7 +230,7 @@ For container startup failures, dependency installation, health check failures, 
 
 **`IPV6NotSupportedError`** `base_url` contains an IPv6 address, which Hassette does not support. Use a hostname or IPv4 address instead.
 
-**[`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]** An API call was made while the WebSocket was disconnected or a service was still initializing. The WebSocket service reconnects automatically. Retry after reconnection.
+**[`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]** A state read happened before `StateProxy` finished its first synchronization, or a REST call happened before the client session was up. Both clear on their own once startup completes, so retry shortly after. Calls made while the WebSocket is disconnected raise `ConnectionClosedError` instead.
 
 **`ConnectionClosedError`** The WebSocket closed unexpectedly. Hassette handles this internally and reconnects. You only see this if you catch it explicitly.
 
@@ -280,4 +284,4 @@ For container startup failures, dependency installation, health check failures, 
 
 **[`HassetteError`][hassette.exceptions.HassetteError]** The base class for all Hassette exceptions. Catch this to handle any Hassette-raised error generically.
 
-**`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses: `CouldNotFindHomeAssistantError`, `InvalidAuthError`, `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`, `IPV6NotSupportedError`.
+**`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses include `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`, `IPV6NotSupportedError`, `ServerUrlError` (and its subclasses), `CredentialResolutionError`, and `RestartRefusedError`.

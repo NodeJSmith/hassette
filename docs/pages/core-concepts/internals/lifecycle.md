@@ -28,7 +28,7 @@ The outcome depends on three things: the exception type, how many restarts have 
 |---|---|---|---|---|
 | `BusService` | `PERMANENT` | 2 | 30 | Core event dispatch |
 | `SchedulerService` | `PERMANENT` | 2 | 30 | Core job execution |
-| `WebsocketService` | `TRANSIENT` | 5 | 300 | `startup_timeout_seconds=60` |
+| `WebsocketService` | `TRANSIENT` | 5 | 300 | `startup_timeout_seconds=60`; HA outages never reach this budget, since `serve()` [reconnects in place](../../operating/index.md#websocket-reconnection). It covers failures inside Hassette, such as a crash in message handling |
 | `DatabaseService` | `TRANSIENT` | 3 | 120 | `fatal_error_names=("SchemaVersionError",)` |
 | `WebApiService` | `TRANSIENT` | 3 | 60 | HTTP API and UI; a bind failure (port in use) raises `FatalError` |
 | `FileWatcherService` | `TEMPORARY` | 3 | 60 | Config hot-reload |
@@ -38,7 +38,7 @@ The outcome depends on three things: the exception type, how many restarts have 
 
 The budget uses a sliding window defined by two fields: `budget_intensity` (maximum restarts allowed) and `budget_period_seconds` (the window size in seconds). Timestamps older than `budget_period_seconds` are evicted before each check.
 
-When `budget.is_exhausted()` returns `True`, `ServiceWatcher` calls `handle_exhaustion()`. The budget resets on successful recovery. `record_restart()` is not called again until the service fails after being healthy.
+When `budget.is_exhausted()` returns `True`, `ServiceWatcher` calls `handle_exhaustion()`. Two mechanisms clear entries: they age out of the sliding window, and a restarted service that reaches running and ready clears them all at once. Until then, every restart attempt records another entry via `record_restart()`, so repeated failed recoveries add up toward exhaustion.
 
 Backoff between restart attempts uses exponential growth: `backoff_base_seconds * (backoff_multiplier ** (attempt - 1))`, capped at `backoff_max_seconds`. The defaults produce delays of 2 s, 4 s, 8 s, and so on up to 60 s.
 
@@ -103,7 +103,7 @@ stateDiagram-v2
 
 `RUNNING` status and readiness are separate signals. `handle_running()` sets `status = ResourceStatus.RUNNING` and emits a status event. `mark_ready()` sets a readiness `asyncio.Event` that dependents wait on. The framework runs that wait itself, before a dependent's lifecycle hooks fire. App and service code never starts the wait.
 
-A service enters `RUNNING` just before its `serve()` loop begins. `initialize()` returns while the service is still `STARTING`. A framework-spawned task then calls `handle_running()` and invokes `serve()` immediately after. A service signals readiness by calling `mark_ready()` at whatever internal point it is prepared to serve requests. `WebsocketService` calls `mark_ready()` unconditionally during `on_initialize()`, before it ever attempts a connection — lifecycle readiness is intentionally decoupled from HA connectivity so dependents aren't blocked when Home Assistant is unreachable. `BusService` calls it after the internal event stream is open.
+A service enters `RUNNING` just before its `serve()` loop begins. `initialize()` returns while the service is still `STARTING`. A framework-spawned task then calls `handle_running()` and invokes `serve()` immediately after. A service signals readiness by calling `mark_ready()` at whatever internal point it is prepared to serve requests. `WebsocketService` calls `mark_ready()` unconditionally during `on_initialize()`, before it attempts a connection. Lifecycle readiness is decoupled from HA connectivity on purpose. Dependents are never blocked when Home Assistant is unreachable. Connection events never clear readiness. The ready reason (`ready_phase`) carries the connection status instead, such as "Not connected to Home Assistant" or "Home Assistant rejected the access token". `BusService` calls it after the internal event stream is open.
 
 `depends_on` lists the resource types a service waits for before running its own `on_initialize()`. The wait is on readiness, not on `RUNNING` status. A dependent service does not proceed until all declared dependencies have called `mark_ready()`.
 
@@ -222,4 +222,4 @@ lifecycle.
 - [Architecture & Data Flow](index.md): event pipeline, service dependency graph, and component ownership
 - [Per-Service Internals](service-details.md): bus routing, scheduler dispatch, database schema, state cache, and web layer
 - [Apps — Lifecycle](../apps/lifecycle.md): the initialization and shutdown hooks an app implements
-- [Operating Hassette](../../operating/index.md#layer-3-servicewatcher-restart-budget): how the restart budget and cooldown appear in logs during WebSocket reconnection
+- [Operating Hassette](../../operating/index.md#websocket-reconnection): how the WebSocket reconnects through Home Assistant restarts without involving `ServiceWatcher`

@@ -216,11 +216,6 @@ def make_ws_hassette_stub(*, strict_lifecycle: bool = False, sealed: bool = True
             "total_timeout_seconds": TEST_TOTAL_TIMEOUT_SECONDS,
             "heartbeat_interval_seconds": 5,
             "authentication_timeout_seconds": 5,
-            "connect_retry_max_attempts": 3,
-            "connect_retry_initial_wait_seconds": 0.001,
-            "connect_retry_max_wait_seconds": 0.01,
-            "early_drop_backoff_initial_seconds": 0.001,
-            "early_drop_backoff_max_seconds": 0.01,
         },
         strict_lifecycle=strict_lifecycle,
     )

@@ -58,15 +58,6 @@ TEST_TOTAL_TIMEOUT_SECONDS = 30
 # named once instead of repeated as a bare literal across those files.
 TEST_CONFIG_TIMEOUT_SECONDS = 600.0
 
-# Early-drop retry tuning shared by tests/integration/websocket/test_reconnect.py and
-# tests/unit/core/test_ws_connection_state.py. Small backoff values keep the retry loop fast
-# and deterministic in CI. Tests that need a different value for the specific behavior under
-# test (e.g. proving retry-budget exhaustion) pass a literal instead of reusing these.
-TEST_EARLY_DROP_MAX_RETRIES = 5
-TEST_EARLY_DROP_STABLE_WINDOW_SECONDS = 30.0
-TEST_EARLY_DROP_BACKOFF_INITIAL_SECONDS = 0.001
-TEST_EARLY_DROP_BACKOFF_MAX_SECONDS = 0.01
-
 # Cached (hermetic_subclass, init_kwargs_ref) pair — avoids creating a new class per
 # make_test_config call, which would accumulate permanently in __subclasses__()
 # and Pydantic's internal model cache.

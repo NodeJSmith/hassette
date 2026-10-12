@@ -1,31 +1,27 @@
 """Connection/auth tests for WebsocketService.
 
 Covers message-id/connection-state helpers, authenticate(), raw_recv(), connect_ws(),
-and start_recv_and_subscribe(). Complements test_dispatch.py (send/dispatch), test_reconnect.py
-(disconnect/reconnect-retry), and test_subscribe_events_retry.py.
+start_recv_and_subscribe(), and mark_connected(). Complements test_dispatch.py (send/dispatch),
+test_reconnect.py (partial_cleanup), test_reconnect_loop.py (serve()'s reconnect loop), and
+test_subscribe_events_retry.py.
 """
 
 import asyncio
-from collections.abc import Coroutine
 from types import SimpleNamespace
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiohttp import WSMsgType
 from aiohttp.client_exceptions import ClientConnectorError
 
+from hassette.core.websocket_reconnect import CONNECTED_REASON, WS_MAX_MSG_SIZE
 from hassette.core.websocket_service import WebsocketService
-from hassette.exceptions import (
-    CouldNotFindHomeAssistantError,
-    FailedMessageError,
-    InvalidAuthError,
-    RetryableConnectionClosedError,
-)
+from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
 from hassette.testing import EventCapture
-from hassette.testing._ws_mocks import build_fake_ws, make_task_bucket_spawn_stub
+from hassette.testing._ws_mocks import build_fake_ws, run_connect_sequence
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
+from tests.support.websocket_mocks import stub_connect_sequence
 
 
 async def test_get_next_message_id_increments(websocket_service: WebsocketService) -> None:
@@ -141,97 +137,131 @@ async def test_connect_ws_sets_ws_and_authenticates(websocket_service: Websocket
     websocket_service.authenticate.assert_awaited_once()
 
 
-async def test_connect_ws_wraps_connection_refused(websocket_service: WebsocketService) -> None:
-    """connect_ws converts ClientConnectorError with ConnectionRefusedError cause to CouldNotFindHomeAssistantError."""
+async def test_connect_ws_raises_refusal_unchanged_and_sets_size_limit(websocket_service: WebsocketService) -> None:
+    """connect_ws lets a refusal reach serve()'s loop as-is and caps incoming messages at WS_MAX_MSG_SIZE."""
     fake_session = MagicMock()
-    cause = ConnectionRefusedError("refused")
     connector_error = ClientConnectorError.__new__(ClientConnectorError)
-    connector_error.__cause__ = cause
-
+    connector_error.__cause__ = ConnectionRefusedError("refused")
     fake_session.ws_connect = AsyncMock(side_effect=connector_error)
 
-    with pytest.raises(CouldNotFindHomeAssistantError):
+    with pytest.raises(ClientConnectorError):
         await websocket_service.connect_ws(fake_session)
 
-
-async def test_start_recv_and_subscribe_marks_ready(websocket_service: WebsocketService) -> None:
-    """start_recv_and_subscribe spawns recv, calls mark_ready, sets _connected_at, returns recv task.
-
-    Companion: test_websocket_readiness_events.py::test_mark_ready_after_connect_emits_event asserts
-    the bus-event side (ready=True emitted) of the same method.
-    """
-    fake_task = asyncio.create_task(asyncio.sleep(0))
-    websocket_service.task_bucket = MagicMock()
-
-    # Capture and discard the coroutine argument to avoid "coroutine never awaited" warning
-    spawned_coros: list[Coroutine[Any, Any, Any]] = []
-
-    def _spawn_side_effect(coro: Coroutine[Any, Any, Any], *, name: str | None = None) -> asyncio.Task[None]:  # noqa: ARG001
-        spawned_coros.append(coro)
-        return fake_task
-
-    websocket_service.task_bucket.spawn = Mock(side_effect=_spawn_side_effect)
-    websocket_service.send_connection_established_event = AsyncMock()
-    websocket_service.subscribe_events = AsyncMock(return_value=42)
-    # Stub _emit_readiness_event: this test focuses on mark_ready/subscription behavior;
-    # readiness event emission is covered by test_websocket_readiness_events.py.
-    websocket_service._emit_readiness_event = AsyncMock()
-
-    # start_recv_and_subscribe calls set_connection_state(CONNECTED).
-    # DISCONNECTED → CONNECTED is invalid; the real flow goes through CONNECTING first
-    # (set by serve() before calling make_connection). Set CONNECTING as the pre-condition.
-    websocket_service._connection_state = ConnectionState.CONNECTING
-
-    with patch("hassette.core.websocket_service.mark_ready") as mock_mark_ready:
-        result = await websocket_service.start_recv_and_subscribe()
-
-    # Close any coroutines captured to suppress ResourceWarning
-    for coro in spawned_coros:
-        coro.close()
-
-    assert result is fake_task
-    mock_mark_ready.assert_called_once_with(
-        websocket_service, reason="WebSocket connected, authenticated, and subscribed"
-    )
-    assert websocket_service._connected_at is not None
-    assert websocket_service._subscription_ids == {42}
-    assert websocket_service.connection_state == ConnectionState.CONNECTED
-    assert websocket_service.get_connected_generation() == 1
-    # Clean up the task
-    fake_task.cancel()
+    assert fake_session.ws_connect.await_args.kwargs["max_msg_size"] == WS_MAX_MSG_SIZE
 
 
-async def test_start_recv_and_subscribe_emits_connected_only_after_subscription_succeeds(
+async def test_start_recv_and_subscribe_subscribes_without_advertising_connected(
     websocket_service: WebsocketService,
 ) -> None:
-    """External readiness and the public connected signal happen after subscription confirmation."""
-    capture = EventCapture()
-    capture.install(websocket_service.hassette)
-
-    spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
-    websocket_service.task_bucket = MagicMock()
-    websocket_service.task_bucket.spawn = spawn_stub
-    websocket_service._emit_readiness_event = AsyncMock()
+    """start_recv_and_subscribe opens the send gate and subscribes; CONNECTED waits for the RUNNING gate."""
+    spawned_coros = stub_connect_sequence(websocket_service)
     websocket_service._connection_state = ConnectionState.CONNECTING
 
-    async def fake_subscribe_events() -> int:
-        assert websocket_service.is_connected is False
-        assert websocket_service.has_ever_connected is False
-        assert websocket_service._connected_event.is_set() is False
-        return 99
+    result = await websocket_service.start_recv_and_subscribe()
 
-    websocket_service.subscribe_events = AsyncMock(side_effect=fake_subscribe_events)
+    for coro in spawned_coros:
+        coro.close()
+    assert result is websocket_service._recv_task
+    assert websocket_service._subscription_ids == {42}
+    assert websocket_service._send_ready_event.is_set()
+    assert websocket_service.connection_state == ConnectionState.CONNECTING
+    assert websocket_service.get_connected_generation() is None
 
-    result_task = await websocket_service.start_recv_and_subscribe()
 
+async def test_mark_connected_reports_connected_and_publishes_connected(websocket_service: WebsocketService) -> None:
+    """mark_connected advertises external readiness: CONNECTED, generation 1, the connected reason, the public event.
+
+    Lifecycle readiness is untouched (it is set once at startup). Companion:
+    test_websocket_readiness_events.py::test_connect_emits_one_status_event_with_the_connected_reason
+    asserts the bus-event side of the same method.
+    """
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+    websocket_service._emit_readiness_event = AsyncMock()
+    websocket_service._connection_state = ConnectionState.CONNECTING
+    recv_task = asyncio.create_task(asyncio.sleep(10))
+
+    await websocket_service.mark_connected(recv_task)
+
+    recv_task.cancel()
+    assert websocket_service._ready_reason == CONNECTED_REASON
+    assert not websocket_service.ready_event.is_set()
+    assert websocket_service._connected_at is not None
     assert websocket_service.is_connected is True
     assert websocket_service.has_ever_connected is True
     assert websocket_service._connected_event.is_set() is True
     assert websocket_service.get_connected_generation() == 1
     assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
-    for coro in spawned_coros:
-        coro.close()
-    result_task.cancel()
+
+
+async def test_recv_task_dying_during_the_status_report_announces_nothing(
+    websocket_service: WebsocketService,
+) -> None:
+    """If the recv task dies while mark_connected awaits the readiness emit, no observer or app hears CONNECTED."""
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+    websocket_service._connection_state = ConnectionState.CONNECTING
+    observed: list[int] = []
+
+    async def observer(generation: int) -> None:
+        observed.append(generation)
+
+    websocket_service.connected_observers.add(observer)
+    recv_task = asyncio.create_task(asyncio.sleep(10))
+
+    async def kill_recv_task() -> None:
+        recv_task.cancel()
+        await asyncio.gather(recv_task, return_exceptions=True)
+
+    websocket_service._emit_readiness_event = kill_recv_task  # pyright: ignore[reportAttributeAccessIssue]
+
+    with pytest.raises(RetryableConnectionClosedError):
+        await websocket_service.mark_connected(recv_task)
+
+    assert observed == []
+    assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED) == []
+    assert websocket_service._observers_announced is False
+    assert websocket_service._bus_announced is False
+
+
+def started_envelope() -> dict:
+    return {"id": 1, "type": "event", "event": {"event_type": "homeassistant_started", "data": {}, "origin": "LOCAL"}}
+
+
+async def test_started_event_held_by_a_failed_attempt_is_not_dispatched_on_the_next_connection(
+    websocket_service: WebsocketService,
+) -> None:
+    """A homeassistant_started held before CONNECTED belongs to its attempt; a fresh attempt starts without it."""
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+    spawned_coros = stub_connect_sequence(websocket_service)
+    websocket_service._connection_state = ConnectionState.CONNECTING
+
+    await websocket_service.dispatch_hass_event(started_envelope())  # pyright: ignore[reportArgumentType]
+    assert websocket_service._core_started_event.is_set()
+
+    await run_connect_sequence(websocket_service, spawned_coros)
+
+    assert not [topic for topic in capture.topics if str(topic).endswith("homeassistant_started")]
+
+
+async def test_mark_connected_refuses_a_connection_whose_recv_task_already_died(
+    websocket_service: WebsocketService,
+) -> None:
+    """A drop between the RUNNING gate and mark_connected surfaces as that drop, never as CONNECTED."""
+    websocket_service._connection_state = ConnectionState.CONNECTING
+
+    async def dropped() -> None:
+        raise RetryableConnectionClosedError("peer gone", close_code=1001)
+
+    recv_task = asyncio.create_task(dropped())
+    await asyncio.gather(recv_task, return_exceptions=True)
+
+    with pytest.raises(RetryableConnectionClosedError, match="peer gone"):
+        await websocket_service.mark_connected(recv_task)
+
+    assert websocket_service.has_ever_connected is False
+    assert websocket_service.connection_state == ConnectionState.CONNECTING
 
 
 async def test_subscription_failure_before_external_readiness_leaves_history_false_and_emits_no_public_signal(
@@ -241,9 +271,7 @@ async def test_subscription_failure_before_external_readiness_leaves_history_fal
     capture = EventCapture()
     capture.install(websocket_service.hassette)
 
-    spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
-    websocket_service.task_bucket = MagicMock()
-    websocket_service.task_bucket.spawn = spawn_stub
+    spawned_coros = stub_connect_sequence(websocket_service)
     websocket_service._connection_state = ConnectionState.CONNECTING
     websocket_service.subscribe_events = AsyncMock(side_effect=FailedMessageError("subscribe failed"))
 
@@ -265,7 +293,7 @@ async def test_on_initialize_marks_ready_unconditionally(websocket_service: Webs
     """on_initialize() marks the service lifecycle-ready regardless of HA reachability.
 
     Every other test in this file simulates readiness via a direct mark_ready() call;
-    this test exercises the actual method the task introduced so a regression that drops
+    this test calls on_initialize() itself, so a regression that drops
     or conditions the mark_ready() call inside on_initialize() is caught here.
     """
     assert not websocket_service.is_ready()

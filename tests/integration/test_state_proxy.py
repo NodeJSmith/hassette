@@ -11,7 +11,7 @@ from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.lifecycle import mark_ready
 from hassette.testing import HassetteHarness, build_harness, make_full_state_change_event, make_light_state_dict
-from tests.support.mock_hassette import TEST_TOTAL_TIMEOUT_SECONDS, make_mock_hassette
+from tests.support.mock_hassette import make_mock_hassette
 from tests.support.web_mocks import configure_ready_websocket_mock
 
 # Generous bound for deterministic gate/task waits below — long enough to absorb slow CI,
@@ -191,29 +191,17 @@ async def test_pre_capability_event_during_failed_initial_sync_keeps_cold_cache_
 
 
 async def test_duplicate_startup_and_connected_signals_coalesce_one_initial_sync() -> None:
+    """The bootstrap's already-connected check and a connected signal for one generation share a sync."""
     proxy = build_state_proxy()
-    wait_entered = asyncio.Event()
-    release_wait = asyncio.Event()
-
-    async def blocked_wait_initial_connection(*, timeout: float | None = None) -> bool:
-        assert timeout == TEST_TOTAL_TIMEOUT_SECONDS
-        wait_entered.set()
-        await release_wait.wait()
-        return True
-
     snapshot_entered, release_snapshot, gated_get_states_raw = gated_get_states_raw_factory(
         result=[make_light_state_dict("light.kitchen", "on")]
     )
-
-    proxy.hassette.websocket_service.wait_initial_connection = AsyncMock(side_effect=blocked_wait_initial_connection)
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=gated_get_states_raw)
 
     await proxy.on_initialize()
-    await asyncio.wait_for(wait_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
+    await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
 
     reconnect_task = asyncio.create_task(proxy.on_reconnect())
-    await asyncio.wait_for(snapshot_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
-    release_wait.set()
     release_snapshot.set()
     await asyncio.wait_for(reconnect_task, timeout=SYNC_WAIT_TIMEOUT)
     ready = await proxy.wait_initial_state_capability(timeout=SYNC_WAIT_TIMEOUT)

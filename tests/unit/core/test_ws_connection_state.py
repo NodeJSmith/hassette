@@ -1,27 +1,36 @@
 """Unit tests for WebsocketService connection state machine.
 
-Tests for the three-state ConnectionState enum (DISCONNECTED, CONNECTING, CONNECTED),
-set_connection_state() validation, and proper state transitions in serve/connect/cleanup.
+Tests for the ConnectionState enum (DISCONNECTED, CONNECTING, CONNECTED, AUTH_FAILED),
+set_connection_state() validation, and the transitions serve() and cleanup() write.
 """
 
+import asyncio
 import logging
-import time
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
+import hassette.core.websocket_reconnect as reconnect_module
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import InvalidAuthError, InvalidLifecycleTransitionError, RetryableConnectionClosedError
-from hassette.resources.lifecycle import mark_ready
-from hassette.testing._ws_mocks import make_clean_connection_task, make_dropped_connection_task
-from hassette.testing.config import (
-    TEST_EARLY_DROP_BACKOFF_INITIAL_SECONDS,
-    TEST_EARLY_DROP_BACKOFF_MAX_SECONDS,
-    TEST_EARLY_DROP_STABLE_WINDOW_SECONDS,
-)
+from hassette.testing import wait_for
 from hassette.types.enums import ConnectionState
 
-from .conftest import cleanup_disconnected
+from .conftest import cleanup_disconnected, stub_refused_attempts
+
+ALLOWED_TRANSITIONS = {
+    (ConnectionState.DISCONNECTED, ConnectionState.CONNECTING),
+    (ConnectionState.CONNECTING, ConnectionState.CONNECTED),
+    (ConnectionState.CONNECTING, ConnectionState.AUTH_FAILED),
+    (ConnectionState.CONNECTING, ConnectionState.DISCONNECTED),
+    (ConnectionState.CONNECTED, ConnectionState.CONNECTING),
+    (ConnectionState.CONNECTED, ConnectionState.DISCONNECTED),
+    (ConnectionState.AUTH_FAILED, ConnectionState.DISCONNECTED),
+}
+"""The transition table ratified in design/specs/131-ha-restart-reconnect (D10). AUTH_FAILED has
+no edge back to CONNECTING: leaving it takes a process restart."""
+
+ALL_STATE_PAIRS = [(old, new) for old in ConnectionState for new in ConnectionState if old != new]
 
 
 class TestInitialState:
@@ -87,50 +96,20 @@ class TestConnectedGeneration:
         assert await websocket_service.wait_connected_generation(timeout=0.01) is None
 
 
-class TestWaitInitialConnection:
-    async def test_returns_true_when_connected(self, websocket_service: WebsocketService) -> None:
-        websocket_service._connection_state = ConnectionState.CONNECTING
-        websocket_service.set_connection_state(ConnectionState.CONNECTED)
-        websocket_service._connected_event.set()
+class TestTransitionTable:
+    @pytest.mark.parametrize(("old", "new"), ALL_STATE_PAIRS, ids=lambda state: state.value)
+    async def test_every_pair_matches_the_ratified_table(
+        self, websocket_service_strict: WebsocketService, old: ConnectionState, new: ConnectionState
+    ) -> None:
+        websocket_service_strict._connection_state = old
 
-        assert await websocket_service.wait_initial_connection(timeout=0.01) is True
-
-    async def test_returns_false_after_first_failed_attempt(self, websocket_service: WebsocketService) -> None:
-        websocket_service._first_connection_attempt_done_event.set()
-
-        assert await websocket_service.wait_initial_connection(timeout=0.01) is False
-
-
-class TestValidTransitionTable:
-    async def test_disconnected_to_connecting(self, websocket_service: WebsocketService) -> None:
-        """DISCONNECTED → CONNECTING is valid."""
-        websocket_service._connection_state = ConnectionState.DISCONNECTED
-        websocket_service.set_connection_state(ConnectionState.CONNECTING)
-        assert websocket_service.connection_state == ConnectionState.CONNECTING
-
-    async def test_connecting_to_connected(self, websocket_service: WebsocketService) -> None:
-        """CONNECTING → CONNECTED is valid."""
-        websocket_service._connection_state = ConnectionState.CONNECTING
-        websocket_service.set_connection_state(ConnectionState.CONNECTED)
-        assert websocket_service.connection_state == ConnectionState.CONNECTED
-
-    async def test_connecting_to_disconnected(self, websocket_service: WebsocketService) -> None:
-        """CONNECTING → DISCONNECTED is valid (non-retryable failure)."""
-        websocket_service._connection_state = ConnectionState.CONNECTING
-        websocket_service.set_connection_state(ConnectionState.DISCONNECTED)
-        assert websocket_service.connection_state == ConnectionState.DISCONNECTED
-
-    async def test_connected_to_connecting(self, websocket_service: WebsocketService) -> None:
-        """CONNECTED → CONNECTING is valid (reconnect)."""
-        websocket_service._connection_state = ConnectionState.CONNECTED
-        websocket_service.set_connection_state(ConnectionState.CONNECTING)
-        assert websocket_service.connection_state == ConnectionState.CONNECTING
-
-    async def test_connected_to_disconnected(self, websocket_service: WebsocketService) -> None:
-        """CONNECTED → DISCONNECTED is valid (clean shutdown)."""
-        websocket_service._connection_state = ConnectionState.CONNECTED
-        websocket_service.set_connection_state(ConnectionState.DISCONNECTED)
-        assert websocket_service.connection_state == ConnectionState.DISCONNECTED
+        if (old, new) in ALLOWED_TRANSITIONS:
+            websocket_service_strict.set_connection_state(new)
+            assert websocket_service_strict.connection_state == new
+        else:
+            with pytest.raises(InvalidLifecycleTransitionError):
+                websocket_service_strict.set_connection_state(new)
+            assert websocket_service_strict.connection_state == old
 
 
 class TestConnectionStateLogging:
@@ -152,7 +131,10 @@ class TestConnectionStateLogging:
             "Connected to Home Assistant at %s", websocket_service.url
         )
 
-    async def test_reconnect_logs_reconnected_with_url(self, websocket_service: WebsocketService) -> None:
+    async def test_reconnect_transition_leaves_the_recovery_line_to_the_outage_log(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        """A reconnect is reported once, by OutageLog.record_connected, with the outage's duration."""
         websocket_service._connection_state = ConnectionState.CONNECTING
         websocket_service.set_connection_state(ConnectionState.CONNECTED)
         websocket_service.set_connection_state(ConnectionState.CONNECTING)
@@ -160,20 +142,17 @@ class TestConnectionStateLogging:
         websocket_service.logger = Mock()
         websocket_service.set_connection_state(ConnectionState.CONNECTED)
 
-        websocket_service.logger.info.assert_called_once_with(
-            "Reconnected to Home Assistant at %s", websocket_service.url
-        )
+        websocket_service.logger.info.assert_not_called()
 
-    async def test_leaving_connected_logs_disconnected_with_url(self, websocket_service: WebsocketService) -> None:
+    async def test_leaving_connected_logs_nothing_at_info(self, websocket_service: WebsocketService) -> None:
+        """OutageLog reports the drop, at a level that depends on whether it was a flap (D11)."""
         websocket_service._connection_state = ConnectionState.CONNECTING
         websocket_service.set_connection_state(ConnectionState.CONNECTED)
 
         websocket_service.logger = Mock()
         websocket_service.set_connection_state(ConnectionState.CONNECTING)
 
-        websocket_service.logger.info.assert_called_once_with(
-            "Disconnected from Home Assistant at %s", websocket_service.url
-        )
+        websocket_service.logger.info.assert_not_called()
 
     async def test_failed_first_attempt_logs_nothing_at_info(self, websocket_service: WebsocketService) -> None:
         """CONNECTING → DISCONNECTED without ever connecting has no connection to report losing."""
@@ -230,135 +209,87 @@ class TestHasattrGuard:
         assert ws._connection_state == ConnectionState.CONNECTED
 
 
-class TestValidConnectSequence:
-    async def test_valid_connect_sequence(self, websocket_service: WebsocketService) -> None:
-        """DISCONNECTED → CONNECTING → CONNECTED transition sequence via serve()."""
+@pytest.fixture
+def instant_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(reconnect_module, "FAST_BACKOFF_CAP_SECONDS", 0.0)
+
+
+@pytest.mark.usefixtures("instant_backoff")
+class TestServeTransitions:
+    async def test_drop_and_reconnect_sequence(self, websocket_service: WebsocketService) -> None:
+        """CONNECTING → CONNECTED → CONNECTING → CONNECTED across a drop, inside one serve() call."""
         websocket_service.hassette.send_event = AsyncMock()
+        states = record_states(websocket_service)
+        attempts = 0
 
-        states: list[ConnectionState] = []
-        original_set = websocket_service.set_connection_state
-
-        def capture_set(new: ConnectionState) -> None:
-            original_set(new)
-            states.append(websocket_service.connection_state)
-
-        websocket_service.set_connection_state = capture_set  # pyright: ignore[reportAttributeAccessIssue]
-
-        # Stub make_connection to succeed on first attempt (clean exit)
-        async def fake_make_connection(_session):
-            # Simulate start_recv_and_subscribe setting CONNECTED and marking ready
+        async def fake_run_connection(_session) -> None:
+            nonlocal attempts
+            attempts += 1
             websocket_service.set_connection_state(ConnectionState.CONNECTED)
-            mark_ready(websocket_service, reason="test: connected")
+            if attempts == 1:
+                raise RetryableConnectionClosedError("peer gone")
 
-            return make_clean_connection_task()
-
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.run_connection = fake_run_connection  # pyright: ignore[reportAttributeAccessIssue]
 
         await websocket_service.serve()
 
-        # Must have transitioned through CONNECTING → CONNECTED
-        assert ConnectionState.CONNECTING in states
-        assert ConnectionState.CONNECTED in states
-        # CONNECTING must precede CONNECTED
-        connecting_idx = next(i for i, s in enumerate(states) if s == ConnectionState.CONNECTING)
-        connected_idx = next(i for i, s in enumerate(states) if s == ConnectionState.CONNECTED)
-        assert connecting_idx < connected_idx
+        assert states == [
+            ConnectionState.CONNECTING,
+            ConnectionState.CONNECTED,
+            ConnectionState.CONNECTING,
+            ConnectionState.CONNECTED,
+        ]
 
-
-class TestReconnectSequence:
-    async def test_reconnect_sequence(self, websocket_service: WebsocketService) -> None:
-        """CONNECTED → CONNECTING → CONNECTED on connection lost and retried."""
-        websocket_service.hassette.send_event = AsyncMock()
-
-        states: list[ConnectionState] = []
-        original_set = websocket_service.set_connection_state
-
-        def capture_set(new: ConnectionState) -> None:
-            original_set(new)
-            states.append(websocket_service.connection_state)
-
-        websocket_service.set_connection_state = capture_set  # pyright: ignore[reportAttributeAccessIssue]
-
-        call_count = 0
-
-        async def fake_make_connection(_session):
-            nonlocal call_count
-            call_count += 1
-
-            if call_count == 1:
-                # First: successful connection, then early drop
-                websocket_service.set_connection_state(ConnectionState.CONNECTED)
-                websocket_service._connected_at = time.monotonic()
-                mark_ready(websocket_service, reason="test: connected")
-
-                return make_dropped_connection_task("peer gone")
-
-            # Second: clean exit (reconnect succeeded)
-            websocket_service.set_connection_state(ConnectionState.CONNECTED)
-            mark_ready(websocket_service, reason="test: reconnected")
-
-            return make_clean_connection_task()
-
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
+    async def test_failed_attempts_stay_in_connecting_without_transitions(
+        self, websocket_service: WebsocketService
+    ) -> None:
+        """An outage of many failed attempts produces exactly one transition: the initial CONNECTING."""
+        states = record_states(websocket_service)
+        run_connection = stub_refused_attempts(websocket_service, failures=9)
 
         await websocket_service.serve()
 
-        # Expected sequence: CONNECTING (initial), CONNECTED (first connect),
-        # CONNECTING (reconnect attempt), CONNECTED (reconnect success)
-        connecting_count = states.count(ConnectionState.CONNECTING)
-        connected_count = states.count(ConnectionState.CONNECTED)
+        assert run_connection.await_count == 10
+        assert states == [ConnectionState.CONNECTING]
 
-        assert connecting_count >= 2, f"Expected at least 2 CONNECTING transitions, got {connecting_count}: {states}"
-        assert connected_count >= 2, f"Expected at least 2 CONNECTED transitions, got {connected_count}: {states}"
+    async def test_auth_rejection_parks_in_auth_failed(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A token rejected on every attempt, retries included, parks: AUTH_FAILED, and serve() keeps running."""
+        monkeypatch.setattr(reconnect_module, "AUTH_RETRY_SECONDS", 0.0)
 
-
-class TestAuthFailureDisconnects:
-    async def test_auth_failure_disconnects(self, websocket_service: WebsocketService) -> None:
-        """serve() sets DISCONNECTED when InvalidAuthError propagates (non-retryable failure)."""
-        websocket_service.hassette.send_event = AsyncMock()
-
-        async def fake_make_connection(_session):
+        async def fake_run_connection(_session) -> None:
             raise InvalidAuthError("bad token")
 
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service.run_connection = fake_run_connection  # pyright: ignore[reportAttributeAccessIssue]
+        websocket_service._emit_readiness_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
 
-        with pytest.raises(InvalidAuthError):
-            await websocket_service.serve()
+        task = asyncio.create_task(websocket_service.serve())
+        try:
+            await wait_for(
+                lambda: websocket_service.connection_state == ConnectionState.AUTH_FAILED,
+                timeout=5.0,
+                desc="parked",
+            )
+            assert not task.done()
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
-        assert websocket_service.connection_state == ConnectionState.DISCONNECTED
 
+def record_states(websocket_service: WebsocketService) -> list[ConnectionState]:
+    """Record the state after every set_connection_state() call that changed it."""
+    states: list[ConnectionState] = []
+    original_set = websocket_service.set_connection_state
 
-class TestMaxRetriesDisconnects:
-    async def test_max_retries_disconnects(self, websocket_service: WebsocketService) -> None:
-        """serve() sets DISCONNECTED when max early-drop retries are exhausted."""
-        websocket_service.hassette.send_event = AsyncMock()
+    def capture_set(new: ConnectionState) -> None:
+        before = websocket_service.connection_state
+        original_set(new)
+        if websocket_service.connection_state != before:
+            states.append(websocket_service.connection_state)
 
-        call_count = 0
-
-        async def fake_make_connection(_session):
-            nonlocal call_count
-            call_count += 1
-            websocket_service._connected_at = time.monotonic()
-            mark_ready(websocket_service, reason="test: simulating successful connection")
-
-            return make_dropped_connection_task("dropped")
-
-        websocket_service.make_connection = fake_make_connection  # pyright: ignore[reportAttributeAccessIssue]
-        websocket_service.partial_cleanup = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
-        # max_retries=1 is specific to this test (proves DISCONNECTED after budget exhaustion);
-        # the other three values match the shared defaults used across the early-drop test
-        # suite (tests/integration/websocket/test_reconnect.py).
-        ws_config = websocket_service.hassette.config.websocket
-        ws_config.early_drop_max_retries = 1
-        ws_config.early_drop_stable_window_seconds = TEST_EARLY_DROP_STABLE_WINDOW_SECONDS
-        ws_config.early_drop_backoff_initial_seconds = TEST_EARLY_DROP_BACKOFF_INITIAL_SECONDS
-        ws_config.early_drop_backoff_max_seconds = TEST_EARLY_DROP_BACKOFF_MAX_SECONDS
-
-        with pytest.raises(RetryableConnectionClosedError):
-            await websocket_service.serve()
-
-        assert websocket_service.connection_state == ConnectionState.DISCONNECTED
+    websocket_service.set_connection_state = capture_set  # pyright: ignore[reportAttributeAccessIssue]
+    return states
 
 
 class TestCleanShutdownDisconnects:

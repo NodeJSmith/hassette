@@ -52,7 +52,13 @@ from ._fixtures_telemetry import (
     telemetry_repo,
     telemetry_session_id,
 )
-from ._fixtures_websocket import cleanup_disconnected, run_cleanup, websocket_service, websocket_service_strict
+from ._fixtures_websocket import (
+    cleanup_disconnected,
+    run_cleanup,
+    stub_refused_attempts,
+    websocket_service,
+    websocket_service_strict,
+)
 
 __all__ = [
     "COOLDOWN_NEVER_REACHED_SECONDS",
@@ -95,6 +101,7 @@ __all__ = [
     "run_cleanup",
     "set_registry_apps",
     "stub_detected_changes",
+    "stub_refused_attempts",
     "telemetry_db",
     "telemetry_repo",
     "telemetry_session_id",

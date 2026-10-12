@@ -76,7 +76,8 @@ A clean operator shutdown (SIGTERM / `docker stop`) exits with code `0`.
 
 - `systemd` with `Restart=on-failure` restarts after a crash but not after a clean stop.
 - Docker with `restart: unless-stopped` restarts after a crash but not after `docker stop`.
-- An HA outage does not trigger a restart. Hassette stays up, `/api/health/live` stays 200.
+- An HA outage does not trigger a restart. Hassette stays up and reconnects on its own, `/api/health/live` stays 200.
+- A rejected Home Assistant access token does not trigger a restart either. Hassette retries 3 times, 60 seconds apart, then stays up and stops connecting, so `/api/health/live` stays green. Alert on `/api/health/ready` staying 503, or on `/api/health` staying `starting` (or `degraded`, if it had connected before), to catch it. Fix the token and restart Hassette.
 
 ## Related pages
 

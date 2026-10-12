@@ -39,3 +39,13 @@ async def cleanup_disconnected(websocket_service: WebsocketService) -> None:
     websocket_service._session = None
     websocket_service._recv_task = None
     await run_cleanup(websocket_service)
+
+
+def stub_refused_attempts(websocket_service: WebsocketService, *, failures: int) -> AsyncMock:
+    """Make ``run_connection`` raise ``ConnectionRefusedError`` ``failures`` times, then return and end ``serve()``.
+
+    Returns the stub, so a test can assert how many attempts ``serve()`` made via ``await_count``.
+    """
+    run_connection = AsyncMock(side_effect=[*(ConnectionRefusedError("refused") for _ in range(failures)), None])
+    websocket_service.run_connection = run_connection  # pyright: ignore[reportAttributeAccessIssue]
+    return run_connection
