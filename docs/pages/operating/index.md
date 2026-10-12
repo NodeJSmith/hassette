@@ -6,11 +6,11 @@ The defaults cover typical deployments — nothing here is required reading befo
 
 ## WebSocket Reconnection
 
-Hassette talks to Home Assistant over a WebSocket — a persistent connection that lets HA push events instantly instead of being polled. That connection drops whenever HA restarts, the Supervisor restarts, or the network blips. Hassette never exits because Home Assistant is unreachable. [`WebsocketService`][hassette.core.websocket_service.WebsocketService] retries in place, inside one loop, until HA answers again.
+Hassette talks to Home Assistant over a WebSocket — a persistent connection that lets HA push events instantly instead of being polled. That connection drops whenever HA restarts, the Supervisor restarts, or the network blips. Hassette never exits because Home Assistant is unreachable. [`WebsocketService`][hassette.core.websocket_service.WebsocketService], the framework component that owns the HA connection, retries in place until HA answers again. Apps never call it directly.
 
 ### How fast Hassette reconnects
 
-After a failure, the next attempt comes in about 1 second, then 2, then 4. From then on Hassette tries every 5 seconds until HA answers. Each delay varies by up to 20% so many clients don't retry in lockstep. A typical HA restart (20–60 seconds) is back within about 5 seconds of HA listening again.
+After a failure, the next attempt comes in about 1 second, then 2, then 4. From then on Hassette tries every 5 seconds until HA answers. Each delay varies randomly by up to 20% (jitter), so many clients restarting together don't all retry at the same instant. A typical HA restart (20–60 seconds) is back within about 5 seconds of HA listening again.
 
 A connection that stays up for 2 minutes resets this sequence. A connection that drops sooner continues it where it left off, so a link that keeps dropping right after connecting settles at one attempt every 5 seconds instead of hammering HA.
 
@@ -20,11 +20,11 @@ These timings are fixed. No `hassette.toml` setting changes them.
 
 Some failures repeat identically until something outside Hassette changes. Hassette retries these every 5 minutes instead of every 5 seconds, and logs an ERROR naming the cause on each attempt:
 
-- **HTTP 401, 403, 404, or 429 during the WebSocket handshake.** These come from a reverse proxy or WAF in front of HA, not from HA itself. A 429 waits for its `Retry-After` header when present, up to 30 minutes.
-- **TLS and certificate errors.** Usually an expired or self-signed certificate. See `verify_ssl` in the [configuration reference](../core-concepts/configuration/index.md).
-- **Oversized messages.** Hassette accepts WebSocket messages up to 16 MiB. A message over that limit closes the connection with code 1009. Three such closes in a row switch to the 5-minute pace. The usual cause is the full state list on a very large install (over roughly 35,000 entities).
+- **HTTP 401, 403, 404, or 429 during the WebSocket handshake.** These come from a reverse proxy or web application firewall (nginx, Cloudflare, and similar) in front of HA, not from HA itself, so they only apply to proxied setups. A 429 waits for its `Retry-After` header when present, up to 30 minutes.
+- **TLS and certificate errors.** Usually an expired or self-signed certificate. Set `verify_ssl = false` under `[hassette]` in `hassette.toml` to accept a self-signed certificate. See [Authentication](../core-concepts/configuration/index.md#authentication).
+- **Oversized messages.** Hassette accepts WebSocket messages up to 16 MiB. A message over that limit closes the connection with close code 1009 (message too big). Three such closes in a row switch to the 5-minute pace. Only very large installs hit this (over roughly 35,000 entities), because the full state list is the largest message HA sends.
 
-The slower pace keeps Hassette under fail2ban's default ban threshold, and stops a too-large state list from being serialized every few seconds. After fixing the cause upstream, the next attempt (at most 5 minutes later) connects.
+The slower pace keeps Hassette under the default ban threshold of fail2ban (a tool that blocks IP addresses after repeated failed requests), and stops a too-large state list from being serialized every few seconds. After fixing the cause upstream, the next attempt (at most 5 minutes later) connects.
 
 ### Rejected access token
 
@@ -33,15 +33,15 @@ When Home Assistant rejects the token, Hassette stays up but stops connecting:
 - **The token never worked.** Hassette stops on the first rejection. This is a configuration error.
 - **The token worked before.** Hassette retries 3 times, 60 seconds apart, then stops. These retries cover an HA host whose clock is still behind after a reboot, which makes HA reject a valid token briefly.
 
-While stopped, the Diagnostics page shows the WebSocket service as not ready with the reason "Home Assistant rejected the access token", and the log has one CRITICAL line. Each rejection also adds a "Login attempt failed" notification in Home Assistant. Create a new long-lived token, update `HASSETTE__TOKEN`, and restart Hassette.
+While stopped, the Diagnostics page shows the WebSocket service as not ready with the reason "Home Assistant rejected the access token", and the log has one CRITICAL line. Each rejection also adds a "Login attempt failed" notification in Home Assistant. Create a new long-lived token, update `HASSETTE__TOKEN` (see [Authentication](../core-concepts/configuration/index.md#authentication)), and restart the Hassette process or container.
 
 ### Waiting for Home Assistant to finish starting
 
-A freshly restarted HA accepts connections before its integrations finish loading. Hassette does not report itself connected until HA's core state reaches `RUNNING`. Until then:
+A freshly restarted HA accepts connections before its integrations finish loading. Hassette does not report itself connected until HA's own startup state, which moves from `STARTING` to `RUNNING`, reaches `RUNNING`. Until then:
 
 - Events from HA are not delivered to apps, so the burst of `unavailable` states during HA's boot never reaches your handlers.
 - Api calls that go over the WebSocket raise [`ConnectionClosedError`][hassette.exceptions.ConnectionClosedError], the same as during an outage.
-- On a cold start, apps don't initialize yet. They start against a fully loaded HA.
+- When Hassette itself is starting up, apps don't initialize yet. They start against a fully loaded HA.
 
 HA reaches `RUNNING` within seconds of accepting connections. The Diagnostics page shows the wait as "Home Assistant core state is STARTING, waiting for RUNNING".
 
@@ -61,7 +61,13 @@ The "still unreachable" summary repeats every 5 minutes. Individual attempts log
 
 The bus, scheduler, and state manager stay active during a disconnect. Subscriptions remain registered. Handlers resume without re-registration when the connection restores.
 
-[Api][hassette.api.api.Api] methods that go over the WebSocket raise [`ConnectionClosedError`][hassette.exceptions.ConnectionClosedError] while it is down. REST calls retry, then raise the underlying `aiohttp` client error once HA stays unreachable. State reads keep working: after the first sync, [`StateProxy`][hassette.core.state_proxy.StateProxy] serves the last-known (stale) states, and raises [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] only if it has never synchronized. Code that calls HA during a disconnect catches those errors (skip the work, or retry after reconnection), or subscribes to the connection events below and pauses itself while HA is unreachable.
+What each call does while HA is unreachable:
+
+- **`self.states` reads** keep working. [`StateProxy`][hassette.core.state_proxy.StateProxy], Hassette's local cache of HA states, serves the last-known (stale) values. It raises [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] only if it has never synchronized.
+- **[Api][hassette.api.api.Api] calls that go over the WebSocket**, such as `call_service`, raise [`ConnectionClosedError`][hassette.exceptions.ConnectionClosedError].
+- **Api calls that go over REST**, such as `self.api.get_state()`, retry and then raise the underlying `aiohttp` client error.
+
+Code that calls HA during a disconnect catches those errors (skip the work, or retry after reconnection), or subscribes to the connection events below and pauses itself while HA is unreachable.
 
 The bus delivers `hassette.event.websocket_disconnected` when the connection drops and `hassette.event.websocket_connected` when it restores. Apps that need to pause or resume behavior based on HA reachability subscribe to these topics in `on_initialize` via [`on()`](../core-concepts/bus/methods.md), the generic topic subscription:
 
@@ -72,7 +78,7 @@ The bus delivers `hassette.event.websocket_disconnected` when the connection dro
 Running apps keep reading the last-known states (marked stale) through an outage. Each Api call that fails while HA is down records an error in the telemetry database, so a long outage leaves a trail of failed invocations in the Handlers tab.
 
 !!! warning "`on_initialize` no longer reruns after an HA restart"
-    Hassette used to exit when HA restarted, and the process restart reran every app's `on_initialize`. It now stays up, so `on_initialize` runs once per process. An app that rebuilds HA-side state in `on_initialize` (for example, entities it creates with `set_state`, which HA forgets on restart) must redo that work in a `hassette.event.websocket_connected` handler instead. A dedicated "HA restarted" signal is tracked in [#1676](https://github.com/NodeJSmith/hassette/issues/1676).
+    `on_initialize` runs once per Hassette process, and Hassette stays up through an HA restart. Work that HA forgets on restart, such as entities an app creates with `set_state`, belongs in a `hassette.event.websocket_connected` handler like the one above, which runs on every reconnect. Earlier releases exited on an HA restart, so the process restart reran `on_initialize`; apps that relied on that need the handler. A dedicated "HA restarted" signal is tracked in [#1676](https://github.com/NodeJSmith/hassette/issues/1676).
 
 ### Health and supervisors
 

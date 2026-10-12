@@ -271,11 +271,11 @@ flowchart TD
 
 ### Authentication
 
-`HassetteConfig.token` holds a long-lived access token. `ApiResource` injects it as a `Bearer` header on every REST request. The WebSocket auth handshake sends an `auth` frame immediately after connection. A rejected token parks the WebSocket in `ConnectionState.AUTH_FAILED`: the process stays up and stops reconnecting (after three spaced retries if the token had worked before).
+`HassetteConfig.token` holds a long-lived access token. `ApiResource` injects it as a `Bearer` header on every REST request. The WebSocket auth handshake sends an `auth` frame immediately after connection. A rejected token parks the WebSocket in `ConnectionState.AUTH_FAILED`, and the process stays up without reconnecting. A token that never worked parks on the first rejection. A token that worked earlier in the process gets three retries 60 seconds apart first. See [Rejected access token](../../operating/index.md#rejected-access-token) for what the user sees.
 
 ### Connection Management
 
-`ApiResource` holds a single `aiohttp.ClientSession`. `WebsocketService.serve()` owns the WebSocket connection's only retry loop and never gives up on an unreachable HA; [Operating Hassette](../../operating/index.md#websocket-reconnection) covers its pacing. A connection counts as up (`CONNECTED`) only once HA's core state is `RUNNING`. On reconnect, `StateProxy` runs a full state synchronization; its subscription stays registered across the disconnect. Per-app `Api` instances share the same underlying connections. There is no per-app connection pool.
+`ApiResource` holds a single `aiohttp.ClientSession`. `WebsocketService.serve()` owns the WebSocket connection's only retry loop and never gives up on an unreachable HA; [Operating Hassette](../../operating/index.md#websocket-reconnection) covers its pacing. A connection counts as up (`CONNECTED`) only once HA reports, over the WebSocket, that its own startup state has reached `RUNNING`. On reconnect, `StateProxy` runs a full state synchronization; its subscription stays registered across the disconnect. Per-app `Api` instances share the same underlying connections. There is no per-app connection pool.
 
 ## Database Internals
 

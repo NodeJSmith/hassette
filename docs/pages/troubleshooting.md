@@ -8,9 +8,15 @@
 
 **Running in Docker.** Hassette must reach Home Assistant's network. If Home Assistant runs in a separate container or on a different host, `base_url` must point to its actual address, not `127.0.0.1`. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#cant-access-the-web-ui).
 
-**Invalid token.** Look for a CRITICAL "rejected the access token" line in the log. Hassette stays up but stops connecting, and the Diagnostics page shows the WebSocket service's reason as "Home Assistant rejected the access token". Generate a new long-lived token, update `HASSETTE__TOKEN`, and restart Hassette. See [Rejected access token](operating/index.md#rejected-access-token).
+**Invalid token.** Look for a CRITICAL "rejected the access token" line in the log. Hassette stays up but stops connecting, and the [Diagnostics page](web-ui/diagnostics.md) in the web UI shows the WebSocket service (Hassette's connection to HA) as not ready, with the reason "Home Assistant rejected the access token". Generate a new long-lived token, update `HASSETTE__TOKEN`, and restart Hassette. See [Rejected access token](operating/index.md#rejected-access-token).
 
-**During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ConnectionClosedError` while the WebSocket is down because it depends on an active connection. Reads through `self.states` return the last-known cached value — the data may be stale, but reads do not fail once the cache has synchronized. `self.api.get_state()` is a live REST call, not a cache read, so it fails while HA is unreachable. To react to connection loss, subscribe to `on_websocket_disconnected` / `on_websocket_connected` on the bus. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
+**During reconnection**, your app code keeps running. The bus, scheduler, and state manager stay active, and bus handlers resume receiving events after the reconnect with no re-registration.
+
+- `self.states` reads return the last-known cached value. The data may be stale, but reads do not fail once the cache has synchronized, and it refreshes after the reconnect.
+- `self.api.call_service()` raises `ConnectionClosedError`, since it needs the WebSocket.
+- `self.api.get_state()` is a live REST call, not a cache read, so it fails while HA is unreachable.
+
+To react to connection loss, subscribe to [`on_websocket_disconnected` / `on_websocket_connected`](core-concepts/bus/methods.md) on the bus. See [What apps see during reconnection](operating/index.md#what-apps-see-during-reconnection).
 
 ## Apps Not Loading
 
@@ -216,7 +222,7 @@ For container startup failures, dependency installation, health check failures, 
 
 ### Connection
 
-**`InvalidAuthError`** The token was rejected by Home Assistant. On the WebSocket, Hassette stays up and stops reconnecting instead of raising it to your code. Generate a new long-lived access token, update `HASSETTE__TOKEN`, and restart.
+**`InvalidAuthError`** The token was rejected by Home Assistant. Your code never sees it from the WebSocket: Hassette stays up and stops connecting instead. Generate a new long-lived access token, update `HASSETTE__TOKEN`, and restart.
 
 **`BaseUrlRequiredError`** `base_url` is missing entirely. Set it in `hassette.toml`.
 
