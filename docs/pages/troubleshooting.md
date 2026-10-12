@@ -10,7 +10,7 @@
 
 **Invalid token.** Look for a CRITICAL "rejected the access token" line in the log. Hassette stays up but stops connecting, and the Diagnostics page shows the WebSocket service's reason as "Home Assistant rejected the access token". Generate a new long-lived token, update `HASSETTE__TOKEN`, and restart Hassette. See [Rejected access token](operating/index.md#rejected-access-token).
 
-**During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ConnectionClosedError` while the WebSocket is down because it depends on an active connection. `.get_state()` returns the last-known cached value — the data may be stale, but reads do not fail. To react to connection loss, subscribe to `on_websocket_disconnected` / `on_websocket_connected` on the bus. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
+**During reconnection**, your app code keeps running — the bus, scheduler, and state manager remain active. `.call_service()` will raise `ConnectionClosedError` while the WebSocket is down because it depends on an active connection. Reads through `self.states` return the last-known cached value — the data may be stale, but reads do not fail once the cache has synchronized. `self.api.get_state()` is a live REST call, not a cache read, so it fails while HA is unreachable. To react to connection loss, subscribe to `on_websocket_disconnected` / `on_websocket_connected` on the bus. The cache is replaced with live data once the WebSocket reconnects. Your handlers registered via the bus will resume receiving events as soon as the WebSocket reconnects; no re-registration is needed.
 
 ## Apps Not Loading
 
@@ -278,4 +278,4 @@ For container startup failures, dependency installation, health check failures, 
 
 **[`HassetteError`][hassette.exceptions.HassetteError]** The base class for all Hassette exceptions. Catch this to handle any Hassette-raised error generically.
 
-**`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses: `InvalidAuthError`, `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`, `IPV6NotSupportedError`.
+**`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses include `InvalidAuthError`, `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`, `IPV6NotSupportedError`, `ServerUrlError` (and its subclasses), `CredentialResolutionError`, and `RestartRefusedError`.

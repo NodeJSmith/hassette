@@ -40,7 +40,7 @@ While stopped, the Diagnostics page shows the WebSocket service as not ready wit
 A freshly restarted HA accepts connections before its integrations finish loading. Hassette does not report itself connected until HA's core state reaches `RUNNING`. Until then:
 
 - Events from HA are not delivered to apps, so the burst of `unavailable` states during HA's boot never reaches your handlers.
-- Api calls are refused, the same as during an outage.
+- Api calls that go over the WebSocket raise [`ConnectionClosedError`][hassette.exceptions.ConnectionClosedError], the same as during an outage.
 - On a cold start, apps don't initialize yet. They start against a fully loaded HA.
 
 HA reaches `RUNNING` within seconds of accepting connections. The Diagnostics page shows the wait as "Home Assistant core state is STARTING, waiting for RUNNING".
@@ -61,7 +61,7 @@ The "still unreachable" summary repeats every 5 minutes. Individual attempts log
 
 The bus, scheduler, and state manager stay active during a disconnect. Subscriptions remain registered. Handlers resume without re-registration when the connection restores.
 
-[Api][hassette.api.api.Api] methods (REST calls to HA) and [`StateProxy`][hassette.core.state_proxy.StateProxy] access raise [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] while the WebSocket is down. Code that calls these during a disconnect must catch that exception (skip the work, or retry after reconnection) — or subscribe to the connection events below and pause itself while HA is unreachable.
+[Api][hassette.api.api.Api] methods that go over the WebSocket raise [`ConnectionClosedError`][hassette.exceptions.ConnectionClosedError] while it is down. REST calls retry, then raise the underlying `aiohttp` client error once HA stays unreachable. State reads keep working: after the first sync, [`StateProxy`][hassette.core.state_proxy.StateProxy] serves the last-known (stale) states, and raises [`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError] only if it has never synchronized. Code that calls HA during a disconnect catches those errors (skip the work, or retry after reconnection), or subscribes to the connection events below and pauses itself while HA is unreachable.
 
 The bus delivers `hassette.event.websocket_disconnected` when the connection drops and `hassette.event.websocket_connected` when it restores. Apps that need to pause or resume behavior based on HA reachability subscribe to these topics in `on_initialize` via [`on()`](../core-concepts/bus/methods.md), the generic topic subscription:
 
