@@ -1,7 +1,7 @@
 # Design: Stay up and reconnect through Home Assistant restarts
 
 **Date:** 2026-10-12
-**Status:** ratified
+**Status:** built
 **Mode:** sketch
 **Issues:** #2701
 
@@ -322,7 +322,7 @@ Close code 1009 is the WebSocket "Message Too Big" code (RFC 6455): aiohttp clos
 
 - [x] Implementation and tests committed
 - [x] Docs
-- [ ] Ship-time challenge
+- [x] Ship-time challenge
 
 **Calls made during the build:**
 
