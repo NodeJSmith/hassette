@@ -72,7 +72,7 @@ Events during the gap are not replayed. At reconnect, the state cache is replace
 
 Code that calls HA during a disconnect catches those errors (skip the work, or retry after reconnection), or subscribes to the connection events below and pauses itself while HA is unreachable.
 
-The bus delivers `hassette.event.websocket_disconnected` when the connection drops and `hassette.event.websocket_connected` when it restores. `websocket_connected` marks any reconnect. `homeassistant_started` marks an actual HA restart. Apps that need to pause or resume behavior based on HA reachability subscribe to these topics in `on_initialize` via [`on()`](../core-concepts/bus/methods.md), the generic topic subscription:
+The bus delivers `hassette.event.websocket_disconnected` when the connection drops and `hassette.event.websocket_connected` when it restores. `websocket_connected` marks any reconnect. `homeassistant_started` marks an actual HA restart. The two connection events alternate, starting with connected. A connection that drops while it is being announced still produces both. Apps that need to pause or resume behavior based on HA reachability subscribe to these topics in `on_initialize` via [`on()`](../core-concepts/bus/methods.md), the generic topic subscription:
 
 ```python
 --8<-- "pages/operating/snippets/ws_reconnect_events.py"

@@ -305,7 +305,7 @@ Both shorthands accept `on_error` and forward it to `on_app_state_changed`.
 
 ### `on_websocket_connected` and `on_websocket_disconnected`
 
-Fire when the Hassette WebSocket connection to Home Assistant opens or closes.
+Fire when the Hassette WebSocket connection to Home Assistant opens or closes. The two alternate, starting with connected: every `websocket_disconnected` follows its own `websocket_connected`. `websocket_connected` means a connection was established, not that it is still up. A connection that drops while Hassette is announcing it still produces both events, back to back. One that drops before the announcement starts produces neither.
 
 ```python
 --8<-- "pages/core-concepts/bus/snippets/methods/on_app_events.py:websocket"
