@@ -14,9 +14,12 @@ T0 = 1_700_000_000.0
 
 
 def touch(path: Path, mtime: float) -> Path:
+    """Create ``path`` at ``mtime``; its directory is stamped too, as adding a file does."""
+    created = [p for p in path.parents if not p.exists()]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch()
-    os.utime(path, (mtime, mtime))
+    for entry in (path, path.parent, *created):
+        os.utime(entry, (mtime, mtime))
     return path
 
 
@@ -65,6 +68,15 @@ def test_any_top_level_file_is_a_build_input(frontend: Path, tmp_path: Path) -> 
     spa_index = built_spa(tmp_path, T0 + 20)
     touch(frontend / "hassette-version.ts", T0 + 30)
     assert run_steps(frontend, spa_index) == ["run"]
+
+
+def test_deleted_source_makes_build_stale(frontend: Path, tmp_path: Path) -> None:
+    gone = touch(frontend / "public" / "old.svg", T0)
+    index = built_spa(tmp_path, T0 + 20)
+    assert run_steps(frontend, index) == []
+    gone.unlink()
+    os.utime(frontend / "public", (T0 + 30, T0 + 30))  # removing a file stamps its directory
+    assert run_steps(frontend, index) == ["run"]
 
 
 def test_root_pyproject_is_a_build_input(frontend: Path, tmp_path: Path) -> None:

@@ -42,7 +42,9 @@ def newest_mtime(frontend_dir: Path) -> float:
     files = [p for p in frontend_dir.iterdir() if p.is_file() and not p.name.startswith(".")]
     files.append(frontend_dir.parent / "pyproject.toml")
     for directory in _SOURCE_DIRS:
-        files.extend(p for p in (frontend_dir / directory).rglob("*") if p.is_file())
+        # Directories count as well as files: deleting an input updates only its parent directory's mtime.
+        files.append(frontend_dir / directory)
+        files.extend((frontend_dir / directory).rglob("*"))
     return max((p.stat().st_mtime for p in files if p.exists()), default=0.0)
 
 
