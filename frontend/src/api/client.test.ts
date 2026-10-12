@@ -95,7 +95,7 @@ describe("apiFetch", () => {
 
     await expect(apiFetch("/protected")).rejects.toThrow(ApiError);
     await expect(apiFetch("/protected")).rejects.toMatchObject({ status: 401 });
-    expect(useAppStore.getState().sessionExpired).toBe(false);
+    expect(useAppStore.getState()).toMatchObject({ sessionExpired: false });
   });
 
   it("carries the problem body's code, which tells Hassette's own 401 from anyone else's", async () => {
