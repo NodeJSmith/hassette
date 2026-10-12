@@ -24,7 +24,7 @@ Some failures repeat identically until something outside Hassette changes. Hasse
 - **A rejected TLS certificate.** The client refuses an expired certificate, or a self-signed one while `verify_ssl` is on. Other TLS errors, such as a connection reset mid-handshake, retry on the normal schedule. Set `verify_ssl = false` under `[hassette]` in `hassette.toml` to accept a self-signed certificate. See [Authentication](../core-concepts/configuration/index.md#authentication).
 - **Oversized messages.** Hassette accepts WebSocket messages up to 16 MiB. A message over that limit closes the connection with close code 1009 (message too big). Three such closes in a row switch to the 5-minute pace. Only very large installs hit this (over roughly 35,000 entities), because the full state list is the largest message HA sends.
 
-The slower pace keeps Hassette under the default ban threshold of fail2ban (a tool that blocks IP addresses after repeated failed requests), and stops a too-large state list from being serialized every few seconds. After fixing the cause upstream, the next attempt (at most 5 minutes later) connects.
+The slower pace keeps Hassette under the default ban threshold of fail2ban (a tool that blocks IP addresses after repeated failed requests), and stops a too-large state list from being serialized every few seconds. After the cause is fixed upstream, the next attempt connects. That attempt runs after the current delay: 5 minutes, or the `Retry-After` of a 429 (capped at 30 minutes).
 
 ### Rejected access token
 
@@ -81,7 +81,7 @@ The bus delivers `hassette.event.websocket_disconnected` when the connection dro
 Running apps keep reading the last-known states (marked stale) through an outage. Each Api call that fails while HA is down records an error in the telemetry database, so a long outage leaves a trail of failed invocations in the Handlers tab.
 
 !!! warning "`on_initialize` no longer reruns after an HA restart"
-    `on_initialize` runs once per Hassette process, and Hassette stays up through an HA restart. Work that HA forgets on restart, such as entities an app creates with `set_state`, belongs in a `hassette.event.websocket_connected` handler like the one above, which runs on every reconnect. Earlier releases exited on an HA restart, so the process restart reran `on_initialize`; apps that relied on that need the handler. For a signal that HA itself restarted, subscribe to `homeassistant_started`. Events missed during the gap are not replayed, so a handler that depends on seeing a transition must re-read state on reconnect.
+    `on_initialize` runs once per Hassette process, and Hassette stays up through an HA restart. Work that HA forgets on restart belongs in a `hassette.event.websocket_connected` handler like the one above. One example is an entity an app creates with `set_state`. That handler runs on every reconnect. Earlier releases exited on an HA restart, so the process restart reran `on_initialize`. Apps that relied on that need the handler. For a signal that HA itself restarted, subscribe to `homeassistant_started`. Events missed during the gap are not replayed. A handler that depends on seeing a transition must re-read state on reconnect.
 
 ### Health and supervisors
 

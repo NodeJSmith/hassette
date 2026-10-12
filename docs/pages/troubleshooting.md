@@ -222,7 +222,7 @@ For container startup failures, dependency installation, health check failures, 
 
 ### Connection
 
-**`InvalidAuthError`** Extends `HassetteError`. Home Assistant rejected the token. Your code never sees it from the WebSocket: Hassette retries 3 times, 60 seconds apart, then stays up and stops connecting. Generate a new long-lived access token, update `HASSETTE__TOKEN`, and restart.
+**`InvalidAuthError`** Extends `HassetteError`. Home Assistant rejected the token. App code never sees it from the WebSocket. Hassette retries 3 times, 60 seconds apart. Then it stays up and stops connecting. Generate a new long-lived access token, update `HASSETTE__TOKEN`, and restart.
 
 **`BaseUrlRequiredError`** `base_url` is missing entirely. Set it in `hassette.toml`.
 
@@ -230,7 +230,7 @@ For container startup failures, dependency installation, health check failures, 
 
 **`IPV6NotSupportedError`** `base_url` contains an IPv6 address, which Hassette does not support. Use a hostname or IPv4 address instead.
 
-**[`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]** An API call was made while the WebSocket was disconnected or a service was still initializing. The WebSocket service reconnects automatically. Retry after reconnection.
+**[`ResourceNotReadyError`][hassette.exceptions.ResourceNotReadyError]** A state read happened before `StateProxy` finished its first synchronization, or a REST call happened before the client session was up. Both clear on their own once startup completes, so retry shortly after. Calls made while the WebSocket is disconnected raise `ConnectionClosedError` instead.
 
 **`ConnectionClosedError`** The WebSocket closed unexpectedly. Hassette handles this internally and reconnects. You only see this if you catch it explicitly.
 

@@ -205,9 +205,10 @@ class WebsocketService(Service):
         raises InvalidLifecycleTransitionError for invalid transitions; in non-strict
         (default) mode logs WARNING. Logs every valid transition at DEBUG with previous state.
 
-        The first CONNECTED, and leaving CONNECTED, are also logged at INFO so the Home
-        Assistant connection is visible at the default log level — the first line is the one the
-        quickstart tells a new user to look for to confirm their URL and token work.
+        Only the first CONNECTED is logged at INFO here, so the Home Assistant connection is
+        visible at the default log level. That is the line the quickstart tells a new user to
+        look for to confirm their URL and token work. Reconnects and drops are logged by
+        ``OutageLog``.
 
         Args:
             new: The new connection state to transition to.
