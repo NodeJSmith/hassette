@@ -32,8 +32,7 @@
           "description": "App directory, auto-detection, and manifest settings."
         },
         "scheduler": {
-          "$ref": "#/$defs/SchedulerConfig",
-          "description": "Scheduler delay, threshold, and job-timeout settings."
+          "$ref": "#/$defs/SchedulerConfig"
         },
         "file_watcher": {
           "$ref": "#/$defs/FileWatcherConfig"

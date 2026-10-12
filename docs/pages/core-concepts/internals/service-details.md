@@ -133,7 +133,7 @@ flowchart TD
 2. Spawns a `TaskBucket` task for each due job via [`CommandExecutor`][hassette.core.command_executor.CommandExecutor].
 3. Sleeps until the next job's `fire_at` time, capped at `MAX_SLEEP_SECONDS`.
 
-When no jobs are queued, the loop sleeps for `MAX_SLEEP_SECONDS`. The `kick()` method interrupts the sleep immediately. It fires whenever a job is enqueued and when a queued job is removed, so schedule changes are noticed without waiting for the previous sleep target.
+When no jobs are queued, the loop sleeps for `MAX_SLEEP_SECONDS`. The `kick()` method interrupts the sleep immediately. It fires whenever a job is enqueued or a queued job is removed. The loop then sees schedule changes without waiting out the previous sleep.
 
 ### Trigger-to-Job Translation
 

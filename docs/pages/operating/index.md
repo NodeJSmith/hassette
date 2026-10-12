@@ -155,7 +155,7 @@ Apps that fetch external data or open slow connections in `on_initialize` are th
 
 ## Scheduler Cadence
 
-The scheduler checks for due jobs on a sleep-wake loop. It sleeps exactly until the next due job, and wakes immediately whenever a job is added or removed. The sleep cadence is not configurable.
+The scheduler checks for due jobs on a sleep-wake loop. It sleeps until the next due job, waking at least every 30 seconds to re-check the queue. Adding or removing a job wakes it immediately. The sleep cadence is not configurable.
 
 A job that fires more than `scheduler.behind_schedule_threshold_seconds` (default 5) after its scheduled time logs a "behind schedule" WARNING. That warning means too many handlers are running at once or the host is overloaded.
 
