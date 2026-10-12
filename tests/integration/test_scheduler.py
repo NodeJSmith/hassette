@@ -51,6 +51,32 @@ async def test_run_in_passes_args_kwargs_sync(hassette_with_scheduler: HassetteH
     assert captured_arguments == [("sensor", 3)], f"Expected [('sensor', 3)], got {captured_arguments}"
 
 
+async def test_run_in_short_delay_fires_on_time(hassette_with_scheduler: HassetteHarness) -> None:
+    """A job due 0.3 s out fires at its due time, not after a scheduler sleep floor."""
+    fired_at: list[ZonedDateTime] = []
+    job_executed = asyncio.Event()
+
+    async def target() -> None:
+        fired_at.append(now())
+        hassette_with_scheduler.task_bucket.post_to_loop(job_executed.set)
+
+    scheduled_job = await hassette_with_scheduler.scheduler.run_in(
+        target, delay=0.3, name="run_in_short_delay_fires_on_time_run_in"
+    )
+    registered_at = now()
+    assert scheduled_job.fire_at is not None
+    # Triggers round to whole seconds, so fire_at can land before registration finished;
+    # the job cannot fire before it is enqueued.
+    due_at = max(scheduled_job.fire_at, registered_at)
+
+    await asyncio.wait_for(job_executed.wait(), timeout=2)
+    scheduled_job.remove()
+
+    # Generous enough for a loaded CI runner, well under the 1 s floor this guards against.
+    lateness = (fired_at[0] - due_at).total("seconds")
+    assert lateness <= 0.2, f"Job fired {lateness:.3f}s after it was due"
+
+
 def test_scheduled_job_copies_args_kwargs() -> None:
     """Job stores copies so external mutations do not leak in."""
     args = [1, 2]

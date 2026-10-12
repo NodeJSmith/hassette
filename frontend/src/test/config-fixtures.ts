@@ -74,9 +74,8 @@ const MINIMAL_CONFIG_SCHEMA = {
       type: "object",
       title: "Scheduler",
       properties: {
-        min_delay_seconds: { type: "number", title: "Min Delay Seconds" },
-        max_delay_seconds: { type: "number", title: "Max Delay Seconds" },
-        default_delay_seconds: { type: "number", title: "Default Delay Seconds" },
+        behind_schedule_threshold_seconds: { type: "number", title: "Behind Schedule Threshold Seconds" },
+        job_timeout_seconds: { type: "number", title: "Job Timeout Seconds" },
       },
     },
     file_watcher: {
@@ -122,9 +121,8 @@ const DEFAULT_CONFIG_VALUES: Record<string, unknown> = {
     directory: "/config/apps",
   },
   scheduler: {
-    min_delay_seconds: 1,
-    max_delay_seconds: 30,
-    default_delay_seconds: 15,
+    behind_schedule_threshold_seconds: 5,
+    job_timeout_seconds: 600,
   },
   file_watcher: {
     watch_files: true,

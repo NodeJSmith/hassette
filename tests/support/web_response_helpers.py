@@ -149,7 +149,7 @@ def make_config_schema_response() -> ConfigSchemaResponse:
                 "app_shutdown_timeout_seconds": 10,
             },
             "apps": {"autodetect": True, "directory": "apps"},
-            "scheduler": {"min_delay_seconds": 0, "max_delay_seconds": 3600, "default_delay_seconds": 0},
+            "scheduler": {"behind_schedule_threshold_seconds": 5, "job_timeout_seconds": 600.0},
             "file_watcher": {"watch_files": True, "debounce_milliseconds": 500},
             "database": {"retention_days": 7, "max_size_mb": 500},
             "websocket": {"reconnect_delay_seconds": 5, "max_reconnect_attempts": 10},

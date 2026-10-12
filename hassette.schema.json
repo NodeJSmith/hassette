@@ -32,7 +32,8 @@
           "description": "App directory, auto-detection, and manifest settings."
         },
         "scheduler": {
-          "$ref": "#/$defs/SchedulerConfig"
+          "$ref": "#/$defs/SchedulerConfig",
+          "description": "Scheduler delay, threshold, and job-timeout settings."
         },
         "file_watcher": {
           "$ref": "#/$defs/FileWatcherConfig"
@@ -1215,47 +1216,8 @@
       "type": "object"
     },
     "SchedulerConfig": {
-      "description": "Scheduler delay, threshold, and job-timeout settings.",
+      "description": "Scheduler threshold and job-timeout settings.",
       "properties": {
-        "min_delay_seconds": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            }
-          ],
-          "default": 1,
-          "description": "Minimum delay between scheduled jobs.",
-          "title": "Min Delay Seconds"
-        },
-        "max_delay_seconds": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            }
-          ],
-          "default": 30,
-          "description": "Maximum delay between scheduled jobs.",
-          "title": "Max Delay Seconds"
-        },
-        "default_delay_seconds": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            }
-          ],
-          "default": 15,
-          "description": "Default delay between scheduled jobs.",
-          "title": "Default Delay Seconds"
-        },
         "behind_schedule_threshold_seconds": {
           "anyOf": [
             {

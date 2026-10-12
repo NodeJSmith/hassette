@@ -24,7 +24,6 @@ from hassette.config.models import (
     FileWatcherConfig,
     LifecycleConfig,
     LoggingConfig,
-    SchedulerConfig,
     WebApiConfig,
     WebSocketConfig,
 )
@@ -172,14 +171,6 @@ def build_lifecycle_config() -> LifecycleConfig:
     )
 
 
-def build_scheduler_config() -> SchedulerConfig:
-    return SchedulerConfig(
-        default_delay_seconds=1,
-        min_delay_seconds=0.1,
-        max_delay_seconds=3,
-    )
-
-
 def build_logging_config() -> LoggingConfig:
     return LoggingConfig(task_bucket="DEBUG")
 
@@ -213,7 +204,6 @@ class TestConfig(HassetteConfig):
     file_watcher: FileWatcherConfig = Field(default_factory=build_file_watcher_config)
     websocket: WebSocketConfig = Field(default_factory=build_websocket_config)
     lifecycle: LifecycleConfig = Field(default_factory=build_lifecycle_config)
-    scheduler: SchedulerConfig = Field(default_factory=build_scheduler_config)
     logging: LoggingConfig = Field(default_factory=build_logging_config)
     apps: AppsConfig = Field(default_factory=build_apps_config)
     web_api: WebApiConfig = Field(default_factory=build_web_api_config)

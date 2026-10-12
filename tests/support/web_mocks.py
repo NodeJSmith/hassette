@@ -37,9 +37,7 @@ STUB_STARTUP_TIMEOUT = 30
 STUB_APP_STARTUP_TIMEOUT = 20
 STUB_APP_SHUTDOWN_TIMEOUT = 10
 STUB_APPS_DIR = "/srv/hassette/apps"
-STUB_MIN_DELAY = 1
-STUB_MAX_DELAY = 30
-STUB_DEFAULT_DELAY = 15
+STUB_BEHIND_SCHEDULE_THRESHOLD = 5
 STUB_DEBOUNCE_MS = 3000
 STUB_CORS_ORIGINS = ("http://localhost:3000",)
 STUB_RETENTION_DAYS = 7
@@ -167,9 +165,7 @@ def create_hassette_stub(
     hassette.config.apps.autodetect = True
     hassette.config.apps.directory = STUB_APPS_DIR
     # scheduler group
-    hassette.config.scheduler.min_delay_seconds = STUB_MIN_DELAY
-    hassette.config.scheduler.max_delay_seconds = STUB_MAX_DELAY
-    hassette.config.scheduler.default_delay_seconds = STUB_DEFAULT_DELAY
+    hassette.config.scheduler.behind_schedule_threshold_seconds = STUB_BEHIND_SCHEDULE_THRESHOLD
     # file_watcher group
     hassette.config.file_watcher.watch_files = True
     hassette.config.file_watcher.debounce_milliseconds = STUB_DEBOUNCE_MS
@@ -204,11 +200,7 @@ def create_hassette_stub(
             "app_shutdown_timeout_seconds": STUB_APP_SHUTDOWN_TIMEOUT,
         },
         "apps": {"autodetect": True, "directory": STUB_APPS_DIR},
-        "scheduler": {
-            "min_delay_seconds": STUB_MIN_DELAY,
-            "max_delay_seconds": STUB_MAX_DELAY,
-            "default_delay_seconds": STUB_DEFAULT_DELAY,
-        },
+        "scheduler": {"behind_schedule_threshold_seconds": STUB_BEHIND_SCHEDULE_THRESHOLD},
         "file_watcher": {"watch_files": True, "debounce_milliseconds": STUB_DEBOUNCE_MS},
         "database": {"retention_days": STUB_RETENTION_DAYS},
         "websocket": {},

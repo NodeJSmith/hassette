@@ -632,16 +632,7 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
 
 
 class SchedulerConfig(ExcludeExtrasMixin, BaseModel):
-    """Scheduler delay, threshold, and job-timeout settings."""
-
-    min_delay_seconds: int | float = Field(default=1)
-    """Minimum delay between scheduled jobs."""
-
-    max_delay_seconds: int | float = Field(default=30)
-    """Maximum delay between scheduled jobs."""
-
-    default_delay_seconds: int | float = Field(default=15)
-    """Default delay between scheduled jobs."""
+    """Scheduler threshold and job-timeout settings."""
 
     behind_schedule_threshold_seconds: int | float = Field(default=5)
     """Threshold in seconds before a 'behind schedule' warning is logged for a job."""
