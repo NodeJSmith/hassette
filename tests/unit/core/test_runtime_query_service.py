@@ -69,6 +69,7 @@ def mock_hassette():
     hassette.get_log_queue_drops = Mock(return_value=0)
     hassette.get_db_write_queue_drops = Mock(return_value=0)
     hassette.is_log_persistence_active = Mock(return_value=True)
+    hassette._bus_service.pending_wait_for_count = 0
 
     # Mock state proxy
     hassette._state_proxy.states = {
@@ -572,6 +573,20 @@ class TestSystemStatus:
 
         assert status.log_queue_drops == 3
         assert status.db_write_queue_drops == 7
+
+    def test_system_status_reports_pending_wait_for_count(self, runtime: RuntimeQueryService) -> None:
+        """pending_wait_for_count is the BusService's live process-wide count of pending wait_for calls."""
+        runtime.hassette.bus_service.pending_wait_for_count = 5
+
+        assert runtime.get_system_status().pending_wait_for_count == 5
+
+    def test_system_status_pending_wait_for_count_zero_when_bus_service_unwired(
+        self, runtime: RuntimeQueryService
+    ) -> None:
+        """An unwired BusService reports 0 instead of failing the whole health response."""
+        type(runtime.hassette).bus_service = PropertyMock(side_effect=RuntimeError("BusService not wired"))
+
+        assert runtime.get_system_status().pending_wait_for_count == 0
 
     def test_system_status_ws_connected_reflects_readiness(self, runtime: RuntimeQueryService) -> None:
         """ws_connected is False when websocket_service.is_connected returns False.

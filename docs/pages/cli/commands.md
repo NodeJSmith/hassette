@@ -64,6 +64,7 @@ $ hassette status
 │  log_queue_drops         0                                   │
 │  db_write_queue_drops    0                                   │
 │  log_persistence_active  true                                │
+│  pending_wait_for_count  0                                   │
 ╰──────────────────────────────────────────────────────────────╯
 ```
 
@@ -76,6 +77,8 @@ Read this value with `log_persistence_active`; the counter changes only while pe
 - `log_persistence_active: true` with `db_write_queue_drops: 0` — healthy. Every log record is reaching the database.
 - `log_persistence_active: true` with a non-zero count — persistence is running but shedding records under load. Check the console logs for `DB write queue full`.
 - `log_persistence_active: false` — persistence is not running at all. Nothing is being written and the drop count is frozen, so a `0` here says nothing about how many records were lost. This happens when the persistence handler failed to start (check the console logs for `Failed to create persistence handler`) or when the instance is shutting down.
+
+`pending_wait_for_count` is the number of `bus.wait_for` calls currently waiting for an event, across all apps. It rises and falls as waits start and resolve or time out. A count that keeps climbing usually means an app is leaking waits, for example a retry loop that starts a new `wait_for` before the previous one has finished.
 
 **API endpoint:** `GET /api/health`
 

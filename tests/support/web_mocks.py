@@ -288,6 +288,7 @@ def create_hassette_stub(
     hassette.get_log_queue_drops.return_value = 0
     hassette.get_db_write_queue_drops.return_value = 0
     hassette.is_log_persistence_active.return_value = True
+    hassette._bus_service.pending_wait_for_count = 0
 
     hassette.children = []
 

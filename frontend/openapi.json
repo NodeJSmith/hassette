@@ -5169,6 +5169,12 @@
             "title": "Log Persistence Active",
             "description": "Whether log records are being persisted. When ``False``, a ``db_write_queue_drops`` of 0 does not mean\nlogs are being stored.",
             "default": false
+          },
+          "pending_wait_for_count": {
+            "type": "integer",
+            "title": "Pending Wait For Count",
+            "description": "``Bus.wait_for`` calls currently awaiting an event, across all apps. A count that keeps growing usually\nmeans a ``wait_for`` leak (e.g. a retry loop re-arming waits that never resolve).",
+            "default": 0
           }
         },
         "type": "object",

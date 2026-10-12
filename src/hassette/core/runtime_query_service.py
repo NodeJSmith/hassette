@@ -323,6 +323,11 @@ class RuntimeQueryService(Resource):
         except (AttributeError, RuntimeError):
             app_count = 0
 
+        try:
+            pending_wait_for_count = self.hassette.bus_service.pending_wait_for_count
+        except (AttributeError, RuntimeError):
+            pending_wait_for_count = 0
+
         services = [
             ServiceInfo(
                 name=child.class_name,
@@ -361,6 +366,7 @@ class RuntimeQueryService(Resource):
             log_queue_drops=self.hassette.get_log_queue_drops(),
             db_write_queue_drops=self.hassette.get_db_write_queue_drops(),
             log_persistence_active=self.hassette.is_log_persistence_active(),
+            pending_wait_for_count=pending_wait_for_count,
         )
 
     def collect_boot_issues(self) -> list[BootIssue]:

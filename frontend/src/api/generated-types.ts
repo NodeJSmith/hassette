@@ -2083,6 +2083,13 @@ export interface components {
              * @default false
              */
             log_persistence_active: boolean;
+            /**
+             * Pending Wait For Count
+             * @description ``Bus.wait_for`` calls currently awaiting an event, across all apps. A count that keeps growing usually
+             *     means a ``wait_for`` leak (e.g. a retry loop re-arming waits that never resolve).
+             * @default 0
+             */
+            pending_wait_for_count: number;
         };
         /**
          * TelemetryStatusResponse

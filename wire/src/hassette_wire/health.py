@@ -67,6 +67,10 @@ class SystemStatusResponse(BaseModel):
     """Whether log records are being persisted. When ``False``, a ``db_write_queue_drops`` of 0 does not mean
     logs are being stored."""
 
+    pending_wait_for_count: int = 0
+    """``Bus.wait_for`` calls currently awaiting an event, across all apps. A count that keeps growing usually
+    means a ``wait_for`` leak (e.g. a retry loop re-arming waits that never resolve)."""
+
 
 class LivenessResponse(BaseModel):
     """Response model for GET /api/health/live."""
