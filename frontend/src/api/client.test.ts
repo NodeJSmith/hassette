@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, apiFetch, postSession, unauthorizedOutcome } from "./client";
+import { resolveAppUrl } from "../lib/base-path";
+import { useAppStore } from "../state/store";
+import { LOGIN_PATH } from "../utils/app-routes";
+import { ApiError, apiFetch, apiPost, postSession, unauthorizedOutcome } from "./client";
 
 /** Builds a mock non-ok `fetch` response whose `json()` resolves to `body`. */
 function mockErrorResponse(status: number, statusText: string, body: unknown) {
@@ -92,6 +95,7 @@ describe("apiFetch", () => {
 
     await expect(apiFetch("/protected")).rejects.toThrow(ApiError);
     await expect(apiFetch("/protected")).rejects.toMatchObject({ status: 401 });
+    expect(useAppStore.getState().sessionExpired).toBe(false);
   });
 
   it("carries the problem body's code, which tells Hassette's own 401 from anyone else's", async () => {
@@ -126,6 +130,53 @@ describe("apiFetch", () => {
 
     const err = await apiFetch("/protected").catch((e: unknown) => e);
     expect(unauthorizedOutcome(err)).toBe("session-expired");
+  });
+});
+
+describe("401 handling", () => {
+  const originalFetch = globalThis.fetch;
+  const assign = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAppStore.setState({ sessionExpired: false });
+    vi.stubGlobal("location", { origin: window.location.origin, pathname: "/", assign });
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.unstubAllGlobals();
+  });
+
+  function mockFetchError(status: number, statusText: string, body: unknown) {
+    globalThis.fetch = vi.fn().mockResolvedValue(mockErrorResponse(status, statusText, body));
+  }
+
+  it("apiPost redirects to login on Hassette's own 401", async () => {
+    mockFetchError(401, "Unauthorized", { detail: "Not authenticated", code: "not_authenticated" });
+
+    await expect(apiPost("/apps/x/start")).rejects.toMatchObject({ status: 401, code: "not_authenticated" });
+
+    expect(assign).toHaveBeenCalledWith(resolveAppUrl(LOGIN_PATH));
+    expect(useAppStore.getState().sessionExpired).toBe(false);
+  });
+
+  it("apiPost marks the session expired on a foreign 401", async () => {
+    mockFetchError(401, "Unauthorized", {});
+
+    await expect(apiPost("/apps/x/start")).rejects.toBeInstanceOf(ApiError);
+
+    expect(useAppStore.getState().sessionExpired).toBe(true);
+    expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("apiPost does nothing extra on a non-401 error", async () => {
+    mockFetchError(500, "Internal Server Error", { detail: "boom" });
+
+    await expect(apiPost("/apps/x/start")).rejects.toMatchObject({ status: 500 });
+
+    expect(useAppStore.getState().sessionExpired).toBe(false);
+    expect(assign).not.toHaveBeenCalled();
   });
 });
 

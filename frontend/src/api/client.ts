@@ -1,6 +1,8 @@
 /** Base API client for fetching JSON from the Hassette backend. */
 
 import { resolveAppUrl } from "../lib/base-path";
+import { useAppStore } from "../state/store";
+import { LOGIN_PATH } from "../utils/app-routes";
 import type { components } from "./generated-types";
 
 type ProblemCode = components["schemas"]["ProblemCode"];
@@ -56,6 +58,21 @@ export function unauthorizedOutcome(error: unknown): UnauthorizedOutcome | null 
   return error.code === NOT_AUTHENTICATED ? "login" : "session-expired";
 }
 
+/**
+ * Acts on a 401 by sending the operator to login or showing the session-expired view; a no-op for
+ * anything else. Called from the QueryCache's `onError` and from `apiPost`, which together cover every
+ * REST call; `apiFetch` itself stays side-effect-free.
+ *
+ * Idempotent, so it may fire twice for one failure (e.g. a query whose fetcher calls `apiPost`). The
+ * WebSocket path maps the same outcomes in `hooks/use-websocket.ts`, using SPA navigation instead of a
+ * full page load.
+ */
+export function handleUnauthorized(error: unknown): void {
+  const outcome = unauthorizedOutcome(error);
+  if (outcome === "login") window.location.assign(resolveAppUrl(LOGIN_PATH));
+  if (outcome === "session-expired") useAppStore.getState().setSessionExpired();
+}
+
 interface ErrorBody {
   message?: string;
   code?: string;
@@ -93,12 +110,21 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   return response.json() as Promise<T>;
 }
 
-export function apiPost<T>(path: string, body?: unknown): Promise<T> {
-  return apiFetch<T>(path, {
-    method: "POST",
-    headers: { "Content-Type": JSON_CONTENT_TYPE },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+/**
+ * POSTs JSON and routes a 401 through `handleUnauthorized` before rethrowing, because action calls
+ * (buttons, palette) don't go through a query and so never reach the QueryCache's handler.
+ */
+export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
+  try {
+    return await apiFetch<T>(path, {
+      method: "POST",
+      headers: { "Content-Type": JSON_CONTENT_TYPE },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (error) {
+    handleUnauthorized(error);
+    throw error;
+  }
 }
 
 export type PostSessionResult = { ok: true } | { ok: false; message: string };
@@ -106,10 +132,10 @@ export type PostSessionResult = { ok: true } | { ok: false; message: string };
 /**
  * Exchange a bearer token for a session cookie via `POST /api/auth/session`.
  *
- * Deliberately bypasses `apiFetch`/`apiPost` — those throw `ApiError` on a non-ok response,
- * which would trip the global 401 handling in `query-client.ts`'s `QueryCache.onError` and
- * bounce the caller straight back to the login view with no error shown. Wrong-token rejection
- * is exactly the case this route's own caller (the login form) needs to render inline instead.
+ * Deliberately bypasses `apiPost`: it runs `handleUnauthorized`, which would bounce a wrong-token
+ * login straight back to the login view with no error shown. Wrong-token rejection is exactly the
+ * case the login form needs to render inline. (`apiFetch` has no such side effect, but it throws
+ * `ApiError` on a non-ok response, which this function maps to a result instead.)
  */
 export async function postSession(token: string): Promise<PostSessionResult> {
   let response: Response;
