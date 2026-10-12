@@ -20,7 +20,7 @@ To react to connection loss, subscribe to [`on_websocket_disconnected` / `on_web
 
 ## Apps Not Loading
 
-The app precheck runs before the WebSocket connection opens. It imports each app module, resolves the class, and validates config. Any failure blocks startup by default.
+The app precheck runs before the WebSocket connection opens. It imports each app module, resolves the class, and checks that the class's config class is wired up correctly. Any failure blocks startup by default. Config *values* are not checked here: they are validated later, when each app instance is created.
 
 **Syntax error or bad import.** Look for this pattern in the log:
 
@@ -33,18 +33,18 @@ Fix the syntax error or install the missing dependency.
 **Class not found.** The `class_name` in `hassette.toml` doesn't match the actual class name in the file:
 
 ```
-AttributeError: Class MyApp not found in module apps.my_app
+AttributeError: Class MyApp not found in module apps.my_app (/config/apps/my_app.py)
 ```
 
 Check for typos in `class_name` in `hassette.toml` and confirm the class is defined at module level.
 
-**Invalid config.** A required [`AppConfig`][hassette.app.app_config.AppConfig] field has no value and no default:
+**Invalid config.** A required [`AppConfig`][hassette.app.app_config.AppConfig] field has no value and no default, or a value fails validation. This is caught when the instance is created, after the precheck, and is followed by the pydantic `ValidationError`:
 
 ```
-ERROR hassette — Failed to load app 'MyApp' due to bad configuration
+ERROR hassette.core.app_factory.AppFactory — Failed to validate/init config for MyApp.0 (MyApp):
 ```
 
-Set the missing field in `hassette.toml` or via an environment variable.
+Only that instance fails to start; other apps and instances still run. Set the missing field in `hassette.toml` or via an environment variable.
 
 **Config value has no effect.** If your config class declares its own fields, a key in `hassette.toml` that doesn't match any of them is kept as an extra attribute, and the field you meant keeps its default. Hassette logs a warning naming the key and, when one is close, the field you probably meant:
 
@@ -55,7 +55,7 @@ UserWarning: MyAppConfig - My App (my_app, instance 'MyApp.0') - Unrecognized co
 
 Fix the spelling in `hassette.toml`. A bare `AppConfig` with no fields of its own never warns, since every key is meant as an extra there.
 
-**Diagnosing without blocking startup.** Set `allow_startup_if_app_precheck_fails = true` in `hassette.toml`. This logs the same errors but lets healthy apps start. The broken app still won't run. Remove this setting once the problem is fixed.
+**Diagnosing without blocking startup.** Set `allow_startup_if_app_precheck_fails = true` in `hassette.toml`. This logs the same precheck errors (import and class errors, not config value errors) but lets healthy apps start. The broken app still won't run. Remove this setting once the problem is fixed.
 
 ## Forgotten `await` {#forgotten-await}
 
@@ -88,7 +88,7 @@ await self.bus.on_state_change("light.kitchen", handler=self.on_change, name="ki
 
 **Stored-on-self limitation:** When the un-awaited handle is stored on `self` (e.g. `self.sub = self.bus.on_state_change(...)`), it lives for the app's lifetime. The warning fires at app *shutdown*, not at registration. This is a weaker guarantee than the bare-drop case. [Enable Pyright](#enabling-pyright) for the earliest possible signal.
 
-**`"error"` mode cannot crash the process:** Setting `forgotten_await_behavior = "error"` makes the warning escalate to a raised exception — but because detection happens in Python's garbage collector finalizer (`__del__`), the exception is swallowed by the runtime and printed as `Exception ignored in: ...`. The traceback is visible; the process does not stop. Use [Pyright](#enabling-pyright) if you need a hard build-time failure.
+**`"error"` mode cannot crash the process:** On its own, `forgotten_await_behavior = "error"` behaves exactly like `"warn"`. The warning becomes a raised exception only when Python's warning filters escalate it (`-W error`, or `warnings.filterwarnings("error")`). Even then, detection happens in Python's garbage collector finalizer (`__del__`), so the exception is swallowed by the runtime and printed as `Exception ignored in: ...`. The traceback is visible; the process does not stop. Use [Pyright](#enabling-pyright) if you need a hard build-time failure.
 
 **Importing the warning class:** To use `HassetteForgottenAwaitWarning` in `pytest.warns` or `warnings.filterwarnings`, import it from:
 
@@ -138,7 +138,7 @@ await self.bus.on_state_change("light.kitchen", handler=self.on_light_change, na
 
 Work through this checklist in order.
 
-**1. Entity ID typo.** Hassette does not error on a non-existent entity ID. The handler simply never fires. Double-check the entity ID string. Use `hassette status` or the web UI to confirm the entity exists and its exact ID.
+**1. Entity ID typo.** Hassette does not error on a non-existent entity ID. The handler simply never fires. Double-check the entity ID string. Confirm the entity exists and its exact ID in Home Assistant under **Developer Tools > States**, or check it from your app with `await self.api.entity_exists("light.kitchen")`.
 
 **2. `changed_to` literal doesn't fit the state.** Home Assistant state values are strings. A bool or number literal is coerced before comparing, so `changed_to=True` matches `"on"`, `"true"`, `"yes"`, or `"1"`, and `changed_to=20` matches `"20.0"`. Any other string never matches it: a cover reports `"open"`, not `"on"`, so `changed_to=True` never fires there. Compare against the exact state string instead. See [Literal coercion](core-concepts/bus/predicate-reference.md#literal-coercion).
 
@@ -180,7 +180,7 @@ See also: [Database and Telemetry](core-concepts/database-telemetry.md#degraded-
 
 **Data lost after restart.** Verify `data_dir` is correctly configured and writable. In Docker, ensure the `/data` volume is mounted. Cache files live under `data_dir`.
 
-**Multi-instance collisions.** All instances of the same app class share one cache namespace. Use `self.app_config.instance_name` as a key prefix to isolate each instance's data:
+**Multi-instance collisions.** Each app instance gets its own cache by default. If the app's section in `hassette.toml` sets an explicit `cache_key`, every instance of that app shares one cache. Remove the `cache_key`, or use `self.app_config.instance_name` as a key prefix to isolate each instance's data:
 
 ```python
 key = f"{self.app_config.instance_name}:last_seen"
