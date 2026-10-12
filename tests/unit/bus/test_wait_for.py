@@ -511,3 +511,25 @@ async def test_off_loop_removal_marshals_cancel_to_loop_thread(bus: "Bus") -> No
                 await asyncio.wait_for(task, timeout=1)
     finally:
         loop.set_debug(prior_debug)
+
+
+async def test_repeated_non_shutdown_cancellations_warn_once(bus: "Bus", caplog: pytest.LogCaptureFixture) -> None:
+    """Back-to-back non-shutdown cancellations emit one WARNING; the rest drop to DEBUG (rate-limited)."""
+    with wait_for_add_listener_mock(bus) as (registered, ready):
+        tasks = []
+        for i in range(3):
+            tasks.append(asyncio.create_task(bus.wait_for("test.topic", timeout=5, name=f"pool_wait_{i}")))
+            await _await_registration(ready)
+
+        callback = get_bus_removal_callback(bus)
+        assert callback is not None
+        with caplog.at_level(logging.DEBUG, logger=bus.logger.name):
+            for listener in registered:
+                callback(listener)
+
+        for task in tasks:
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(task, timeout=1)
+
+    cancel_records = [r for r in caplog.records if "Cancelling pending wait_for future" in r.getMessage()]
+    assert [r.levelno for r in cancel_records] == [logging.WARNING, logging.DEBUG, logging.DEBUG]
