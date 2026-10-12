@@ -300,6 +300,7 @@ class RawAppDict(TypedDict, total=False):
 
     filename: Required[str]
     class_name: Required[str]
+    display_name: str
     app_dir: Path | str
     enabled: bool
     autostart: bool
@@ -315,6 +316,7 @@ class AppDict(TypedDict, total=False):
     app_key: Required[str]
     filename: Required[str]
     class_name: Required[str]
+    display_name: str
     app_dir: Required[Path]
     enabled: bool
     autostart: bool

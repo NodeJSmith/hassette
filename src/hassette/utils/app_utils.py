@@ -198,6 +198,9 @@ def clean_app(app_key: str, app_dict: RawAppDict, app_dir: Path) -> AppDict:
         cache_key=app_dict.get("cache_key", ""),
         cache_shared=app_dict.get("cache_shared", False),
     )
+    # Omitted when unset so AppManifest's own default (the app key) still applies.
+    if display_name := app_dict.get("display_name"):
+        clean_app_dict["display_name"] = display_name
 
     return clean_app_dict
 
