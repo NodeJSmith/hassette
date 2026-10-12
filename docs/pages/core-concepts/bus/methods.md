@@ -61,7 +61,7 @@ Fires when a Home Assistant entity's state changes. `entity_id` accepts glob pat
 |---|---|---|---|
 | `entity_id` | `str` | — | Entity ID or glob pattern to match. |
 | `changed` | `bool \| ComparisonCondition` | `True` | `True` fires only when the state value changes. `False` fires on attribute-only updates too. A [`ComparisonCondition`](filtering.md) (e.g., `C.Increased()`) compares old and new values. |
-| `changed_from` | `ChangeType` | not set | Filters on the previous state value. Accepts a raw value (`"on"`), a callable that takes the value and returns `bool`, or a `C.*` condition. Compares raw HA state strings. |
+| `changed_from` | `ChangeType` | not set | Filters on the previous state value. Accepts a raw value (`"on"`), a callable that takes the value and returns `bool`, or a single-value `C.*` condition such as `C.IsIn` or `C.Comparison`. Two-value conditions like `C.Increased()` compare old and new values and belong in `changed`. Compares raw HA state strings. |
 | `changed_to` | `ChangeType` | not set | Filters on the new state value. Accepts the same forms as `changed_from`. Compares raw HA state strings. |
 | `where` | `Predicate \| Sequence[Predicate] \| None` | `None` | Additional predicates applied after value filters. See [Filtering & Predicates](filtering.md). |
 | `immediate` | `bool` | `False` | Fires with the current state on registration, then on every subsequent change. Not supported with glob patterns. |
@@ -401,7 +401,7 @@ Listener names must be unique per app instance and topic. Registering a second l
 | Value | Behavior |
 |---|---|
 | `"error"` (default) | Raises `DuplicateListenerError` when a listener with the same name and topic already exists. |
-| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`), execution `mode`, `backpressure`, handler kwargs, per-registration error handler, and duration configuration. The returned subscription is the same live handle as the original registrant's — cancelling it removes the listener for all holders. |
+| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`), the Bus `priority` the listener was registered under, execution `mode`, `backpressure`, handler kwargs, per-registration error handler, and duration configuration. The returned subscription is the same live handle as the original registrant's — cancelling it removes the listener for all holders. |
 | `"replace"` | Cancels the existing listener and registers the new one. The new configuration does not need to match the old one. |
 
 `if_exists` matters most in `on_initialize`, which re-runs on app reload.
