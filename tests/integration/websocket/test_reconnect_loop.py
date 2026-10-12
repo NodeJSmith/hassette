@@ -464,6 +464,40 @@ async def test_drop_during_connected_observers_still_pairs_connected_then_discon
     ]
 
 
+@pytest.mark.usefixtures("fast_reconnect")
+async def test_shutdown_during_connected_observers_emits_no_unpaired_disconnected(
+    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
+) -> None:
+    """Shutdown before websocket_connected reaches the bus sends no websocket_disconnected either.
+
+    The connected observers were notified, so the disconnected observers still run: the two
+    pairs are tracked separately.
+    """
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+    observer_entered = asyncio.Event()
+    disconnected_notified: list[None] = []
+
+    async def parked_observer(generation: int) -> None:  # noqa: ARG001
+        observer_entered.set()
+        await asyncio.Event().wait()  # never set: only shutdown's cancellation ends it
+
+    async def record_disconnect() -> None:
+        disconnected_notified.append(None)
+
+    websocket_service.connected_observers.add(parked_observer)
+    websocket_service.disconnected_observers.add(record_disconnect)
+
+    async with serving(websocket_service, fake_ha):
+        await asyncio.wait_for(observer_entered.wait(), timeout=WAIT_SECONDS)
+
+    await websocket_service.before_shutdown()
+
+    assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED) == []
+    assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED) == []
+    assert len(disconnected_notified) == 1
+
+
 async def test_invalid_lifecycle_transition_propagates_out_of_serve(
     websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
 ) -> None:
