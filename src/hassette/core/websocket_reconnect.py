@@ -400,7 +400,8 @@ def parse_retry_after(headers: Mapping[str, str] | None) -> float | None:
     The HTTP-date form is not parsed; the caller falls back to the Slow pace.
     """
     value = headers.get("Retry-After") if headers is not None else None
-    if value is None or not value.strip().isdigit():
+    # isdecimal, not isdigit: isdigit also accepts characters such as "²" that float() rejects.
+    if value is None or not value.strip().isdecimal():
         return None
     return float(value.strip())
 

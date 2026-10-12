@@ -29,6 +29,7 @@ from hassette.core.websocket_reconnect import (
     ReconnectPolicy,
     RetryPlan,
     fast_backoff_delay,
+    parse_retry_after,
 )
 from hassette.exceptions import InvalidAuthError, RetryableConnectionClosedError
 
@@ -59,6 +60,14 @@ def oversize_close() -> RetryableConnectionClosedError:
 
 def refused() -> ConnectionRefusedError:
     return ConnectionRefusedError("refused")
+
+
+def policy_with_oversize_streak() -> ReconnectPolicy:
+    """A policy that has seen two consecutive 1009 closes, one short of the streak that turns SLOW."""
+    policy = ReconnectPolicy()
+    for _ in range(2):
+        policy.on_failure(oversize_close())
+    return policy
 
 
 class TestFastBackoffDelay:
@@ -166,6 +175,17 @@ class TestSlowDisposition:
 
         assert plan.delay == SLOW_RETRY_SECONDS
 
+    @pytest.mark.parametrize("value", ["²", "①", "-5", "1.5", ""])
+    def test_malformed_retry_after_is_ignored(self, value: str) -> None:
+        """``str.isdigit()`` accepts "²", which ``float()`` rejects; it must not raise out of the loop."""
+        assert parse_retry_after({"Retry-After": value}) is None
+
+        plan = ReconnectPolicy().on_failure(handshake_error(429, {"Retry-After": value}))
+        assert plan.delay == SLOW_RETRY_SECONDS
+
+    def test_non_ascii_decimal_retry_after_is_parsed(self) -> None:
+        assert parse_retry_after({"Retry-After": "\u0664\u0662"}) == 42.0
+
     @pytest.mark.parametrize("exc", [ssl.SSLCertVerificationError("self-signed"), certificate_error()])
     def test_rejected_certificates_are_slow(self, exc: Exception) -> None:
         plan = ReconnectPolicy().on_failure(exc)
@@ -211,27 +231,21 @@ class TestOversizeStreak:
         assert policy.on_failure(oversize_close()).disposition is Disposition.SLOW
 
     def test_stable_connection_clears_the_streak(self) -> None:
-        policy = ReconnectPolicy()
-        for _ in range(2):
-            policy.on_failure(oversize_close())
+        policy = policy_with_oversize_streak()
 
         policy.on_connection_ended(STABLE_CONNECTION_SECONDS)
 
         assert policy.on_failure(oversize_close()).disposition is Disposition.FAST
 
     def test_a_different_failure_clears_the_streak(self) -> None:
-        policy = ReconnectPolicy()
-        for _ in range(2):
-            policy.on_failure(oversize_close())
+        policy = policy_with_oversize_streak()
 
         policy.on_failure(refused())
 
         assert policy.on_failure(oversize_close()).disposition is Disposition.FAST
 
     def test_an_auth_rejection_clears_the_streak(self) -> None:
-        policy = ReconnectPolicy()
-        for _ in range(2):
-            policy.on_failure(oversize_close())
+        policy = policy_with_oversize_streak()
 
         policy.on_failure(InvalidAuthError("bad"))
 
