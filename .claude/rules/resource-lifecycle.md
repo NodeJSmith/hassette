@@ -33,7 +33,7 @@ Resources that deviate from these rules, and why:
 
 - **`TaskBucket`** — `__init__()`. It defines no `on_initialize()` and has no setup work, so it is usable as soon as it is constructed. Marking ready at construction means nothing that waits on it blocks on a hook it never runs.
 - **`WebApiService`** — `on_initialize()`, after auth and trusted proxies resolve. Readiness does not wait for uvicorn to bind the port in `serve()`. When the web API is disabled it marks ready early and parks `serve()`.
-- **`WebsocketService`** — `on_initialize()` marks lifecycle-ready unconditionally so an unreachable HA doesn't time out its startup wave and fatally block later waves; `start_recv_and_subscribe()` (reached from `serve()`) re-marks ready after each successful connect, since a dropped connection calls `mark_not_ready()`. Use the connected signal, not `is_ready()`, to mean "HA connected".
+- **`WebsocketService`** — `on_initialize()` marks lifecycle-ready unconditionally so an unreachable HA doesn't time out its startup wave and fatally block later waves; `mark_connected()` (reached from `serve()`) re-marks ready after each successful connect, since a dropped connection calls `mark_not_ready()`. Use the connected signal, not `is_ready()`, to mean "HA connected".
 - **`WebUiWatcherService`** — `on_initialize()` when hot reload is disabled (then parks `serve()`), `serve()` when enabled.
 - **`FileWatcherService`** — `on_initialize()` when `watch_files` is disabled (then parks `serve()` on `shutdown_event`), `serve()` when enabled.
 

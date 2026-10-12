@@ -6,37 +6,56 @@ The defaults cover typical deployments — nothing here is required reading befo
 
 ## WebSocket Reconnection
 
-Hassette talks to Home Assistant over a WebSocket — a persistent connection that lets HA push events instantly instead of being polled. That connection can drop for many reasons: HA restarts, network blips, clean shutdowns. Hassette recovers automatically using a three-layer retry model; each layer handles a different failure mode — failures while connecting, quick disconnects right after connecting, and sustained outages. All WebSocket settings live under `[hassette.websocket]` in [`hassette.toml`](../core-concepts/configuration/index.md).
+Hassette talks to Home Assistant over a WebSocket — a persistent connection that lets HA push events instantly instead of being polled. That connection drops whenever HA restarts, the Supervisor restarts, or the network blips. Hassette never exits because Home Assistant is unreachable. [`WebsocketService`][hassette.core.websocket_service.WebsocketService] retries in place, inside one loop, until HA answers again.
 
-### Layer 1: Initial connection retries
+### How fast Hassette reconnects
 
-When Hassette first starts (or [`WebsocketService`][hassette.core.websocket_service.WebsocketService] restarts), it tries the WebSocket connection up to `websocket.connect_retry_max_attempts` times (default: 5). Each retry waits longer than the last. Backoff starts at `websocket.connect_retry_initial_wait_seconds` (default: 1s), caps at `websocket.connect_retry_max_wait_seconds` (default: 32s), with jitter added (a small random offset so retries don't fire in lockstep). Tenacity — the retry library Hassette uses internally — logs a WARNING before each sleep, where `...` is the exception that triggered the retry:
+After a failure, the next attempt comes in about 1 second, then 2, then 4. From then on Hassette tries every 5 seconds until HA answers. Each delay varies by up to 20% so many clients don't retry in lockstep. A typical HA restart (20–60 seconds) is back within about 5 seconds of HA listening again.
+
+A connection that stays up for 2 minutes resets this sequence. A connection that drops sooner continues it where it left off, so a link that keeps dropping right after connecting settles at one attempt every 5 seconds instead of hammering HA.
+
+These timings are fixed. No `hassette.toml` setting changes them.
+
+### Failures a retry can't fix
+
+Some failures repeat identically until something outside Hassette changes. Hassette retries these every 5 minutes instead of every 5 seconds, and logs an ERROR naming the cause on each attempt:
+
+- **HTTP 401, 403, 404, or 429 during the WebSocket handshake.** These come from a reverse proxy or WAF in front of HA, not from HA itself. A 429 waits for its `Retry-After` header when present, up to 30 minutes.
+- **TLS and certificate errors.** Usually an expired or self-signed certificate. See `verify_ssl` in the [configuration reference](../core-concepts/configuration/index.md).
+- **Oversized messages.** Hassette accepts WebSocket messages up to 16 MiB. A message over that limit closes the connection with code 1009. Three such closes in a row switch to the 5-minute pace. The usual cause is the full state list on a very large install (over roughly 35,000 entities).
+
+The slower pace keeps Hassette under fail2ban's default ban threshold, and stops a too-large state list from being serialized every few seconds. After fixing the cause upstream, the next attempt (at most 5 minutes later) connects.
+
+### Rejected access token
+
+When Home Assistant rejects the token, Hassette stays up but stops connecting:
+
+- **The token never worked.** Hassette stops on the first rejection. This is a configuration error.
+- **The token worked before.** Hassette retries 3 times, 60 seconds apart, then stops. These retries cover an HA host whose clock is still behind after a reboot, which makes HA reject a valid token briefly.
+
+While stopped, the Diagnostics page shows the WebSocket service as not ready with the reason "Home Assistant rejected the access token", and the log has one CRITICAL line. Each rejection also adds a "Login attempt failed" notification in Home Assistant. Create a new long-lived token, update `HASSETTE__TOKEN`, and restart Hassette.
+
+### Waiting for Home Assistant to finish starting
+
+A freshly restarted HA accepts connections before its integrations finish loading. Hassette does not report itself connected until HA's core state reaches `RUNNING`. Until then:
+
+- Events from HA are not delivered to apps, so the burst of `unavailable` states during HA's boot never reaches your handlers.
+- Api calls are refused, the same as during an outage.
+- On a cold start, apps don't initialize yet. They start against a fully loaded HA.
+
+HA reaches `RUNNING` within seconds of accepting connections. The Diagnostics page shows the wait as "Home Assistant core state is STARTING, waiting for RUNNING".
+
+### What the logs show
+
+An outage produces a handful of lines, not one per attempt:
 
 ```
-Retrying hassette.core.websocket_service.WebsocketService.make_connection.<locals>._inner_connect in X.Xs as it raised ...
+WARNING  Lost connection to Home Assistant at ws://homeassistant:8123/api/websocket: ClientConnectorError: ...; reconnecting
+WARNING  Home Assistant at ws://homeassistant:8123/api/websocket still unreachable after 5m00s (61 attempts, 0 connections dropped within 120s)
+INFO     Reconnected to Home Assistant at ws://homeassistant:8123/api/websocket after 7m12s
 ```
 
-If all five attempts fail, the error reaches layer 3.
-
-### Layer 2: Early-drop retries
-
-An "early drop" is a connection that disconnects within `websocket.early_drop_stable_window_seconds` (default: 30s) of being established. This usually means HA accepted the handshake but then immediately disconnected, which often happens during HA restarts. Hassette retries up to `websocket.early_drop_max_retries` times (default: 5), with backoff starting at `websocket.early_drop_backoff_initial_seconds` (default: 2s) and capping at `websocket.early_drop_backoff_max_seconds` (default: 60s). Each early-drop attempt logs:
-
-```
-WebSocket early drop detected (elapsed=X.Xs, attempt=N/5) — retrying
-```
-
-Early-drop retries only apply to disconnects that happen after the authentication handshake with HA succeeded (`ServerDisconnectedError`, [`RetryableConnectionClosedError`][hassette.exceptions.RetryableConnectionClosedError]). Connection-refused errors bypass this layer entirely and go straight to layer 1's retry loop.
-
-### Layer 3: ServiceWatcher restart budget
-
-[`ServiceWatcher`][hassette.core.service_watcher.ServiceWatcher] is Hassette's internal watchdog — when a service keeps failing, it limits how often the service restarts to avoid an infinite crash loop. It supervises `WebsocketService` with a sliding-window restart budget: 5 restarts per 300-second window, with 2s–60s exponential backoff between attempts. Once the budget is exhausted, `WebsocketService` enters a cooldown state (`EXHAUSTED_COOLING` in logs) for 300 seconds, then retries from scratch. The logs show (`retry_at` is a Unix timestamp):
-
-```
-Service 'WebsocketService' restart budget exhausted (TRANSIENT), entering cooldown for 300.0s (retry_at=1749567890)
-```
-
-After the cooldown completes, the budget resets and the full retry sequence starts over. This layer ensures Hassette keeps trying through prolonged HA unavailability without spinning.
+The "still unreachable" summary repeats every 5 minutes. Individual attempts log at DEBUG. Until Hassette has connected at least once, the first failure and each summary log at ERROR instead, with a hint to check `base_url`. A mistyped URL shows up this way rather than as an exit.
 
 ### What apps see during reconnection
 
@@ -50,19 +69,18 @@ The bus delivers `hassette.event.websocket_disconnected` when the connection dro
 --8<-- "pages/operating/snippets/ws_reconnect_events.py"
 ```
 
-### When to tune
+Running apps keep reading the last-known states (marked stale) through an outage. Each Api call that fails while HA is down records an error in the telemetry database, so a long outage leaves a trail of failed invocations in the Handlers tab.
 
-**Slow HA restarts.** If HA takes longer than 30s to become responsive after a restart, increase `websocket.early_drop_stable_window_seconds` to cover the typical restart duration. Otherwise early-drop retries expire before HA is ready and fall through to the ServiceWatcher layer.
+!!! warning "`on_initialize` no longer reruns after an HA restart"
+    Hassette used to exit when HA restarted, and the process restart reran every app's `on_initialize`. It now stays up, so `on_initialize` runs once per process. An app that rebuilds HA-side state in `on_initialize` (for example, entities it creates with `set_state`, which HA forgets on restart) must redo that work in a `hassette.event.websocket_connected` handler instead. A dedicated "HA restarted" signal is tracked in [#1676](https://github.com/NodeJSmith/hassette/issues/1676).
 
-**Flaky networks.** Increase `websocket.early_drop_max_retries` or `websocket.early_drop_backoff_max_seconds` to give transient network issues more room to recover before escalating.
+### Health and supervisors
 
-**Low downtime tolerance.** Reduce `websocket.connect_retry_initial_wait_seconds` to shorten the backoff floor. The jitter is proportional to the initial wait, so a smaller initial value also tightens the jitter band.
-
-**Recovery ceiling.** `websocket.max_recovery_seconds` (default: 300s) caps the total wall-clock time layer 2 spends on early-drop retries. When the ceiling is hit, the failure stops being treated as an early drop and escalates to layer 3's restart budget. Raise it when extended HA outages should be ridden out by early-drop retries instead.
+`/api/health/live` stays 200 through any HA outage or a rejected token, and `/api/health` reports `degraded` (or `starting`, if HA never connected). A supervisor watching the liveness endpoint never restarts Hassette for an HA problem. See [Health Endpoints](../web-ui/health-endpoints.md).
 
 ### Per-operation timeouts
 
-Four further `[hassette.websocket]` fields cap individual operations rather than retry behavior: `connection_timeout_seconds` (default: 5s) for establishing the connection, `authentication_timeout_seconds` (default: 10s) for the HA auth handshake, `response_timeout_seconds` (default: 15s) for a reply to a single WebSocket command, and `total_timeout_seconds` (default: 30s) as the overall ceiling for a single operation. Slow or high-latency HA hosts (remote instances, constrained hardware) are the usual reason to raise them.
+The `[hassette.websocket]` fields cap individual operations: `connection_timeout_seconds` (default: 5s) for establishing the connection, `authentication_timeout_seconds` (default: 10s) for the HA auth handshake, `response_timeout_seconds` (default: 15s) for a reply to a single WebSocket command, and `total_timeout_seconds` (default: 30s) as the overall ceiling for a single operation. Slow or high-latency HA hosts (remote instances, constrained hardware) are the usual reason to raise them.
 
 All fields live under `[hassette.websocket]` in `hassette.toml`.
 

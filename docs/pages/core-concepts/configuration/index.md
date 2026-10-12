@@ -79,7 +79,7 @@ HASSETTE__TOKEN=your_long_lived_access_token
 | `[hassette.web_api]` | Web UI and API server host, port, and feature flags |
 | `[hassette.cli]` | CLI connect target (`server_url`), TLS verification, and credential settings for querying a remote instance |
 | `[hassette.database]` | Storage path, retention, and write-queue settings |
-| `[hassette.websocket]` | Connection, retry, and recovery timing |
+| `[hassette.websocket]` | WebSocket connection and per-operation timeouts |
 | `[hassette.logging]` | Log level, format, queue, and per-service overrides |
 | `[hassette.lifecycle]` | Startup, shutdown, and per-operation timeouts |
 | `[hassette.file_watcher]` | Debounce, step timing, and enable/disable |

@@ -174,21 +174,6 @@ class TestWebSocketConfig:
         assert cfg.connection_timeout_seconds == 5
         assert cfg.total_timeout_seconds == 30
         assert cfg.heartbeat_interval_seconds == 30
-        assert cfg.connect_retry_max_attempts == 5
-        assert cfg.connect_retry_initial_wait_seconds == 1.0
-        assert cfg.connect_retry_max_wait_seconds == 32.0
-        assert cfg.early_drop_stable_window_seconds == 30.0
-        assert cfg.early_drop_max_retries == 5
-        assert cfg.early_drop_backoff_initial_seconds == 2.0
-        assert cfg.early_drop_backoff_max_seconds == 60.0
-        assert cfg.max_recovery_seconds == 300.0
-
-    def test_float_fields_are_float(self):
-        """Float fields return float, not int."""
-        cfg = WebSocketConfig()
-        assert isinstance(cfg.connect_retry_initial_wait_seconds, float)
-        assert isinstance(cfg.connect_retry_max_wait_seconds, float)
-        assert isinstance(cfg.max_recovery_seconds, float)
 
 
 class TestWebApiConfig:

@@ -151,7 +151,10 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
 
 
 class WebSocketConfig(ExcludeExtrasMixin, BaseModel):
-    """WebSocket connection, retry, and recovery timing settings."""
+    """WebSocket connection and timeout settings.
+
+    Reconnect pacing is fixed, not configurable: see ``hassette.core.websocket_reconnect``.
+    """
 
     authentication_timeout_seconds: int = Field(default=10)
     """Length of time to wait for WebSocket authentication to complete."""
@@ -170,30 +173,6 @@ class WebSocketConfig(ExcludeExtrasMixin, BaseModel):
 
     cleanup_timeout_seconds: float = Field(default=2.0)
     """Length of time to wait for the recv task to finish cancelling during partial cleanup."""
-
-    connect_retry_max_attempts: int = Field(default=5)
-    """Maximum number of attempts to establish the initial WebSocket connection before giving up."""
-
-    connect_retry_initial_wait_seconds: float = Field(default=1.0)
-    """Initial backoff wait in seconds between WebSocket connection retry attempts."""
-
-    connect_retry_max_wait_seconds: float = Field(default=32.0)
-    """Maximum backoff wait in seconds between WebSocket connection retry attempts."""
-
-    early_drop_stable_window_seconds: float = Field(default=30.0)
-    """Seconds a connection must stay alive before it is considered stable (resets early-drop counter)."""
-
-    early_drop_max_retries: int = Field(default=5)
-    """Maximum number of early-drop reconnect attempts before treating the failure as fatal."""
-
-    early_drop_backoff_initial_seconds: float = Field(default=2.0)
-    """Initial backoff wait in seconds between early-drop reconnect attempts."""
-
-    early_drop_backoff_max_seconds: float = Field(default=60.0)
-    """Maximum backoff wait in seconds between early-drop reconnect attempts."""
-
-    max_recovery_seconds: float = Field(default=300.0)
-    """Maximum total wall-clock seconds to spend on all WebSocket recovery attempts before giving up."""
 
 
 class LoggingConfig(ExcludeExtrasMixin, BaseModel):

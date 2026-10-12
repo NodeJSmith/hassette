@@ -17,7 +17,6 @@ from unittest.mock import AsyncMock, Mock
 from aiohttp import ClientWebSocketResponse
 
 from hassette.core.observer_list import ObserverList
-from hassette.exceptions import RetryableConnectionClosedError
 from hassette.resources.lifecycle import mark_ready
 from hassette.testing.config import TEST_TOTAL_TIMEOUT_SECONDS
 from hassette.types.enums import ConnectionState
@@ -86,7 +85,6 @@ def configure_ready_websocket_mock(websocket_service: Mock, *, generation: int =
     websocket_service.total_timeout_seconds = TEST_TOTAL_TIMEOUT_SECONDS
     websocket_service.wait_connected = AsyncMock(return_value=True)
     websocket_service.wait_connected_generation = AsyncMock(return_value=generation)
-    websocket_service.wait_initial_connection = AsyncMock(return_value=True)
     websocket_service.connected_observers = ObserverList(LOGGER, "Connected")
     websocket_service.disconnected_observers = ObserverList(LOGGER, "Disconnected")
 
@@ -103,45 +101,19 @@ def mark_websocket_service_connected(websocket_service: "WebsocketService", *, r
     _configure_websocket_external_readiness_primitives(websocket_service)
 
 
-def make_clean_connection_task() -> asyncio.Task[None]:
-    """Build the task a ``make_connection()`` stub returns for a connection that exits cleanly.
+async def run_connect_sequence(websocket_service: "WebsocketService", spawned_coros: list[Coroutine]) -> None:
+    """Run ``start_recv_and_subscribe()`` then ``mark_connected()``, and dispose of what they started.
 
-    ``serve()`` awaits whatever ``make_connection()`` hands back, so a stub has to return a real
-    task rather than a plain value -- this and ``make_dropped_connection_task`` are the two outcomes
-    those stubs need.
-    """
-
-    async def _clean() -> None:
-        pass
-
-    return asyncio.create_task(_clean())
-
-
-def make_dropped_connection_task(message: str = "peer gone") -> asyncio.Task[None]:
-    """Build the task a ``make_connection()`` stub returns for a connection the peer drops.
-
-    Awaiting it raises ``RetryableConnectionClosedError``, which is what drives ``serve()`` into
-    its reconnect path. See ``make_clean_connection_task`` for the success counterpart.
-    """
-
-    async def _fail() -> None:
-        raise RetryableConnectionClosedError(message)
-
-    return asyncio.create_task(_fail())
-
-
-async def run_start_recv_and_subscribe(websocket_service: "WebsocketService", spawned_coros: list[Coroutine]) -> None:
-    """Run ``start_recv_and_subscribe()`` and dispose of everything it started.
-
+    This is ``run_connection()``'s path to CONNECTED without the handshake or the RUNNING gate.
     Pair with ``make_task_bucket_spawn_stub``, whose recorded coroutine list is what
     ``spawned_coros`` expects. Closes each recorded coroutine (the stub never ran them, so
-    leaving them open raises ResourceWarning) and cancels the recv task the method returns,
-    which tests observe side effects of rather than await.
+    leaving them open raises ResourceWarning) and cancels the recv task stand-in.
     """
-    result_task = await websocket_service.start_recv_and_subscribe()
+    recv_task = await websocket_service.start_recv_and_subscribe()
+    await websocket_service.mark_connected(recv_task)
     for coro in spawned_coros:
         coro.close()
-    result_task.cancel()
+    recv_task.cancel()
 
 
 def make_task_bucket_spawn_stub() -> tuple[list[Coroutine], Mock]:
@@ -150,13 +122,15 @@ def make_task_bucket_spawn_stub() -> tuple[list[Coroutine], Mock]:
     Returns the list that gets populated with each spawned coroutine (callers close()
     them after the test to suppress ResourceWarning) and the ``Mock`` to assign as
     ``websocket_service.task_bucket.spawn``. The stub returns a plain ``Mock`` in place of
-    the real ``asyncio.Task`` -- callers only ``.cancel()`` or ``.add_done_callback()`` it,
-    never await its completion, so no real task needs to be scheduled.
+    the real ``asyncio.Task`` -- callers only ``.cancel()``, ``.add_done_callback()`` or ``.done()``
+    it (reporting not done), never await its completion, so no real task needs to be scheduled.
     """
     spawned_coros: list[Coroutine] = []
 
     def _spawn_side_effect(coro, *, name=None):  # noqa: ARG001
         spawned_coros.append(coro)
-        return Mock()
+        task = Mock()
+        task.done.return_value = False
+        return task
 
     return spawned_coros, Mock(side_effect=_spawn_side_effect)

@@ -172,3 +172,9 @@ class ConnectionState(StrEnum):
 
     CONNECTED = auto()
     """The WebSocket connection is established and active."""
+
+    AUTH_FAILED = auto()
+    """Home Assistant rejected the access token; Hassette stays up but no longer reconnects.
+
+    Leaving this state takes a process restart, after fixing the token.
+    """

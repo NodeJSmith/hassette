@@ -646,37 +646,6 @@ class TestOnlyApps:
         assert config.token.get_secret_value() == TEST_TOKEN
 
 
-def test_websocket_connect_retry_defaults() -> None:
-    """Connect-retry fields under websocket group have the correct default values."""
-    config = LogLevelTestConfig()
-    assert config.websocket.connect_retry_max_attempts == 5
-    assert isinstance(config.websocket.connect_retry_max_attempts, int)
-    assert config.websocket.connect_retry_initial_wait_seconds == 1.0
-    assert isinstance(config.websocket.connect_retry_initial_wait_seconds, float)
-    assert config.websocket.connect_retry_max_wait_seconds == 32.0
-    assert isinstance(config.websocket.connect_retry_max_wait_seconds, float)
-
-
-def test_websocket_early_drop_defaults() -> None:
-    """Early-drop fields under websocket group have the correct default values."""
-    config = LogLevelTestConfig()
-    assert config.websocket.early_drop_stable_window_seconds == 30.0
-    assert isinstance(config.websocket.early_drop_stable_window_seconds, float)
-    assert config.websocket.early_drop_max_retries == 5
-    assert isinstance(config.websocket.early_drop_max_retries, int)
-    assert config.websocket.early_drop_backoff_initial_seconds == 2.0
-    assert isinstance(config.websocket.early_drop_backoff_initial_seconds, float)
-    assert config.websocket.early_drop_backoff_max_seconds == 60.0
-    assert isinstance(config.websocket.early_drop_backoff_max_seconds, float)
-
-
-def test_websocket_max_recovery_default() -> None:
-    """websocket.max_recovery_seconds defaults to 300.0."""
-    config = LogLevelTestConfig()
-    assert config.websocket.max_recovery_seconds == 300.0
-    assert isinstance(config.websocket.max_recovery_seconds, float)
-
-
 def test_bundled_toml_files_have_no_log_level_entries():
     """Regression guard: bundled TOML defaults must not contain *_log_level keys.
 

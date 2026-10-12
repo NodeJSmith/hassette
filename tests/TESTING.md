@@ -356,7 +356,7 @@ Mock external boundaries and the method-under-test's collaborators — never the
 
 **Allowed:** mock `hassette.api.get_states_raw` (an external HA boundary), mock `subscribe_events` when the MUT is `start_recv_and_subscribe` (a collaborator called by the MUT).
 
-**Prohibited:** mock `start_recv_and_subscribe` when testing `serve` (you would be patching away the code under test).
+**Prohibited:** mock `start_recv_and_subscribe` when testing `run_connection` (you would be patching away the code under test). Stubbing `run_connection` is fine when the MUT is `serve()`'s retry loop, which treats one attempt as a collaborator; `tests/integration/websocket/test_reconnect_loop.py` covers the unstubbed path against a scripted HA server.
 
 ### WebsocketService connection tests — `build_fake_ws`
 
@@ -380,13 +380,11 @@ async def test_connect_ws_sets_ws_and_authenticates(websocket_service):
     assert websocket_service._ws is fake_ws
 ```
 
-`hassette.testing._ws_mocks` also carries the stubs `serve()`-level tests need:
-`make_clean_connection_task()` and `make_dropped_connection_task(message=...)` build what a
-`make_connection` stub returns (a task that exits cleanly, or one that raises
-`RetryableConnectionClosedError` to drive the reconnect path), and
-`run_start_recv_and_subscribe(websocket_service, spawned_coros)` runs
-`start_recv_and_subscribe()` and disposes of everything it started -- pair it with
-`make_task_bucket_spawn_stub()`, whose recorded coroutine list it expects.
+`hassette.testing._ws_mocks` also carries `run_connect_sequence(websocket_service, spawned_coros)`,
+which runs `start_recv_and_subscribe()` then `mark_connected()` and disposes of everything they
+started -- pair it with `make_task_bucket_spawn_stub()`, whose recorded coroutine list it expects.
+Tests of `serve()`'s reconnect loop itself stub `run_connection` (one attempt, raising whatever
+ended it), or run against the scripted HA server in `tests/support/fake_ha_ws.py`.
 
 `build_fake_ws()` returns a thin `ClientWebSocketResponse` stub (a `SimpleNamespace` cast) whose `send_json` / `receive_json` / `receive` / `close` methods are `AsyncMock`s and carries no Home Assistant protocol knowledge. Mocking only `session.ws_connect` (the aiohttp boundary) keeps the real `connect_ws` running. The fake session is built inline per test — it is not exported from `hassette.testing`'s public `__all__`.
 

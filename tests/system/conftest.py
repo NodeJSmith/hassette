@@ -499,7 +499,7 @@ def ws_probe(ws_url: str, hold_seconds: float = 3) -> None:
     the connection during the hold window. Uses the synchronous websockets
     client to avoid conflicts with the test's running event loop.
 
-    Defense-in-depth: production code (WebsocketService early-drop retry loop) now
+    Defense-in-depth: production code (WebsocketService.serve()'s reconnect loop) now
     handles post-authentication drops automatically, so system tests no longer rely
     on this probe as their primary stability guard. However, the probe is retained
     here because it catches the same HA startup-window flakiness at the fixture

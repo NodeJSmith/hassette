@@ -246,6 +246,7 @@ async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_
 
     send_event_mock = AsyncMock()
     websocket_service.hassette.send_event = send_event_mock
+    mark_websocket_service_connected(websocket_service, reason="test connected")
 
     data = {
         "type": "event",
@@ -255,6 +256,36 @@ async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_
 
     mock_create.assert_called_once_with(data)
     send_event_mock.assert_awaited_once_with(dummy_event)
+
+
+@pytest.mark.parametrize("state", [ConnectionState.CONNECTING, ConnectionState.DISCONNECTED])
+async def test_dispatch_drops_events_before_connected(
+    websocket_service: WebsocketService, state: ConnectionState
+) -> None:
+    """Events that arrive while HA is still booting (before CONNECTED) never reach the bus (D12)."""
+    websocket_service.hassette.send_event = AsyncMock()
+    websocket_service._connection_state = state
+
+    await websocket_service.dispatch(
+        {"type": "event", "event": {"event_type": "state_changed", "data": {}, "origin": "LOCAL"}}
+    )
+
+    websocket_service.hassette.send_event.assert_not_awaited()
+
+
+async def test_homeassistant_started_before_connected_releases_the_running_gate(
+    websocket_service: WebsocketService,
+) -> None:
+    """homeassistant_started during the RUNNING wait is consumed by the gate, not dispatched."""
+    websocket_service.hassette.send_event = AsyncMock()
+    websocket_service._connection_state = ConnectionState.CONNECTING
+
+    await websocket_service.dispatch(
+        {"type": "event", "event": {"event_type": "homeassistant_started", "data": {}, "origin": "LOCAL"}}
+    )
+
+    assert websocket_service._core_started_event.is_set()
+    websocket_service.hassette.send_event.assert_not_awaited()
 
 
 async def test_dispatch_stamps_state_change_event_with_connected_generation(

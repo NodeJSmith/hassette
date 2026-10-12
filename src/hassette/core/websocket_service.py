@@ -9,35 +9,38 @@ from typing import Any, ClassVar, cast
 
 import aiohttp
 import anyio
-from aiohttp import ClientConnectorError, ClientOSError, ClientTimeout, ServerDisconnectedError, WSMsgType
+from aiohttp import ClientTimeout, WSMsgType
 from aiohttp.client_exceptions import ClientConnectionResetError
 from hassette_wire import LogLevel
-from tenacity import (
-    before_sleep_log,
-    retry,
-    retry_if_exception,
-    retry_if_exception_type,
-    retry_if_not_exception_type,
-    stop_after_attempt,
-    wait_exponential_jitter,
-)
+from tenacity import before_sleep_log, retry, retry_if_exception, stop_after_attempt, wait_exponential_jitter
 
-from hassette.core.early_drop_policy import (
-    compute_recovery_windows,
-    early_drop_backoff,
-    is_early_drop,
-    log_resilience_budget,
-)
 from hassette.core.observer_list import ObserverList
 from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS, SINGLE_ATTEMPT
 from hassette.core.websocket_inbound import log_dispatch_failure, parse_text_frame
+from hassette.core.websocket_reconnect import (
+    AUTH_REJECTED_REASON,
+    CORE_RUNNING_RECHECK_SECONDS,
+    CORE_STATE_RUNNING,
+    CORE_STATES_SHUTTING_DOWN,
+    HA_STARTED_EVENT_TYPE,
+    NOT_CONNECTED_REASON,
+    PROPAGATED_EXCEPTIONS,
+    WS_MAX_MSG_SIZE,
+    CoreShuttingDownError,
+    Disposition,
+    OutageLog,
+    ReconnectPolicy,
+    RetryPlan,
+    event_set_within,
+    race_recv_task,
+    raise_recv_task_end,
+)
 from hassette.core.websocket_responses import PendingResponses, command_label
 from hassette.events import HassetteSimpleEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import (
     WS_NOT_CONNECTED_MESSAGE,
     ConnectionClosedError,
-    CouldNotFindHomeAssistantError,
     FailedMessageError,
     InvalidAuthError,
     InvalidLifecycleTransitionError,
@@ -60,27 +63,23 @@ if typing.TYPE_CHECKING:
     from hassette.resources.base import Resource
 
 
-# Valid WebSocket connection state transitions.
-# DISCONNECTED → CONNECTING: serve() begins first connection attempt
-# CONNECTING → CONNECTED: handshake + auth + subscribe succeeded
-# CONNECTING → DISCONNECTED: non-retryable failure or max retries exhausted
-# CONNECTED → CONNECTING: connection lost, retrying (implies reconnect)
-# CONNECTED → DISCONNECTED: clean shutdown
+# Valid WebSocket connection state transitions. Failed attempts and their backoffs stay in
+# CONNECTING with no transition, so an outage produces no per-attempt state changes.
+# DISCONNECTED → CONNECTING: serve() starts an attempt (first, or after the recv task died)
+# CONNECTING → CONNECTED: Home Assistant's core state reached RUNNING
+# CONNECTING → AUTH_FAILED: the token was rejected and serve() parked
+# CONNECTING → DISCONNECTED: the recv task died during the RUNNING wait, or shutdown
+# CONNECTED → CONNECTING: serve() handles the drop of an established connection
+# CONNECTED → DISCONNECTED: the recv task died, or shutdown
+# AUTH_FAILED → DISCONNECTED: shutdown (leaving AUTH_FAILED otherwise takes a process restart)
 WS_VALID_TRANSITIONS: dict[ConnectionState, frozenset[ConnectionState]] = {
     ConnectionState.DISCONNECTED: frozenset({ConnectionState.CONNECTING}),
-    ConnectionState.CONNECTING: frozenset({ConnectionState.CONNECTED, ConnectionState.DISCONNECTED}),
+    ConnectionState.CONNECTING: frozenset(
+        {ConnectionState.CONNECTED, ConnectionState.AUTH_FAILED, ConnectionState.DISCONNECTED}
+    ),
     ConnectionState.CONNECTED: frozenset({ConnectionState.CONNECTING, ConnectionState.DISCONNECTED}),
+    ConnectionState.AUTH_FAILED: frozenset({ConnectionState.DISCONNECTED}),
 }
-
-# classify errors once (easy to audit/change later)
-NON_RETRYABLE = (InvalidAuthError, asyncio.CancelledError)
-RETRYABLE = (
-    RetryableConnectionClosedError,
-    ServerDisconnectedError,
-    ClientConnectorError,
-    ClientOSError,
-    CouldNotFindHomeAssistantError,
-)
 
 # Number of stack frames to keep when logging an invalid connection-state transition.
 # 3 is enough to show the caller that triggered the transition without dumping the
@@ -151,7 +150,9 @@ class WebsocketService(Service):
         self._connect_lock = asyncio.Lock()
         self._send_ready_event = asyncio.Event()
         self._connected_event = asyncio.Event()
-        self._first_connection_attempt_done_event = asyncio.Event()
+        self._core_started_event = asyncio.Event()
+        self._policy = ReconnectPolicy()
+        self._outage_log = OutageLog(self.logger, self.url)
         self._connected_at = None
         self._connected_signal_active = False
         self._connection_state: ConnectionState = ConnectionState.DISCONNECTED
@@ -197,8 +198,8 @@ class WebsocketService(Service):
         raises InvalidLifecycleTransitionError for invalid transitions; in non-strict
         (default) mode logs WARNING. Logs every valid transition at DEBUG with previous state.
 
-        Reaching CONNECTED, and leaving it again, are also logged at INFO so the Home
-        Assistant connection is visible at the default log level — this is the line the
+        The first CONNECTED, and leaving CONNECTED, are also logged at INFO so the Home
+        Assistant connection is visible at the default log level — the first line is the one the
         quickstart tells a new user to look for to confirm their URL and token work.
 
         Args:
@@ -239,9 +240,8 @@ class WebsocketService(Service):
         ever_connected = getattr(self, "_ever_connected", False)
 
         if new == ConnectionState.CONNECTED:
-            if ever_connected:
-                self.logger.info("Reconnected to Home Assistant at %s", url)
-            else:
+            # A reconnect is logged by OutageLog.record_connected, with the outage's duration.
+            if not ever_connected:
                 self.logger.info("Connected to Home Assistant at %s", url)
             self._ever_connected = True
         else:
@@ -309,32 +309,6 @@ class WebsocketService(Service):
             return None
         return self._connected_generation
 
-    async def wait_initial_connection(self, *, timeout: float | None = None) -> bool:
-        """Wait for initial connection success, or the first failed connection attempt.
-
-        This lets startup state sync avoid racing ahead of the WebSocket connection attempt
-        without blocking optional-HA startup until the full retry budget is exhausted.
-        """
-        if self.is_connected and self._connected_event.is_set():
-            return True
-        if self._first_connection_attempt_done_event.is_set():
-            return False
-
-        connected_task = asyncio.create_task(self._connected_event.wait())
-        attempt_done_task = asyncio.create_task(self._first_connection_attempt_done_event.wait())
-        try:
-            done, _pending = await asyncio.wait(
-                {connected_task, attempt_done_task}, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
-            )
-        finally:
-            for task in (connected_task, attempt_done_task):
-                if not task.done():
-                    task.cancel()
-
-        if not done:
-            return False
-        return self.is_connected and self._connected_event.is_set()
-
     def get_next_message_id(self) -> int:
         """Get the next message ID."""
         return next(self._seq)
@@ -348,103 +322,115 @@ class WebsocketService(Service):
             return
         await self.disconnected_observers.notify()
 
-    async def handle_early_drop(
-        self, exc: Exception, elapsed: float, early_drop_attempts: int, max_early_drops: int
-    ) -> None:
-        """Log, notify, clean up, and back off after an early connection drop, then set CONNECTING.
-
-        Sends the connection-lost event before marking not-ready so the idempotency guard passes.
-        """
-        close_code = getattr(exc, "close_code", None)
-        self.logger.warning(
-            "WebSocket early drop detected (elapsed=%.1fs, attempt=%d/%d%s) — retrying",
-            elapsed,
-            early_drop_attempts,
-            max_early_drops,
-            f", close_code={close_code}" if close_code is not None else "",
-        )
-        self.set_connection_state(ConnectionState.CONNECTING)
-        self._send_ready_event.clear()
-        await self._notify_disconnected_observers()
-        await self.send_connection_lost_event()
-        mark_not_ready(self, reason="Early drop detected")
-        await self._emit_readiness_event()
-        await self.partial_cleanup()
-        await early_drop_backoff(self.hassette.config.websocket, early_drop_attempts)
-
-    async def handle_genuine_failure(self) -> None:
-        """Transition to DISCONNECTED and notify listeners of a non-recoverable serve() failure."""
-        self.set_connection_state(ConnectionState.DISCONNECTED)
-        self._send_ready_event.clear()
-        await self._notify_disconnected_observers()
-        await self.send_connection_lost_event()
-        mark_not_ready(self, reason="WebSocket recv loop failed")
-        await self._emit_readiness_event()
-
     async def serve(self) -> None:
-        """Connect to the WebSocket and run the receive loop."""
-        log_resilience_budget(self.hassette.config.websocket, self.logger, self.restart_spec.budget_intensity)
-        max_early_drops = self.hassette.config.websocket.early_drop_max_retries
+        """Connect to Home Assistant and keep reconnecting in place until shutdown.
 
+        This is the connection's only retry loop: no Home Assistant-side failure leaves it, so an
+        HA restart or outage never reaches ServiceWatcher. ``ReconnectPolicy`` classifies each
+        failure and paces the next attempt; a rejected token parks the loop instead. Only the
+        exceptions in ``PROPAGATED_EXCEPTIONS`` (and cancellation, at shutdown) escape.
+        """
         async with self._connect_lock:
             timeout = ClientTimeout(connect=self.connection_timeout_seconds, total=self.total_timeout_seconds)
 
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                early_drop_attempts = 0
-                recovery_started_at: float | None = None
-
-                # Set CONNECTING before the first connection attempt
+                self._policy = ReconnectPolicy()
+                self._outage_log = OutageLog(self.logger, self.url)
                 self.set_connection_state(ConnectionState.CONNECTING)
 
                 while True:
                     try:
-                        self._recv_task = await self.make_connection(session)
-                        await self._recv_task
-                        return  # clean exit (shutdown)
-                    except InvalidAuthError:
-                        if early_drop_attempts > 0:
-                            self.logger.error("Authentication failed on reconnect — possible token revocation")
-                        self.set_connection_state(ConnectionState.DISCONNECTED)
+                        await self.run_connection(session)
+                        return  # run_connection always raises; only a test stub returns
+                    except PROPAGATED_EXCEPTIONS:
                         raise
                     except Exception as exc:
-                        elapsed, recovery_elapsed = compute_recovery_windows(self._connected_at, recovery_started_at)
-                        if is_early_drop(
-                            self.hassette.config.websocket, exc, early_drop_attempts, elapsed, recovery_elapsed
-                        ):
-                            if recovery_started_at is None:
-                                recovery_started_at = time.monotonic()
-                            early_drop_attempts += 1
-                            await self.handle_early_drop(exc, elapsed, early_drop_attempts, max_early_drops)
-                            continue
-                        # Genuine failure — propagate to _serve_wrapper
-                        await self.handle_genuine_failure()
-                        raise
+                        plan = await self.handle_connection_failure(exc)
+
+                    if plan.delay is None:  # Disposition.PARK, the only plan without a delay
+                        await self.park()
+                        return  # unreachable: park() only ends by cancellation at shutdown
+                    await asyncio.sleep(plan.delay)
+
+    async def run_connection(self, session: aiohttp.ClientSession) -> None:
+        """Run one connection from handshake to drop; always raises whatever ended it."""
+        await self.connect_ws(session)
+        recv_task = await self.start_recv_and_subscribe()
+        await self.wait_for_core_running(recv_task)
+        await self.mark_connected(recv_task)
+        # asyncio.wait rather than awaiting the task: a recv task cancelled by anything but our own
+        # cleanup is a lost connection, not a shutdown of serve().
+        await asyncio.wait({recv_task})
+        raise_recv_task_end(recv_task)
+
+    async def handle_connection_failure(self, exc: Exception) -> RetryPlan:
+        """Tear down the failed connection, notify listeners once, and decide the next step.
+
+        Sends the connection-lost event before marking not-ready so its idempotency guard passes.
+        """
+        now = time.monotonic()
+        connected_for = (now - self._connected_at) if self._connected_at is not None else None
+        self._connected_at = None
+        was_connected = self._connected_signal_active
+
+        self._send_ready_event.clear()
+        self._policy.on_connection_ended(connected_for)
+        plan = self._policy.on_failure(exc, has_ever_connected=self.has_ever_connected)
+        if plan.disposition is not Disposition.PARK:
+            self.set_connection_state(ConnectionState.CONNECTING)
+
+        await self._notify_disconnected_observers()
+        await self.send_connection_lost_event()
+        # A never-connected service stays lifecycle-ready (see on_initialize); otherwise replace
+        # whatever reason the failed attempt left, such as the RUNNING gate's.
+        if was_connected or not self.is_ready():
+            await self.report_not_ready(NOT_CONNECTED_REASON)
+        await self.partial_cleanup()
+
+        self._outage_log.record_failure(
+            exc, plan, now=now, connected_for=connected_for, has_ever_connected=self.has_ever_connected
+        )
+        return plan
+
+    async def park(self) -> None:
+        """Stay up without reconnecting until shutdown cancels serve() (D3, D10)."""
+        self.set_connection_state(ConnectionState.AUTH_FAILED)
+        await self.report_not_ready(AUTH_REJECTED_REASON, always_emit=True)
+        await asyncio.Event().wait()  # never set: cancellation at shutdown is the only exit
+
+    async def report_not_ready(self, reason: str, *, always_emit: bool = False) -> None:
+        """Mark not ready with ``reason``, replacing any earlier reason.
+
+        Emits a readiness event when readiness flips (or when ``always_emit``), so an outage that
+        moves between causes produces no per-attempt events (D11).
+        """
+        was_ready = self.is_ready()
+        mark_not_ready(self, reason=reason)
+        if not self.shutdown_event.is_set():  # mark_not_ready keeps the first reason; shutdown's must win
+            self._ready_reason = reason
+        if was_ready or always_emit:
+            await self._emit_readiness_event()
 
     async def connect_ws(self, session: aiohttp.ClientSession) -> None:
         """Open the WebSocket connection and authenticate.
 
-        Sets self._ws. Converts ClientConnectorError with ConnectionRefusedError cause
-        to CouldNotFindHomeAssistantError.
+        Sets self._ws. Messages larger than ``WS_MAX_MSG_SIZE`` close the socket with code 1009.
 
         Args:
             session: The aiohttp ClientSession to use for the WebSocket connection.
         """
         self._session = session
-
-        try:
-            self._ws = await session.ws_connect(
-                self.url, heartbeat=self.heartbeat_interval_seconds, ssl=self.hassette.config.verify_ssl
-            )
-        except ClientConnectorError as exc:
-            if exc.__cause__ and isinstance(exc.__cause__, ConnectionRefusedError):
-                raise CouldNotFindHomeAssistantError(self.url) from exc.__cause__
-            raise
-
+        self._ws = await session.ws_connect(
+            self.url,
+            heartbeat=self.heartbeat_interval_seconds,
+            ssl=self.hassette.config.verify_ssl,
+            max_msg_size=WS_MAX_MSG_SIZE,
+        )
         self.logger.debug("Connected to WebSocket at %s", self.url)
         await self.authenticate()
 
     async def start_recv_and_subscribe(self) -> asyncio.Task:
-        """Spawn the recv loop, open the send gate, subscribe, then advertise readiness.
+        """Spawn the recv loop, open the send gate, and subscribe to Home Assistant events.
 
         Returns:
             The recv loop task.
@@ -457,13 +443,51 @@ class WebsocketService(Service):
 
         self._send_ready_event.set()
         self._subscription_ids.add(await self.subscribe_events())
+        return recv_task
+
+    async def wait_for_core_running(self, recv_task: asyncio.Task) -> None:
+        """Hold the connection in CONNECTING until Home Assistant's core state is RUNNING (D12).
+
+        Reads ``get_config`` over the auth-level send gate (``Api.get_config`` refuses anything
+        short of CONNECTED). While HA is starting, waits for ``homeassistant_started`` (caught by
+        ``dispatch_hass_event``) and re-reads ``get_config`` every ``CORE_RUNNING_RECHECK_SECONDS``
+        in case that event was missed. There is no deadline: HA bounds STARTING itself.
+
+        Raises:
+            CoreShuttingDownError: If HA reports a shutting-down core state.
+        """
+        while True:
+            self._core_started_event.clear()
+            config = await race_recv_task(self.send_and_wait(type="get_config"), recv_task)
+            core_state = str(config["state"])
+            if core_state == CORE_STATE_RUNNING:
+                return
+            if core_state in CORE_STATES_SHUTTING_DOWN:
+                raise CoreShuttingDownError(core_state)
+
+            await self.report_not_ready(f"Home Assistant core state is {core_state}, waiting for RUNNING")
+            self._outage_log.record_core_wait(
+                core_state, now=time.monotonic(), has_ever_connected=self.has_ever_connected
+            )
+            # homeassistant_started means RUNNING, so it ends the wait without another get_config.
+            if await race_recv_task(
+                event_set_within(self._core_started_event, CORE_RUNNING_RECHECK_SECONDS), recv_task
+            ):
+                return
+
+    async def mark_connected(self, recv_task: asyncio.Task) -> None:
+        """Advertise external readiness: CONNECTED, a new generation, observers, and the public event."""
+        # The recv task can die between the gate's last reply and this call; never advertise a dead socket.
+        if recv_task.done():
+            raise_recv_task_end(recv_task)
+
+        was_ever_connected = self.has_ever_connected  # read before set_connection_state latches it
         self._connected_generation = next(self._generation_seq)
         self.set_connection_state(ConnectionState.CONNECTED)
-
         self._connected_event.set()
-        self._first_connection_attempt_done_event.set()
-
         self._connected_at = time.monotonic()
+        self._policy.on_connected()
+        self._outage_log.record_connected(now=self._connected_at, was_ever_connected=was_ever_connected)
 
         mark_ready(self, reason="WebSocket connected, authenticated, and subscribed")
         await self._emit_readiness_event()
@@ -471,24 +495,14 @@ class WebsocketService(Service):
         await self.connected_observers.notify(self._connected_generation)
         with suppress(Exception):
             await self.send_connection_established_event()
-        return recv_task
 
     def _handle_recv_task_done(self, task: asyncio.Task) -> None:
-        """Invalidate connection state the instant the recv task dies, independent of serve().
+        """Invalidate connection state and fail pending replies the instant the recv task dies.
 
-        serve() only learns a recv task died once it gets the task handle back from
-        start_recv_and_subscribe() and awaits it — but that method can be delayed arbitrarily
-        long by connected_observers.notify() running a slow observer (e.g. StateProxy's initial
-        sync). Attaching this callback directly to the task (asyncio.Task.add_done_callback
-        fires synchronously in the event loop the moment the task completes, regardless of who
-        is awaiting it) means get_connected_generation()/is_connected reflect the disconnect the
-        instant the task actually dies, not only after the whole notification pass completes.
-
-        Deliberate cancellation (serve()'s own cleanup tearing the task down on purpose) is not a
-        failure and is skipped here — those paths already run their own state transitions.
-        set_connection_state() itself no-ops if the state is already DISCONNECTED, so this never
-        duplicates or conflicts with serve()'s subsequent handle_early_drop/handle_genuine_failure
-        cleanup — it only makes the transition visible earlier.
+        serve() only notices the death once it awaits the task again, which a slow connected
+        observer (StateProxy's initial sync) can delay. A done-callback fires immediately, so
+        is_connected and pending callers see the drop now. Deliberate cancellation by our own
+        cleanup is skipped: those paths run their own transitions.
         """
         if task is not self._recv_task:
             return
@@ -496,6 +510,7 @@ class WebsocketService(Service):
             return
         if task.exception() is None:
             return
+        self._pending.fail_all(self._ws.close_code if self._ws is not None else None)
         self.set_connection_state(ConnectionState.DISCONNECTED)
 
     async def partial_cleanup(self) -> None:
@@ -525,31 +540,6 @@ class WebsocketService(Service):
         self._subscription_ids.clear()
         self._ws = None
         self._recv_task = None
-
-    async def make_connection(self, session: aiohttp.ClientSession) -> asyncio.Task:
-        self._connected_at = None
-
-        # inner function so we can use `self` in the retry decorator
-        @retry(
-            retry=retry_if_not_exception_type(NON_RETRYABLE) | retry_if_exception_type(RETRYABLE),
-            wait=wait_exponential_jitter(
-                initial=self.hassette.config.websocket.connect_retry_initial_wait_seconds,
-                max=self.hassette.config.websocket.connect_retry_max_wait_seconds,
-            ),
-            stop=stop_after_attempt(self.hassette.config.websocket.connect_retry_max_attempts),
-            reraise=True,
-            before_sleep=before_sleep_log(self.logger, logging.WARNING),
-        )
-        async def _inner_connect() -> asyncio.Task:
-            await self.partial_cleanup()
-            try:
-                await self.connect_ws(session)
-                return await self.start_recv_and_subscribe()
-            except Exception:
-                self._first_connection_attempt_done_event.set()
-                raise
-
-        return await _inner_connect()
 
     async def recv_loop(self) -> None:
         while True:
@@ -814,12 +804,8 @@ class WebsocketService(Service):
                 self.logger.debug("Authenticated successfully with Home Assistant at %s", ws_url)
                 return
 
+            # serve()'s OutageLog reports the rejection at the level D3's retry-or-park decision calls for.
             if msg["type"] == "auth_invalid":
-                self.logger.critical(
-                    "Invalid authentication (using token %s) for Home Assistant instance at %s",
-                    truncated_token,
-                    ws_url,
-                )
                 raise InvalidAuthError(f"Authentication failed - invalid access token ({truncated_token}) for {ws_url}")
 
             raise RuntimeError(f"Unexpected authentication response: {msg}")
@@ -880,7 +866,17 @@ class WebsocketService(Service):
             log_dispatch_failure(self.logger, data, exc)
 
     async def dispatch_hass_event(self, data: "HassEventEnvelopeDict") -> None:
-        """Dispatch a Home Assistant event to the event bus."""
+        """Dispatch a Home Assistant event to the event bus, once the connection is CONNECTED.
+
+        Before CONNECTED (HA still booting, D12) events are dropped unstamped: the resync at
+        CONNECTED replaces whatever they carried. ``homeassistant_started`` is consumed by
+        ``wait_for_core_running`` instead.
+        """
+        if self._connection_state != ConnectionState.CONNECTED:
+            if (data.get("event") or {}).get("event_type") == HA_STARTED_EVENT_TYPE:
+                self._core_started_event.set()
+            return
+
         event = create_event_from_hass(data)
         if isinstance(event, RawStateChangeEvent):
             stamp_websocket_generation(event, self.get_connected_generation())
@@ -891,7 +887,7 @@ class WebsocketService(Service):
 
         Idempotent: skips if the connection has never been established (prevents spurious
         DISCONNECTED events before the first successful connection, and duplicate events
-        during early-drop retry cycles, failed pre-readiness reconnect attempts, and
+        during reconnect-loop attempts, failed pre-readiness reconnect attempts, and
         before_shutdown calls). Gated on the active public connected signal rather than
         `is_ready()` because `mark_ready()` now fires unconditionally in `on_initialize()` —
         readiness no longer implies a connection was ever established.

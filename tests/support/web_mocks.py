@@ -240,7 +240,6 @@ def create_hassette_stub(
         hassette._websocket_service.get_connected_generation.return_value = None
         hassette._websocket_service.wait_connected = AsyncMock(return_value=False)
         hassette._websocket_service.wait_connected_generation = AsyncMock(return_value=None)
-        hassette._websocket_service.wait_initial_connection = AsyncMock(return_value=False)
 
     hassette.app_handler = hassette._app_handler
     hassette.app_bootstrap_coordinator = hassette._app_bootstrap_coordinator

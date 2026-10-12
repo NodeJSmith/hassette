@@ -1,6 +1,6 @@
 """Shared fixtures for websocket service integration tests.
 
-Complements test_connection.py, test_dispatch.py, test_reconnect.py, and
+Complements test_connection.py, test_dispatch.py, test_reconnect.py, test_reconnect_loop.py, and
 test_subscribe_events_retry.py.
 """
 

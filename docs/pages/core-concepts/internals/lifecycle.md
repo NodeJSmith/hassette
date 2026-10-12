@@ -28,7 +28,7 @@ The outcome depends on three things: the exception type, how many restarts have 
 |---|---|---|---|---|
 | `BusService` | `PERMANENT` | 2 | 30 | Core event dispatch |
 | `SchedulerService` | `PERMANENT` | 2 | 30 | Core job execution |
-| `WebsocketService` | `TRANSIENT` | 5 | 300 | `startup_timeout_seconds=60` |
+| `WebsocketService` | `TRANSIENT` | 5 | 300 | `startup_timeout_seconds=60`; HA outages never reach this budget, since `serve()` reconnects in place |
 | `DatabaseService` | `TRANSIENT` | 3 | 120 | `fatal_error_names=("SchemaVersionError",)` |
 | `WebApiService` | `TRANSIENT` | 3 | 60 | HTTP API and UI; a bind failure (port in use) raises `FatalError` |
 | `FileWatcherService` | `TEMPORARY` | 3 | 60 | Config hot-reload |
@@ -222,4 +222,4 @@ lifecycle.
 - [Architecture & Data Flow](index.md): event pipeline, service dependency graph, and component ownership
 - [Per-Service Internals](service-details.md): bus routing, scheduler dispatch, database schema, state cache, and web layer
 - [Apps — Lifecycle](../apps/lifecycle.md): the initialization and shutdown hooks an app implements
-- [Operating Hassette](../../operating/index.md#layer-3-servicewatcher-restart-budget): how the restart budget and cooldown appear in logs during WebSocket reconnection
+- [Operating Hassette](../../operating/index.md#websocket-reconnection): how the WebSocket reconnects through Home Assistant restarts without involving `ServiceWatcher`
