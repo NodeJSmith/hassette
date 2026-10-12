@@ -62,6 +62,10 @@ class SchedulerService(SchedulerDispatchMixin, Service):
     a ``db_id`` with a freshly re-registered live job (the upsert reuses the natural-key row).
     """
 
+    @property
+    def config_log_level(self) -> LogLevel:
+        return self.hassette.config.logging.scheduler_service
+
     def __init__(self, hassette: "Hassette", *, executor: "CommandExecutor", parent: Resource | None = None) -> None:
         super().__init__(hassette, parent=parent)
         self._executor = executor
@@ -70,10 +74,6 @@ class SchedulerService(SchedulerDispatchMixin, Service):
         self._exit_event = asyncio.Event()
         self._removal_callbacks = {}
         self._jobs_by_id = {}
-
-    @property
-    def config_log_level(self) -> LogLevel:
-        return self.hassette.config.logging.scheduler_service
 
     async def before_initialize(self) -> None:
         await self.hassette.ready_event.wait()
