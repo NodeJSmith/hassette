@@ -340,6 +340,7 @@ export function createSystemStatus(overrides: Partial<SystemStatusResponse> = {}
     log_queue_drops: 0,
     db_write_queue_drops: 0,
     log_persistence_active: true,
+    pending_wait_for_count: 0,
     ...overrides,
   } satisfies SystemStatusResponse;
 }
