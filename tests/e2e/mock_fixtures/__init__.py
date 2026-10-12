@@ -18,7 +18,7 @@ from tests.e2e.mock_fixtures.manifests import (
     wire_owner_resolution,
 )
 from tests.e2e.mock_fixtures.scheduler import build_scheduler_jobs, wire_scheduler_trigger
-from tests.e2e.mock_fixtures.sessions_config import build_session_list, wire_config, wire_session_telemetry
+from tests.e2e.mock_fixtures.sessions_config import wire_config
 from tests.e2e.mock_fixtures.telemetry import (
     build_app_health_summaries,
     build_executions,
@@ -44,7 +44,6 @@ __all__ = [
     "build_manifests",
     "build_old_snapshot",
     "build_scheduler_jobs",
-    "build_session_list",
     "wire_app_health_summaries",
     "wire_app_manifest_lookups",
     "wire_config",
@@ -53,7 +52,6 @@ __all__ = [
     "wire_listener_telemetry",
     "wire_owner_resolution",
     "wire_scheduler_trigger",
-    "wire_session_telemetry",
 ]
 
 # Derived constants for E2E test assertions — computed from the builder

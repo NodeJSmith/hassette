@@ -62,18 +62,3 @@ class AppHealthSummary(BaseModel):
     handler_count: int
     job_count: int
     aggregates: AppHealthAggregates
-
-
-class SessionRecord(BaseModel):
-    """Single session record returned by ``get_session_list()``."""
-
-    id: int
-    started_at: float
-    stopped_at: float | None
-    status: str
-    error_type: str | None
-    error_message: str | None
-    duration_seconds: float | None
-    dropped_overflow: int = 0
-    dropped_exhausted: int = 0
-    dropped_shutdown: int = 0
