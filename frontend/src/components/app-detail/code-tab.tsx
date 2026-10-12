@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
+import { handleUnauthorized } from "../../api/client";
 import type { AppSourceData, ListenerData } from "../../api/endpoints";
 import { getAppSource } from "../../api/endpoints";
 import { useQueryParams } from "../../hooks/use-query-params";
@@ -89,7 +90,7 @@ export function CodeTab({ appKey, listeners }: Props) {
         if (controller.signal.aborted) return;
         setHighlightedHtml(rawHtml);
       } catch (err) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || handleUnauthorized(err)) return;
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes("404") || msg.toLowerCase().includes("not found")) {
           setError("Source file not found at expected path");

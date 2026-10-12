@@ -62,7 +62,8 @@ export function unauthorizedOutcome(error: unknown): UnauthorizedOutcome | null 
  * Acts on a 401 by sending the operator to login or showing the session-expired view. Returns whether
  * `error` was a 401, so a caller can skip its own error handling. Called from the QueryCache's `onError`,
  * from `apiPost`, and from the WebSocket's auth check, which together cover every authenticated call;
- * `apiFetch` itself stays side-effect-free.
+ * `apiFetch` itself stays side-effect-free, so code that catches an `ApiError` instead of letting it reach
+ * the QueryCache (the app config and source tabs) calls this itself.
  *
  * Idempotent, so it may fire twice for one failure (e.g. a query whose fetcher calls `apiPost`).
  * `navigate` replaces the default full page load for callers that have a router (the WebSocket hook).

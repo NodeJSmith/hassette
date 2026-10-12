@@ -3,6 +3,7 @@ import { delay, http, HttpResponse } from "msw";
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useAppStore } from "../../state/store";
 import { createListener } from "../../test/factories";
 import { server } from "../../test/server";
 import { CodeTab } from "./code-tab";
@@ -102,6 +103,14 @@ describe("CodeTab", () => {
       expect(screen.getByTestId("code-tab-error")).toBeDefined();
     });
     expect(screen.getByTestId("code-tab-error").textContent).toContain("Source file not found");
+  });
+
+  it("shows the session-expired view instead of an inline error on a 401 that isn't Hassette's", async () => {
+    useAppStore.setState({ sessionExpired: false });
+    server.use(http.get(SOURCE_ENDPOINT, () => HttpResponse.json({}, { status: 401 })));
+    render(<CodeTab appKey={defaultSource.app_key} listeners={[]} />);
+    await waitFor(() => expect(useAppStore.getState().sessionExpired).toBe(true));
+    expect(screen.queryByTestId("code-tab-error")).toBeNull();
   });
 
   it("shows line count in header", async () => {
