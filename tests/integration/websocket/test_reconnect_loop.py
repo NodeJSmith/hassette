@@ -2,8 +2,9 @@
 
 Pins design/specs/131-ha-restart-reconnect: failures retry in place and never leave serve()
 (D1, D9), a rejected token is retried three times, then parks (D3, D10), the connection waits for HA's
-RUNNING core state before advertising CONNECTED (D12), oversized messages escalate to the Slow pace (D13), and a
-dead receive loop fails pending replies at once. Backoff delays are shrunk via the
+RUNNING core state before advertising CONNECTED (D12), oversized messages escalate to the Slow pace (D13), a
+dead receive loop fails pending replies at once, and the bus connection events alternate, connected first, even when
+the connection drops or shutdown lands while connected observers run. Backoff delays are shrunk via the
 ``fast_reconnect`` fixture; classification and pacing values are pinned in
 tests/unit/core/test_websocket_reconnect.py.
 
@@ -423,6 +424,44 @@ async def test_pending_reply_fails_the_moment_the_connection_drops(
 
         with pytest.raises(ResponseLostError):
             await asyncio.wait_for(pending, timeout=1.0)
+
+
+@pytest.mark.usefixtures("fast_reconnect")
+async def test_drop_during_connected_observers_still_pairs_connected_then_disconnected(
+    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
+) -> None:
+    """A drop while a connected observer runs is announced, not suppressed: connected, then disconnected.
+
+    The bus events promise pairing and order, not that the connection is still up on delivery
+    (design/research/2026-10-12-connect-announcement-contract/prior-art.md).
+    """
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+    dropped = False
+
+    async def drop_on_first_connect(generation: int) -> None:  # noqa: ARG001
+        nonlocal dropped
+        if dropped:
+            return
+        dropped = True
+        await fake_ha.drop_all()
+        await wait_for(lambda: not websocket_service.is_connected, timeout=WAIT_SECONDS, desc="drop detected")
+
+    websocket_service.connected_observers.add(drop_on_first_connect)
+
+    async with serving(websocket_service, fake_ha):
+        await wait_for(
+            lambda: len(capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)) >= 2,
+            timeout=WAIT_SECONDS,
+            desc="reconnected after the mid-announcement drop",
+        )
+
+    connection_topics = {Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED, Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED}
+    assert [topic for topic in capture.topics if topic in connection_topics][:3] == [
+        Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED,
+        Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED,
+        Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED,
+    ]
 
 
 async def test_invalid_lifecycle_transition_propagates_out_of_serve(
