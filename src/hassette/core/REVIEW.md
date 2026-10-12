@@ -40,3 +40,10 @@ After `BusService` restarts, `reconcile_after_bus_recovery()` in
 `src/hassette/core/service_watcher.py` scans for FAILED services with no budget
 entry. Does it also cover services that failed *and were restarted* during the blind
 window but now have an incorrect budget entry?
+
+## Recv-Task Detach Before Cancel
+`_handle_recv_task_done` in `src/hassette/core/websocket_service.py` treats any
+end of the still-attached `_recv_task`, cancellation included, as a lost
+connection. Does every site that cancels the recv task on purpose (cleanup,
+shutdown) set `_recv_task` to `None` first? A site that cancels while the task is
+still attached turns a deliberate teardown into a spurious DISCONNECTED transition.
