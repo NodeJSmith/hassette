@@ -59,18 +59,22 @@ export function unauthorizedOutcome(error: unknown): UnauthorizedOutcome | null 
 }
 
 /**
- * Acts on a 401 by sending the operator to login or showing the session-expired view; a no-op for
- * anything else. Called from the QueryCache's `onError` and from `apiPost`, which together cover every
- * REST call; `apiFetch` itself stays side-effect-free.
+ * Acts on a 401 by sending the operator to login or showing the session-expired view. Returns whether
+ * `error` was a 401, so a caller can skip its own error handling. Called from the QueryCache's `onError`,
+ * from `apiPost`, and from the WebSocket's auth check, which together cover every authenticated call;
+ * `apiFetch` itself stays side-effect-free.
  *
- * Idempotent, so it may fire twice for one failure (e.g. a query whose fetcher calls `apiPost`). The
- * WebSocket path maps the same outcomes in `hooks/use-websocket.ts`, using SPA navigation instead of a
- * full page load.
+ * Idempotent, so it may fire twice for one failure (e.g. a query whose fetcher calls `apiPost`).
+ * `navigate` replaces the default full page load for callers that have a router (the WebSocket hook).
  */
-export function handleUnauthorized(error: unknown): void {
+export function handleUnauthorized(
+  error: unknown,
+  navigate: (path: string) => void = (path) => window.location.assign(resolveAppUrl(path)),
+): boolean {
   const outcome = unauthorizedOutcome(error);
-  if (outcome === "login") window.location.assign(resolveAppUrl(LOGIN_PATH));
+  if (outcome === "login") navigate(LOGIN_PATH);
   if (outcome === "session-expired") useAppStore.getState().setSessionExpired();
+  return outcome !== null;
 }
 
 interface ErrorBody {

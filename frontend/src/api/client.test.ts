@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveAppUrl } from "../lib/base-path";
 import { useAppStore } from "../state/store";
 import { LOGIN_PATH } from "../utils/app-routes";
-import { ApiError, apiFetch, apiPost, postSession, unauthorizedOutcome } from "./client";
+import { ApiError, apiFetch, apiPost, handleUnauthorized, postSession, unauthorizedOutcome } from "./client";
 
 /** Builds a mock non-ok `fetch` response whose `json()` resolves to `body`. */
 function mockErrorResponse(status: number, statusText: string, body: unknown) {
@@ -177,6 +177,23 @@ describe("401 handling", () => {
 
     expect(useAppStore.getState().sessionExpired).toBe(false);
     expect(assign).not.toHaveBeenCalled();
+  });
+
+  it("handleUnauthorized uses the caller's navigate for login and reports whether it was a 401", () => {
+    const navigate = vi.fn();
+    const login = new ApiError(401, "Unauthorized", "Not authenticated", "not_authenticated");
+
+    expect(handleUnauthorized(login, navigate)).toBe(true);
+    expect(navigate).toHaveBeenCalledWith(LOGIN_PATH);
+    expect(assign).not.toHaveBeenCalled();
+
+    expect(handleUnauthorized(new ApiError(401, "Unauthorized"), navigate)).toBe(true);
+    expect(useAppStore.getState().sessionExpired).toBe(true);
+    expect(navigate).toHaveBeenCalledTimes(1);
+
+    expect(handleUnauthorized(new ApiError(500, "Internal Server Error"), navigate)).toBe(false);
+    expect(handleUnauthorized(new Error("network"), navigate)).toBe(false);
+    expect(navigate).toHaveBeenCalledTimes(1);
   });
 });
 

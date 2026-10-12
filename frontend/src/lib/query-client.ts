@@ -14,7 +14,10 @@ export function createQueryClient(): QueryClient {
       // A 401 means a session is missing or expired — no amount of retrying or cache
       // invalidation recovers from that, so every failed query goes through handleUnauthorized.
       // Non-query calls (action POSTs) reach the same handler via apiPost; apiFetch itself never does.
-      onError: handleUnauthorized,
+      // Wrapped, not passed bare: QueryCache calls onError(error, query), and `query` would bind to navigate.
+      onError: (error) => {
+        handleUnauthorized(error);
+      },
     }),
     defaultOptions: {
       queries: {

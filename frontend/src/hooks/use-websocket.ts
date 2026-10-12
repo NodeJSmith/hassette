@@ -2,14 +2,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 
-import { unauthorizedOutcome } from "../api/client";
+import { handleUnauthorized } from "../api/client";
 import { getSystemStatus, WS_PATH } from "../api/endpoints";
 import type { WsServerMessage } from "../api/ws-types";
 import { validateWsMessage, WsValidationError } from "../api/ws-validator";
 import { resolveWsUrl } from "../lib/base-path";
 import { queryKeys } from "../lib/query-keys";
 import { appStatusKey, useAppStore } from "../state/store";
-import { LOGIN_PATH } from "../utils/app-routes";
 
 export const MAX_BACKOFF_MS = 30_000;
 export const INITIAL_BACKOFF_MS = 1_000;
@@ -208,12 +207,8 @@ export function useWebSocket(): void {
         try {
           await getSystemStatus(controller.signal);
         } catch (err) {
-          const outcome = unauthorizedOutcome(err);
-          if (outcome !== null) {
-            if (!unmounted && outcome === "login") navigateRef.current(LOGIN_PATH);
-            if (!unmounted && outcome === "session-expired") useAppStore.getState().setSessionExpired();
-            return;
-          }
+          if (unmounted) return;
+          if (handleUnauthorized(err, navigateRef.current)) return;
         } finally {
           clearTimeout(timeoutId);
         }
