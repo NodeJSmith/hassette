@@ -100,6 +100,20 @@ def mark_not_ready(resource: _LifecycleHostP, reason: str | None = None) -> None
     resource.ready_event.clear()
 
 
+def set_ready_reason(resource: _LifecycleHostP, reason: str | None) -> None:
+    """Replace the readiness reason without changing readiness.
+
+    For a resource whose readiness stays fixed while the status it reports changes, such as
+    ``WebsocketService`` showing the Home Assistant connection's state.
+
+    Args:
+        resource: The resource whose reason to replace.
+        reason: The new reason.
+    """
+    resource = typing.cast("LifecycleMixin", resource)
+    resource._ready_reason = reason
+
+
 def request_shutdown(resource: _LifecycleHostP, reason: str | None = None) -> None:
     """Set the sticky shutdown flag. Idempotent."""
     resource = typing.cast("LifecycleMixin", resource)

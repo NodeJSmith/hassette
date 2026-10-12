@@ -129,6 +129,14 @@ If the container isn't running, `docker compose run --rm --entrypoint hassette h
 | `HASSETTE__INSTALL_DEPS` | `HASSETTE_DOCKER_INSTALL_DEPS` |
 | `HASSETTE__PROJECT_DIR` | `HASSETTE_DOCKER_PROJECT_DIR` |
 | `HASSETTE__PRUNE_UV_CACHE` | `HASSETTE_DOCKER_PRUNE_UV_CACHE` |
+| `[hassette.websocket] connect_retry_max_attempts` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
+| `[hassette.websocket] connect_retry_initial_wait_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
+| `[hassette.websocket] connect_retry_max_wait_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
+| `[hassette.websocket] early_drop_stable_window_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
+| `[hassette.websocket] early_drop_max_retries` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
+| `[hassette.websocket] early_drop_backoff_initial_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
+| `[hassette.websocket] early_drop_backoff_max_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
+| `[hassette.websocket] max_recovery_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
 | `config_file` / `env_file` settings | the `--config-file` / `--env-file` CLI flags |
 | `config_dir` in `hassette.toml` or `.env` | `--config-dir`, or `HASSETTE__CONFIG_DIR` in the process environment |
 | An app's `AppConfig` `env_prefix` starting with `hassette__` (its variables are now checked as Hassette settings) | a prefix outside `HASSETTE__`: `env_prefix="hassette__myapp_"` becomes `env_prefix="myapp_"`, and `HASSETTE__MYAPP_API_KEY` becomes `MYAPP_API_KEY` |

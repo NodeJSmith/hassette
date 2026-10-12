@@ -70,7 +70,17 @@ class FakeHomeAssistant:
         """Send an event to every open, authenticated connection."""
         for ws in list(self.sockets):
             await ws.send_json(
-                {"id": 1, "type": "event", "event": {"event_type": event_type, "data": data or {}, "origin": "LOCAL"}}
+                {
+                    "id": 1,
+                    "type": "event",
+                    "event": {
+                        "event_type": event_type,
+                        "data": data or {},
+                        "origin": "LOCAL",
+                        "time_fired": "2026-10-12T10:00:00.000000+00:00",
+                        "context": {"id": "fake-context", "parent_id": None, "user_id": None},
+                    },
+                }
             )
 
     async def handle(self, request: web.Request) -> web.StreamResponse:

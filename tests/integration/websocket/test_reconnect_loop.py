@@ -1,8 +1,8 @@
 """serve()'s reconnect loop, driven against a scripted Home Assistant WebSocket server.
 
 Pins design/specs/131-ha-restart-reconnect: failures retry in place and never leave serve()
-(D1, D9), a rejected token parks (D3, D10), the connection waits for HA's RUNNING core state
-before advertising CONNECTED (D12), oversized messages escalate to the Slow pace (D13), and a
+(D1, D9), a rejected token is retried three times, then parks (D3, D10), the connection waits for HA's
+RUNNING core state before advertising CONNECTED (D12), oversized messages escalate to the Slow pace (D13), and a
 dead receive loop fails pending replies at once. Backoff delays are shrunk via the
 ``fast_reconnect`` fixture; classification and pacing values are pinned in
 tests/unit/core/test_websocket_reconnect.py.
@@ -15,11 +15,18 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import aiohttp
 import pytest
 
 import hassette.core.websocket_reconnect as reconnect_module
 import hassette.core.websocket_service as websocket_service_module
-from hassette.core.websocket_reconnect import AUTH_REJECTED_REASON, NOT_CONNECTED_REASON, Disposition, RetryPlan
+from hassette.core.websocket_reconnect import (
+    AUTH_REJECTED_REASON,
+    CONNECTED_REASON,
+    NOT_CONNECTED_REASON,
+    Disposition,
+    RetryPlan,
+)
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import InvalidLifecycleTransitionError, ResponseLostError
 from hassette.testing import EventCapture, wait_for
@@ -108,13 +115,18 @@ async def test_ha_restart_reconnects_in_the_same_serve_call(
     """An HA restart (1001 close, then refused, then back) reconnects without serve() returning or raising."""
     capture = EventCapture()
     capture.install(websocket_service.hassette)
+    await websocket_service.on_initialize()
 
     async with serving(websocket_service, fake_ha) as task:
         first_generation = await wait_connected(websocket_service)
+        assert websocket_service._ready_reason == CONNECTED_REASON
 
         await fake_ha.stop()
         await wait_for(lambda: not websocket_service.is_connected, timeout=WAIT_SECONDS, desc="drop detected")
-        assert not websocket_service.is_ready()
+        assert websocket_service.is_ready()
+        await wait_for(
+            lambda: websocket_service._ready_reason == NOT_CONNECTED_REASON, timeout=WAIT_SECONDS, desc="reason"
+        )
 
         await fake_ha.start()
         second_generation = await wait_connected(websocket_service)
@@ -122,6 +134,7 @@ async def test_ha_restart_reconnects_in_the_same_serve_call(
         assert second_generation > first_generation
         assert not task.done()
         assert websocket_service.is_ready()
+        assert websocket_service._ready_reason == CONNECTED_REASON
         assert len(capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)) == 1
         assert len(capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)) == 2
 
@@ -143,6 +156,46 @@ async def test_handshake_502_retries_at_fast_pace(
 
 
 @pytest.mark.usefixtures("fast_reconnect")
+async def test_handshake_404_retries_at_fast_pace(
+    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
+) -> None:
+    """A reverse proxy's 404 while the HA backend it routes to is stopped heals on its own, so it stays Fast."""
+    fake_ha.handshake_status = 404
+    plans = record_plans(websocket_service)
+
+    async with serving(websocket_service, fake_ha):
+        await wait_for(lambda: len(plans) >= 3, timeout=WAIT_SECONDS, desc="404 attempts retried")
+        assert {plan.disposition for plan in plans} == {Disposition.FAST}
+
+        fake_ha.handshake_status = None
+        await wait_connected(websocket_service)
+
+
+@pytest.mark.usefixtures("fast_reconnect")
+async def test_unresolvable_host_retries_at_fast_pace(
+    websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A DNS failure (HA's host not resolvable yet, e.g. after a router reboot) is Fast, not Slow."""
+    key = aiohttp.client_reqrep.ConnectionKey("ha-host.invalid", 8123, False, None, None, None, None)
+
+    async def fail_resolution(*_args: Any, **_kwargs: Any) -> None:
+        raise aiohttp.ClientConnectorDNSError(key, OSError("name resolution failed"))
+
+    # Raise the resolver's error directly: a real lookup depends on the runner's DNS behaving.
+    monkeypatch.setattr(aiohttp.ClientSession, "ws_connect", fail_resolution)
+    plans = record_plans(websocket_service)
+
+    task = asyncio.create_task(websocket_service.serve())
+    try:
+        await wait_for(lambda: len(plans) >= 2, timeout=WAIT_SECONDS, desc="DNS failures retried")
+        assert {plan.disposition for plan in plans} == {Disposition.FAST}
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        await websocket_service.partial_cleanup()
+
+
+@pytest.mark.usefixtures("fast_reconnect")
 async def test_handshake_401_retries_at_slow_pace(
     websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
 ) -> None:
@@ -158,11 +211,13 @@ async def test_handshake_401_retries_at_slow_pace(
 
 
 @pytest.mark.usefixtures("fast_reconnect")
-async def test_auth_rejected_before_any_connection_parks_after_one_attempt(
+async def test_auth_rejected_before_any_connection_retries_three_times_then_parks(
     websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
 ) -> None:
-    """A token that never worked parks at once: AUTH_FAILED, a ready reason, and no further logins."""
+    """A token that never worked gets the same 3 spaced retries (4 logins), then parks without leaving serve()."""
     fake_ha.auth_valid = False
+    plans = record_plans(websocket_service)
+    await websocket_service.on_initialize()
 
     async with serving(websocket_service, fake_ha) as task:
         await wait_for(
@@ -170,11 +225,35 @@ async def test_auth_rejected_before_any_connection_parks_after_one_attempt(
             timeout=WAIT_SECONDS,
             desc="parked on auth_invalid",
         )
-        await asyncio.sleep(0.1)  # ample time for several attempts at the shrunk pace, were any made
+        await asyncio.sleep(0.1)  # ample time for further attempts at the shrunk pace, were any made
 
-        assert fake_ha.auth_attempts == 1
+        assert fake_ha.auth_attempts == 4
+        assert [plan.disposition for plan in plans] == [Disposition.AUTH_RETRY] * 3 + [Disposition.PARK]
         assert not task.done()
-        assert not websocket_service.is_ready()
+        assert websocket_service.is_ready()
+        assert websocket_service._ready_reason == AUTH_REJECTED_REASON
+
+
+@pytest.mark.usefixtures("fast_reconnect")
+async def test_shutdown_while_parked_ends_serve_and_keeps_the_park_reason(
+    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
+) -> None:
+    """Cancelling serve() at shutdown ends the park, and the late status reports do not overwrite the reason."""
+    fake_ha.auth_valid = False
+    await websocket_service.on_initialize()
+
+    async with serving(websocket_service, fake_ha) as task:
+        await wait_for(
+            lambda: websocket_service.connection_state == ConnectionState.AUTH_FAILED,
+            timeout=WAIT_SECONDS,
+            desc="parked",
+        )
+        websocket_service.shutdown_event.set()
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+        assert task.cancelled()
+        await websocket_service.report_connection_status(NOT_CONNECTED_REASON)
         assert websocket_service._ready_reason == AUTH_REJECTED_REASON
 
 
@@ -230,6 +309,33 @@ async def test_running_gate_holds_connecting_and_drops_events_until_ha_started(
         await wait_connected(websocket_service)
 
         assert capture.by_topic(Topic.HASS_EVENT_STATE_CHANGED) == []
+
+
+@pytest.mark.usefixtures("fast_reconnect")
+async def test_started_event_caught_by_the_gate_is_dispatched_once_after_connected(
+    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
+) -> None:
+    """homeassistant_started ends the gate, then reaches the bus exactly once, after WEBSOCKET_CONNECTED."""
+    fake_ha.core_states = ["STARTING"]
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+
+    async with serving(websocket_service, fake_ha):
+        await wait_for(lambda: fake_ha.get_config_calls >= 1, timeout=WAIT_SECONDS, desc="core state read")
+        await fake_ha.send_event("homeassistant_started")
+        await wait_connected(websocket_service)
+        await wait_for(
+            lambda: any(str(t).endswith("homeassistant_started") for t in capture.topics),
+            timeout=WAIT_SECONDS,
+            desc="held event dispatched",
+        )
+        await asyncio.sleep(0.1)
+
+    topics = [str(topic) for topic in capture.topics]
+    started = [i for i, topic in enumerate(topics) if topic.endswith("homeassistant_started")]
+    connected = topics.index(str(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED))
+    assert len(started) == 1
+    assert started[0] > connected
 
 
 @pytest.mark.usefixtures("fast_reconnect")
@@ -342,3 +448,42 @@ async def test_invalid_lifecycle_transition_propagates_out_of_serve(
     async with serving(websocket_service, fake_ha) as task:
         with pytest.raises(InvalidLifecycleTransitionError):
             await asyncio.wait_for(task, timeout=WAIT_SECONDS)
+
+
+class FastSleepAsyncio:
+    """Stands in for the ``asyncio`` module inside websocket_service: ``sleep`` yields instead of waiting."""
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(asyncio, name)
+
+    @staticmethod
+    async def sleep(_delay: float) -> None:
+        await asyncio.sleep(0.01)
+
+
+async def test_repeated_accept_then_drop_cycles_keep_backing_off_up_to_the_fast_cap(
+    monkeypatch: pytest.MonkeyPatch, websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
+) -> None:
+    """Connections that reach CONNECTED but drop within seconds are flaps: the delay grows to 5 s and stays there.
+
+    Runs with the real Fast constants; only serve()'s sleep is shortened, so the recorded plan delays are the
+    production curve. A connect that reset the curve would show ~1 s delays all the way through.
+    """
+    monkeypatch.setattr(websocket_service_module, "asyncio", FastSleepAsyncio())
+    plans = record_plans(websocket_service)
+    cycles = 7
+
+    async with serving(websocket_service, fake_ha):
+        for cycle in range(1, cycles + 1):
+            await wait_for(lambda n=cycle: fake_ha.connections >= n, timeout=WAIT_SECONDS, desc=f"connection {cycle}")
+            await wait_connected(websocket_service)
+            await fake_ha.drop_all()
+            await wait_for(lambda n=cycle: len(plans) >= n, timeout=WAIT_SECONDS, desc=f"drop {cycle} handled")
+
+    delays = [plan.delay for plan in plans[:cycles]]
+    assert all(plan.disposition is Disposition.FAST for plan in plans[:cycles])
+    assert all(delay is not None and delay <= reconnect_module.FAST_BACKOFF_CAP_SECONDS for delay in delays)
+    assert delays[0] is not None
+    assert delays[0] <= 1.2
+    assert all(delay is not None and delay >= 3.2 for delay in delays[2:]), delays
+    assert delays[3:] == [reconnect_module.FAST_BACKOFF_CAP_SECONDS] * (cycles - 3)

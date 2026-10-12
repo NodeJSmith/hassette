@@ -8,7 +8,7 @@
 
 **Running in Docker.** Hassette must reach Home Assistant's network. If Home Assistant runs in a separate container or on a different host, `base_url` must point to its actual address, not `127.0.0.1`. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#cant-access-the-web-ui).
 
-**Invalid token.** Look for a CRITICAL "rejected the access token" line in the log. Hassette stays up but stops connecting, and the [Diagnostics page](web-ui/diagnostics.md) in the web UI shows the WebSocket service (Hassette's connection to HA) as not ready, with the reason "Home Assistant rejected the access token". Generate a new long-lived token, update `HASSETTE__TOKEN`, and restart Hassette. See [Rejected access token](operating/index.md#rejected-access-token).
+**Invalid token.** Look for a CRITICAL "rejected the access token" line in the log. Hassette retries 3 times, 60 seconds apart, then stays up but stops connecting. The [Diagnostics page](web-ui/diagnostics.md) in the web UI shows the WebSocket service (Hassette's connection to HA) as running, with the reason "Home Assistant rejected the access token". Generate a new long-lived token, update `HASSETTE__TOKEN`, and restart Hassette. See [Rejected access token](operating/index.md#rejected-access-token).
 
 **During reconnection**, your app code keeps running. The bus, scheduler, and state manager stay active, and bus handlers resume receiving events after the reconnect with no re-registration.
 
@@ -222,7 +222,7 @@ For container startup failures, dependency installation, health check failures, 
 
 ### Connection
 
-**`InvalidAuthError`** The token was rejected by Home Assistant. Your code never sees it from the WebSocket: Hassette stays up and stops connecting instead. Generate a new long-lived access token, update `HASSETTE__TOKEN`, and restart.
+**`InvalidAuthError`** Extends `HassetteError`. Home Assistant rejected the token. Your code never sees it from the WebSocket: Hassette retries 3 times, 60 seconds apart, then stays up and stops connecting. Generate a new long-lived access token, update `HASSETTE__TOKEN`, and restart.
 
 **`BaseUrlRequiredError`** `base_url` is missing entirely. Set it in `hassette.toml`.
 
@@ -284,4 +284,4 @@ For container startup failures, dependency installation, health check failures, 
 
 **[`HassetteError`][hassette.exceptions.HassetteError]** The base class for all Hassette exceptions. Catch this to handle any Hassette-raised error generically.
 
-**`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses include `InvalidAuthError`, `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`, `IPV6NotSupportedError`, `ServerUrlError` (and its subclasses), `CredentialResolutionError`, and `RestartRefusedError`.
+**`FatalError`** Extends `HassetteError`. Indicates a condition where the service should not restart. Hassette shuts down when this is raised. Subclasses include `BaseUrlRequiredError`, `SchemeRequiredInBaseUrlError`, `IPV6NotSupportedError`, `ServerUrlError` (and its subclasses), `CredentialResolutionError`, and `RestartRefusedError`.

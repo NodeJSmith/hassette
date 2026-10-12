@@ -67,19 +67,20 @@ Prior work: `design/research/2026-10-12-ha-restart-reconnect/research.md`. Its F
 
 **Deciding factor:** never exit, never generate repeated failed-login side effects in HA (F20), and don't strand a previously working token on a false rejection.
 
-| | A: stay up, stop retrying | B: retry every 5-10 min | C: a few retries, then stop | D: park immediately if never connected; if a connection has ever succeeded, 3 retries 60 s apart, then park |
+| | A: stay up, stop retrying | B: retry every 5-10 min | C: 3 retries 60 s apart for every rejected token, then park | D: park immediately if never connected; if a connection has ever succeeded, 3 retries 60 s apart, then park |
 |---|---|---|---|---|
 | Process exits | no | no | no | no |
-| HA "Login attempt failed" notifications / ban count | 1 | 1 per interval, unbounded | a handful | 1 (never connected) or up to 4 (after a prior success) |
+| HA "Login attempt failed" notifications / ban count | 1 | 1 per interval, unbounded | up to 4 | 1 (never connected) or up to 4 (after a prior success) |
 | Recovers from a token rotated in HA without a Hassette restart | no | yes | no | no |
-| Recovers from a false rejection (HA host clock behind the token's `iat` at boot) | no | yes | yes | yes, if it clears within ~3 min |
+| Recovers from a false rejection (HA host clock behind the token's `iat` at boot) | no | yes | yes, if it clears within ~3 min, including when Hassette restarted with the host | only if Hassette outlived the reboot; a co-hosted cold boot starts never-connected and parks |
 | Prior art | js-ws, node-red, HA MQTT, config entries | ESPHome-style pinned backoff | none | ESPHome-like (retries auth at 60 s before HA stops it) |
 | Added state | none | a timer | a counter | a counter keyed on `has_ever_connected` |
+| Time to the CRITICAL "fix the token" line for a mistyped token | immediate | never (retries forever) | ~3 min | immediate |
 
 **Recommendation:** D. A token that never worked is a config error and keeps A's profile. A token that worked before and is rejected during an HA reboot can be a clock-skew false rejection (see Assumed), and gets a few spaced attempts.
 **Pick A instead if** clock skew on an HA host is too rare to design for. **Pick B instead if** tokens were rotated in HA without touching Hassette's config. **Pick C instead if** you want bounded retries even for a never-working token.
 **Reversibility:** easy
-**Ratified:** Chose D (immediate park when never connected; 3 retries 60 s apart, then park, after a prior success) over always parking immediately, to recover from clock-skew false rejections during HA reboots, accepting up to 4 failed-login notifications in HA in that case. (Originally A during research; revised in the sketch challenge, Finding 2.) How the parked state is represented is D10.
+**Ratified:** Chose C (3 retries 60 s apart for every rejected token, then park) over D's immediate park for a never-connected process, to recover from clock-skew false rejections when Hassette reboots with the HA host, accepting up to 4 failed-login notifications and a ~3 min wait for the CRITICAL line on a mistyped token. (Originally A during research; D in the sketch challenge, Finding 2; C in the ship-time challenge, Finding 3: `has_ever_connected` is always false after a co-hosted reboot, the very case D's retries were for.) How the parked state is represented is D10.
 
 ### D4: Core-state (`RUNNING`) awareness scope
 
@@ -156,8 +157,8 @@ Four dispositions. A failure is classified by what failed, not only by how often
 |---|---|---|---|
 | **Propagate** (re-raised, never caught by the loop) | cancellation (`BaseException`); `InvalidLifecycleTransitionError` (strict lifecycle mode, forced on by the test harness, `src/hassette/testing/_harness.py:314`); `MemoryError` | n/a: `_serve_wrapper` / ServiceWatcher / the failing test | normal |
 | **Fast** (default: everything not named elsewhere) | refused; DNS failures; connect/handshake/auth timeouts; handshake 5xx (Supervisor proxy 502); close right after `auth_ok`; peer close or heartbeat loss of an established socket; a 1009 that isn't the 3rd in a row; HA reporting STOPPING/FINAL_WRITE during the RUNNING wait (D12); any unexpected exception, including proxy oddities (`RuntimeError("Unexpected authentication response")`, the `auth_required` assertion) | D8 curve, 1/2/4/5 s | D11 Fast cadence |
-| **Slow** (recurring, won't heal without an upstream fix) | handshake 401, 403, 404, 429; TLS/certificate errors; 1009 on 3 consecutive attempts | fixed 5 min; a 429 waits its `Retry-After` when present, capped at 30 min | ERROR naming the cause on every attempt (~12/h) |
-| **Park** (stop retrying until restart) | `auth_invalid` per D3: immediately if never connected, else after 3 retries 60 s apart | none: `ConnectionState.AUTH_FAILED` (D10), `serve()` waits until shutdown | CRITICAL once |
+| **Slow** (recurring, won't heal without an upstream fix) | handshake 401, 403, 429; a certificate the client rejects; 1009 on 3 consecutive attempts | fixed 5 min; a 429 waits its `Retry-After` when present, capped at 30 min | ERROR naming the cause on every attempt (~12/h) |
+| **Park** (stop retrying until restart) | `auth_invalid` per D3: after 3 retries 60 s apart | none: `ConnectionState.AUTH_FAILED` (D10), `serve()` waits until shutdown | CRITICAL once |
 
 Any connection that reaches CONNECTED returns the loop to the Fast disposition. The consecutive-1009 counter clears only when a connection stays CONNECTED for D8's 2-min reset window, or when a failure other than 1009 breaks the streak (amended at build time: an oversized `get_states` is only ever sent after CONNECTED, so clearing at CONNECTED would keep the counter at 1 forever).
 
@@ -173,13 +174,13 @@ Any connection that reaches CONNECTED returns the loop to the Fast disposition. 
 **Recommendation:** A. It keeps the conventional Fast and Park behavior and adds one slow pace for causes that a retry can't fix.
 **Pick B instead if** reverse-proxy-with-auth deployments and very large installs are out of audience. **Pick C instead if** you'd rather unknown bugs surface as service restarts.
 **Reversibility:** easy
-**Ratified:** Chose four dispositions (Propagate / Fast / Slow at a fixed 5 min / Park) over the two-bucket catch-all, to stop hammering ban lists and oversized fetches while keeping refused and DNS recovery fast and strict-mode bugs loud, accepting up to 5 min to notice an upstream fix for 4xx/TLS/1009 failures. (Originally a two-bucket catch-all; revised in the sketch challenge, Finding 1, with the user choosing the 5 min interval over 60 s and no slow tier.)
+**Ratified:** Chose four dispositions (Propagate / Fast / Slow at a fixed 5 min / Park) over the two-bucket catch-all, to stop hammering ban lists and oversized fetches while keeping refused and DNS recovery fast and strict-mode bugs loud, accepting up to 5 min to notice an upstream fix for 401/403/429, certificate and 1009 failures. (Originally a two-bucket catch-all; revised in the sketch challenge, Finding 1, with the user choosing the 5 min interval over 60 s and no slow tier. The ship-time challenge, Findings 4 and 5, moved a handshake 404 and non-certificate TLS errors to Fast: a reverse proxy answers 404 while the HA container behind it restarts, and an EOF or reset mid-handshake is a TLS listener restarting.)
 
 ### D10: How the auth-rejected state is represented
 
 **Deciding factor:** the user can see why Hassette is idle without reading logs, and a later UI (#1926) can tell "retrying on its own" from "needs action" without string-matching.
 
-| | A: new `ConnectionState.AUTH_FAILED` plus a `mark_not_ready` reason "Home Assistant rejected the access token" | B: `DISCONNECTED` plus the same `mark_not_ready` reason | C: B plus a new health `status` value `"auth_failed"` |
+| | A: new `ConnectionState.AUTH_FAILED` plus a ready reason "Home Assistant rejected the access token" | B: `DISCONNECTED` plus the same ready reason | C: B plus a new health `status` value `"auth_failed"` |
 |---|---|---|---|
 | Visible in `/api/health` / UI now | via `ServiceInfo.ready_phase` (rendered by `frontend/src/components/diagnostics/service-row.tsx`) | same | as the top-level status |
 | Typed signal for #1926's connection banner | yes: #1926 surfaces the state on the wire | no: #1926 must string-match the reason or add the state itself | yes, but decided here instead of in #1926 |
@@ -191,7 +192,7 @@ Any connection that reaches CONNECTED returns the loop to the Fast disposition. 
 **Recommendation:** A, because it gives #1926 a typed state at the cost of one enum member and two transitions, with no wire or frontend change now. The ready reason covers today's Diagnostics view.
 **Pick B instead if** no consumer will ever branch on auth failure. **Pick C instead if** auth failure must be on the dashboard header in this PR.
 **Reversibility:** A is hard to remove once public (adding is easy); B is easy; C is hard
-**Ratified:** Chose a new `ConnectionState.AUTH_FAILED` plus a ready reason over plain `DISCONNECTED` or a new health status, to give #1926 a typed "needs action" signal, accepting one new public enum member and two state transitions.
+**Ratified:** Chose a new `ConnectionState.AUTH_FAILED` plus a ready reason over plain `DISCONNECTED` or a new health status, to give #1926 a typed "needs action" signal, accepting one new public enum member and two state transitions. The ready reason carries every connection status, while lifecycle readiness stays set from `on_initialize` to shutdown (ship-time challenge, Finding 2): clearing readiness to change a displayed string put the startup wave at risk and needed a private-field write. A typed connection state on the wire belongs to #1926 (scope noted there); the ship-time challenge, Finding 7, kept `/api/health`'s `starting` for a parked never-connected process until then.
 
 Post-change `WS_VALID_TRANSITIONS` (sketch challenge, Finding 12), with the code path that writes each edge once `handle_early_drop`, `handle_genuine_failure` and the tenacity layer are gone:
 
@@ -222,7 +223,7 @@ Failed attempts and their backoffs (connect, handshake or auth failures, D3's sp
 **Recommendation:** A, matching aioesphomeapi's pattern. It bounds rows to a constant per hour while keeping the outage visible.
 **Pick C instead if** you consider health and UI sufficient and want minimal logs. **Pick B instead if** you were debugging the loop itself (DEBUG level already gives you that).
 **Reversibility:** easy
-**Ratified:** Chose first-failure WARNING, a 5-minute "still unreachable" WARNING, INFO on recovery, DEBUG per attempt and transition-only readiness events over per-attempt or first/last-only logging, to keep a long outage visible at ~13 rows/hour, accepting up to 5 minutes between visible log updates.
+**Ratified:** Chose first-failure WARNING, a 5-minute "still unreachable" WARNING, INFO on recovery, DEBUG per attempt and transition-only readiness events over per-attempt or first/last-only logging, to keep a long outage visible at ~13 rows/hour, accepting up to 5 minutes between visible log updates. (Ship-time challenge: a flap's recovery logs at DEBUG and only the summaries count flaps, Finding 8, because the D8 reset window alone left a flapping link at hundreds of INFO rows an hour; the summary is ERROR while an unexpected error keeps recurring, Finding 6; and a status event fires whenever the ready reason changes, Finding 2.)
 
 **Amended by the sketch challenge (Findings 1, 5, 6, 7, 8):**
 - While `has_ever_connected` is false, the first failure and each 5-min summary log at ERROR with the `base_url` hint, replacing the fail-fast exit a mistyped `base_url` used to get (Finding 6, folded into the Finding 1 re-evaluation).
@@ -247,7 +248,7 @@ Failed attempts and their backoffs (connect, handshake or auth failures, D3's sp
 **Recommendation:** A. "Connected" then means "HA is usable", which every consumer (StateProxy, bootstrap gate, health, apps' API calls) already assumes. It needs no second resync concept and doesn't depend on polling being enabled.
 **Pick B instead if** apps must be able to call services while HA is still STARTING.
 **Reversibility:** easy
-**Ratified:** Chose a connection-level gate (CONNECTED only once `get_config` reports RUNNING or `homeassistant_started` arrives, re-checking `get_config` every 5 s while waiting) over a StateProxy provisional-snapshot model, so that "connected" means "HA is usable" for every consumer, accepting that HA-boot events are not dispatched and app API calls wait until RUNNING.
+**Ratified:** Chose a connection-level gate (CONNECTED only once `get_config` reports RUNNING or `homeassistant_started` arrives, re-checking `get_config` every 5 s while waiting) over a StateProxy provisional-snapshot model, so that "connected" means "HA is usable" for every consumer, accepting that HA-boot events are not dispatched and app API calls wait until RUNNING. A `homeassistant_started` the gate catches is held and dispatched to the bus right after CONNECTED, so direct-path apps can still react to a real HA restart (ship-time challenge, Finding 14).
 
 **Behavior the build must hold (sketch challenge, Findings 8-11):**
 - **The wait's `get_config` calls** go through `WebsocketService.send_and_wait` on the auth-level send gate (`_send_ready_event`), not through `Api.get_config`. `Api.get_config` refuses whenever the state isn't CONNECTED (Finding 11).
@@ -326,13 +327,15 @@ Close code 1009 is the WebSocket "Message Too Big" code (RFC 6455): aiohttp clos
 **Calls made during the build:**
 
 - The reconnect policy (classification, pacing, outage logging) lives in a new `src/hassette/core/websocket_reconnect.py`, replacing `early_drop_policy.py`: `websocket_service.py` was already over the 800-line limit, and the file-size gate forbids it growing.
-- `WebsocketService.report_not_ready` replaces the ready reason even when the service is already not ready (the shared `mark_not_ready` keeps the first reason, which `request_shutdown` relies on): the D12 wait and D10 park reasons usually arrive after a drop already marked the service not ready, and `ServiceInfo.ready_phase` reads the reason live. A failure while not ready resets the reason to "Not connected to Home Assistant", so a gate-time drop doesn't leave "waiting for RUNNING" showing.
-- Readiness events fire only when readiness flips (plus once on parking), keeping D11's "readiness events only on state transitions"; a reason change on an already-not-ready service is visible through `ready_phase` without an event.
+- `WebsocketService.report_connection_status` sets the ready reason through the new `lifecycle.set_ready_reason` and emits a status event only when the reason changes; it does nothing once shutdown has started, so shutdown's reason wins. Every non-park failure resets the reason to "Not connected to Home Assistant", including a first-start outage.
 - D3's auth-rejection count resets only when a connection reaches CONNECTED; other failures between rejections don't reset it.
 - A 429's `Retry-After` is honored only in its delta-seconds form, floored at the 5 s Fast cap (a `Retry-After: 0` must not hot-loop); the HTTP-date form falls back to the 5 min Slow pace.
 - Any failure other than a 1009, auth rejections included, breaks the 1009 streak.
 - Slow and auth-retry failures don't advance the D8 Fast curve.
-- D11 episodes: an episode lasts until a connection survives the 2-min D8 window, so a flapping link gets one first-failure WARNING plus flap counts in the 5-min summaries. Every recovery still logs one INFO with that gap's duration.
+- D11 episodes: an episode lasts until a connection survives the 2-min D8 window, so a flapping link gets one first-failure WARNING plus flap counts in the 5-min summaries. A flap is a connection that dropped inside an open episode (`OutageLog.is_flap`); its recovery line is DEBUG.
+- `set_connection_state` no longer logs "Disconnected from Home Assistant" at INFO: OutageLog's first-failure WARNING reports a real drop, and a flap's drop belongs in the summary.
+- `mark_connected` re-checks the recv task after its status-event await and raises instead of announcing a connection that died meanwhile; observers get the generation captured before the await. Cleanup detaches the recv task before cancelling it, so the done-callback treats any other end of an attached task, cancellation included, as a lost connection (ship-time challenge, Findings 12 and 13).
+- `InvalidAuthError` subclasses `HassetteError`, not `FatalError`: nothing treats it as fatal any more, by D7's no-dead-public-semantics reasoning (ship-time challenge, Finding 15).
 - The "Reconnected to Home Assistant" INFO moved from `set_connection_state` to `OutageLog.record_connected` so it can carry the outage duration; the first-connect "Connected to Home Assistant" line stays where the quickstart expects it.
 - `authenticate()` no longer logs CRITICAL on `auth_invalid`; `OutageLog` logs at the level D3's retry-or-park decision calls for, so a retried rejection isn't reported as CRITICAL.
 - "Unexpected" exceptions (D11 traceback dedupe) are anything outside `aiohttp.ClientError`, `OSError`, `TimeoutError` and `HassetteError`.

@@ -71,8 +71,8 @@ Outbound calls go through the per-app [Api][hassette.api.api.Api] handle, which 
 
 | Failure | Behavior |
 |---|---|
-| WS disconnect | `WebsocketService` retries with exponential jitter. `ServiceWatcher` restarts the service if `serve()` fails, within the TRANSIENT budget (5 restarts / 300 s). |
-| Auth failure | [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] is a [`FatalError`][hassette.exceptions.FatalError] subclass. The `Service` base class catches it, calls `handle_crash()`, and `ServiceWatcher` triggers an immediate shutdown. |
+| WS disconnect | `WebsocketService` reconnects in place with jittered backoff. `ServiceWatcher` is not involved, and an unreachable HA never exhausts a restart budget. See [WebSocket Reconnection](../../operating/index.md#websocket-reconnection). |
+| Auth failure | A rejected token gets 3 retries 60 s apart. The next rejection parks the connection in `ConnectionState.AUTH_FAILED`, and the process stays up. [`InvalidAuthError`][hassette.exceptions.InvalidAuthError] is a `HassetteError`, not a `FatalError`. See [Rejected access token](../../operating/index.md#rejected-access-token). |
 | Handler timeout | Logged; invocation recorded as timed-out. |
 | DB write failure | `CommandExecutor` retries up to 3 times, then drops the record with a counter increment. |
 

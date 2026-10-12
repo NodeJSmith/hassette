@@ -4,12 +4,19 @@ Verifies that _emit_readiness_event() is called after mark_not_ready() and mark_
 on serve()'s connection-state transitions, and only on those (D11).
 """
 
+import asyncio
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 import hassette.core.websocket_reconnect as reconnect_module
-from hassette.core.websocket_reconnect import NOT_CONNECTED_REASON
+import hassette.core.websocket_service as service_module
+from hassette.core.websocket_reconnect import (
+    AUTH_REJECTED_REASON,
+    CONNECTED_REASON,
+    NOT_CONNECTED_REASON,
+    OutageLog,
+)
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import RetryableConnectionClosedError
 from hassette.testing import EventCapture
@@ -18,17 +25,22 @@ from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
 
-class TestWebsocketReadinessEvents:
-    """Tests that _emit_readiness_event() fires at the correct serve() transition points."""
+def status_reasons(event_capture: EventCapture) -> list[str | None]:
+    return [event.payload.data.ready_phase for event in event_capture.by_topic(Topic.HASSETTE_EVENT_SERVICE_STATUS)]
 
-    async def test_drop_of_established_connection_emits_not_ready_event(
+
+class TestWebsocketReadinessEvents:
+    """The HA connection's status is the ready reason: one status event per change, never a readiness flip (R1)."""
+
+    async def test_drop_of_established_connection_reports_not_connected_and_stays_ready(
         self,
         websocket_service: WebsocketService,
         event_capture: EventCapture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Losing an established connection emits one service_status event with ready=False and a reason."""
+        """Losing an established connection changes the reason to NOT_CONNECTED_REASON; ready stays True."""
         event_capture.install(websocket_service.hassette)
+        await websocket_service.on_initialize()
         monkeypatch.setattr(reconnect_module, "FAST_BACKOFF_CAP_SECONDS", 0.0)
         attempts = 0
 
@@ -43,22 +55,20 @@ class TestWebsocketReadinessEvents:
 
         await websocket_service.serve()
 
-        not_ready_events = [
-            event
-            for event in event_capture.by_topic(Topic.HASSETTE_EVENT_SERVICE_STATUS)
-            if not event.payload.data.ready
-        ]
-        assert len(not_ready_events) == 1
-        assert not_ready_events[0].payload.data.ready_phase == NOT_CONNECTED_REASON
+        events = event_capture.by_topic(Topic.HASSETTE_EVENT_SERVICE_STATUS)
+        assert [e.payload.data.ready_phase for e in events] == [CONNECTED_REASON, NOT_CONNECTED_REASON]
+        assert all(e.payload.data.ready for e in events)
+        assert websocket_service.is_ready() is True
 
-    async def test_failed_attempt_before_any_connection_emits_no_readiness_event(
+    async def test_failed_attempts_before_any_connection_emit_one_not_connected_event(
         self,
         websocket_service: WebsocketService,
         event_capture: EventCapture,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Failed attempts with no established connection change no readiness (D11: transitions only)."""
+        """A first-start outage shows NOT_CONNECTED_REASON, and repeated failures with one cause emit one event."""
         event_capture.install(websocket_service.hassette)
+        await websocket_service.on_initialize()
         monkeypatch.setattr(reconnect_module, "FAST_BACKOFF_CAP_SECONDS", 0.0)
         attempts = 0
 
@@ -72,28 +82,18 @@ class TestWebsocketReadinessEvents:
 
         await websocket_service.serve()
 
-        assert event_capture.by_topic(Topic.HASSETTE_EVENT_SERVICE_STATUS) == []
+        assert status_reasons(event_capture) == [NOT_CONNECTED_REASON]
+        assert websocket_service.is_ready() is True
 
-    async def test_mark_ready_after_connect_emits_event(
+    async def test_connect_emits_one_status_event_with_the_connected_reason(
         self,
         websocket_service: WebsocketService,
         event_capture: EventCapture,
     ) -> None:
-        """Successful connect path emits a service_status event with ready=True after mark_ready().
-
-        Runs the real connect sequence with sub-methods stubbed to isolate mark_connected()'s
-        mark_ready() → _emit_readiness_event() call.
-
-        Companion: test_mark_connected_marks_ready_and_publishes_connected in
-        tests/integration/websocket/test_connection.py asserts the structural side (generation,
-        _connected_at set) of the same method.
-        """
+        """mark_connected reports CONNECTED_REASON through a service_status event, without touching readiness."""
         event_capture.install(websocket_service.hassette)
-
-        # Stub out the sub-methods the connect sequence calls so we can run the real
-        # methods and observe whether they call _emit_readiness_event() after mark_ready().
+        await websocket_service.on_initialize()
         spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
-
         websocket_service.task_bucket = Mock()  # pyright: ignore[reportAttributeAccessIssue]
         websocket_service.task_bucket.spawn = spawn_stub
         websocket_service.send_connection_established_event = AsyncMock()  # pyright: ignore[reportAttributeAccessIssue]
@@ -101,20 +101,63 @@ class TestWebsocketReadinessEvents:
 
         await run_connect_sequence(websocket_service, spawned_coros)
 
-        # Assert: _emit_readiness_event() was called → a service_status event with ready=True was sent
-        service_status_calls = event_capture.by_topic(Topic.HASSETTE_EVENT_SERVICE_STATUS)
-        assert len(service_status_calls) >= 1, (
-            f"Expected at least one service_status event, got topics: {event_capture.topics}"
+        assert status_reasons(event_capture) == [CONNECTED_REASON]
+        assert websocket_service.is_ready() is True
+
+    async def test_running_gate_reports_the_core_state_and_stays_ready(
+        self,
+        websocket_service: WebsocketService,
+        event_capture: EventCapture,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """While HA's core is not RUNNING the reason names the state, once, and the service stays ready."""
+        event_capture.install(websocket_service.hassette)
+        await websocket_service.on_initialize()
+        monkeypatch.setattr(service_module, "CORE_RUNNING_RECHECK_SECONDS", 0.01)
+        websocket_service._outage_log = OutageLog(websocket_service.logger, websocket_service.url)
+        websocket_service.send_and_wait = AsyncMock(  # pyright: ignore[reportAttributeAccessIssue]
+            side_effect=[{"state": "NOT_RUNNING"}, {"state": "NOT_RUNNING"}, {"state": "RUNNING"}]
         )
+        recv_task = asyncio.create_task(asyncio.sleep(10))
 
-        ready_events = [event for event in service_status_calls if event.payload.data.ready]
-        assert len(ready_events) >= 1, "Expected at least one service_status event with ready=True"
+        await websocket_service.wait_for_core_running(recv_task)
+        recv_task.cancel()
 
-        first_ready = ready_events[0]
-        payload = first_ready.payload.data
-        assert payload.ready is True
-        assert payload.ready_phase is not None
-        assert "connected" in payload.ready_phase.lower()
+        assert status_reasons(event_capture) == ["Home Assistant core state is NOT_RUNNING, waiting for RUNNING"]
+        assert websocket_service.is_ready() is True
+
+    async def test_park_reports_the_auth_rejection_and_stays_ready(
+        self,
+        websocket_service: WebsocketService,
+        event_capture: EventCapture,
+    ) -> None:
+        event_capture.install(websocket_service.hassette)
+        await websocket_service.on_initialize()
+
+        task = asyncio.create_task(websocket_service.park())
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+        assert status_reasons(event_capture) == [AUTH_REJECTED_REASON]
+        assert websocket_service.connection_state is ConnectionState.AUTH_FAILED
+        assert websocket_service.is_ready() is True
+
+    async def test_nothing_is_reported_after_shutdown_begins(
+        self,
+        websocket_service: WebsocketService,
+        event_capture: EventCapture,
+    ) -> None:
+        """Shutdown's own reason wins: a connection status reported once shutdown_event is set is dropped."""
+        event_capture.install(websocket_service.hassette)
+        await websocket_service.on_initialize()
+        websocket_service.shutdown_event.set()
+
+        await websocket_service.report_connection_status(NOT_CONNECTED_REASON)
+
+        assert status_reasons(event_capture) == []
+        assert websocket_service._ready_reason != NOT_CONNECTED_REASON
 
     async def test_reentrant_disconnect_during_connected_dispatch_emits_disconnected_event(
         self,

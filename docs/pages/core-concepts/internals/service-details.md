@@ -271,7 +271,7 @@ flowchart TD
 
 ### Authentication
 
-`HassetteConfig.token` holds a long-lived access token. `ApiResource` injects it as a `Bearer` header on every REST request. The WebSocket auth handshake sends an `auth` frame immediately after connection. A rejected token parks the WebSocket in `ConnectionState.AUTH_FAILED`, and the process stays up without reconnecting. A token that never worked parks on the first rejection. A token that worked earlier in the process gets three retries 60 seconds apart first. See [Rejected access token](../../operating/index.md#rejected-access-token) for what the user sees.
+`HassetteConfig.token` holds a long-lived access token. `ApiResource` injects it as a `Bearer` header on every REST request. The WebSocket auth handshake sends an `auth` frame immediately after connection. Every rejected token gets three retries 60 seconds apart, whether or not it ever worked. The fourth consecutive rejection parks the WebSocket in `ConnectionState.AUTH_FAILED`, and the process stays up without reconnecting. The service stays ready throughout. Its ready reason carries the connection status. See [Rejected access token](../../operating/index.md#rejected-access-token) for what the user sees.
 
 ### Connection Management
 

@@ -8,17 +8,17 @@ test_subscribe_events_retry.py.
 
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiohttp import WSMsgType
 from aiohttp.client_exceptions import ClientConnectorError
 
-from hassette.core.websocket_reconnect import WS_MAX_MSG_SIZE
+from hassette.core.websocket_reconnect import CONNECTED_REASON, WS_MAX_MSG_SIZE
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
 from hassette.testing import EventCapture
-from hassette.testing._ws_mocks import build_fake_ws, make_task_bucket_spawn_stub
+from hassette.testing._ws_mocks import build_fake_ws, make_task_bucket_spawn_stub, run_connect_sequence
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
 
@@ -170,11 +170,12 @@ async def test_start_recv_and_subscribe_subscribes_without_advertising_connected
     assert websocket_service.get_connected_generation() is None
 
 
-async def test_mark_connected_marks_ready_and_publishes_connected(websocket_service: WebsocketService) -> None:
-    """mark_connected advertises external readiness: CONNECTED, generation 1, ready, and the public event.
+async def test_mark_connected_reports_connected_and_publishes_connected(websocket_service: WebsocketService) -> None:
+    """mark_connected advertises external readiness: CONNECTED, generation 1, the connected reason, the public event.
 
-    Companion: test_websocket_readiness_events.py::test_mark_ready_after_connect_emits_event asserts
-    the bus-event side (ready=True emitted) of the same method.
+    Lifecycle readiness is untouched (it is set once at startup). Companion:
+    test_websocket_readiness_events.py::test_connect_emits_one_status_event_with_the_connected_reason
+    asserts the bus-event side of the same method.
     """
     capture = EventCapture()
     capture.install(websocket_service.hassette)
@@ -182,19 +183,70 @@ async def test_mark_connected_marks_ready_and_publishes_connected(websocket_serv
     websocket_service._connection_state = ConnectionState.CONNECTING
     recv_task = asyncio.create_task(asyncio.sleep(10))
 
-    with patch("hassette.core.websocket_service.mark_ready") as mock_mark_ready:
-        await websocket_service.mark_connected(recv_task)
+    await websocket_service.mark_connected(recv_task)
 
     recv_task.cancel()
-    mock_mark_ready.assert_called_once_with(
-        websocket_service, reason="WebSocket connected, authenticated, and subscribed"
-    )
+    assert websocket_service._ready_reason == CONNECTED_REASON
+    assert not websocket_service.ready_event.is_set()
     assert websocket_service._connected_at is not None
     assert websocket_service.is_connected is True
     assert websocket_service.has_ever_connected is True
     assert websocket_service._connected_event.is_set() is True
     assert websocket_service.get_connected_generation() == 1
     assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
+
+
+async def test_recv_task_dying_during_the_status_report_announces_nothing(
+    websocket_service: WebsocketService,
+) -> None:
+    """If the recv task dies while mark_connected awaits the readiness emit, no observer or app hears CONNECTED."""
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+    websocket_service._connection_state = ConnectionState.CONNECTING
+    observed: list[int] = []
+
+    async def observer(generation: int) -> None:
+        observed.append(generation)
+
+    websocket_service.connected_observers.add(observer)
+    recv_task = asyncio.create_task(asyncio.sleep(10))
+
+    async def kill_recv_task() -> None:
+        recv_task.cancel()
+        await asyncio.gather(recv_task, return_exceptions=True)
+
+    websocket_service._emit_readiness_event = kill_recv_task  # pyright: ignore[reportAttributeAccessIssue]
+
+    with pytest.raises(RetryableConnectionClosedError):
+        await websocket_service.mark_connected(recv_task)
+
+    assert observed == []
+    assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED) == []
+    assert websocket_service._connected_signal_active is False
+
+
+def started_envelope() -> dict:
+    return {"id": 1, "type": "event", "event": {"event_type": "homeassistant_started", "data": {}, "origin": "LOCAL"}}
+
+
+async def test_started_event_held_by_a_failed_attempt_is_not_dispatched_on_the_next_connection(
+    websocket_service: WebsocketService,
+) -> None:
+    """A homeassistant_started held before CONNECTED belongs to its attempt; a fresh attempt starts without it."""
+    capture = EventCapture()
+    capture.install(websocket_service.hassette)
+    spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
+    websocket_service.task_bucket = MagicMock()
+    websocket_service.task_bucket.spawn = spawn_stub
+    websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
+    websocket_service._connection_state = ConnectionState.CONNECTING
+
+    await websocket_service.dispatch_hass_event(started_envelope())  # pyright: ignore[reportArgumentType]
+    assert websocket_service._core_started_event.is_set()
+
+    await run_connect_sequence(websocket_service, spawned_coros)
+
+    assert not [topic for topic in capture.topics if str(topic).endswith("homeassistant_started")]
 
 
 async def test_mark_connected_refuses_a_connection_whose_recv_task_already_died(

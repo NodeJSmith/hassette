@@ -232,8 +232,13 @@ class ResponseLostError(OutcomeUnknownError, RetryableConnectionClosedError):
     """
 
 
-class InvalidAuthError(FatalError):
-    """Custom exception to indicate that the authentication token is invalid."""
+class InvalidAuthError(HassetteError):
+    """Home Assistant rejected the access token.
+
+    Not fatal: an expired or not-yet-valid token can recover, so on the WebSocket ``WebsocketService``
+    retries ``AUTH_RETRIES`` times (``hassette.core.websocket_reconnect``) and then stays up without
+    reconnecting until the process restarts.
+    """
 
 
 class AuthTokenWriteError(HassetteError):

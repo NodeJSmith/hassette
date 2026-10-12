@@ -11,13 +11,13 @@ request/reply exchange over an already-open connection.
 """
 
 import asyncio
+import logging
 import random
 import ssl
 import traceback
 from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
-from logging import Logger
 from typing import NoReturn, TypeVar
 
 import aiohttp
@@ -55,9 +55,10 @@ SLOW_RETRY_SECONDS = 300.0
 RETRY_AFTER_CAP_SECONDS = 1800.0
 """D9: upper bound on a 429's ``Retry-After``."""
 
-SLOW_HANDSHAKE_STATUSES = frozenset({401, 403, 404, 429})
-"""D9: handshake HTTP statuses that won't heal without an upstream fix. Other statuses
-(notably the Supervisor proxy's 502 while Core restarts) stay Fast."""
+SLOW_HANDSHAKE_STATUSES = frozenset({401, 403, 429})
+"""D9: handshake HTTP statuses that won't heal without an upstream fix. Other statuses stay Fast:
+notably the Supervisor proxy's 502 while Core restarts, and a reverse proxy's 404 while the HA
+backend it routes to is stopped."""
 
 OVERSIZE_STREAK_FOR_SLOW = 3
 """D13: consecutive 1009 closes that move the loop to the Slow disposition."""
@@ -65,10 +66,11 @@ OVERSIZE_STREAK_FOR_SLOW = 3
 CLOSE_CODE_MESSAGE_TOO_BIG = int(aiohttp.WSCloseCode.MESSAGE_TOO_BIG)
 
 AUTH_RETRY_SECONDS = 60.0
-"""D3: spacing of the auth retries granted to a token that has worked before."""
+"""D3: spacing of the auth retries before parking."""
 
-AUTH_RETRIES_AFTER_SUCCESS = 3
-"""D3: auth retries before parking, once a connection has ever succeeded."""
+AUTH_RETRIES = 3
+"""D3: auth retries before parking. A rejection can be a false one (HA's clock behind the token's
+``iat`` after a host reboot), which a fresh process sees too, so every token gets them."""
 
 OUTAGE_SUMMARY_INTERVAL_SECONDS = 300.0
 """D11: interval between "still unreachable" summaries during an outage."""
@@ -92,6 +94,9 @@ AUTH_REJECTED_REASON = "Home Assistant rejected the access token"
 
 NOT_CONNECTED_REASON = "Not connected to Home Assistant"
 """The ready reason while the loop retries a lost or failed connection."""
+
+CONNECTED_REASON = "WebSocket connected, authenticated, and subscribed"
+"""The ready reason while the connection is CONNECTED."""
 
 FIRST_CONNECT_HINT = "Check that base_url points at your Home Assistant instance and that it is running."
 """D11: appended to outage logs until a connection has ever succeeded, replacing the old fail-fast exit."""
@@ -123,7 +128,7 @@ class Disposition(StrEnum):
     """Retry at the fixed Slow pace (or a 429's ``Retry-After``)."""
 
     AUTH_RETRY = auto()
-    """D3's spaced retries for a previously working token, before parking."""
+    """D3's spaced retries after a rejected token, before parking."""
 
     PARK = auto()
     """Stop retrying until the process restarts."""
@@ -169,7 +174,7 @@ class ReconnectPolicy:
             self.fast_attempt = 0
             self.oversize_streak = 0
 
-    def on_failure(self, exc: Exception, *, has_ever_connected: bool) -> RetryPlan:
+    def on_failure(self, exc: Exception) -> RetryPlan:
         """Classify ``exc``, advance the counters it affects, and return the next step.
 
         Not a pure query: each call counts toward the D3 auth retries, the 1009 streak, and the
@@ -181,12 +186,12 @@ class ReconnectPolicy:
 
         if isinstance(exc, InvalidAuthError):
             self.auth_rejections += 1
-            if not has_ever_connected or self.auth_rejections > AUTH_RETRIES_AFTER_SUCCESS:
+            if self.auth_rejections > AUTH_RETRIES:
                 return RetryPlan(Disposition.PARK, None, AUTH_REJECTED_REASON)
             return RetryPlan(
                 Disposition.AUTH_RETRY,
                 AUTH_RETRY_SECONDS,
-                f"{AUTH_REJECTED_REASON} (retry {self.auth_rejections} of {AUTH_RETRIES_AFTER_SUCCESS})",
+                f"{AUTH_REJECTED_REASON} (retry {self.auth_rejections} of {AUTH_RETRIES})",
             )
 
         if self.oversize_streak >= OVERSIZE_STREAK_FOR_SLOW:
@@ -204,8 +209,10 @@ class ReconnectPolicy:
                 delay = max(min(retry_after, RETRY_AFTER_CAP_SECONDS), FAST_BACKOFF_CAP_SECONDS)
             return RetryPlan(Disposition.SLOW, delay, f"WebSocket handshake rejected with HTTP {exc.status}")
 
-        if isinstance(exc, aiohttp.ClientSSLError | ssl.SSLError):
-            return RetryPlan(Disposition.SLOW, SLOW_RETRY_SECONDS, f"TLS error: {exc}")
+        # Only a certificate the client rejects is Slow: an EOF or reset mid-handshake is a TLS
+        # listener restarting, and heals on its own.
+        if isinstance(exc, aiohttp.ClientConnectorCertificateError | ssl.SSLCertVerificationError):
+            return RetryPlan(Disposition.SLOW, SLOW_RETRY_SECONDS, f"TLS certificate rejected: {exc}")
 
         self.fast_attempt += 1
         return RetryPlan(Disposition.FAST, fast_backoff_delay(self.fast_attempt), describe_failure(exc))
@@ -220,12 +227,14 @@ class OutageLog:
     episode. Callers pass ``now`` (a ``time.monotonic()`` reading) so pacing is testable.
     """
 
-    logger: Logger
+    logger: logging.Logger
     url: str
     episode_started_at: float | None = None
     last_summary_at: float = 0.0
     disconnected_at: float | None = None
     """Start of the current gap between connections, for the recovery line's duration."""
+    gap_after_flap: bool = False
+    """The current gap began with a flap, so its recovery is logged at DEBUG (the summary counts it)."""
     attempts: int = 0
     flaps: int = 0
     repeated_unexpected: int = 0
@@ -241,6 +250,7 @@ class OutageLog:
         has_ever_connected: bool,
     ) -> None:
         """Log one failed attempt at the level its position in the episode calls for."""
+        flap = connected_for is not None and self.is_flap(connected_for)
         if connected_for is not None:
             if is_stable_connection(connected_for):
                 self.episode_started_at = None
@@ -252,6 +262,7 @@ class OutageLog:
             self.start_episode(now)
         if self.disconnected_at is None:
             self.disconnected_at = now
+            self.gap_after_flap = flap
         self.attempts += 1
 
         if not isinstance(exc, EXPECTED_FAILURES):
@@ -291,12 +302,26 @@ class OutageLog:
         self.maybe_summarize(now, has_ever_connected=has_ever_connected, core_state=core_state)
 
     def record_connected(self, *, now: float, was_ever_connected: bool) -> None:
-        """Log recovery with the gap's duration; the episode stays open until the connection proves stable."""
+        """Log recovery with the gap's duration; the episode stays open until the connection proves stable.
+
+        A recovery from a flap logs at DEBUG: the episode's summaries already count flaps (D11).
+        """
         if was_ever_connected and self.disconnected_at is not None:
-            self.logger.info(
-                "Reconnected to Home Assistant at %s after %s", self.url, format_duration(now - self.disconnected_at)
+            level = logging.DEBUG if self.gap_after_flap else logging.INFO
+            self.logger.log(
+                level,
+                "Reconnected to Home Assistant at %s after %s",
+                self.url,
+                format_duration(now - self.disconnected_at),
             )
         self.disconnected_at = None
+
+    def is_flap(self, connected_for: float) -> bool:
+        """True if a connection that lasted ``connected_for`` dropped inside an open episode.
+
+        Its disconnect and recovery log at DEBUG; the episode's summaries count it instead (D11).
+        """
+        return self.episode_started_at is not None and not is_stable_connection(connected_for)
 
     def start_episode(self, now: float) -> None:
         self.episode_started_at = now
@@ -324,16 +349,12 @@ class OutageLog:
         details = f"{self.attempts} attempts, {self.flaps} connections dropped within {STABLE_CONNECTION_SECONDS:.0f}s"
         if self.repeated_unexpected:
             details += f", {self.repeated_unexpected} repeated unexpected errors"
-        if has_ever_connected:
-            self.logger.warning("Home Assistant at %s still unreachable after %s (%s)", self.url, elapsed, details)
-        else:
-            self.logger.error(
-                "Home Assistant at %s still unreachable after %s (%s). %s",
-                self.url,
-                elapsed,
-                details,
-                FIRST_CONNECT_HINT,
-            )
+        hint = "" if has_ever_connected else f". {FIRST_CONNECT_HINT}"
+        # A recurring unexpected error can't heal on its own, so it reads as an error, not an outage.
+        level = logging.WARNING if has_ever_connected and not self.repeated_unexpected else logging.ERROR
+        self.logger.log(
+            level, "Home Assistant at %s still unreachable after %s (%s)%s", self.url, elapsed, details, hint
+        )
 
     def should_log_traceback(self, exc: BaseException) -> bool:
         """True the first time this (exception type, innermost frame) pair is seen."""

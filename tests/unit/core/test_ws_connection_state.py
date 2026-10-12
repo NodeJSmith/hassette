@@ -144,16 +144,15 @@ class TestConnectionStateLogging:
 
         websocket_service.logger.info.assert_not_called()
 
-    async def test_leaving_connected_logs_disconnected_with_url(self, websocket_service: WebsocketService) -> None:
+    async def test_leaving_connected_logs_nothing_at_info(self, websocket_service: WebsocketService) -> None:
+        """OutageLog reports the drop, at a level that depends on whether it was a flap (D11)."""
         websocket_service._connection_state = ConnectionState.CONNECTING
         websocket_service.set_connection_state(ConnectionState.CONNECTED)
 
         websocket_service.logger = Mock()
         websocket_service.set_connection_state(ConnectionState.CONNECTING)
 
-        websocket_service.logger.info.assert_called_once_with(
-            "Disconnected from Home Assistant at %s", websocket_service.url
-        )
+        websocket_service.logger.info.assert_not_called()
 
     async def test_failed_first_attempt_logs_nothing_at_info(self, websocket_service: WebsocketService) -> None:
         """CONNECTING → DISCONNECTED without ever connecting has no connection to report losing."""
@@ -261,8 +260,11 @@ class TestServeTransitions:
         assert attempts == 10
         assert states == [ConnectionState.CONNECTING]
 
-    async def test_auth_rejection_parks_in_auth_failed(self, websocket_service: WebsocketService) -> None:
-        """A rejected token never connected before parks: AUTH_FAILED, and serve() keeps running."""
+    async def test_auth_rejection_parks_in_auth_failed(
+        self, websocket_service: WebsocketService, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A token rejected on every attempt, retries included, parks: AUTH_FAILED, and serve() keeps running."""
+        monkeypatch.setattr(reconnect_module, "AUTH_RETRY_SECONDS", 0.0)
 
         async def fake_run_connection(_session) -> None:
             raise InvalidAuthError("bad token")

@@ -15,6 +15,7 @@ from hassette.exceptions import RetryableConnectionClosedError
 from hassette.testing import EventCapture
 from hassette.testing._ws_mocks import build_fake_ws, mark_websocket_service_connected
 from hassette.types import Topic
+from hassette.types.enums import ConnectionState
 
 
 async def test_partial_cleanup_cancels_recv_and_closes_ws(websocket_service: WebsocketService) -> None:
@@ -127,3 +128,39 @@ async def test_send_connection_lost_event_self_suppressing(websocket_service: We
 
     # Should not raise even though the bus raises
     await websocket_service.send_connection_lost_event()
+
+
+async def test_recv_task_cancelled_from_outside_is_a_lost_connection(websocket_service: WebsocketService) -> None:
+    """Cancelling the attached recv task by anything but our cleanup disconnects at once and fails pending replies."""
+    websocket_service._ws = build_fake_ws()
+    websocket_service._connection_state = ConnectionState.CONNECTED
+    recv_task = asyncio.create_task(asyncio.sleep(100))
+    websocket_service._recv_task = recv_task
+    recv_task.add_done_callback(websocket_service._handle_recv_task_done)
+    fut = websocket_service.hassette.loop.create_future()
+    websocket_service._pending.register(7, fut)
+
+    recv_task.cancel()
+    await asyncio.gather(recv_task, return_exceptions=True)
+    await asyncio.sleep(0)
+
+    assert websocket_service.connection_state == ConnectionState.DISCONNECTED
+    assert fut.done()
+    assert isinstance(fut.exception(), RetryableConnectionClosedError)
+
+
+async def test_cleanups_own_recv_task_cancel_does_not_take_the_lost_connection_path(
+    websocket_service: WebsocketService,
+) -> None:
+    """partial_cleanup detaches the recv task before cancelling it, so the done-callback ignores that cancel."""
+    websocket_service._ws = build_fake_ws()
+    websocket_service._connection_state = ConnectionState.CONNECTED
+    recv_task = asyncio.create_task(asyncio.sleep(100))
+    websocket_service._recv_task = recv_task
+    recv_task.add_done_callback(websocket_service._handle_recv_task_done)
+
+    await websocket_service.partial_cleanup()
+    await asyncio.sleep(0)
+
+    assert recv_task.cancelled()
+    assert websocket_service.connection_state == ConnectionState.CONNECTED

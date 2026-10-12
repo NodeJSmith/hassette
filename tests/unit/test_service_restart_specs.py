@@ -100,8 +100,8 @@ class TestWebsocketServiceNoInternalRetryErrors:
     def test_websocket_no_non_retryable_errors(self) -> None:
         """WebsocketService must not list any non_retryable_error_names.
 
-        InvalidAuthError is a FatalError subclass handled by the CRASHED path —
-        it must NOT appear in non_retryable_error_names or fatal_error_names.
+        InvalidAuthError never reaches ServiceWatcher (serve() retries then parks), so it must
+        NOT appear in non_retryable_error_names or fatal_error_names.
         """
         assert WebsocketService.restart_spec.non_retryable_error_names == ()
 
