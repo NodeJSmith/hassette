@@ -1,6 +1,6 @@
-"""Integration tests for session queries and telemetry health checks.
+"""Integration tests for telemetry health checks.
 
-Covers get_session_list(), check_health(), and read-timeout behavior of execute().
+Covers check_health() and read-timeout behavior of execute().
 """
 
 import asyncio
@@ -14,7 +14,6 @@ import pytest
 
 from hassette.core.telemetry.query_service import TelemetryQueryService
 from hassette.exceptions import TelemetryUnavailableError
-from hassette.schemas.summary_models import SessionRecord
 from hassette.utils.aiosqlite_utils import connect_daemon
 from tests.support.helpers import (
     DB_HASSETTE_DATABASE_MAX_SIZE_MB,
@@ -23,58 +22,10 @@ from tests.support.helpers import (
 )
 from tests.support.mock_hassette import make_mock_hassette
 
-from .helpers import BASE_TS, DbFixture, open_db_with_session
+from .helpers import DbFixture, open_db_with_session
 
 SHORT_READ_TIMEOUT_SECONDS = 0.1
 """Short read timeout for testing query-level timeout behavior."""
-
-
-class TestGetSessionList:
-    async def test_get_session_list(self, query_service: TelemetryQueryService, db: DbFixture) -> None:
-        """3 sessions with different statuses — ordered by started_at DESC, correct duration."""
-        db_svc, session_id = db
-
-        base_ts = BASE_TS
-
-        # Update the existing running session's started_at for predictability
-        await db_svc.db.execute(
-            "UPDATE sessions SET started_at = ?, last_heartbeat_at = ? WHERE id = ?",
-            (base_ts + 200.0, base_ts + 300.0, session_id),
-        )
-        # Insert two more sessions
-        await db_svc.db.execute(
-            "INSERT INTO sessions (started_at, stopped_at, last_heartbeat_at, status) VALUES (?, ?, ?, 'stopped')",
-            (base_ts + 100.0, base_ts + 150.0, base_ts + 150.0),
-        )
-        await db_svc.db.execute(
-            "INSERT INTO sessions (started_at, stopped_at, last_heartbeat_at, status) VALUES (?, ?, ?, 'stopped')",
-            (base_ts + 0.0, base_ts + 50.0, base_ts + 50.0),
-        )
-        await db_svc.db.commit()
-
-        rows = await query_service.get_session_list(limit=20)
-        assert len(rows) == 3
-
-        # Returns typed SessionRecord models
-        assert all(isinstance(r, SessionRecord) for r in rows)
-
-        # Most recent first: started_at DESC
-        assert rows[0].started_at == pytest.approx(base_ts + 200.0)
-        assert rows[1].started_at == pytest.approx(base_ts + 100.0)
-        assert rows[2].started_at == pytest.approx(base_ts + 0.0)
-
-        # duration_seconds for stopped sessions = stopped_at - started_at
-        assert rows[1].duration_seconds == pytest.approx(50.0)
-        assert rows[2].duration_seconds == pytest.approx(50.0)
-
-        # Running session uses last_heartbeat_at for duration
-        assert rows[0].duration_seconds == pytest.approx(100.0)
-
-        # Field types are correct
-        assert isinstance(rows[0].id, int)
-        assert isinstance(rows[0].status, str)
-        assert rows[0].stopped_at is None  # running session
-        assert rows[1].stopped_at is not None  # stopped session
 
 
 class TestCheckHealth:

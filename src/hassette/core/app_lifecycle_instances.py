@@ -8,6 +8,7 @@ from timeit import default_timer as timer
 import anyio
 import structlog.contextvars
 from hassette_wire import ResourceStatus
+from humanize import precisedelta
 
 from hassette.core.app_lifecycle_common import (
     FAILED,
@@ -26,11 +27,6 @@ if typing.TYPE_CHECKING:
     from hassette.app.app import App
     from hassette.config.classes import AppManifest
     from hassette.core.app_registry import AppRegistry
-
-try:
-    from humanize import precisedelta
-except ImportError:  # pragma: no cover
-    precisedelta = None  # pyright: ignore[reportAssignmentType]
 
 
 class AppInstanceLifecycleMixin:
@@ -201,10 +197,7 @@ class AppInstanceLifecycleMixin:
                 await inst.shutdown()
 
             end_time = timer()
-            if precisedelta is not None:
-                friendly_time = precisedelta(end_time - start_time, minimum_unit="milliseconds")
-            else:
-                friendly_time = f"{end_time - start_time:.3f}s"
+            friendly_time = precisedelta(end_time - start_time, minimum_unit="milliseconds")
             self.logger.debug(
                 "Stopped app '%s' '%s' in %s", inst.app_config.instance_name, inst.class_name, friendly_time
             )

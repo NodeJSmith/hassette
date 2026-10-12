@@ -20,9 +20,6 @@ from hassette.types.types import APP_SOURCE_TIER, is_framework_key
 # (which runs a manual BEGIN DEFERRED transaction) catch the identical set.
 STORAGE_ERRORS = (sqlite3.Error, OSError, ValueError, TimeoutError)
 
-DEFAULT_SESSION_LIST_LIMIT = 20
-"""Default number of recent sessions returned by get_session_list."""
-
 DEFAULT_LOG_RECORDS_LIMIT = 100
 """Default row cap for get_log_records."""
 
@@ -58,7 +55,6 @@ SQL_NO_FILTER = "1=1"
 __all__ = [
     "DEFAULT_EXECUTION_LOG_LIMIT",
     "DEFAULT_LOG_RECORDS_LIMIT",
-    "DEFAULT_SESSION_LIST_LIMIT",
     "SQL_FAILED_STATUSES",
     "SQL_HANDLER_ROW_ID_PREFIX",
     "SQL_JOB_ROW_ID_PREFIX",

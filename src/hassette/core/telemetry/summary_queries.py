@@ -1,4 +1,4 @@
-"""App-level summary and session query methods."""
+"""App-level summary and log query methods."""
 
 import asyncio
 import contextlib
@@ -9,7 +9,6 @@ from hassette_wire import QuerySourceTier
 from hassette.core.telemetry.helpers import (
     DEFAULT_EXECUTION_LOG_LIMIT,
     DEFAULT_LOG_RECORDS_LIMIT,
-    DEFAULT_SESSION_LIST_LIMIT,
     STORAGE_ERRORS,
     build_app_summaries,
     fetch_all_as_dicts,
@@ -19,7 +18,7 @@ from hassette.core.telemetry.helpers import (
     source_tier_clause,
 )
 from hassette.exceptions import TelemetryUnavailableError
-from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary, SessionRecord
+from hassette.schemas.summary_models import AppHealthAggregates, AppHealthSummary
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -40,7 +39,7 @@ LOG_RECORD_SELECT = """
 
 
 class SummaryQueriesMixin:
-    """App-health, session, and log summary query methods, mixed into TelemetryQueryService."""
+    """App-health and log summary query methods, mixed into TelemetryQueryService."""
 
     if TYPE_CHECKING:
         # Provided by TelemetryQueryService; declared for type narrowing within the mixin.
@@ -237,33 +236,6 @@ class SummaryQueriesMixin:
             job_act_rows=job_act_rows,
             source_tier=source_tier,
         )
-
-    async def get_session_list(self, limit: int = DEFAULT_SESSION_LIST_LIMIT) -> list[SessionRecord]:
-        """Return recent session records.
-
-        Session identity is intentionally not exposed in the API — time-based filtering is
-        the only user-facing grain. ``SessionRecord.id`` carries the integer row id but is
-        not forwarded to any API-facing response model.
-        """
-        query = """
-            SELECT
-                s.id,
-                s.started_at,
-                s.stopped_at,
-                s.status,
-                s.error_type,
-                s.error_message,
-                (COALESCE(s.stopped_at, s.last_heartbeat_at) - s.started_at) AS duration_seconds,
-                s.dropped_overflow,
-                s.dropped_exhausted,
-                s.dropped_shutdown
-            FROM sessions s
-            ORDER BY s.started_at DESC
-            LIMIT :limit
-        """
-        async with self.execute(query, {"limit": limit}) as cursor:
-            rows = await cursor.fetchall()
-        return [SessionRecord.model_validate(row_to_dict(row)) for row in rows]
 
     # dup-ignore-start: filter param list intentionally mirrors the e2e test double in
     # tests/e2e/conftest.py that stands in for this method — signature drift between them

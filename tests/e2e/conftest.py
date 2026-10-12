@@ -25,7 +25,6 @@ from tests.e2e.mock_fixtures import (
     build_manifests,
     build_old_snapshot,
     build_scheduler_jobs,
-    build_session_list,
     wire_app_health_summaries,
     wire_app_manifest_lookups,
     wire_config,
@@ -34,7 +33,6 @@ from tests.e2e.mock_fixtures import (
     wire_listener_telemetry,
     wire_owner_resolution,
     wire_scheduler_trigger,
-    wire_session_telemetry,
 )
 from tests.support.factories import RecordingLogCaptureHandler, make_recording_log_capture_handler
 from tests.support.uvicorn import start_uvicorn_server, stop_uvicorn_server
@@ -129,7 +127,6 @@ def build_mock_hassette(*, is_ready: bool = True, auth_enabled: bool = False) ->
     wire_scheduler_trigger(hassette, {MANUAL_JOB_ID: "send_notification"})
     wire_invocation_telemetry(hassette, build_executions())
     wire_app_health_summaries(hassette, build_app_health_summaries())
-    wire_session_telemetry(hassette, build_session_list())
 
     # Owner resolution wiring.
     wire_owner_resolution(hassette)

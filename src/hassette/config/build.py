@@ -70,12 +70,6 @@ def open_build(build: ConfigBuild) -> Iterator[ConfigBuild]:
         ACTIVE_BUILD.reset(token)
 
 
-def build_environ() -> Mapping[str, str]:
-    """The environment snapshot of the build in progress, or the live environment outside of one."""
-    build = ACTIVE_BUILD.get()
-    return build.environ if build is not None else os.environ
-
-
 def default_apps_dir() -> Path:
     """Default ``apps.directory``: ``<config home>/apps`` during a build, else ``./apps``."""
     build = ACTIVE_BUILD.get()

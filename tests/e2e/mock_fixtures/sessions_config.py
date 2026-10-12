@@ -1,56 +1,9 @@
-"""Session list and config builders/wiring for e2e mock data."""
+"""Config wiring for e2e mock data."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 from hassette.config import HassetteConfig
 from hassette.config.models import DEFAULT_WEB_API_PORT
-from hassette.schemas.summary_models import SessionRecord
-from tests.e2e.mock_fixtures.constants import (
-    SESSION_DURATION_SECONDS,
-    TS_BASE,
-    TS_SESSION_2_STARTED,
-    TS_SESSION_2_STOPPED,
-    TS_SESSION_3_STARTED,
-    TS_SESSION_3_STOPPED,
-)
-
-
-def build_session_list() -> list[SessionRecord]:
-    """Build session records for the sessions page."""
-    return [
-        SessionRecord(
-            id=1,
-            started_at=TS_BASE,
-            stopped_at=None,
-            status="running",
-            error_type=None,
-            error_message=None,
-            duration_seconds=SESSION_DURATION_SECONDS,
-        ),
-        SessionRecord(
-            id=2,
-            started_at=TS_SESSION_2_STARTED,
-            stopped_at=TS_SESSION_2_STOPPED,
-            status="success",
-            error_type=None,
-            error_message=None,
-            duration_seconds=SESSION_DURATION_SECONDS,
-        ),
-        SessionRecord(
-            id=3,
-            started_at=TS_SESSION_3_STARTED,
-            stopped_at=TS_SESSION_3_STOPPED,
-            status="failure",
-            error_type="RuntimeError",
-            error_message="WebSocket connection lost",
-            duration_seconds=SESSION_DURATION_SECONDS,
-        ),
-    ]
-
-
-def wire_session_telemetry(hassette, sessions: list[SessionRecord]) -> None:
-    """Wire session list onto the mock telemetry query service."""
-    hassette._telemetry_query_service.get_session_list = AsyncMock(return_value=sessions)
 
 
 def wire_config(hassette: MagicMock, *, auth_enabled: bool = False) -> None:
