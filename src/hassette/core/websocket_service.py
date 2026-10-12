@@ -535,11 +535,11 @@ class WebsocketService(Service):
         if (recv_task := self._recv_task) is not None:
             self._recv_task = None  # detach first: the done-callback ignores a task we cancel
             recv_task.cancel()
+            # asyncio.timeout, not wait_for: on 3.11 wait_for swallows a cancellation that lands
+            # as its inner awaitable completes, so shutdown would resume the reconnect loop.
             with suppress(Exception):
-                await asyncio.wait_for(
-                    asyncio.gather(recv_task, return_exceptions=True),
-                    timeout=self.cleanup_timeout_seconds,
-                )
+                async with asyncio.timeout(self.cleanup_timeout_seconds):
+                    await asyncio.gather(recv_task, return_exceptions=True)
 
         if self._ws is not None and not self._ws.closed:
             with suppress(Exception):

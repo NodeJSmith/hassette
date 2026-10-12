@@ -460,8 +460,11 @@ def raise_recv_task_end(recv_task: asyncio.Task) -> NoReturn:
 
 async def event_set_within(event: asyncio.Event, timeout: float) -> bool:
     """True if ``event`` is set within ``timeout`` seconds."""
+    # asyncio.timeout, not wait_for: on 3.11 wait_for can swallow a cancellation that lands as
+    # the event is set, which would keep serve() running through shutdown.
     try:
-        await asyncio.wait_for(event.wait(), timeout)
+        async with asyncio.timeout(timeout):
+            await event.wait()
     except TimeoutError:
         return False
     return True
