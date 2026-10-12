@@ -6,6 +6,7 @@ import subprocess
 import pytest
 
 import hassette.core.websocket_reconnect as reconnect_module
+from hassette.core.websocket_service import WebsocketService
 from hassette.events import RawStateChangeEvent
 from hassette.testing import wait_for
 
@@ -18,6 +19,16 @@ pytestmark = [pytest.mark.system_destructive, pytest.mark.asyncio(loop_scope="fu
 ENTITY = "light.kitchen_lights"
 STABLE_WINDOW_FOR_TEST_SECONDS = 5.0
 """Stands in for the 2-minute D8 reset window, so a connection held this long counts as stable."""
+
+
+async def wait_for_disconnect(websocket_service: WebsocketService) -> None:
+    """Wait until the service notices that the HA restart dropped its connection."""
+    await wait_for(
+        lambda: not websocket_service.is_connected,
+        timeout=30.0,
+        interval=0.5,
+        desc="WebSocket disconnect detected after HA restart",
+    )
 
 
 async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path) -> None:
@@ -36,21 +47,16 @@ async def test_websocket_reconnects_after_ha_restart(ha_container: str, tmp_path
         websocket_service = hassette.websocket_service
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
 
-        assert websocket_service.is_ready()
+        assert websocket_service.is_connected
 
         subprocess.run(["docker", "restart", HA_CONTAINER_NAME], check=True)
 
-        await wait_for(
-            lambda: not websocket_service.is_ready(),
-            timeout=30.0,
-            interval=0.5,
-            desc="WebSocket disconnect detected after HA restart",
-        )
+        await wait_for_disconnect(websocket_service)
 
         await asyncio.to_thread(wait_for_ha_ready)
 
         await wait_for(
-            websocket_service.is_ready,
+            lambda: websocket_service.is_connected,
             timeout=60.0,
             interval=0.5,
             desc="WebSocket reconnected after HA restart",
@@ -96,12 +102,7 @@ async def test_restart_after_stable_connection_recovers_in_the_same_serve_task(
 
         subprocess.run(["docker", "restart", HA_CONTAINER_NAME], check=True)
 
-        await wait_for(
-            lambda: not websocket_service.is_connected,
-            timeout=30.0,
-            interval=0.5,
-            desc="WebSocket disconnect detected after HA restart",
-        )
+        await wait_for_disconnect(websocket_service)
 
         await asyncio.to_thread(wait_for_ha_ready)
 
@@ -148,12 +149,7 @@ async def test_state_proxy_refreshes_after_reconnect(ha_container: str, tmp_path
 
         subprocess.run(["docker", "restart", HA_CONTAINER_NAME], check=True)
 
-        await wait_for(
-            lambda: not hassette.websocket_service.is_ready(),
-            timeout=30.0,
-            interval=0.5,
-            desc="WebSocket disconnect detected after HA restart",
-        )
+        await wait_for_disconnect(hassette.websocket_service)
 
         await asyncio.to_thread(wait_for_ha_ready)
 

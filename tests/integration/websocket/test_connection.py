@@ -18,9 +18,10 @@ from hassette.core.websocket_reconnect import CONNECTED_REASON, WS_MAX_MSG_SIZE
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import FailedMessageError, InvalidAuthError, RetryableConnectionClosedError
 from hassette.testing import EventCapture
-from hassette.testing._ws_mocks import build_fake_ws, make_task_bucket_spawn_stub, run_connect_sequence
+from hassette.testing._ws_mocks import build_fake_ws, run_connect_sequence
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
+from tests.support.helpers import stub_connect_sequence
 
 
 async def test_get_next_message_id_increments(websocket_service: WebsocketService) -> None:
@@ -153,10 +154,7 @@ async def test_start_recv_and_subscribe_subscribes_without_advertising_connected
     websocket_service: WebsocketService,
 ) -> None:
     """start_recv_and_subscribe opens the send gate and subscribes; CONNECTED waits for the RUNNING gate."""
-    spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
-    websocket_service.task_bucket = MagicMock()
-    websocket_service.task_bucket.spawn = spawn_stub
-    websocket_service.subscribe_events = AsyncMock(return_value=42)
+    spawned_coros = stub_connect_sequence(websocket_service)
     websocket_service._connection_state = ConnectionState.CONNECTING
 
     result = await websocket_service.start_recv_and_subscribe()
@@ -235,10 +233,7 @@ async def test_started_event_held_by_a_failed_attempt_is_not_dispatched_on_the_n
     """A homeassistant_started held before CONNECTED belongs to its attempt; a fresh attempt starts without it."""
     capture = EventCapture()
     capture.install(websocket_service.hassette)
-    spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
-    websocket_service.task_bucket = MagicMock()
-    websocket_service.task_bucket.spawn = spawn_stub
-    websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
+    spawned_coros = stub_connect_sequence(websocket_service)
     websocket_service._connection_state = ConnectionState.CONNECTING
 
     await websocket_service.dispatch_hass_event(started_envelope())  # pyright: ignore[reportArgumentType]
@@ -275,9 +270,7 @@ async def test_subscription_failure_before_external_readiness_leaves_history_fal
     capture = EventCapture()
     capture.install(websocket_service.hassette)
 
-    spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
-    websocket_service.task_bucket = MagicMock()
-    websocket_service.task_bucket.spawn = spawn_stub
+    spawned_coros = stub_connect_sequence(websocket_service)
     websocket_service._connection_state = ConnectionState.CONNECTING
     websocket_service.subscribe_events = AsyncMock(side_effect=FailedMessageError("subscribe failed"))
 

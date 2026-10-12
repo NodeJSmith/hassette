@@ -16,7 +16,7 @@ from hassette.exceptions import InvalidAuthError, InvalidLifecycleTransitionErro
 from hassette.testing import wait_for
 from hassette.types.enums import ConnectionState
 
-from .conftest import cleanup_disconnected
+from .conftest import cleanup_disconnected, stub_refused_attempts
 
 ALLOWED_TRANSITIONS = {
     (ConnectionState.DISCONNECTED, ConnectionState.CONNECTING),
@@ -245,19 +245,11 @@ class TestServeTransitions:
     ) -> None:
         """An outage of many failed attempts produces exactly one transition: the initial CONNECTING."""
         states = record_states(websocket_service)
-        attempts = 0
-
-        async def fake_run_connection(_session) -> None:
-            nonlocal attempts
-            attempts += 1
-            if attempts < 10:
-                raise ConnectionRefusedError("refused")
-
-        websocket_service.run_connection = fake_run_connection  # pyright: ignore[reportAttributeAccessIssue]
+        run_connection = stub_refused_attempts(websocket_service, failures=9)
 
         await websocket_service.serve()
 
-        assert attempts == 10
+        assert run_connection.await_count == 10
         assert states == [ConnectionState.CONNECTING]
 
     async def test_auth_rejection_parks_in_auth_failed(

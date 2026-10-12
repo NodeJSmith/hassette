@@ -68,6 +68,7 @@ The authoritative registry is `SHARED_FACTORIES` in `tools/check_test_factories.
   the hot-reload arrange-and-await sequence: wire status listeners, emit a synthetic file-change event,
   wait for every named app under one `APP_STATUS_WAIT_SECONDS` deadline. Write the config/app-file
   changes yourself first.
+- `stub_connect_sequence(websocket_service)` — stub `task_bucket.spawn` and `subscribe_events` so the real connect sequence runs; returns the recorded coroutines for `run_connect_sequence()`
 - `noop()` — sync no-op, default handler for `create_listener()` and scheduler job tests
 - `async_noop()` — async no-op, call it to get a coroutine object (e.g. `bucket.spawn(async_noop())`)
 - `last_json_record(stream)` — parse the last JSON log record written to a test log stream
