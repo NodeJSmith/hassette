@@ -30,13 +30,24 @@ def frontend(tmp_path: Path) -> Path:
     return root
 
 
+def built_spa(tmp_path: Path, mtime: float) -> Path:
+    """A servable build: ``index.html`` with its ``assets/`` directory beside it."""
+    (tmp_path / "spa" / "assets").mkdir(parents=True, exist_ok=True)
+    return touch(tmp_path / "spa" / "index.html", mtime)
+
+
 def run_steps(frontend: Path, spa_index: Path) -> list[str]:
     return [step[1] for step in spa_build_steps(frontend, spa_index)]
 
 
 def test_fresh_build_needs_nothing(frontend: Path, tmp_path: Path) -> None:
-    index = touch(tmp_path / "spa" / "index.html", T0 + 20)
+    index = built_spa(tmp_path, T0 + 20)
     assert run_steps(frontend, index) == []
+
+
+def test_build_without_assets_is_stale(frontend: Path, tmp_path: Path) -> None:
+    index = touch(tmp_path / "spa" / "index.html", T0 + 20)
+    assert run_steps(frontend, index) == ["run"]
 
 
 def test_missing_build(frontend: Path, tmp_path: Path) -> None:
@@ -45,19 +56,19 @@ def test_missing_build(frontend: Path, tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("changed", ["src/pages/new.tsx", "public/logo.png", "index.html", "vite.config.ts"])
 def test_source_newer_than_build(frontend: Path, tmp_path: Path, changed: str) -> None:
-    index = touch(tmp_path / "spa" / "index.html", T0 + 20)
+    index = built_spa(tmp_path, T0 + 20)
     touch(frontend / changed, T0 + 30)
     assert run_steps(frontend, index) == ["run"]
 
 
 def test_any_top_level_file_is_a_build_input(frontend: Path, tmp_path: Path) -> None:
-    spa_index = touch(tmp_path / "spa" / "index.html", T0 + 20)
+    spa_index = built_spa(tmp_path, T0 + 20)
     touch(frontend / "hassette-version.ts", T0 + 30)
     assert run_steps(frontend, spa_index) == ["run"]
 
 
 def test_root_pyproject_is_a_build_input(frontend: Path, tmp_path: Path) -> None:
-    spa_index = touch(tmp_path / "spa" / "index.html", T0 + 20)
+    spa_index = built_spa(tmp_path, T0 + 20)
     touch(tmp_path / "pyproject.toml", T0 + 30)
     assert run_steps(frontend, spa_index) == ["run"]
 
@@ -68,7 +79,7 @@ def test_missing_node_modules_installs_then_builds(frontend: Path, tmp_path: Pat
 
 
 def test_lockfile_newer_than_install(frontend: Path, tmp_path: Path) -> None:
-    index = touch(tmp_path / "spa" / "index.html", T0 + 40)
+    index = built_spa(tmp_path, T0 + 40)
     touch(frontend / "package-lock.json", T0 + 30)
     assert run_steps(frontend, index) == ["ci"]
 
@@ -114,7 +125,7 @@ def test_waiter_recomputes_steps_after_another_build_finishes(
     assert about_to_build.wait(timeout=5)
     assert not finished.wait(timeout=0.2), "waiter should be blocked on the held lock"
 
-    touch(index, T0 + 20)  # the holder's build finishes
+    built_spa(tmp_path, T0 + 20)  # the holder's build finishes
     holder.release()
     waiter.join(timeout=10)
 

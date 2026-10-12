@@ -50,7 +50,8 @@ def spa_build_steps(frontend_dir: Path = FRONTEND_DIR, spa_index: Path = SPA_IND
     """The npm commands needed to make ``spa_index`` current, in order; empty when it already is.
 
     ``npm ci`` runs only when ``node_modules`` is missing or older than the lockfile; ``npm run build``
-    whenever the built ``index.html`` is missing or older than any build input (the lockfile included).
+    whenever the built ``index.html`` or its ``assets/`` directory is missing, or ``index.html`` is older than any
+    build input (the lockfile included).
     """
     steps: list[list[str]] = []
     # npm rewrites this file on every install, so its mtime says when node_modules last matched a lockfile.
@@ -58,7 +59,10 @@ def spa_build_steps(frontend_dir: Path = FRONTEND_DIR, spa_index: Path = SPA_IND
     lockfile = frontend_dir / "package-lock.json"
     if not installed.exists() or lockfile.stat().st_mtime > installed.stat().st_mtime:
         steps.append(["npm", "ci", "--prefix", str(frontend_dir)])
-    if not spa_index.exists() or newest_mtime(frontend_dir) > spa_index.stat().st_mtime:
+    # The server refuses a build without ``assets/`` (``load_spa_shell``), so an interrupted build that left
+    # only a fresh ``index.html`` is stale.
+    build_missing = not spa_index.exists() or not (spa_index.parent / "assets").is_dir()
+    if build_missing or newest_mtime(frontend_dir) > spa_index.stat().st_mtime:
         steps.append(["npm", "run", "build", "--prefix", str(frontend_dir)])
     return steps
 
