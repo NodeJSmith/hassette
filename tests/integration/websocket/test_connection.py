@@ -220,7 +220,8 @@ async def test_recv_task_dying_during_the_status_report_announces_nothing(
 
     assert observed == []
     assert capture.by_topic(Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED) == []
-    assert websocket_service._connected_signal_active is False
+    assert websocket_service._observers_announced is False
+    assert websocket_service._bus_announced is False
 
 
 def started_envelope() -> dict:

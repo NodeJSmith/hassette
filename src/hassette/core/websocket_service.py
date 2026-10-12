@@ -136,8 +136,11 @@ class WebsocketService(Service):
     _connected_at: float | None
     """Monotonic timestamp of the most recent successful connection, or None."""
 
-    _connected_signal_active: bool
-    """Whether the current external-readiness transition has emitted its public connected signal."""
+    _observers_announced: bool
+    """Whether the connected observers were notified for this connection, so the disconnected ones are owed."""
+
+    _bus_announced: bool
+    """Whether ``websocket_connected`` reached the bus for this connection, so ``websocket_disconnected`` is owed."""
 
     _held_started_event: "HassEventEnvelopeDict | None"
     """``homeassistant_started`` caught by the RUNNING gate, dispatched once the connection is CONNECTED (D12)."""
@@ -159,7 +162,8 @@ class WebsocketService(Service):
         self._policy = ReconnectPolicy()
         self._outage_log = OutageLog(self.logger, self.url)
         self._connected_at = None
-        self._connected_signal_active = False
+        self._observers_announced = False
+        self._bus_announced = False
         self._held_started_event = None
         self._connection_state: ConnectionState = ConnectionState.DISCONNECTED
         self._ever_connected: bool = False
@@ -325,8 +329,9 @@ class WebsocketService(Service):
         await self.send_connection_lost_event()
 
     async def _notify_disconnected_observers(self) -> None:
-        if not self._connected_signal_active:
+        if not self._observers_announced:
             return
+        self._observers_announced = False
         await self.disconnected_observers.notify()
 
     async def serve(self) -> None:
@@ -373,7 +378,8 @@ class WebsocketService(Service):
     async def handle_connection_failure(self, exc: Exception) -> RetryPlan:
         """Tear down the failed connection, notify listeners once, and decide the next step.
 
-        The connection-lost event fires only if this connection was announced (``_connected_signal_active``).
+        Each disconnected signal fires only if its connected counterpart did (``_observers_announced``,
+        ``_bus_announced``).
         """
         now = time.monotonic()
         connected_for = (now - self._connected_at) if self._connected_at is not None else None
@@ -497,7 +503,7 @@ class WebsocketService(Service):
         await self.report_connection_status(CONNECTED_REASON)
         if recv_task.done():  # died during the await: don't announce it to observers or apps
             raise_recv_task_end(recv_task)
-        self._connected_signal_active = True
+        self._observers_announced = True
         await self.connected_observers.notify(generation)
         started, self._held_started_event = self._held_started_event, None
         try:
@@ -894,13 +900,13 @@ class WebsocketService(Service):
     async def send_connection_lost_event(self) -> None:
         """Send a connection lost event to the event bus, once per connection that announced itself.
 
-        Gated on the public connected signal (``is_ready()`` never tracks the connection), so failed
+        Gated on ``websocket_connected`` having reached the bus (``is_ready()`` never tracks the connection), so failed
         attempts, retries and ``before_shutdown`` emit no spurious or duplicate event. Bus errors are
         swallowed, so a bus failure cannot mask a network error.
         """
-        if not self._connected_signal_active:
+        if not self._bus_announced:
             return
-        self._connected_signal_active = False
+        self._bus_announced = False
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_DISCONNECTED)
         with suppress(Exception):
             await self.hassette.send_event(event)
@@ -908,4 +914,11 @@ class WebsocketService(Service):
     async def send_connection_established_event(self) -> None:
         """Send a connection established event to the event bus."""
         event = HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_WEBSOCKET_CONNECTED)
-        await self.hassette.send_event(event)
+        # Owed before the send: a drop handled while it is in flight must still pair with it.
+        # Withdrawn if the event never gets out, cancellation by shutdown included.
+        self._bus_announced = True
+        try:
+            await self.hassette.send_event(event)
+        except BaseException:
+            self._bus_announced = False
+            raise

@@ -63,7 +63,8 @@ def _configure_websocket_external_readiness_primitives(target: Any, *, generatio
 
     target._connected_generation = generation
     target._connected_at = time.monotonic()
-    target._connected_signal_active = True
+    target._observers_announced = True
+    target._bus_announced = True
 
 
 def configure_ready_websocket_mock(websocket_service: Mock, *, generation: int = 1) -> None:
