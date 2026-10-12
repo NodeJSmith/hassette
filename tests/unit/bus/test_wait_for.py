@@ -5,7 +5,7 @@ on anything dispatched before it existed); timeout behavior, including `timeout=
 auto-generated vs. user-provided listener names; the underlying listener being `once=True` and
 auto-removed after firing; listener removal (shutdown/explicit cancel) cancelling the pending
 future; `where=` predicate filtering; the return value being a bare `Event`, never wrapped in
-`guard_await`/`Subscription`; and the pending-futures-count WARNING threshold.
+`guard_await`/`Subscription`; and the per-Bus and process-wide pending-count WARNING thresholds.
 """
 
 import asyncio
@@ -378,6 +378,39 @@ async def test_pending_futures_warning_at_threshold(bus: "Bus", caplog: pytest.L
         for task in tasks:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+
+
+async def test_pending_count_is_aggregated_on_bus_service(bus: "Bus", caplog: pytest.LogCaptureFixture) -> None:
+    """The process-wide pending count lives on BusService and WARNs as it nears the dispatch ceiling.
+
+    The pre-seeded count stands in for wait_for calls pending on other apps' Bus instances, none of
+    which crossed its own per-Bus threshold.
+    """
+    bus_service = bus.bus_service
+    max_dispatches = bus.hassette.config.lifecycle.max_concurrent_dispatches
+    threshold = max(1, max_dispatches * 4 // 5)
+    assert threshold < max_dispatches
+    baseline = bus_service.pending_wait_for_count
+    bus_service.pending_wait_for_count = threshold - 1
+
+    try:
+        with (
+            wait_for_add_listener_mock(bus) as (_registered, ready),
+            caplog.at_level(logging.WARNING, logger=bus_service.logger.name),
+        ):
+            task = asyncio.create_task(bus.wait_for("test.topic", timeout=5, name="aggregate_wait"))
+            await _await_registration(ready)
+
+            assert bus_service.pending_wait_for_count == threshold
+            assert any("pending across all apps" in record.getMessage() for record in caplog.records)
+
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+        assert bus_service.pending_wait_for_count == threshold - 1
+    finally:
+        bus_service.pending_wait_for_count = baseline
 
 
 async def test_dispatch_once_fire_removal_does_not_double_cancel(bus: "Bus") -> None:
