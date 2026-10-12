@@ -383,7 +383,7 @@ async def test_connect_ws_sets_ws_and_authenticates(websocket_service):
 `hassette.testing._ws_mocks` also carries `run_connect_sequence(websocket_service, spawned_coros)`,
 which runs `start_recv_and_subscribe()` then `mark_connected()` and disposes of everything they
 started -- pair it with `make_task_bucket_spawn_stub()`, whose recorded coroutine list it expects.
-`tests.support.helpers.stub_connect_sequence(websocket_service)` does that pairing's setup in one
+`tests.support.websocket_mocks.stub_connect_sequence(websocket_service)` does that pairing's setup in one
 call (stubs `task_bucket.spawn` and `subscribe_events`, returns the recorded coroutines).
 Tests of `serve()`'s reconnect loop itself stub `run_connection` (one attempt, raising whatever
 ended it), or run against the scripted HA server in `tests/support/fake_ha_ws.py`.

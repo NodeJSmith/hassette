@@ -21,7 +21,7 @@ from hassette.testing import EventCapture
 from hassette.testing._ws_mocks import build_fake_ws, run_connect_sequence
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState
-from tests.support.helpers import stub_connect_sequence
+from tests.support.websocket_mocks import stub_connect_sequence
 
 
 async def test_get_next_message_id_increments(websocket_service: WebsocketService) -> None:

@@ -34,7 +34,6 @@ from hassette.resources.teardown import TeardownCause, TeardownReport
 from hassette.testing import create_state_change_event, wait_for
 from hassette.testing._simulation import create_component_loaded_event as create_component_loaded_event
 from hassette.testing._simulation import create_service_registered_event as create_service_registered_event
-from hassette.testing._ws_mocks import make_task_bucket_spawn_stub
 from hassette.testing.config import TEST_SOURCE_LOCATION
 from hassette.types.enums import Topic
 from hassette.utils.func_utils import callable_name, callable_short_name
@@ -45,7 +44,6 @@ if TYPE_CHECKING:
     from hassette_wire import SourceTier
 
     from hassette.bus.bus import Bus
-    from hassette.core.websocket_service import WebsocketService
     from hassette.events import HassStateDict
     from hassette.execution_mode import ExecutionModeGuard
     from hassette.resources.service import Service
@@ -797,18 +795,3 @@ async def prime_guard(
         await wait_for(lambda: len(guard.pending) >= 1, timeout=hang_guard_timeout)
 
     return PrimedGuard(gate=gate, running_task=running_task, queued_task=queued_task)
-
-
-def stub_connect_sequence(websocket_service: "WebsocketService") -> list[Coroutine]:
-    """Stub the task bucket and event subscription so the real connect sequence can run.
-
-    Replaces ``task_bucket`` with a mock whose ``spawn`` records coroutines instead of running them,
-    and ``subscribe_events`` with a mock returning subscription id 42. Returns the recorded
-    coroutines, which ``run_connect_sequence`` closes. A test that needs a different subscription
-    outcome assigns its own ``subscribe_events`` afterwards.
-    """
-    spawned_coros, spawn_stub = make_task_bucket_spawn_stub()
-    websocket_service.task_bucket = MagicMock()  # pyright: ignore[reportAttributeAccessIssue]
-    websocket_service.task_bucket.spawn = spawn_stub
-    websocket_service.subscribe_events = AsyncMock(return_value=42)  # pyright: ignore[reportAttributeAccessIssue]
-    return spawned_coros
