@@ -1,4 +1,4 @@
-"""Pydantic models for app-health and session telemetry DB query results.
+"""Pydantic models for app-health telemetry DB query results.
 
 These typed models replace raw ``dict`` returns, preventing the
 "column rename -> silent template failure" class of bugs.

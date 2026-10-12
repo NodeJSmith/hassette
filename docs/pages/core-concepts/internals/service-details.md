@@ -380,7 +380,7 @@ Each connected client gets its own `asyncio.Queue` of bounded size (`_WS_CLIENT_
 
 ### TelemetryQueryService
 
-`TelemetryQueryService` serves all historical data: listener registrations, job registrations, execution records, log lines, and session history. Queries run against `DatabaseService.read_db` (the dedicated read connection) to avoid contending with the write worker.
+`TelemetryQueryService` serves all historical data: listener registrations, job registrations, execution records, and log lines. Queries run against `DatabaseService.read_db` (the dedicated read connection) to avoid contending with the write worker.
 
 ### SPA Routing
 
