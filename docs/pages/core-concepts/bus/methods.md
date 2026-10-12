@@ -5,7 +5,18 @@
 All registration methods are `async` and must be awaited. See [Registration](#registration) for what that guarantees.
 
 !!! warning "Forgetting `await` registers nothing"
-    A subscription call without `await` returns a coroutine object and registers no listener — the handler never fires, and no error is raised at the call site. When the coroutine is garbage-collected, Hassette emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the app and call site (subject to [configuration](../../troubleshooting.md#forgotten-await)), but the message is easy to miss. When a handler never fires, check the registration is awaited, then confirm the listener exists with `hassette listener --app <key>`.
+    A subscription call without `await` returns a coroutine object and registers no listener — the handler never fires, and no error is raised at the call site. When the coroutine is garbage-collected, Hassette emits a [`HassetteForgottenAwaitWarning`][hassette.exceptions.HassetteForgottenAwaitWarning] naming the app and call site (subject to [configuration](../../troubleshooting.md#forgotten-await)), but the message is easy to miss. When a handler never fires, check the registration is awaited, then confirm the listener exists with [`hassette listener --app <key>`](../../cli/commands.md#hassette-listener). A registered listener appears as a row naming its app, target entity or event, and handler:
+
+    ```console
+    $ hassette listener --app bus_handler_app
+    ┏━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┳━━━━┳━━━━━━┳━━━━━┳━━━━━━┓
+    ┃ ID ┃ App              ┃ Target                    ┃ Kind       ┃ Handler              ┃ Total ┃ OK ┃ Fail ┃ Avg ┃ Last ┃
+    ┡━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━╇━━━━╇━━━━━━╇━━━━━╇━━━━━━┩
+    │ 10 │ bus_handler_app  │ light.kitchen_main        │ state_cha… │ on_light_change      │ 0     │ 0  │ 0    │ 0ms │      │
+    └────┴──────────────────┴───────────────────────────┴────────────┴──────────────────────┴───────┴────┴──────┴─────┴──────┘
+    ```
+
+    No row for the handler means the registration never ran.
 
 ## Shared Parameters
 
@@ -15,7 +26,7 @@ Every subscription method accepts these parameters. Individual method tables bel
 |---|---|---|---|
 | `handler` | `HandlerType` | — | The function called when the event matches. See [Writing Handlers](handlers.md). |
 | `name` | `str` | — | Required. Identifies this listener in logs and the monitoring UI. Must be unique per app instance and topic. Omitting it raises `TypeError` (no default value). An empty string raises `ListenerNameRequiredError`. |
-| `on_error` | `BusErrorHandlerType \| None` | `None` | Per-listener error handler. Overrides the app-level handler set via `bus.on_error()`. See [Per-registration handler](#per-registration-handler). |
+| `on_error` | `BusErrorHandlerType \| None` | `None` | Per-listener error handler. Overrides the app-level handler set via [`bus.on_error()`](#app-level-handler). See [Per-registration handler](#per-registration-handler). |
 | `timeout` | `float \| None` | `None` | Per-listener timeout in seconds. If the handler runs longer, it is cancelled. `None` inherits `event_handler_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
 | `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this listener regardless of config. |
 | `debounce` | `float \| None` | `None` | Delays the handler until events have been quiet for N seconds. Each new event resets the timer. |
@@ -24,8 +35,19 @@ Every subscription method accepts these parameters. Individual method tables bel
 | `kwargs` | `Mapping \| None` | `None` | Keyword arguments passed to the handler at invocation time. |
 | `if_exists` | `"error"` \| `"skip"` \| `"replace"` | `"error"` | Behavior when a listener with the same name and topic already exists. See [Idempotent Registration](#idempotent-registration). |
 | `mode` | `"single"` \| `"restart"` \| `"queued"` \| `"parallel"` \| `None` | tier-aware | Overlap behavior when a trigger fires while the handler is still running. See [Execution Modes](execution-modes.md). |
+| `backpressure` | `"block"` \| `"drop_newest"` | `"block"` | Behavior when all dispatch slots are busy. `"block"` waits for a slot; `"drop_newest"` skips the event. |
 
 `debounce`, `throttle`, and `once` are mutually exclusive. Combining any two raises `ValueError`.
+
+## Helper Modules: `D`, `C`, and `P`
+
+Three short-named modules from `hassette` appear throughout this page. Each covers one job:
+
+- `C` (conditions) tests a single value: `C.Increased()` matches a rising number, `C.Comparison(">", 25)` matches values above 25.
+- `P` (predicates) tests a whole event and plugs into `where=`: `P.StateTo("on")` matches events whose new state is `"on"`.
+- `D` (dependency injection) annotates handler parameters so Hassette extracts that part of the event for the handler. See [Dependency Injection](dependency-injection.md).
+
+All three import together: `from hassette import C, D, P`. [Filtering & Predicates](filtering.md) covers `C` and `P` in depth.
 
 ## `on_state_change(entity_id)`
 
@@ -39,8 +61,8 @@ Fires when a Home Assistant entity's state changes. `entity_id` accepts glob pat
 |---|---|---|---|
 | `entity_id` | `str` | — | Entity ID or glob pattern to match. |
 | `changed` | `bool \| ComparisonCondition` | `True` | `True` fires only when the state value changes. `False` fires on attribute-only updates too. A [`ComparisonCondition`](filtering.md) (e.g., `C.Increased()`) compares old and new values. |
-| `changed_from` | `ChangeType` | not set | Filters on the previous state value. Accepts a raw value, callable, or condition. Compares raw HA state strings. |
-| `changed_to` | `ChangeType` | not set | Filters on the new state value. Accepts a raw value, callable, or condition. Compares raw HA state strings. |
+| `changed_from` | `ChangeType` | not set | Filters on the previous state value. Accepts a raw value (`"on"`), a callable that takes the value and returns `bool`, or a `C.*` condition. Compares raw HA state strings. |
+| `changed_to` | `ChangeType` | not set | Filters on the new state value. Accepts the same forms as `changed_from`. Compares raw HA state strings. |
 | `where` | `Predicate \| Sequence[Predicate] \| None` | `None` | Additional predicates applied after value filters. See [Filtering & Predicates](filtering.md). |
 | `immediate` | `bool` | `False` | Fires with the current state on registration, then on every subsequent change. Not supported with glob patterns. |
 | `duration` | `float \| None` | `None` | Fires only after the state has held for N seconds continuously. Not supported with glob patterns. |
@@ -51,7 +73,7 @@ Fires when a Home Assistant entity's state changes. `entity_id` accepts glob pat
 
 **Compatible [DI annotations](dependency-injection.md)**
 
-`D` is the dependency-injection module (`from hassette import D`). Annotating a handler parameter with one of these types makes Hassette extract and convert that piece of the event automatically. Each method section below lists the annotations its events support.
+Annotating a handler parameter with one of these [`D`](#helper-modules-d-c-and-p) types makes Hassette extract and convert that piece of the event automatically. Each method section below lists the annotations its events support.
 
 | Annotation | Provides |
 |---|---|
@@ -217,7 +239,7 @@ Returns the matching `Event[Any]`.
 
 Raises `asyncio.TimeoutError` when no matching event arrives within `timeout` seconds. Raises `asyncio.CancelledError` when the underlying listener is removed before a match — Bus shutdown, or an explicit `Subscription.cancel()` reaching the same registration.
 
-`wait_for` only matches events dispatched *after* the call is awaited. An entity that already reports the target value when `wait_for` starts does not resolve the wait — only a subsequent event does. `self.states.get()` covers the "already true" case; call it first when "already true or wait" is the desired behavior.
+`wait_for` only matches events dispatched *after* the call is awaited. An entity that already reports the target value when `wait_for` starts does not resolve the wait — only a subsequent event does. [`self.states.get()`](../states/index.md#direct-entity-access) reads an entity's current state from Hassette's local cache, which covers the "already true" case; call it first when "already true or wait" is the desired behavior.
 
 `wait_for` skips `guard_await`, the wrapper the other registration methods use to catch a forgotten `await`. It returns an `Event`, not a `Subscription`, so there's no listener handle to silently drop — Python's own `coroutine was never awaited` warning already covers this case.
 
@@ -289,7 +311,7 @@ Fire when the Hassette WebSocket connection to Home Assistant opens or closes.
 --8<-- "pages/core-concepts/bus/snippets/methods/on_app_events.py:websocket"
 ```
 
-Both methods accept `handler`, `where`, `kwargs`, `name`, `on_error`, and `**opts`. Both delegate to `on()` internally.
+Both methods accept `handler`, `where`, `kwargs`, `name`, `on_error`, and the [shared parameters](#shared-parameters) (`debounce`, `throttle`, `once`, `timeout`, `timeout_disabled`, `mode`, `backpressure`, `if_exists`). Both delegate to `on()` internally.
 
 ### `on_hassette_service_status` and shorthands
 
@@ -299,7 +321,7 @@ Both methods accept `handler`, `where`, `kwargs`, `name`, `on_error`, and `**opt
 --8<-- "pages/core-concepts/bus/snippets/methods/on_service_events.py:service"
 ```
 
-All four accept `handler`, `where`, `kwargs`, `name`, `on_error`, and `**opts`. [Service supervision](../internals/lifecycle.md) explains when each status fires.
+All four accept `handler`, `where`, `kwargs`, `name`, `on_error`, and the [shared parameters](#shared-parameters) (`debounce`, `throttle`, `once`, `timeout`, `timeout_disabled`, `mode`, `backpressure`, `if_exists`). [Service supervision](../internals/lifecycle.md) explains when each status fires.
 
 ## Error Handling
 
@@ -354,7 +376,7 @@ Every registration method requires `name=`. The parameter has no default, so omi
 --8<-- "pages/core-concepts/bus/snippets/bus_registration_identity.py:registration_identity"
 ```
 
-The `name` forms a natural key together with the app identifier, instance index, and topic. Two registrations with the same name on the same topic within a session raise `DuplicateListenerError`. Across sessions (app restart), the same name and topic performs an upsert — Hassette persists listener metadata to a local SQLite [telemetry database](../database-telemetry.md), and the existing record is updated, not duplicated.
+The `name` forms a natural key together with the app identifier, instance index, and topic. The instance index tells apart [multiple instances](../apps/configuration.md#multiple-instances) of one app class, each configured by its own `[[hassette.apps.<key>.config]]` block. Two registrations with the same name on the same topic within a session raise `DuplicateListenerError`. Across sessions (app restart), the same name and topic performs an upsert — Hassette persists listener metadata to a local SQLite [telemetry database](../database-telemetry.md), and the existing record is updated, not duplicated.
 
 ### Synchronous completion
 
@@ -379,7 +401,7 @@ Listener names must be unique per app instance and topic. Registering a second l
 | Value | Behavior |
 |---|---|
 | `"error"` (default) | Raises `DuplicateListenerError` when a listener with the same name and topic already exists. |
-| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`, `priority`), execution `mode`, `backpressure`, handler kwargs, per-registration error handler, and duration configuration. The returned subscription is the same live handle as the original registrant's — cancelling it removes the listener for all holders. |
+| `"skip"` | Returns the existing subscription when the new registration's configuration matches. Raises `ValueError` naming the changed fields when configurations differ. Two listeners match when they share the same handler, filter predicate, timing options (`once`, `debounce`, `throttle`, `timeout`, `timeout_disabled`), execution `mode`, `backpressure`, handler kwargs, per-registration error handler, and duration configuration. The returned subscription is the same live handle as the original registrant's — cancelling it removes the listener for all holders. |
 | `"replace"` | Cancels the existing listener and registers the new one. The new configuration does not need to match the old one. |
 
 `if_exists` matters most in `on_initialize`, which re-runs on app reload.
