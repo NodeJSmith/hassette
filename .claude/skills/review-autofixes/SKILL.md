@@ -113,7 +113,7 @@ If fixes were applied in 2c (CI fixes included):
 
 1. Run affected tests to verify, plus `prek -a` and `prek run pyright -a --stage pre-push`.
 2. Stage, commit: `refactor: address review findings in {short description}`
-3. Run the two merge-blocking gates the way CI's new-code steps do (`.github/workflows/lint.yml`). Local hooks don't cover them, and a fix can trip them on its own. Both compare commits, so run them after committing. `check_duplicate_code.py` needs Java, because it runs PMD CPD.
+3. Run the two merge-blocking gates the way CI's new-code steps do (`.github/workflows/lint.yml`). The `check-file-size-regressions` and `check-duplicate-code` pre-push hooks run the same commands, but run them here anyway so the result doesn't depend on hooks being installed; a fix can trip them on its own. Both compare commits, so run them after committing. `check_duplicate_code.py` needs Java, because it runs PMD CPD.
 
    ```bash
    uv run python tools/check_file_size_regressions.py origin/main HEAD
