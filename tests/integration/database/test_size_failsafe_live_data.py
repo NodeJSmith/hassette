@@ -13,7 +13,7 @@ from hassette.core.database_service import DatabaseService
 from hassette.core.database_sql import get_freelist_count, get_live_data_mb, run_incremental_vacuum
 from tests.integration.database.conftest import seed_app_executions
 from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, seed_listener_for_fk
-from tests.support.sql import sqlite_disk_bytes
+from tests.support.sql import count_rows, sqlite_disk_bytes
 
 FILLER_ROWS = 3000
 """Rows of ~4 KiB filler -- dropping them leaves a free list of a few thousand pages."""
@@ -42,13 +42,6 @@ async def limit_between_live_and_file_size(service: DatabaseService) -> float:
     """A size limit live data fits under, which the file exceeds until half its free pages are gone."""
     live_mb = await get_live_data_mb(service.db)
     return live_mb + (file_size_mb(service) - live_mb) / 2
-
-
-async def count_executions(db: aiosqlite.Connection) -> int:
-    cursor = await db.execute("SELECT COUNT(*) FROM executions")
-    row = await cursor.fetchone()
-    assert row is not None
-    return row[0]
 
 
 async def seed_large_executions(service: DatabaseService) -> None:
@@ -102,7 +95,7 @@ async def test_size_failsafe_deletes_nothing_when_oversized_only_by_free_pages(
 
     await initialized_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
-    assert await count_executions(db) == 10
+    assert await count_rows(db, "executions") == 10
 
 
 async def test_size_failsafe_deletes_nothing_in_auto_vacuum_none_with_large_free_list(
@@ -121,7 +114,7 @@ async def test_size_failsafe_deletes_nothing_in_auto_vacuum_none_with_large_free
 
     await initialized_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
-    assert await count_executions(db) == 10
+    assert await count_rows(db, "executions") == 10
     assert await get_freelist_count(db) == free_pages
 
 
@@ -140,7 +133,7 @@ async def test_size_failsafe_deletes_until_live_data_fits_then_shrinks_file(
 
     await initialized_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
-    remaining = await count_executions(db)
+    remaining = await count_rows(db, "executions")
     assert 0 < remaining < LARGE_ROWS
     assert await get_live_data_mb(db) <= config.max_size_mb
     assert await get_freelist_count(db) == 0
@@ -158,7 +151,7 @@ async def test_size_failsafe_still_deletes_when_reclaim_fails(
 
     await initialized_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
-    assert await count_executions(initialized_service.db) < LARGE_ROWS
+    assert await count_rows(initialized_service.db, "executions") < LARGE_ROWS
 
 
 async def test_size_failsafe_deletes_when_wal_is_blocked_and_live_data_exceeds_limit(
@@ -182,7 +175,7 @@ async def test_size_failsafe_deletes_when_wal_is_blocked_and_live_data_exceeds_l
     finally:
         await reader.execute("COMMIT")
 
-    assert await count_executions(db) < 10
+    assert await count_rows(db, "executions") < 10
 
 
 async def test_truncate_wal_raises_when_a_reader_blocks_the_checkpoint(initialized_service: DatabaseService) -> None:
@@ -217,5 +210,5 @@ async def test_retention_cleanup_reclaims_freed_pages(initialized_service: Datab
 
     await initialized_service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
 
-    assert await count_executions(db) == 0
+    assert await count_rows(db, "executions") == 0
     assert await get_freelist_count(db) == 0

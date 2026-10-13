@@ -4,7 +4,6 @@ import asyncio
 import logging
 import sqlite3
 import time
-from collections.abc import Callable, Coroutine
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -24,6 +23,7 @@ from ._fixtures_retention import (
     SOURCE_TIER_FRAMEWORK,
     db,
     insert_tiered_execution,
+    make_failing_execute,
     mock_hassette_for_db,
     retention_service,
 )
@@ -60,23 +60,6 @@ async def insert_blocking_event(db: aiosqlite.Connection, detected_ts: float) ->
         "INSERT INTO blocking_events (tier, detected_ts, source_tier) VALUES ('watchdog', ?, 'app')",
         (detected_ts,),
     )
-
-
-def make_failing_execute(db: aiosqlite.Connection, fail_on: str) -> Callable[..., Coroutine[Any, Any, Any]]:
-    """Build a ``db.execute`` replacement that raises on the first SQL statement containing
-    ``fail_on``, delegating everything else to the real ``db.execute``.
-
-    Shared by the per-target failure isolation tests below, which each simulate one target's
-    DELETE raising ``sqlite3.OperationalError`` to verify the others still commit independently.
-    """
-    original_execute = db.execute
-
-    async def failing_execute(sql: str, *args: Any, **kwargs: Any) -> Any:
-        if fail_on in sql:
-            raise sqlite3.OperationalError("simulated failure")
-        return await original_execute(sql, *args, **kwargs)
-
-    return failing_execute
 
 
 @pytest.fixture

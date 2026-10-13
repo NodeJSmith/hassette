@@ -69,6 +69,7 @@ def make_mock_hassette(
         - ``.bus_service.register_removal_callback``: :class:`~unittest.mock.Mock`
         - ``.bus_service.deregister_removal_callback``: :class:`~unittest.mock.Mock`
         - ``.app_handler.get``: :class:`~unittest.mock.Mock` returning ``None`` (no app running)
+        - ``.app_handler.registry.app_keys``: :class:`~unittest.mock.Mock` returning ``[]`` (no app running)
         - ``.app_bootstrap_coordinator.is_released``: :class:`~unittest.mock.Mock` returning ``True``
         - ``.app_bootstrap_coordinator.wait_released``: :class:`~unittest.mock.AsyncMock` returning
             ``True``
@@ -142,6 +143,7 @@ def make_mock_hassette(
 
     # App handler stubs — get() is synchronous; return None (no app running by default)
     hassette.app_handler.get = Mock(return_value=None)
+    hassette.app_handler.registry.app_keys = Mock(return_value=[])
 
     # App bootstrap coordinator stubs — released by default so lifecycle admission passes.
     hassette.app_bootstrap_coordinator.is_released = Mock(return_value=True)

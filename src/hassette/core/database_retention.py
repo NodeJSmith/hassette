@@ -10,6 +10,10 @@ import aiosqlite
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, SQL_BEGIN, reclaim_free_pages, safe_rollback
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget, build_age_where
+from hassette.core.telemetry.reconcile_sql import (
+    build_prune_removed_app_manifests_query,
+    build_retire_removed_apps_query,
+)
 
 if typing.TYPE_CHECKING:
     import logging
@@ -17,6 +21,9 @@ if typing.TYPE_CHECKING:
 
     from hassette import Hassette
     from hassette.config.config import HassetteConfig
+
+REMOVED_APP_MANIFESTS_LABEL = "removed app manifests"
+"""Label for pruned ``app_manifests`` rows in the "Retention cleanup summary" line."""
 
 PARENT_GUARD_SKIP_ESCALATION_CYCLES = 3
 """Consecutive retention cycles with parent-guard deletes skipped before the skip is logged as
@@ -81,6 +88,18 @@ def _target_failure_reasons(failed_labels: set[str], incomplete_labels: set[str]
     if incomplete_labels:
         reasons.append(f"incomplete: {', '.join(sorted(incomplete_labels))}")
     return reasons
+
+
+@dataclass(frozen=True, slots=True)
+class ParentGuardResult:
+    """Outcome of ``_run_parent_guard_deletes()``: rows retired and deleted, and manifests pruned."""
+
+    listeners_retired: int = 0
+    jobs_retired: int = 0
+    retired_app_keys: tuple[str, ...] = ()
+    listeners_deleted: int = 0
+    jobs_deleted: int = 0
+    pruned_manifest_keys: tuple[str, ...] = ()
 
 
 class DatabaseRetentionMixin:
@@ -167,21 +186,69 @@ class DatabaseRetentionMixin:
             )
         return TargetDeleteResult(total_deleted, exhausted=exhausted)
 
-    async def _run_parent_guard_deletes(self, cutoff: float) -> tuple[int, int]:
-        """NOT EXISTS-guarded deletes for retired listeners/scheduled_jobs.
+    def live_app_keys(self) -> list[str]:
+        """Return every app key retention must treat as present: in the current config, or running.
 
-        Only delete retired listeners/scheduled_jobs when ALL their child executions have
-        also aged out. This prevents orphaning recent executions whose parent row would be
-        deleted because retired_at (set at restart time) diverges from last execution time.
+        Config alone is not enough: a hot reload installs the new config before it stops the
+        apps it removed, so an app about to be stopped would look removed. The registry covers
+        an app until its stop begins (``stop_app`` unregisters before shutting down), so rows of
+        an app that is still shutting down can be retired; that is harmless, because retiring
+        deletes nothing and re-registration clears it. Read fresh on every cycle, so nothing
+        about an app's removal is stored and a failed cycle simply retries on the next one.
+
+        Config and ``registry.manifests`` hold the same apps: ``refresh_config()`` updates both
+        with no ``await`` between, and this runs on the DB write-queue task.
+        """
+        keys = set(self.hassette.config.apps.manifests)
+        try:
+            app_handler = self.hassette.app_handler
+        except RuntimeError:
+            # The accessor raises only when no AppHandler is wired (an embedding without one,
+            # e.g. a test harness); no app can be running there, so the config keys are complete.
+            self.logger.debug("AppHandler not wired; treating config apps as the live set")
+        else:
+            keys.update(app_handler.registry.app_keys())
+        return sorted(keys)
+
+    async def _run_parent_guard_deletes(self, cutoff: float, now: float, live_app_keys: list[str]) -> ParentGuardResult:
+        """Retire removed apps' registrations, run the NOT EXISTS-guarded deletes, then prune manifests.
+
+        "Parent-guard" names the whole second phase of a cleanup cycle; all of it runs in one
+        transaction:
+
+        1. Retire unretired app-tier listener/scheduled_job rows of apps not in
+           ``live_app_keys`` (``build_retire_removed_apps_query``). Removed apps are never
+           reconciled again, so without this their rows would never age out. Rows are retired
+           rather than deleted, so an execution still waiting in the write queue keeps a valid
+           parent.
+        2. Delete retired listeners/scheduled_jobs only once ALL their child executions have
+           also aged out. This prevents orphaning recent executions whose parent row would be
+           deleted because retired_at (set at restart time) diverges from last execution time.
+           Rows retired in step 1 this cycle are not past the cutoff yet.
+        3. Delete ``app_manifests`` rows of apps not in ``live_app_keys`` that nothing references
+           anymore (``build_prune_removed_app_manifests_query``).
+
+        Args:
+            cutoff: Retention cutoff for step 2's deletes.
+            now: Timestamp step 1 stamps into ``retired_at``.
+            live_app_keys: App keys to leave alone (see ``live_app_keys()``).
 
         Returns:
-            tuple[int, int]: ``(listeners_deleted, jobs_deleted)``.
+            ParentGuardResult: Rows retired and deleted, and the app keys retired and pruned.
 
         Raises:
-            Exception: Propagates any DB error from the delete statements.
+            Exception: Propagates any DB error from the statements.
         """
         await self.db.execute(SQL_BEGIN)
-        cursor_rl = await self.db.execute(
+        retired_listener_cursor = await self.db.execute(
+            *build_retire_removed_apps_query("listeners", live_app_keys, now)
+        )
+        retired_listener_keys = [row[0] for row in await retired_listener_cursor.fetchall()]
+        retired_job_cursor = await self.db.execute(
+            *build_retire_removed_apps_query("scheduled_jobs", live_app_keys, now)
+        )
+        retired_job_keys = [row[0] for row in await retired_job_cursor.fetchall()]
+        deleted_listener_cursor = await self.db.execute(
             """
             DELETE FROM listeners
             WHERE retired_at IS NOT NULL AND retired_at < ?
@@ -194,7 +261,7 @@ class DatabaseRetentionMixin:
             (cutoff, cutoff),
         )
         # Same guard for scheduled_jobs.
-        cursor_rj = await self.db.execute(
+        deleted_job_cursor = await self.db.execute(
             """
             DELETE FROM scheduled_jobs
             WHERE retired_at IS NOT NULL AND retired_at < ?
@@ -206,8 +273,17 @@ class DatabaseRetentionMixin:
             """,
             (cutoff, cutoff),
         )
+        pruned_manifest_cursor = await self.db.execute(*build_prune_removed_app_manifests_query(live_app_keys))
+        pruned_manifest_keys = tuple(sorted(row[0] for row in await pruned_manifest_cursor.fetchall()))
         await self.db.commit()
-        return cursor_rl.rowcount or 0, cursor_rj.rowcount or 0
+        return ParentGuardResult(
+            listeners_retired=len(retired_listener_keys),
+            jobs_retired=len(retired_job_keys),
+            retired_app_keys=tuple(sorted(set(retired_listener_keys) | set(retired_job_keys))),
+            listeners_deleted=deleted_listener_cursor.rowcount or 0,
+            jobs_deleted=deleted_job_cursor.rowcount or 0,
+            pruned_manifest_keys=pruned_manifest_keys,
+        )
 
     def _record_parent_guard_skip(self, failed_labels: set[str], incomplete_labels: set[str]) -> None:
         """Count a skipped parent-guard cycle and log it, escalating a sustained streak to ERROR.
@@ -244,9 +320,12 @@ class DatabaseRetentionMixin:
         succeeded AND fully cleared its cutoff window this cycle; a target that failed or hit
         the per-cycle batch cap (see ``_delete_target_batched``'s ``exhausted`` return) skips
         the guard for this cycle so it can never run against a state where an upstream delete
-        is known to be incomplete. A parent-guard failure is rolled back, logged individually,
-        and also folded into the "Retention cleanup summary" line below (as
-        "parent-guard deletes failed") so it isn't only visible in a separate log line.
+        is known to be incomplete. The same gate covers pruning ``app_manifests`` rows for apps
+        removed from config, which runs inside the parent-guard transaction. A parent-guard
+        failure is rolled back, logged individually, and also folded into the "Retention
+        cleanup summary" line below (as "parent-guard deletes failed") so it isn't only
+        visible in a separate log line. Removed-app cleanup therefore advances only on cycles
+        where the parent-guard runs; a sustained skip streak (see below) stalls it too.
 
         Skipped cycles are counted by ``_record_parent_guard_skip``; the counter resets whenever
         the parent-guard actually runs, whether or not it succeeds. The cycle ends by reclaiming the
@@ -271,8 +350,7 @@ class DatabaseRetentionMixin:
             if result.exhausted:
                 incomplete_labels.add(target.failsafe_label)
 
-        listeners_deleted = 0
-        jobs_deleted = 0
+        guard = ParentGuardResult()
         parent_guard_failed = False
 
         if not failed_labels and not incomplete_labels:
@@ -280,7 +358,9 @@ class DatabaseRetentionMixin:
             try:
                 # Use the standard retention window for parent-guard deletes.
                 cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
-                listeners_deleted, jobs_deleted = await self._run_parent_guard_deletes(cutoff)
+                guard = await self._run_parent_guard_deletes(cutoff, now, self.live_app_keys())
+            # Not BaseException: every cancellation path today either rolls back itself (the
+            # startup catch-up timeout) or closes the connection (shutdown), which rolls back.
             except Exception:
                 await safe_rollback(self.db, self, "parent-guard deletes")
                 self.logger.exception("Retention cleanup failed for parent-guard deletes")
@@ -288,6 +368,7 @@ class DatabaseRetentionMixin:
         else:
             self._record_parent_guard_skip(failed_labels, incomplete_labels)
 
+        deleted_by_label[REMOVED_APP_MANIFESTS_LABEL] = len(guard.pruned_manifest_keys)
         deleted_summary = {label: count for label, count in deleted_by_label.items() if count > 0}
         if deleted_summary or failed_labels or incomplete_labels or parent_guard_failed:
             parts = ", ".join(f"{count} {label}" for label, count in deleted_summary.items())
@@ -299,11 +380,23 @@ class DatabaseRetentionMixin:
                 parts or "nothing",
                 f" ({'; '.join(tags)})" if tags else "",
             )
-        if listeners_deleted or jobs_deleted:
+        if guard.retired_app_keys:
+            self.logger.info(
+                "Retention cleanup: retired %d listeners, %d scheduled_jobs of apps no longer in config: %s",
+                guard.listeners_retired,
+                guard.jobs_retired,
+                ", ".join(guard.retired_app_keys),
+            )
+        if guard.listeners_deleted or guard.jobs_deleted:
             self.logger.info(
                 "Retention cleanup: deleted %d retired listeners, %d retired scheduled_jobs",
-                listeners_deleted,
-                jobs_deleted,
+                guard.listeners_deleted,
+                guard.jobs_deleted,
+            )
+        if guard.pruned_manifest_keys:
+            self.logger.info(
+                "Retention cleanup: removed manifests for apps no longer in config with no remaining telemetry: %s",
+                ", ".join(guard.pruned_manifest_keys),
             )
 
         await self._reclaim_freed_pages()

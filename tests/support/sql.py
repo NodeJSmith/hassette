@@ -80,6 +80,14 @@ def insert_execution_row(
     )
 
 
+async def count_rows(db: "aiosqlite.Connection", table: str) -> int:
+    """Return the number of rows in ``table`` (a literal table name from the test, never user input)."""
+    cursor = await db.execute(f"SELECT COUNT(*) FROM {table}")
+    row = await cursor.fetchone()
+    assert row is not None
+    return row[0]
+
+
 def sqlite_disk_bytes(db_path: Path) -> int:
     """Size in bytes of a SQLite database file plus its WAL and SHM sidecars, whichever exist.
 

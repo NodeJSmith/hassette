@@ -55,7 +55,8 @@ CREATE TABLE listeners (
     topic                 TEXT NOT NULL DEFAULT '',
     source_location       TEXT NOT NULL DEFAULT '',
     mode                  TEXT NOT NULL DEFAULT 'single',
-    retired_at            REAL
+    retired_at            REAL,
+    source_tier           TEXT NOT NULL DEFAULT 'app'
 );
 
 CREATE TABLE scheduled_jobs (
@@ -66,7 +67,8 @@ CREATE TABLE scheduled_jobs (
     handler_method        TEXT NOT NULL DEFAULT '',
     source_location       TEXT NOT NULL DEFAULT '',
     retired_at            REAL,
-    mode                  TEXT NOT NULL DEFAULT 'single'
+    mode                  TEXT NOT NULL DEFAULT 'single',
+    source_tier           TEXT NOT NULL DEFAULT 'app'
 );
 
 CREATE TABLE executions (
@@ -106,6 +108,14 @@ CREATE TABLE blocking_events (
 CREATE INDEX idx_be_ts      ON blocking_events(detected_ts);
 CREATE INDEX idx_be_app_ts  ON blocking_events(app_key, detected_ts);
 CREATE INDEX idx_be_session ON blocking_events(session_id);
+
+CREATE TABLE app_manifests (
+    id           INTEGER PRIMARY KEY,
+    app_key      TEXT NOT NULL UNIQUE,
+    class_name   TEXT NOT NULL DEFAULT '',
+    display_name TEXT NOT NULL DEFAULT '',
+    filename     TEXT NOT NULL DEFAULT ''
+);
 """
 
 

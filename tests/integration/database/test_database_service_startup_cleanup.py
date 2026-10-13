@@ -12,6 +12,7 @@ from hassette.core import database_service as database_service_module
 from hassette.core.database_service import DatabaseService
 from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL
 from tests.support.helpers import SIZE_FAILSAFE_TRIGGER_MB, seed_listener_for_fk
+from tests.support.sql import count_rows
 
 ENDLESS_STATEMENT = "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT count(*) FROM c"
 """Unbounded recursive CTE: never terminates unless interrupted."""
@@ -53,13 +54,6 @@ async def seed_stale_executions(service: DatabaseService, count: int) -> None:
     await service.db.commit()
 
 
-async def count_executions(service: DatabaseService) -> int:
-    cursor = await service.db.execute("SELECT COUNT(*) FROM executions")
-    row = await cursor.fetchone()
-    assert row is not None
-    return row[0]
-
-
 async def test_startup_cleanup_timeout_interrupts_in_flight_statement(
     fresh_service: DatabaseService, mock_hassette_fresh: MagicMock
 ) -> None:
@@ -99,7 +93,9 @@ async def test_restart_resumes_interrupted_retention_on_startup(
     restarted = DatabaseService(db_hassette, parent=None)
     await restarted.on_initialize()
     try:
-        assert await count_executions(restarted) == 0, "startup did not resume retention cleanup of the stale backlog"
+        assert await count_rows(restarted.db, "executions") == 0, (
+            "startup did not resume retention cleanup of the stale backlog"
+        )
     finally:
         await restarted.on_shutdown()
 
@@ -116,7 +112,7 @@ async def test_retention_batch_loop_continues_past_progress_checkpoint(
 
     await initialized_service._do_run_retention_cleanup()
 
-    assert await count_executions(initialized_service) == 0
+    assert await count_rows(initialized_service.db, "executions") == 0
 
 
 async def test_size_failsafe_iteration_loop_continues_past_progress_checkpoint(
@@ -134,4 +130,4 @@ async def test_size_failsafe_iteration_loop_continues_past_progress_checkpoint(
 
     await initialized_service._check_size_failsafe()
 
-    assert await count_executions(initialized_service) == 3
+    assert await count_rows(initialized_service.db, "executions") == 3
