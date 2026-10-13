@@ -12,7 +12,7 @@ import pytest
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
 from tests.support.helpers import create_app_manifest
-from tests.support.sql import insert_execution_row
+from tests.support.sql import count_rows, insert_execution_row
 
 from ._fixtures_retention import db, make_failing_execute, mock_hassette_for_db, retention_service
 
@@ -32,13 +32,6 @@ async def run_cleanup(db: aiosqlite.Connection, service: DatabaseService) -> Non
     """Commit seeded rows, then run one retention cycle."""
     await db.commit()
     await service._do_run_retention_cleanup()  # pyright: ignore[reportPrivateUsage]
-
-
-async def count_rows(db: aiosqlite.Connection, table: str) -> int:
-    cursor = await db.execute(f"SELECT COUNT(*) FROM {table}")
-    row = await cursor.fetchone()
-    assert row is not None
-    return row[0]
 
 
 async def manifest_exists(db: aiosqlite.Connection, app_key: str) -> bool:
