@@ -1,7 +1,9 @@
 # Research: UI-Editable App Config Overrides
 
 **Date:** 2026-08-11
-**Design:** `design/specs/095-ui-config-overrides/design.md`
+**Design:** `design/specs/095-ui-config-overrides/design.md` (archived; historical record only)
+
+> The design these briefs backed is archived and must not be implemented from. The briefs remain useful as prior art, but they predate adversarial review of that design and the codebase changes that made it stale. Current intent is tracked in #2767.
 
 Three investigations backing that design. Each answered a question that would otherwise have been
 settled by instinct, and two of them refuted the instinct.

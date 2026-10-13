@@ -1,8 +1,10 @@
 # Design: UI-Editable App Config Overrides
 
+> **ARCHIVED. Do not implement from this document.** It is kept as a historical record of an exploration that predates later changes (per-instance restart, config-key validation, a different design format), so its module names, file paths, and some assumptions no longer match the codebase. The work it explored is tracked in #2767; those issues describe the intended behavior and should be the starting point. Use this document only as prior art and rationale.
+
 **Date:** 2026-08-11
 **Updated:** 2026-08-13 — rebased onto #1605 (`AppRegistry` instance unification), which satisfied this design's hard prerequisite and changed the app-key locking it depends on. See Architecture (Locking) and Dependencies and Assumptions.
-**Status:** draft
+**Status:** archived
 **Scope-mode:** hold
 **Research:** `design/research/2026-08-11-ui-config-overrides/` — `config-precedence-prior-art.md` (where comparable systems store UI-set config and how they resolve conflicts), `form-library-prior-art.md` (JSON Schema form libraries, benchmarked against React 19), `cli-config-set-prior-art.md` (CLI write-command ergonomics)
 
