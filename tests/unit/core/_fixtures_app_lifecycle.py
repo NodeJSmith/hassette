@@ -32,6 +32,7 @@ def mock_hassette() -> AsyncMock:
     hassette.send_event = AsyncMock()
     hassette.command_executor = MagicMock()
     hassette.command_executor.reconcile_registrations = AsyncMock()
+    hassette.command_executor.retire_removed_app_registrations = AsyncMock(return_value=(0, 0))
     hassette.bus_service = MagicMock()
     hassette.bus_service.router = MagicMock()
     hassette.bus_service.router.get_listeners_by_owner = Mock(return_value=[])

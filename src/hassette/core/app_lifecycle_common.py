@@ -31,6 +31,10 @@ INIT_FAILURE_TRACEBACK_LIMIT = 5
 # never block app startup or a hot-reload. See design doc "Persist trigger".
 MANIFEST_UPSERT_TIMEOUT_SECONDS = 5.0
 
+# Timeout for retiring removed apps' registrations. A failed write only delays pruning of
+# those apps' telemetry until it is retried — it must never block startup or a hot-reload.
+REMOVED_APP_RETIRE_TIMEOUT_SECONDS = 5.0
+
 
 class AppAdmissionMode(StrEnum):
     WAIT_FOR_RELEASE = "wait_for_release"

@@ -20,6 +20,7 @@ from hassette.core.telemetry.insert_params import (
 from hassette.core.telemetry.reconcile_sql import (
     build_delete_query,
     build_retire_query,
+    build_retire_removed_apps_query,
     instance_index_clause,
     not_in_clause,
 )
@@ -398,6 +399,33 @@ class TelemetryRepository:
         except Exception:
             await db.rollback()
             raise
+
+    async def retire_removed_app_registrations(self, current_app_keys: list[str]) -> tuple[int, int]:
+        """Set ``retired_at`` on every unretired listener/job row of an app removed from config.
+
+        Rows are retired rather than deleted, even without execution history: an execution
+        still waiting in the write queue keeps a valid parent, and retention deletes the row
+        once it is past the retention window with no executions inside it. See
+        ``AppRegistrationReconcilerMixin.retire_removed_app_registrations`` for when it is safe
+        to call.
+
+        Args:
+            current_app_keys: Every app key in the current config.
+
+        Returns:
+            tuple[int, int]: ``(listeners_retired, jobs_retired)``.
+        """
+        db = self._db_service.db
+        now = time.time()
+        try:
+            await db.execute("BEGIN")
+            listeners = await db.execute(*build_retire_removed_apps_query("listeners", current_app_keys, now))
+            jobs = await db.execute(*build_retire_removed_apps_query("scheduled_jobs", current_app_keys, now))
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+        return listeners.rowcount or 0, jobs.rowcount or 0
 
     async def insert_blocking_event(self, event: BlockingEvent) -> None:
         """Insert a single blocking event row into the ``blocking_events`` table.

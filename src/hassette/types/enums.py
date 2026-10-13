@@ -115,9 +115,6 @@ class Topic(StrEnum):
     HASSETTE_EVENT_APP_LOAD_COMPLETED = "hassette.event.app_load_completed"
     """Application load completion events"""
 
-    HASSETTE_EVENT_APP_MANIFESTS_PRUNED = "hassette.event.app_manifests_pruned"
-    """Retention cleanup deleted the manifests of apps removed from config"""
-
     HASSETTE_EVENT_APP_STATE_CHANGED = "hassette.event.app_state_changed"
     """App instance state change events"""
 

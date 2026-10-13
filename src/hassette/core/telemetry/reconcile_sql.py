@@ -1,5 +1,6 @@
 """SQL builders for reconciling listener and scheduled-job registrations."""
 
+import json
 from typing import Any
 
 # The reconciliation query builders interpolate ``table`` and ``history_fk`` directly into
@@ -133,3 +134,32 @@ def build_retire_query(
           )
     """
     return sql, params
+
+
+def build_retire_removed_apps_query(table: str, current_app_keys: list[str], now: float) -> tuple[str, dict]:
+    """Build an UPDATE that sets ``retired_at`` on every unretired row of an app removed from config.
+
+    A removed app has an ``app_manifests`` row but no entry in ``current_app_keys``; framework
+    registrations have no manifest, so they never match. Unlike ``build_retire_query``, rows are
+    retired whether or not they have execution history.
+
+    Args:
+        table: Table to update (``"listeners"`` or ``"scheduled_jobs"``).
+        current_app_keys: Every app key in the current config.
+        now: Epoch timestamp for ``retired_at``.
+
+    Returns:
+        A ``(sql, params)`` tuple.
+    """
+    if table not in _RECONCILE_TABLES:
+        raise ValueError(f"Refusing to build SQL for unknown table: {table!r}")
+    sql = f"""
+        UPDATE {table} SET retired_at = :now
+        WHERE retired_at IS NULL
+          AND app_key IN (
+              SELECT app_key FROM app_manifests
+              WHERE app_key NOT IN (SELECT value FROM json_each(:current_keys))
+          )
+    """
+    # json_each binds the whole variable-length key list as a single parameter.
+    return sql, {"now": now, "current_keys": json.dumps(current_app_keys)}

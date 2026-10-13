@@ -770,6 +770,7 @@ class HassetteHarness:
     async def _start_app_handler(self) -> None:
         self.hassette._command_executor = Mock(spec=CommandExecutor)
         self.hassette._command_executor.reconcile_registrations = AsyncMock()
+        self.hassette._command_executor.retire_removed_app_registrations = AsyncMock(return_value=(0, 0))
         self.hassette._app_handler = self.hassette.add_child(AppHandler)
 
     async def _start_app_bootstrap_coordinator(self) -> None:

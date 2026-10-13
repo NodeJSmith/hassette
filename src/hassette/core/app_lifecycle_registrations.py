@@ -1,11 +1,16 @@
-"""AppRegistrationReconcilerMixin — post-ready telemetry-registration reconciliation."""
+"""AppRegistrationReconcilerMixin — telemetry-registration reconciliation and removed-app retirement."""
 
 import typing
 from logging import Logger
 
+import anyio
+
+from hassette.core.app_lifecycle_common import REMOVED_APP_RETIRE_TIMEOUT_SECONDS
+
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
     from hassette.app.app import App
+    from hassette.core.app_registry import AppRegistry
     from hassette.core.bus_service import BusService
 
 
@@ -16,6 +21,7 @@ class AppRegistrationReconcilerMixin:
     # declared here for type narrowing within the mixin.
     hassette: "Hassette"
     logger: Logger
+    registry: "AppRegistry"
 
     def collect_live_listener_ids(self, app_key: str, instances: "dict[int, App[AppConfig]]") -> set[int]:
         """Collect listener db_ids registered by all instances.
@@ -132,4 +138,35 @@ class AppRegistrationReconcilerMixin:
                 "stale rows (including once=True cleanup) may remain until next restart",
                 app_key,
                 exc_info=True,
+            )
+
+    async def retire_removed_app_registrations(self) -> None:
+        """Retire the telemetry registrations of every app no longer in config.
+
+        Removed apps are never reconciled again, so without this their listener/job rows
+        would stay unretired forever and retention could never prune them or their manifest.
+
+        Precondition: no app absent from ``registry.manifests`` may still be running, or its
+        live rows get retired. That holds during bootstrap (no such app was started this
+        process) and once a config change has stopped its orphans; it does not hold between a
+        hot reload swapping the config and those orphans stopping.
+
+        Failure is non-fatal — logs a warning. The rows are retired by the next bootstrap or
+        the next config change that removes an app.
+        """
+        try:
+            with anyio.fail_after(REMOVED_APP_RETIRE_TIMEOUT_SECONDS):
+                listeners, jobs = await self.hassette.command_executor.retire_removed_app_registrations(
+                    list(self.registry.manifests)
+                )
+        except Exception:
+            self.logger.warning(
+                "Failed to retire registrations of apps removed from config — their telemetry "
+                "won't be pruned until the next successful attempt",
+                exc_info=True,
+            )
+            return
+        if listeners or jobs:
+            self.logger.info(
+                "Retired %d listener(s) and %d scheduled job(s) of apps removed from config", listeners, jobs
             )

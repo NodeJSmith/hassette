@@ -11,8 +11,6 @@ import aiosqlite
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, SQL_BEGIN, reclaim_free_pages, safe_rollback
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget, build_age_where
-from hassette.events.hassette import HassetteSimpleEvent
-from hassette.types.enums import Topic
 
 if typing.TYPE_CHECKING:
     import logging
@@ -25,10 +23,6 @@ PARENT_GUARD_SKIP_ESCALATION_CYCLES = 3
 """Consecutive retention cycles with parent-guard deletes skipped before the skip is logged as
 an ERROR instead of a WARNING — separates a transient one-off target failure from a target that
 is chronically blocking retired listener/scheduled_job cleanup."""
-
-_REMOVED_APP_KEYS_SQL = "SELECT app_key FROM app_manifests WHERE app_key NOT IN (SELECT value FROM json_each(?))"
-"""App keys with a manifest but absent from the current config (bound to a JSON array of current keys).
-Framework registrations have no manifest, so they never match."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,21 +171,23 @@ class DatabaseRetentionMixin:
     async def _run_parent_guard_deletes(
         self, cutoff: float, current_app_keys: "Iterable[str]"
     ) -> tuple[int, int, list[str]]:
-        """NOT EXISTS-guarded deletes for retired or removed-app listeners/scheduled_jobs, then removed apps' manifests.
+        """NOT EXISTS-guarded deletes for retired listeners/scheduled_jobs, then removed apps' manifests.
 
         Only delete retired listeners/scheduled_jobs when ALL their child executions have
         also aged out. This prevents orphaning recent executions whose parent row would be
         deleted because retired_at (set at restart time) diverges from last execution time.
 
-        Registrations of a removed app (manifest present, ``app_key`` absent from
-        ``current_app_keys``) get the same execution guard but no ``retired_at`` requirement:
-        reconciliation only runs for configured apps, so a removed app's rows are never retired.
+        A removed app's rows are retired by the app lifecycle once the app can no longer be
+        running (``AppLifecycleService.retire_removed_app_registrations``), so they age out here
+        like any other retired row.
 
         Then, in the same transaction, delete ``app_manifests`` rows for apps absent from
         ``current_app_keys`` that nothing references anymore. Executions always belong to a
         listener or scheduled_job, so "no listeners, jobs, log records or blocking events for
         the app_key" also means no executions. ``app_key`` is the bare key in every table, so
-        the match covers all instance indexes.
+        the match covers all instance indexes. Config absence alone is not enough: a removed app
+        whose rows the lifecycle hasn't retired yet (e.g. still being stopped during a hot
+        reload) keeps them, so its manifest stays too.
 
         Returns:
             tuple[int, int, list[str]]: ``(listeners_deleted, jobs_deleted, removed_manifest_app_keys)``.
@@ -203,29 +199,29 @@ class DatabaseRetentionMixin:
         current_keys_json = json.dumps(list(current_app_keys))
         await self.db.execute(SQL_BEGIN)
         cursor_rl = await self.db.execute(
-            f"""
+            """
             DELETE FROM listeners
-            WHERE ((retired_at IS NOT NULL AND retired_at < ?) OR app_key IN ({_REMOVED_APP_KEYS_SQL}))
+            WHERE retired_at IS NOT NULL AND retired_at < ?
               AND NOT EXISTS (
                   SELECT 1 FROM executions
                   WHERE listener_id = listeners.id
                     AND execution_start_ts >= ?
               )
             """,
-            (cutoff, current_keys_json, cutoff),
+            (cutoff, cutoff),
         )
         # Same guard for scheduled_jobs.
         cursor_rj = await self.db.execute(
-            f"""
+            """
             DELETE FROM scheduled_jobs
-            WHERE ((retired_at IS NOT NULL AND retired_at < ?) OR app_key IN ({_REMOVED_APP_KEYS_SQL}))
+            WHERE retired_at IS NOT NULL AND retired_at < ?
               AND NOT EXISTS (
                   SELECT 1 FROM executions
                   WHERE job_id = scheduled_jobs.id
                     AND execution_start_ts >= ?
               )
             """,
-            (cutoff, current_keys_json, cutoff),
+            (cutoff, cutoff),
         )
         cursor_am = await self.db.execute(
             """
@@ -349,11 +345,6 @@ class DatabaseRetentionMixin:
             self.logger.info(
                 "Retention cleanup: removed manifests for apps no longer in config with no remaining telemetry: %s",
                 ", ".join(removed_manifest_keys),
-            )
-            # The original config removal already broadcast apps_changed while the manifest still
-            # existed, so open dashboards need another refetch signal to drop the app.
-            await self.hassette.send_event(
-                HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_MANIFESTS_PRUNED)
             )
 
         await self._reclaim_freed_pages()

@@ -11,7 +11,6 @@ import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_service import DatabaseService
-from hassette.types.enums import Topic
 from tests.support.helpers import create_app_manifest
 from tests.support.sql import insert_execution_row
 
@@ -71,7 +70,7 @@ async def insert_job(db: aiosqlite.Connection, app_key: str) -> int:
 
 
 async def seed_recent_job_execution(db: aiosqlite.Connection, app_key: str) -> None:
-    """A never-retired job (apps removed from config are never reconciled) with a recent execution."""
+    """An unretired job with an execution still inside retention."""
     job_id = await insert_job(db, app_key)
     await insert_execution_row(db, kind="job", job_id=job_id, execution_start_ts=RECENT_TS)
 
@@ -103,30 +102,6 @@ async def test_removed_app_without_telemetry_is_pruned(
     assert not await manifest_exists(db, REMOVED_APP)
     assert "Retention cleanup summary: deleted 1 removed app manifests" in caplog.text
     assert REMOVED_APP in caplog.text
-
-
-async def test_pruning_sends_manifests_pruned_event(
-    db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock
-) -> None:
-    """Open dashboards already refetched on the config removal, so the prune must signal again."""
-    await insert_manifest(db, REMOVED_APP)
-
-    await run_cleanup(db, retention_service)
-
-    mock_hassette_for_db.send_event.assert_awaited_once()
-    event = mock_hassette_for_db.send_event.await_args.args[0]
-    assert event.topic == Topic.HASSETTE_EVENT_APP_MANIFESTS_PRUNED
-
-
-async def test_no_manifests_pruned_sends_no_event(
-    db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock
-) -> None:
-    await insert_manifest(db, REMOVED_APP)
-    await seed_recent_log_record(db, REMOVED_APP)
-
-    await run_cleanup(db, retention_service)
-
-    mock_hassette_for_db.send_event.assert_not_awaited()
 
 
 async def test_app_in_current_config_is_never_pruned(
@@ -170,20 +145,23 @@ async def test_removed_app_pruned_once_its_telemetry_ages_out_in_same_cycle(
     assert not await manifest_exists(db, REMOVED_APP)
 
 
-async def test_removed_app_with_never_retired_registrations_is_pruned_once_history_ages_out(
+async def test_removed_app_unretired_registrations_are_kept(
     db: aiosqlite.Connection, retention_service: DatabaseService
 ) -> None:
-    """Removed apps are never reconciled, so their listeners/jobs keep ``retired_at`` NULL."""
+    """During a hot reload a removed app runs until its orphan stop, with unretired rows.
+
+    Retention must not infer retirement from config absence: the app lifecycle retires the rows
+    once the app has stopped, and until then the rows (and so the manifest) stay.
+    """
     await insert_manifest(db, REMOVED_APP)
     listener_id = await insert_listener(db, REMOVED_APP, retired_at=None)
     await insert_execution_row(db, listener_id=listener_id, execution_start_ts=OLD_TS)
-    job_id = await insert_job(db, REMOVED_APP)
-    await insert_execution_row(db, kind="job", job_id=job_id, execution_start_ts=OLD_TS)
+    await insert_job(db, REMOVED_APP)
     await run_cleanup(db, retention_service)
 
-    assert not await manifest_exists(db, REMOVED_APP)
-    assert await count_rows(db, "listeners") == 0
-    assert await count_rows(db, "scheduled_jobs") == 0
+    assert await count_rows(db, "listeners") == 1
+    assert await count_rows(db, "scheduled_jobs") == 1
+    assert await manifest_exists(db, REMOVED_APP)
 
 
 async def test_configured_app_never_retired_registrations_are_kept(
