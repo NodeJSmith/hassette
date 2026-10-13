@@ -9,6 +9,7 @@ pool. Every public method guards against being called from inside a running even
 loop, matching the safety contract of ``ApiSyncFacade``/``BusSyncFacade``/``SchedulerSyncFacade``.
 """
 
+import logging
 import sqlite3
 import time
 from collections.abc import Callable
@@ -21,10 +22,14 @@ from hassette.cache._helpers import (
     MISSING,
     deserialize,
     guard_not_in_event_loop,
+    log_checkpoint_outcome,
     resolve_ttl,
     serialize,
     validate_key,
 )
+from hassette.utils.aiosqlite_utils import CHECKPOINT_TRUNCATE_SQL
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
@@ -136,12 +141,18 @@ class SyncCache:
         return value
 
     def clear(self) -> None:
+        """Delete all entries, then ``VACUUM`` and truncate the WAL (best-effort) so the file shrinks."""
         guard_not_in_event_loop("SyncCache.clear")
         conn = self._connect()
         try:
             conn.execute("DELETE FROM cache_entries")
-            # execute() frees one page per pragma step; executescript() steps it to completion.
-            conn.executescript("PRAGMA incremental_vacuum")
+            conn.execute("VACUUM")  # autocommit connection, so not inside a transaction
+            try:
+                row = conn.execute(CHECKPOINT_TRUNCATE_SQL).fetchone()
+            except sqlite3.Error:
+                logger.exception("Cache clear: WAL checkpoint failed")
+            else:
+                log_checkpoint_outcome(row)
         finally:
             conn.close()
 

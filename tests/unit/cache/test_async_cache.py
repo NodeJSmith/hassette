@@ -13,6 +13,7 @@ from hassette.cache.protocol import CacheProtocol
 from hassette.cache.sync import SyncCache
 from hassette.cache.wrapper import AsyncCache
 from hassette.utils.aiosqlite_utils import stop_connection_sync
+from tests.support.sql import SHRUNK_FRACTION, sqlite_disk_bytes
 
 
 @pytest.fixture
@@ -176,20 +177,64 @@ async def test_clear_removes_all_entries(cache: AsyncCache) -> None:
     assert await cache.get("b") is None
 
 
-async def test_clear_reclaims_every_free_page(tmp_path: Path) -> None:
-    """clear() reclaims every page its delete freed, not just the first one."""
+async def test_clear_shrinks_the_file_and_leaves_no_free_pages(tmp_path: Path) -> None:
+    """clear() returns the disk space its delete freed, through normal initialization."""
     db_path = tmp_path / "cache.db"
     instance = AsyncCache(db_path, default_ttl=None)
     await instance.initialize()
     try:
         for i in range(200):
             await instance.set(f"key{i}", "x" * 4000)
+        size_before = sqlite_disk_bytes(db_path)
         await instance.clear()
+        size_after = sqlite_disk_bytes(db_path)
     finally:
         await instance.close()
 
+    assert size_after < size_before * SHRUNK_FRACTION
     with contextlib.closing(sqlite3.connect(db_path)) as conn:
         assert conn.execute("PRAGMA freelist_count").fetchone()[0] == 0
+
+
+async def test_clear_shrinks_a_file_created_with_auto_vacuum_none(tmp_path: Path) -> None:
+    """A cache file that A legacy cache file created with ``auto_vacuum = NONE`` shrinks on clear() too."""
+    db_path = tmp_path / "cache.db"
+    with contextlib.closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("PRAGMA auto_vacuum = NONE")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("CREATE TABLE cache_entries (key TEXT PRIMARY KEY, value BLOB NOT NULL, expires_at REAL)")
+        assert conn.execute("PRAGMA auto_vacuum").fetchone()[0] == 0
+    instance = AsyncCache(db_path, default_ttl=None)
+    await instance.initialize()
+    try:
+        for i in range(200):
+            await instance.set(f"key{i}", "x" * 4000)
+        size_before = sqlite_disk_bytes(db_path)
+        await instance.clear()
+        size_after = sqlite_disk_bytes(db_path)
+    finally:
+        await instance.close()
+
+    assert size_after < size_before * SHRUNK_FRACTION
+
+
+async def test_clear_succeeds_while_another_connection_blocks_the_wal_checkpoint(tmp_path: Path) -> None:
+    """A reader holding a snapshot blocks WAL truncation; clear() still empties the cache and returns."""
+    db_path = tmp_path / "cache.db"
+    instance = AsyncCache(db_path, default_ttl=None)
+    await instance.initialize()
+    reader = sqlite3.connect(db_path, isolation_level=None)
+    try:
+        await instance.set("a", "value")
+        reader.execute("BEGIN")
+        reader.execute("SELECT COUNT(*) FROM cache_entries").fetchall()
+        await instance.clear()
+        assert await instance.get("a") is None
+        # A completed TRUNCATE checkpoint leaves a zero-byte WAL, so a non-empty one proves the block.
+        assert Path(f"{db_path}-wal").stat().st_size > 0
+    finally:
+        reader.close()
+        await instance.close()
 
 
 async def test_invalidate_deletes_multiple_keys(cache: AsyncCache) -> None:

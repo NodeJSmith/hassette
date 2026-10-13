@@ -11,6 +11,7 @@ import pytest
 
 from hassette.cache.sync import SyncCache
 from hassette.cache.wrapper import AsyncCache
+from tests.support.sql import SHRUNK_FRACTION, sqlite_disk_bytes
 
 
 @pytest.fixture
@@ -158,23 +159,48 @@ def test_clear_removes_all_entries(sync_cache: SyncCache) -> None:
     assert sync_cache.get("b") is None
 
 
-async def test_clear_reclaims_every_free_page(tmp_path: Path) -> None:
-    """clear() reclaims every page its delete freed, not just the first one."""
+async def test_clear_shrinks_the_file_and_leaves_no_free_pages(tmp_path: Path) -> None:
+    """clear() returns the disk space its delete freed."""
     db_path = tmp_path / "cache.db"
     instance = AsyncCache(db_path, default_ttl=None)
     await instance.initialize()
     await instance.close()
     sync_cache = SyncCache(db_path)
 
-    def fill_and_clear() -> None:
+    def fill_and_clear() -> tuple[int, int]:
         for i in range(200):
             sync_cache.set(f"key{i}", "x" * 4000)
+        size_before = sqlite_disk_bytes(db_path)
         sync_cache.clear()
+        return size_before, sqlite_disk_bytes(db_path)
 
-    await asyncio.to_thread(fill_and_clear)
+    size_before, size_after = await asyncio.to_thread(fill_and_clear)
 
+    assert size_after < size_before * SHRUNK_FRACTION
     with contextlib.closing(sqlite3.connect(db_path)) as conn:
         assert conn.execute("PRAGMA freelist_count").fetchone()[0] == 0
+
+
+async def test_clear_shrinks_a_file_created_with_auto_vacuum_none(tmp_path: Path) -> None:
+    """A legacy cache file created with ``auto_vacuum = NONE`` shrinks on clear() too."""
+    db_path = tmp_path / "cache.db"
+    with contextlib.closing(sqlite3.connect(db_path)) as conn:
+        conn.execute("PRAGMA auto_vacuum = NONE")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("CREATE TABLE cache_entries (key TEXT PRIMARY KEY, value BLOB NOT NULL, expires_at REAL)")
+        assert conn.execute("PRAGMA auto_vacuum").fetchone()[0] == 0
+    sync_cache = SyncCache(db_path)
+
+    def fill_and_clear() -> tuple[int, int]:
+        for i in range(200):
+            sync_cache.set(f"key{i}", "x" * 4000)
+        size_before = sqlite_disk_bytes(db_path)
+        sync_cache.clear()
+        return size_before, sqlite_disk_bytes(db_path)
+
+    size_before, size_after = await asyncio.to_thread(fill_and_clear)
+
+    assert size_after < size_before * SHRUNK_FRACTION
 
 
 def test_invalidate_deletes_multiple_keys(sync_cache: SyncCache) -> None:

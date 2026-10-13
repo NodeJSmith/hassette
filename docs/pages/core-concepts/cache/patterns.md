@@ -93,7 +93,7 @@ If values do not survive a restart, check four common causes:
 
 ### Cache Grows Large
 
-The cache has no size limit — entries persist until deleted, expired, or explicitly cleared. Set a `ttl` on entries that don't need to live forever, and call `await self.cache.clear()` to delete all entries and reclaim disk space (it runs `PRAGMA incremental_vacuum` after deleting, so the file actually shrinks). `await self.cache.invalidate(*keys)` deletes a specific set of keys in one call.
+The cache has no size limit — entries persist until deleted, expired, or explicitly cleared. Set a `ttl` on entries that don't need to live forever, and call `await self.cache.clear()` to delete all entries and reclaim disk space (it runs `VACUUM` and truncates the WAL after deleting, so the file actually shrinks). `await self.cache.invalidate(*keys)` deletes a specific set of keys in one call.
 
 The cache directory at `{data_dir}/{app_key}/{index}/cache/` should contain a `cache.db` file after the first successful write.
 
