@@ -314,3 +314,35 @@ async def test_raw_recv_passes_close_code(websocket_service: WebsocketService) -
         await websocket_service.raw_recv()
 
     assert exc_info.value.close_code == 1001, f"Expected close_code=1001, got {exc_info.value.close_code}"
+
+
+@pytest.mark.parametrize(
+    ("msg_type", "expected"),
+    [
+        (WSMsgType.CLOSE, "WebSocket closed by peer"),
+        (WSMsgType.CLOSED, "WebSocket closed ("),
+        (WSMsgType.CLOSING, "WebSocket is closing"),
+    ],
+)
+async def test_raw_recv_names_the_peer_only_for_a_close_frame(
+    websocket_service: WebsocketService, msg_type: WSMsgType, expected: str
+) -> None:
+    """CLOSED is aiohttp's local state after either side closed, so only a peer CLOSE frame says "peer"."""
+    fake_ws = build_fake_ws()
+    fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=msg_type, data=None))
+    websocket_service._ws = fake_ws
+
+    with pytest.raises(RetryableConnectionClosedError) as exc_info:
+        await websocket_service.raw_recv()
+
+    assert str(exc_info.value).startswith(expected)
+
+
+async def test_recv_loop_close_outside_shutdown_still_raises(websocket_service: WebsocketService) -> None:
+    """Outside shutdown, a close ends the recv loop with the error serve() reconnects on (#2757 keeps #2743)."""
+    fake_ws = build_fake_ws()
+    fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.CLOSED, data=None))
+    websocket_service._ws = fake_ws
+
+    with pytest.raises(RetryableConnectionClosedError):
+        await websocket_service.recv_loop()

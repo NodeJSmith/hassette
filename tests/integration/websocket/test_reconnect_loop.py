@@ -12,6 +12,7 @@ Complements test_reconnect.py (partial_cleanup and the connection-lost event).
 """
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -552,3 +553,35 @@ async def test_repeated_accept_then_drop_cycles_keep_backing_off_up_to_the_fast_
     assert delays[0] <= 1.2
     assert all(delay is not None and delay >= 3.2 for delay in delays[2:]), delays
     assert delays[3:] == [reconnect_module.FAST_BACKOFF_CAP_SECONDS] * (cycles - 3)
+
+
+@pytest.mark.usefixtures("fast_reconnect")
+async def test_shutdown_while_receiving_ends_the_recv_task_without_an_error(
+    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Shutdown cancelling serve() closes the socket under a blocked receive(); the recv task ends quietly (#2757)."""
+    receiving = asyncio.Event()  # set each time the recv loop blocks in receive(), so shutdown lands mid-receive
+    original_receive = aiohttp.ClientWebSocketResponse.receive
+
+    async def signalling_receive(ws: aiohttp.ClientWebSocketResponse, *args: Any, **kwargs: Any) -> aiohttp.WSMessage:
+        receiving.set()
+        return await original_receive(ws, *args, **kwargs)
+
+    caplog.set_level(logging.DEBUG, logger="hassette")
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(aiohttp.ClientWebSocketResponse, "receive", signalling_receive)
+        async with serving(websocket_service, fake_ha) as task:
+            await wait_connected(websocket_service)
+            recv_task = websocket_service._recv_task
+            assert recv_task is not None
+            receiving.clear()
+            await fake_ha.send_event("noop_event")  # recv loop handles it, then blocks in receive() again
+            await asyncio.wait_for(receiving.wait(), timeout=WAIT_SECONDS)
+
+            websocket_service.shutdown_event.set()
+            task.cancel()
+            await asyncio.gather(task, recv_task, return_exceptions=True)
+
+    assert not recv_task.cancelled(), "the socket close must reach the recv task before any cancellation"
+    assert recv_task.exception() is None
+    assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == []

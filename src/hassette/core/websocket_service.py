@@ -19,6 +19,7 @@ from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS, SINGLE_ATTEMPT
 from hassette.core.websocket_inbound import log_dispatch_failure, parse_text_frame
 from hassette.core.websocket_reconnect import (
     AUTH_REJECTED_REASON,
+    CLOSE_MSG_TYPE_MESSAGES,
     CONNECTED_REASON,
     CORE_NOT_RUNNING_REASON,
     CORE_RUNNING_RECHECK_SECONDS,
@@ -556,8 +557,13 @@ class WebsocketService(Service):
         self._ws = None
 
     async def recv_loop(self) -> None:
-        while True:
-            await self.raw_recv()
+        try:
+            while True:
+                await self.raw_recv()
+        except RetryableConnectionClosedError as exc:
+            if not self.shutdown_event.is_set():
+                raise
+            self.logger.debug("Socket closed during shutdown, ending receive loop quietly: %s", exc)
 
     async def send_and_await_response(
         self,
@@ -848,15 +854,9 @@ class WebsocketService(Service):
             self.logger.warning("Received unexpected binary message (%d bytes)", len(raw))
             return
 
-        if msg_type in {WSMsgType.CLOSE, WSMsgType.CLOSED}:
+        if (message := CLOSE_MSG_TYPE_MESSAGES.get(msg_type)) is not None:
             close_code = getattr(self._ws, "close_code", None)
-            raise RetryableConnectionClosedError(f"WebSocket closed by peer ({msg_type!r})", close_code=close_code)
-
-        # CLOSING arrives before CLOSED — exit early so the recv loop doesn't block on a half-closed socket
-        if msg_type == WSMsgType.CLOSING:
-            self.logger.debug("WebSocket is closing - exiting receive loop")
-            close_code = getattr(self._ws, "close_code", None)
-            raise RetryableConnectionClosedError("WebSocket is closing", close_code=close_code)
+            raise RetryableConnectionClosedError(f"{message} ({msg_type!r})", close_code=close_code)
 
         if msg_type == WSMsgType.ERROR:
             exc = msg.data if isinstance(msg.data, BaseException) else None
