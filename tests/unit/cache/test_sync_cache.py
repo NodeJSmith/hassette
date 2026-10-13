@@ -1,5 +1,8 @@
 """Unit tests for hassette.cache.sync.SyncCache."""
 
+import asyncio
+import contextlib
+import sqlite3
 from collections.abc import AsyncIterator
 from pathlib import Path
 from unittest.mock import patch
@@ -153,6 +156,29 @@ def test_clear_removes_all_entries(sync_cache: SyncCache) -> None:
     sync_cache.clear()
     assert sync_cache.get("a") is None
     assert sync_cache.get("b") is None
+
+
+async def test_clear_reclaims_every_free_page(tmp_path: Path) -> None:
+    """clear() reclaims every page its delete freed, not just the first one."""
+    db_path = tmp_path / "cache.db"
+    # Created up front in incremental mode: initialize() switches to WAL before its own
+    # auto_vacuum pragma runs, which leaves a brand-new cache file with auto_vacuum off.
+    with contextlib.closing(sqlite3.connect(db_path)) as setup_conn:
+        setup_conn.executescript("PRAGMA auto_vacuum = INCREMENTAL; VACUUM;")
+    instance = AsyncCache(db_path, default_ttl=None)
+    await instance.initialize()
+    await instance.close()
+    sync_cache = SyncCache(db_path)
+
+    def fill_and_clear() -> None:
+        for i in range(200):
+            sync_cache.set(f"key{i}", "x" * 4000)
+        sync_cache.clear()
+
+    await asyncio.to_thread(fill_and_clear)
+
+    with contextlib.closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("PRAGMA freelist_count").fetchone()[0] == 0
 
 
 def test_invalidate_deletes_multiple_keys(sync_cache: SyncCache) -> None:

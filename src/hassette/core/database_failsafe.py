@@ -7,7 +7,7 @@ from typing import Any
 
 import aiosqlite
 
-from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL
+from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, reclaim_free_pages, run_incremental_vacuum
 from hassette.core.retention_targets import _FAILSAFE_TABLES, RetentionTarget, build_tier_where
 
 if typing.TYPE_CHECKING:
@@ -42,6 +42,20 @@ async def _execute_failsafe_delete(
     return cursor.rowcount or 0
 
 
+async def truncate_wal(db: aiosqlite.Connection) -> None:
+    """Run ``PRAGMA wal_checkpoint(TRUNCATE)``, raising if it was blocked.
+
+    The checkpoint doesn't raise when it's blocked (SQLITE_BUSY) -- it returns a row whose first
+    column is nonzero instead. A missing row or a nonzero busy value raises here so callers treat
+    it like any other failure.
+    """
+    cursor = await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    row = await cursor.fetchone()
+    await cursor.close()
+    if row is None or row[0] != 0:
+        raise sqlite3.OperationalError(f"wal_checkpoint(TRUNCATE) busy or failed: {row}")
+
+
 class DatabaseSizeFailsafeMixin:
     """Size-failsafe methods of ``DatabaseService``; reads the host attributes declared below."""
 
@@ -72,17 +86,8 @@ class DatabaseSizeFailsafeMixin:
         """
         for attempt in range(_VACUUM_CHECKPOINT_RETRY_ATTEMPTS):
             try:
-                vacuum_cursor = await db.execute(f"PRAGMA incremental_vacuum({vacuum_pages})")
-                await vacuum_cursor.close()
-                checkpoint_cursor = await db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-                checkpoint_row = await checkpoint_cursor.fetchone()
-                await checkpoint_cursor.close()
-                # wal_checkpoint(TRUNCATE) doesn't raise when it's blocked (SQLITE_BUSY) -- it
-                # returns a row whose first column is nonzero instead. Treat a missing row or a
-                # nonzero busy value as a failed attempt so it's caught below and retried like
-                # any other vacuum/checkpoint failure.
-                if checkpoint_row is None or checkpoint_row[0] != 0:
-                    raise sqlite3.OperationalError(f"wal_checkpoint(TRUNCATE) busy or failed: {checkpoint_row}")
+                await run_incremental_vacuum(db, vacuum_pages)
+                await truncate_wal(db)
                 return True
             except Exception:
                 attempts_left = _VACUUM_CHECKPOINT_RETRY_ATTEMPTS - attempt - 1
@@ -100,8 +105,57 @@ class DatabaseSizeFailsafeMixin:
                     )
         return False
 
+    async def _reclaim_free_pages_before_delete(self, max_size_mb: float) -> float | None:
+        """Reclaim the free list and truncate the WAL before deleting anything; return the new size.
+
+        Free pages and an untruncated WAL both count toward the measured size but cost nothing to
+        reclaim, so a database oversized only because of them must not lose rows. Returns None
+        when this cycle must delete nothing: the reclaim ran out of its time budget with free
+        pages left, or the WAL couldn't be truncated so the size can't be trusted. The next
+        cycle retries either way. A reclaim that raises still falls through to deleting rows,
+        measured against the size it actually left behind.
+        """
+        db = self.db
+        reclaim = None
+        try:
+            reclaim = await reclaim_free_pages(db)
+        except Exception:
+            self.logger.exception("Size failsafe: free-page reclaim failed")
+        try:
+            await truncate_wal(db)
+        except Exception:
+            self.logger.exception(
+                "Size failsafe: WAL checkpoint failed before deleting anything — deleting nothing this cycle"
+            )
+            return None
+        current_size = self.get_db_size_mb()
+        if reclaim is None:
+            return current_size
+        if reclaim.reclaimed > 0:
+            self.logger.info(
+                "Size failsafe: reclaimed %d free pages before deleting anything (%.1f MB, limit %.1f MB)",
+                reclaim.reclaimed,
+                current_size,
+                max_size_mb,
+            )
+        if reclaim.budget_exhausted:
+            self.logger.warning(
+                "Size failsafe: %d free pages still to reclaim; database %.1f MB (limit %.1f MB) — "
+                "deleting nothing this cycle, reclaim continues next cycle",
+                reclaim.remaining,
+                current_size,
+                max_size_mb,
+            )
+            return None
+        return current_size
+
     async def _check_size_failsafe(self) -> None:
         """Delete oldest records if database exceeds the configured size limit.
+
+        Before deleting anything, the free list is reclaimed and the WAL truncated (see
+        ``_reclaim_free_pages_before_delete()``): both count toward the measured size, so a
+        database oversized only by them gets back under the limit without losing a row. A cycle
+        that ends there, or defers to the next cycle, resets ``_consecutive_exhaustion_triggers``.
 
         Iterates _FAILSAFE_TABLES grouped by priority (lower priority number = deleted
         first) — targets marked ``failsafe_exempt`` are never touched here, no matter how far
@@ -170,6 +224,13 @@ class DatabaseSizeFailsafeMixin:
                 current_size,
                 max_size_mb,
             )
+
+        reclaimed_size = await self._reclaim_free_pages_before_delete(max_size_mb)
+        if reclaimed_size is None or reclaimed_size <= max_size_mb:
+            # Deferred or resolved without deleting -- neither is an exhausted cycle.
+            self._consecutive_exhaustion_triggers = 0
+            return
+        current_size = reclaimed_size
 
         db = self.db
         total_deleted_by_label: dict[str, int] = {t.failsafe_label: 0 for t in _FAILSAFE_TABLES}

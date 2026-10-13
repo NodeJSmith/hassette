@@ -1,6 +1,7 @@
 """Unit tests for hassette.cache.wrapper.AsyncCache."""
 
 import asyncio
+import contextlib
 import sqlite3
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -175,24 +176,24 @@ async def test_clear_removes_all_entries(cache: AsyncCache) -> None:
     assert await cache.get("b") is None
 
 
-async def test_clear_runs_incremental_vacuum(cache: AsyncCache) -> None:
-    """clear() runs PRAGMA incremental_vacuum after deleting all rows."""
-    await cache.set("a", "value")
-
-    executed_sql: list[str] = []
-    original_execute = cache._write_conn.execute
-
-    async def spying_execute(sql: str, *args: object, **kwargs: object) -> object:
-        executed_sql.append(sql)
-        return await original_execute(sql, *args, **kwargs)
-
-    cache._write.execute = spying_execute  # pyright: ignore[reportAttributeAccessIssue]
+async def test_clear_reclaims_every_free_page(tmp_path: Path) -> None:
+    """clear() reclaims every page its delete freed, not just the first one."""
+    db_path = tmp_path / "cache.db"
+    # Created up front in incremental mode: initialize() switches to WAL before its own
+    # auto_vacuum pragma runs, which leaves a brand-new cache file with auto_vacuum off.
+    with contextlib.closing(sqlite3.connect(db_path)) as setup_conn:
+        setup_conn.executescript("PRAGMA auto_vacuum = INCREMENTAL; VACUUM;")
+    instance = AsyncCache(db_path, default_ttl=None)
+    await instance.initialize()
     try:
-        await cache.clear()
+        for i in range(200):
+            await instance.set(f"key{i}", "x" * 4000)
+        await instance.clear()
     finally:
-        cache._write.execute = original_execute  # pyright: ignore[reportAttributeAccessIssue]
+        await instance.close()
 
-    assert any("incremental_vacuum" in sql for sql in executed_sql)
+    with contextlib.closing(sqlite3.connect(db_path)) as conn:
+        assert conn.execute("PRAGMA freelist_count").fetchone()[0] == 0
 
 
 async def test_invalidate_deletes_multiple_keys(cache: AsyncCache) -> None:

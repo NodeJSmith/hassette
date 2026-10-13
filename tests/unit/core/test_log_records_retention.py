@@ -596,8 +596,9 @@ class TestSizeFailsafe:
         ``seed_both_tables`` inserts executions without an explicit ``source_tier``, so they
         fall in the default 'app' tier (priority 3) — the framework tier (priority 1) and
         blocking_events (priority 2) are empty and each consume one end-of-priority size check
-        before priority 3 is even reached: entry check (1) + priority-1-empty (2) +
-        priority-2-empty (3) precede the priority-3 batch that actually deletes rows.
+        before priority 3 is even reached: entry check (1) + post-reclaim re-measure (2) +
+        priority-1-empty (3) + priority-2-empty (4) precede the priority-3 batch that actually
+        deletes rows.
         """
         await self.seed_both_tables(db, db_service_writer, log_count=10, exec_count=5)
 
@@ -608,7 +609,7 @@ class TestSizeFailsafe:
         def mock_size() -> float:
             nonlocal calls
             calls += 1
-            if calls <= 3:
+            if calls <= 4:
                 return 10.0
             return 0.0
 
@@ -680,9 +681,9 @@ class TestSizeFailsafe:
         def mock_size() -> float:
             nonlocal calls
             calls += 1
-            # Over limit for the entry check; under limit immediately after the first batch —
-            # confines the whole run to a single priority-1 batch.
-            return 10.0 if calls == 1 else 0.0
+            # Over limit for the entry check and the post-reclaim re-measure; under limit
+            # immediately after the first batch — confines the whole run to a single priority-1 batch.
+            return 10.0 if calls <= 2 else 0.0
 
         retention_service.get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
@@ -780,9 +781,9 @@ class TestSizeFailsafe:
         def mock_size() -> float:
             nonlocal calls
             calls += 1
-            # Over limit through the framework-tier pass (no rows there); under limit once
-            # blocking_events has been drained.
-            return 10.0 if calls <= 2 else 0.0
+            # Over limit through the post-reclaim re-measure and the framework-tier pass (no
+            # rows there); under limit once blocking_events has been drained.
+            return 10.0 if calls <= 3 else 0.0
 
         retention_service.get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]

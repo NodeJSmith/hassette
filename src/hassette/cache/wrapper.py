@@ -236,7 +236,10 @@ class AsyncCache:
         """Delete all entries and run ``PRAGMA incremental_vacuum`` to reclaim disk space."""
         await self._write_conn.execute("DELETE FROM cache_entries")
         await self._write_conn.commit()
-        await self._write_conn.execute("PRAGMA incremental_vacuum")
+        # incremental_vacuum frees one page per result row and stops when rows stop being read.
+        cursor = await self._write_conn.execute("PRAGMA incremental_vacuum")
+        await cursor.fetchall()
+        await cursor.close()
         await self._write_conn.commit()
 
     async def invalidate(self, *keys: str) -> None:
