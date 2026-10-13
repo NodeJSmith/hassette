@@ -7,131 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.57.0](https://github.com/NodeJSmith/hassette/compare/v0.56.0...v0.57.0) (2026-10-13)
 
+### Breaking Changes
 
-### ⚠ BREAKING CHANGES
+Migration steps for the configuration items are in the [upgrading guide](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/). Run `hassette run --check` after upgrading.
 
-* the run_app_precheck and disable_state_proxy_polling settings are removed and now fail startup as unknown keys. The precheck always runs (set allow_startup_if_app_precheck_fails = true to start despite a failure), and the state cache poll always runs (tune it with state_proxy_poll_interval_seconds).
-* `scheduler.min_delay_seconds`, `scheduler.max_delay_seconds`, and `scheduler.default_delay_seconds` are removed. Existing config that sets them is ignored.
-* Hassette no longer exits when it can't reach Home Assistant; it reconnects in place. The `[hassette.websocket]` retry settings (`connect_retry_*`, `early_drop_*`, `max_recovery_seconds`) are removed, and since unknown keys fail startup, delete them from your config (see Upgrading). `CouldNotFindHomeAssistantError` and the `TEST_EARLY_DROP_*` testing constants are removed. `InvalidAuthError` is now a `HassetteError` rather than a `FatalError`. Apps that relied on the process restarting after an HA reboot to rerun `on_initialize` must handle `websocket_connected` (or `homeassistant_started`) instead.
-* Config handling is stricter and several paths and names moved. Migration steps for each item are in docs/pages/operating/upgrading.md. Run `hassette run --check` after upgrading.
-    #### Unknown settings are errors
-    - Unknown `HASSETTE__*` environment variables and `hassette.toml` keys
-    now stop startup with exit code 78. Fix or remove each one; the error
-    names the key and suggests the closest real setting.
-    - `HASSETTE__LOG_LEVEL` is now `HASSETTE__LOGGING__LOG_LEVEL`.
-    #### Config locations and relative paths
-    - `config_dir` drives file lookup and can't be set in `hassette.toml` or
-    `.env`. Pass `--config-dir` or set `HASSETTE__CONFIG_DIR` in the process
-    environment.
-    - Relative paths in a config file are relative to that file's directory,
-    not the working directory. Rewrite paths in `hassette.toml` that assumed
-    the working directory.
-    - An explicitly given config location that doesn't exist is an error.
-    Create it or stop passing it.
-    #### App configuration
-    - App config overrides through
-    `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` and an `AppConfig`
-    subclass's own `env_prefix` keep working; app definitions aren't checked
-    for unknown keys.
-    - An `AppConfig` `env_prefix` that starts with `hassette__` is now an
-    unknown-key error, because that namespace is reserved for Hassette
-    settings. Rename the prefix to something like `MYAPP_`.
-    - `AppConfig` reads the same `.env` files as the running Hassette config
-    instead of the fixed `/config/.env`, `./.env` and `./config/.env` list.
-    Set `env_file` in the app's `model_config` to read a specific file.
-    - The `config_file` and `env_file` settings are retired; use the
-    `--config-file` and `--env-file` CLI flags.
-    #### Exit codes and logging
-    - A missing HA token and other config errors exit with code 78.
-    Supervisors that restart on any non-zero exit should treat 78 as "edit
-    the config first".
-    - `hassette run` logs to stdout. Update log collection that read stderr.
-    #### Docker
-    - Apps moved from `/apps` to `/config/apps`, and the image no longer
-    sets `HASSETTE__APP_DIR`. Move `./apps` to `./config/apps` and drop the
-    `./apps:/apps` volume, or keep the mount and set
-    `HASSETTE__APPS__DIRECTORY=/apps`.
-    - `docker_start.sh` variables were renamed with no fallback:
-    `HASSETTE__INSTALL_DEPS`, `HASSETTE__PROJECT_DIR` and
-    `HASSETTE__PRUNE_UV_CACHE` are now `HASSETTE_DOCKER_INSTALL_DEPS`,
-    `HASSETTE_DOCKER_PROJECT_DIR` and `HASSETTE_DOCKER_PRUNE_UV_CACHE`. The
-    old names are rejected as unknown keys.
-* `GET /api/logs/recent` now validates `source_tier` as the case-sensitive `app | framework | all` enum shared with the telemetry endpoints, defaulting to `all`. Uppercase or mixed-case values (e.g. `source_tier=APP`), previously lowercased server-side, now return 422.
+- **Hassette no longer exits when it can't reach Home Assistant** — it reconnects in place and apps keep running against the last known state cache until HA is back. Apps that relied on the process restarting after an HA reboot to rerun `on_initialize` must handle `websocket_connected` (or `homeassistant_started`) instead. The `[hassette.websocket]` retry settings (`connect_retry_*`, `early_drop_*`, `max_recovery_seconds`) are removed and, since unknown keys now fail startup, must be deleted from your config. `CouldNotFindHomeAssistantError` and the `TEST_EARLY_DROP_*` testing constants are removed, and `InvalidAuthError` is now a `HassetteError` rather than a `FatalError`. (#2743)
+- **Unknown settings fail startup, and several config paths and names moved** — see the groups below. (#2641)
+  - *Unknown settings:* an unknown `HASSETTE__*` environment variable or `hassette.toml` key stops startup with exit code 78. The error names the key and suggests the closest real setting. `HASSETTE__LOG_LEVEL` is now `HASSETTE__LOGGING__LOG_LEVEL`.
+  - *Config locations:* `config_dir` drives file lookup and can't be set in `hassette.toml` or `.env`; pass `--config-dir` or set `HASSETTE__CONFIG_DIR` in the process environment. Relative paths in a config file are relative to that file's directory, not the working directory. A config location you pass explicitly that doesn't exist is an error. The `config_file` and `env_file` settings are retired; use the `--config-file` and `--env-file` CLI flags.
+  - *App config:* an `AppConfig` `env_prefix` that starts with `hassette__` is now an unknown-key error because that namespace is reserved. Rename it to something like `MYAPP_`. `AppConfig` reads the same `.env` files as the running Hassette config instead of the fixed `/config/.env`, `./.env` and `./config/.env` list; set `env_file` in the app's `model_config` to read a specific file. App config overrides through `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` keep working.
+  - *Exit codes and logging:* a missing HA token and other config errors exit with code 78, so supervisors that restart on any non-zero exit should treat 78 as "edit the config first". `hassette run` logs to stdout; update log collection that read stderr.
+  - *Docker:* apps moved from `/apps` to `/config/apps` and the image no longer sets `HASSETTE__APP_DIR`. Move `./apps` to `./config/apps` and drop the `./apps:/apps` volume, or keep the mount and set `HASSETTE__APPS__DIRECTORY=/apps`. The `docker_start.sh` variables were renamed with no fallback: `HASSETTE__INSTALL_DEPS`, `HASSETTE__PROJECT_DIR` and `HASSETTE__PRUNE_UV_CACHE` are now `HASSETTE_DOCKER_INSTALL_DEPS`, `HASSETTE_DOCKER_PROJECT_DIR` and `HASSETTE_DOCKER_PRUNE_UV_CACHE`.
+- **`run_app_precheck` and `disable_state_proxy_polling` removed** — both now fail startup as unknown keys. The app precheck always runs; set `allow_startup_if_app_precheck_fails = true` to start despite a failure. The state cache poll always runs; tune it with `state_proxy_poll_interval_seconds`. (#2762)
+- **`scheduler.min_delay_seconds`, `scheduler.max_delay_seconds` and `scheduler.default_delay_seconds` removed** — they only tuned an internal sleep clamp that made jobs fire late, and have no replacement. Delete them from `hassette.toml` and `HASSETTE__SCHEDULER__*` environment variables, or startup fails with the unknown-key error above. `behind_schedule_threshold_seconds` is unchanged. (#2726)
+- **`GET /api/logs/recent` validates `source_tier` as a case-sensitive enum** — `app | framework | all`, defaulting to `all`, matching the telemetry endpoints. Values that used to be lowercased server-side, such as `source_tier=APP`, now return 422. (#2603)
 
-### Features
+### For App Authors: You Can Now Delete
 
-* accept hours= in After trigger and reject timedelta mixed with unit args ([#2648](https://github.com/NodeJSmith/hassette/issues/2648)) ([ef9ed5c](https://github.com/NodeJSmith/hassette/commit/ef9ed5cfd566249d452abe51b915a4d531dc92d9))
-* add P.EventEntityFresh to ignore event-entity replays after HA restarts ([#2631](https://github.com/NodeJSmith/hassette/issues/2631)) ([b95f1a2](https://github.com/NodeJSmith/hassette/commit/b95f1a28551621577106c65b8319c334efdb9159))
-* always run the app precheck and state cache polling ([#2762](https://github.com/NodeJSmith/hassette/issues/2762)) ([6e14787](https://github.com/NodeJSmith/hassette/commit/6e1478722e900e67be3873fdb53537dfa723610d))
-* coerce bool and numeric literals in predicate equality checks ([#2684](https://github.com/NodeJSmith/hassette/issues/2684)) ([9d55688](https://github.com/NodeJSmith/hassette/commit/9d556880dfdeb3d8111f9eb0d4c6fe2ea95023f7))
-* export missing public types from package __all__ lists ([#2602](https://github.com/NodeJSmith/hassette/issues/2602)) ([88aa84e](https://github.com/NodeJSmith/hassette/commit/88aa84e73cf3103bcf1c26ab4c6fe7489d41ae58)), closes [#1231](https://github.com/NodeJSmith/hassette/issues/1231)
-* make config paths do what they say and reject unknown settings ([#2641](https://github.com/NodeJSmith/hassette/issues/2641)) ([87263d8](https://github.com/NodeJSmith/hassette/commit/87263d8f772a74aa48a07056aa0cdf4102cb1511))
-* report pending wait_for count in system status and health API ([#2725](https://github.com/NodeJSmith/hassette/issues/2725)) ([3987791](https://github.com/NodeJSmith/hassette/commit/3987791a723943660a90e42de8de621160aefc9e))
-* serve the web UI under HA ingress and sub-path reverse proxies ([#2720](https://github.com/NodeJSmith/hassette/issues/2720)) ([8001420](https://github.com/NodeJSmith/hassette/commit/8001420d7cbf3db83bbe91257b9022243414c7a0))
-* stay up and reconnect through Home Assistant restarts ([#2743](https://github.com/NodeJSmith/hassette/issues/2743)) ([40f99e1](https://github.com/NodeJSmith/hassette/commit/40f99e1d0c7a68203958f4765b4882f30573c991))
-* warn when hassette.toml has keys a typed AppConfig doesn't declare ([#2585](https://github.com/NodeJSmith/hassette/issues/2585)) ([7574971](https://github.com/NodeJSmith/hassette/commit/75749719f14633d3c96b5afa5a0356f693302376)), closes [#1236](https://github.com/NodeJSmith/hassette/issues/1236)
+- **A hand-rolled replay guard for `event.*` entities after an HA restart** — comparing the entity's timestamp state against `last_changed` or the clock inside a handler or `should_run()`. Use `where=P.EventEntityFresh(max_age=...)`. (#2631)
+- **`changed_to=` / `changed_from=` callables or numeric string literals written because `True` and `20` never matched** — a lambda like `lambda v: v == "on"` for a boolean, or `"20.0"` for a number. `changed_to=True` now matches `"on"` and `changed_to=20` matches `"20.0"`. (#2684)
+- **Reads of climate and water heater setpoints out of `attributes.extras`** (`temperature`, `target_temp_high`, `target_temp_low`, `target_temp_step`) — use the typed `target_temperature`, `target_temperature_high`, `target_temperature_low` and, on water heaters, `target_temperature_step` fields. (#2635)
+- **Re-arming a one-shot job from its own callback through a different name or a deferred task** — `run_in(..., name=<same name>, if_exists="replace")` now works from inside the job's own callback. (#2650)
+- **A supervisor restart policy kept only so Hassette comes back after a Home Assistant restart** (Docker `restart:`, a systemd unit, the add-on Watchdog) — Hassette now reconnects on its own. Keep the policy if you want it for crashes. (#2743)
 
+### Home Assistant Connection
+
+- One reconnect loop now paces every failure. Refused connections, DNS failures and proxy 502/404 responses retry fast, with 1/2/4/5 s backoff plus jitter. A proxy's 401/403, a rejected certificate and a 429 (honoring `Retry-After`) retry every 5 minutes. A rejected token is retried 3 times, 60 s apart, because HA's token check is sensitive to clock skew at boot, and then the connection stays in `AUTH_FAILED` without reconnecting until Hassette restarts. (#2743)
+- A connection reports as connected only once HA's core state is `RUNNING`, so apps never see a "connected" HA that is still booting. Events during the gap aren't replayed, and the state cache is replaced on reconnect. (#2743)
+- Outage logging is bounded at about 13 rows an hour: a WARNING on the first failure, a "still unreachable" summary every 5 minutes, INFO on recovery with the outage duration, and DEBUG for each attempt. Until the first successful connection, failures log at ERROR with a `base_url` hint. (#2743)
+- The WebSocket's `max_msg_size` is raised to 16 MiB so a large `get_states` payload no longer triggers a close loop. (#2743)
+- A clean shutdown no longer logs `task ws:recv crashed` at ERROR (#2759), and `request_shutdown()` logs at DEBUG instead of INFO once per app instance and service (#2758).
+
+### Bus
+
+- Literal equality in predicates coerces Home Assistant's string state to the literal's type before comparing: `ValueIs`, `StateFrom`/`StateTo`/`AttrFrom`/`AttrTo`, and the `changed_from=` / `changed_to=` kwargs. `C.Comparison("==", True)` now agrees with `changed_to=True`. Use the new `C.Exact(value)` when you need a strict match against the raw value. (#2684)
+- `P.EventEntityFresh(max_age=...)` drops stale replays of `event.*` entities, such as buttons and remotes, that HA re-broadcasts after a restart. It compares the entity's timestamp state with its `last_changed`, never reads the current clock, and fails open when either value is missing or unparseable. (#2631)
+- `wait_for` cancellation warnings are rate-limited to one per 60 seconds per Bus outside shutdown, with a demoted count in the next warning. A WARNING now fires when pending `wait_for` calls reach 80% of `lifecycle.max_concurrent_dispatches`, and `hassette status` and `GET /api/health` report `pending_wait_for_count`. (#2744, #2723, #2725)
+- Removing a listener through the sync facade (`bus.sync.remove_listener` / `remove_all_listeners`) now cancels a pending `wait_for` on the event-loop thread, so the waiter always wakes. (#2687)
+
+### Scheduler
+
+- Jobs fire at their due time. The loop sleeps exactly until the next due job instead of flooring the sleep, which delayed jobs by up to 1 s in production and 2 s in dev. (#2726)
+- `After` accepts `hours=`, matching `Every`. Combining `timedelta=` with `seconds=` / `minutes=` / `hours=` now raises `ValueError`; before, the unit arguments were silently dropped. (#2648)
+- A `single` / `queued` / `restart` job that replaced itself from its own callback with `if_exists="replace"` used to hang forever. It now works for async and sync callbacks. (#2650)
+- `Scheduler.remove_all_jobs()` no longer raises `TaskBucketSealedError` during a forced shutdown. The removal methods are typed as `asyncio.Future[None]` rather than `asyncio.Task`; awaiting callers are unaffected. (#2660)
+- A handler or job that raises `TimeoutError` itself, such as a `wait_for` timing out or an `aiohttp` request timeout, is recorded as an error with a traceback instead of `timed_out`. `timed_out` now means the framework's execution deadline fired. (#2661)
+
+### State Models & Configuration
+
+- Climate and water heater setpoints populate their typed fields from Home Assistant's wire keys (`temperature`, `target_temp_high`, `target_temp_low`, `target_temp_step`). They were always `None` before, with the values only in `attributes.extras`. The values no longer appear in `extras`, so code reading them there must switch to the typed fields. (#2635)
+- A typed `AppConfig` subclass now warns when an app's `hassette.toml` config has keys it doesn't declare, naming the app and suggesting the closest declared field. (#2585)
+- `display_name` set on an app in `hassette.toml` is honored instead of silently dropped. (#2722)
+- Missing public types are exported from their package `__all__` lists: `TypedStateChangeEvent` and `TypedStateChangePayload` from `hassette.events` and `hassette`, `FalseySentinel` from `hassette.const`, `BlockingIOBehavior` and `ForgottenAwaitBehavior` from `hassette.types`, and `BlockingIODetectionConfig` from `hassette.config`. `HassetteNotInitializedError` now subclasses `HassetteError`, and still subclasses `RuntimeError`. (#2602)
+
+### Web UI & CLI
+
+- The web UI can be served under Home Assistant ingress (`/api/hassio_ingress/<token>/`, which the add-on's sidebar panel needs) and under sub-path reverse proxies such as `https://example.com/hassette/`. The base path comes from `X-Ingress-Path` or `X-Forwarded-Prefix`, honored only from a `trusted_proxies` peer with auth on. (#2720)
+- The connection indicator says "Can't reach server" and shows the URL when the WebSocket has never connected after five attempts. Reconnect delays are jittered so open tabs don't reconnect at the same moment. (#2760)
+- The Diagnostics page refreshes system health when the HA connection drops or recovers. (#2614)
+- Start and Reload are hidden for app instances removed from config, with a "not in config" chip on the instance. (#2653)
+- A `start`, `stop` or `reload` request for an app that already has an action running gets an immediate 409 `action_in_progress` instead of queueing behind it. Re-pressing reload after a client timeout no longer starts a second full restart. (#2612)
+- Execution rows that can't open a detail view are skipped in keyboard tab order (#2643), and the sidebar's warn group is labeled WARNING instead of SLOW (#2637).
+- Piped CLI tables stay greppable: with no TTY and no `$COLUMNS`, tables render at 1000 columns instead of being ellipsized at 80. `hassette log --instance` is hidden from `--help` and completion. (#2645)
+- `hassette status` shows `app_count` as "N tracked instances", since it counts tracked app instances rather than configured apps. (#2629)
 
 ### Bug Fixes
 
-* accept source_tier=all on /logs/recent ([#2603](https://github.com/NodeJSmith/hassette/issues/2603)) ([8f000d6](https://github.com/NodeJSmith/hassette/commit/8f000d68f9aadcb5daf0b3de5e1a25761a34aa90))
-* base the database size limit on live data so free pages never trigger deletes ([#2751](https://github.com/NodeJSmith/hassette/issues/2751)) ([fc11245](https://github.com/NodeJSmith/hassette/commit/fc1124525517d90555d798e512f1ba79067527f1))
-* cancel wait_for futures on the event-loop thread when removed via the sync facade ([#2687](https://github.com/NodeJSmith/hassette/issues/2687)) ([b527c99](https://github.com/NodeJSmith/hassette/commit/b527c99ab2746334f00847cf4f3e69361740330a))
-* clarify that /api/health app_count counts tracked app instances ([#2629](https://github.com/NodeJSmith/hassette/issues/2629)) ([b516bd4](https://github.com/NodeJSmith/hassette/commit/b516bd43cc70cb899d74e4a066f9ff6c3f0964e9))
-* escalate retention parent-guard skip to ERROR when it persists across cycles ([#2678](https://github.com/NodeJSmith/hassette/issues/2678)) ([63c4dab](https://github.com/NodeJSmith/hassette/commit/63c4dab4f55b71d748714188791208177a9b91eb))
-* **frontend:** refresh system status when the HA connection changes ([#2614](https://github.com/NodeJSmith/hassette/issues/2614)) ([a605d77](https://github.com/NodeJSmith/hassette/commit/a605d77b4f660d7a14ead54d4171c0e5cda25642)), closes [#1664](https://github.com/NodeJSmith/hassette/issues/1664)
-* hide Start and Reload for app instances removed from config ([#2653](https://github.com/NodeJSmith/hassette/issues/2653)) ([5a0a8fd](https://github.com/NodeJSmith/hassette/commit/5a0a8fdbac5ddcf1319c245daaa5e9ec91e333c8))
-* honor display_name set on an app in hassette.toml ([#2722](https://github.com/NodeJSmith/hassette/issues/2722)) ([feba4be](https://github.com/NodeJSmith/hassette/commit/feba4be795f4044c88f40078644a387bb1bf0ebb))
-* keep piped CLI tables greppable and hide log --instance ([#2645](https://github.com/NodeJSmith/hassette/issues/2645)) ([ac254be](https://github.com/NodeJSmith/hassette/commit/ac254be77db78658a607d4b3426d97dc45ad0122))
-* keep scheduler job removal working after the task bucket is sealed ([#2660](https://github.com/NodeJSmith/hassette/issues/2660)) ([f10e40a](https://github.com/NodeJSmith/hassette/commit/f10e40a76fd2b946156505b3dec87aa2a3b4b3c2))
-* label the sidebar's warn group WARNING instead of SLOW ([#2637](https://github.com/NodeJSmith/hassette/issues/2637)) ([3bd3a9d](https://github.com/NodeJSmith/hassette/commit/3bd3a9d91ca9231ebe7c1ada943c4a7540c07c7c))
-* populate climate and water heater setpoint attributes from HA's wire keys ([#2635](https://github.com/NodeJSmith/hassette/issues/2635)) ([ba93940](https://github.com/NodeJSmith/hassette/commit/ba9394021730cf0f0006df30095ac73c11aeefc8))
-* rate-limit wait_for cancellation warnings outside shutdown ([#2744](https://github.com/NodeJSmith/hassette/issues/2744)) ([7727669](https://github.com/NodeJSmith/hassette/commit/77276690268ac3746f6c92b770ef02ac15bd02f2))
-* record handler-raised TimeoutError as an error, not a framework timeout ([#2661](https://github.com/NodeJSmith/hassette/issues/2661)) ([e7d8abc](https://github.com/NodeJSmith/hassette/commit/e7d8abcceba0c1c7478f2a995af063ee1af09da0))
-* reject a concurrent app action with 409 action_in_progress ([#2612](https://github.com/NodeJSmith/hassette/issues/2612)) ([6e8566c](https://github.com/NodeJSmith/hassette/commit/6e8566cb5c75cd42aecc568d6357fed881d3ca60)), closes [#2610](https://github.com/NodeJSmith/hassette/issues/2610)
-* resume retention and size-failsafe cleanup when DatabaseService restarts ([#2677](https://github.com/NodeJSmith/hassette/issues/2677)) ([b514afd](https://github.com/NodeJSmith/hassette/commit/b514afd68e845d2c55b4be605e519be71e6b8a88))
-* run database maintenance at its own interval when shorter than the heartbeat ([#2688](https://github.com/NodeJSmith/hassette/issues/2688)) ([f8f3cdb](https://github.com/NodeJSmith/hassette/commit/f8f3cdbb221e604c9f730dfcad78077769af2d2e))
-* run scheduled jobs on time by removing the scheduler sleep floor ([#2726](https://github.com/NodeJSmith/hassette/issues/2726)) ([3f601ab](https://github.com/NodeJSmith/hassette/commit/3f601ab027c9a17b73ba62e9a7df178848627495))
-* **scheduler:** let a job replace itself from its own callback without deadlocking ([#2650](https://github.com/NodeJSmith/hassette/issues/2650)) ([87c1544](https://github.com/NodeJSmith/hassette/commit/87c154452c2a1d9824b0b40d93d587292184da8c))
-* shut down cleanly when the web API port can't be bound ([#2719](https://github.com/NodeJSmith/hassette/issues/2719)) ([1aca94e](https://github.com/NodeJSmith/hassette/commit/1aca94e5f3370a4ea88d8bb9d592fce8f954fb26))
-* skip inert execution rows in keyboard tab order ([#2643](https://github.com/NodeJSmith/hassette/issues/2643)) ([dd1236b](https://github.com/NodeJSmith/hassette/commit/dd1236bc0b73e138cf4195c31e5c53012813af39))
-* stop logging a websocket recv crash on every clean shutdown ([#2759](https://github.com/NodeJSmith/hassette/issues/2759)) ([45651ae](https://github.com/NodeJSmith/hassette/commit/45651ae83b06067730c5b8b9c7f1bfbc223b8e5e))
-* stop logging every resource's shutdown request at INFO ([#2758](https://github.com/NodeJSmith/hassette/issues/2758)) ([93f895f](https://github.com/NodeJSmith/hassette/commit/93f895fd1be066a70f74ec2c4ab76a6e0fe15e2d))
-* stop recording spurious cancelled state_proxy_poll executions on disconnect ([#2623](https://github.com/NodeJSmith/hassette/issues/2623)) ([8317eb3](https://github.com/NodeJSmith/hassette/commit/8317eb3996b797208176cf7af4082f7724a798ae)), closes [#1813](https://github.com/NodeJSmith/hassette/issues/1813)
-* **ui:** show "Can't reach server" when the WebSocket never connects, and jitter reconnects ([#2760](https://github.com/NodeJSmith/hassette/issues/2760)) ([64f5d19](https://github.com/NodeJSmith/hassette/commit/64f5d19bef3c1ca834f8a2fc61291d0c435f3e6a))
-* warn when pending wait_for calls near the process-wide dispatch ceiling ([#2723](https://github.com/NodeJSmith/hassette/issues/2723)) ([c3cbcce](https://github.com/NodeJSmith/hassette/commit/c3cbcce4e672428cc708b605da5d4cf610f01a1e))
-
-
-### Refactoring
-
-* bundle execution correlation fields into an ExecutionContext dataclass ([#2598](https://github.com/NodeJSmith/hassette/issues/2598)) ([f938e69](https://github.com/NodeJSmith/hassette/commit/f938e6923a21dca9f95fb86943b6bf6944c972b7)), closes [#1372](https://github.com/NodeJSmith/hassette/issues/1372)
-* **codegen:** share one parse-module helper across all extractors ([#2686](https://github.com/NodeJSmith/hassette/issues/2686)) ([0336571](https://github.com/NodeJSmith/hassette/commit/0336571ce3328d80146f6afaedccee80559f95b5))
-* collapse WebsocketService send paths to one auth-level gate ([#2619](https://github.com/NodeJSmith/hassette/issues/2619)) ([71a0d56](https://github.com/NodeJSmith/hassette/commit/71a0d56b0bcf0d2f773d82cae14be2efa076b771)), closes [#1812](https://github.com/NodeJSmith/hassette/issues/1812)
-* **core:** move Hassette service accessors into HassetteAccessorsMixin ([#2632](https://github.com/NodeJSmith/hassette/issues/2632)) ([804bf78](https://github.com/NodeJSmith/hassette/commit/804bf7865b6426ea2e713f285388ace512916ae0))
-* derive error-display result tone from the shared status palette ([#2654](https://github.com/NodeJSmith/hassette/issues/2654)) ([a945838](https://github.com/NodeJSmith/hassette/commit/a945838e26d3f0d7c10375ba1ad2b5691c2cec3c))
-* **frontend:** derive recent-activity Accumulator type from ActivityGroup ([#2655](https://github.com/NodeJSmith/hassette/issues/2655)) ([91ccdb2](https://github.com/NodeJSmith/hassette/commit/91ccdb2ca9ea4051743491f472f24900f84a2ee9))
-* **frontend:** poll telemetry health with React Query ([#2651](https://github.com/NodeJSmith/hassette/issues/2651)) ([61eb855](https://github.com/NodeJSmith/hassette/commit/61eb855e9443208241d7feb53019f6e9043823fd))
-* move RestartBudget into its own module ([#2682](https://github.com/NodeJSmith/hassette/issues/2682)) ([987a2ba](https://github.com/NodeJSmith/hassette/commit/987a2ba0b013f5b329d6b3912dcb95e0631550ea))
-* name docker_start.sh constants and dedupe Docker integration tests ([#2634](https://github.com/NodeJSmith/hassette/issues/2634)) ([dd0fdd3](https://github.com/NodeJSmith/hassette/commit/dd0fdd3020e4f488730924066df33785987864bf))
-* return retention batch failures as a result instead of raising ([#2680](https://github.com/NodeJSmith/hassette/issues/2680)) ([b450c7e](https://github.com/NodeJSmith/hassette/commit/b450c7ebceb11032b66027cc79900ac95e60c063))
-* share SQL construction between listener and job summary queries ([#2618](https://github.com/NodeJSmith/hassette/issues/2618)) ([6230465](https://github.com/NodeJSmith/hassette/commit/62304652311a5805d74d23ff22d745a22777746a)), closes [#2443](https://github.com/NodeJSmith/hassette/issues/2443)
-* share the readiness guard between retention and size failsafe enqueues ([#2685](https://github.com/NodeJSmith/hassette/issues/2685)) ([4c205a4](https://github.com/NodeJSmith/hassette/commit/4c205a4b3b29df2bc1cb86b5468e649fe27dc918))
-* split AppLifecycleService into focused lifecycle mixin modules ([#2640](https://github.com/NodeJSmith/hassette/issues/2640)) ([6f0d95d](https://github.com/NodeJSmith/hassette/commit/6f0d95d3205be38f6e003db201e4945a69c07c24))
-* split DatabaseService into write-queue, retention, and size-failsafe mixins ([#2630](https://github.com/NodeJSmith/hassette/issues/2630)) ([4c8bf43](https://github.com/NodeJSmith/hassette/commit/4c8bf431c41304dfd0f65681f33dac479b4e317b))
-* split StateProxy retry subsystem into state_proxy_sync module ([#2756](https://github.com/NodeJSmith/hassette/issues/2756)) ([1ee482e](https://github.com/NodeJSmith/hassette/commit/1ee482edb24391edcb1016e6f35346a164624c27))
-* **ui:** consolidate duplicated page error alerts into a shared ErrorAlert ([#2605](https://github.com/NodeJSmith/hassette/issues/2605)) ([75de148](https://github.com/NodeJSmith/hassette/commit/75de14861961e9d97eb7a06ba0d26f10b3775cd7)), closes [#1525](https://github.com/NodeJSmith/hassette/issues/1525)
-
+- **Database size limit uses live data** — the size failsafe could delete real telemetry rows from a database that was over `max_size_mb` only because of free pages or an untruncated WAL, and `incremental_vacuum` reclaimed one page per call. Delete decisions now use the size of in-use pages. After deletes, free pages are reclaimed in bounded chunks and the WAL is truncated, so the file on disk can sit above the limit by its free pages plus the WAL. The cache's `clear()` runs a full `VACUUM`. (#2751)
+- Retention and size-failsafe cleanup resume when `DatabaseService` restarts instead of waiting out a full interval, and maintenance tasks configured shorter than the heartbeat run at their own interval. A retention cleanup that keeps skipping the cleanup of retired listeners and jobs escalates to ERROR after 3 consecutive cycles. (#2677, #2688, #2678)
+- Hassette shuts down cleanly, with the session finalized as a failure, when the web API can't bind its host and port. Before, the process ended with no teardown and the session row stayed `running`. (#2719)
+- A WebSocket disconnect no longer records a cancelled `state_proxy_poll` execution. (#2623)
 
 ### Documentation
 
-* add guide for controlling Hassette apps from Home Assistant ([#2625](https://github.com/NodeJSmith/hassette/issues/2625)) ([ac8d709](https://github.com/NodeJSmith/hassette/commit/ac8d7094943c5ed560af606512a3800109ce7569))
-* correct inaccurate claims in the troubleshooting page ([#2745](https://github.com/NodeJSmith/hassette/issues/2745)) ([55e9d05](https://github.com/NodeJSmith/hassette/commit/55e9d058a2922f0fdacb28677cd2137d68b90f2a))
-* define helper modules and undefined terms on the bus methods page ([#2721](https://github.com/NodeJSmith/hassette/issues/2721)) ([906471c](https://github.com/NodeJSmith/hassette/commit/906471cfd97eccbfb7996ac151748f8e9c74d19e))
-* describe blocking detection as event-loop stalls, not only blocking I/O ([#2652](https://github.com/NodeJSmith/hassette/issues/2652)) ([b9a9d87](https://github.com/NodeJSmith/hassette/commit/b9a9d87d50f363e90480e40c3bcf56b94807659c))
-* explain cancelled and timed-out runs missing from the hassette job table ([#2657](https://github.com/NodeJSmith/hassette/issues/2657)) ([30de890](https://github.com/NodeJSmith/hassette/commit/30de890d56a5589accea3a0e0b947388949a3513))
-* explain that Docker project install and app loading are separate import paths ([#2683](https://github.com/NodeJSmith/hassette/issues/2683)) ([b0d0b22](https://github.com/NodeJSmith/hassette/commit/b0d0b22e6063af9ebd9e2b5deff89a4752834758))
-* fix ServiceWatcher shutdown order and define coordinator/joiner in lifecycle internals ([#2620](https://github.com/NodeJSmith/hassette/issues/2620)) ([c13ebe6](https://github.com/NodeJSmith/hassette/commit/c13ebe649b0e3209c02d3570e1f20d7853006239)), closes [#2437](https://github.com/NodeJSmith/hassette/issues/2437)
-* show the src-layout build backend config and how to check the wheel ([#2691](https://github.com/NodeJSmith/hassette/issues/2691)) ([d067db9](https://github.com/NodeJSmith/hassette/commit/d067db9fe6339aeb42c689bdcdc745ddedd0e3df))
+- New guide for controlling Hassette apps from Home Assistant with the `hass-hassette` integration. (#2625)
+- Docker dependencies page explains that project install and app loading are separate import paths, and shows the `src`-layout build backend config and how to check the wheel with `uv build --wheel`. (#2683, #2691)
+- Troubleshooting page corrected: what the app precheck validates, the real class-not-found message, and how `forgotten_await_behavior = "error"` behaves. (#2745)
+- Bus methods page defines `D`, `C` and `P`, the accepted `changed_from` / `changed_to` forms and the shorthand methods' shared parameters. (#2721)
+- Blocking detection is described as event-loop stalls, CPU-bound work included, not only blocking I/O. The CLI reference explains `cancelled` and `timed_out` runs that make `hassette job`'s `Total` exceed `OK + Fail + Skipped`. The lifecycle internals page states the correct `ServiceWatcher` shutdown order. (#2652, #2657, #2620)
 
 ## [0.56.0](https://github.com/NodeJSmith/hassette/compare/v0.55.0...v0.56.0) (2026-10-08)
 
