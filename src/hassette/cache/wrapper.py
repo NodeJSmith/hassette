@@ -116,6 +116,9 @@ class AsyncCache:
     async def _open_connections(self) -> None:
         self._write = await connect_daemon(self.db_path, isolation_level=None, timeout=BUSY_TIMEOUT_MS / 1000)
         self._write.row_factory = aiosqlite.Row
+        # auto_vacuum only takes effect on a database with no pages yet, and switching to WAL
+        # writes the first page -- so it must come first, or a new cache can never reclaim space.
+        await self._write.execute("PRAGMA auto_vacuum = INCREMENTAL")
         await self._write.execute("PRAGMA journal_mode = WAL")
         await self._write.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
 
@@ -236,10 +239,8 @@ class AsyncCache:
         """Delete all entries and run ``PRAGMA incremental_vacuum`` to reclaim disk space."""
         await self._write_conn.execute("DELETE FROM cache_entries")
         await self._write_conn.commit()
-        # incremental_vacuum frees one page per result row and stops when rows stop being read.
-        cursor = await self._write_conn.execute("PRAGMA incremental_vacuum")
-        await cursor.fetchall()
-        await cursor.close()
+        # execute() frees one page per pragma step; executescript() steps it to completion.
+        await self._write_conn.executescript("PRAGMA incremental_vacuum")
         await self._write_conn.commit()
 
     async def invalidate(self, *keys: str) -> None:

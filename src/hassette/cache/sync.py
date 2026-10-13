@@ -140,8 +140,8 @@ class SyncCache:
         conn = self._connect()
         try:
             conn.execute("DELETE FROM cache_entries")
-            # incremental_vacuum frees one page per result row and stops when rows stop being read.
-            conn.execute("PRAGMA incremental_vacuum").fetchall()
+            # execute() frees one page per pragma step; executescript() steps it to completion.
+            conn.executescript("PRAGMA incremental_vacuum")
         finally:
             conn.close()
 

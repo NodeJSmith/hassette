@@ -63,24 +63,41 @@ class FreePageReclaim:
     """The time budget ran out while reclaimable free pages remained."""
 
 
-async def get_freelist_count(db: aiosqlite.Connection) -> int:
-    """Return the number of unused pages in the database file."""
-    cursor = await db.execute("PRAGMA freelist_count")
+async def read_int_pragma(db: aiosqlite.Connection, pragma: str) -> int:
+    """Return the integer value of a read-only pragma such as ``freelist_count`` or ``page_size``."""
+    cursor = await db.execute(f"PRAGMA {pragma}")
     row = await cursor.fetchone()
     await cursor.close()
     return row[0] if row else 0
 
 
+async def get_freelist_count(db: aiosqlite.Connection) -> int:
+    """Return the number of unused pages in the database file."""
+    return await read_int_pragma(db, "freelist_count")
+
+
+async def get_live_data_mb(db: aiosqlite.Connection) -> float:
+    """Return the size of the database's in-use pages in megabytes -- what deleting rows can shrink.
+
+    Unlike the on-disk size, this excludes free pages and the WAL file, and it reads the same
+    whether or not the WAL has been checkpointed.
+    """
+    page_count = await read_int_pragma(db, "page_count")
+    free = await get_freelist_count(db)
+    page_size = await read_int_pragma(db, "page_size")
+    return (page_count - free) * page_size / (1024 * 1024)
+
+
 async def run_incremental_vacuum(db: aiosqlite.Connection, pages: int | None = None) -> None:
     """Run ``PRAGMA incremental_vacuum``, freeing up to ``pages`` pages (all of them when None).
 
-    The pragma frees one page per result row, and only keeps going while its result rows are
-    read -- executing it without fetching the result frees a single page whatever ``pages`` is.
+    The pragma frees one page per statement step, so ``execute()`` alone frees a single page, and
+    Python 3.11's ``sqlite3`` resets the statement after one step because it returns no columns, so
+    fetching the result doesn't help there. ``executescript()`` steps it to completion on every
+    supported Python. It commits any open transaction first; every caller runs it outside one.
     """
     sql = "PRAGMA incremental_vacuum" if pages is None else f"PRAGMA incremental_vacuum({pages})"
-    cursor = await db.execute(sql)
-    await cursor.fetchall()
-    await cursor.close()
+    await db.executescript(sql)
 
 
 async def reclaim_free_pages(db: aiosqlite.Connection) -> FreePageReclaim:

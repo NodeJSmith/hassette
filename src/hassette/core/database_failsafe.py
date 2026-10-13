@@ -7,7 +7,12 @@ from typing import Any
 
 import aiosqlite
 
-from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, reclaim_free_pages, run_incremental_vacuum
+from hassette.core.database_sql import (
+    CLEANUP_PROGRESS_LOG_INTERVAL,
+    get_live_data_mb,
+    reclaim_free_pages,
+    run_incremental_vacuum,
+)
 from hassette.core.retention_targets import _FAILSAFE_TABLES, RetentionTarget, build_tier_where
 
 if typing.TYPE_CHECKING:
@@ -109,11 +114,12 @@ class DatabaseSizeFailsafeMixin:
         """Reclaim the free list and truncate the WAL before deleting anything; return the new size.
 
         Free pages and an untruncated WAL both count toward the measured size but cost nothing to
-        reclaim, so a database oversized only because of them must not lose rows. Returns None
-        when this cycle must delete nothing: the reclaim ran out of its time budget with free
-        pages left, or the WAL couldn't be truncated so the size can't be trusted. The next
-        cycle retries either way. A reclaim that raises still falls through to deleting rows,
-        measured against the size it actually left behind.
+        reclaim, so a database oversized only because of them must not lose rows. When the reclaim
+        fails or runs out of its time budget with free pages left, or the WAL can't be truncated
+        (a long-lived reader blocks it), the measured size can't say whether rows need deleting.
+        The decision then falls to the live-data size (in-use pages only, see
+        ``get_live_data_mb()``): rows are deleted only when live data alone exceeds the limit, and
+        otherwise this returns None so the cycle deletes nothing and the next cycle retries.
         """
         db = self.db
         reclaim = None
@@ -121,33 +127,35 @@ class DatabaseSizeFailsafeMixin:
             reclaim = await reclaim_free_pages(db)
         except Exception:
             self.logger.exception("Size failsafe: free-page reclaim failed")
+        wal_truncated = True
         try:
             await truncate_wal(db)
         except Exception:
-            self.logger.exception(
-                "Size failsafe: WAL checkpoint failed before deleting anything — deleting nothing this cycle"
-            )
-            return None
+            wal_truncated = False
+            self.logger.exception("Size failsafe: WAL checkpoint failed before deleting anything")
         current_size = self.get_db_size_mb()
-        if reclaim is None:
-            return current_size
-        if reclaim.reclaimed > 0:
+        if reclaim is not None and reclaim.reclaimed > 0:
             self.logger.info(
                 "Size failsafe: reclaimed %d free pages before deleting anything (%.1f MB, limit %.1f MB)",
                 reclaim.reclaimed,
                 current_size,
                 max_size_mb,
             )
-        if reclaim.budget_exhausted:
-            self.logger.warning(
-                "Size failsafe: %d free pages still to reclaim; database %.1f MB (limit %.1f MB) — "
-                "deleting nothing this cycle, reclaim continues next cycle",
-                reclaim.remaining,
-                current_size,
-                max_size_mb,
-            )
-            return None
-        return current_size
+        if reclaim is not None and not reclaim.budget_exhausted and wal_truncated:
+            return current_size
+
+        live_mb = await get_live_data_mb(db)
+        if live_mb > max_size_mb:
+            return current_size
+        self.logger.warning(
+            "Size failsafe: database %.1f MB (limit %.1f MB) but live data is only %.1f MB; %s — "
+            "deleting nothing this cycle, reclaim continues next cycle",
+            current_size,
+            max_size_mb,
+            live_mb,
+            f"{reclaim.remaining} free pages still to reclaim" if reclaim is not None else "reclaim failed",
+        )
+        return None
 
     async def _check_size_failsafe(self) -> None:
         """Delete oldest records if database exceeds the configured size limit.

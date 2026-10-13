@@ -33,14 +33,11 @@ BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to every cache connection (async and sync),
 matching the convention in ``database_service.py``'s ``_BUSY_TIMEOUT_MS``."""
 
-SCHEMA_DDL = (
-    "PRAGMA auto_vacuum = INCREMENTAL",
-    "CREATE TABLE IF NOT EXISTS cache_entries (key TEXT PRIMARY KEY, value BLOB NOT NULL, expires_at REAL)",
-)
+SCHEMA_DDL = ("CREATE TABLE IF NOT EXISTS cache_entries (key TEXT PRIMARY KEY, value BLOB NOT NULL, expires_at REAL)",)
 """DDL statements to run during cache initialization, in order.
 
-``PRAGMA auto_vacuum = INCREMENTAL`` must run before ``CREATE TABLE`` -- it is a
-no-op once a database already has tables, so ordering matters here.
+``PRAGMA auto_vacuum = INCREMENTAL`` is not here: it must run before the connection switches to
+WAL (see ``AsyncCache._open_connections()``), which happens before this DDL.
 """
 
 

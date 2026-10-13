@@ -179,10 +179,6 @@ async def test_clear_removes_all_entries(cache: AsyncCache) -> None:
 async def test_clear_reclaims_every_free_page(tmp_path: Path) -> None:
     """clear() reclaims every page its delete freed, not just the first one."""
     db_path = tmp_path / "cache.db"
-    # Created up front in incremental mode: initialize() switches to WAL before its own
-    # auto_vacuum pragma runs, which leaves a brand-new cache file with auto_vacuum off.
-    with contextlib.closing(sqlite3.connect(db_path)) as setup_conn:
-        setup_conn.executescript("PRAGMA auto_vacuum = INCREMENTAL; VACUUM;")
     instance = AsyncCache(db_path, default_ttl=None)
     await instance.initialize()
     try:
