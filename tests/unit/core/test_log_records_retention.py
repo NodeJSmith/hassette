@@ -596,9 +596,8 @@ class TestSizeFailsafe:
         ``seed_both_tables`` inserts executions without an explicit ``source_tier``, so they
         fall in the default 'app' tier (priority 3) — the framework tier (priority 1) and
         blocking_events (priority 2) are empty and each consume one end-of-priority size check
-        before priority 3 is even reached: entry check (1) + post-reclaim re-measure (2) +
-        priority-1-empty (3) + priority-2-empty (4) precede the priority-3 batch that actually
-        deletes rows.
+        before priority 3 is even reached: entry check, post-reclaim re-measure, priority-1-empty,
+        and priority-2-empty (4 checks) precede the priority-3 batch that actually deletes rows.
         """
         await self.seed_both_tables(db, db_service_writer, log_count=10, exec_count=5)
 
