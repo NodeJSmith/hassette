@@ -262,9 +262,11 @@ describe("useWebSocket", () => {
   });
 
   describe("repeated attempts that never reach onopen", () => {
+    const latestSocket = () => MockWebSocket.instances[MockWebSocket.instances.length - 1];
+
     /** Closes the newest socket before it opens, then runs the auth check and the reconnect delay. */
     async function failLatestAttemptBeforeOpen() {
-      const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
+      const ws = latestSocket();
       await act(async () => {
         ws.onclose?.();
         await vi.advanceTimersByTimeAsync(MAX_BACKOFF_MS);
@@ -295,9 +297,10 @@ describe("useWebSocket", () => {
       renderWebSocketHook();
       for (let i = 0; i < UNREACHABLE_ATTEMPT_THRESHOLD; i++) await failLatestAttemptBeforeOpen();
 
-      simulateConnected(MockWebSocket.instances[MockWebSocket.instances.length - 1]);
+      simulateConnected(latestSocket());
 
-      expect(useAppStore.getState().connection).toBe("connected");
+      const { connection } = useAppStore.getState();
+      expect(connection).toBe("connected");
     });
 
     it("never shows 'unreachable' after a connection opened at least once", async () => {
