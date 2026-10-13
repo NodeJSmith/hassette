@@ -24,6 +24,15 @@ from hassette.types.enums import ConnectionState
 from tests.support.websocket_mocks import stub_connect_sequence
 
 
+def ws_receiving(
+    websocket_service: WebsocketService, msg_type: WSMsgType, data: object = None, *, close_code: int | None = None
+) -> None:
+    """Give the service a fake socket whose every receive() returns one ``msg_type`` message."""
+    fake_ws = build_fake_ws(close_code=close_code)
+    fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=msg_type, data=data))
+    websocket_service._ws = fake_ws
+
+
 async def test_get_next_message_id_increments(websocket_service: WebsocketService) -> None:
     """Ensure message identifiers increment sequentially."""
     first_id = websocket_service.get_next_message_id()
@@ -100,22 +109,10 @@ async def test_raw_recv_raises_when_socket_closed(websocket_service: WebsocketSe
         await websocket_service.raw_recv()
 
 
-async def test_raw_recv_raises_on_closing_frame(websocket_service: WebsocketService) -> None:
-    """Raise when a closing frame is received."""
-    fake_ws = build_fake_ws()
-    fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.CLOSING, data=None))
-    websocket_service._ws = fake_ws
-
-    with pytest.raises(RetryableConnectionClosedError):
-        await websocket_service.raw_recv()
-
-
 async def test_raw_recv_raises_on_error_frame(websocket_service: WebsocketService) -> None:
     """Raise RetryableConnectionClosedError when an ERROR frame is received."""
-    fake_ws = build_fake_ws()
     socket_error = RuntimeError("socket error")
-    fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.ERROR, data=socket_error))
-    websocket_service._ws = fake_ws
+    ws_receiving(websocket_service, WSMsgType.ERROR, socket_error)
 
     with pytest.raises(RetryableConnectionClosedError) as exc_info:
         await websocket_service.raw_recv()
@@ -305,12 +302,32 @@ async def test_on_initialize_marks_ready_unconditionally(websocket_service: Webs
 
 async def test_raw_recv_passes_close_code(websocket_service: WebsocketService) -> None:
     """raw_recv passes close_code from _ws.close_code when raising RetryableConnectionClosedError."""
-    fake_ws = build_fake_ws()
-    fake_ws.close_code = 1001  # pyright: ignore[reportAttributeAccessIssue]
-    fake_ws.receive = AsyncMock(return_value=SimpleNamespace(type=WSMsgType.CLOSE, data=None))
-    websocket_service._ws = fake_ws
+    ws_receiving(websocket_service, WSMsgType.CLOSE, close_code=1001)
 
     with pytest.raises(RetryableConnectionClosedError) as exc_info:
         await websocket_service.raw_recv()
 
     assert exc_info.value.close_code == 1001, f"Expected close_code=1001, got {exc_info.value.close_code}"
+
+
+@pytest.mark.parametrize(
+    ("msg_type", "expected"),
+    [
+        (WSMsgType.CLOSE, "WebSocket closed by peer"),
+        (WSMsgType.CLOSED, "WebSocket closed ("),
+        (WSMsgType.CLOSING, "WebSocket is closing"),
+    ],
+)
+async def test_recv_loop_close_outside_shutdown_raises_naming_the_peer_only_for_a_close_frame(
+    websocket_service: WebsocketService, msg_type: WSMsgType, expected: str
+) -> None:
+    """Outside shutdown a close still raises for serve() to reconnect on (#2757 keeps #2743).
+
+    CLOSED is aiohttp's local state after either side closed, so only a peer CLOSE frame says "peer".
+    """
+    ws_receiving(websocket_service, msg_type)
+
+    with pytest.raises(RetryableConnectionClosedError) as exc_info:
+        await websocket_service.recv_loop()
+
+    assert str(exc_info.value).startswith(expected)

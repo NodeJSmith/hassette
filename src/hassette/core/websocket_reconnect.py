@@ -82,6 +82,15 @@ CORE_RUNNING_RECHECK_SECONDS = 5.0
 WS_MAX_MSG_SIZE = 16 * 1024 * 1024
 """D13: largest incoming WebSocket message accepted (aiohttp's default is 4 MiB)."""
 
+CLOSE_MSG_TYPE_MESSAGES = {
+    aiohttp.WSMsgType.CLOSE: "WebSocket closed by peer",
+    aiohttp.WSMsgType.CLOSED: "WebSocket closed",
+    aiohttp.WSMsgType.CLOSING: "WebSocket is closing",
+}
+"""The error message ``raw_recv`` raises for each close message type. Only CLOSE is a frame from the peer: CLOSED is
+aiohttp's local state once either side has closed. CLOSING arrives before CLOSED, so the recv loop stops
+on a half-closed socket instead of blocking on it."""
+
 CORE_STATE_RUNNING = "RUNNING"
 CORE_STATES_SHUTTING_DOWN = frozenset({"STOPPING", "FINAL_WRITE", "STOPPED"})
 """D12: core states that will never reach RUNNING on this connection."""
