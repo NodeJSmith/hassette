@@ -38,6 +38,26 @@ class TestOnceWithConfiguredTz:
 
         assert fire_time.tz_id == system_tz
 
+    def test_once_target_in_dst_gap_resolves_compatibly(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Once(at=...) on a spring-forward day with a skipped wall time shifts forward instead of warning."""
+        date_utils.configure("America/Chicago")
+        fake_now = ZonedDateTime(2026, 3, 8, 0, 30, 0, tz="America/Chicago")
+        monkeypatch.setattr("hassette.utils.date_utils.now", lambda: fake_now)
+
+        fire_time = Once(at="02:30").first_run_time(fake_now)
+
+        assert (fire_time.hour, fire_time.minute) == (3, 30)
+
+    def test_once_deferred_into_dst_gap_resolves_compatibly(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Deferring a past Once(at=...) to tomorrow lands in tomorrow's gap without warning."""
+        date_utils.configure("America/Chicago")
+        fake_now = ZonedDateTime(2026, 3, 7, 3, 0, 0, tz="America/Chicago")
+        monkeypatch.setattr("hassette.utils.date_utils.now", lambda: fake_now)
+
+        fire_time = Once(at="02:30").first_run_time(fake_now)
+
+        assert (fire_time.day, fire_time.hour, fire_time.minute) == (8, 3, 30)
+
 
 class TestDailyWithConfiguredTz:
     def test_daily_resolves_against_configured_tz(self) -> None:

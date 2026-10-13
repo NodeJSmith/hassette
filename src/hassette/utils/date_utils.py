@@ -51,8 +51,8 @@ def assume_tz(dt: PlainDateTime) -> ZonedDateTime:
     Uses the configured timezone if set, otherwise the system process timezone.
     """
     if _configured_tz is not None:
-        return dt.assume_tz(_configured_tz)
-    return dt.assume_tz(SYSTEM_TZ)
+        return dt.assume_tz(_configured_tz, disambiguation="compatible")
+    return dt.assume_tz(SYSTEM_TZ, disambiguation="compatible")
 
 
 def now() -> ZonedDateTime:

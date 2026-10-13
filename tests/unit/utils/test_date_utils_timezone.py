@@ -1,7 +1,7 @@
 """Tests for configurable timezone in date_utils."""
 
 import pytest
-from whenever import SYSTEM_TZ, ZonedDateTime
+from whenever import SYSTEM_TZ, PlainDateTime, ZonedDateTime, hours
 
 import hassette.utils.date_utils as date_utils
 
@@ -103,3 +103,18 @@ class TestConvertDatetimeStr:
         assert chicago is not None
         assert tokyo is not None
         assert chicago.to_instant() == tokyo.to_instant()
+
+
+class TestAssumeTz:
+    def test_skipped_local_time_resolves_compatibly(self) -> None:
+        """A wall time inside a spring-forward gap resolves forward instead of warning."""
+        date_utils.configure("America/Chicago")
+        result = date_utils.assume_tz(PlainDateTime(2026, 3, 8, 2, 30))
+        assert result.hour == 3
+        assert result.minute == 30
+
+    def test_repeated_local_time_resolves_to_earlier(self) -> None:
+        """A wall time repeated by fall-back resolves to the earlier (CDT) instant."""
+        date_utils.configure("America/Chicago")
+        result = date_utils.assume_tz(PlainDateTime(2026, 11, 1, 1, 30))
+        assert result.offset == hours(-5)

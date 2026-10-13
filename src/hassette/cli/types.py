@@ -66,14 +66,18 @@ def convert_since(value: str) -> float:
     if _ISO_NAIVE_PATTERN.match(value):
         try:
             # CLI input: user's terminal timezone, not the configured Hassette timezone
-            return PlainDateTime.parse_iso(value).assume_tz(SYSTEM_TZ).timestamp()
+            return PlainDateTime.parse_iso(value).assume_tz(SYSTEM_TZ, disambiguation="compatible").timestamp()
         except ValueError:
             pass
 
     if _DATE_ONLY_PATTERN.match(value):
         try:
             # CLI input: user's terminal timezone, not the configured Hassette timezone
-            return PlainDateTime.parse_iso(value + "T00:00:00").assume_tz(SYSTEM_TZ).timestamp()
+            return (
+                PlainDateTime.parse_iso(value + "T00:00:00")
+                .assume_tz(SYSTEM_TZ, disambiguation="compatible")
+                .timestamp()
+            )
         except ValueError:
             pass
 
