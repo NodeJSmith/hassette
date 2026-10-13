@@ -5,7 +5,9 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from hassette.config.config import HassetteConfig
-from hassette.core.state_proxy import StateCacheFreshness, StateProxy, StateSynchronizationStatus
+from hassette.core import state_proxy_sync
+from hassette.core.state_proxy import StateProxy
+from hassette.core.state_proxy_sync import StateCacheFreshness, StateSynchronizationStatus
 from hassette.events import RawStateChangeEvent
 from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
@@ -458,11 +460,12 @@ async def test_disconnect_preserves_stale_reads_and_reconnect_failure_keeps_list
     assert state_proxy.cache_freshness == StateCacheFreshness.STALE
 
 
-async def test_retry_failure_schedules_next_generation_scoped_retry() -> None:
+async def test_retry_failure_schedules_next_generation_scoped_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     proxy = build_state_proxy()
-    proxy._compute_retry_delay = Mock(side_effect=[0, 60])  # pyright: ignore[reportAttributeAccessIssue]
+    compute_retry_delay = Mock(side_effect=[0, 60])
+    monkeypatch.setattr(state_proxy_sync, "compute_retry_delay", compute_retry_delay)
     call_count = 0
-    original_schedule_retry = proxy._schedule_retry
+    original_schedule_retry = state_proxy_sync.schedule_retry
     first_retry_scheduled = asyncio.Event()
     first_retry_task: asyncio.Task[None] | None = None
 
@@ -471,7 +474,7 @@ async def test_retry_failure_schedules_next_generation_scoped_retry() -> None:
         call_count += 1
         raise RuntimeError(f"boom-{call_count}")
 
-    # The first real retry uses a 0s delay (per _compute_retry_delay's side_effect above), so it
+    # The first real retry uses a 0s delay (per compute_retry_delay's side_effect above), so it
     # can run to completion and schedule a *second* retry task before the test task gets a chance
     # to resume from `first_retry_scheduled.wait()` — that's the exact race this test used to hit
     # in CI. Capturing `proxy._retry_task` into `first_retry_task` *inside* the wrapper, in the
@@ -479,19 +482,19 @@ async def test_retry_failure_schedules_next_generation_scoped_retry() -> None:
     # `proxy._retry_task` after the event fires (outside the wrapper) does not, since the second
     # retry may have already superseded it by then. The `is None` guard keeps the second
     # invocation (for the 60s-delay retry) from overwriting the captured first task.
-    async def observed_schedule_retry(generation: int) -> None:
+    async def observed_schedule_retry(proxy_arg: StateProxy, generation: int) -> None:
         nonlocal first_retry_task
-        await original_schedule_retry(generation)
+        await original_schedule_retry(proxy_arg, generation)
         if first_retry_task is None:
             first_retry_task = proxy._retry_task
             first_retry_scheduled.set()
 
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_get_states_raw)
-    proxy._schedule_retry = observed_schedule_retry  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(state_proxy_sync, "schedule_retry", observed_schedule_retry)
 
     await proxy.on_initialize()
     await asyncio.wait_for(first_retry_scheduled.wait(), timeout=SYNC_WAIT_TIMEOUT)
-    proxy._schedule_retry = original_schedule_retry  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(state_proxy_sync, "schedule_retry", original_schedule_retry)
 
     first_retry = first_retry_task
     assert first_retry is not None
@@ -499,14 +502,15 @@ async def test_retry_failure_schedules_next_generation_scoped_retry() -> None:
 
     assert proxy._retry_task is not None
     assert proxy._retry_task is not first_retry
-    assert [call.args[0] for call in proxy._compute_retry_delay.call_args_list] == [1, 2]
+    assert [call.args[0] for call in compute_retry_delay.call_args_list] == [1, 2]
 
     await proxy.on_shutdown()
 
 
-async def test_retry_attempt_resets_when_generation_changes() -> None:
+async def test_retry_attempt_resets_when_generation_changes(monkeypatch: pytest.MonkeyPatch) -> None:
     proxy = build_state_proxy()
-    proxy._compute_retry_delay = Mock(return_value=60)  # pyright: ignore[reportAttributeAccessIssue]
+    compute_retry_delay = Mock(return_value=60)
+    monkeypatch.setattr(state_proxy_sync, "compute_retry_delay", compute_retry_delay)
     first_sync_entered = asyncio.Event()
 
     async def failing_initial_snapshot() -> list[dict[str, object]]:
@@ -523,7 +527,7 @@ async def test_retry_attempt_resets_when_generation_changes() -> None:
 
     await proxy.on_reconnect()
 
-    assert [call.args[0] for call in proxy._compute_retry_delay.call_args_list] == [1, 1]
+    assert [call.args[0] for call in compute_retry_delay.call_args_list] == [1, 1]
 
     await proxy.on_shutdown()
 
@@ -673,28 +677,30 @@ async def test_disconnect_mid_sync_returns_connected_waiters_normally(state_prox
     assert state_proxy.cache_freshness == StateCacheFreshness.STALE
 
 
-async def test_superseded_retry_task_is_canceled_when_new_generation_sync_starts() -> None:
+async def test_superseded_retry_task_is_canceled_when_new_generation_sync_starts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     proxy = build_state_proxy()
     retry_started = asyncio.Event()
     first_sync_entered = asyncio.Event()
-    original_schedule_retry = proxy._schedule_retry
+    original_schedule_retry = state_proxy_sync.schedule_retry
 
     async def failing_snapshot() -> list[dict[str, object]]:
         first_sync_entered.set()
         raise RuntimeError("boom")
 
-    async def observed_schedule_retry(_generation: int) -> None:
+    async def observed_schedule_retry(_proxy: StateProxy, _generation: int) -> None:
         retry_started.set()
 
     proxy.hassette.api.get_states_raw = AsyncMock(side_effect=failing_snapshot)
-    proxy._compute_retry_delay = Mock(return_value=60)  # pyright: ignore[reportAttributeAccessIssue]
-    proxy._schedule_retry = observed_schedule_retry  # pyright: ignore[reportAttributeAccessIssue]
+    monkeypatch.setattr(state_proxy_sync, "compute_retry_delay", Mock(return_value=60))
+    monkeypatch.setattr(state_proxy_sync, "schedule_retry", observed_schedule_retry)
 
     await proxy.on_initialize()
     await asyncio.wait_for(first_sync_entered.wait(), timeout=SYNC_WAIT_TIMEOUT)
     await asyncio.wait_for(retry_started.wait(), timeout=SYNC_WAIT_TIMEOUT)
-    proxy._schedule_retry = original_schedule_retry  # pyright: ignore[reportAttributeAccessIssue]
-    await original_schedule_retry(1)
+    monkeypatch.setattr(state_proxy_sync, "schedule_retry", original_schedule_retry)
+    await original_schedule_retry(proxy, 1)
 
     first_retry = proxy._retry_task
     assert first_retry is not None

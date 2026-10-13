@@ -13,7 +13,8 @@ from collections.abc import Callable
 
 import pytest
 
-from hassette.core.state_proxy import StateCacheFreshness, StateProxy
+from hassette.core.state_proxy import StateProxy
+from hassette.core.state_proxy_sync import StateCacheFreshness
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.base import Resource
 from tests.support.mock_hassette import make_mock_hassette

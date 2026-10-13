@@ -3,7 +3,7 @@
 from typing import Any
 from unittest.mock import AsyncMock
 
-from hassette.core.state_proxy import StateCacheFreshness, StateSynchronizationStatus
+from hassette.core.state_proxy_sync import StateCacheFreshness, StateSynchronizationStatus
 
 
 def configure_state_proxy_mock(

@@ -1,7 +1,5 @@
 import asyncio
 from collections.abc import Generator
-from dataclasses import dataclass
-from enum import StrEnum, auto
 from itertools import count
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -12,7 +10,16 @@ from hassette.bus import Bus
 from hassette.core.api_resource import ApiResource
 from hassette.core.bus_service import BusService
 from hassette.core.scheduler_service import SchedulerService
-from hassette.core.websocket_reconnect import fast_backoff_delay
+from hassette.core.state_proxy_sync import (
+    ActiveSynchronization,
+    ConnectedSyncCause,
+    JournalOperation,
+    StateCacheFreshness,
+    StateSynchronizationStatus,
+    cancel_retry_task,
+    cancel_retry_task_locked_if_superseded,
+    handle_synchronization_failure,
+)
 from hassette.events import RawStateChangeEvent
 from hassette.events.metadata import get_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
@@ -28,50 +35,6 @@ if TYPE_CHECKING:
     from hassette.events import HassStateDict
 
 
-@dataclass(slots=True)
-class _JournalOperation:
-    entity_id: str
-    state: "HassStateDict | None"
-
-
-@dataclass(slots=True)
-class _ActiveSynchronization:
-    request_id: int
-    generation: int
-    status: "StateSynchronizationStatus"
-    baseline_states: dict[str, "HassStateDict"]
-    journal: list[_JournalOperation]
-
-
-class _ConnectedSyncCause(StrEnum):
-    """Why a connected-generation synchronization was requested.
-
-    ``CONNECTED_SIGNAL`` uses a distinct value from ``ConnectionState.CONNECTED`` — the two
-    enums represent unrelated concepts (a sync trigger vs. a WebSocket connection state) and
-    sharing the string "connected" made it easy to grep for the wrong one.
-    """
-
-    CONNECTED_SIGNAL = "connected_signal"
-    RETRY = auto()
-
-
-class StateSynchronizationStatus(StrEnum):
-    """What kind of state synchronization work, if any, is currently active."""
-
-    IDLE = auto()
-    INITIAL = auto()
-    RECONNECT = auto()
-    POLL = auto()
-
-
-class StateCacheFreshness(StrEnum):
-    """Freshness of the published StateProxy cache."""
-
-    UNAVAILABLE = auto()
-    FRESH = auto()
-    STALE = auto()
-
-
 class StateProxy(Resource):
     """In-memory cache of Home Assistant entity state, kept in sync via the WebSocket connection.
 
@@ -85,10 +48,10 @@ class StateProxy(Resource):
 
     A full synchronization pass (``_run_synchronization``) fetches every entity's current state
     via ``Api.get_states_raw()`` and replays a per-generation journal of state-changed events
-    observed while that fetch was in flight (``_JournalOperation`` / ``_ActiveSynchronization``),
+    observed while that fetch was in flight (``JournalOperation`` / ``ActiveSynchronization``),
     so no update racing the bulk fetch is lost. On failure it retries with exponential backoff
-    (``_schedule_retry`` / ``_compute_retry_delay``) unless polling is enabled, in which case the
-    next scheduled poll (``load_cache``) is left to converge instead.
+    (``schedule_retry`` / ``compute_retry_delay`` in ``state_proxy_sync``) unless polling is
+    enabled, in which case the next scheduled poll (``load_cache``) is left to converge instead.
 
     Its own ``Resource`` readiness means only "the synchronization coordinator is wired" — not
     that Home Assistant data is usable yet. ``has_initial_state_capability()`` /
@@ -129,7 +92,7 @@ class StateProxy(Resource):
         self._sync_control_lock = asyncio.Lock()
         self._sync_task: asyncio.Task[None] | None = None
         self._sync_generation: int | None = None
-        self._active_sync: _ActiveSynchronization | None = None
+        self._active_sync: ActiveSynchronization | None = None
         self._pending_reconnect_generation: int | None = None
         self._request_ids = count(1)
         self._bootstrap_task: asyncio.Task[None] | None = None
@@ -248,7 +211,7 @@ class StateProxy(Resource):
         # redundant with the observer callbacks. Any later connection reaches the observer.
         generation = self.hassette.websocket_service.get_connected_generation()
         if generation is not None:
-            await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.CONNECTED_SIGNAL)
+            await self._request_connected_synchronization(generation, cause=ConnectedSyncCause.CONNECTED_SIGNAL)
 
     async def on_shutdown(self) -> None:
         """Cancel all in-flight synchronization and retry work and reset the cache to empty.
@@ -265,7 +228,7 @@ class StateProxy(Resource):
             await asyncio.gather(self._bootstrap_task, return_exceptions=True)
             self._bootstrap_task = None
 
-        await self._cancel_retry_task()
+        await cancel_retry_task(self)
 
         if self._sync_task is not None:
             self._sync_task.cancel()
@@ -436,7 +399,7 @@ class StateProxy(Resource):
             return
         if event_generation is None or active_sync.generation != event_generation:
             return
-        active_sync.journal.append(_JournalOperation(entity_id=entity_id, state=state))
+        active_sync.journal.append(JournalOperation(entity_id=entity_id, state=state))
 
     async def on_disconnect(self) -> None:
         """Handle websocket disconnection.
@@ -446,7 +409,7 @@ class StateProxy(Resource):
         capability has already been reached (so already-running apps keep reading stale data),
         or to UNAVAILABLE otherwise.
         """
-        await self._cancel_retry_task()
+        await cancel_retry_task(self)
 
         sync_task = await self._detach_active_sync_task()
         if sync_task is not None:
@@ -467,10 +430,10 @@ class StateProxy(Resource):
         generation = self.hassette.websocket_service.get_connected_generation()
         if generation is None:
             return
-        await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.CONNECTED_SIGNAL)
+        await self._request_connected_synchronization(generation, cause=ConnectedSyncCause.CONNECTED_SIGNAL)
 
     async def _on_websocket_connected(self, generation: int) -> None:
-        await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.CONNECTED_SIGNAL)
+        await self._request_connected_synchronization(generation, cause=ConnectedSyncCause.CONNECTED_SIGNAL)
 
     async def _on_websocket_disconnected(self) -> None:
         await self.on_disconnect()
@@ -495,7 +458,7 @@ class StateProxy(Resource):
         or a plain POLL sync otherwise.
         """
         async with self._sync_control_lock:
-            self._cancel_retry_task_locked_if_superseded(generation)
+            cancel_retry_task_locked_if_superseded(self, generation)
             active_task = self._active_sync_task()
             if active_task is not None:
                 self.logger.debug("Skipping poll refresh during active synchronization")
@@ -503,13 +466,13 @@ class StateProxy(Resource):
             if self._needs_connected_synchronization(generation):
                 task = self._start_sync_task(
                     generation,
-                    self._determine_connected_sync_status(generation, cause=_ConnectedSyncCause.RETRY),
+                    self._determine_connected_sync_status(generation, cause=ConnectedSyncCause.RETRY),
                 )
             else:
                 task = self._start_sync_task(generation, StateSynchronizationStatus.POLL)
         await wait_for_sync_task(task)
 
-    async def _request_connected_synchronization(self, generation: int, *, cause: _ConnectedSyncCause) -> None:
+    async def _request_connected_synchronization(self, generation: int, *, cause: ConnectedSyncCause) -> None:
         """Ensure a synchronization for ``generation`` runs, deferring to or superseding one in flight.
 
         If a synchronization is already active for a different generation (or is a mere POLL),
@@ -522,7 +485,7 @@ class StateProxy(Resource):
             started_new_task = False
             continue_after_active_task = False
             async with self._sync_control_lock:
-                self._cancel_retry_task_locked_if_superseded(generation)
+                cancel_retry_task_locked_if_superseded(self, generation)
                 active_task = self._active_sync_task()
                 if active_task is not None:
                     if self._synchronization_status == StateSynchronizationStatus.POLL or (
@@ -572,19 +535,19 @@ class StateProxy(Resource):
         self,
         generation: int,
         *,
-        cause: _ConnectedSyncCause,
+        cause: ConnectedSyncCause,
     ) -> StateSynchronizationStatus:
         """Classify which kind of synchronization a connected-generation request should run.
 
         INITIAL if the initial-state capability hasn't opened yet (first-ever sync), RECONNECT
         if the cache is stale for this generation, otherwise POLL for a retry-driven check-in or
-        RECONNECT for a fresh connected signal (``_ConnectedSyncCause``).
+        RECONNECT for a fresh connected signal (``ConnectedSyncCause``).
         """
         if not self.has_initial_state_capability():
             return StateSynchronizationStatus.INITIAL
         if self._maintained_generation != generation or self._cache_freshness != StateCacheFreshness.FRESH:
             return StateSynchronizationStatus.RECONNECT
-        if cause == _ConnectedSyncCause.RETRY:
+        if cause == ConnectedSyncCause.RETRY:
             return StateSynchronizationStatus.POLL
         return StateSynchronizationStatus.RECONNECT
 
@@ -612,7 +575,7 @@ class StateProxy(Resource):
         journaled state-changed events observed during the fetch (see ``_build_candidate_states``
         and ``_commit_candidate_states``), and commits the result. On failure, logs (a full
         traceback for the first failure per generation, a downgraded one-line warning for
-        repeats) and defers to ``_handle_synchronization_failure`` for freshness/retry handling.
+        repeats) and defers to ``handle_synchronization_failure`` for freshness/retry handling.
         Always detaches itself as the active synchronization in the ``finally`` block, regardless
         of outcome.
         """
@@ -639,7 +602,7 @@ class StateProxy(Resource):
             else:
                 self.logger.exception("State synchronization failed (%s generation=%s)", status, generation)
                 self._last_logged_sync_failure_generation = generation
-            await self._handle_synchronization_failure(generation)
+            await handle_synchronization_failure(self, generation)
         finally:
             await self._finish_synchronization(request_id=request_id, task=current_task)
 
@@ -652,7 +615,7 @@ class StateProxy(Resource):
     ) -> dict[str, "HassStateDict"]:
         async with self.lock:
             baseline_states = dict(self.states)
-            self._active_sync = _ActiveSynchronization(
+            self._active_sync = ActiveSynchronization(
                 request_id=request_id,
                 generation=generation,
                 status=status,
@@ -740,28 +703,6 @@ class StateProxy(Resource):
                 self._initial_state_capability_event.set()
             return True
 
-    async def _handle_synchronization_failure(self, generation: int) -> None:
-        """React to a failed synchronization: downgrade freshness and, if unpolled, retry.
-
-        A no-op if ``generation`` is no longer the currently connected generation (a reconnect
-        has already superseded this failure). Otherwise downgrades the cache freshness the same
-        way ``on_disconnect`` does (STALE if the initial-state capability has already been
-        reached, else UNAVAILABLE). If periodic polling is enabled, the next poll tick is left
-        to converge the cache and no retry is scheduled; otherwise schedules a backoff retry.
-        """
-        current_generation = self.hassette.websocket_service.get_connected_generation()
-        if current_generation != generation:
-            return
-
-        if self.has_initial_state_capability():
-            self._cache_freshness = StateCacheFreshness.STALE
-        else:
-            self._cache_freshness = StateCacheFreshness.UNAVAILABLE
-
-        if self.poll_job is not None:
-            return
-        await self._schedule_retry(generation)
-
     async def _detach_active_sync_task(self) -> asyncio.Task[None] | None:
         async with self._sync_control_lock:
             task = self._sync_task
@@ -788,83 +729,6 @@ class StateProxy(Resource):
                 self._sync_task = None
                 self._sync_generation = None
                 self._synchronization_status = StateSynchronizationStatus.IDLE
-
-    async def _schedule_retry(self, generation: int) -> None:
-        """Schedule (or re-arm) a single backoff-delayed retry task for ``generation``.
-
-        If a live retry task is already scheduled for this same generation, this is a no-op
-        unless called from that very task (letting a retry re-schedule its own successor).
-        Otherwise cancels any stale retry task, bumps the attempt counter (resetting it first if
-        the generation changed), and spawns a new delayed retry sized by
-        ``_compute_retry_delay``.
-        """
-        async with self._sync_control_lock:
-            current_task = asyncio.current_task()
-            if self._retry_generation == generation and self._retry_task is not None and not self._retry_task.done():
-                if self._retry_task is not current_task:
-                    return
-            else:
-                if self._retry_generation != generation:
-                    self._retry_attempt = 0
-                self._cancel_retry_task_locked()
-            self._retry_generation = generation
-            self._retry_attempt += 1
-            delay = self._compute_retry_delay(self._retry_attempt)
-            self._retry_task = self.task_bucket.spawn(
-                self._run_retry_after_delay(generation=generation, delay=delay),
-                name=f"state_proxy:retry:{generation}:{self._retry_attempt}",
-            )
-
-    def _compute_retry_delay(self, attempt: int) -> float:
-        return fast_backoff_delay(attempt)
-
-    async def _run_retry_after_delay(self, *, generation: int, delay: float) -> None:
-        """Sleep for ``delay``, then attempt the connected synchronization for ``generation``.
-
-        Clears ``_retry_task`` before the retry attempt itself so a subsequent failure can
-        schedule a fresh successor retry rather than being blocked by "a retry is already
-        scheduled" (see ``_schedule_retry``). Only clears ``_retry_generation``/``_retry_attempt``
-        (resetting backoff) if this retry's generation is still the tracked one and no new retry
-        task has since been scheduled for it.
-        """
-        current_task = asyncio.current_task()
-        try:
-            await asyncio.sleep(delay)
-            async with self._sync_control_lock:
-                if self._retry_task is current_task:
-                    self._retry_task = None
-            await self._request_connected_synchronization(generation, cause=_ConnectedSyncCause.RETRY)
-            async with self._sync_control_lock:
-                if self._retry_generation == generation and self._retry_task is None:
-                    self._retry_generation = None
-                    self._retry_attempt = 0
-        except asyncio.CancelledError:
-            raise
-        finally:
-            async with self._sync_control_lock:
-                if self._retry_task is current_task:
-                    self._retry_task = None
-                    self._retry_generation = None
-
-    async def _cancel_retry_task(self) -> None:
-        task: asyncio.Task[None] | None = None
-        async with self._sync_control_lock:
-            task = self._retry_task
-            self._cancel_retry_task_locked()
-        if task is not None:
-            await asyncio.gather(task, return_exceptions=True)
-
-    def _cancel_retry_task_locked_if_superseded(self, generation: int) -> None:
-        if self._retry_generation is None or self._retry_generation == generation:
-            return
-        self._cancel_retry_task_locked()
-        self._retry_attempt = 0
-
-    def _cancel_retry_task_locked(self) -> None:
-        if self._retry_task is not None and not self._retry_task.done():
-            self._retry_task.cancel()
-        self._retry_task = None
-        self._retry_generation = None
 
     @staticmethod
     def _is_older_or_equal_state(

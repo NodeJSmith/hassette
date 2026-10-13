@@ -16,7 +16,7 @@ from hassette_wire import BlockingFindingsResponse, ResourceStatus, Unattributed
 
 from hassette.config.models import DEFAULT_WEB_API_PORT
 from hassette.core.runtime_query_service import RuntimeQueryService
-from hassette.core.state_proxy import StateCacheFreshness
+from hassette.core.state_proxy_sync import StateCacheFreshness
 from hassette.schemas.app_snapshots import AppManifestInfo, AppStatusSnapshot
 from hassette.schemas.summary_models import AppHealthAggregates
 from hassette.testing._ws_mocks import configure_ready_websocket_mock

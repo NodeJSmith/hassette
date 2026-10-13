@@ -4,7 +4,7 @@ import typing
 
 import pytest
 
-from hassette.core.state_proxy import StateCacheFreshness
+from hassette.core.state_proxy_sync import StateCacheFreshness
 from hassette.testing import wait_for
 
 from .conftest import make_system_config, startup_context
