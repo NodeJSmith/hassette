@@ -311,10 +311,10 @@ class DatabaseRetentionMixin:
     async def _reclaim_freed_pages(self) -> None:
         """Return the pages this cycle's deletes freed, so the free list can't grow without bound.
 
-        Free pages still count toward the size failsafe's measured file size; left in place, they
-        accumulate until the failsafe deletes rows to compensate. Any remainder past the time
-        budget is picked up by the next cycle. No checkpoint here: the size failsafe truncates the
-        WAL before it measures, and SQLite's auto-checkpoint covers the rest.
+        Routine maintenance: the free list otherwise keeps the file larger than its live data
+        indefinitely. The size failsafe measures live data only, so this has no effect on its
+        decisions. Any remainder past the time budget is picked up by the next cycle. No
+        checkpoint here: SQLite's auto-checkpoint covers the WAL.
         """
         try:
             reclaim = await reclaim_free_pages(self.db)

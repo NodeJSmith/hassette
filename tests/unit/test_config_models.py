@@ -74,7 +74,6 @@ class TestDatabaseConfig:
         assert cfg.size_failsafe_interval_seconds == 3600
         assert cfg.size_failsafe_max_iterations == 10
         assert cfg.size_failsafe_delete_batch == 1000
-        assert cfg.size_failsafe_vacuum_pages == 100
         assert cfg.retention_delete_batch == 1000
         assert cfg.retention_max_batches_per_target == 100
         assert cfg.max_consecutive_heartbeat_failures == 3

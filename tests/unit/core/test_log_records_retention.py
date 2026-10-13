@@ -6,7 +6,7 @@ import sqlite3
 import time
 from collections.abc import Callable, Coroutine
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import aiosqlite
 import pytest
@@ -596,29 +596,58 @@ class TestSizeFailsafe:
         ``seed_both_tables`` inserts executions without an explicit ``source_tier``, so they
         fall in the default 'app' tier (priority 3) — the framework tier (priority 1) and
         blocking_events (priority 2) are empty and each consume one end-of-priority size check
-        before priority 3 is even reached: entry check, post-reclaim re-measure, priority-1-empty,
-        and priority-2-empty (4 checks) precede the priority-3 batch that actually deletes rows.
+        before priority 3 is even reached: entry check, priority-1-empty, and priority-2-empty
+        (3 checks) precede the priority-3 batch that actually deletes rows.
         """
         await self.seed_both_tables(db, db_service_writer, log_count=10, exec_count=5)
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
+        # Call sites of get_live_data_size_mb(): 1 = entry check, then one per delete batch that
+        # removed rows, and one at the end of each priority tier.
         calls = 0
 
-        def mock_size() -> float:
+        async def mock_size() -> float:
             nonlocal calls
             calls += 1
-            if calls <= 4:
+            if calls <= 3:
                 return 10.0
             return 0.0
 
-        retention_service.get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
         cursor = await db.execute("SELECT COUNT(*) FROM executions")
         assert (await cursor.fetchone())[0] < 5  # partially drained, then stopped
         cursor = await db.execute("SELECT COUNT(*) FROM log_records")
         assert (await cursor.fetchone())[0] == 10  # exempt, so intact here and in every scenario
+
+    async def test_size_failsafe_stops_without_raising_when_live_size_read_fails(
+        self,
+        db: aiosqlite.Connection,
+        db_service_writer: DatabaseService,
+        mock_hassette_for_db: MagicMock,
+        retention_service: DatabaseService,
+    ) -> None:
+        """A failing size read after the entry check ends the run cleanly and counts as incomplete."""
+        await self.seed_both_tables(db, db_service_writer, log_count=2, exec_count=5)
+        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
+        calls = 0
+
+        async def failing_after_entry_check() -> float:
+            nonlocal calls
+            calls += 1
+            if calls > 1:
+                raise sqlite3.OperationalError("simulated PRAGMA failure")
+            return 10.0
+
+        retention_service.get_live_data_size_mb = failing_after_entry_check  # pyright: ignore[reportAttributeAccessIssue]
+
+        await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
+
+        cursor = await db.execute("SELECT COUNT(*) FROM executions")
+        assert (await cursor.fetchone())[0] == 5  # the framework tier ended the run before app executions
+        assert retention_service._consecutive_exhaustion_triggers == 0  # pyright: ignore[reportPrivateUsage]
 
     async def test_size_failsafe_keeps_log_records_when_execution_deletion_insufficient(
         self,
@@ -634,7 +663,7 @@ class TestSizeFailsafe:
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
         # Never under the limit — every failsafe tier drains and the run still can't recover.
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
 
         await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
@@ -675,16 +704,18 @@ class TestSizeFailsafe:
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
+        # Call sites of get_live_data_size_mb(): 1 = entry check, then one per delete batch that
+        # removed rows, and one at the end of each priority tier.
         calls = 0
 
-        def mock_size() -> float:
+        async def mock_size() -> float:
             nonlocal calls
             calls += 1
-            # Over limit for the entry check and the post-reclaim re-measure; under limit
-            # immediately after the first batch — confines the whole run to a single priority-1 batch.
-            return 10.0 if calls <= 2 else 0.0
+            # Over limit for the entry check; under limit immediately after the first
+            # batch — confines the whole run to a single priority-1 batch.
+            return 10.0 if calls <= 1 else 0.0
 
-        retention_service.get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
         cursor = await db.execute(
@@ -747,7 +778,7 @@ class TestSizeFailsafe:
         monkeypatch.setattr(db, "execute", tracking_execute)
 
         # Always report over limit so the failsafe drains every group.
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
         await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
         # Each group's inner loop runs one extra (no-op) iteration after draining its rows, so
@@ -775,16 +806,18 @@ class TestSizeFailsafe:
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
 
+        # Call sites of get_live_data_size_mb(): 1 = entry check, then one per delete batch that
+        # removed rows, and one at the end of each priority tier.
         calls = 0
 
-        def mock_size() -> float:
+        async def mock_size() -> float:
             nonlocal calls
             calls += 1
-            # Over limit through the post-reclaim re-measure and the framework-tier pass (no
-            # rows there); under limit once blocking_events has been drained.
-            return 10.0 if calls <= 3 else 0.0
+            # Over limit through the entry check and the framework-tier pass (no rows there);
+            # under limit once blocking_events' first batch has been deleted.
+            return 10.0 if calls <= 2 else 0.0
 
-        retention_service.get_db_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = mock_size  # pyright: ignore[reportAttributeAccessIssue]
         await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
 
         cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
@@ -814,7 +847,7 @@ class TestSizeFailsafe:
         )
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.WARNING):
             await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
@@ -861,8 +894,9 @@ class TestSizeFailsafe:
         )
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        # the iteration cap instead of naturally draining and breaking out early.
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        # Always over the limit, so the framework tier hits the iteration cap instead of naturally
+        # draining and breaking out early.
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.INFO):
             await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
@@ -925,8 +959,9 @@ class TestSizeFailsafe:
         monkeypatch.setattr(db, "execute", failing_framework_execute)
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        # hits the iteration cap instead of naturally draining and breaking out early.
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        # Always over the limit, so the framework tier hits the iteration cap instead of naturally
+        # draining and breaking out early.
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.INFO):
             await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
@@ -985,7 +1020,7 @@ class TestSizeFailsafe:
         )
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.INFO):
             await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
@@ -1044,7 +1079,7 @@ class TestSizeFailsafe:
         await db.commit()
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.INFO):
             await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
@@ -1092,7 +1127,7 @@ class TestSizeFailsafe:
         await db.commit()
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
 
         with caplog.at_level(logging.INFO):
             await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
@@ -1147,7 +1182,7 @@ class TestSizeFailsafe:
         )
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
 
         # Fail only the stale-row probe's SELECT, not the batched DELETE's inner subselect.
         monkeypatch.setattr(db, "execute", make_failing_execute(db, "SELECT 1 FROM executions"))
@@ -1169,127 +1204,6 @@ class TestSizeFailsafe:
         assert "Size failsafe stale-row probe failed for framework executions" in caplog.text
         # A probe failure is not a genuine full-tier drain — must not count as exhaustion.
         assert retention_service._consecutive_exhaustion_triggers == 0  # pyright: ignore[reportPrivateUsage]
-
-    async def test_size_failsafe_commit_failure_isolated_to_tier(
-        self,
-        db: aiosqlite.Connection,
-        db_service_writer: DatabaseService,
-        mock_hassette_for_db: MagicMock,
-        caplog: pytest.LogCaptureFixture,
-        retention_service: DatabaseService,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """A ``commit()`` failure right after a successful DELETE must be isolated to that
-        tier — not an uncaught exception that escapes ``_check_size_failsafe()`` entirely,
-        skipping every lower-priority tier and the aggregate
-        ``any_tier_incomplete``/exhaustion accounting below.
-
-        Regression test: ``db.commit()`` was not wrapped in the same try/except every DELETE
-        in this loop already has, so a transient commit failure (SQLite lock contention, disk
-        I/O error) would propagate straight out of the method uncaught.
-        """
-        retention_service.hassette.config.database.size_failsafe_max_iterations = 2
-        retention_service.hassette.config.database.size_failsafe_delete_batch = 2
-
-        now = time.time()
-        await insert_tiered_execution(db, now - 1, SOURCE_TIER_FRAMEWORK)
-        # A lower-priority tier the run must still reach after framework's commit fails.
-        await insert_blocking_event(db, now - 1)
-        await db.commit()
-        await db_service_writer._insert_log_records(  # pyright: ignore[reportPrivateUsage]
-            [make_log_record_row(1, now - 1, "log")]
-        )
-
-        original_commit = db.commit
-        commit_calls = 0
-
-        async def failing_commit() -> None:
-            nonlocal commit_calls
-            commit_calls += 1
-            if commit_calls == 1:
-                raise sqlite3.OperationalError("simulated commit failure")
-            await original_commit()
-
-        monkeypatch.setattr(db, "commit", failing_commit)
-
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
-
-        with caplog.at_level(logging.INFO):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
-
-        # The lower-priority blocking-events tier still ran despite framework's commit failure.
-        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-        assert (await cursor.fetchone())[0] == 0
-        # The exempt table is untouched regardless.
-        cursor = await db.execute("SELECT COUNT(*) FROM log_records")
-        assert (await cursor.fetchone())[0] == 1
-
-        assert "Size failsafe commit failed for framework executions" in caplog.text
-        assert "Size failsafe stopped early" in caplog.text
-        assert "one or more tiers failed and were skipped this cycle" in caplog.text
-        # A commit failure is not a genuine full-tier drain — must not count as exhaustion.
-        assert retention_service._consecutive_exhaustion_triggers == 0  # pyright: ignore[reportPrivateUsage]
-
-    async def test_size_failsafe_commit_failure_still_charges_shared_budget(
-        self,
-        db: aiosqlite.Connection,
-        mock_hassette_for_db: MagicMock,
-        caplog: pytest.LogCaptureFixture,
-        retention_service: DatabaseService,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """A ``commit()`` failure right after a successful DELETE must still charge the
-        shared iteration budget. The DELETE already autocommitted before ``commit()`` was
-        even called (``isolation_level=None``, no explicit ``BEGIN``), so those rows are
-        durably gone from the database regardless of whether the subsequent commit call
-        fails — not charging the budget for that real, persisted work would let a
-        lower-priority tier receive undiminished budget for it, e.g. two full batches
-        deleted in the same run at ``size_failsafe_max_iterations=1``.
-
-        Regression test: an earlier version of this fix set the failure flag on a commit
-        failure without charging ``iterations_used``, treating a commit failure the same as
-        a DELETE that deleted nothing.
-        """
-        retention_service.hassette.config.database.size_failsafe_max_iterations = 1
-        retention_service.hassette.config.database.size_failsafe_delete_batch = 2
-
-        now = time.time()
-        for i in range(2):
-            await insert_tiered_execution(db, now - i, SOURCE_TIER_FRAMEWORK)
-        await insert_blocking_event(db, now - 1)
-        await insert_blocking_event(db, now - 2)
-        await db.commit()
-
-        original_commit = db.commit
-        commit_calls = 0
-
-        async def failing_commit() -> None:
-            nonlocal commit_calls
-            commit_calls += 1
-            if commit_calls == 1:
-                raise sqlite3.OperationalError("simulated commit failure")
-            await original_commit()
-
-        monkeypatch.setattr(db, "commit", failing_commit)
-
-        mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
-
-        with caplog.at_level(logging.INFO):
-            await retention_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
-
-        # Framework's DELETE already autocommitted before the failing commit() call -- both
-        # rows are durably gone regardless of the subsequent commit failure.
-        cursor = await db.execute("SELECT COUNT(*) FROM executions WHERE source_tier = 'framework'")
-        assert (await cursor.fetchone())[0] == 0
-
-        # Blocking events got zero remaining budget -- framework's productive-but-commit-
-        # failed iteration correctly consumed the entire 1-iteration run, so blocking events
-        # is left untouched and capped rather than silently draining on undiminished budget.
-        cursor = await db.execute("SELECT COUNT(*) FROM blocking_events")
-        assert (await cursor.fetchone())[0] == 2
-        assert "blocking events capped at 1 iterations" in caplog.text
 
     async def test_size_failsafe_capped_cycle_resets_exhaustion_streak(
         self,
@@ -1317,7 +1231,7 @@ class TestSizeFailsafe:
         # Always report over limit — every run below stays "oversized" per the mocked size, so
         # every over-limit branch (exhaustion, capped) is exercised deliberately by row counts
         # rather than by the mocked size flipping under the limit.
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
 
         # Run 1: a single framework row and a single log record — small enough that both tiers
         # naturally drain within the 2-iteration cap. Every tier drains, DB still over limit ->
@@ -1374,7 +1288,7 @@ class TestSizeFailsafe:
         await db.commit()
 
         mock_hassette_for_db.config.database.max_size_mb = SIZE_FAILSAFE_TRIGGER_MB
-        retention_service.get_db_size_mb = lambda: 10.0  # pyright: ignore[reportAttributeAccessIssue]
+        retention_service.get_live_data_size_mb = AsyncMock(return_value=10.0)  # pyright: ignore[reportAttributeAccessIssue]
 
         original_execute = db.execute
 

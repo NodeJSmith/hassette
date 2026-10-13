@@ -59,9 +59,6 @@ class FreePageReclaim:
     remaining: int
     """Free pages still in the database afterward."""
 
-    budget_exhausted: bool
-    """The time budget ran out while reclaimable free pages remained."""
-
 
 async def read_int_pragma(db: aiosqlite.Connection, pragma: str) -> int:
     """Return the integer value of a read-only pragma such as ``freelist_count`` or ``page_size``."""
@@ -88,24 +85,24 @@ async def get_live_data_mb(db: aiosqlite.Connection) -> float:
     return (page_count - free) * page_size / (1024 * 1024)
 
 
-async def run_incremental_vacuum(db: aiosqlite.Connection, pages: int | None = None) -> None:
-    """Run ``PRAGMA incremental_vacuum``, freeing up to ``pages`` pages (all of them when None).
+async def run_incremental_vacuum(db: aiosqlite.Connection, pages: int) -> None:
+    """Run ``PRAGMA incremental_vacuum``, freeing up to ``pages`` pages.
 
     The pragma frees one page per statement step, so ``execute()`` alone frees a single page, and
     Python 3.11's ``sqlite3`` resets the statement after one step because it returns no columns, so
     fetching the result doesn't help there. ``executescript()`` steps it to completion on every
     supported Python. It commits any open transaction first; every caller runs it outside one.
     """
-    sql = "PRAGMA incremental_vacuum" if pages is None else f"PRAGMA incremental_vacuum({pages})"
-    await db.executescript(sql)
+    await db.executescript(f"PRAGMA incremental_vacuum({pages})")
 
 
 async def reclaim_free_pages(db: aiosqlite.Connection) -> FreePageReclaim:
     """Drain the free list in ``FREE_PAGE_RECLAIM_CHUNK_PAGES`` chunks until empty or out of time.
 
-    Stops early, with ``budget_exhausted`` False, when a chunk frees nothing -- the database is
-    not in ``auto_vacuum = INCREMENTAL`` mode, so its free pages can't be reclaimed this way.
-    Does not checkpoint; the main file only shrinks once the WAL is checkpointed.
+    Stops early when a chunk frees nothing -- the database is not in ``auto_vacuum = INCREMENTAL``
+    mode, so its free pages can't be reclaimed this way. Stops at the time budget with free pages
+    left; the next call continues from there. Does not checkpoint; the main file only shrinks once
+    the WAL is checkpointed.
     """
     deadline = time.monotonic() + FREE_PAGE_RECLAIM_BUDGET_SECONDS
     start = remaining = await get_freelist_count(db)
@@ -113,8 +110,8 @@ async def reclaim_free_pages(db: aiosqlite.Connection) -> FreePageReclaim:
         await run_incremental_vacuum(db, min(remaining, FREE_PAGE_RECLAIM_CHUNK_PAGES))
         after = await get_freelist_count(db)
         if after >= remaining:  # nothing freed: auto_vacuum isn't INCREMENTAL
-            return FreePageReclaim(start - after, after, budget_exhausted=False)
+            return FreePageReclaim(start - after, after)
         remaining = after
         if remaining > 0 and time.monotonic() >= deadline:
-            return FreePageReclaim(start - remaining, remaining, budget_exhausted=True)
-    return FreePageReclaim(start - remaining, remaining, budget_exhausted=False)
+            return FreePageReclaim(start - remaining, remaining)
+    return FreePageReclaim(start - remaining, remaining)

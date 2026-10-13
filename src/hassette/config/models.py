@@ -67,8 +67,10 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Number of days to retain framework-tier execution records. Must be <= retention_days."""
 
     max_size_mb: float = Field(default=500, ge=0)
-    """Maximum database file size in MB. When exceeded, oldest execution and blocking-event
-    records are deleted; log records are exempt and expire only on ``logging.log_retention_days``.
+    """Maximum live data in MB. The limit applies to in-use database pages, not the file on disk:
+    free pages and the WAL don't count, so the file can sit above the limit by that amount until
+    reclaim runs. When live data exceeds it, oldest execution and blocking-event records are
+    deleted; log records are exempt and expire only on ``logging.log_retention_days``.
     0 disables the size failsafe."""
 
     migration_timeout_seconds: int = Field(default=120, ge=10)
@@ -96,9 +98,6 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
 
     size_failsafe_delete_batch: int = Field(default=1000, ge=1)
     """Number of rows deleted per batch during size failsafe enforcement."""
-
-    size_failsafe_vacuum_pages: int = Field(default=100, ge=1)
-    """Number of pages to vacuum per size failsafe run."""
 
     retention_delete_batch: int = Field(default=1000, ge=1)
     """Number of rows deleted per batch during age-based retention cleanup. Each batch commits

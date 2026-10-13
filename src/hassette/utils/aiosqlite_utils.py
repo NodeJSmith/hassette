@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,18 @@ CONNECTION_CLOSE_JOIN_TIMEOUT_SECONDS = 5.0
 Unlike ``STOP_JOIN_TIMEOUT_SECONDS``, this join runs off the event loop thread, so it can afford to
 wait longer for a clean exit before giving up and just logging a warning.
 """
+
+CHECKPOINT_TRUNCATE_SQL = "PRAGMA wal_checkpoint(TRUNCATE)"
+"""Checkpoints the WAL into the main file and truncates it to zero bytes."""
+
+
+def checkpoint_blocked(row: Sequence[Any] | None) -> bool:
+    """Return True if a ``CHECKPOINT_TRUNCATE_SQL`` result row says the checkpoint didn't complete.
+
+    SQLite doesn't raise when a checkpoint is blocked (SQLITE_BUSY): the pragma returns a row whose
+    first column is nonzero instead. A missing row counts as blocked.
+    """
+    return row is None or row[0] != 0
 
 
 async def connect_daemon(database: str | Path, **kwargs: Any) -> aiosqlite.Connection:

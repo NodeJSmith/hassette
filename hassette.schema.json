@@ -561,7 +561,7 @@
         },
         "max_size_mb": {
           "default": 500,
-          "description": "Maximum database file size in MB. When exceeded, oldest execution and blocking-event\nrecords are deleted; log records are exempt and expire only on ``logging.log_retention_days``.\n0 disables the size failsafe.",
+          "description": "Maximum live data in MB. The limit applies to in-use database pages, not the file on disk:\nfree pages and the WAL don't count, so the file can sit above the limit by that amount until\nreclaim runs. When live data exceeds it, oldest execution and blocking-event records are\ndeleted; log records are exempt and expire only on ``logging.log_retention_days``.\n0 disables the size failsafe.",
           "minimum": 0,
           "title": "Max Size Mb",
           "type": "number"
@@ -620,13 +620,6 @@
           "description": "Number of rows deleted per batch during size failsafe enforcement.",
           "minimum": 1,
           "title": "Size Failsafe Delete Batch",
-          "type": "integer"
-        },
-        "size_failsafe_vacuum_pages": {
-          "default": 100,
-          "description": "Number of pages to vacuum per size failsafe run.",
-          "minimum": 1,
-          "title": "Size Failsafe Vacuum Pages",
           "type": "integer"
         },
         "retention_delete_batch": {
