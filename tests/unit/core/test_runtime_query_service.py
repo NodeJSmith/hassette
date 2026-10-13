@@ -739,14 +739,18 @@ class TestAppsChanged:
         assert broadcast_calls[0]["type"] == "apps_changed"
         assert broadcast_calls[0]["data"] == {}
 
-    async def test_on_initialize_wires_app_load_completed_to_broadcast(
+    @pytest.mark.parametrize(
+        "topic", [Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED, Topic.HASSETTE_EVENT_APP_MANIFESTS_PRUNED]
+    )
+    async def test_on_initialize_wires_apps_changed_topics_to_broadcast(
         self,
+        topic: Topic,
         hassette_harness: "Callable[[HassetteConfig], HassetteHarness]",
         test_config_class: "type[HassetteConfig]",
         unused_tcp_port_factory: "Callable[[], int]",
     ) -> None:
-        """The bus subscription registered in on_initialize() actually routes
-        Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED to on_apps_changed.
+        """The bus subscriptions registered in on_initialize() actually route both
+        app-change topics to on_apps_changed.
 
         Unlike the direct-call test above, this exercises the real registration on a real Bus
         -- it would catch a wrong topic constant or a dropped registration in on_initialize(),
@@ -770,9 +774,7 @@ class TestAppsChanged:
 
             await svc.on_initialize()
             try:
-                await harness.hassette.send_event(
-                    HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED)
-                )
+                await harness.hassette.send_event(HassetteSimpleEvent.from_topic(topic=topic))
                 await wait_for(
                     lambda: any(call["type"] == "apps_changed" for call in broadcast_calls),
                     desc="apps_changed broadcast",

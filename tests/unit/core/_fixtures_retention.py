@@ -10,7 +10,7 @@ import sqlite3
 from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, seal
 
 import aiosqlite
 import pytest
@@ -28,13 +28,17 @@ SOURCE_TIER_APP = "app"
 
 @pytest.fixture
 def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
-    """Mock Hassette for DatabaseService tests."""
-    return make_mock_hassette(
+    """Mock Hassette for DatabaseService tests; ``send_event`` records retention's manifest-prune signal."""
+    hassette = make_mock_hassette(
         data_dir=tmp_path,
         set_ready=False,
+        sealed=False,
         database={"telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX},
         lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
     )
+    hassette.send_event = AsyncMock(return_value=None)
+    seal(hassette)
+    return hassette
 
 
 @pytest.fixture

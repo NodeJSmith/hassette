@@ -126,12 +126,19 @@ class RuntimeQueryService(Resource):
             )
         )
         # Named for its WS-layer effect (app data may have changed), not the backend
-        # event name — see on_apps_changed's docstring.
+        # event names — see on_apps_changed's docstring.
         self._subscriptions.append(
             await self.bus.on(
                 topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED,
                 handler=self.on_apps_changed,
                 name="hassette.rqs.on_apps_changed",
+            )
+        )
+        self._subscriptions.append(
+            await self.bus.on(
+                topic=Topic.HASSETTE_EVENT_APP_MANIFESTS_PRUNED,
+                handler=self.on_apps_changed,
+                name="hassette.rqs.on_app_manifests_pruned",
             )
         )
 
@@ -205,9 +212,10 @@ class RuntimeQueryService(Resource):
         await self.build_and_broadcast("service_status", payload)
 
     async def on_apps_changed(self) -> None:
-        """Broadcast a refetch signal after a full app load/reload pass.
+        """Broadcast a refetch signal after a full app load/reload pass or a manifest prune.
 
-        The triggering event (``HASSETTE_EVENT_APP_LOAD_COMPLETED``) carries no data — see
+        The triggering events (``HASSETTE_EVENT_APP_LOAD_COMPLETED`` and
+        ``HASSETTE_EVENT_APP_MANIFESTS_PRUNED``) carry no data — see
         ``AppsChangedData`` — so this handler declares no ``event`` parameter;
         ``ParameterInjector`` only injects what a handler's signature actually asks for.
         """

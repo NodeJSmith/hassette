@@ -11,6 +11,8 @@ import aiosqlite
 from hassette.const.misc import SECONDS_PER_DAY
 from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, SQL_BEGIN, reclaim_free_pages, safe_rollback
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget, build_age_where
+from hassette.events.hassette import HassetteSimpleEvent
+from hassette.types.enums import Topic
 
 if typing.TYPE_CHECKING:
     import logging
@@ -347,6 +349,11 @@ class DatabaseRetentionMixin:
             self.logger.info(
                 "Retention cleanup: removed manifests for apps no longer in config with no remaining telemetry: %s",
                 ", ".join(removed_manifest_keys),
+            )
+            # The original config removal already broadcast apps_changed while the manifest still
+            # existed, so open dashboards need another refetch signal to drop the app.
+            await self.hassette.send_event(
+                HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_MANIFESTS_PRUNED)
             )
 
         await self._reclaim_freed_pages()
