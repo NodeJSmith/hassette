@@ -1,4 +1,4 @@
-"""Shared sqlite/aiosqlite helpers for migration, schema, and telemetry tests.
+"""Shared sqlite/aiosqlite helpers for migration, schema, telemetry, and disk-size tests.
 
 Replaces the ``conn = sqlite3.connect(db_path); try: ...; finally: conn.close()``
 boilerplate repeated across migration/schema test files, and the hand-typed
@@ -14,6 +14,9 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import aiosqlite
+
+SHRUNK_FRACTION = 0.1
+"""A cleared 200-entry (~800 KB) cache must fall below this fraction of its prior size; an empty one is ~12 KB."""
 
 
 @contextmanager
@@ -75,3 +78,13 @@ def insert_execution_row(
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (kind, listener_id, job_id, session_id, execution_start_ts, duration_ms, status),
     )
+
+
+def sqlite_disk_bytes(db_path: Path) -> int:
+    """Size in bytes of a SQLite database file plus its WAL and SHM sidecars, whichever exist.
+
+    The sum is what a reclaim or ``VACUUM`` has to shrink: the main file alone can look unchanged
+    while the freed pages still sit in the WAL.
+    """
+    sidecars = (Path(f"{db_path}{suffix}") for suffix in ("", "-wal", "-shm"))
+    return sum(path.stat().st_size for path in sidecars if path.exists())

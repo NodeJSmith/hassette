@@ -10,7 +10,7 @@ streak through ``_do_run_retention_cleanup``) live in ``test_log_records_retenti
 import dataclasses
 import logging
 from collections.abc import AsyncIterator
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import aiosqlite
 import pytest
@@ -231,36 +231,6 @@ async def test_execute_failsafe_delete_filters_by_source_tier(memory_db: aiosqli
     cursor = await memory_db.execute("SELECT source_tier FROM widgets")
     rows = await cursor.fetchall()
     assert [row[0] for row in rows] == ["app"]
-
-
-async def test_vacuum_and_checkpoint_busy_checkpoint_treated_as_failure(
-    service: DatabaseService, memory_db: aiosqlite.Connection
-) -> None:
-    """A busy wal_checkpoint(TRUNCATE) (nonzero first column, no exception) is a failed attempt.
-
-    SQLite doesn't raise for SQLITE_BUSY on this pragma -- it returns a result row whose first
-    column is nonzero. If that row is ignored, the caller sees a false success even though the
-    WAL was never truncated. Every attempt reports busy here, so the method must exhaust all
-    retries and return False rather than returning True on the first attempt.
-    """
-    real_execute = memory_db.execute
-
-    class _BusyCheckpointCursor:
-        async def fetchone(self) -> tuple[int, int, int]:
-            return (1, 5, 0)
-
-        async def close(self) -> None:
-            pass
-
-    async def fake_execute(sql: str, *args: object, **kwargs: object):
-        if sql.startswith("PRAGMA wal_checkpoint"):
-            return _BusyCheckpointCursor()
-        return await real_execute(sql, *args, **kwargs)
-
-    with patch.object(memory_db, "execute", side_effect=fake_execute):
-        result = await service._vacuum_and_checkpoint_with_retry(memory_db, vacuum_pages=100, group_label="test")
-
-    assert result is False
 
 
 def test_parent_guard_skip_escalates_to_error_after_consecutive_cycles(

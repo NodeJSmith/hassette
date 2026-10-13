@@ -16,12 +16,18 @@ from hassette.cache._helpers import (
     MISSING,
     SCHEMA_DDL,
     deserialize,
+    log_checkpoint_outcome,
     resolve_ttl,
     serialize,
     validate_key,
 )
 from hassette.cache.sync import SyncCache
-from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
+from hassette.utils.aiosqlite_utils import (
+    CHECKPOINT_TRUNCATE_SQL,
+    close_connection_pair,
+    connect_daemon,
+    stop_connection_sync,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -233,11 +239,21 @@ class AsyncCache:
         return value
 
     async def clear(self) -> None:
-        """Delete all entries and run ``PRAGMA incremental_vacuum`` to reclaim disk space."""
+        """Delete all entries, then ``VACUUM`` and truncate the WAL so the file shrinks.
+
+        The vacuum works whatever the file's ``auto_vacuum`` mode. The WAL truncation is best-effort:
+        a blocked or failed checkpoint is logged, not raised, since the entries are already gone.
+        """
         await self._write_conn.execute("DELETE FROM cache_entries")
         await self._write_conn.commit()
-        await self._write_conn.execute("PRAGMA incremental_vacuum")
-        await self._write_conn.commit()
+        await self._write_conn.execute("VACUUM")  # needs autocommit: cannot run inside a transaction
+        try:
+            async with self._write_conn.execute(CHECKPOINT_TRUNCATE_SQL) as cursor:
+                row = await cursor.fetchone()
+        except sqlite3.Error:
+            logger.exception("Cache clear: WAL checkpoint failed")
+        else:
+            log_checkpoint_outcome(row)
 
     async def invalidate(self, *keys: str) -> None:
         """Delete all listed keys in one operation."""

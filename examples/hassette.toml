@@ -118,7 +118,7 @@ instance_name = "kitchen"
 
 [hassette.database]
 retention_days = 14
-max_size_mb = 100
+max_size_mb = 100  # live data in MB, not file size on disk
 
 [hassette.logging]
 scheduler_service = "WARNING"

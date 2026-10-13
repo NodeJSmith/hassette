@@ -8,7 +8,7 @@ from typing import Any
 import aiosqlite
 
 from hassette.const.misc import SECONDS_PER_DAY
-from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, SQL_BEGIN, safe_rollback
+from hassette.core.database_sql import CLEANUP_PROGRESS_LOG_INTERVAL, SQL_BEGIN, reclaim_free_pages, safe_rollback
 from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget, build_age_where
 
 if typing.TYPE_CHECKING:
@@ -249,7 +249,8 @@ class DatabaseRetentionMixin:
         "parent-guard deletes failed") so it isn't only visible in a separate log line.
 
         Skipped cycles are counted by ``_record_parent_guard_skip``; the counter resets whenever
-        the parent-guard actually runs, whether or not it succeeds.
+        the parent-guard actually runs, whether or not it succeeds. The cycle ends by reclaiming the
+        pages its deletes freed (``_reclaim_freed_pages``).
         """
         config = self.hassette.config
         now = time.time()
@@ -303,4 +304,24 @@ class DatabaseRetentionMixin:
                 "Retention cleanup: deleted %d retired listeners, %d retired scheduled_jobs",
                 listeners_deleted,
                 jobs_deleted,
+            )
+
+        await self._reclaim_freed_pages()
+
+    async def _reclaim_freed_pages(self) -> None:
+        """Return the pages this cycle's deletes freed, so the free list can't grow without bound.
+
+        Routine maintenance: the free list otherwise keeps the file larger than its live data
+        indefinitely. The size failsafe measures live data only, so this has no effect on its
+        decisions. Any remainder past the time budget is picked up by the next cycle. No
+        checkpoint here: SQLite's auto-checkpoint covers the WAL.
+        """
+        try:
+            reclaim = await reclaim_free_pages(self.db)
+        except Exception:
+            self.logger.exception("Retention cleanup: free-page reclaim failed")
+            return
+        if reclaim.reclaimed > 0:
+            self.logger.info(
+                "Retention cleanup: reclaimed %d free pages (%d remaining)", reclaim.reclaimed, reclaim.remaining
             )

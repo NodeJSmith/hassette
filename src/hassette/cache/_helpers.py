@@ -9,6 +9,10 @@ key validation live here as free functions that both import and call directly.
 import asyncio
 import logging
 import pickle
+from collections.abc import Sequence
+from typing import Any
+
+from hassette.utils.aiosqlite_utils import checkpoint_blocked
 
 logger = logging.getLogger(__name__)
 
@@ -33,15 +37,20 @@ BUSY_TIMEOUT_MS = 5000
 """SQLite busy_timeout (ms) applied to every cache connection (async and sync),
 matching the convention in ``database_service.py``'s ``_BUSY_TIMEOUT_MS``."""
 
-SCHEMA_DDL = (
-    "PRAGMA auto_vacuum = INCREMENTAL",
-    "CREATE TABLE IF NOT EXISTS cache_entries (key TEXT PRIMARY KEY, value BLOB NOT NULL, expires_at REAL)",
-)
-"""DDL statements to run during cache initialization, in order.
+SCHEMA_DDL = ("CREATE TABLE IF NOT EXISTS cache_entries (key TEXT PRIMARY KEY, value BLOB NOT NULL, expires_at REAL)",)
+"""DDL statements to run during cache initialization, in order."""
 
-``PRAGMA auto_vacuum = INCREMENTAL`` must run before ``CREATE TABLE`` -- it is a
-no-op once a database already has tables, so ordering matters here.
-"""
+
+def log_checkpoint_outcome(row: Sequence[Any] | None) -> None:
+    """Warn if a ``CHECKPOINT_TRUNCATE_SQL`` result row says it was blocked.
+
+    A blocked checkpoint (a reader held the WAL open past the busy timeout) doesn't raise. It is
+    best-effort here -- the data is already cleared and a later auto-checkpoint returns the space --
+    so it is logged, not raised.
+    """
+    if checkpoint_blocked(row):
+        result = None if row is None else tuple(row)
+        logger.warning("Cache clear: WAL checkpoint did not complete (%s); disk space is returned later", result)
 
 
 def resolve_ttl(ttl: int | None, default_ttl: int | None) -> int | None:

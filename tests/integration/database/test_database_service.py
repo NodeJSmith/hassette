@@ -530,8 +530,8 @@ async def test_size_failsafe_skips_when_limit_is_zero(initialized_service: Datab
     """_check_size_failsafe() returns immediately when db_max_size_mb == 0."""
     initialized_service.hassette.config.database.max_size_mb = 0
 
-    # Patch get_db_size_mb to detect if it is ever called
-    with patch.object(initialized_service, "get_db_size_mb") as mock_size:
+    # Patch get_live_data_size_mb to detect if it is ever called
+    with patch.object(initialized_service, "get_live_data_size_mb") as mock_size:
         await initialized_service._check_size_failsafe()
         mock_size.assert_not_called()
 
