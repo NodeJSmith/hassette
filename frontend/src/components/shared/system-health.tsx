@@ -1,6 +1,8 @@
 import { cn } from "@/lib/utils";
 
+import { WS_PATH } from "../../api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
+import { resolveWsUrl } from "../../lib/base-path";
 import type { ConnectionStatus } from "../../state/store";
 import { useAppStore } from "../../state/store";
 import { pluralize } from "../../utils/format";
@@ -21,6 +23,10 @@ const STATUS_CONFIG: Record<ConnectionStatus, { dotClass: string; label: string 
   disconnected: {
     dotClass: "inline-block size-2 shrink-0 rounded-full bg-[var(--destructive-vivid)]",
     label: "Disconnected",
+  },
+  unreachable: {
+    dotClass: "inline-block size-2 shrink-0 rounded-full bg-[var(--destructive-vivid)]",
+    label: "Can't reach server",
   },
 };
 
@@ -55,6 +61,9 @@ export function SystemHealth({ variant }: Props) {
 
   const { dotClass, label } = STATUS_CONFIG[connection];
 
+  // The URL that keeps failing is the useful clue when it's misresolved (e.g. a wrong base path).
+  const unreachableUrl = connection === "unreachable" ? resolveWsUrl(WS_PATH) : null;
+
   // "Disconnected" takes visual precedence over "database degraded"
   const showDegraded = telemetryDegraded && connection === "connected";
   const stacked = variant === "stacked";
@@ -79,11 +88,30 @@ export function SystemHealth({ variant }: Props) {
 
   return (
     <div className={cn("flex min-w-0", stacked ? "flex-col items-start gap-2" : "items-center gap-3")}>
-      <span className="flex min-w-0 items-center gap-2" role="status" data-testid="ws-indicator">
+      <span
+        className={cn("flex min-w-0 items-center gap-2", stacked && "flex-wrap")}
+        role="status"
+        data-testid="ws-indicator"
+        title={unreachableUrl ? `Can't reach ${unreachableUrl}` : undefined}
+      >
         <span className={dotClass} />
         <span className={connectionLabelClass} data-testid="health-label">
           {label}
         </span>
+        {unreachableUrl && (
+          // The sidebar footer is narrow, so the URL gets its own wrapping line under the label there;
+          // the status bar keeps it inline and truncated, with the full URL in the title.
+          <span
+            className={cn(
+              connectionLabelClass,
+              "text-muted-foreground",
+              stacked ? "basis-full pl-4 break-all" : "max-w-64 min-w-0 truncate",
+            )}
+            data-testid="ws-url"
+          >
+            {unreachableUrl}
+          </span>
+        )}
       </span>
 
       {showDegraded && (

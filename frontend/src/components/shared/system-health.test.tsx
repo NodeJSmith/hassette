@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { WS_PATH } from "../../api/endpoints";
+import { resolveWsUrl } from "../../lib/base-path";
 import { mockMediaQueryMatches, renderWithAppState } from "../../test/render-helpers";
 import { SystemHealth } from "./system-health";
 
@@ -34,6 +36,23 @@ describe("SystemHealth — connection states", () => {
     });
     expect(getByText("Reconnecting...")).toBeDefined();
     expect(getByTestId("ws-indicator").getAttribute("role")).toBe("status");
+  });
+
+  it("renders unreachable state with the WebSocket URL being tried", () => {
+    const { getByText, getByTestId } = renderWithAppState(<SystemHealth variant="stacked" />, {
+      storeOverrides: { connection: "unreachable" },
+    });
+    expect(getByText("Can't reach server")).toBeDefined();
+    const url = resolveWsUrl(WS_PATH);
+    expect(getByTestId("ws-url").textContent).toBe(url);
+    expect(getByTestId("ws-indicator").getAttribute("title")).toBe(`Can't reach ${url}`);
+  });
+
+  it("omits the WebSocket URL outside the unreachable state", () => {
+    const { queryByTestId } = renderWithAppState(<SystemHealth variant="stacked" />, {
+      storeOverrides: { connection: "disconnected" },
+    });
+    expect(queryByTestId("ws-url")).toBeNull();
   });
 
   it("always includes status text for screen readers", () => {
