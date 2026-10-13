@@ -43,11 +43,16 @@ class TestResolveLocations:
         assert result.env_files == (cfg / ".env",)
         assert result.config_home == cfg
 
-    @pytest.mark.parametrize("name", ["HASSETTE__CONFIG_DIR", "hassette__config_dir", "HASSETTE_CONFIG_DIR"])
+    @pytest.mark.parametrize("name", ["HASSETTE__CONFIG_DIR", "hassette__config_dir"])
     def test_config_dir_env_names_match_case_insensitively(self, tmp_path: Path, name: str) -> None:
         result = resolve_locations({name: str(tmp_path / "cfg")}, cwd=tmp_path)
 
         assert result.config_dir == tmp_path / "cfg"
+
+    def test_single_underscore_config_dir_is_not_read(self, tmp_path: Path, no_docker_config_dir: Path) -> None:
+        result = resolve_locations({"HASSETTE_CONFIG_DIR": str(tmp_path / "cfg")}, cwd=tmp_path)
+
+        assert not result.config_dir_explicit
 
     def test_config_dir_argument_beats_env(self, tmp_path: Path) -> None:
         result = resolve_locations({"HASSETTE__CONFIG_DIR": "/env"}, config_dir="flag", cwd=tmp_path)
@@ -221,14 +226,13 @@ class TestRelativePaths:
         assert config.data_dir == tmp_path / "data"
         assert config.database.path == tmp_path / "h.db"
 
-    @pytest.mark.parametrize("name", ["HASSETTE_DATA_DIR", "HASSETTE__DATA_DIR"])
-    def test_env_data_dir_alias_is_relative_to_the_supplied_cwd(
-        self, tmp_path: Path, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch, name: str
+    def test_env_data_dir_is_relative_to_the_supplied_cwd(
+        self, tmp_path: Path, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A relative data-dir env value anchors to the build's cwd, not the process cwd."""
         monkeypatch.chdir(tmp_path_factory.mktemp("elsewhere"))
 
-        config = HassetteConfig(environ={name: "data"}, cwd=tmp_path, config_file=[], env_file=[])
+        config = HassetteConfig(environ={"HASSETTE__DATA_DIR": "data"}, cwd=tmp_path, config_file=[], env_file=[])
 
         assert config.data_dir == tmp_path / "data"
 
@@ -257,10 +261,10 @@ class TestBootstrapLogLevel:
 
         assert get_log_level() == "DEBUG"
 
-    def test_ignores_the_retired_flat_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        for name in ("HASSETTE__LOGGING__LOG_LEVEL", "HASSETTE_LOG_LEVEL", "LOG_LEVEL"):
-            monkeypatch.delenv(name, raising=False)
-        monkeypatch.setenv("HASSETTE__LOG_LEVEL", "DEBUG")
+    @pytest.mark.parametrize("name", ["HASSETTE__LOG_LEVEL", "HASSETTE_LOG_LEVEL", "LOG_LEVEL"])
+    def test_ignores_other_spellings(self, monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+        monkeypatch.delenv("HASSETTE__LOGGING__LOG_LEVEL", raising=False)
+        monkeypatch.setenv(name, "DEBUG")
 
         assert get_log_level() == "INFO"
 

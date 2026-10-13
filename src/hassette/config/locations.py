@@ -26,14 +26,14 @@ SETTINGS_ENV_PREFIX = "hassette__"
 ENV_NESTED_DELIMITER = "__"
 """Separator between nested setting names in an env var (``HASSETTE__LOGGING__LOG_LEVEL``)."""
 
-CONFIG_DIR_ENV_NAMES = ("hassette__config_dir", "hassette_config_dir")
-"""Env names that set `config_dir` explicitly, in priority order (compared case-insensitively)."""
+CONFIG_DIR_ENV_NAME = "hassette__config_dir"
+"""Env name that sets `config_dir` explicitly (compared case-insensitively)."""
 
-DATA_DIR_ENV_NAMES = ("hassette__data_dir", "hassette_data_dir")
-"""Env names `default_data_dir` reads, in priority order (compared case-insensitively).
+DATA_DIR_ENV_NAME = "hassette__data_dir"
+"""Env name `default_data_dir` reads (compared case-insensitively).
 
-The env settings source also reads ``HASSETTE__DATA_DIR`` as the ``data_dir`` field; both give the
-same value, and this lookup is what lets the field default see it before the sources run."""
+The env settings source also reads it as the ``data_dir`` field; both give the same value, and
+this lookup is what lets the field default see it before the sources run."""
 
 VERSION = get_parsed_version()
 
@@ -88,9 +88,9 @@ def resolve_locations(
     """Resolve the config locations from explicit inputs and the process environment.
 
     Args:
-        environ: The process environment to read ``HASSETTE__CONFIG_DIR``/``HASSETTE_CONFIG_DIR`` from.
+        environ: The process environment to read ``HASSETTE__CONFIG_DIR`` from.
         config_dir: An explicit config directory (``--config-dir`` or a ``config_dir`` init kwarg).
-            Beats the env vars.
+            Beats the env var.
         config_file: Replaces the TOML search list (``--config-file``). ``None`` searches.
         env_file: Replaces the ``.env`` search list (``--env-file``). ``None`` searches.
         cwd: Directory relative inputs resolve against. Defaults to the current working directory.
@@ -101,7 +101,7 @@ def resolve_locations(
     """
     cwd = (cwd or Path.cwd()).resolve()
 
-    explicit = config_dir if config_dir is not None else env_lookup(environ, CONFIG_DIR_ENV_NAMES)
+    explicit = config_dir if config_dir is not None else env_lookup(environ, CONFIG_DIR_ENV_NAME)
     if explicit is not None:
         resolved_dir = anchored(explicit, cwd)
         search_dirs = [resolved_dir]
@@ -135,27 +135,24 @@ def default_config_dir() -> Path:
 def default_data_dir(environ: Mapping[str, str], cwd: Path) -> Path:
     """Return the data directory used when no settings source sets ``data_dir``.
 
-    Resolution order: ``HASSETTE__DATA_DIR`` or ``HASSETTE_DATA_DIR`` in `environ`, then ``/data``
+    Resolution order: ``HASSETTE__DATA_DIR`` in `environ`, then ``/data``
     when it exists, then the platformdirs user data path. A relative env value is anchored to `cwd`.
     """
-    if (env := env_lookup(environ, DATA_DIR_ENV_NAMES)) is not None:
+    if (env := env_lookup(environ, DATA_DIR_ENV_NAME)) is not None:
         return anchored(env, cwd)
     if DOCKER_DATA_DIR.exists():
         return DOCKER_DATA_DIR
     return platformdirs.user_data_path("hassette", version=f"v{VERSION.major}")
 
 
-def env_lookup(environ: Mapping[str, str], names: Sequence[str]) -> str | None:
-    """Return the first non-empty value among `names`, matching env names case-insensitively."""
+def env_lookup(environ: Mapping[str, str], name: str) -> str | None:
+    """Return the non-empty value of `name`, matching env names case-insensitively."""
     lowered = {k.lower(): v for k, v in environ.items()}
-    for name in names:
-        if value := lowered.get(name):
-            return value
-    return None
+    return lowered.get(name) or None
 
 
 def is_config_dir_env(name: str) -> bool:
-    return name.lower() in CONFIG_DIR_ENV_NAMES
+    return name.lower() == CONFIG_DIR_ENV_NAME
 
 
 def anchored(path: str | PurePath, base: Path) -> Path:

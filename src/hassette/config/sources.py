@@ -8,7 +8,7 @@ directory, values from the process env and init kwargs to the working directory.
 """
 
 import tomllib
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from logging import getLogger
 from pathlib import Path
 from typing import Any
@@ -28,7 +28,7 @@ from hassette.config.classes import (
     model_annotation,
     normalize_toml_file,
 )
-from hassette.config.locations import anchored, is_config_dir_env
+from hassette.config.locations import anchored
 from hassette.config.models import AppsConfig
 from hassette.exceptions import ConfigError
 
@@ -72,9 +72,7 @@ class FileDotEnvSettingsSource(DotEnvSettingsSource):
             raw = dict(dotenv_values(self.path, encoding=self.env_file_encoding or "utf8"))
         except (OSError, UnicodeDecodeError) as exc:  # python-dotenv skips malformed lines; it has no parse error
             raise config_file_error(self.path, exc) from exc
-        # HASSETTE_CONFIG_DIR has no settings prefix but is a config_dir spelling: record it so a
-        # .env that sets it is reported instead of silently ignored
-        record_keys(self.build, self, raw.items(), str(self.path), also=is_config_dir_env)
+        record_keys(self.build, self, raw.items(), str(self.path))
         return parse_env_vars(raw, self.case_sensitive, self.env_ignore_empty, self.env_parse_none_str)
 
     def __call__(self) -> dict[str, Any]:
@@ -174,11 +172,10 @@ def record_keys(
     source: EnvSettingsSource,
     items: Iterable[tuple[str, str | None]],
     origin: str,
-    also: Callable[[str], bool] = lambda _name: False,
 ) -> None:
-    """Record each settings-prefixed name in `items` (and each name `also` accepts) as read from `origin`."""
+    """Record each settings-prefixed name in `items` as read from `origin`."""
     build.env_keys.extend(
         EnvKey(name, value, origin)
         for name, value in items
-        if (name.lower().startswith(source.env_prefix) or also(name)) and not (source.env_ignore_empty and value == "")
+        if name.lower().startswith(source.env_prefix) and not (source.env_ignore_empty and value == "")
     )

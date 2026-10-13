@@ -147,6 +147,14 @@ The container's start script reads the `HASSETTE_DOCKER_*` variables, not Hasset
 
 The renamed variables have no fallback. If an old name such as `HASSETTE__INSTALL_DEPS` is still set, the start script's config check rejects it as an unknown key, prints the "HASSETTE CAN'T START" banner, and the container exits with code 78 after its retry delay. The dependency install never runs under the old name.
 
+**Alternate environment variable spellings are no longer read.** Hassette ignores them like any unrelated variable, so a setup that still uses one silently falls back to the default. Rename each one:
+
+| Removed | Replacement |
+|---|---|
+| `LOG_LEVEL`, `HASSETTE_LOG_LEVEL` | `HASSETTE__LOGGING__LOG_LEVEL` |
+| `HASSETTE_CONFIG_DIR` | `HASSETTE__CONFIG_DIR` |
+| `HASSETTE_DATA_DIR` | `HASSETTE__DATA_DIR` |
+
 ### Relative Paths
 
 **Relative paths resolve against the file that sets them.** A relative path in `hassette.toml` is relative to that file's directory, not the working directory. This breaks `./config/hassette.toml` layouts that wrote working-directory-relative paths. The rule covers `apps.directory`, `data_dir`, `database.path`, `cli.token_file`, and each app's `app_dir`.

@@ -21,7 +21,7 @@ class OptedOutConfig(AppConfig):
 @pytest.fixture
 def dotenv_in_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Outside a running Hassette, the default search includes ``./.env``."""
-    for key in ("HASSETTE__CONFIG_DIR", "HASSETTE_CONFIG_DIR", "GREETING"):
+    for key in ("HASSETTE__CONFIG_DIR", "GREETING"):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".env").write_text("GREETING=from-dotenv\n", encoding="utf-8")

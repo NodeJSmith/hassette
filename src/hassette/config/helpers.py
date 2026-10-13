@@ -73,9 +73,9 @@ def warn_log_level_not_valid(log_level: str, fallback_value: LogLevel) -> None:
 def get_log_level() -> LogLevel:
     """Return the bootstrap log level, used before the config is loaded.
 
-    Reads ``HASSETTE__LOGGING__LOG_LEVEL`` (the setting itself), then ``HASSETTE_LOG_LEVEL``, then ``LOG_LEVEL``.
+    Reads ``HASSETTE__LOGGING__LOG_LEVEL``, the same variable that sets ``logging.log_level``.
     """
-    log_level = os.getenv("HASSETTE__LOGGING__LOG_LEVEL") or os.getenv("HASSETTE_LOG_LEVEL") or os.getenv("LOG_LEVEL")
+    log_level = os.getenv("HASSETTE__LOGGING__LOG_LEVEL")
     return coerce_log_level(log_level, "INFO")
 
 
