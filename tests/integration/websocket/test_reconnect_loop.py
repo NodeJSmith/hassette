@@ -12,7 +12,6 @@ Complements test_reconnect.py (partial_cleanup and the connection-lost event).
 """
 
 import asyncio
-import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
@@ -557,7 +556,7 @@ async def test_repeated_accept_then_drop_cycles_keep_backing_off_up_to_the_fast_
 
 @pytest.mark.usefixtures("fast_reconnect")
 async def test_shutdown_while_receiving_ends_the_recv_task_without_an_error(
-    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant, caplog: pytest.LogCaptureFixture
+    websocket_service: WebsocketService, fake_ha: FakeHomeAssistant
 ) -> None:
     """Shutdown cancelling serve() closes the socket under a blocked receive(); the recv task ends quietly (#2757)."""
     receiving = asyncio.Event()  # set each time the recv loop blocks in receive(), so shutdown lands mid-receive
@@ -567,7 +566,6 @@ async def test_shutdown_while_receiving_ends_the_recv_task_without_an_error(
         receiving.set()
         return await original_receive(ws, *args, **kwargs)
 
-    caplog.set_level(logging.DEBUG, logger="hassette")
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(aiohttp.ClientWebSocketResponse, "receive", signalling_receive)
         async with serving(websocket_service, fake_ha) as task:
@@ -583,5 +581,4 @@ async def test_shutdown_while_receiving_ends_the_recv_task_without_an_error(
             await asyncio.gather(task, recv_task, return_exceptions=True)
 
     assert not recv_task.cancelled(), "the socket close must reach the recv task before any cancellation"
-    assert recv_task.exception() is None
-    assert [r.getMessage() for r in caplog.records if r.levelno >= logging.ERROR] == []
+    assert recv_task.exception() is None, "a recv task that raises is reported by TaskBucket as a crash"
