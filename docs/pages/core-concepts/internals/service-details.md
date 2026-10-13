@@ -169,7 +169,7 @@ flowchart TD
 
     subgraph sources["Cache Population"]
         bus_sub["Bus subscription<br/>(priority 100)"]
-        poll["Periodic poll<br/>(optional run_every)"]
+        poll["Periodic poll<br/>(run_every)"]
     end
 
     subgraph proxy["StateProxy"]
