@@ -48,5 +48,17 @@ describe("base-path", () => {
       const { resolveWsUrl } = await loadWithBase(`https://example.test${prefix}/`);
       expect(resolveWsUrl("api/ws")).toBe(`wss://example.test${prefix}/api/ws`);
     });
+
+    it("masks the ingress token for display", async () => {
+      const { redactIngressToken, resolveWsUrl } = await loadWithBase(`${prefix}/`);
+      expect(redactIngressToken(resolveWsUrl("api/ws"))).toBe(
+        `ws://${location.host}/api/hassio_ingress/<token>/api/ws`,
+      );
+    });
+  });
+
+  it("leaves URLs without an ingress prefix unchanged when redacting", async () => {
+    const { redactIngressToken, resolveWsUrl } = await loadWithBase("/");
+    expect(redactIngressToken(resolveWsUrl("api/ws"))).toBe(`ws://${location.host}/api/ws`);
   });
 });

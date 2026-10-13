@@ -20,7 +20,15 @@ import {
   simulateConnected,
 } from "../test/websocket-test-utils";
 import { LOGIN_PATH } from "../utils/app-routes";
-import { AUTH_CHECK_TIMEOUT_MS, HANDSHAKE_TIMEOUT_MS, INITIAL_BACKOFF_MS, MAX_BACKOFF_MS } from "./use-websocket";
+import {
+  AUTH_CHECK_TIMEOUT_MS,
+  HANDSHAKE_TIMEOUT_MS,
+  INITIAL_BACKOFF_MS,
+  JITTER_RATIO,
+  jitteredDelay,
+  MAX_BACKOFF_MS,
+  UNREACHABLE_ATTEMPT_THRESHOLD,
+} from "./use-websocket";
 
 const mockNavigate = vi.hoisted(() => vi.fn());
 
@@ -50,6 +58,7 @@ describe("useWebSocket", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it("creates only one WebSocket connection across re-renders", () => {
@@ -115,6 +124,15 @@ describe("useWebSocket", () => {
     // Should be "disconnected" (not "reconnecting") since never connected
     expect(useAppStore.getState().connection).toBe("disconnected");
   });
+
+  /** Opens the first socket, then closes it: a reconnect that skips the auth check. */
+  function renderAndCloseAfterOpen() {
+    const { ws } = renderWebSocketHook();
+    act(() => {
+      ws.simulateOpen();
+      ws.onclose?.();
+    });
+  }
 
   describe("closed before onopen ever fires (ambiguous signal: could be a rejected handshake or any other pre-open failure)", () => {
     it("redirects to /login only after a REST check confirms Hassette's own 401", async () => {
@@ -240,6 +258,107 @@ describe("useWebSocket", () => {
 
       // The existing reconnect-with-backoff behavior fires a new connection attempt.
       expectReconnectAfterBackoff();
+    });
+  });
+
+  describe("repeated attempts that never reach onopen", () => {
+    const latestSocket = () => MockWebSocket.instances[MockWebSocket.instances.length - 1];
+
+    /** Closes the newest socket before it opens, then runs the auth check and the reconnect delay. */
+    async function failLatestAttemptBeforeOpen() {
+      const ws = latestSocket();
+      await act(async () => {
+        ws.onclose?.();
+        await vi.advanceTimersByTimeAsync(MAX_BACKOFF_MS);
+      });
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      mockedGetSystemStatus.mockResolvedValue(HEALTHY_SYSTEM_STATUS);
+    });
+
+    it("shows 'unreachable' only once the threshold of never-opened attempts is reached", async () => {
+      renderWebSocketHook();
+
+      for (let i = 1; i < UNREACHABLE_ATTEMPT_THRESHOLD; i++) {
+        await failLatestAttemptBeforeOpen();
+        expect(useAppStore.getState().connection).not.toBe("unreachable");
+      }
+
+      await failLatestAttemptBeforeOpen();
+      expect(useAppStore.getState().connection).toBe("unreachable");
+      // Still retrying, and the retry doesn't flash back to "Connecting...".
+      expect(MockWebSocket.instances).toHaveLength(UNREACHABLE_ATTEMPT_THRESHOLD + 1);
+      expect(useAppStore.getState().connection).toBe("unreachable");
+    });
+
+    it("leaves 'unreachable' once a later attempt connects", async () => {
+      renderWebSocketHook();
+      for (let i = 0; i < UNREACHABLE_ATTEMPT_THRESHOLD; i++) await failLatestAttemptBeforeOpen();
+
+      simulateConnected(latestSocket());
+
+      const { connection } = useAppStore.getState();
+      expect(connection).toBe("connected");
+    });
+
+    it("switches from 'unreachable' to 'connecting' as soon as the transport opens", async () => {
+      renderWebSocketHook();
+      for (let i = 0; i < UNREACHABLE_ATTEMPT_THRESHOLD; i++) await failLatestAttemptBeforeOpen();
+      expect(useAppStore.getState().connection).toBe("unreachable");
+
+      act(() => {
+        latestSocket().simulateOpen();
+      });
+
+      expect(useAppStore.getState().connection).toBe("connecting");
+    });
+
+    it("never shows 'unreachable' after a connection opened at least once", async () => {
+      const { ws } = renderConnectedWebSocketHook();
+      act(() => {
+        ws.onclose?.();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(MAX_BACKOFF_MS);
+      });
+
+      for (let i = 0; i < UNREACHABLE_ATTEMPT_THRESHOLD * 2; i++) await failLatestAttemptBeforeOpen();
+
+      expect(useAppStore.getState().connection).toBe("reconnecting");
+    });
+
+    it("never shows 'unreachable' after a transport-level open, even without a completed handshake", async () => {
+      renderAndCloseAfterOpen();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(MAX_BACKOFF_MS);
+      });
+
+      for (let i = 0; i < UNREACHABLE_ATTEMPT_THRESHOLD * 2; i++) {
+        await failLatestAttemptBeforeOpen();
+        expect(useAppStore.getState().connection).not.toBe("unreachable");
+      }
+    });
+  });
+
+  describe("jitteredDelay", () => {
+    it("stays within [base * (1 - JITTER_RATIO), base]", () => {
+      expect(jitteredDelay(10_000, () => 0)).toBe(10_000);
+      expect(jitteredDelay(10_000, () => 0.999_999)).toBeGreaterThanOrEqual(10_000 * (1 - JITTER_RATIO));
+      expect(jitteredDelay(10_000, () => 0.5)).toBe(10_000 * (1 - JITTER_RATIO / 2));
+    });
+
+    it("spreads reconnects from simultaneous disconnects across the jitter window", () => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, "random").mockReturnValue(0.999);
+      renderAndCloseAfterOpen();
+
+      // A full-length wait would land at INITIAL_BACKOFF_MS; the jittered one fires well before it.
+      act(() => {
+        vi.advanceTimersByTime(INITIAL_BACKOFF_MS * (1 - JITTER_RATIO) + 1);
+      });
+      expect(MockWebSocket.instances).toHaveLength(2);
     });
   });
 

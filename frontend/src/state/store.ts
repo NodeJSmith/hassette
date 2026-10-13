@@ -14,7 +14,11 @@ export const BUNDLE_VERSION = __HASSETTE_VERSION__;
 /** What the server reports when it has no package metadata (`UNKNOWN_VERSION` in version_utils.py). */
 const UNKNOWN_SERVER_VERSION = "unknown";
 
-export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected";
+/** `unreachable` means several attempts in a row have failed and none has ever reached the
+ * transport-level open. The usual causes are a misresolved URL or a server that isn't there,
+ * though a proxy that drops the upgrade looks the same. A server that is restarting looks
+ * different, because an earlier attempt already opened. */
+export type ConnectionStatus = "connecting" | "connected" | "reconnecting" | "disconnected" | "unreachable";
 
 /** Time-window presets for telemetry queries. */
 export type TimePreset = "since-restart" | "1h" | "24h" | "7d";

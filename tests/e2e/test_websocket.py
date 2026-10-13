@@ -2,6 +2,7 @@
 rendering stability when WS is unavailable, and the WS uptime-scoped fetch path.
 """
 
+import re
 import time
 
 import pytest
@@ -10,6 +11,10 @@ from playwright.sync_api import Page, expect
 from tests.e2e.conftest import DATA_LOAD_TIMEOUT_MS, DESKTOP_VIEWPORT, MOBILE_VIEWPORT
 
 pytestmark = pytest.mark.e2e
+
+# Any of the indicator's not-connected labels. Which one shows depends on how many attempts have
+# failed by the time the assertion runs, so the tests accept all of them.
+NOT_CONNECTED_LABEL = re.compile(r"Connecting|Disconnected|Can't reach server")
 
 
 def test_ws_connection_indicator_renders(page: Page, base_url: str) -> None:
@@ -27,13 +32,14 @@ def test_sidebar_shows_disconnected_state_at_desktop(page: Page, base_url: str) 
     """The sidebar footer reflects the WS connection state on desktop.
 
     With ws='none' in the test server, the WebSocket never connects,
-    so the indicator should show 'Disconnected' or 'Reconnecting'.
+    so the indicator shows a not-connected state: 'Connecting...', 'Disconnected', or (after
+    repeated failed attempts) 'Can't reach server'.
     """
     page.set_viewport_size(DESKTOP_VIEWPORT)
     page.goto(base_url + "/")
     indicator = page.locator("[data-testid='sidebar'] [data-testid='ws-indicator']")
     expect(indicator).to_be_visible()
-    expect(indicator).to_contain_text("onnect")
+    expect(indicator).to_contain_text(NOT_CONNECTED_LABEL)
 
 
 def test_status_bar_shows_disconnected_state_at_mobile(page: Page, base_url: str) -> None:
@@ -48,7 +54,7 @@ def test_status_bar_shows_disconnected_state_at_mobile(page: Page, base_url: str
     page.goto(base_url + "/")
     indicator = page.locator("[data-testid='status-bar'] [data-testid='ws-indicator']")
     expect(indicator).to_be_visible()
-    expect(indicator).to_contain_text("onnect")
+    expect(indicator).to_contain_text(NOT_CONNECTED_LABEL)
 
 
 def test_apps_page_renders_without_ws(page: Page, base_url: str) -> None:

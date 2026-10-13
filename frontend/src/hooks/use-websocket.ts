@@ -8,14 +8,24 @@ import type { WsServerMessage } from "../api/ws-types";
 import { validateWsMessage, WsValidationError } from "../api/ws-validator";
 import { resolveWsUrl } from "../lib/base-path";
 import { queryKeys } from "../lib/query-keys";
-import { appStatusKey, useAppStore } from "../state/store";
+import { appStatusKey, type ConnectionStatus, useAppStore } from "../state/store";
 
 export const MAX_BACKOFF_MS = 30_000;
 export const INITIAL_BACKOFF_MS = 1_000;
 const BACKOFF_MULTIPLIER = 1.5;
 export const HANDSHAKE_TIMEOUT_MS = 10_000;
 export const AUTH_CHECK_TIMEOUT_MS = 5_000;
+/** Consecutive never-opened attempts before the indicator switches to `unreachable`. */
+export const UNREACHABLE_ATTEMPT_THRESHOLD = 5;
+/** Each reconnect waits a random delay in `[base * (1 - JITTER_RATIO), base]`, so tabs that lost
+ * the same server don't all reconnect in lockstep. Jitter only shortens the delay, never extends it. */
+export const JITTER_RATIO = 0.5;
 const DEFAULT_LOG_LEVEL = "INFO";
+
+/** `base` shortened by a random fraction of up to `JITTER_RATIO`. `random` returns a value in `[0, 1)`. */
+export function jitteredDelay(base: number, random: () => number = Math.random): number {
+  return base * (1 - JITTER_RATIO * random());
+}
 
 function buildSubscribePayload(level: string): string {
   return JSON.stringify({
@@ -33,6 +43,10 @@ export function useWebSocket(): void {
   const backoffRef = useRef(INITIAL_BACKOFF_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasConnectedRef = useRef(false);
+  // Transport-level counterpart of hasConnectedRef: once any attempt reached onopen, the URL is
+  // known to resolve, so later failures are a restart rather than an unreachable server.
+  const hasOpenedRef = useRef(false);
+  const neverOpenedAttemptsRef = useRef(0);
 
   useEffect(() => {
     let unmounted = false;
@@ -41,7 +55,8 @@ export function useWebSocket(): void {
     function connect() {
       if (unmounted) return;
 
-      // When retrying after a first-connection failure, show "Connecting..." instead of "Disconnected"
+      // When retrying after a first-connection failure, show "Connecting..." instead of "Disconnected".
+      // "unreachable" is left alone, so a retry doesn't flash back to "Connecting...".
       if (!hasConnectedRef.current && useAppStore.getState().connection === "disconnected") {
         useAppStore.getState().setConnection("connecting");
       }
@@ -60,6 +75,11 @@ export function useWebSocket(): void {
 
       socket.onopen = () => {
         openedThisAttempt = true;
+        hasOpenedRef.current = true;
+        // The URL resolves after all, so "Can't reach server" is wrong while the handshake finishes.
+        if (useAppStore.getState().connection === "unreachable") {
+          useAppStore.getState().setConnection("connecting");
+        }
         handshakeTimer = setTimeout(() => {
           if (!hasConnectedRef.current || useAppStore.getState().connection !== "connected") {
             socket.close();
@@ -179,7 +199,8 @@ export function useWebSocket(): void {
         // Clear the callback so stale socket references aren't used
         useAppStore.getState().setSendLogLevel(() => {});
         if (unmounted) return;
-        useAppStore.getState().setConnection(hasConnectedRef.current ? "reconnecting" : "disconnected");
+        if (!openedThisAttempt && !hasOpenedRef.current) neverOpenedAttemptsRef.current += 1;
+        useAppStore.getState().setConnection(closedStatus());
 
         if (!openedThisAttempt) {
           // Closed before onopen ever fired for this attempt. On this backend a pre-accept
@@ -220,10 +241,18 @@ export function useWebSocket(): void {
       }
     }
 
+    function closedStatus(): ConnectionStatus {
+      if (hasConnectedRef.current) return "reconnecting";
+      if (!hasOpenedRef.current && neverOpenedAttemptsRef.current >= UNREACHABLE_ATTEMPT_THRESHOLD) {
+        return "unreachable";
+      }
+      return "disconnected";
+    }
+
     function scheduleReconnect() {
-      const delay = Math.min(backoffRef.current, MAX_BACKOFF_MS);
-      backoffRef.current = delay * BACKOFF_MULTIPLIER;
-      reconnectTimerRef.current = setTimeout(connect, delay);
+      const base = Math.min(backoffRef.current, MAX_BACKOFF_MS);
+      backoffRef.current = base * BACKOFF_MULTIPLIER;
+      reconnectTimerRef.current = setTimeout(connect, jitteredDelay(base));
     }
 
     connect();

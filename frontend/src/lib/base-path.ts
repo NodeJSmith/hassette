@@ -9,6 +9,9 @@
 
 const BASE = new URL(document.baseURI);
 
+/** The token segment of a Home Assistant ingress path, which identifies the ingress session. */
+const INGRESS_TOKEN_RE = /(\/api\/hassio_ingress\/)[^/]+/;
+
 /** The base's path without its trailing `/` (empty at `/`): wouter's `<Router base>`. */
 export const ROUTER_BASE = BASE.pathname.replace(/\/$/, "");
 
@@ -20,4 +23,9 @@ export function resolveAppUrl(path: string): string {
 /** The WebSocket URL for an app-relative path: the resolved URL with `http`→`ws` and `https`→`wss`. */
 export function resolveWsUrl(path: string): string {
   return resolveAppUrl(path).replace(/^http/, "ws");
+}
+
+/** `url` with any Home Assistant ingress token masked, for showing a URL on screen without leaking the token. */
+export function redactIngressToken(url: string): string {
+  return url.replace(INGRESS_TOKEN_RE, "$1<token>");
 }
