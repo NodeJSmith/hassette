@@ -5,6 +5,87 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.57.0](https://github.com/NodeJSmith/hassette/compare/v0.56.0...v0.57.0) (2026-10-13)
+
+### Breaking Changes
+
+Migration steps for the configuration items are in the [upgrading guide](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/). Run `hassette run --check` after upgrading.
+
+- **Hassette no longer exits when it can't reach Home Assistant** — it reconnects in place and apps keep running against the last known state cache until HA is back. Apps that relied on the process restarting after an HA reboot to rerun `on_initialize` must handle `websocket_connected` (or `homeassistant_started`) instead. The `[hassette.websocket]` retry settings (`connect_retry_*`, `early_drop_*`, `max_recovery_seconds`) are removed and, since unknown keys now fail startup, must be deleted from your config. `CouldNotFindHomeAssistantError` and the `TEST_EARLY_DROP_*` testing constants are removed, and `InvalidAuthError` is now a `HassetteError` rather than a `FatalError`. (#2743)
+- **Unknown settings fail startup, and several config paths and names moved** — see the groups below. (#2641)
+  - *Unknown settings:* an unknown `HASSETTE__*` environment variable or `hassette.toml` key stops startup with exit code 78. The error names the key and suggests the closest real setting. `HASSETTE__LOG_LEVEL` is now `HASSETTE__LOGGING__LOG_LEVEL`.
+  - *Config locations:* `config_dir` drives file lookup and can't be set in `hassette.toml` or `.env`; pass `--config-dir` or set `HASSETTE__CONFIG_DIR` in the process environment. Relative paths in a config file are relative to that file's directory, not the working directory. A config location you pass explicitly that doesn't exist is an error. The `config_file` and `env_file` settings are retired; use the `--config-file` and `--env-file` CLI flags.
+  - *App config:* an `AppConfig` `env_prefix` that starts with `hassette__` is now an unknown-key error because that namespace is reserved. Rename it to something like `MYAPP_`. `AppConfig` reads the same `.env` files as the running Hassette config instead of the fixed `/config/.env`, `./.env` and `./config/.env` list; set `env_file` in the app's `model_config` to read a specific file. App config overrides through `HASSETTE__APPS__<APP_KEY>__CONFIG__<FIELD>` keep working.
+  - *Exit codes and logging:* a missing HA token and other config errors exit with code 78, so supervisors that restart on any non-zero exit should treat 78 as "edit the config first". `hassette run` logs to stdout; update log collection that read stderr.
+  - *Docker:* apps moved from `/apps` to `/config/apps` and the image no longer sets `HASSETTE__APP_DIR`. Move `./apps` to `./config/apps` and drop the `./apps:/apps` volume, or keep the mount and set `HASSETTE__APPS__DIRECTORY=/apps`. The `docker_start.sh` variables were renamed with no fallback: `HASSETTE__INSTALL_DEPS`, `HASSETTE__PROJECT_DIR` and `HASSETTE__PRUNE_UV_CACHE` are now `HASSETTE_DOCKER_INSTALL_DEPS`, `HASSETTE_DOCKER_PROJECT_DIR` and `HASSETTE_DOCKER_PRUNE_UV_CACHE`.
+- **`run_app_precheck` and `disable_state_proxy_polling` removed** — both now fail startup as unknown keys. The app precheck always runs; set `allow_startup_if_app_precheck_fails = true` to start despite a failure. The state cache poll always runs; tune it with `state_proxy_poll_interval_seconds`. (#2762)
+- **`scheduler.min_delay_seconds`, `scheduler.max_delay_seconds` and `scheduler.default_delay_seconds` removed** — they only tuned an internal sleep clamp that made jobs fire late, and have no replacement. Delete them from `hassette.toml` and `HASSETTE__SCHEDULER__*` environment variables, or startup fails with the unknown-key error above. `behind_schedule_threshold_seconds` is unchanged. (#2726)
+- **`GET /api/logs/recent` validates `source_tier` as a case-sensitive enum** — `app | framework | all`, defaulting to `all`, matching the telemetry endpoints. Values that used to be lowercased server-side, such as `source_tier=APP`, now return 422. (#2603)
+
+### For App Authors: You Can Now Delete
+
+- **A hand-rolled replay guard for `event.*` entities after an HA restart** — comparing the entity's timestamp state against `last_changed` or the clock inside a handler or `should_run()`. Use `where=P.EventEntityFresh(max_age=...)`. (#2631)
+- **`changed_to=` / `changed_from=` callables or numeric string literals written because `True` and `20` never matched** — a lambda like `lambda v: v == "on"` for a boolean, or `"20.0"` for a number. `changed_to=True` now matches `"on"` and `changed_to=20` matches `"20.0"`. (#2684)
+- **Reads of climate and water heater setpoints out of `attributes.extras`** (`temperature`, `target_temp_high`, `target_temp_low`, `target_temp_step`) — use the typed `target_temperature`, `target_temperature_high`, `target_temperature_low` and, on water heaters, `target_temperature_step` fields. (#2635)
+- **Re-arming a one-shot job from its own callback through a different name or a deferred task** — `run_in(..., name=<same name>, if_exists="replace")` now works from inside the job's own callback. (#2650)
+- **A supervisor restart policy kept only so Hassette comes back after a Home Assistant restart** (Docker `restart:`, a systemd unit, the add-on Watchdog) — Hassette now reconnects on its own. Keep the policy if you want it for crashes. (#2743)
+
+### Home Assistant Connection
+
+- One reconnect loop now paces every failure. Refused connections, DNS failures and proxy 502/404 responses retry fast, with 1/2/4/5 s backoff plus jitter. A proxy's 401/403, a rejected certificate and a 429 (honoring `Retry-After`) retry every 5 minutes. A rejected token is retried 3 times, 60 s apart, because HA's token check is sensitive to clock skew at boot, and then the connection stays in `AUTH_FAILED` without reconnecting until Hassette restarts. (#2743)
+- A connection reports as connected only once HA's core state is `RUNNING`, so apps never see a "connected" HA that is still booting. Events during the gap aren't replayed, and the state cache is replaced on reconnect. (#2743)
+- Outage logging is bounded at about 13 rows an hour: a WARNING on the first failure, a "still unreachable" summary every 5 minutes, INFO on recovery with the outage duration, and DEBUG for each attempt. Until the first successful connection, failures log at ERROR with a `base_url` hint. (#2743)
+- The WebSocket's `max_msg_size` is raised to 16 MiB so a large `get_states` payload no longer triggers a close loop. (#2743)
+- A clean shutdown no longer logs `task ws:recv crashed` at ERROR (#2759), and `request_shutdown()` logs at DEBUG instead of INFO once per app instance and service (#2758).
+
+### Bus
+
+- Literal equality in predicates coerces Home Assistant's string state to the literal's type before comparing: `ValueIs`, `StateFrom`/`StateTo`/`AttrFrom`/`AttrTo`, and the `changed_from=` / `changed_to=` kwargs. `C.Comparison("==", True)` now agrees with `changed_to=True`. Use the new `C.Exact(value)` when you need a strict match against the raw value. (#2684)
+- `P.EventEntityFresh(max_age=...)` drops stale replays of `event.*` entities, such as buttons and remotes, that HA re-broadcasts after a restart. It compares the entity's timestamp state with its `last_changed`, never reads the current clock, and fails open when either value is missing or unparseable. (#2631)
+- `wait_for` cancellation warnings are rate-limited to one per 60 seconds per Bus outside shutdown, with a demoted count in the next warning. A WARNING now fires when pending `wait_for` calls reach 80% of `lifecycle.max_concurrent_dispatches`, and `hassette status` and `GET /api/health` report `pending_wait_for_count`. (#2744, #2723, #2725)
+- Removing a listener through the sync facade (`bus.sync.remove_listener` / `remove_all_listeners`) now cancels a pending `wait_for` on the event-loop thread, so the waiter always wakes. (#2687)
+
+### Scheduler
+
+- Jobs fire at their due time. The loop sleeps exactly until the next due job instead of flooring the sleep, which delayed jobs by up to 1 s in production and 2 s in dev. (#2726)
+- `After` accepts `hours=`, matching `Every`. Combining `timedelta=` with `seconds=` / `minutes=` / `hours=` now raises `ValueError`; before, the unit arguments were silently dropped. (#2648)
+- A `single` / `queued` / `restart` job that replaced itself from its own callback with `if_exists="replace"` used to hang forever. It now works for async and sync callbacks. (#2650)
+- `Scheduler.remove_all_jobs()` no longer raises `TaskBucketSealedError` during a forced shutdown. The removal methods are typed as `asyncio.Future[None]` rather than `asyncio.Task`; awaiting callers are unaffected. (#2660)
+- A handler or job that raises `TimeoutError` itself, such as a `wait_for` timing out or an `aiohttp` request timeout, is recorded as an error with a traceback instead of `timed_out`. `timed_out` now means the framework's execution deadline fired. (#2661)
+
+### State Models & Configuration
+
+- Climate and water heater setpoints populate their typed fields from Home Assistant's wire keys (`temperature`, `target_temp_high`, `target_temp_low`, `target_temp_step`). They were always `None` before, with the values only in `attributes.extras`. The values no longer appear in `extras`, so code reading them there must switch to the typed fields. (#2635)
+- A typed `AppConfig` subclass now warns when an app's `hassette.toml` config has keys it doesn't declare, naming the app and suggesting the closest declared field. (#2585)
+- `display_name` set on an app in `hassette.toml` is honored instead of silently dropped. (#2722)
+- Missing public types are exported from their package `__all__` lists: `TypedStateChangeEvent` and `TypedStateChangePayload` from `hassette.events` and `hassette`, `FalseySentinel` from `hassette.const`, `BlockingIOBehavior` and `ForgottenAwaitBehavior` from `hassette.types`, and `BlockingIODetectionConfig` from `hassette.config`. `HassetteNotInitializedError` now subclasses `HassetteError`, and still subclasses `RuntimeError`. (#2602)
+
+### Web UI & CLI
+
+- The web UI can be served under Home Assistant ingress (`/api/hassio_ingress/<token>/`, which the add-on's sidebar panel needs) and under sub-path reverse proxies such as `https://example.com/hassette/`. The base path comes from `X-Ingress-Path` or `X-Forwarded-Prefix`, honored only from a `trusted_proxies` peer with auth on. (#2720)
+- The connection indicator says "Can't reach server" and shows the URL when the WebSocket has never connected after five attempts. Reconnect delays are jittered so open tabs don't reconnect at the same moment. (#2760)
+- The Diagnostics page refreshes system health when the HA connection drops or recovers. (#2614)
+- Start and Reload are hidden for app instances removed from config, with a "not in config" chip on the instance. (#2653)
+- A `start`, `stop` or `reload` request for an app that already has an action running gets an immediate 409 `action_in_progress` instead of queueing behind it. Re-pressing reload after a client timeout no longer starts a second full restart. (#2612)
+- Execution rows that can't open a detail view are skipped in keyboard tab order (#2643), and the sidebar's warn group is labeled WARNING instead of SLOW (#2637).
+- Piped CLI tables stay greppable: with no TTY and no `$COLUMNS`, tables render at 1000 columns instead of being ellipsized at 80. `hassette log --instance` is hidden from `--help` and completion. (#2645)
+- `hassette status` shows `app_count` as "N tracked instances", since it counts tracked app instances rather than configured apps. (#2629)
+
+### Bug Fixes
+
+- **Database size limit uses live data** — the size failsafe could delete real telemetry rows from a database that was over `max_size_mb` only because of free pages or an untruncated WAL, and `incremental_vacuum` reclaimed one page per call. Delete decisions now use the size of in-use pages. After deletes, free pages are reclaimed in bounded chunks and the WAL is truncated, so the file on disk can sit above the limit by its free pages plus the WAL. The cache's `clear()` runs a full `VACUUM`. (#2751)
+- Retention and size-failsafe cleanup resume when `DatabaseService` restarts instead of waiting out a full interval, and maintenance tasks configured shorter than the heartbeat run at their own interval. A retention cleanup that keeps skipping the cleanup of retired listeners and jobs escalates to ERROR after 3 consecutive cycles. (#2677, #2688, #2678)
+- Hassette shuts down cleanly, with the session finalized as a failure, when the web API can't bind its host and port. Before, the process ended with no teardown and the session row stayed `running`. (#2719)
+- A WebSocket disconnect no longer records a cancelled `state_proxy_poll` execution. (#2623)
+
+### Documentation
+
+- New guide for controlling Hassette apps from Home Assistant with the `hass-hassette` integration. (#2625)
+- Docker dependencies page explains that project install and app loading are separate import paths, and shows the `src`-layout build backend config and how to check the wheel with `uv build --wheel`. (#2683, #2691)
+- Troubleshooting page corrected: what the app precheck validates, the real class-not-found message, and how `forgotten_await_behavior = "error"` behaves. (#2745)
+- Bus methods page defines `D`, `C` and `P`, the accepted `changed_from` / `changed_to` forms and the shorthand methods' shared parameters. (#2721)
+- Blocking detection is described as event-loop stalls, CPU-bound work included, not only blocking I/O. The CLI reference explains `cancelled` and `timed_out` runs that make `hassette job`'s `Total` exceed `OK + Fail + Skipped`. The lifecycle internals page states the correct `ServiceWatcher` shutdown order. (#2652, #2657, #2620)
+
 ## [0.56.0](https://github.com/NodeJSmith/hassette/compare/v0.55.0...v0.56.0) (2026-10-08)
 
 ### Breaking Changes
