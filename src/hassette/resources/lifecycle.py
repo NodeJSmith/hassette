@@ -118,7 +118,7 @@ def request_shutdown(resource: _LifecycleHostP, reason: str | None = None) -> No
     """Set the sticky shutdown flag. Idempotent."""
     resource = typing.cast("LifecycleMixin", resource)
     if not resource.shutdown_event.is_set():
-        resource.logger.info("%s shutdown requested: %s", resource.unique_name, reason or "no reason", stacklevel=2)
+        resource.logger.debug("%s shutdown requested: %s", resource.unique_name, reason or "no reason", stacklevel=2)
         resource.shutdown_event.set()
     # clear readiness early so callers back off
     mark_not_ready(resource, reason or "shutdown requested")
