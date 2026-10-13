@@ -53,7 +53,6 @@ class AppChangeReconcilerMixin:
     _create_instance_unlocked: Callable[..., Awaitable[None]]
     _stop_instance_unlocked: Callable[[str, int], Awaitable[None]]
     persist_manifests: Callable[[], Awaitable[None]]
-    retire_removed_app_registrations: Callable[[], Awaitable[None]]
     set_apps_configs: Callable[[dict[str, "AppManifest"]], None]
     resolve_only_apps: Callable[[], Awaitable[None]]
     _fold_unblocked_apps_into_changes: Callable[[ChangeSet], ChangeSet]
@@ -423,10 +422,6 @@ class AppChangeReconcilerMixin:
         """
         if changes.has_changes:
             await self.apply_changes(changes, original_config, current_config)
-        # After apply_changes() has stopped the orphans. Keyed on removal rather than on
-        # orphans: an app disabled before it was removed is never an orphan.
-        if original_config.keys() - current_config.keys():
-            await self.retire_removed_app_registrations()
 
         await self.hassette.send_event(
             HassetteSimpleEvent.from_topic(topic=Topic.HASSETTE_EVENT_APP_LOAD_COMPLETED),

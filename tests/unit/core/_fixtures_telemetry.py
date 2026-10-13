@@ -55,7 +55,8 @@ CREATE TABLE listeners (
     topic                 TEXT NOT NULL DEFAULT '',
     source_location       TEXT NOT NULL DEFAULT '',
     mode                  TEXT NOT NULL DEFAULT 'single',
-    retired_at            REAL
+    retired_at            REAL,
+    source_tier           TEXT NOT NULL DEFAULT 'app'
 );
 
 CREATE TABLE scheduled_jobs (
@@ -66,7 +67,8 @@ CREATE TABLE scheduled_jobs (
     handler_method        TEXT NOT NULL DEFAULT '',
     source_location       TEXT NOT NULL DEFAULT '',
     retired_at            REAL,
-    mode                  TEXT NOT NULL DEFAULT 'single'
+    mode                  TEXT NOT NULL DEFAULT 'single',
+    source_tier           TEXT NOT NULL DEFAULT 'app'
 );
 
 CREATE TABLE executions (

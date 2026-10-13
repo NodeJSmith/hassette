@@ -7,12 +7,8 @@ shared fixtures live in ``_fixtures_app_lifecycle.py`` via ``conftest.py``.
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, Mock
 
-import pytest
-
-from hassette.core.app_lifecycle_common import AppAdmissionMode
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.types.enums import BlockReason
-from tests.support.factories import make_change_set
 
 
 class TestReconcileBlockedApps:
@@ -151,78 +147,6 @@ class TestReconcileAppRegistrations:
         instances = {0: mock_app_instance}
 
         await lifecycle_service.reconcile_app_registrations("test_app", instances)
-
-
-class TestRetireRemovedAppRegistrations:
-    """Retiring removed apps' registrations happens only where those apps can't be running."""
-
-    async def test_passes_current_config_keys(
-        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
-    ) -> None:
-        mock_registry.manifests = {"app_a": MagicMock(), "app_b": MagicMock()}
-
-        await lifecycle_service.retire_removed_app_registrations()
-
-        retire = mock_hassette.command_executor.retire_removed_app_registrations
-        retire.assert_awaited_once()
-        assert sorted(retire.await_args.args[0]) == ["app_a", "app_b"]
-
-    async def test_failure_does_not_raise(
-        self, lifecycle_service: AppLifecycleService, mock_hassette: MagicMock, mock_registry: MagicMock
-    ) -> None:
-        mock_registry.manifests = {}
-        mock_hassette.command_executor.retire_removed_app_registrations = AsyncMock(side_effect=RuntimeError("DB"))
-
-        await lifecycle_service.retire_removed_app_registrations()
-
-    @pytest.mark.parametrize("manifests", [{}, {"app_a": MagicMock()}], ids=["no_apps", "apps"])
-    async def test_bootstrap_retires_before_starting_apps(
-        self, lifecycle_service: AppLifecycleService, mock_registry: MagicMock, manifests: dict[str, MagicMock]
-    ) -> None:
-        """Apps removed while hassette was down are retired at boot, whether or not any app remains."""
-        order: list[str] = []
-        mock_registry.manifests = manifests
-        mock_registry.get_snapshot = Mock(return_value=MagicMock(running_count=0, failed_count=0))
-        lifecycle_service.retire_removed_app_registrations = AsyncMock(side_effect=lambda: order.append("retire"))
-        lifecycle_service.start_apps = AsyncMock(side_effect=lambda **_: order.append("start"))
-
-        await lifecycle_service.bootstrap_apps(admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
-
-        assert order[0] == "retire"
-        lifecycle_service.retire_removed_app_registrations.assert_awaited_once()
-
-    async def test_config_change_retires_after_stopping_orphans(self, lifecycle_service: AppLifecycleService) -> None:
-        """A hot-reload-removed app is still running until its orphan stop, so retiring must wait for it."""
-        order: list[str] = []
-        lifecycle_service.stop_app = AsyncMock(side_effect=lambda key: order.append(f"stop:{key}"))
-        lifecycle_service.retire_removed_app_registrations = AsyncMock(side_effect=lambda: order.append("retire"))
-        changes = make_change_set(orphans={"orphan_a", "orphan_b"})
-        original = {"orphan_a": MagicMock(), "orphan_b": MagicMock()}
-
-        await lifecycle_service._reconcile_changes(changes, original, {})
-
-        assert order[-1] == "retire"
-        assert sorted(order[:-1]) == ["stop:orphan_a", "stop:orphan_b"]
-
-    async def test_removing_a_disabled_app_retires(self, lifecycle_service: AppLifecycleService) -> None:
-        """A disabled app is never an orphan, so removing it is a metadata-only change that still retires."""
-        lifecycle_service.retire_removed_app_registrations = AsyncMock()
-        lifecycle_service.apply_changes = AsyncMock()
-        changes = make_change_set(metadata_apps={"disabled_app"})
-
-        await lifecycle_service._reconcile_changes(changes, {"disabled_app": MagicMock()}, {})
-
-        lifecycle_service.apply_changes.assert_not_awaited()
-        lifecycle_service.retire_removed_app_registrations.assert_awaited_once()
-
-    async def test_config_change_without_removal_does_not_retire(self, lifecycle_service: AppLifecycleService) -> None:
-        lifecycle_service.retire_removed_app_registrations = AsyncMock()
-        lifecycle_service.apply_changes = AsyncMock()
-        changes = make_change_set(new_apps={"new_app"})
-
-        await lifecycle_service._reconcile_changes(changes, {}, {"new_app": MagicMock()})
-
-        lifecycle_service.retire_removed_app_registrations.assert_not_awaited()
 
 
 class TestSetAppsConfigs:

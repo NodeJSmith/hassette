@@ -1,15 +1,15 @@
 """Unit tests for retention cleanup pruning ``app_manifests`` rows of apps removed from config."""
 
-import logging
 import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, PropertyMock
 
 import aiosqlite
 import pytest
 
 from hassette.const.misc import SECONDS_PER_DAY
+from hassette.core.app_registry import AppRegistry
 from hassette.core.database_service import DatabaseService
 from tests.support.helpers import create_app_manifest
 from tests.support.sql import count_rows, insert_execution_row
@@ -20,6 +20,7 @@ __all__ = ["db", "mock_hassette_for_db", "retention_service"]  # re-exposed as f
 
 REMOVED_APP = "removed_app"
 RECENT_TS = time.time() - 60
+# Past the default database.retention_days, so rows stamped with it are outside the window.
 OLD_TS = time.time() - (30 * SECONDS_PER_DAY)
 
 
@@ -39,10 +40,12 @@ async def manifest_exists(db: aiosqlite.Connection, app_key: str) -> bool:
     return await cursor.fetchone() is not None
 
 
-async def insert_listener(db: aiosqlite.Connection, app_key: str, retired_at: float | None) -> int:
+async def insert_listener(
+    db: aiosqlite.Connection, app_key: str, retired_at: float | None, source_tier: str = "app"
+) -> int:
     cursor = await db.execute(
-        "INSERT INTO listeners (app_key, instance_index, name, retired_at) VALUES (?, 1, 'l', ?)",
-        (app_key, retired_at),
+        "INSERT INTO listeners (app_key, instance_index, name, retired_at, source_tier) VALUES (?, 1, 'l', ?, ?)",
+        (app_key, retired_at, source_tier),
     )
     assert cursor.lastrowid is not None
     return cursor.lastrowid
@@ -84,17 +87,19 @@ async def seed_recent_blocking_event(db: aiosqlite.Connection, app_key: str) -> 
     )
 
 
+async def retired_at_values(db: aiosqlite.Connection, table: str) -> list[float | None]:
+    cursor = await db.execute(f"SELECT retired_at FROM {table}")
+    return [row[0] for row in await cursor.fetchall()]
+
+
 async def test_removed_app_without_telemetry_is_pruned(
-    db: aiosqlite.Connection, retention_service: DatabaseService, caplog: pytest.LogCaptureFixture
+    db: aiosqlite.Connection, retention_service: DatabaseService
 ) -> None:
     await insert_manifest(db, REMOVED_APP)
 
-    with caplog.at_level(logging.INFO):
-        await run_cleanup(db, retention_service)
+    await run_cleanup(db, retention_service)
 
     assert not await manifest_exists(db, REMOVED_APP)
-    assert "Retention cleanup summary: deleted 1 removed app manifests" in caplog.text
-    assert REMOVED_APP in caplog.text
 
 
 async def test_app_in_current_config_is_never_pruned(
@@ -138,13 +143,13 @@ async def test_removed_app_pruned_once_its_telemetry_ages_out_in_same_cycle(
     assert not await manifest_exists(db, REMOVED_APP)
 
 
-async def test_removed_app_unretired_registrations_are_kept(
+async def test_removed_app_registrations_are_retired_not_deleted(
     db: aiosqlite.Connection, retention_service: DatabaseService
 ) -> None:
-    """During a hot reload a removed app runs until its orphan stop, with unretired rows.
+    """A removed app is never reconciled again, so retention retires its rows itself.
 
-    Retention must not infer retirement from config absence: the app lifecycle retires the rows
-    once the app has stopped, and until then the rows (and so the manifest) stay.
+    Also the state of an app mid-shutdown (``stop_app`` unregisters it before shutting it down):
+    its rows are retired this cycle, not deleted, so they (and the manifest) stay until they age out.
     """
     await insert_manifest(db, REMOVED_APP)
     listener_id = await insert_listener(db, REMOVED_APP, retired_at=None)
@@ -152,12 +157,56 @@ async def test_removed_app_unretired_registrations_are_kept(
     await insert_job(db, REMOVED_APP)
     await run_cleanup(db, retention_service)
 
+    assert all(ts is not None for ts in await retired_at_values(db, "listeners"))
+    assert all(ts is not None for ts in await retired_at_values(db, "scheduled_jobs"))
     assert await count_rows(db, "listeners") == 1
     assert await count_rows(db, "scheduled_jobs") == 1
     assert await manifest_exists(db, REMOVED_APP)
 
 
-async def test_configured_app_never_retired_registrations_are_kept(
+async def test_removed_app_still_running_keeps_unretired_registrations(
+    db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock
+) -> None:
+    """A hot reload swaps the config before stopping removed apps; a still-running app is live."""
+    mock_hassette_for_db.app_handler.registry.app_keys.return_value = [REMOVED_APP]
+    await insert_manifest(db, REMOVED_APP)
+    await insert_listener(db, REMOVED_APP, retired_at=None)
+    await insert_job(db, REMOVED_APP)
+    await run_cleanup(db, retention_service)
+
+    assert await retired_at_values(db, "listeners") == [None]
+    assert await retired_at_values(db, "scheduled_jobs") == [None]
+
+
+async def test_removed_app_still_running_without_telemetry_is_not_pruned(
+    db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock
+) -> None:
+    """Pruning a running app's manifest would hide rows it writes afterwards from retirement."""
+    mock_hassette_for_db.app_handler.registry.app_keys.return_value = [REMOVED_APP]
+    await insert_manifest(db, REMOVED_APP)
+
+    await run_cleanup(db, retention_service)
+
+    assert await manifest_exists(db, REMOVED_APP)
+
+
+async def test_unwired_app_handler_falls_back_to_config_keys(
+    db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock, tmp_path: Path
+) -> None:
+    manifest = create_app_manifest("kept", tmp_path)
+    mock_hassette_for_db.config.apps.manifests = {manifest.app_key: manifest}
+    # The accessor is a property that raises when unwired; patch it on the mock's own class.
+    type(mock_hassette_for_db).app_handler = PropertyMock(side_effect=RuntimeError("AppHandler not wired"))
+    await insert_manifest(db, manifest.app_key)
+    await insert_manifest(db, REMOVED_APP)
+
+    await run_cleanup(db, retention_service)
+
+    assert await manifest_exists(db, manifest.app_key)
+    assert not await manifest_exists(db, REMOVED_APP)
+
+
+async def test_configured_app_keeps_its_unretired_registrations(
     db: aiosqlite.Connection, retention_service: DatabaseService, mock_hassette_for_db: MagicMock, tmp_path: Path
 ) -> None:
     manifest = create_app_manifest("kept", tmp_path)
@@ -167,8 +216,58 @@ async def test_configured_app_never_retired_registrations_are_kept(
     await insert_job(db, manifest.app_key)
     await run_cleanup(db, retention_service)
 
-    assert await count_rows(db, "listeners") == 1
-    assert await count_rows(db, "scheduled_jobs") == 1
+    assert await retired_at_values(db, "listeners") == [None]
+    assert await retired_at_values(db, "scheduled_jobs") == [None]
+
+
+async def test_framework_registrations_are_not_retired(
+    db: aiosqlite.Connection, retention_service: DatabaseService
+) -> None:
+    await insert_listener(db, "__hassette__.bus", retired_at=None, source_tier="framework")
+
+    await run_cleanup(db, retention_service)
+
+    assert await retired_at_values(db, "listeners") == [None]
+
+
+async def test_removed_app_without_a_manifest_is_still_retired(
+    db: aiosqlite.Connection, retention_service: DatabaseService
+) -> None:
+    """Manifest writes are best-effort, so a removed app's rows must age out without one."""
+    await insert_listener(db, REMOVED_APP, retired_at=None)
+
+    await run_cleanup(db, retention_service)
+
+    assert all(ts is not None for ts in await retired_at_values(db, "listeners"))
+
+
+async def test_existing_retired_at_is_kept(db: aiosqlite.Connection, retention_service: DatabaseService) -> None:
+    """Retirement re-runs every cycle; it must not push an already-retired row's age-out further out."""
+    retired_at = time.time() - SECONDS_PER_DAY
+    await insert_manifest(db, REMOVED_APP)
+    await insert_listener(db, REMOVED_APP, retired_at=retired_at)
+
+    await run_cleanup(db, retention_service)
+
+    assert await retired_at_values(db, "listeners") == [retired_at]
+
+
+def test_live_app_keys_counts_only_apps_with_a_running_instance(
+    retention_service: DatabaseService, mock_hassette_for_db: MagicMock, tmp_path: Path
+) -> None:
+    """Config apps are live; beyond them, only registry keys with a running instance are."""
+    configured = create_app_manifest("configured", tmp_path)
+    mock_hassette_for_db.config.apps.manifests = {configured.app_key: configured}
+    registry = AppRegistry()
+    registry.register_app("running", 0, MagicMock())
+    registry.register_app("multi", 0, MagicMock())
+    registry.register_app("multi", 1, MagicMock())
+    registry.record_failure("failed_only", 0, RuntimeError("boom"))
+    registry.register_app("stopping", 0, MagicMock())
+    registry.unregister_app("stopping")
+    mock_hassette_for_db.app_handler.registry = registry
+
+    assert retention_service.live_app_keys() == sorted([configured.app_key, "multi", "running"])
 
 
 @pytest.mark.parametrize(

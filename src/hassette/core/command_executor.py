@@ -695,23 +695,6 @@ class CommandExecutor(Service):
             )
         )
 
-    async def retire_removed_app_registrations(self, current_app_keys: list[str]) -> tuple[int, int]:
-        """Retire the listener and job rows of every app removed from config.
-
-        Delegates to ``TelemetryRepository.retire_removed_app_registrations`` via
-        ``DatabaseService.submit``.
-
-        Args:
-            current_app_keys: Every app key in the current config.
-
-        Returns:
-            tuple[int, int]: ``(listeners_retired, jobs_retired)``.
-        """
-        await self.hassette.wait_for_ready([self.hassette.database_service])
-        return await self.hassette.database_service.submit(
-            self.repository.retire_removed_app_registrations(current_app_keys)
-        )
-
     def record_blocking_event(self, event: WatchdogEvent | MonkeypatchEvent) -> None:
         """Persist a blocking event row. Must be called on the loop thread.
 

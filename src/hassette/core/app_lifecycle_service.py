@@ -194,8 +194,6 @@ class AppLifecycleService(
         All declared dependencies are guaranteed ready by AppHandler's depends_on
         auto-wait before this method is invoked.
         """
-        # Covers apps removed while hassette was down; none of them was started this process.
-        await self.retire_removed_app_registrations()
         if not self.registry.manifests:
             self.logger.debug("No apps configured, skipping initialization")
             if admission_mode is AppAdmissionMode.WAIT_FOR_RELEASE:

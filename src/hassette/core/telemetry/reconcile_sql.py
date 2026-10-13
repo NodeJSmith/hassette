@@ -1,4 +1,4 @@
-"""SQL builders for reconciling listener and scheduled-job registrations."""
+"""SQL builders for reconciling listener and scheduled-job registrations and cleaning up removed apps."""
 
 import json
 from typing import Any
@@ -136,16 +136,17 @@ def build_retire_query(
     return sql, params
 
 
-def build_retire_removed_apps_query(table: str, current_app_keys: list[str], now: float) -> tuple[str, dict]:
-    """Build an UPDATE that sets ``retired_at`` on every unretired row of an app removed from config.
+def build_retire_removed_apps_query(table: str, live_app_keys: list[str], now: float) -> tuple[str, dict]:
+    """Build an UPDATE that sets ``retired_at`` on every unretired app-tier row of an app that isn't live.
 
-    A removed app has an ``app_manifests`` row but no entry in ``current_app_keys``; framework
-    registrations have no manifest, so they never match. Unlike ``build_retire_query``, rows are
-    retired whether or not they have execution history.
+    Removed apps are never reconciled again, so this is the only thing that retires their rows.
+    Framework registrations are ``source_tier = 'framework'`` and never match. Unlike
+    ``build_retire_query``, rows are retired whether or not they have execution history. Returns
+    the ``app_key`` of each retired row.
 
     Args:
         table: Table to update (``"listeners"`` or ``"scheduled_jobs"``).
-        current_app_keys: Every app key in the current config.
+        live_app_keys: Every app key in the current config or with a running instance.
         now: Epoch timestamp for ``retired_at``.
 
     Returns:
@@ -156,10 +157,39 @@ def build_retire_removed_apps_query(table: str, current_app_keys: list[str], now
     sql = f"""
         UPDATE {table} SET retired_at = :now
         WHERE retired_at IS NULL
-          AND app_key IN (
-              SELECT app_key FROM app_manifests
-              WHERE app_key NOT IN (SELECT value FROM json_each(:current_keys))
-          )
+          AND source_tier = 'app'
+          AND app_key NOT IN (SELECT value FROM json_each(:live_keys))
+        RETURNING app_key
     """
-    # json_each binds the whole variable-length key list as a single parameter.
-    return sql, {"now": now, "current_keys": json.dumps(current_app_keys)}
+    return sql, {"now": now, "live_keys": encode_app_keys(live_app_keys)}
+
+
+def build_prune_removed_app_manifests_query(live_app_keys: list[str]) -> tuple[str, dict]:
+    """Build a DELETE of every ``app_manifests`` row of an app that isn't live and that nothing references.
+
+    Executions always belong to a listener or scheduled_job, so "no listeners, jobs, log records
+    or blocking events for the app_key" also means no executions. ``app_key`` is the bare key in
+    every table, so the match covers all instance indexes. Returns the ``app_key`` of each
+    deleted row.
+
+    Args:
+        live_app_keys: Every app key in the current config or with a running instance.
+
+    Returns:
+        A ``(sql, params)`` tuple.
+    """
+    sql = """
+        DELETE FROM app_manifests
+        WHERE app_key NOT IN (SELECT value FROM json_each(:live_keys))
+          AND NOT EXISTS (SELECT 1 FROM listeners WHERE listeners.app_key = app_manifests.app_key)
+          AND NOT EXISTS (SELECT 1 FROM scheduled_jobs WHERE scheduled_jobs.app_key = app_manifests.app_key)
+          AND NOT EXISTS (SELECT 1 FROM log_records WHERE log_records.app_key = app_manifests.app_key)
+          AND NOT EXISTS (SELECT 1 FROM blocking_events WHERE blocking_events.app_key = app_manifests.app_key)
+        RETURNING app_key
+    """
+    return sql, {"live_keys": encode_app_keys(live_app_keys)}
+
+
+def encode_app_keys(app_keys: list[str]) -> str:
+    """Encode app keys for ``json_each``, which binds the whole variable-length list as one parameter."""
+    return json.dumps(app_keys)
