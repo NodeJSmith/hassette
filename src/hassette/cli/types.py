@@ -4,7 +4,7 @@ import re
 from typing import Annotated, Literal
 
 from cyclopts import Parameter
-from whenever import Instant, OffsetDateTime, PlainDateTime
+from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime
 
 from hassette.cli.output import now_epoch
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
@@ -66,14 +66,18 @@ def convert_since(value: str) -> float:
     if _ISO_NAIVE_PATTERN.match(value):
         try:
             # CLI input: user's terminal timezone, not the configured Hassette timezone
-            return PlainDateTime.parse_iso(value).assume_system_tz().timestamp()
+            return PlainDateTime.parse_iso(value).assume_tz(SYSTEM_TZ, disambiguation="compatible").timestamp()
         except ValueError:
             pass
 
     if _DATE_ONLY_PATTERN.match(value):
         try:
             # CLI input: user's terminal timezone, not the configured Hassette timezone
-            return PlainDateTime.parse_iso(value + "T00:00:00").assume_system_tz().timestamp()
+            return (
+                PlainDateTime.parse_iso(value + "T00:00:00")
+                .assume_tz(SYSTEM_TZ, disambiguation="compatible")
+                .timestamp()
+            )
         except ValueError:
             pass
 

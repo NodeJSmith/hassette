@@ -1,7 +1,7 @@
 """Tests for configurable timezone in date_utils."""
 
 import pytest
-from whenever import ZonedDateTime
+from whenever import SYSTEM_TZ, PlainDateTime, ZonedDateTime, hours
 
 import hassette.utils.date_utils as date_utils
 
@@ -28,12 +28,12 @@ class TestNow:
     def test_now_uses_configured_tz(self) -> None:
         date_utils.configure("America/Chicago")
         result = date_utils.now()
-        assert result.tz == "America/Chicago"
+        assert result.tz_id == "America/Chicago"
 
     def test_now_uses_system_tz_when_unconfigured(self) -> None:
         result = date_utils.now()
-        system_tz = ZonedDateTime.now_in_system_tz().tz
-        assert result.tz == system_tz
+        system_tz = ZonedDateTime.now(SYSTEM_TZ).tz_id
+        assert result.tz_id == system_tz
 
     def test_now_different_timezones_same_instant(self) -> None:
         """now() in different configured timezones represents the same instant."""
@@ -49,7 +49,7 @@ class TestConvertUtcTimestamp:
     def test_uses_configured_tz(self) -> None:
         date_utils.configure("America/Chicago")
         result = date_utils.convert_utc_timestamp_to_tz(0)
-        assert result.tz == "America/Chicago"
+        assert result.tz_id == "America/Chicago"
         assert result.hour == 18
         assert result.day == 31
         assert result.month == 12
@@ -57,8 +57,8 @@ class TestConvertUtcTimestamp:
 
     def test_uses_system_tz_when_unconfigured(self) -> None:
         result = date_utils.convert_utc_timestamp_to_tz(0)
-        system_tz = ZonedDateTime.now_in_system_tz().tz
-        assert result.tz == system_tz
+        system_tz = ZonedDateTime.now(SYSTEM_TZ).tz_id
+        assert result.tz_id == system_tz
 
     def test_same_instant_regardless_of_tz(self) -> None:
         """The same timestamp maps to the same instant in different timezones."""
@@ -75,14 +75,14 @@ class TestConvertDatetimeStr:
         date_utils.configure("America/Chicago")
         result = date_utils.convert_datetime_str_to_tz("2025-06-15T12:00:00+00:00")
         assert result is not None
-        assert result.tz == "America/Chicago"
+        assert result.tz_id == "America/Chicago"
         assert result.hour == 7
 
     def test_uses_system_tz_when_unconfigured(self) -> None:
         result = date_utils.convert_datetime_str_to_tz("2025-06-15T12:00:00+00:00")
         assert result is not None
-        system_tz = ZonedDateTime.now_in_system_tz().tz
-        assert result.tz == system_tz
+        system_tz = ZonedDateTime.now(SYSTEM_TZ).tz_id
+        assert result.tz_id == system_tz
 
     def test_none_passthrough(self) -> None:
         date_utils.configure("America/Chicago")
@@ -103,3 +103,18 @@ class TestConvertDatetimeStr:
         assert chicago is not None
         assert tokyo is not None
         assert chicago.to_instant() == tokyo.to_instant()
+
+
+class TestAssumeTz:
+    def test_skipped_local_time_resolves_compatibly(self) -> None:
+        """A wall time inside a spring-forward gap resolves forward instead of warning."""
+        date_utils.configure("America/Chicago")
+        result = date_utils.assume_tz(PlainDateTime(2026, 3, 8, 2, 30))
+        assert result.hour == 3
+        assert result.minute == 30
+
+    def test_repeated_local_time_resolves_to_earlier(self) -> None:
+        """A wall time repeated by fall-back resolves to the earlier (CDT) instant."""
+        date_utils.configure("America/Chicago")
+        result = date_utils.assume_tz(PlainDateTime(2026, 11, 1, 1, 30))
+        assert result.offset == hours(-5)

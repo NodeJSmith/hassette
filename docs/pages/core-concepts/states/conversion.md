@@ -179,9 +179,9 @@ library, which ships with Hassette.
 | From | To | Method |
 |------|----|--------|
 | `str` | `datetime` | Via `ZonedDateTime` then `to_stdlib()` |
-| `str` | `time` | Via `Time.parse_iso().py_time()` |
-| `str` | `date` | Via `Date.parse_iso().py_date()` |
-| `Time` | `time` | `py_time()` |
+| `str` | `time` | Via `Time.parse_iso().to_stdlib()` |
+| `str` | `date` | Via `Date.parse_iso().to_stdlib()` |
+| `Time` | `time` | `to_stdlib()` |
 
 ## Custom Converters
 

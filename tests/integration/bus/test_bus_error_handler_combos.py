@@ -11,7 +11,7 @@ import asyncio
 import functools
 from typing import TYPE_CHECKING
 
-from whenever import ZonedDateTime
+from whenever import SYSTEM_TZ, ZonedDateTime
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
@@ -381,7 +381,7 @@ async def test_immediate_duration_elapsed_exceeds_error_handler(
     # value, since this three-way combo needs the elapsed-time boundary too.
     harness, hassette, bus = bus_harness
 
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
+    past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
     await harness.seed_state(
         "switch.boiler",
         make_state_dict("switch.boiler", "on", last_changed=past.format_iso()),
@@ -417,7 +417,7 @@ async def test_immediate_duration_remaining_timer_error_handler(
     """Immediate + duration (elapsed < duration) + on_error: timer fires after remaining, error handler called."""
     harness, hassette, bus = bus_harness
 
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_REMAINING_OFFSET_SECONDS)
+    past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_REMAINING_OFFSET_SECONDS)
     await harness.seed_state(
         "switch.fan",
         make_state_dict("switch.fan", "on", last_changed=past.format_iso()),
@@ -454,7 +454,7 @@ async def test_immediate_duration_per_listener_error_handler(
     """Three-way combo with per-listener on_error: per-listener wins over app-level."""
     harness, hassette, bus = bus_harness
 
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
+    past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
     await harness.seed_state(
         "switch.heater",
         make_state_dict("switch.heater", "on", last_changed=past.format_iso()),

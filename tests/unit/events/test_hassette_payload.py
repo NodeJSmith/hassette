@@ -21,7 +21,7 @@ def test_time_fired_auto_populated_as_zoned_datetime() -> None:
 
 def test_time_fired_is_utc() -> None:
     payload = HassettePayload(data=None)
-    assert payload.time_fired.tz == "UTC"
+    assert payload.time_fired.tz_id == "UTC"
 
 
 def test_time_fired_is_recent() -> None:

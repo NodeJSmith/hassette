@@ -12,7 +12,7 @@ from logging import getLogger
 from typing import TYPE_CHECKING, ClassVar
 from unittest.mock import patch
 
-from whenever import Instant, ZonedDateTime
+from whenever import SYSTEM_TZ, Instant, ZonedDateTime
 
 if TYPE_CHECKING:
     from hassette.testing._harness import HassetteHarness
@@ -55,7 +55,7 @@ class _TestClock:
         """Convert an Instant or ZonedDateTime to system-tz ZonedDateTime."""
         if isinstance(instant, ZonedDateTime):
             return instant
-        return instant.to_system_tz()
+        return instant.to_tz(SYSTEM_TZ)
 
     def current(self) -> ZonedDateTime:
         """Return the current frozen time."""

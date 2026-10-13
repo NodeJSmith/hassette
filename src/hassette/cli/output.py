@@ -25,7 +25,7 @@ from rich.console import Console, OverflowMethod
 from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
-from whenever import Instant, OffsetDateTime, PlainDateTime
+from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime
 
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
 
@@ -98,7 +98,7 @@ def fmt_relative_time(value: Any) -> str:
                     epoch = OffsetDateTime.parse_iso(s).timestamp()
                 except ValueError:
                     # CLI display: user's terminal timezone, not the configured Hassette timezone
-                    epoch = PlainDateTime.parse_iso(s).assume_system_tz().timestamp()
+                    epoch = PlainDateTime.parse_iso(s).assume_tz(SYSTEM_TZ, disambiguation="compatible").timestamp()
         delta = now_epoch() - epoch
         if delta < 0:
             ahead = -delta

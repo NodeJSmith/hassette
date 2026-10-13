@@ -99,7 +99,8 @@ def parse_entity_time(value: Any) -> ZonedDateTime | None:
         time_of_day.hour,
         time_of_day.minute,
         time_of_day.second,
-        tz=today.tz,
+        tz=today.tz_id,
+        disambiguation="compatible",
     )
 
 
@@ -208,7 +209,9 @@ class Once:
             self._at_str = at
             hour, minute = parse_hh_mm(at, "Once")
             now = date_utils.now()
-            target = ZonedDateTime(now.year, now.month, now.day, hour, minute, tz=now.tz)
+            target = ZonedDateTime(
+                now.year, now.month, now.day, hour, minute, tz=now.tz_id, disambiguation="compatible"
+            )
             if target <= now:
                 if if_past == "error":
                     raise ValueError(f"Once(at={at!r}) constructed after the target time and if_past='error'")
@@ -217,7 +220,7 @@ class Once:
                     "Once(at=%r) constructed after the target time — deferring to tomorrow.",
                     at,
                 )
-                target = target.add(days=1)
+                target = target.add(days=1, disambiguation="compatible")
             self._fire_at = target
         else:
             now = date_utils.now()

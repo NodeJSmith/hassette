@@ -1,7 +1,7 @@
 import asyncio
 
 from hassette_wire import ScheduleStatus
-from whenever import ZonedDateTime
+from whenever import SYSTEM_TZ, ZonedDateTime
 
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
@@ -58,7 +58,7 @@ def test_scheduled_job_copies_args_kwargs() -> None:
 
     job = Job(
         owner_id="owner",
-        next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
+        next_run=ZonedDateTime(2030, 1, 1, 0, 0, 0, tz=SYSTEM_TZ),
         job=lambda *a, **kw: None,  # noqa
         args=args,  # pyright: ignore[reportArgumentType]
         kwargs=kwargs,
@@ -200,7 +200,7 @@ def test_scheduled_job_has_app_key_and_instance_index() -> None:
     """Create a Job with app_key and instance_index, verify fields are set."""
     job = Job(
         owner_id="MyApp.MyApp.0",
-        next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
+        next_run=ZonedDateTime(2030, 1, 1, 0, 0, 0, tz=SYSTEM_TZ),
         job=lambda: None,
         app_key="my_app",
         instance_index=2,
@@ -215,7 +215,7 @@ def test_scheduled_job_defaults_empty_app_key() -> None:
     """Create a Job without app_key, verify it defaults to empty string."""
     job = Job(
         owner_id="test",
-        next_run=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0),
+        next_run=ZonedDateTime(2030, 1, 1, 0, 0, 0, tz=SYSTEM_TZ),
         job=lambda: None,
     )
 
@@ -238,7 +238,7 @@ class _OnceExhaustionApp(App[_ExhaustionConfig]):
     async def on_initialize(self) -> None:
         self.fired = False
         # Schedule a Once job at a time far in the future (we'll freeze past it)
-        await self.scheduler.run_once(self.task, at=ZonedDateTime.from_system_tz(2030, 6, 15, 7, 0, 0), name="once_job")
+        await self.scheduler.run_once(self.task, at=ZonedDateTime(2030, 6, 15, 7, 0, 0, tz=SYSTEM_TZ), name="once_job")
 
     async def task(self) -> None:
         self.fired = True
@@ -276,7 +276,7 @@ class _OnceGroupApp(App[_ExhaustionConfig]):
         self.fired = False
         await self.scheduler.run_once(
             self.task,
-            at=ZonedDateTime.from_system_tz(2030, 6, 15, 7, 0, 0),
+            at=ZonedDateTime(2030, 6, 15, 7, 0, 0, tz=SYSTEM_TZ),
             name="once_in_group",
             group="morning",
         )
@@ -357,7 +357,7 @@ async def test_jitter_offset_applied_to_sort_index() -> None:
         # Currently offset is 0 (jitter not yet applied to sort_index); this
         # assertion will continue to hold once jitter IS applied.
         sort_nanos = job.sort_index[0]
-        next_run_nanos = job.next_run.timestamp_nanos()
+        next_run_nanos = job.next_run.timestamp(unit="nanosecond")
         offset_seconds = abs(sort_nanos - next_run_nanos) / 1_000_000_000
 
         assert offset_seconds <= 60, f"sort_index offset ({offset_seconds:.2f}s) exceeds jitter bound (60s)"

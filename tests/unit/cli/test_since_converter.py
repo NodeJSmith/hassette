@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 import pytest
-from whenever import Instant, OffsetDateTime, PlainDateTime
+from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime
 
 from hassette.cli.types import convert_since
 from hassette.const.misc import SECONDS_PER_DAY, SECONDS_PER_HOUR, SECONDS_PER_MINUTE
@@ -52,14 +52,14 @@ class TestISO8601WithTimezone:
 class TestISO8601Naive:
     def test_naive_datetime_uses_local_time(self) -> None:
         result = convert_since("2026-05-22T14:00:00")
-        expected = PlainDateTime.parse_iso("2026-05-22T14:00:00").assume_system_tz().timestamp()
+        expected = PlainDateTime.parse_iso("2026-05-22T14:00:00").assume_tz(SYSTEM_TZ).timestamp()
         assert result == pytest.approx(expected, abs=1)
 
 
 class TestDateOnly:
     def test_date_only_is_midnight_local(self) -> None:
         result = convert_since("2026-05-22")
-        expected = PlainDateTime.parse_iso("2026-05-22T00:00:00").assume_system_tz().timestamp()
+        expected = PlainDateTime.parse_iso("2026-05-22T00:00:00").assume_tz(SYSTEM_TZ).timestamp()
         assert result == pytest.approx(expected, abs=1)
 
 

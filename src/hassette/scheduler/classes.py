@@ -13,7 +13,7 @@ from hassette.execution_mode import ExecutionModeGuard
 
 MAX_CRON_ITERATIONS = 10_000
 
-UNSCHEDULED_SORT_KEY = Instant.MAX.timestamp_nanos() + 1
+UNSCHEDULED_SORT_KEY = Instant.MAX.timestamp(unit="nanosecond") + 1
 """Placeholder ordering key for a job that has never been scheduled.
 
 One nanosecond past the largest instant ``whenever`` can represent, so it sorts after every real
@@ -503,7 +503,7 @@ class Job:
         rounded = next_run.round("second")
         self.next_run = rounded
         self.fire_at = rounded
-        self.sort_index = (rounded.timestamp_nanos(), id(self))
+        self.sort_index = (rounded.timestamp(unit="nanosecond"), id(self))
 
     def transition_to(
         self,
