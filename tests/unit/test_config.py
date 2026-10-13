@@ -94,7 +94,6 @@ def test_env_files_can_be_configured_as_multiple_files(monkeypatch, tmp_path):
         }
 
         token: SecretStr = SecretStr(TEST_TOKEN)
-        run_app_precheck: bool = False
 
     config = MultiEnvConfig()
     assert config.env_files == {env1.resolve(), env2.resolve()}
@@ -115,7 +114,6 @@ def test_env_file_contributes_to_settings_without_mutating_os_environ(monkeypatc
         }
 
         token: SecretStr = SecretStr(TEST_TOKEN)
-        run_app_precheck: bool = False
         import_dot_env_files: bool = False
 
     config = DotenvOnlyConfig()
@@ -138,7 +136,6 @@ async def test_import_dot_env_files_true_loads_vars_into_os_environ(monkeypatch,
         }
 
         token: SecretStr = SecretStr(TEST_TOKEN)
-        run_app_precheck: bool = False
 
     config = ImportingConfig(import_dot_env_files=True)
     run_hassette_startup_tasks(config)
@@ -160,7 +157,6 @@ async def test_import_dot_env_files_false_does_not_touch_os_environ(monkeypatch,
         }
 
         token: SecretStr = SecretStr(TEST_TOKEN)
-        run_app_precheck: bool = False
 
     config = NonImportingConfig(import_dot_env_files=False)
     run_hassette_startup_tasks(config)
@@ -183,7 +179,6 @@ async def test_import_dot_env_files_does_not_override_existing_environ(monkeypat
         }
 
         token: SecretStr = SecretStr(TEST_TOKEN)
-        run_app_precheck: bool = False
 
     config = NonOverridingConfig(import_dot_env_files=True)
     run_hassette_startup_tasks(config)
@@ -209,7 +204,6 @@ async def test_multiple_env_files_import_non_conflicting_keys(monkeypatch, tmp_p
         }
 
         token: SecretStr = SecretStr(TEST_TOKEN)
-        run_app_precheck: bool = False
 
     config = MultiImportConfig(import_dot_env_files=True)
     run_hassette_startup_tasks(config)
@@ -242,7 +236,6 @@ async def test_multiple_env_files_conflicting_key_is_effectively_order_dependent
         }
 
         token: SecretStr = SecretStr(TEST_TOKEN)
-        run_app_precheck: bool = False
 
     config = MultiConflictConfig(import_dot_env_files=True)
     run_hassette_startup_tasks(config)
@@ -271,7 +264,6 @@ def test_spec_env_files_preserves_declared_order(tmp_path):
         }
 
         token: SecretStr = SecretStr(TEST_TOKEN)
-        run_app_precheck: bool = False
 
     config = OrderedEnvConfig()
     assert isinstance(config.env_files, (list, tuple))
@@ -304,7 +296,6 @@ async def test_spec_last_env_file_wins_on_conflicts(monkeypatch, tmp_path):
         }
 
         token: SecretStr = SecretStr(TEST_TOKEN)
-        run_app_precheck: bool = False
 
     config = MultiConflictSpecConfig(import_dot_env_files=True)
 
@@ -359,7 +350,6 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(monke
         textwrap.dedent(
             f"""
             [hassette]
-            run_app_precheck = true
 
             [hassette.apps]
             directory = {app_dir.as_posix()!r}
@@ -433,7 +423,6 @@ class LogLevelTestConfig(HassetteConfig):
     }
 
     token: SecretStr = SecretStr(TEST_TOKEN)
-    run_app_precheck: bool = False
 
 
 @pytest.mark.usefixtures("clean_log_level_env")

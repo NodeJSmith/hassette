@@ -50,8 +50,8 @@ class StateProxy(Resource):
     via ``Api.get_states_raw()`` and replays a per-generation journal of state-changed events
     observed while that fetch was in flight (``JournalOperation`` / ``ActiveSynchronization``),
     so no update racing the bulk fetch is lost. On failure it retries with exponential backoff
-    (``schedule_retry`` / ``compute_retry_delay`` in ``state_proxy_sync``) unless polling is
-    enabled, in which case the next scheduled poll (``load_cache``) is left to converge instead.
+    (``schedule_retry`` / ``compute_retry_delay`` in ``state_proxy_sync``) unless the poll job
+    is installed, in which case the next scheduled poll (``load_cache``) is left to converge instead.
 
     Its own ``Resource`` readiness means only "the synchronization coordinator is wired" — not
     that Home Assistant data is usable yet. ``has_initial_state_capability()`` /
@@ -163,8 +163,8 @@ class StateProxy(Resource):
 
         ``ApiResource``, ``BusService``, and ``SchedulerService`` are guaranteed ready by
         ``depends_on`` auto-wait. Subscribes to state-changed events and websocket connect/
-        disconnect observers, installs the periodic poll job (unless polling is disabled), then
-        marks this resource ready and spawns the initial synchronization in the background.
+        disconnect observers, installs the periodic poll job, then marks this resource ready
+        and spawns the initial synchronization in the background.
         Resource readiness here means only "wired," not that Home Assistant data is available
         yet — see ``has_initial_state_capability``.
         """
@@ -190,11 +190,6 @@ class StateProxy(Resource):
         self.hassette.websocket_service.disconnected_observers.add(self._on_websocket_disconnected)
 
     async def _install_poll_job(self) -> None:
-        if self.hassette.config.disable_state_proxy_polling:
-            self.poll_job = None
-            self.logger.warning("State proxy polling is disabled per configuration")
-            return
-
         self.poll_job = await self.scheduler.run_every(
             self.load_cache,
             seconds=self.hassette.config.state_proxy_poll_interval_seconds,
@@ -441,8 +436,8 @@ class StateProxy(Resource):
     async def load_cache(self) -> None:
         """Refresh the state cache via a poll-triggered synchronization.
 
-        Called periodically by the poll job (unless polling is disabled) to keep the cache
-        fresh between reconnects. A no-op if there is no current connected generation.
+        Called periodically by the poll job to keep the cache fresh between reconnects.
+        A no-op if there is no current connected generation.
         """
         generation = self.hassette.websocket_service.get_connected_generation()
         if generation is None:

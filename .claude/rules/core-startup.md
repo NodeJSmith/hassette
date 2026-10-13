@@ -49,7 +49,7 @@ Once that dependency wait completes it marks its own Resource readiness — so t
 
 `StateProxy`'s Resource readiness means only "the synchronization coordinator is wired," not that Home Assistant data is usable. A separate `has_initial_state_capability()` / `wait_initial_state_capability()` pair resolves only after the current externally-ready generation's initial snapshot has loaded, its Resource-lifetime state-change listener has journaled any events observed concurrently, and one generation-fenced commit has applied both.
 
-A failed or never-attempted initial snapshot never opens this capability, so app bootstrap stays blocked indefinitely while `StateProxy` keeps retrying (through the next scheduled poll, or one coalesced generation-scoped retry timer when polling is disabled or hasn't started). This is deliberate: the framework does not permit degraded app bootstrap against an unavailable state cache.
+A failed or never-attempted initial snapshot never opens this capability, so app bootstrap stays blocked indefinitely while `StateProxy` keeps retrying (through the next scheduled poll, or one coalesced generation-scoped retry timer when no poll job is installed, as under the test harness's `HarnessStateProxy`). This is deliberate: the framework does not permit degraded app bootstrap against an unavailable state cache.
 
 Once initial capability has been reached, a later disconnect marks the cache `STALE` rather than `UNAVAILABLE` (see `StateCacheFreshness`), preserving stale reads for running apps without re-blocking the coordinator — a lost connection after bootstrap never stops or suspends running apps.
 

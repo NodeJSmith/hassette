@@ -64,13 +64,13 @@ class StateCacheFreshness(StrEnum):
 
 
 async def handle_synchronization_failure(proxy: "StateProxy", generation: int) -> None:
-    """React to a failed synchronization: downgrade freshness and, if unpolled, retry.
+    """React to a failed synchronization: downgrade freshness and, with no poll job, retry.
 
     A no-op if ``generation`` is no longer the currently connected generation (a reconnect
     has already superseded this failure). Otherwise downgrades the cache freshness the same
     way ``on_disconnect`` does (STALE if the initial-state capability has already been
-    reached, else UNAVAILABLE). If periodic polling is enabled, the next poll tick is left
-    to converge the cache and no retry is scheduled; otherwise schedules a backoff retry.
+    reached, else UNAVAILABLE). If the poll job is installed, the next poll tick is left to
+    converge the cache and no retry is scheduled; otherwise schedules a backoff retry.
     """
     current_generation = proxy.hassette.websocket_service.get_connected_generation()
     if current_generation != generation:

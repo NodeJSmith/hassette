@@ -11,8 +11,7 @@ class TestSendEventAfterStreamsClosed:
 
     async def test_send_event_does_not_raise_when_streams_closed(self, test_config) -> None:
         """Calling send_event() after close_streams() must not raise."""
-        config = test_config.model_copy(update={"run_app_precheck": False})
-        h = Hassette(config)
+        h = Hassette(test_config)
         h.wire_services()
         try:
             assert h._event_stream_service is not None
@@ -26,8 +25,7 @@ class TestSendEventAfterStreamsClosed:
 
     async def test_send_event_works_before_streams_closed(self, test_config) -> None:
         """send_event() must still work normally when streams are open."""
-        config = test_config.model_copy(update={"run_app_precheck": False})
-        h = Hassette(config)
+        h = Hassette(test_config)
         h.wire_services()
         try:
             assert h.event_streams_closed is False

@@ -98,16 +98,12 @@ def write_toml(
     toml_file: Path,
     *,
     app_dir: Path,
-    run_app_precheck: bool,
     filename: str,
     class_name: str,
 ) -> None:
     toml_file.write_text(
         textwrap.dedent(
             f"""
-            [hassette]
-            run_app_precheck = {str(run_app_precheck).lower()}
-
             [hassette.apps]
             directory = {app_dir.as_posix()!r}
             autodetect = false
@@ -151,7 +147,6 @@ async def test_import_dot_env_files_makes_values_visible_during_app_import(
     write_toml(
         toml_file,
         app_dir=app_dir,
-        run_app_precheck=True,
         filename=ENV_READER_FILENAME,
         class_name=ENV_READER_CLASS,
     )
@@ -184,7 +179,6 @@ async def test_import_dot_env_files_disabled_not_visible_during_app_import(
     write_toml(
         toml_file,
         app_dir=app_dir,
-        run_app_precheck=True,
         filename=ENV_READER_FILENAME,
         class_name=ENV_READER_CLASS,
     )
@@ -217,7 +211,6 @@ async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPat
     write_toml(
         toml_file,
         app_dir=app_dir,
-        run_app_precheck=False,
         filename=ENV_SETTINGS_FILENAME,
         class_name=ENV_SETTINGS_CLASS,
     )
@@ -261,7 +254,6 @@ async def test_app_config_reads_hassette_env_files_without_import_dot_env_files(
     write_toml(
         toml_file,
         app_dir=app_dir,
-        run_app_precheck=False,
         filename=ENV_SETTINGS_FILENAME,
         class_name=ENV_SETTINGS_CLASS,
     )
@@ -301,7 +293,6 @@ async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
     write_toml(
         toml_file,
         app_dir=app_dir,
-        run_app_precheck=False,
         filename=ENV_SETTINGS_FILENAME,
         class_name=ENV_SETTINGS_CLASS,
     )

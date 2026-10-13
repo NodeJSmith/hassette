@@ -40,7 +40,6 @@ def build_mock_hassette():
     hassette = make_mock_hassette(
         sealed=False,
         logging={"log_level": "DEBUG", "apps": "DEBUG"},
-        disable_state_proxy_polling=False,
     )
     hassette.task_bucket = Mock()
     hassette.task_bucket.spawn = Mock()

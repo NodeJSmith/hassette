@@ -63,7 +63,7 @@ def make_cli_config(
     ``.claude/rules/test-conventions.md``) that maps this module's cli/web_api-focused keyword
     shape onto ``make_test_config``'s nested-dict overrides, rather than constructing
     ``HassetteConfig`` from scratch. Also inherits ``make_test_config``'s other safety defaults
-    (``apps.autodetect=False``, ``disable_state_proxy_polling=True``) since only the ``web_api``
+    (``apps.autodetect=False``) since only the ``web_api``
     and ``cli`` groups are overridden here. ``web_api.run=False`` is passed explicitly below
     because supplying a ``web_api=`` override replaces (not merges with) ``make_test_config``'s
     own ``web_api={"run": False}`` default.

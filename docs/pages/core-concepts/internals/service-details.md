@@ -204,7 +204,7 @@ flowchart TD
 
 First, `subscribe_to_events()` registers a bus subscription on `Topic.HASS_EVENT_STATE_CHANGED` at priority 100. Priority 100 means `StateProxy`'s handler updates the cache before any user handler sees the event. App handlers always observe current state.
 
-Second, a background bootstrap task runs a synchronization pass if the WebSocket is already connected. Otherwise the connected observer `StateProxy` registered in the first step starts the pass when the connection arrives. The pass fetches all entity states via `get_states_raw()` and builds a candidate states dict from the result. It applies the `state_changed` events that arrived during the fetch on top of that candidate, so older fetched data never overwrites them. Then it replaces the `states` dict with the candidate. Unless `disable_state_proxy_polling` is set, a periodic `run_every` job calls `load_cache()` at `state_proxy_poll_interval_seconds` intervals, which requests the same synchronization to recover from any missed events.
+Second, a background bootstrap task runs a synchronization pass if the WebSocket is already connected. Otherwise the connected observer `StateProxy` registered in the first step starts the pass when the connection arrives. The pass fetches all entity states via `get_states_raw()` and builds a candidate states dict from the result. It applies the `state_changed` events that arrived during the fetch on top of that candidate, so older fetched data never overwrites them. Then it replaces the `states` dict with the candidate. A periodic `run_every` job calls `load_cache()` at `state_proxy_poll_interval_seconds` intervals, which requests the same synchronization to recover from any missed events.
 
 ### Lock-Free Reads
 

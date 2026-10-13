@@ -26,7 +26,6 @@ from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
-from hassette.core.core import Hassette
 from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.loop_watchdog import LoopWatchdog
@@ -40,6 +39,7 @@ from hassette.scheduler import Scheduler
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
+from hassette.testing._harness_resources import HarnessHassette, HarnessStateProxy
 from hassette.testing._reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
 from hassette.testing._server import SimpleTestServer
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
@@ -48,6 +48,7 @@ from hassette.utils.func_utils import is_async_callable
 
 if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
+    from hassette.core.core import Hassette
     from hassette.events import Event, HassStateDict
 
 DEPENDENCIES: dict[str, set[str]] = {
@@ -181,7 +182,7 @@ async def _harness_dispatch(
 class _HarnessEventStreamService(EventStreamService):
     """EventStreamService variant that suppresses close_streams() for test harness reuse.
 
-    Module-scoped fixtures share a single _TestableHassette across many tests.  Some
+    Module-scoped fixtures share a single HarnessHassette across many tests.  Some
     test scenarios (e.g., ServiceWatcher max-restart exceeded) trigger
     ``hassette.shutdown()``, which normally closes the anyio memory streams inside
     ``EventStreamService``.  Closed streams cannot be reopened, so subsequent tests
@@ -200,38 +201,6 @@ class _HarnessEventStreamService(EventStreamService):
     async def _close_streams_now(self) -> None:
         """Close streams unconditionally — bypasses the no-op override above."""
         await super().close_streams()
-
-
-class _TestableHassette(Hassette):
-    """Thin Hassette subclass for use in the test harness.
-
-    Overrides exactly two methods to make the harness lifecycle work:
-    - _should_skip_dependency_check: prevents startup from blocking on unmet deps.
-    - wait_for_ready: returns True immediately so services do not deadlock during
-      harness-controlled startup.
-    """
-
-    def _should_skip_dependency_check(self) -> bool:
-        return True
-
-    async def wait_for_ready(self, resources: list[Resource] | Resource, timeout: float | None = None) -> bool:
-        """Immediately return True (no-op stub).
-
-        In the test harness, services call ``self.hassette.wait_for_ready()``
-        during ``on_initialize()``.  The harness controls the lifecycle
-        explicitly (``HassetteHarness.start()`` waits on real children via
-        the utility function), so dependency waits inside individual services
-        must be no-ops — allowing them to block would deadlock the startup
-        sequence.
-
-        Note: This no-op stub is NOT the right tool for testing startup
-        races (e.g., "what happens when a dependency is not yet ready?").
-        For startup race tests, use ``asyncio.Event`` as a gate and inject a
-        custom ``wait_for_ready`` side-effect. See
-        ``.claude/rules/regression-test-patterns.md`` for the recommended pattern using
-        ``AsyncMock(side_effect=lambda _: gate.wait())``.
-        """
-        return True
 
 
 def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
@@ -315,9 +284,9 @@ class HassetteHarness:
             config.strict_lifecycle = True
 
         self.logger = logging.getLogger("hassette")
-        # _TestableHassette.__init__ calls enable_basic_logging() which sets propagate=False and clears handlers.
+        # HarnessHassette.__init__ calls enable_basic_logging() which sets propagate=False and clears handlers.
         # We restore propagate=True afterwards so pytest's caplog fixture can capture hassette log records.
-        self.hassette = _TestableHassette(config=self.config)
+        self.hassette = HarnessHassette(config=self.config)
         logging.getLogger("hassette").propagate = True
         self._exit_stack = contextlib.AsyncExitStack()  # canonical cleanup registry for background-task starters
         self.api_mock: SimpleTestServer | None = None
@@ -838,7 +807,7 @@ class HassetteHarness:
             self.hassette._websocket_service = Mock()
             self.hassette._websocket_service._status = ResourceStatus.RUNNING
             self._configure_ready_websocket_mock(self.hassette._websocket_service)
-        self.hassette._state_proxy = self.hassette.add_child(StateProxy)
+        self.hassette._state_proxy = self.hassette.add_child(HarnessStateProxy)
 
     async def _start_state_registry(self) -> None:
         self.hassette._state_registry = STATE_REGISTRY

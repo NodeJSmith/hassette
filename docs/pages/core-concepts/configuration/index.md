@@ -111,7 +111,7 @@ Docker containers commonly default to UTC. Home Assistant uses a local zone conf
 
 `extend_exclude_dirs` adds directories to the built-in exclusion list (`.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.git`). `exclude_dirs` replaces it entirely. Setting `exclude_dirs` directly removes the framework defaults and can cause Hassette to scan directories it would normally skip.
 
-`run_app_precheck` controls whether Hassette imports and validates all app modules before starting. When a module fails precheck, Hassette refuses to start. `allow_startup_if_app_precheck_fails` overrides that refusal. Development environments may enable it; production environments benefit from leaving it disabled.
+Before starting, Hassette always runs the app precheck: it imports and validates every app module and logs each failure. A failed precheck stops startup. `allow_startup_if_app_precheck_fails` lets startup continue instead, so healthy apps still run. Development environments may enable it; production environments benefit from leaving it disabled.
 
 ### Event Filtering
 
@@ -147,7 +147,7 @@ The file watcher reloads apps when their source files change (in `dev_mode`, or 
 
 ### State Proxy Polling
 
-The [`StateManager`](../states/index.md) — the local entity-state cache apps access via `self.states` — keeps a copy of all entity states. `state_proxy_poll_interval_seconds` controls how often that cache refreshes via a full API pull, supplementing the WebSocket event stream. `disable_state_proxy_polling` turns off the periodic poll entirely, leaving the cache reliant on the event stream alone.
+The [`StateManager`](../states/index.md) — the local entity-state cache apps access via `self.states` — keeps a copy of all entity states. `state_proxy_poll_interval_seconds` controls how often that cache refreshes via a full API pull, supplementing the WebSocket event stream. The poll always runs, because it recovers state changes the event stream missed.
 
 ## Developer Settings {#developer-settings}
 
