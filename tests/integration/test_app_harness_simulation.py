@@ -8,7 +8,7 @@ from contextlib import AsyncExitStack
 from unittest.mock import Mock
 
 import pytest
-from whenever import Instant, ZonedDateTime
+from whenever import SYSTEM_TZ, Instant, ZonedDateTime
 
 import hassette.testing._time_control as time_control
 import hassette.utils.date_utils as date_utils
@@ -50,7 +50,7 @@ async def test_freeze_time_patches_now():
     async with AppTestHarness(SimTestApp, config={}) as harness:
         harness.freeze_time(frozen)
         result = date_utils.now()
-        expected = frozen.to_system_tz()
+        expected = frozen.to_tz(SYSTEM_TZ)
         assert result == expected, f"Expected {expected}, got {result}"
 
 
@@ -62,7 +62,7 @@ async def test_freeze_time_idempotent():
         harness.freeze_time(frozen1)
         harness.freeze_time(frozen2)
         result = date_utils.now()
-        expected = frozen2.to_system_tz()
+        expected = frozen2.to_tz(SYSTEM_TZ)
         assert result == expected
 
 
@@ -80,7 +80,7 @@ async def test_advance_time_moves_clock():
         harness.freeze_time(frozen)
         harness.advance_time(seconds=60)
         result = date_utils.now()
-        expected = frozen.to_system_tz().add(seconds=60)
+        expected = frozen.to_tz(SYSTEM_TZ).add(seconds=60)
         assert result == expected
 
 
@@ -91,7 +91,7 @@ async def test_advance_time_hours_and_minutes():
         harness.freeze_time(frozen)
         harness.advance_time(hours=1, minutes=30)
         result = date_utils.now()
-        expected = frozen.to_system_tz().add(hours=1, minutes=30)
+        expected = frozen.to_tz(SYSTEM_TZ).add(hours=1, minutes=30)
         assert result == expected
 
 
@@ -140,7 +140,7 @@ async def test_freeze_time_fails_closed_and_releases_lock(monkeypatch: pytest.Mo
 
         monkeypatch.setattr(harness, "_NOW_PATCH_TARGETS", ("hassette.utils.date_utils.now",))
         harness.freeze_time(frozen)
-        assert date_utils.now() == frozen.to_system_tz()
+        assert date_utils.now() == frozen.to_tz(SYSTEM_TZ)
 
 
 async def test_freeze_time_cleans_up_started_patchers_when_start_raises(monkeypatch: pytest.MonkeyPatch):
@@ -262,17 +262,17 @@ async def test_freeze_time_cleanup_on_exit():
     frozen = Instant.from_utc(2000, 1, 1, 0, 0)
     async with AppTestHarness(SimTestApp, config={}) as harness:
         harness.freeze_time(frozen)
-        assert date_utils.now() == frozen.to_system_tz()
+        assert date_utils.now() == frozen.to_tz(SYSTEM_TZ)
 
     # After exit, now() returns real time (not the frozen 2000-01-01)
     real_now = date_utils.now()
-    frozen_time = frozen.to_system_tz()
+    frozen_time = frozen.to_tz(SYSTEM_TZ)
     assert real_now != frozen_time, f"now() is still returning frozen time after harness exit: {real_now}"
 
 
 async def test_freeze_time_accepts_zoned_datetime():
     """freeze_time accepts a ZonedDateTime directly (not just Instant)."""
-    zdt = ZonedDateTime.from_system_tz(2026, 4, 7, 6, 0)
+    zdt = ZonedDateTime(2026, 4, 7, 6, 0, tz=SYSTEM_TZ)
     async with AppTestHarness(SimTestApp, config={}) as harness:
         harness.freeze_time(zdt)
         result = date_utils.now()

@@ -281,7 +281,7 @@ register_simple_type_converter(str, Date, fn=Date.parse_iso)
 register_simple_type_converter(str, Time, fn=Time.parse_iso)
 register_simple_type_converter(str, OffsetDateTime, fn=OffsetDateTime.parse_iso)
 register_simple_type_converter(str, PlainDateTime, fn=PlainDateTime.parse_iso)
-register_simple_type_converter(Time, time, fn=Time.py_time)
+register_simple_type_converter(Time, time, fn=Time.to_stdlib)
 register_simple_type_converter(Time, str, fn=Time.format_iso)
 register_simple_type_converter(ZonedDateTime, Instant, fn=ZonedDateTime.to_instant)
 register_simple_type_converter(ZonedDateTime, PlainDateTime, fn=ZonedDateTime.to_plain)
@@ -303,12 +303,12 @@ def from_string_to_zoned_date_time(value: str) -> ZonedDateTime:
 
 @register_type_converter_fn(error_message="String must be a time-like value, got {from_type}")
 def from_string_to_stdlib_time(value: str) -> time:
-    return Time.parse_iso(value).py_time()
+    return Time.parse_iso(value).to_stdlib()
 
 
 @register_type_converter_fn(error_message="String must be a date-like value, got {from_type}")
 def from_string_to_stdlib_date(value: str) -> date:
-    return Date.parse_iso(value).py_date()
+    return Date.parse_iso(value).to_stdlib()
 
 
 @register_type_converter_fn(error_message="String must be a datetime-like value, got {from_type}")

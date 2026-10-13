@@ -8,7 +8,7 @@ import asyncio
 from typing import TYPE_CHECKING
 
 import pytest
-from whenever import ZonedDateTime
+from whenever import SYSTEM_TZ, ZonedDateTime
 
 from hassette.events import RawStateChangeEvent
 from hassette.testing import HassetteHarness, make_state_dict, wait_for
@@ -259,7 +259,7 @@ async def test_immediate_duration_fires_when_elapsed_exceeds(
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10 seconds ago
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
+    past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
     await seed(harness, "switch.boiler", "on", last_changed=past.format_iso())
 
     handler, received, fired = make_collector(hassette)
@@ -293,7 +293,7 @@ async def test_immediate_duration_starts_timer_for_remaining(
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 3 seconds ago
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_REMAINING_OFFSET_SECONDS)
+    past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_REMAINING_OFFSET_SECONDS)
     await seed(harness, "switch.fan", "on", last_changed=past.format_iso())
 
     handler, received, fired = make_collector(hassette)
@@ -349,7 +349,7 @@ async def test_immediate_duration_negative_elapsed_clamped(
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10 seconds in the FUTURE (clock skew)
-    future = ZonedDateTime.now_in_system_tz().add(seconds=10)
+    future = ZonedDateTime.now(SYSTEM_TZ).add(seconds=10)
     await seed(harness, "switch.heater", "on", last_changed=future.format_iso())
 
     handler, received, _fired = make_collector(hassette)
@@ -374,7 +374,7 @@ async def test_immediate_duration_attribute_change_always_zero(
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 30 seconds ago — would normally fire immediately
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=30)
+    past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=30)
     await seed(harness, "light.lamp", "on", attributes={"brightness": 200}, last_changed=past.format_iso())
 
     handler, received, _fired = make_collector(hassette)
@@ -405,7 +405,7 @@ async def test_immediate_duration_once_fires_exactly_once(
     harness, hassette, bus = bus_harness
 
     # Seed state with last_changed 10s ago (duration=5 → fires immediately)
-    past = ZonedDateTime.now_in_system_tz().subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
+    past = ZonedDateTime.now(SYSTEM_TZ).subtract(seconds=ELAPSED_EXCEEDS_OFFSET_SECONDS)
     await seed(harness, "switch.oven", "on", last_changed=past.format_iso())
 
     handler, received, fired = make_collector(hassette)

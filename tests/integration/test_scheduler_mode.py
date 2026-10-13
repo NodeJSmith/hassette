@@ -27,7 +27,7 @@ import unittest.mock
 
 import pytest
 from hassette_wire import ExecutionMode, ScheduleStatus, ScheduleStatusReason
-from whenever import ZonedDateTime
+from whenever import SYSTEM_TZ, ZonedDateTime
 
 import hassette.core.scheduler_dispatch as scheduler_dispatch_module
 import hassette.utils.date_utils as date_utils
@@ -69,7 +69,7 @@ class _RunOnceModeApp(App[_OneShotModeConfig]):
         self.fired_count = 0
         await self.scheduler.run_once(
             self.task,
-            at=ZonedDateTime.from_system_tz(2030, 6, 15, 7, 0, 0),
+            at=ZonedDateTime(2030, 6, 15, 7, 0, 0, tz=SYSTEM_TZ),
             name="runonce_mode_job",
             mode=ExecutionMode.QUEUED,
         )

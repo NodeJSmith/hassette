@@ -61,7 +61,7 @@ dependencies = [
     "uuid-utils>=0.9.0",
     "uvicorn[standard]>=0.34.0",
     "watchfiles>=1.1.0",
-    "whenever==0.10.*",
+    "whenever>=0.11,<0.12",
     "tomli-w>=1.2.0",
     # Lockstep with the release train: release-please rewrites these pins on the marked lines
     # (the `version` above is bumped by its python release-type, so it needs no marker). The

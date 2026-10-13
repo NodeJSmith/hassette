@@ -111,4 +111,4 @@ class TestCronTriggerMaxIterationsFallback:
             trigger = CronTrigger("* * * * *", start=anchor)
             result = trigger.first_run_time(current_time)
 
-        assert result.tz == TZ
+        assert result.tz_id == TZ

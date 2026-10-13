@@ -1,6 +1,6 @@
 from typing import overload
 
-from whenever import OffsetDateTime, PlainDateTime, ZonedDateTime
+from whenever import SYSTEM_TZ, Instant, OffsetDateTime, PlainDateTime, ZonedDateTime
 
 _configured_tz: str | None = None
 
@@ -21,8 +21,8 @@ def convert_utc_timestamp_to_tz(timestamp: int | float) -> ZonedDateTime:
     Uses the configured timezone if set, otherwise the system process timezone.
     """
     if _configured_tz is not None:
-        return ZonedDateTime.from_timestamp(timestamp, tz=_configured_tz)
-    return ZonedDateTime.from_timestamp(timestamp, tz="UTC").to_system_tz()
+        return Instant.from_timestamp(timestamp).to_tz(_configured_tz)
+    return Instant.from_timestamp(timestamp).to_tz(SYSTEM_TZ)
 
 
 @overload
@@ -42,7 +42,7 @@ def convert_datetime_str_to_tz(value: str | ZonedDateTime | None) -> ZonedDateTi
         return value
     if _configured_tz is not None:
         return OffsetDateTime.parse_iso(value).to_tz(_configured_tz)
-    return OffsetDateTime.parse_iso(value).to_system_tz()
+    return OffsetDateTime.parse_iso(value).to_tz(SYSTEM_TZ)
 
 
 def assume_tz(dt: PlainDateTime) -> ZonedDateTime:
@@ -52,7 +52,7 @@ def assume_tz(dt: PlainDateTime) -> ZonedDateTime:
     """
     if _configured_tz is not None:
         return dt.assume_tz(_configured_tz)
-    return dt.assume_system_tz()
+    return dt.assume_tz(SYSTEM_TZ)
 
 
 def now() -> ZonedDateTime:
@@ -62,7 +62,7 @@ def now() -> ZonedDateTime:
     """
     if _configured_tz is not None:
         return ZonedDateTime.now(_configured_tz)
-    return ZonedDateTime.now_in_system_tz()
+    return ZonedDateTime.now(SYSTEM_TZ)
 
 
 def try_parse_iso(value: object) -> OffsetDateTime | None:

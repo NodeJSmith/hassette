@@ -75,7 +75,7 @@ class TestSetNextRun:
         job.set_next_run(new_time)
         assert job.next_run == new_time.round("second")
         # sort_index tiebreaker is id(self), not job_id
-        assert job.sort_index == (new_time.round("second").timestamp_nanos(), id(job))
+        assert job.sort_index == (new_time.round("second").timestamp(unit="nanosecond"), id(job))
 
 
 class TestFireAt:

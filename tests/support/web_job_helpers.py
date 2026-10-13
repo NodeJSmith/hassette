@@ -13,7 +13,7 @@ import re
 from types import SimpleNamespace
 
 from hassette_wire import ExecutionMode, JobSummary
-from whenever import ZonedDateTime
+from whenever import SYSTEM_TZ, ZonedDateTime
 
 import hassette.utils.date_utils as date_utils
 from hassette.scheduler.classes import Job
@@ -51,7 +51,7 @@ def make_job(
                 seconds = int(m.group(1))
         trigger = Every(seconds=seconds)
     elif trigger_type == "once":
-        trigger = Once(at=ZonedDateTime.from_system_tz(2030, 1, 1, 0, 0, 0))
+        trigger = Once(at=ZonedDateTime(2030, 1, 1, 0, 0, 0, tz=SYSTEM_TZ))
     elif trigger_type == "after":
         trigger = After(seconds=30)
     else:

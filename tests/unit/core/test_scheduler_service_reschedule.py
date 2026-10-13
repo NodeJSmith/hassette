@@ -172,7 +172,7 @@ class TestRescheduleRecurring:
 
 class TestJitter:
     async def test_jitter_applied_to_sort_index_not_next_run(self) -> None:
-        """After jitter enqueue: job.next_run unchanged; sort_index timestamp > next_run.timestamp_nanos()."""
+        """After jitter enqueue: job.next_run unchanged; sort_index timestamp > next_run timestamp."""
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
         trig = make_interval_trigger(next_returns=future_time)
@@ -186,21 +186,21 @@ class TestJitter:
         # next_run should be the unjittered future_time
         assert job.next_run == future_time.round("second")
 
-        # sort_index[0] should be > job.next_run.timestamp_nanos() due to jitter
-        expected_min_nanos = job.next_run.timestamp_nanos()
+        # sort_index[0] should be > job.next_run.timestamp(unit="nanosecond") due to jitter
+        expected_min_nanos = job.next_run.timestamp(unit="nanosecond")
         actual_sort_nanos = job.sort_index[0]
         assert actual_sort_nanos > expected_min_nanos, (
-            f"sort_index[0]={actual_sort_nanos} should be > next_run.timestamp_nanos()={expected_min_nanos}"
+            f"sort_index[0]={actual_sort_nanos} should be > next_run nanos={expected_min_nanos}"
         )
 
     async def test_jitter_not_applied_when_none(self) -> None:
-        """No jitter: sort_index[0] == job.next_run.timestamp_nanos()."""
+        """No jitter: sort_index[0] == job.next_run.timestamp(unit="nanosecond")."""
         svc = make_scheduler_service()
         future_time = date_utils.now().add(seconds=60)
 
         _trig, job = await dispatch_with_trigger(svc, next_returns=future_time, jitter=None)
 
-        assert job.sort_index[0] == job.next_run.timestamp_nanos()
+        assert job.sort_index[0] == job.next_run.timestamp(unit="nanosecond")
 
     async def test_fire_at_defaults_to_next_run_without_jitter(self) -> None:
         """No jitter: fire_at == next_run after dispatch."""

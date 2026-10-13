@@ -160,7 +160,7 @@ class TestSetNextRun:
 
         job.set_next_run(new_time)
 
-        expected_nanos = new_time.round("second").timestamp_nanos()
+        expected_nanos = new_time.round("second").timestamp(unit="nanosecond")
         assert job.sort_index == (expected_nanos, id(job))
 
     def test_set_next_run_changes_ordering(self) -> None:

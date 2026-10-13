@@ -119,7 +119,7 @@ class SchedulerDispatchMixin:
         except ValueError:
             jittered_time = job.next_run
         job.fire_at = jittered_time
-        job.sort_index = (jittered_time.timestamp_nanos(), id(job))
+        job.sort_index = (jittered_time.timestamp(unit="nanosecond"), id(job))
         self.logger.debug(
             "Applied jitter offset=%.3fs to job %s: next_run=%s → fire_at=%s",
             offset,
