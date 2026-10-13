@@ -303,6 +303,18 @@ describe("useWebSocket", () => {
       expect(connection).toBe("connected");
     });
 
+    it("switches from 'unreachable' to 'connecting' as soon as the transport opens", async () => {
+      renderWebSocketHook();
+      for (let i = 0; i < UNREACHABLE_ATTEMPT_THRESHOLD; i++) await failLatestAttemptBeforeOpen();
+      expect(useAppStore.getState().connection).toBe("unreachable");
+
+      act(() => {
+        latestSocket().simulateOpen();
+      });
+
+      expect(useAppStore.getState().connection).toBe("connecting");
+    });
+
     it("never shows 'unreachable' after a connection opened at least once", async () => {
       const { ws } = renderConnectedWebSocketHook();
       act(() => {

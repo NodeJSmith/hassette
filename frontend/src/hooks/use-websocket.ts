@@ -76,6 +76,10 @@ export function useWebSocket(): void {
       socket.onopen = () => {
         openedThisAttempt = true;
         hasOpenedRef.current = true;
+        // The URL resolves after all, so "Can't reach server" is wrong while the handshake finishes.
+        if (useAppStore.getState().connection === "unreachable") {
+          useAppStore.getState().setConnection("connecting");
+        }
         handshakeTimer = setTimeout(() => {
           if (!hasConnectedRef.current || useAppStore.getState().connection !== "connected") {
             socket.close();

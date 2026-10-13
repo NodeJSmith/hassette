@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 import { WS_PATH } from "../../api/endpoints";
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
-import { resolveWsUrl } from "../../lib/base-path";
+import { redactIngressToken, resolveWsUrl } from "../../lib/base-path";
 import type { ConnectionStatus } from "../../state/store";
 import { useAppStore } from "../../state/store";
 import { pluralize } from "../../utils/format";
@@ -62,7 +62,8 @@ export function SystemHealth({ variant }: Props) {
   const { dotClass, label } = STATUS_CONFIG[connection];
 
   // The URL that keeps failing is the useful clue when it's misresolved (e.g. a wrong base path).
-  const unreachableUrl = connection === "unreachable" ? resolveWsUrl(WS_PATH) : null;
+  // The ingress token is masked so a shared screenshot or copied URL doesn't carry it.
+  const unreachableUrl = connection === "unreachable" ? redactIngressToken(resolveWsUrl(WS_PATH)) : null;
 
   // "Disconnected" takes visual precedence over "database degraded"
   const showDegraded = telemetryDegraded && connection === "connected";
