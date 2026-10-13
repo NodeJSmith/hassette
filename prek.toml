@@ -65,8 +65,8 @@ hooks = [
 repo = "https://github.com/NodeJSmith/house-lint"
 rev = "v0.1.1"
 hooks = [
-    # HSL102 (file-size) is excluded here — it has a known backlog tracked as a
-    # non-blocking CI job (`file-sizes` in lint.yml), not a pre-commit/pre-push gate.
+    # HSL102 (file-size) is excluded here because of its known backlog. Only growth is gated,
+    # by the `check-file-size-regressions` hook below and the `file-sizes` job in lint.yml.
     { id = "house-lint", args = ["--ignore", "HSL102"], files = '^(src|tests|scripts|tools|codegen|wire|client|docs|examples)/.*\.py$', stages = ["pre-commit", "pre-push"] },
 ]
 
@@ -284,6 +284,35 @@ language = "system"
 entry = "tools/check_cli_drift.py"
 pass_filenames = false
 files = "^(src/hassette/cli/|tests/snapshots/cli_)"
+stages = ["pre-push"]
+
+# Local mirrors of the `file-sizes` and `duplicate-code` PR gates in lint.yml, so a regression
+# shows up before the push instead of as a red check. They can disagree with CI in three ways:
+# they diff against the merge-base with the local origin/main (stale, or wrong for a branch
+# stacked on another branch); they scan the working tree, not the pushed ref, so push from a
+# clean checkout of the branch being pushed; and they fail the push outright when origin/main or
+# (for duplicate-code) Java 21 is missing. `SKIP=<hook-id> git push` bypasses one.
+# CI keeps the gates because pushes from machines without these hooks (Renovate, --no-verify)
+# never run them. The CI `python` job `--skip`s both: the dedicated jobs already gate the PR
+# against its exact base/head SHAs, and the `python` job has no Java for PMD CPD.
+[[repos.hooks]]
+id = "check-file-size-regressions"
+name = "Check for new file-size regressions"
+language = "system"
+entry = "uv run python tools/check_file_size_regressions.py origin/main HEAD"
+pass_filenames = false
+require_serial = true
+types = ["python"]
+stages = ["pre-push"]
+
+[[repos.hooks]]
+id = "check-duplicate-code"
+name = "Check for new 3+-way duplicate code (PMD CPD, needs Java 21)"
+language = "system"
+entry = "uv run python tools/check_duplicate_code.py --gate-new-code origin/main HEAD"
+pass_filenames = false
+require_serial = true
+types_or = ["python", "ts", "tsx"]
 stages = ["pre-push"]
 
 [[repos.hooks]]

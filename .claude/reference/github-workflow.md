@@ -66,4 +66,6 @@ Each job in `.github/workflows/lint.yml` runs two steps with different scopes:
 - **The new-code gate** (`Check for new file-size regressions` / `Check duplicate code (new-code gate)`, PR events only) has no `continue-on-error` and determines the job's conclusion on a PR. It fails only when the PR's diff grew an already-oversized file, created a new oversized file, or introduced a new 3+-way duplicate block (majority overlap with the PR's added lines; see `new_code_violations()` in `tools/check_duplicate_code.py`).
 - **The backlog step** (`Check file sizes (full backlog)` / `Check duplicate code (full backlog)`) tracks the already-triaged historical backlog (the `Decompose *` issues) and cannot affect a PR's conclusion: it has `continue-on-error: true` for `file-sizes`, and for `duplicate-code` it doesn't run on PR events at all (the gate step does its own head-tree scan and reports the backlog for context).
 
+The new-code gates also run locally as the `check-file-size-regressions` and `check-duplicate-code` pre-push hooks in `prek.toml`, diffing against `origin/main`. A local pass can still disagree with CI; the comment above those hooks lists when.
+
 See the module docstrings of `tools/check_file_size_regressions.py` and `tools/check_duplicate_code.py` for the full design.

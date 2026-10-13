@@ -22,8 +22,8 @@ MAX_GENERATED_LINES = 800
 
 Kept in step with ``[tool.house-lint.rules.HSL102] max_lines`` in pyproject.toml by hand — see
 ``codegen/tests/test_sync_facade_cli.py::test_max_generated_lines_matches_hsl102_config``, which
-fails loudly if the two values ever drift apart. The warning is advisory — matching the repo's
-non-blocking ``file-sizes`` CI job — but it fires at generation time, where the person who just
+fails loudly if the two values ever drift apart. The warning is advisory — like HSL102's
+full-backlog report, which blocks nothing — but it fires at generation time, where the person who just
 grew the source class can act on it. ``BusSyncFacade`` crossed this line before it was split
 across ``bus/sync.py`` and ``bus/sync_events.py``.
 """

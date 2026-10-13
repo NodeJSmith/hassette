@@ -227,8 +227,8 @@ output = "coverage.xml"
 # check_llm_cruft.py, check_type_checking_position.py, check_constants_position.py,
 # check_spec_tokens.py, and check_exception_names.py (same author, verified rule-for-rule
 # equivalent before the swap). check_file_size.py's rule (HSL102) is configured here too but
-# selected only in the separate, non-blocking `file-sizes` CI job — see the comment on the
-# house-lint prek hook in prek.toml for why it's excluded from the blocking hook.
+# excluded from the house-lint prek hook; only growth past it is gated (see the comment on that
+# hook in prek.toml).
 #
 # HSL001 AI-writing tells (divider comments, filler phrases) in comments/docstrings
 # HSL002 imports inside function/method bodies ("lazy imports")
