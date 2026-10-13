@@ -1,5 +1,6 @@
 """Age-based retention cleanup for ``DatabaseService``, as a mixin."""
 
+import json
 import time
 import typing
 from dataclasses import dataclass
@@ -13,7 +14,7 @@ from hassette.core.retention_targets import _RETENTION_TABLES, RetentionTarget, 
 
 if typing.TYPE_CHECKING:
     import logging
-    from collections.abc import Callable, Coroutine
+    from collections.abc import Callable, Coroutine, Iterable
 
     from hassette import Hassette
     from hassette.config.config import HassetteConfig
@@ -167,15 +168,23 @@ class DatabaseRetentionMixin:
             )
         return TargetDeleteResult(total_deleted, exhausted=exhausted)
 
-    async def _run_parent_guard_deletes(self, cutoff: float) -> tuple[int, int]:
-        """NOT EXISTS-guarded deletes for retired listeners/scheduled_jobs.
+    async def _run_parent_guard_deletes(
+        self, cutoff: float, current_app_keys: "Iterable[str]"
+    ) -> tuple[int, int, list[str]]:
+        """NOT EXISTS-guarded deletes for retired listeners/scheduled_jobs, then removed apps' manifests.
 
         Only delete retired listeners/scheduled_jobs when ALL their child executions have
         also aged out. This prevents orphaning recent executions whose parent row would be
         deleted because retired_at (set at restart time) diverges from last execution time.
 
+        Then, in the same transaction, delete ``app_manifests`` rows for apps absent from
+        ``current_app_keys`` that nothing references anymore. Executions always belong to a
+        listener or scheduled_job, so "no listeners, jobs, log records or blocking events for
+        the app_key" also means no executions. ``app_key`` is the bare key in every table, so
+        the match covers all instance indexes.
+
         Returns:
-            tuple[int, int]: ``(listeners_deleted, jobs_deleted)``.
+            tuple[int, int, list[str]]: ``(listeners_deleted, jobs_deleted, removed_manifest_app_keys)``.
 
         Raises:
             Exception: Propagates any DB error from the delete statements.
@@ -206,8 +215,22 @@ class DatabaseRetentionMixin:
             """,
             (cutoff, cutoff),
         )
+        cursor_am = await self.db.execute(
+            """
+            DELETE FROM app_manifests
+            WHERE app_key NOT IN (SELECT value FROM json_each(?))
+              AND NOT EXISTS (SELECT 1 FROM listeners WHERE listeners.app_key = app_manifests.app_key)
+              AND NOT EXISTS (SELECT 1 FROM scheduled_jobs WHERE scheduled_jobs.app_key = app_manifests.app_key)
+              AND NOT EXISTS (SELECT 1 FROM log_records WHERE log_records.app_key = app_manifests.app_key)
+              AND NOT EXISTS (SELECT 1 FROM blocking_events WHERE blocking_events.app_key = app_manifests.app_key)
+            RETURNING app_key
+            """,
+            # json_each binds the whole variable-length key list as a single parameter.
+            (json.dumps(list(current_app_keys)),),
+        )
+        removed_manifest_keys = sorted(row[0] for row in await cursor_am.fetchall())
         await self.db.commit()
-        return cursor_rl.rowcount or 0, cursor_rj.rowcount or 0
+        return cursor_rl.rowcount or 0, cursor_rj.rowcount or 0, removed_manifest_keys
 
     def _record_parent_guard_skip(self, failed_labels: set[str], incomplete_labels: set[str]) -> None:
         """Count a skipped parent-guard cycle and log it, escalating a sustained streak to ERROR.
@@ -244,9 +267,11 @@ class DatabaseRetentionMixin:
         succeeded AND fully cleared its cutoff window this cycle; a target that failed or hit
         the per-cycle batch cap (see ``_delete_target_batched``'s ``exhausted`` return) skips
         the guard for this cycle so it can never run against a state where an upstream delete
-        is known to be incomplete. A parent-guard failure is rolled back, logged individually,
-        and also folded into the "Retention cleanup summary" line below (as
-        "parent-guard deletes failed") so it isn't only visible in a separate log line.
+        is known to be incomplete. The same gate covers pruning ``app_manifests`` rows for apps
+        removed from config, which runs inside the parent-guard transaction. A parent-guard
+        failure is rolled back, logged individually, and also folded into the "Retention
+        cleanup summary" line below (as "parent-guard deletes failed") so it isn't only
+        visible in a separate log line.
 
         Skipped cycles are counted by ``_record_parent_guard_skip``; the counter resets whenever
         the parent-guard actually runs, whether or not it succeeds. The cycle ends by reclaiming the
@@ -273,6 +298,7 @@ class DatabaseRetentionMixin:
 
         listeners_deleted = 0
         jobs_deleted = 0
+        removed_manifest_keys: list[str] = []
         parent_guard_failed = False
 
         if not failed_labels and not incomplete_labels:
@@ -280,7 +306,9 @@ class DatabaseRetentionMixin:
             try:
                 # Use the standard retention window for parent-guard deletes.
                 cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
-                listeners_deleted, jobs_deleted = await self._run_parent_guard_deletes(cutoff)
+                listeners_deleted, jobs_deleted, removed_manifest_keys = await self._run_parent_guard_deletes(
+                    cutoff, config.apps.manifests.keys()
+                )
             except Exception:
                 await safe_rollback(self.db, self, "parent-guard deletes")
                 self.logger.exception("Retention cleanup failed for parent-guard deletes")
@@ -288,6 +316,7 @@ class DatabaseRetentionMixin:
         else:
             self._record_parent_guard_skip(failed_labels, incomplete_labels)
 
+        deleted_by_label["removed app manifests"] = len(removed_manifest_keys)
         deleted_summary = {label: count for label, count in deleted_by_label.items() if count > 0}
         if deleted_summary or failed_labels or incomplete_labels or parent_guard_failed:
             parts = ", ".join(f"{count} {label}" for label, count in deleted_summary.items())
@@ -304,6 +333,11 @@ class DatabaseRetentionMixin:
                 "Retention cleanup: deleted %d retired listeners, %d retired scheduled_jobs",
                 listeners_deleted,
                 jobs_deleted,
+            )
+        if removed_manifest_keys:
+            self.logger.info(
+                "Retention cleanup: removed manifests for apps no longer in config with no remaining telemetry: %s",
+                ", ".join(removed_manifest_keys),
             )
 
         await self._reclaim_freed_pages()

@@ -2,11 +2,14 @@
 ``DatabaseService`` wired to it.
 
 Not re-exported from ``conftest.py`` -- a directory-wide ``db`` fixture name would shadow too
-easily. Consumers import directly from this module instead: ``test_log_records_retention.py``
-and ``test_retention_batch_failure.py``.
+easily. Consumers import directly from this module instead: ``test_log_records_retention.py``,
+``test_retention_batch_failure.py`` and ``test_app_manifest_retention.py``.
 """
 
+import sqlite3
+from collections.abc import Callable, Coroutine
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import aiosqlite
@@ -62,6 +65,23 @@ async def insert_tiered_execution(db: aiosqlite.Connection, timestamp: float, so
         "INSERT INTO executions (kind, listener_id, execution_start_ts, source_tier) VALUES ('handler', 1, ?, ?)",
         (timestamp, source_tier),
     )
+
+
+def make_failing_execute(db: aiosqlite.Connection, fail_on: str) -> Callable[..., Coroutine[Any, Any, Any]]:
+    """Build a ``db.execute`` replacement that raises on the first SQL statement containing
+    ``fail_on``, delegating everything else to the real ``db.execute``.
+
+    Used by retention tests that simulate one statement raising ``sqlite3.OperationalError`` to
+    verify the rest of the cleanup cycle reacts correctly (isolation, parent-guard gating).
+    """
+    original_execute = db.execute
+
+    async def failing_execute(sql: str, *args: Any, **kwargs: Any) -> Any:
+        if fail_on in sql:
+            raise sqlite3.OperationalError("simulated failure")
+        return await original_execute(sql, *args, **kwargs)
+
+    return failing_execute
 
 
 @pytest.fixture

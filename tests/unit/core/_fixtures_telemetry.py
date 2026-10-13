@@ -106,6 +106,14 @@ CREATE TABLE blocking_events (
 CREATE INDEX idx_be_ts      ON blocking_events(detected_ts);
 CREATE INDEX idx_be_app_ts  ON blocking_events(app_key, detected_ts);
 CREATE INDEX idx_be_session ON blocking_events(session_id);
+
+CREATE TABLE app_manifests (
+    id           INTEGER PRIMARY KEY,
+    app_key      TEXT NOT NULL UNIQUE,
+    class_name   TEXT NOT NULL DEFAULT '',
+    display_name TEXT NOT NULL DEFAULT '',
+    filename     TEXT NOT NULL DEFAULT ''
+);
 """
 
 
