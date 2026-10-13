@@ -1,6 +1,6 @@
 Hassette finds `hassette.toml` and `.env` in one of two ways, depending on whether a config directory is named.
 
-**With a config directory**, Hassette reads only `<config_dir>/hassette.toml` and `<config_dir>/.env`. Only the `--config-dir` CLI flag and the `HASSETTE__CONFIG_DIR` (or `HASSETTE_CONFIG_DIR`) environment variable set it. Hassette needs `config_dir` to locate `hassette.toml` and `.env`, so setting it inside either file is a startup error. A config directory that doesn't exist is a startup error too, so a misspelled path stops Hassette instead of running it on defaults.
+**With a config directory**, Hassette reads only `<config_dir>/hassette.toml` and `<config_dir>/.env`. Only the `--config-dir` CLI flag and the `HASSETTE__CONFIG_DIR` environment variable set it. Hassette needs `config_dir` to locate `hassette.toml` and `.env`, so setting it inside either file is a startup error. A config directory that doesn't exist is a startup error too, so a misspelled path stops Hassette instead of running it on defaults.
 
 !!! tip "Docker"
     The image sets `HASSETTE__CONFIG_DIR=/config`, so in Docker `/config/hassette.toml` is normally the only config file present, and `apps.directory` defaults to `/config/apps`.

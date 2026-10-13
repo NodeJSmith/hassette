@@ -238,7 +238,6 @@ class TestConfigDirInAFile:
         [
             pytest.param("config_dir = '/elsewhere'\n", "", "hassette.toml", id="toml"),
             pytest.param("", "HASSETTE__CONFIG_DIR=/elsewhere\n", ".env", id="dotenv"),
-            pytest.param("", "HASSETTE_CONFIG_DIR=/elsewhere\n", ".env", id="dotenv-single-underscore"),
         ],
     )
     def test_is_an_error_naming_the_file_and_the_fix(self, cfg: Path, toml: str, dotenv: str, filename: str) -> None:

@@ -29,7 +29,7 @@ def test_drop_data_dir_env_vars_removes_every_case_variant():
     environ = {
         "HASSETTE__DATA_DIR": "/a",
         "hassette__data_dir": "/b",
-        "Hassette_Data_Dir": "/c",
+        "Hassette__Data_Dir": "/c",
         "HASSETTE__CONFIG_DIR": "/keep",
         "PATH": "/usr/bin",
     }
