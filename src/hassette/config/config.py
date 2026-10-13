@@ -207,12 +207,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
     """Whether to import .env files specified in env_files. With this disabled, the .env file provided will only
     be used for loading settings. With this enabled, the .env files will also be loaded into os.environ."""
 
-    run_app_precheck: bool = Field(default=True)
-    """Whether to run the app precheck before starting Hassette. This is recommended, but if any apps fail to load
-    then Hassette will not start."""
-
     allow_startup_if_app_precheck_fails: bool = Field(default=False)
-    """Whether to allow Hassette to start even if the app precheck fails. This is generally not recommended."""
+    """Whether to allow Hassette to start even if the app precheck fails. The precheck always runs and logs its
+    errors; this only decides whether a failure aborts startup. This is generally not recommended."""
 
     hassette_event_buffer_size: int = Field(default=1000)
     """Buffer capacity of the internal anyio memory channel used to route events to the bus."""
@@ -236,9 +233,6 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     state_proxy_poll_interval_seconds: int = Field(default=30)
     """Interval in seconds to poll the state proxy for updates."""
-
-    disable_state_proxy_polling: bool = Field(default=False)
-    """Whether to disable polling for the state proxy. Defaults to False."""
 
     bus_excluded_domains: tuple[str, ...] = Field(default_factory=tuple)
     """Domains whose events should be skipped by the bus; supports glob patterns (e.g. 'sensor', 'media_*')."""

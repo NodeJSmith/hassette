@@ -28,7 +28,6 @@ def make_config_cls(toml_file: Path) -> type[HassetteConfig]:
         )
 
         token: SecretStr = SecretStr(TEST_TOKEN)
-        run_app_precheck: bool = False
 
     return MinimalConfig
 
@@ -231,8 +230,6 @@ def make_aliased_config_cls(files: list[Path]) -> type[HassetteConfig]:
         model_config = HassetteConfig.model_config.copy() | SettingsConfigDict(
             cli_parse_args=False, toml_file=files, env_file=[]
         )
-
-        run_app_precheck: bool = False
 
     return AliasedConfig
 

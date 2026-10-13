@@ -29,7 +29,7 @@ class TestHassetteConfigNested:
 
             @classmethod
             def settings_customise_sources(cls, settings_cls, **_kwargs):  # pyright: ignore[reportIncompatibleMethodOverride]
-                return (InitSettingsSource(settings_cls, init_kwargs={"token": TEST_TOKEN, "run_app_precheck": False}),)
+                return (InitSettingsSource(settings_cls, init_kwargs={"token": TEST_TOKEN}),)
 
             def model_post_init(self, *args):
                 pass
@@ -89,7 +89,7 @@ class TestNestedTomlLoading:
         """A TOML file with [hassette.database] sets database fields."""
         toml = tmp_path / "hassette.toml"
         toml.write_text(
-            "[hassette]\ntoken = 'test-token'\nrun_app_precheck = false\n\n[hassette.database]\nretention_days = 14\n",
+            "[hassette]\ntoken = 'test-token'\n\n[hassette.database]\nretention_days = 14\n",
             encoding="utf-8",
         )
 
@@ -102,8 +102,7 @@ class TestNestedTomlLoading:
         """A TOML file with [hassette.websocket] sets websocket fields."""
         toml = tmp_path / "hassette.toml"
         toml.write_text(
-            "[hassette]\ntoken = 'test-token'\nrun_app_precheck = false\n\n"
-            "[hassette.websocket]\nheartbeat_interval_seconds = 60\n",
+            "[hassette]\ntoken = 'test-token'\n\n[hassette.websocket]\nheartbeat_interval_seconds = 60\n",
             encoding="utf-8",
         )
 
@@ -114,7 +113,7 @@ class TestNestedTomlLoading:
         """An empty [hassette.database] section produces valid DatabaseConfig with all defaults."""
         toml = tmp_path / "hassette.toml"
         toml.write_text(
-            "[hassette]\ntoken = 'test-token'\nrun_app_precheck = false\n\n[hassette.database]\n",
+            "[hassette]\ntoken = 'test-token'\n\n[hassette.database]\n",
             encoding="utf-8",
         )
 
@@ -138,7 +137,6 @@ class TestEnvVarPartialUpdate:
             }
 
             token: SecretStr = SecretStr(TEST_TOKEN)
-            run_app_precheck: bool = False
 
         config = EnvDatabaseConfig()
         assert config.database.retention_days == 14
@@ -158,7 +156,6 @@ class TestEnvVarPartialUpdate:
             }
 
             token: SecretStr = SecretStr(TEST_TOKEN)
-            run_app_precheck: bool = False
 
         config = EnvLoggingConfig()
         assert config.logging.log_level == "DEBUG"
@@ -175,7 +172,6 @@ class TestEnvVarPartialUpdate:
             }
 
             token: SecretStr = SecretStr(TEST_TOKEN)
-            run_app_precheck: bool = False
 
         config = EnvCliServerUrlConfig()
         assert config.cli.server_url == "https://example.com"
@@ -194,7 +190,6 @@ class TestEnvVarPartialUpdate:
             }
 
             token: SecretStr = SecretStr(TEST_TOKEN)
-            run_app_precheck: bool = False
 
         config = EnvCliVerifySslConfig()
         assert config.cli.verify_ssl is False
@@ -216,7 +211,6 @@ class TestCrossModelValidation:
             }
 
             token: SecretStr = SecretStr(TEST_TOKEN)
-            run_app_precheck: bool = False
 
         with pytest.raises((ValidationError, ValueError)) as exc_info:
             ValidationConfig(

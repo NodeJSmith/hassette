@@ -182,14 +182,13 @@ class Hassette(HassetteAccessorsMixin, Resource):
         inactive_apps = [app for app in self.config.apps.manifests.values() if not app.enabled]
         self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
 
-        if self.config.run_app_precheck:
-            try:
-                run_apps_pre_check(self.config)
-            except AppPrecheckFailedError:
-                if not self.config.allow_startup_if_app_precheck_fails:
-                    self.logger.error("App precheck failed and startup is not allowed to continue. Raising exception.")
-                    raise
-                self.logger.warning("App precheck failed, but startup will continue due to configuration setting.")
+        try:
+            run_apps_pre_check(self.config)
+        except AppPrecheckFailedError:
+            if not self.config.allow_startup_if_app_precheck_fails:
+                self.logger.error("App precheck failed and startup is not allowed to continue. Raising exception.")
+                raise
+            self.logger.warning("App precheck failed, but startup will continue due to configuration setting.")
 
     def wire_services(self) -> None:
         """Register context variables, wire all services, and validate the dependency graph.

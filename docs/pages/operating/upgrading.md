@@ -137,6 +137,8 @@ If the container isn't running, `docker compose run --rm --entrypoint hassette h
 | `[hassette.websocket] early_drop_backoff_initial_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
 | `[hassette.websocket] early_drop_backoff_max_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
 | `[hassette.websocket] max_recovery_seconds` | Removed; reconnect pacing is fixed. See [Operating](index.md#websocket-reconnection) |
+| `run_app_precheck` | Removed; the precheck always runs. Set `allow_startup_if_app_precheck_fails = true` to start despite a failure |
+| `disable_state_proxy_polling` | Removed; the state cache poll always runs. Tune it with `state_proxy_poll_interval_seconds` |
 | `config_file` / `env_file` settings | the `--config-file` / `--env-file` CLI flags |
 | `config_dir` in `hassette.toml` or `.env` | `--config-dir`, or `HASSETTE__CONFIG_DIR` in the process environment |
 | An app's `AppConfig` `env_prefix` starting with `hassette__` (its variables are now checked as Hassette settings) | a prefix outside `HASSETTE__`: `env_prefix="hassette__myapp_"` becomes `env_prefix="myapp_"`, and `HASSETTE__MYAPP_API_KEY` becomes `MYAPP_API_KEY` |

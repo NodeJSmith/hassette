@@ -113,10 +113,8 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
         - ``token``: ``"test-token"`` (stored as ``SecretStr``; read via
           ``config.token.get_secret_value()``)
         - ``base_url``: ``"http://test.invalid:8123"`` (unreachable by design)
-        - ``disable_state_proxy_polling``: ``True``
         - ``apps``: ``{"autodetect": False}``
         - ``web_api``: ``{"run": False}``
-        - ``run_app_precheck``: ``False``
 
     Overrides are merged on top of these defaults before validation. Nested
     group overrides can be passed as dicts or model instances::
@@ -147,10 +145,8 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
         "token": TEST_TOKEN,
         "base_url": TEST_BASE_URL,
         "data_dir": data_dir,
-        "disable_state_proxy_polling": True,
         "apps": {"autodetect": False},
         "web_api": {"run": False},
-        "run_app_precheck": False,
     }
     merged = {**defaults, **overrides}
 

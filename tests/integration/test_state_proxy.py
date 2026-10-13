@@ -13,6 +13,7 @@ from hassette.events.metadata import stamp_websocket_generation
 from hassette.exceptions import ResourceNotReadyError
 from hassette.resources.lifecycle import mark_ready
 from hassette.testing import HassetteHarness, build_harness, make_full_state_change_event, make_light_state_dict
+from hassette.testing._harness_resources import HarnessStateProxy
 from tests.support.mock_hassette import make_mock_hassette
 from tests.support.web_mocks import configure_ready_websocket_mock
 
@@ -26,10 +27,10 @@ SYNC_WAIT_TIMEOUT = 1.0
 NO_SIGNAL_TIMEOUT = 0.05
 
 
-def build_state_proxy(*, disable_state_proxy_polling: bool = True) -> StateProxy:
+def build_state_proxy(*, poll: bool = False) -> StateProxy:
+    """Build a StateProxy on a mock hassette; ``poll=False`` uses the harness's no-poll subclass."""
     hassette = make_mock_hassette(
         sealed=False,
-        disable_state_proxy_polling=disable_state_proxy_polling,
         logging={"state_proxy": "DEBUG", "task_bucket": "DEBUG", "bus_service": "DEBUG"},
     )
     hassette.send_event = AsyncMock()
@@ -40,7 +41,8 @@ def build_state_proxy(*, disable_state_proxy_polling: bool = True) -> StateProxy
     configure_ready_websocket_mock(hassette.websocket_service, generation=1)
     hassette.bus_service.add_listener = AsyncMock(return_value=1)
     hassette.bus_service.remove_listeners_by_owner.return_value = None
-    proxy = StateProxy(hassette, parent=hassette)
+    proxy_cls = StateProxy if poll else HarnessStateProxy
+    proxy = proxy_cls(hassette, parent=hassette)
     mark_ready(proxy.bus, reason="test bus ready")
     mark_ready(proxy.scheduler, reason="test scheduler ready")
     return proxy
@@ -533,7 +535,7 @@ async def test_retry_attempt_resets_when_generation_changes(monkeypatch: pytest.
 
 
 async def test_poll_enabled_initial_failure_converges_through_next_poll() -> None:
-    proxy = build_state_proxy(disable_state_proxy_polling=False)
+    proxy = build_state_proxy(poll=True)
     first_sync_entered = asyncio.Event()
 
     async def initial_then_successful_snapshot() -> list[dict[str, object]]:
@@ -783,3 +785,13 @@ async def test_state_proxy_starts_with_api_mock_websocket_service_spec(
         harness.with_api_mock().with_state_proxy(require_initial_state_capability=False)
     ) as started:
         assert started.state_proxy.state_change_sub is not None
+
+
+async def test_harness_state_proxy_installs_no_poll_job(test_config: HassetteConfig, unused_tcp_port_factory) -> None:
+    """The harness's StateProxy skips the periodic poll job, so a failed sync falls back to the backoff retry."""
+    harness = HassetteHarness(test_config, unused_tcp_port=unused_tcp_port_factory())
+    async with build_harness(
+        harness.with_api_mock().with_state_proxy(require_initial_state_capability=False)
+    ) as started:
+        assert started.state_proxy.state_change_sub is not None
+        assert started.state_proxy.poll_job is None

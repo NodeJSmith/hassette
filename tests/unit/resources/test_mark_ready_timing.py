@@ -47,7 +47,7 @@ from hassette.scheduler.scheduler import Scheduler
 from hassette.scheduler.sync import SchedulerSyncFacade
 from hassette.state_manager.state_manager import StateManager
 from hassette.task_bucket.task_bucket import TaskBucket
-from hassette.testing._harness import _TestableHassette
+from hassette.testing._harness_resources import HarnessHassette
 from hassette.testing.recording_api import RecordingApi
 from tests.support.ready_timing import assert_marks_ready_in, find_mark_ready_classes
 
@@ -98,7 +98,7 @@ NOT_SELF_MARKED: dict[type, str] = {
     BusSyncEventShortcuts: "intermediate base class of BusSyncFacade",
     Hassette: "the coordinator signals startup through ready_event, not mark_ready()",
     Service: "abstract base class",
-    _TestableHassette: "the test harness sets ready_event directly, like Hassette",
+    HarnessHassette: "the test harness sets ready_event directly, like Hassette",
 }
 
 

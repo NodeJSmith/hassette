@@ -151,7 +151,6 @@ class TestStartupTasksEnvFiles:
 
         with preserve_config(test_config):
             test_config.import_dot_env_files = False
-            test_config.run_app_precheck = False
             hassette = Hassette(test_config)
             hassette.startup_tasks()
 
@@ -159,19 +158,15 @@ class TestStartupTasksEnvFiles:
 
 
 class TestStartupTasksAppPrecheck:
-    def test_precheck_disabled_never_runs_precheck(
-        self, test_config: HassetteConfig, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """startup_tasks() does not call run_apps_pre_check when run_app_precheck is False."""
+    def test_precheck_always_runs(self, test_config: HassetteConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+        """startup_tasks() always calls run_apps_pre_check with the active config."""
         precheck_mock = Mock()
         monkeypatch.setattr(core_module, "run_apps_pre_check", precheck_mock)
 
-        with preserve_config(test_config):
-            test_config.run_app_precheck = False
-            hassette = Hassette(test_config)
-            hassette.startup_tasks()
+        hassette = Hassette(test_config)
+        hassette.startup_tasks()
 
-        precheck_mock.assert_not_called()
+        precheck_mock.assert_called_once_with(test_config)
 
     def test_precheck_failure_reraises_when_not_allowed_to_continue(
         self, test_config: HassetteConfig, monkeypatch: pytest.MonkeyPatch
@@ -180,7 +175,6 @@ class TestStartupTasksAppPrecheck:
         monkeypatch.setattr(core_module, "run_apps_pre_check", Mock(side_effect=AppPrecheckFailedError("bad app")))
 
         with preserve_config(test_config):
-            test_config.run_app_precheck = True
             test_config.allow_startup_if_app_precheck_fails = False
             hassette = Hassette(test_config)
             with pytest.raises(AppPrecheckFailedError):
@@ -193,7 +187,6 @@ class TestStartupTasksAppPrecheck:
         monkeypatch.setattr(core_module, "run_apps_pre_check", Mock(side_effect=AppPrecheckFailedError("bad app")))
 
         with preserve_config(test_config):
-            test_config.run_app_precheck = True
             test_config.allow_startup_if_app_precheck_fails = True
             hassette = Hassette(test_config)
             hassette.startup_tasks()  # must not raise
