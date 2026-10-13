@@ -24,6 +24,10 @@ PARENT_GUARD_SKIP_ESCALATION_CYCLES = 3
 an ERROR instead of a WARNING — separates a transient one-off target failure from a target that
 is chronically blocking retired listener/scheduled_job cleanup."""
 
+_REMOVED_APP_KEYS_SQL = "SELECT app_key FROM app_manifests WHERE app_key NOT IN (SELECT value FROM json_each(?))"
+"""App keys with a manifest but absent from the current config (bound to a JSON array of current keys).
+Framework registrations have no manifest, so they never match."""
+
 
 @dataclass(frozen=True, slots=True)
 class TargetDeleteResult:
@@ -171,11 +175,15 @@ class DatabaseRetentionMixin:
     async def _run_parent_guard_deletes(
         self, cutoff: float, current_app_keys: "Iterable[str]"
     ) -> tuple[int, int, list[str]]:
-        """NOT EXISTS-guarded deletes for retired listeners/scheduled_jobs, then removed apps' manifests.
+        """NOT EXISTS-guarded deletes for retired or removed-app listeners/scheduled_jobs, then removed apps' manifests.
 
         Only delete retired listeners/scheduled_jobs when ALL their child executions have
         also aged out. This prevents orphaning recent executions whose parent row would be
         deleted because retired_at (set at restart time) diverges from last execution time.
+
+        Registrations of a removed app (manifest present, ``app_key`` absent from
+        ``current_app_keys``) get the same execution guard but no ``retired_at`` requirement:
+        reconciliation only runs for configured apps, so a removed app's rows are never retired.
 
         Then, in the same transaction, delete ``app_manifests`` rows for apps absent from
         ``current_app_keys`` that nothing references anymore. Executions always belong to a
@@ -189,31 +197,33 @@ class DatabaseRetentionMixin:
         Raises:
             Exception: Propagates any DB error from the delete statements.
         """
+        # json_each binds the whole variable-length key list as a single parameter.
+        current_keys_json = json.dumps(list(current_app_keys))
         await self.db.execute(SQL_BEGIN)
         cursor_rl = await self.db.execute(
-            """
+            f"""
             DELETE FROM listeners
-            WHERE retired_at IS NOT NULL AND retired_at < ?
+            WHERE ((retired_at IS NOT NULL AND retired_at < ?) OR app_key IN ({_REMOVED_APP_KEYS_SQL}))
               AND NOT EXISTS (
                   SELECT 1 FROM executions
                   WHERE listener_id = listeners.id
                     AND execution_start_ts >= ?
               )
             """,
-            (cutoff, cutoff),
+            (cutoff, current_keys_json, cutoff),
         )
         # Same guard for scheduled_jobs.
         cursor_rj = await self.db.execute(
-            """
+            f"""
             DELETE FROM scheduled_jobs
-            WHERE retired_at IS NOT NULL AND retired_at < ?
+            WHERE ((retired_at IS NOT NULL AND retired_at < ?) OR app_key IN ({_REMOVED_APP_KEYS_SQL}))
               AND NOT EXISTS (
                   SELECT 1 FROM executions
                   WHERE job_id = scheduled_jobs.id
                     AND execution_start_ts >= ?
               )
             """,
-            (cutoff, cutoff),
+            (cutoff, current_keys_json, cutoff),
         )
         cursor_am = await self.db.execute(
             """
@@ -225,8 +235,7 @@ class DatabaseRetentionMixin:
               AND NOT EXISTS (SELECT 1 FROM blocking_events WHERE blocking_events.app_key = app_manifests.app_key)
             RETURNING app_key
             """,
-            # json_each binds the whole variable-length key list as a single parameter.
-            (json.dumps(list(current_app_keys)),),
+            (current_keys_json,),
         )
         removed_manifest_keys = sorted(row[0] for row in await cursor_am.fetchall())
         await self.db.commit()

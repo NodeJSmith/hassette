@@ -60,7 +60,7 @@ Time-based retention deletes from four targets independently: framework-tier exe
 
 Retired listener and job registrations are cleaned up separately, after every one of the four targets above has fully cleared its own cutoff window for the current cycle. If any target fails or leaves a backlog past the per-cycle batch cap, the registration cleanup is skipped for that cycle and retried on the next one — this prevents deleting a registration whose child execution records have not actually been fully removed yet.
 
-The same cycle drops an app that was removed from config once nothing is left of its history. Its listener and job registrations, log records, and blocking events must all be gone. Until then, the Apps page keeps listing it as "not in current config" so its run history stays browsable.
+The same cycle drops an app that was removed from config once nothing is left of its history. Its executions, log records, and blocking events must all have aged out; its listener and job registrations go in the same cycle. Until then, the Apps page keeps listing it as "not in current config" so its run history stays browsable.
 
 Size-based retention runs after time-based retention. When live data (the database's in-use pages, excluding free pages and the WAL) exceeds `max_size_mb`, the oldest records are deleted in priority order: framework executions first, then blocking events, then app executions.
 
