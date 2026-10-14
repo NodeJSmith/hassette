@@ -1,6 +1,6 @@
 # Debounce Sensor Changes
 
-Your outdoor temperature sensor reports a reading every few seconds. On a warm afternoon, it may emit a dozen near-identical values before settling. Reacting to each one produces redundant log entries and wasted service calls. This recipe acts on rising temperatures only, and waits until the rises stop for a set period before acting.
+An outdoor temperature sensor reports a reading every few seconds. On a warm afternoon, it may emit a dozen near-identical values before settling. Reacting to each one produces redundant log entries and wasted service calls. This recipe acts on rising temperatures only, and waits until the rises stop for a set period before acting.
 
 ## The Code
 
@@ -26,7 +26,7 @@ The bus (`self.bus`) delivers Home Assistant events to subscribed handlers — e
 
 `debounce=10.0` tells the bus to hold the handler until 10 seconds pass with no new rising reading. Each rising reading during that window resets the timer. The handler fires once, with the last rising reading, when the rises stop.
 
-`changed=C.Increased()` gates which events start the debounce timer in the first place. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of ready-made value checks. `C.Increased()` passes only when the new state value is numerically greater than the old one. Drops and unchanged readings never reach the debounce timer, so they neither start nor reset it. A drop during the window doesn't cancel the pending call: the handler still fires with the last rising reading, even if the sensor has since fallen. To act only on a value that has held steady, use `duration=` on `on_state_change` instead.
+`changed=C.Increased()` gates which events start the debounce timer in the first place. `C` is an alias for [`hassette.event_handling.conditions`](../core-concepts/bus/filtering.md), a module of ready-made value checks. `C.Increased()` passes only when the new state value is numerically greater than the old one. Drops and unchanged readings never reach the debounce timer, so they neither start nor reset it. A drop during the window doesn't cancel the pending call: the handler still fires with the last rising reading, even if the sensor has since fallen. To act only on a value that has held steady, use `duration=` on `on_state_change` together with a condition the new state must keep satisfying, such as `changed_to=` or a `where=` predicate. Comparison conditions like `C.Increased()` only gate the event that starts the wait, so a drop doesn't cancel it.
 
 `D.StateNew[states.SensorState]` is a [dependency injection](../core-concepts/bus/dependency-injection.md) annotation. `D` is an alias for `hassette.event_handling.dependencies` — Hassette inspects the handler's parameter types at registration and passes the extracted value in automatically. `D.StateNew` delivers the new state, already converted to a [`SensorState`][hassette.models.states.sensor.SensorState] object. `SensorState.value` is `str | None` — the framework sets it to `None` when the entity is `"unavailable"` or `"unknown"` — so the handler converts it to a `float` before comparing against `THRESHOLD`. The `try`/`except` guards against the `None` and non-numeric values that HA sensors report during startup.
 

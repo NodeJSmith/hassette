@@ -4,11 +4,11 @@ Five example automations that collectively exercise 27+ framework patterns. They
 
 ## Apps
 
-### motion_lights.py — Motion-activated lights with debounce
+### motion_lights.py — Motion-activated lights with a hold delay
 
-Demonstrates: multi-instance config, `on_state_change` with `changed_to`, debounce, `entities.LightEntity`, state cache access.
+Demonstrates: multi-instance config, `on_state_change` with `changed_to`, `duration`, `entities.LightEntity`, state cache access.
 
-Watches a binary sensor and turns a light on when motion is detected, off after motion clears (with a debounce delay). Configured for two instances in `hassette.toml` (kitchen lights and ceiling lights), both watching the same backyard motion sensor with different brightness settings.
+Watches a binary sensor and turns a light on when motion is detected, off once the sensor has stayed clear for `off_delay` seconds (`duration=`, so returning motion cancels the turn-off). Configured for two instances in `hassette.toml` (kitchen lights and ceiling lights), both watching the same backyard motion sensor with different brightness settings.
 
 ### climate_controller.py — Temperature monitoring with glob patterns
 
@@ -56,7 +56,7 @@ The demo environment uses a pre-seeded long-lived access token for API authentic
 
 | Instance | App | Key patterns |
 |---|---|---|
-| `backyard_kitchen` | MotionLights | debounce, state cache |
+| `backyard_kitchen` | MotionLights | duration, state cache |
 | `backyard_ceiling` | MotionLights | multi-instance |
 | *(single)* | ClimateController | glob, attribute change |
 | *(single)* | CoverScheduler | cron, daily, cache |
