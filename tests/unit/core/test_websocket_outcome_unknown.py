@@ -89,7 +89,7 @@ class TestResponseTimeout:
         attempts = 2
 
         with (
-            patch("hassette.core.websocket_service.MAX_RETRY_ATTEMPTS", attempts),
+            patch("hassette.core.websocket_io.MAX_RETRY_ATTEMPTS", attempts),
             pytest.raises(ResponseTimeoutError),
         ):
             await websocket_service.send_and_wait(type="get_states")
@@ -302,7 +302,7 @@ class TestLateReplyToTimedOutWrite:
         single_attempt = 1  # the read goes through the retrying path, which still records nothing
 
         with (
-            patch("hassette.core.websocket_service.MAX_RETRY_ATTEMPTS", single_attempt),
+            patch("hassette.core.websocket_io.MAX_RETRY_ATTEMPTS", single_attempt),
             pytest.raises(ResponseTimeoutError),
         ):
             await websocket_service.send_and_wait(type="get_states")

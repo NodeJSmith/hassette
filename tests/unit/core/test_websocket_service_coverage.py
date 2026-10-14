@@ -139,7 +139,7 @@ class TestSendAndWaitRetryOnTimeout:
         websocket_service.hassette.config.websocket.response_timeout_seconds = 0
         websocket_service.send_json = AsyncMock()
 
-        with patch("hassette.core.websocket_service.MAX_RETRY_ATTEMPTS", 2), pytest.raises(FailedMessageError):
+        with patch("hassette.core.websocket_io.MAX_RETRY_ATTEMPTS", 2), pytest.raises(FailedMessageError):
             await websocket_service.send_and_wait(type="get_states")
 
         assert websocket_service.send_json.await_count == 2
