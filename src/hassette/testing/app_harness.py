@@ -41,7 +41,8 @@ from hassette.resources.lifecycle import start
 from hassette.scheduler import Scheduler
 from hassette.state_manager import StateManager
 from hassette.testing._factories import make_state_dict
-from hassette.testing._harness import HassetteHarness, Timeouts, wait_for
+from hassette.testing._harness import HassetteHarness
+from hassette.testing._harness_support import Timeouts, wait_for
 from hassette.testing._simulation import SimulationMixin
 from hassette.testing._time_control import TimeControlMixin
 from hassette.testing.config import make_test_config

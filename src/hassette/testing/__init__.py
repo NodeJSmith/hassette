@@ -35,7 +35,7 @@ from ._factories import make_state_dict as make_state_dict
 from ._factories import make_switch_state_dict as make_switch_state_dict
 from ._factories import make_typed_state as make_typed_state
 from ._harness import HassetteHarness as HassetteHarness
-from ._harness import wait_for as wait_for
+from ._harness_support import wait_for as wait_for
 from .api_call import ApiCall as ApiCall
 from .app_harness import AppConfigurationError as AppConfigurationError
 from .app_harness import AppTestHarness as AppTestHarness

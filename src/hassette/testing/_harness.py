@@ -1,12 +1,11 @@
 import asyncio
 import contextlib
-import inspect
 import itertools
 import logging
 import threading
 import traceback
 import typing
-from collections.abc import Awaitable, Callable, Generator
+from collections.abc import Callable
 from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
 
@@ -26,244 +25,34 @@ from hassette.core.app_bootstrap_coordinator import AppBootstrapCoordinator
 from hassette.core.app_handler import AppHandler
 from hassette.core.bus_service import BusService
 from hassette.core.command_executor import CommandExecutor
-from hassette.core.event_stream_service import EventStreamService
 from hassette.core.file_watcher import FileWatcherService
 from hassette.core.loop_watchdog import LoopWatchdog
 from hassette.core.scheduler_service import SchedulerService
-from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.core.websocket_service import WebsocketService
-from hassette.resources.base import Resource
 from hassette.resources.operations import start_children_and_wait
 from hassette.scheduler import Scheduler
 from hassette.scheduler.error_context import SchedulerErrorContext
 from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
-from hassette.testing._harness_resources import HarnessHassette, HarnessStateProxy
+from hassette.testing._harness_graph import DEPENDENCIES, STARTUP_ORDER
+from hassette.testing._harness_resources import HarnessEventStreamService, HarnessHassette, HarnessStateProxy
+from hassette.testing._harness_support import (
+    Timeouts,
+    collect_shutdown_errors,
+    harness_dispatch,
+    shutdown_resource,
+)
 from hassette.testing._reset import reset_app_handler, reset_bus, reset_mock_api, reset_scheduler, reset_state_proxy
 from hassette.testing._server import SimpleTestServer
 from hassette.testing._ws_mocks import configure_ready_websocket_mock
-from hassette.testing.config import TEST_TOKEN, WAIT_FOR_READY_TIMEOUT_SECONDS
-from hassette.utils.func_utils import is_async_callable
+from hassette.testing.config import TEST_TOKEN
 
 if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
     from hassette.core.core import Hassette
+    from hassette.core.state_proxy import StateProxy
     from hassette.events import Event, HassStateDict
-
-DEPENDENCIES: dict[str, set[str]] = {
-    "sync_executor": set(),
-    "bus": {"sync_executor"},
-    "scheduler": {"sync_executor"},
-    "file_watcher": set(),
-    "api_mock": set(),
-    "app_bootstrap_coordinator": {"bus", "scheduler", "state_proxy", "sync_executor"},
-    "app_handler": {"app_bootstrap_coordinator"},
-    "state_proxy": {"bus", "scheduler"},
-    "state_registry": set(),
-    # service_watcher removed: ServiceWatcher is a real framework service but has no
-    # harness starter — the harness does not instantiate it.  Removing it eliminates
-    # the ghost entry that caused STARTUP_ORDER to include a component with no starter.
-}
-# Maps harness component names to the corresponding real framework service class.
-# Used by the harness consistency test to verify DEPENDENCIES stays in sync with
-# real service depends_on declarations.
-#
-# Omitted entries:
-#   "file_watcher"   — FileWatcherService has no depends_on (empty list), so consistency
-#                      checks would be vacuous.  Omitting avoids false-positive drift.
-#   "state_registry" — StateRegistry is not a Resource subclass; it is a plain dataclass
-#                      registry with no depends_on concept.
-#   "service_watcher"— Removed: ServiceWatcher has no harness starter; including it in
-#                      this map without a matching _starters entry created a ghost entry
-#                      that made the structural test impossible to satisfy.
-COMPONENT_CLASS_MAP: dict[str, type[Resource]] = {
-    "sync_executor": SyncExecutorService,
-    "bus": BusService,
-    "scheduler": SchedulerService,
-    "app_bootstrap_coordinator": AppBootstrapCoordinator,
-    "app_handler": AppHandler,
-    "state_proxy": StateProxy,
-}
-
-
-# Do not use raw floats in harness code — reference these constants instead so
-# any future re-tuning is a single-site edit.
-class Timeouts:
-    """Centralised timeout constants for the test harness.
-
-    All values are in seconds. Rationale for each value is documented below.
-    Changing a value here propagates everywhere the constant is used.
-    """
-
-    # How long HassetteHarness.start() waits for all children to become ready.
-    # 5 s gives enough headroom for slow CI machines without masking real hangs.
-    # Shared with hassette.testing._reset via WAIT_FOR_READY_TIMEOUT_SECONDS in
-    # hassette.testing.config (that module, not this one, is the single source of truth —
-    # see the comment there for why).
-    WAIT_FOR_READY: float = WAIT_FOR_READY_TIMEOUT_SECONDS
-
-    # How long seed_state() waits to acquire the StateProxy write lock.
-    # Under test conditions the lock should never be contended for long; 5 s is
-    # a generous upper bound that catches genuine deadlocks without false-positive
-    # failures on slow machines.
-    STATE_SEED_LOCK: float = 5.0
-
-
-async def wait_for(
-    predicate: Callable[[], bool] | Callable[[], typing.Awaitable[bool]],
-    *,
-    timeout: float = 3.0,
-    interval: float = 0.02,
-    desc: str = "condition",
-) -> None:
-    is_async = is_async_callable(predicate)
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + timeout
-    while True:
-        result = (await predicate()) if is_async else predicate()  # pyright: ignore[reportGeneralTypeIssues]
-        if result:
-            return
-        if loop.time() >= deadline:
-            raise TimeoutError(f"Timed out waiting for {desc}")
-        await asyncio.sleep(interval)
-
-
-async def shutdown_resource(res: Resource) -> None:
-    await res.shutdown()
-
-
-@contextlib.contextmanager
-def _collect_shutdown_errors(
-    errors: list[Exception],
-    exc_types: type[Exception] | tuple[type[Exception], ...] = Exception,
-) -> Generator[None, None, None]:
-    """Run the wrapped block, appending any matching exception to ``errors`` instead of raising.
-
-    Used by ``HassetteHarness.stop()`` so a failure in one teardown step doesn't skip the rest —
-    all collected errors are raised together as an ExceptionGroup once teardown finishes.
-    """
-    try:
-        yield
-    except exc_types as exc:
-        errors.append(exc)
-
-
-async def _harness_dispatch(
-    invoke_fn: Callable[[], Awaitable[None]],
-    error_handler: Callable[..., Any] | None,
-    make_error_context: Callable[[Exception], Any],
-    log_label: str,
-) -> None:
-    """Shared dispatch logic for bus and scheduler harness stubs.
-
-    The harness does NOT test timeout enforcement, task spawn isolation, or
-    failure counter — those are covered by integration tests via real CommandExecutor.
-    """
-    if error_handler is None:
-        await invoke_fn()
-        return
-    try:
-        await invoke_fn()
-    except asyncio.CancelledError:
-        raise
-    except Exception as exc:
-        ctx = make_error_context(exc)
-        try:
-            result = error_handler(ctx)
-            if inspect.isawaitable(result):
-                await result
-        except Exception:
-            logging.getLogger("hassette.testing._harness").warning(
-                "Error handler raised during harness dispatch (%s)", log_label, exc_info=True
-            )
-
-
-class _HarnessEventStreamService(EventStreamService):
-    """EventStreamService variant that suppresses close_streams() for test harness reuse.
-
-    Module-scoped fixtures share a single HarnessHassette across many tests.  Some
-    test scenarios (e.g., ServiceWatcher max-restart exceeded) trigger
-    ``hassette.shutdown()``, which normally closes the anyio memory streams inside
-    ``EventStreamService``.  Closed streams cannot be reopened, so subsequent tests
-    in the same module would receive ``ClosedResourceError`` on every ``send_event``
-    call.
-
-    By making ``close_streams()`` a no-op here, the streams remain open for the
-    lifetime of the harness.  Explicit stream teardown is handled by
-    ``HassetteHarness.stop()``, which calls ``_close_streams_now()`` directly —
-    the only code path that should close streams in test context.
-    """
-
-    async def close_streams(self) -> None:
-        """No-op in test context — streams are closed by HassetteHarness.stop() instead."""
-
-    async def _close_streams_now(self) -> None:
-        """Close streams unconditionally — bypasses the no-op override above."""
-        await super().close_streams()
-
-
-def sort_harness_graph(graph: dict[str, set[str]]) -> list[str]:
-    """Return node names from *graph* in valid initialization order (deps before dependents).
-
-    Uses iterative DFS with three-color (white/gray/black) marking.  Only nodes
-    present as keys in *graph* are included in the output; dependency references
-    to nodes not in *graph* are silently ignored.
-
-    Args:
-        graph: Adjacency map of node name → set of dependency names.
-
-    Returns:
-        A list of all node names ordered so that every dependency appears before
-        the nodes that depend on it.
-
-    Raises:
-        ValueError: If a cycle is detected.
-    """
-    if not graph:
-        return []
-
-    white, gray, black = 0, 1, 2
-    color: dict[str, int] = dict.fromkeys(graph, white)
-    result: list[str] = []
-
-    for start in graph:
-        if color[start] != white:
-            continue
-
-        stack: list[tuple[str, typing.Iterator[str]]] = []
-        path: list[str] = []
-
-        color[start] = gray
-        path.append(start)
-        stack.append((start, iter(dep for dep in graph[start] if dep in graph)))
-
-        while stack:
-            node, deps = stack[-1]
-            try:
-                dep = next(deps)
-            except StopIteration:
-                stack.pop()
-                path.pop()
-                color[node] = black
-                result.append(node)
-                continue
-
-            if color.get(dep, black) == gray:
-                cycle_start = path.index(dep)
-                cycle_path = [*path[cycle_start:], dep]
-                raise ValueError("Cycle detected: " + " → ".join(cycle_path))
-
-            if color.get(dep, black) == white:
-                color[dep] = gray
-                path.append(dep)
-                stack.append((dep, iter(d for d in graph[dep] if d in graph)))
-
-    return result
-
-
-# Startup order derived from the dependency graph — no manual maintenance required.
-STARTUP_ORDER: list[str] = sort_harness_graph(DEPENDENCIES)
 
 
 class HassetteHarness:
@@ -641,29 +430,29 @@ class HassetteHarness:
         # warnings during teardown and ensures no daemon thread outlives the test. A failed
         # stop() can leave a daemon thread alive across tests, so surface it like the rest.
         if self.hassette._loop_watchdog is not None:
-            with _collect_shutdown_errors(shutdown_errors):
+            with collect_shutdown_errors(shutdown_errors):
                 self.hassette._loop_watchdog.stop()
             self.hassette._loop_watchdog = None
 
         # Shut down in reverse order so dependents stop before their dependencies.
         for resource in reversed(self.hassette.children):
-            with _collect_shutdown_errors(shutdown_errors):
+            with collect_shutdown_errors(shutdown_errors):
                 await shutdown_resource(resource)
 
         # Close event streams after all children have stopped — children send
         # STOPPED status events during shutdown, so streams must stay open until then.
-        # Use _close_streams_now() to bypass the no-op override on _HarnessEventStreamService,
+        # Use _close_streams_now() to bypass the no-op override on HarnessEventStreamService,
         # which prevents test-initiated hassette.shutdown() calls from closing streams prematurely.
-        with _collect_shutdown_errors(shutdown_errors):
+        with collect_shutdown_errors(shutdown_errors):
             ess = self.hassette._event_stream_service
-            if isinstance(ess, _HarnessEventStreamService) and not ess.event_streams_closed:
+            if isinstance(ess, HarnessEventStreamService) and not ess.event_streams_closed:
                 await ess._close_streams_now()
 
-        with _collect_shutdown_errors(shutdown_errors):
+        with collect_shutdown_errors(shutdown_errors):
             await self._exit_stack.aclose()
 
         # Assert clean AFTER all other cleanup so assertion errors are not masked.
-        with _collect_shutdown_errors(shutdown_errors, exc_types=AssertionError):
+        with collect_shutdown_errors(shutdown_errors, exc_types=AssertionError):
             if self.api_mock is not None:
                 self.api_mock.assert_clean()
 
@@ -699,14 +488,14 @@ class HassetteHarness:
         self.hassette._sync_executor_service = self.hassette.add_child(SyncExecutorService)
 
     async def _start_bus(self) -> None:
-        # Use _HarnessEventStreamService so that test-initiated hassette.shutdown() calls
+        # Use HarnessEventStreamService so that test-initiated hassette.shutdown() calls
         # (e.g., ServiceWatcher max-restart exceeded) do not close the anyio streams and
         # break subsequent tests sharing this module-scoped fixture.
-        self.hassette._event_stream_service = self.hassette.add_child(_HarnessEventStreamService)
+        self.hassette._event_stream_service = self.hassette.add_child(HarnessEventStreamService)
 
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, InvokeHandler):
-                await _harness_dispatch(
+                await harness_dispatch(
                     invoke_fn=lambda: cmd.listener.invoker.invoke(cmd.event),
                     error_handler=cmd.listener.invoker.error_handler or cmd.app_level_error_handler,
                     make_error_context=lambda exc: BusErrorContext(
@@ -736,7 +525,7 @@ class HassetteHarness:
     async def _start_scheduler(self) -> None:
         async def _stub_execute(cmd: Any) -> None:
             if isinstance(cmd, ExecuteJob):
-                await _harness_dispatch(
+                await harness_dispatch(
                     invoke_fn=cmd.callable,
                     error_handler=cmd.job.error_handler or cmd.app_level_error_handler,
                     make_error_context=lambda exc: SchedulerErrorContext(

@@ -9,7 +9,7 @@ Tests:
 import pytest
 
 from hassette.testing import HassetteHarness
-from hassette.testing._harness import COMPONENT_CLASS_MAP, DEPENDENCIES, sort_harness_graph
+from hassette.testing._harness_graph import COMPONENT_CLASS_MAP, DEPENDENCIES, sort_harness_graph
 
 _starters = HassetteHarness._starters
 
