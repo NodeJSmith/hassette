@@ -149,7 +149,7 @@ async def isolated_watcher(
 
     Some tests in this file drive a real, complete ``hassette.shutdown()`` (restart-budget
     exhaustion or a fatal error). ``reset_hassette_lifecycle()`` correctly refuses to revive an
-    instance that has already fully shut down (see KI-004 in
+    instance that has already fully shut down (see the shared module-scoped instance entry in
     ``design/specs/105-teardown-restart-safety/known-issues.md``), so those tests cannot share
     the module-scoped ``watcher`` fixture's ``hassette_with_bus`` instance with the rest of this
     file -- running the file in its normal order left one dead shared instance behind for every

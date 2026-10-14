@@ -406,7 +406,7 @@ def c_blocked_worker(ready: threading.Event, seconds: float = C_BLOCKED_WORKER_D
     the caller — so 2s (2x the largest tested budget) is ample headroom. A long default (formerly
     60s) turned a bare, non-xdist ``pytest`` run of a single test file into a minutes-long hang
     after the tests themselves had already passed (see design/specs/105-teardown-restart-safety/
-    known-issues.md KI-001). Under the real xdist-parallel CI/dev invocation this was never
+    known-issues.md, the interpreter-hang entry). Under the real xdist-parallel CI/dev invocation this was never
     actually a hang — the worker process exits before the join would matter — so this is a
     local-dev ergonomics fix, not a correctness fix.
     """
