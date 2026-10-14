@@ -308,3 +308,25 @@ class TestAliasCanonicalization:
             "class_name": "MyApp",
             "config": {"a": 1},
         }
+
+    def test_removed_app_manifest_aliases_are_not_canonicalized(self, tmp_path: Path) -> None:
+        """Legacy filename/class_name spellings pass through untouched, so validation drops the entry."""
+        base = write_toml(
+            tmp_path / "hassette.toml",
+            """
+            [hassette.apps.legacy_app]
+            file_name = "legacy.py"
+            module = "legacy.py"
+            class = "LegacyApp"
+            module_name = "LegacyApp"
+            """,
+        )
+
+        source = HassetteTomlConfigSettingsSource(make_aliased_config_cls([base]), [base], scratch_build())
+
+        assert source.toml_data["apps"]["legacy_app"] == {
+            "file_name": "legacy.py",
+            "module": "legacy.py",
+            "class": "LegacyApp",
+            "module_name": "LegacyApp",
+        }
