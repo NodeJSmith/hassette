@@ -1,6 +1,7 @@
 """Resource subclasses the test harness runs in place of their production counterparts."""
 
 from hassette.core.core import Hassette
+from hassette.core.event_stream_service import EventStreamService
 from hassette.core.state_proxy import StateProxy
 from hassette.resources.base import Resource
 
@@ -47,3 +48,27 @@ class HarnessStateProxy(StateProxy):
 
     async def _install_poll_job(self) -> None:
         self.poll_job = None
+
+
+class HarnessEventStreamService(EventStreamService):
+    """EventStreamService variant that suppresses close_streams() for test harness reuse.
+
+    Module-scoped fixtures share a single HarnessHassette across many tests.  Some
+    test scenarios (e.g., ServiceWatcher max-restart exceeded) trigger
+    ``hassette.shutdown()``, which normally closes the anyio memory streams inside
+    ``EventStreamService``.  Closed streams cannot be reopened, so subsequent tests
+    in the same module would receive ``ClosedResourceError`` on every ``send_event``
+    call.
+
+    By making ``close_streams()`` a no-op here, the streams remain open for the
+    lifetime of the harness.  Explicit stream teardown is handled by
+    ``HassetteHarness.stop()``, which calls ``_close_streams_now()`` directly —
+    the only code path that should close streams in test context.
+    """
+
+    async def close_streams(self) -> None:
+        """No-op in test context — streams are closed by HassetteHarness.stop() instead."""
+
+    async def _close_streams_now(self) -> None:
+        """Close streams unconditionally — bypasses the no-op override above."""
+        await super().close_streams()

@@ -41,7 +41,7 @@ numbered file to migrations_sql/."""
 # at test teardown. Generous relative to test workloads so it never masks a real hang.
 TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 
-# Shared by hassette.testing._reset and hassette.testing._harness (Timeouts.WAIT_FOR_READY)
+# Shared by hassette.testing._reset and hassette.testing._harness_support (Timeouts.WAIT_FOR_READY)
 # for waiting on StateProxy initial state capability during test setup/reset. Lives here rather
 # than in either of those two modules because _harness.py imports _reset.py at load time, so a
 # constant defined in either one and imported by the other would form a circular import.
