@@ -288,13 +288,11 @@ def test_validate_markers_skips_generated_marker_files(write_file: Callable[[str
     validate_markers([path], tmp_path)  # must not raise
 
 
-def test_scanned_files_includes_python_and_typescript() -> None:
-    # scanned_files() always walks whatever repo_root it's given — this test passes the real
-    # REPO_ROOT, so it's a smoke test against the real repo tree, not a characterization of
-    # specific file contents.
-    files = check_duplicate_code.scanned_files(check_duplicate_code.REPO_ROOT)
-    assert any(f.suffix == ".py" for f in files)
-    assert any(f.suffix in (".ts", ".tsx") for f in files)
+def test_scan_files_include_python_and_typescript() -> None:
+    # Smoke test against the real repo tree, not a characterization of specific file contents.
+    assert check_duplicate_code.python_scan_files(check_duplicate_code.REPO_ROOT)
+    ts_files = check_duplicate_code.typescript_scan_files(check_duplicate_code.REPO_ROOT)
+    assert any(f.suffix in (".ts", ".tsx") for f in ts_files)
 
 
 def test_find_violations_below_min_occurrences_not_flagged(

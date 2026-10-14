@@ -343,17 +343,14 @@ def is_dup_ignored(fragment: Fragment) -> bool:
     return any(start <= fragment.start and fragment.end <= end for start, end in ignore_ranges(fragment.file))
 
 
-def scanned_files(repo_root: Path) -> list[Path]:
-    """Every file PMD CPD is asked to scan, across both languages, under `repo_root`.
+def python_scan_files(repo_root: Path) -> list[Path]:
+    """First-party .py files under PYTHON_SCAN_PATHS — exactly the Python files PMD CPD scans."""
+    return iter_py_files(repo_root, PYTHON_SCAN_PATHS)
 
-    Walks PYTHON_SCAN_PATHS/TYPESCRIPT_SCAN_PATHS the same directories passed to `run_pmd_cpd`,
-    via the same first-party-file filtering `iter_py_files`/`iter_ts_files` use elsewhere in this
-    tools/ package — a best-effort mirror of PMD's own `--dir` scan, not a verified-identical one
-    (PMD's file discovery is opaque to this script; the two could in principle diverge on an edge
-    case like a symlink).
-    """
-    ts_files = [path for scan_dir in TYPESCRIPT_SCAN_PATHS for path in iter_ts_files(repo_root / scan_dir)]
-    return iter_py_files(repo_root, PYTHON_SCAN_PATHS) + sorted(ts_files)
+
+def typescript_scan_files(repo_root: Path) -> list[Path]:
+    """First-party .ts/.tsx files under TYPESCRIPT_SCAN_PATHS — exactly the TypeScript files PMD CPD scans."""
+    return sorted(path for scan_dir in TYPESCRIPT_SCAN_PATHS for path in iter_ts_files(repo_root / scan_dir))
 
 
 def validate_markers(files: list[Path], repo_root: Path) -> None:
@@ -420,29 +417,45 @@ def ensure_pmd_binary() -> Path:
     return binary
 
 
-def run_pmd_cpd(pmd_binary: Path, language: str, scan_paths: list[str], repo_root: Path) -> ET.Element:
-    cmd = [
-        str(pmd_binary),
-        "cpd",
-        "--dir",
-        ",".join(scan_paths),
-        "--language",
-        language,
-        "--minimum-tokens",
-        str(MIN_TOKENS),
-        "--format",
-        "xml",
-        "--no-fail-on-violation",
-    ]
-    try:
-        result = subprocess.run(
-            cmd, cwd=repo_root, check=True, capture_output=True, text=True, timeout=PMD_TIMEOUT_SECONDS
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(
-            f"PMD CPD didn't finish scanning {language} within {PMD_TIMEOUT_SECONDS}s — "
-            "check for a pathological file in scope or raise PMD_TIMEOUT_SECONDS."
-        ) from exc
+def run_pmd_cpd(pmd_binary: Path, language: str, files: list[Path], scan_root: Path) -> ET.Element:
+    """Run PMD CPD over exactly `files`, passed as an explicit `--file-list` of absolute paths.
+
+    An explicit list, rather than PMD walking directories itself, keeps `EXCLUDED_PARTS` (nested
+    virtualenvs, `node_modules`) out of the scan. `scan_root` is the tree `files` came from (the
+    checkout or a merge-base extraction) and only labels errors. PMD itself always runs from
+    REPO_ROOT, because Java comes from the checkout's mise config and the `java` shim resolves
+    nothing outside it.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        file_list = Path(tmp) / "files.txt"
+        # absolute(), not resolve(): PMD echoes these paths back, and they must stay under scan_root.
+        file_list.write_text("".join(f"{path.absolute()}\n" for path in files), encoding="utf-8")
+        cmd = [
+            str(pmd_binary),
+            "cpd",
+            "--file-list",
+            str(file_list),
+            "--language",
+            language,
+            "--minimum-tokens",
+            str(MIN_TOKENS),
+            "--format",
+            "xml",
+            "--no-fail-on-violation",
+        ]
+        try:
+            result = subprocess.run(
+                cmd, cwd=REPO_ROOT, check=True, capture_output=True, text=True, timeout=PMD_TIMEOUT_SECONDS
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"PMD CPD didn't finish scanning {language} within {PMD_TIMEOUT_SECONDS}s — "
+                "check for a pathological file in scope or raise PMD_TIMEOUT_SECONDS."
+            ) from exc
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                f"PMD CPD failed scanning {language} in {scan_root} (exit {exc.returncode}):\n{exc.stderr.strip()}"
+            ) from exc
     return ET.fromstring(result.stdout)  # noqa: S314 -- trusted local PMD output, not untrusted input
 
 
@@ -585,10 +598,12 @@ def run_scan(repo_root: Path) -> list[list[Fragment]]:
     backlog-reporting case) or a throwaway extraction of the PR's merge-base tree (see
     `scan_tree_at_ref()`, used by `--gate-new-code`).
     """
-    validate_markers(scanned_files(repo_root), repo_root)
+    py_files = python_scan_files(repo_root)
+    ts_files = typescript_scan_files(repo_root)
+    validate_markers(py_files + ts_files, repo_root)
     pmd_binary = ensure_pmd_binary()
-    blocks = duplication_blocks(run_pmd_cpd(pmd_binary, "python", PYTHON_SCAN_PATHS, repo_root))
-    blocks += duplication_blocks(run_pmd_cpd(pmd_binary, "typescript", TYPESCRIPT_SCAN_PATHS, repo_root))
+    blocks = duplication_blocks(run_pmd_cpd(pmd_binary, "python", py_files, repo_root))
+    blocks += duplication_blocks(run_pmd_cpd(pmd_binary, "typescript", ts_files, repo_root))
     return find_violations(blocks, repo_root)
 
 
@@ -609,7 +624,9 @@ def scan_tree_at_ref(ref: str) -> list[Counter[Path]]:
     `run_scan()`.
     """
     with tempfile.TemporaryDirectory(prefix="check-duplicate-code-base-") as tmp_name:
-        tmp_root = Path(tmp_name)
+        tmp_root = Path(
+            tmp_name
+        ).resolve()  # fragments are keyed relative to this; macOS/Windows temp dirs are symlinked
         try:
             archive = subprocess.run(["git", "archive", ref], cwd=REPO_ROOT, capture_output=True, check=True)
             subprocess.run(["tar", "-x"], cwd=tmp_root, input=archive.stdout, check=True)
