@@ -4,6 +4,7 @@ import asyncio
 import logging
 import logging.handlers
 import queue
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 from hassette.core.logging_service import LoggingService
@@ -85,6 +86,13 @@ async def make_initialized_logging_service(**kw) -> LoggingService:
     svc = make_logging_service(**kw)
     await svc.on_initialize()
     return svc
+
+
+async def make_logging_service_with_config(**logging_config: Any) -> LoggingService:
+    """Initialize a LoggingService against a real LoggingConfig built from ``logging_config``."""
+    hassette = make_mock_hassette(sealed=False, logging=logging_config)
+    hassette.database_service = make_db_service()
+    return await make_initialized_logging_service(hassette=hassette)
 
 
 class TestLogPersistenceHandlerConstructor:
@@ -215,9 +223,7 @@ class TestLoggingServiceOnInitialize:
 
     async def test_on_initialize_persistence_level_follows_log_level(self) -> None:
         """An unset persistence level follows log_level, so DEBUG records stay queryable in the UI."""
-        hassette = make_mock_hassette(sealed=False, logging={"log_level": "DEBUG"})
-        hassette.database_service = make_db_service()
-        svc = await make_initialized_logging_service(hassette=hassette)
+        svc = await make_logging_service_with_config(log_level="DEBUG")
 
         try:
             assert svc.persistence_handler is not None
@@ -228,9 +234,7 @@ class TestLoggingServiceOnInitialize:
 
     async def test_on_initialize_keeps_persistence_level_below_log_level(self) -> None:
         """A persistence_level deliberately set lower than log_level is left alone."""
-        hassette = make_mock_hassette(sealed=False, logging={"log_level": "INFO", "log_persistence_level": "DEBUG"})
-        hassette.database_service = make_db_service()
-        svc = await make_initialized_logging_service(hassette=hassette)
+        svc = await make_logging_service_with_config(log_level="INFO", log_persistence_level="DEBUG")
 
         try:
             assert svc.persistence_handler is not None
@@ -248,9 +252,7 @@ class TestLoggingServiceOnInitialize:
         time (see LogCaptureHandler) closes that gap for any logger without having to track their
         effective levels in LoggingService itself.
         """
-        hassette = make_mock_hassette(sealed=False, logging={"log_level": "DEBUG"})
-        hassette.database_service = make_db_service()
-        svc = await make_initialized_logging_service(hassette=hassette)
+        svc = await make_logging_service_with_config(log_level="DEBUG")
 
         try:
             assert svc.persistence_handler is not None
@@ -429,9 +431,7 @@ class TestExtraLoggers:
 
     async def test_on_initialize_attaches_queue_handler_to_extra_logger(self) -> None:
         """After init, the extra logger carries the same QueueHandler instance as hassette."""
-        hassette = make_mock_hassette(sealed=False, logging={"extra_loggers": [self.EXTRA_LOGGER_NAME]})
-        hassette.database_service = make_db_service()
-        svc = await make_initialized_logging_service(hassette=hassette)
+        svc = await make_logging_service_with_config(extra_loggers=[self.EXTRA_LOGGER_NAME])
 
         try:
             extra_logger = self._extra_logger()
