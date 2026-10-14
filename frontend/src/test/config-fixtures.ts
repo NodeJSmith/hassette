@@ -42,7 +42,6 @@ const MINIMAL_CONFIG_SCHEMA = {
           ui: { label: "CORS Origins" },
           items: { type: "string" },
         },
-        job_history_size: { type: "integer", title: "Job History Size" },
       },
     },
     logging: {
@@ -105,7 +104,6 @@ const DEFAULT_CONFIG_VALUES: Record<string, unknown> = {
     host: "localhost",
     port: 8126,
     cors_origins: [],
-    job_history_size: 1000,
   },
   logging: {
     log_level: "INFO",

@@ -140,7 +140,6 @@ def make_config_schema_response() -> ConfigSchemaResponse:
                 "host": "0.0.0.0",
                 "port": DEFAULT_WEB_API_PORT,
                 "cors_origins": [],
-                "job_history_size": 1000,
             },
             "logging": {"log_level": "INFO", "web_api": "WARNING"},
             "lifecycle": {

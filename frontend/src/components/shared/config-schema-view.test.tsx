@@ -179,12 +179,12 @@ describe("ConfigSchemaView", () => {
       const schema: SchemaNode = {
         type: "object",
         properties: {
-          job_history_size: { type: "integer", title: "Job History Size" },
+          port: { type: "integer", title: "Port" },
         },
       };
-      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ job_history_size: 1000 }} />);
-      const text = getByTestId("config-value-job_history_size").textContent ?? "";
-      expect(text).toContain("1000");
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ port: 8126 }} />);
+      const text = getByTestId("config-value-port").textContent ?? "";
+      expect(text).toContain("8126");
       expect(text).not.toMatch(/s$|ms$/);
     });
   });

@@ -175,7 +175,6 @@ Hassette starts its internal components — database, WebSocket connection, bus,
 | `resource_shutdown_timeout_seconds` | = app shutdown | Each non-app resource's shutdown phase. |
 | `total_shutdown_timeout_seconds` | 30s | The entire shutdown, hooks and propagation included. |
 | `sync_executor_shutdown_timeout_seconds` | 10s | Budget for joining and interrupting sync-handler worker threads. Must be less than `total_shutdown_timeout_seconds`. |
-| `registration_await_timeout` | 30s | Waiting for pending listener/job database registrations to flush before post-ready reconciliation. |
 | `task_cancellation_timeout_seconds` | 5s | Waiting for cancelled tasks to finish before they are abandoned. |
 
 Apps that fetch external data or open slow connections in `on_initialize` are the common reason to raise `app_startup_timeout_seconds` — and `startup_timeout_seconds` with it. The shutdown ceilings matter on constrained hardware where cleanup runs slowly; raising them trades slower restarts for cleaner teardown.

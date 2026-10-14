@@ -154,12 +154,10 @@ class AppManifest(ExcludeExtrasMixin, BaseModel):
     `enabled`: an enabled app with autostart=false is registered and startable on
     demand, but is not started at startup or by a live config reload."""
 
-    filename: str = Field(default=..., examples=["my_app.py"], validation_alias=AliasChoices("filename", "file_name"))
+    filename: str = Field(default=..., examples=["my_app.py"])
     """Filename of the app, will be looked for in app_path"""
 
-    class_name: str = Field(
-        default=..., examples=["MyApp"], validation_alias=AliasChoices("class_name", "class", "module", "module_name")
-    )
+    class_name: str = Field(default=..., examples=["MyApp"])
     """Class name of the app"""
 
     display_name: str = Field(default=..., examples=["My App"])
