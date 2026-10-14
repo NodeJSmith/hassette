@@ -63,6 +63,7 @@ jobs:
                         - 'src/hassette/const/**'
                         - 'codegen/**'
                         - '.generated-manifest'
+                        # the root lock pins codegen's deps (jinja2, pyyaml)
                         - 'uv.lock'
 
     # Unfiltered on purpose: a secret can land in any tracked file (a root Dockerfile, a

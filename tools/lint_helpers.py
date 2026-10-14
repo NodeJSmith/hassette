@@ -28,9 +28,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
 
 #: Directory components that are never first-party source: virtualenvs, caches, and build output.
-#: Without this filter, a stray ``.venv`` inside any scan dir (e.g. ``codegen/.venv`` left over from
-#: when codegen had its own environment) pulls third-party site-packages into rglob and reports
-#: them as house-style violations, which fails the linters' own characterization tests.
+#: Without this filter, a stray nested virtualenv inside any scan dir pulls third-party
+#: site-packages into rglob and reports them as house-style violations, which fails the linters'
+#: own characterization tests.
 EXCLUDED_PARTS = frozenset({".venv", "site-packages", "__pycache__", ".nox", ".git", "node_modules"})
 
 #: A unified-diff hunk header, e.g. "@@ -a,b +c,d @@" — b/d default to 1 when omitted (git's
