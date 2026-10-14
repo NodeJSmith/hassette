@@ -327,16 +327,8 @@
           "title": "Autodetect",
           "type": "boolean"
         },
-        "extend_exclude_dirs": {
-          "description": "Additional directories to exclude when auto-detecting apps in the app directory.",
-          "items": {
-            "type": "string"
-          },
-          "title": "Extend Exclude Dirs",
-          "type": "array"
-        },
         "exclude_dirs": {
-          "description": "Directories to exclude when auto-detecting apps. Prefer extend_exclude_dirs to avoid\nremoving the defaults.",
+          "description": "Additional directory names to skip when auto-detecting apps. Always added to the built-in\nexclusions (``AUTODETECT_EXCLUDE_DIRS_DEFAULT``), never a replacement for them.",
           "items": {
             "type": "string"
           },
@@ -898,8 +890,7 @@
           "type": "integer"
         },
         "log_persistence_level": {
-          "default": "INFO",
-          "description": "Minimum log level for database persistence. Records below this level are not stored.\n\nEffectively clamped to never be stricter than ``log_level``: the web UI's log view reads\nexclusively from persisted records, so setting this above ``log_level`` (e.g. ``\"WARNING\"``\nwhile ``log_level`` stays ``\"INFO\"``) has no effect \u2014 it's silently pulled back down to\n``log_level``, since a stricter persistence floor would make records visible in the live log\nstream unqueryable through the UI. This setting is only useful for persisting *more* than\n``log_level``: lower it (e.g. to ``\"DEBUG\"``) to persist records you don't otherwise log at\nthe global level, such as a per-service override logging at ``\"DEBUG\"``.",
+          "description": "Minimum log level for database persistence. Records below this level are not stored. Defaults to log_level.\n\nMay not be stricter than ``log_level`` (a validation error otherwise): the web UI's log view reads\nexclusively from persisted records, so a stricter floor would make records visible in the live log\nstream unqueryable through the UI. Lower it (e.g. to ``\"DEBUG\"``) to persist records you don't\notherwise log at the global level, such as a per-service override logging at ``\"DEBUG\"``.",
           "enum": [
             "DEBUG",
             "INFO",
@@ -1083,37 +1074,17 @@
           "title": "Extra Loggers",
           "type": "array"
         },
-        "all_events": {
+        "all_hass_events": {
           "default": false,
-          "description": "Whether to include all events in bus debug logging. Should be used sparingly.",
-          "title": "All Events",
+          "description": "Whether to include all Home Assistant events in bus debug logging. Should be used sparingly.",
+          "title": "All Hass Events",
           "type": "boolean"
         },
-        "all_hass_events": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Whether to include all Home Assistant events in bus debug logging.\nDefaults to False or the value of all_events.",
-          "title": "All Hass Events"
-        },
         "all_hassette_events": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Whether to include all Hassette events in bus debug logging.\nDefaults to False or the value of all_events.",
-          "title": "All Hassette Events"
+          "default": false,
+          "description": "Whether to include all Hassette events in bus debug logging. Should be used sparingly.",
+          "title": "All Hassette Events",
+          "type": "boolean"
         }
       },
       "title": "LoggingConfig",

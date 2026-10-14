@@ -101,18 +101,9 @@ class LoggingService(Resource):
             handlers.append(self._stream_handler)
         handlers.append(self.capture_handler)
 
-        # Resolve persistence level before the try block so config errors raise loudly.
-        # Clamped to never exceed log_level: since the frontend exclusively reads persisted
-        # records (no more live WS payload — see LogHintWsMessage), a stricter persistence_level
-        # than log_level would silently make every record between the two levels unloggable
-        # through the UI, even though it's actively being emitted. Raising log_level (e.g. to
-        # DEBUG for troubleshooting) always raises the persistence floor to match, so anything
-        # visible in the log stream is guaranteed to be queryable too.
-        level_names = logging.getLevelNamesMapping()
-        persistence_level = min(
-            level_names[self.hassette.config.logging.log_persistence_level],
-            level_names[self.hassette.config.logging.log_level],
-        )
+        # LoggingConfig guarantees log_persistence_level is never stricter than log_level, so anything
+        # visible in the log stream is also queryable through the UI (which reads persisted records only).
+        persistence_level = logging.getLevelNamesMapping()[self.hassette.config.logging.log_persistence_level]
 
         # Best-effort: add persistence handler
         try:

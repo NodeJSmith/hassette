@@ -129,17 +129,6 @@ class BusService(Service):
     def config_log_level(self) -> LogLevel:
         return self.hassette.config.logging.bus_service
 
-    @property
-    def config_log_all_events(self) -> bool:
-        """Return whether to log all events.
-
-        Live read (not cached) so config hot-reload is honored at dispatch time, the same
-        way the sibling ``config_log_level`` property re-reads config on every access. Do
-        not change this back to ``@cached_property`` — it would freeze the value after the
-        first dispatch and silently ignore hot-reload.
-        """
-        return self.hassette.config.logging.all_events
-
     def on_dispatch_done(self, _task: asyncio.Task[Any]) -> None:
         """Callback for dispatch task completion — decrements pending counter."""
         if self._dispatch_pending <= 0:
@@ -376,9 +365,6 @@ class BusService(Service):
         """Determine if an event should be logged based on its type."""
         if not event.payload:
             return False
-
-        if self.config_log_all_events:
-            return True
 
         if self.hassette.config.logging.all_hass_events and event.topic.startswith(_HASS_TOPIC_PREFIX):
             return True

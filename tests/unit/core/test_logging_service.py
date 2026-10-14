@@ -213,13 +213,9 @@ class TestLoggingServiceOnInitialize:
             if svc._queue_listener is not None:
                 svc._queue_listener.stop()
 
-    async def test_on_initialize_clamps_persistence_level_to_log_level(self) -> None:
-        """A log_level below the persistence default (e.g. DEBUG) raises the persistence floor.
-
-        Prevents a regression where records visible in the console/live log stream are silently
-        unqueryable through the web UI, which now reads exclusively from persisted records.
-        """
-        hassette = make_mock_hassette(sealed=False, logging={"log_level": "DEBUG", "log_persistence_level": "INFO"})
+    async def test_on_initialize_persistence_level_follows_log_level(self) -> None:
+        """An unset persistence level follows log_level, so DEBUG records stay queryable in the UI."""
+        hassette = make_mock_hassette(sealed=False, logging={"log_level": "DEBUG"})
         hassette.database_service = make_db_service()
         svc = await make_initialized_logging_service(hassette=hassette)
 
@@ -252,7 +248,7 @@ class TestLoggingServiceOnInitialize:
         time (see LogCaptureHandler) closes that gap for any logger without having to track their
         effective levels in LoggingService itself.
         """
-        hassette = make_mock_hassette(sealed=False, logging={"log_level": "DEBUG", "log_persistence_level": "INFO"})
+        hassette = make_mock_hassette(sealed=False, logging={"log_level": "DEBUG"})
         hassette.database_service = make_db_service()
         svc = await make_initialized_logging_service(hassette=hassette)
 

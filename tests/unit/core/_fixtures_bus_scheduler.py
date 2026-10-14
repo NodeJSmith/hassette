@@ -22,7 +22,8 @@ def make_bus_service(
     svc.hassette.config.lifecycle.max_concurrent_dispatches = max_concurrent_dispatches
     svc.hassette.config.bus_excluded_domains = ()
     svc.hassette.config.bus_excluded_entities = ()
-    svc.hassette.config.logging.all_events = False
+    svc.hassette.config.logging.all_hass_events = False
+    svc.hassette.config.logging.all_hassette_events = False
     svc._executor = MagicMock()
     svc._executor.execute = AsyncMock()
     svc._executor.register_listener = AsyncMock(return_value=0)

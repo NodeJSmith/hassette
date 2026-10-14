@@ -72,6 +72,8 @@ class TestFlagged:
             pytest.param("[hassette.apps]\ndirectry = 'x'\n", "apps.directry", id="nested"),
             pytest.param("[logging]\nlevle = 'INFO'\n", "logging.levle", id="nested-group"),
             pytest.param("[tool.other]\nx = 1\n", "tool", id="foreign-table"),
+            pytest.param("[apps]\nextend_exclude_dirs = ['x']\n", "apps.extend_exclude_dirs", id="removed-apps-key"),
+            pytest.param("[logging]\nall_events = true\n", "logging.all_events", id="removed-logging-key"),
         ],
     )
     def test_toml_key(self, cfg: Path, toml: str, dotted: str) -> None:

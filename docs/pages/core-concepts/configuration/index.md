@@ -109,7 +109,7 @@ Docker containers commonly default to UTC. Home Assistant uses a local zone conf
 
 `apps.directory` is the root from which Hassette loads app modules. It defaults to `apps` inside the config home (see [Relative Paths](#relative-paths)). Startup logs `Apps directory: <path>` and warns when the directory doesn't exist or holds no apps. Auto-detection (`apps.autodetect`, default `true`) scans that directory recursively for Python files that define an [`App`](../apps/index.md) subclass — the base class for all Hassette automations.
 
-`extend_exclude_dirs` adds directories to the built-in exclusion list (`.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.git`). `exclude_dirs` replaces it entirely. Setting `exclude_dirs` directly removes the framework defaults and can cause Hassette to scan directories it would normally skip.
+Auto-detection always skips `.venv`, `venv`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, and `.git`. `exclude_dirs` names more directories to skip; they are added to that list, never replace it.
 
 Before starting, Hassette always runs the app precheck: it imports and validates every app module and logs each failure. A failed precheck stops startup. `allow_startup_if_app_precheck_fails` lets startup continue instead, so healthy apps still run. Development environments may enable it; production environments benefit from leaving it disabled.
 

@@ -31,15 +31,14 @@ Setting `log_level = "DEBUG"` at the top level raises verbosity for every servic
 
 ## Debug Flags
 
-Three boolean flags in `[hassette.logging]` control event bus debug output. The bus processes every state change and service call from Home Assistant — hundreds of events per minute in an active home — which is why its debug output is gated separately from log levels.
+Two boolean flags in `[hassette.logging]` control event bus debug output. The bus processes every state change and service call from Home Assistant — hundreds of events per minute in an active home — which is why its debug output is gated separately from log levels.
 
 | Field | Default | Effect |
 |-------|---------|--------|
-| `all_events` | `false` | Log every event the bus processes, both HA and Hassette |
-| `all_hass_events` | inherits `all_events` | Log every event received from Home Assistant |
-| `all_hassette_events` | inherits `all_events` | Log every internal Hassette framework event |
+| `all_hass_events` | `false` | Log every event received from Home Assistant |
+| `all_hassette_events` | `false` | Log every internal Hassette framework event |
 
-Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_hassette_events` individually to target one side.
+Set both to `true` to log every event the bus processes.
 
 `log_format` controls the output structure:
 
@@ -49,9 +48,9 @@ Set `all_events = true` to enable both at once. Set `all_hass_events` or `all_ha
 | `"console"` | Human-readable format with colors and alignment |
 | `"json"` | Structured JSON, one object per line |
 
-`log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command and the web dashboard's log view both read from. Defaults to `INFO`. `DEBUG` makes debug output queryable via `hassette log` and visible on the dashboard.
+`log_persistence_level` sets the minimum level for log entries written to the [telemetry database](../core-concepts/database-telemetry.md) — the local store the `hassette log` CLI command and the web dashboard's log view both read from. Defaults to `log_level`. `DEBUG` makes debug output queryable via `hassette log` and visible on the dashboard.
 
-Hassette clamps this to `log_level` automatically — persistence can never be stricter than what's actually being logged. Setting `log_persistence_level` above `log_level` (e.g. `WARNING` while `log_level` stays `INFO`) has no effect; it's silently pulled back down to `log_level`. Raise `log_level` to `DEBUG` and the persistence floor drops with it too, so nothing visible in the console silently disappears from the log view.
+Persistence can never be stricter than what's actually being logged. Setting `log_persistence_level` above `log_level` (e.g. `WARNING` while `log_level` stays `INFO`) is a configuration error, because records shown in the console would be missing from the log view. Left unset, it follows `log_level`, so raising `log_level` to `DEBUG` lowers the persistence floor with it.
 
 `log_persistence_level` is only useful for persisting *more* than the default. A per-service override that logs at `DEBUG` while the global `log_level` stays `INFO` requires `log_persistence_level` to be `DEBUG` as well. There's no setting that makes storage quieter than whatever is currently being logged.
 

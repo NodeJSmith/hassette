@@ -22,7 +22,6 @@ def make_bus_service() -> tuple[BusService, MagicMock]:
     hassette.config.lifecycle.max_concurrent_dispatches = 10
     hassette.config.lifecycle.event_handler_timeout_seconds = 30.0
     hassette.config.logging.bus_service = "INFO"
-    hassette.config.logging.all_events = False
     hassette.config.logging.all_hass_events = False
     hassette.config.logging.all_hassette_events = False
     hassette.config.bus_excluded_domains = []
