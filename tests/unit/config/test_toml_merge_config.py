@@ -295,8 +295,8 @@ class TestAliasCanonicalization:
             tmp_path / "hassette.toml",
             """
             [hassette.apps.my_app]
-            file_name = "my_app.py"
-            class = "MyApp"
+            filename = "my_app.py"
+            class_name = "MyApp"
             app_config = {a = 1}
             """,
         )

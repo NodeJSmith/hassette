@@ -366,10 +366,6 @@ class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
     command_executor_capacity_warn_rate_limit_seconds: float = Field(default=30.0, gt=0)
     """Minimum seconds between repeated queue-capacity WARNINGs."""
 
-    registration_await_timeout: int = Field(default=30)
-    """Timeout in seconds to wait for all pending listener/job DB registrations to flush
-    before post-ready reconciliation. Prevents indefinite hangs if the DB write queue stalls."""
-
     event_handler_timeout_seconds: float | None = Field(default=600.0)
     """Default timeout in seconds for event handler execution. ``None`` disables the default timeout.
     Individual listeners can override via ``timeout=`` or ``timeout_disabled=True``."""
@@ -443,9 +439,6 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
         json_schema_extra={"ui": {"label": "CORS Origins"}},
     )
     """Allowed CORS origins for the web API, typically the UI dev server."""
-
-    job_history_size: int = Field(default=1000)
-    """Maximum number of job execution records to keep."""
 
     auth_enabled: bool = Field(default=True, json_schema_extra={"ui": {"label": "Auth Enabled"}})
     """Whether the web API requires a credential before serving any ``/api/*`` route.

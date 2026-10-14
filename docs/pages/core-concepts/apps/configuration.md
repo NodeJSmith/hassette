@@ -27,9 +27,6 @@ autostart = false
 
 `enabled = false` is the hard off-switch — the app never loads or starts, but it stays registered and the apps dashboard lists it as **disabled**. `autostart = false` means "registered but not started automatically." The apps dashboard shows a **no autostart** marker on rows where `autostart = false`.
 
-!!! note "Alternative field names"
-    `filename` also accepts `file_name`. `class_name` also accepts `class`, `module`, and `module_name`. `filename` and `class_name` are the recommended names; the alternatives exist for compatibility.
-
 ## Passing Configuration
 
 The `config` field supplies values to the app's `AppConfig` model. Two TOML forms are equivalent for single-instance apps.

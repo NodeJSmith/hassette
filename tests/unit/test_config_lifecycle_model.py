@@ -16,7 +16,6 @@ class TestLifecycleConfig:
         assert cfg.app_startup_timeout_seconds == 20
         assert cfg.app_shutdown_timeout_seconds == 10
         assert cfg.total_shutdown_timeout_seconds == 30
-        assert cfg.registration_await_timeout == 30
         assert cfg.event_handler_timeout_seconds == 600.0
         assert cfg.error_handler_timeout_seconds == 5.0
         assert cfg.run_sync_timeout_seconds == 6
