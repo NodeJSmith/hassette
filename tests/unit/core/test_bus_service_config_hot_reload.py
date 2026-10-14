@@ -33,3 +33,15 @@ def test_should_log_event_reflects_hot_reload() -> None:
 
     bus.hassette.config.logging.all_hassette_events = True
     assert bus.should_log_event(hassette_event) is True
+
+
+def test_all_hassette_events_covers_app_emitted_topics() -> None:
+    """``Bus.emit`` topics outside ``hassette.*`` are Hassette-side events, so ``all_hassette_events`` logs them."""
+    bus = stub_bus_service()
+    app_event = make_hassette_event(topic="laundry.done")
+
+    bus.hassette.config.logging.all_hass_events = True
+    assert bus.should_log_event(app_event) is False
+
+    bus.hassette.config.logging.all_hassette_events = True
+    assert bus.should_log_event(app_event) is True

@@ -50,8 +50,6 @@ _DISPATCH_IDLE_DEFAULT_TIMEOUT = 2.0
 # per window, not once per blocked dispatch. Mirrors sync_executor_service saturation warns.
 _DISPATCH_SATURATION_WARN_RATE_LIMIT_SECS = 30.0
 
-_HASS_TOPIC_PREFIX = "hass."
-_HASSETTE_TOPIC_PREFIX = "hassette."
 _HASS_EVENT_STATE_CHANGED = "state_changed"
 
 
@@ -362,17 +360,18 @@ class BusService(Service):
         return self.router.get_listeners_by_owner(owner)
 
     def should_log_event(self, event: "Event[Any]") -> bool:
-        """Determine if an event should be logged based on its type."""
+        """Determine if an event should be logged based on where it came from.
+
+        Events carrying a ``HassPayload`` came from Home Assistant; every other event is Hassette-side,
+        including framework events and topics apps publish with ``Bus.emit``.
+        """
         if not event.payload:
             return False
 
-        if self.hassette.config.logging.all_hass_events and event.topic.startswith(_HASS_TOPIC_PREFIX):
-            return True
+        if isinstance(event.payload, HassPayload):
+            return self.hassette.config.logging.all_hass_events
 
-        if self.hassette.config.logging.all_hassette_events and event.topic.startswith(_HASSETTE_TOPIC_PREFIX):
-            return True
-
-        return False
+        return self.hassette.config.logging.all_hassette_events
 
     async def dispatch(self, base_topic: str, event: "Event[Any]") -> None:
         """Dispatch an event to all matching listeners for the given topic."""

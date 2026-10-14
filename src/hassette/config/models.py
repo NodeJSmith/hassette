@@ -302,7 +302,8 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     """Whether to include all Home Assistant events in bus debug logging. Should be used sparingly."""
 
     all_hassette_events: bool = Field(default=False)
-    """Whether to include all Hassette events in bus debug logging. Should be used sparingly."""
+    """Whether to include all Hassette events in bus debug logging, including topics apps publish with
+    ``Bus.emit``. Should be used sparingly."""
 
 
 class LifecycleConfig(ExcludeExtrasMixin, BaseModel):

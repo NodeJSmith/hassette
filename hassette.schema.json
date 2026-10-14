@@ -1082,7 +1082,7 @@
         },
         "all_hassette_events": {
           "default": false,
-          "description": "Whether to include all Hassette events in bus debug logging. Should be used sparingly.",
+          "description": "Whether to include all Hassette events in bus debug logging, including topics apps publish with\n``Bus.emit``. Should be used sparingly.",
           "title": "All Hassette Events",
           "type": "boolean"
         }

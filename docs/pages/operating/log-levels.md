@@ -36,9 +36,9 @@ Two boolean flags in `[hassette.logging]` control event bus debug output. The bu
 | Field | Default | Effect |
 |-------|---------|--------|
 | `all_hass_events` | `false` | Log every event received from Home Assistant |
-| `all_hassette_events` | `false` | Log every internal Hassette framework event |
+| `all_hassette_events` | `false` | Log every event that didn't come from Home Assistant: framework events and topics your apps publish with `bus.emit` |
 
-Set both to `true` to log every event the bus processes.
+Set both to `true` to log every event the bus processes. The bus logs these events at `DEBUG`, so they only appear when `bus_service` is set to `DEBUG` (or `log_level` is, and `bus_service` is left unset).
 
 `log_format` controls the output structure:
 
