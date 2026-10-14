@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 from aiohttp.client_exceptions import ClientConnectionResetError
 
-import hassette.core.websocket_service as websocket_module
+import hassette.core.websocket_io as websocket_io_module
 from hassette.api.api import Api
 from hassette.core.websocket_service import WebsocketService
 from hassette.events import RawStateChangeEvent
@@ -147,7 +147,7 @@ async def test_send_and_wait_returns_response(websocket_service: WebsocketServic
 
 async def test_send_and_wait_times_out(websocket_service: WebsocketService, monkeypatch) -> None:
     """Raise FailedMessageError after exhausting retries on timeout."""
-    monkeypatch.setattr(websocket_module, "MAX_RETRY_ATTEMPTS", 2)
+    monkeypatch.setattr(websocket_io_module, "MAX_RETRY_ATTEMPTS", 2)
     websocket_service.hassette.config.websocket.response_timeout_seconds = 0
 
     websocket_service.send_json = AsyncMock(return_value=None)
@@ -242,7 +242,7 @@ async def test_dispatch_sends_events(monkeypatch: pytest.MonkeyPatch, websocket_
 
     dummy_event = DummyEvent()
     mock_create = Mock(return_value=dummy_event)
-    monkeypatch.setattr(websocket_module, "create_event_from_hass", mock_create)
+    monkeypatch.setattr(websocket_io_module, "create_event_from_hass", mock_create)
 
     send_event_mock = AsyncMock()
     websocket_service.hassette.send_event = send_event_mock
