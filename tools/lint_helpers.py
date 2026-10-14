@@ -27,10 +27,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 #: no live full-repo-scan caller.
 DEFAULT_SCAN_DIRS: list[str] = ["src", "tests", "scripts", "tools", "codegen", "docs", "examples"]
 
-#: Directory components that are never first-party source: virtualenvs (notably the nested
-#: ``codegen/.venv``), caches, and build output. Without this filter, rglob over the ``codegen``
-#: scan dir pulls in third-party site-packages and reports them as house-style violations — which
-#: fails the linters' own characterization tests on any machine that has a local ``codegen/.venv``.
+#: Directory components that are never first-party source: virtualenvs, caches, and build output.
+#: Without this filter, a stray ``.venv`` inside any scan dir (e.g. ``codegen/.venv`` left over from
+#: when codegen had its own environment) pulls third-party site-packages into rglob and reports
+#: them as house-style violations, which fails the linters' own characterization tests.
 EXCLUDED_PARTS = frozenset({".venv", "site-packages", "__pycache__", ".nox", ".git", "node_modules"})
 
 #: A unified-diff hunk header, e.g. "@@ -a,b +c,d @@" — b/d default to 1 when omitted (git's
@@ -112,8 +112,8 @@ def docstring_spans(tree: ast.AST) -> list[tuple[int, int]]:
 def iter_py_files(repo_root: Path, scan_dirs: list[str]) -> list[Path]:
     """Return every first-party .py file under the given repo-relative directories, sorted.
 
-    Skips the dirs in EXCLUDED_PARTS so the linters never scan installed third-party packages —
-    notably the nested ``codegen/.venv``.
+    Skips the dirs in EXCLUDED_PARTS so the linters never scan installed third-party packages
+    sitting in a stray nested virtualenv.
     """
     # relative_to(repo_root) scopes the check to repo-internal components, so an ancestor directory
     # sharing an excluded name (e.g. a checkout under /opt/node_modules/) can't blank the scan.

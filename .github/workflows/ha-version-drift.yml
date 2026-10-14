@@ -78,7 +78,7 @@ jobs:
 
                   1. Update the pin: \`echo '$LATEST' > codegen/ha-version.txt\`
                   2. Update your local HA core checkout: \`cd ~/source/core && git fetch --tags && git checkout $LATEST\`
-                  3. Run codegen: \`cd codegen && uv run hassette-codegen generate --ha-core-path ~/source/core\`
+                  3. Run codegen: \`uv run hassette-codegen generate --ha-core-path ~/source/core\`
                   4. Review the diff for breaking changes (removed properties, changed types, new domains)
                   5. Run tests: \`uv run nox -s dev\`
                   6. Commit the pin + generated files together

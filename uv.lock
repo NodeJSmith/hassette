@@ -1184,12 +1184,6 @@ requires-dist = [
     { name = "pyyaml" },
 ]
 
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest" },
-    { name = "ruff" },
-]
-
 [[package]]
 name = "hassette-wire"
 version = "0.57.0"
