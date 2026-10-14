@@ -1,6 +1,7 @@
 """Motion-Activated Lights.
 
-Turns a light on when motion is detected and off after motion clears.
+Turns a light on when motion is detected and off once the sensor has
+stayed clear for ``off_delay`` seconds.
 Designed for multi-instance use — the same class drives different
 motion sensor / light combinations via hassette.toml config.
 
@@ -45,12 +46,13 @@ class MotionLights(App[MotionLightsConfig]):
             name="motion_lights.on_motion_detected",
         )
 
-        # Motion cleared → turn light off after a delay
+        # Motion cleared → turn light off once the sensor has stayed "off" for
+        # off_delay seconds. `duration` cancels the wait if motion comes back.
         await self.bus.on_state_change(
             cfg.motion_entity,
             changed_to="off",
             handler=self.on_motion_cleared,
-            debounce=cfg.off_delay,
+            duration=cfg.off_delay,
             name="motion_lights.on_motion_cleared",
         )
 
