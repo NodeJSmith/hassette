@@ -90,7 +90,7 @@ cd ~/source/core && git fetch --tags && git checkout "<LATEST from Phase 1, subs
 ## Phase 3: Regenerate and review
 
 ```bash
-cd codegen && uv run hassette-codegen generate --ha-core-path ~/source/core
+uv run hassette-codegen generate --ha-core-path ~/source/core
 ```
 
 Read the full diff of every changed generated file (`git diff`, not `--stat`). Classify
@@ -116,8 +116,8 @@ value) turned out to mirror HA's own deprecation pattern once checked against
 ## Phase 4: Test and lint
 
 ```bash
-cd codegen && HA_CORE_PATH=~/source/core uv run pytest tests/ -q --rootdir=. \
-  && cd .. && ptest uv run nox -s dev \
+HA_CORE_PATH=~/source/core uv run pytest codegen/tests -q --rootdir=codegen \
+  && ptest uv run nox -s dev \
   && prek -a \
   && prek pyright -a --stage pre-push
 ```
