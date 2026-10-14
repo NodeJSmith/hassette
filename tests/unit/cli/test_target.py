@@ -10,17 +10,17 @@ from pathlib import Path
 import httpx2 as httpx
 import pytest
 
-from hassette.cli.target import (
-    CREDENTIAL_SOURCES,
-    resolve_cli_auth_token,
-    resolve_server_target,
-)
-from hassette.exceptions import (
+from hassette.cli.exceptions import (
     CredentialResolutionError,
     ServerUrlApiSuffixError,
     ServerUrlHostRequiredError,
     ServerUrlParseError,
     ServerUrlSchemeRequiredError,
+)
+from hassette.cli.target import (
+    CREDENTIAL_SOURCES,
+    resolve_cli_auth_token,
+    resolve_server_target,
 )
 from hassette.web.auth.tokens import TOKEN_FILENAME
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, REMOTE_SERVER_URL_BARE, make_cli_config
