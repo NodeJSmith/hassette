@@ -66,7 +66,7 @@ light = "light.garage"
 
 ## Features
 
-- **Typed state.** Every entity domain has a generated model, so `self.states.light` hands you lights whose `brightness` and `color_temp_kelvin` autocomplete in your editor instead of being dictionary lookups. Reads come from a local cache, not a round trip to Home Assistant.
+- **Typed state.** Most built-in entity domains have a generated model, so `self.states.light` hands you lights whose `brightness` and `color_temp_kelvin` autocomplete in your editor instead of being dictionary lookups. Reads come from a local cache, not a round trip to Home Assistant.
 - **Filtering built into subscriptions.** Glob patterns (`sensor.*_temperature`), value conditions (`C.Increased()`), debounce and throttle (at most one call per N seconds) are arguments to `on_state_change` and friends, so handlers don't start with a block of `if` checks.
 - **Handlers declare their inputs.** Ask for the new state, the old one, or the entity ID in the handler's signature and Hassette passes it in, in the style of FastAPI's dependencies. See [Dependency Injection](https://hassette.readthedocs.io/en/stable/pages/core-concepts/bus/dependency-injection/).
 - **Scheduler.** Run a function after a delay, every N minutes, daily at a set time, or on a cron schedule. A job set for 07:00 still runs at 07:00 after the clocks change.

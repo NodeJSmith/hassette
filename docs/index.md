@@ -22,7 +22,7 @@ App methods are `async def`, and calls to `self.bus`, `self.api` and `self.sched
 
 ## Why Hassette?
 
-- **Typed state.** Every entity domain has a generated model, so `self.states.light` hands you lights whose `brightness` and `color_temp_kelvin` autocomplete in your editor. Reads come from a local cache, not a round trip to Home Assistant.
+- **Typed state.** Most built-in entity domains have a generated model, so `self.states.light` hands you lights whose `brightness` and `color_temp_kelvin` autocomplete in your editor. Reads come from a local cache, not a round trip to Home Assistant.
 - **Filtering built into subscriptions.** Glob patterns (`sensor.*_temperature`), value conditions (`C.Increased()`), debounce and throttle (at most one call per N seconds) are arguments to `on_state_change` and the other subscription methods, so handlers don't start with a block of `if` checks. See [Filtering](pages/core-concepts/bus/filtering.md).
 - **Handlers declare their inputs.** Ask for the new state, the old one, or the entity ID in the handler's signature and Hassette passes it in, in the style of FastAPI's dependencies. See [Dependency Injection](pages/core-concepts/bus/dependency-injection.md).
 - **Scheduler.** Run a function after a delay, every N minutes, daily at a set time, or on a cron schedule. A job set for 07:00 still runs at 07:00 after the clocks change. See [Scheduler](pages/core-concepts/scheduler/index.md).
