@@ -2,7 +2,6 @@
   <img src="https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/hassette-logo.svg" />
 </p>
 
-
 # Hassette
 
 [![PyPI version](https://badge.fury.io/py/hassette.svg)](https://badge.fury.io/py/hassette)
@@ -11,103 +10,142 @@
 [![Documentation Status](https://app.readthedocs.org/projects/hassette/badge/?version=stable)](https://hassette.readthedocs.io/en/stable/?badge=stable)
 [![codecov](https://codecov.io/github/NodeJSmith/hassette/graph/badge.svg?token=I3E5S2E3X8)](https://codecov.io/github/NodeJSmith/hassette)
 
-A simple, modern, async-first Python framework for building Home Assistant automations.
+Hassette is a Python framework for writing Home Assistant automations as typed, testable code. It connects to Home Assistant, runs your apps, and shows you what each one is doing.
 
-**Documentation**: https://hassette.readthedocs.io
+**Documentation:** https://hassette.readthedocs.io
 
-## ✨ Why Hassette?
+In `apps/motion_lights.py`:
 
-- **Type Safe**: Full type annotations with Pydantic models and comprehensive IDE support
-- **Async-First**: Built for modern Python with async/await throughout
-- **Dependency Injection**: Clean handler signatures with FastAPI style dependency injection
-- **Persistent Storage**: Built-in disk cache for storing data across restarts, intelligent rate-limiting, and more
-- **Simple & Focused**: Just Home Assistant automations - no complexity creep
-- **Web UI**: Monitor and manage your automations from the browser
-- **Developer Experience**: Clear error messages, proper logging, hot-reloading, and intuitive APIs
+```python
+from hassette import App, AppConfig
 
-See the [Getting Started guide](https://hassette.readthedocs.io/en/stable/pages/getting-started/) for detailed instructions.
 
-## 🖥️ Web UI
+class MotionLightsConfig(AppConfig):
+    motion_sensor: str = "binary_sensor.hallway_motion"
+    light: str = "light.hallway"
 
-Hassette includes a web UI for monitoring and managing your automations: **Apps** (app status, health, and detailed per-app views), **Handlers** (registered event handlers across all apps), **Logs** (real-time log streaming with filtering), and **Config** (runtime configuration and diagnostics).
+
+class MotionLights(App[MotionLightsConfig]):
+    async def on_initialize(self):
+        cfg = self.app_config
+        await self.bus.on_state_change(cfg.motion_sensor, changed_to="on", handler=self.lights_on, name="motion_on")
+        await self.bus.on_state_change(
+            cfg.motion_sensor, changed_to="off", duration=120, handler=self.lights_off, name="motion_off"
+        )
+
+    async def lights_on(self):
+        await self.api.turn_on(self.app_config.light, brightness=200)
+
+    async def lights_off(self):
+        await self.api.turn_off(self.app_config.light)
+```
+
+The light turns on when motion starts. It turns off once the sensor has stayed clear for 120 seconds: `duration` fires the handler only if the new state holds that long, so motion coming back cancels the turn-off.
+
+- `on_initialize` runs once when the app starts. `self.bus` subscribes handlers to things that happen in Home Assistant, `self.api` calls services, and `name` labels each subscription in the web UI and CLI.
+- App methods are `async def`, and calls to `self.bus`, `self.api` and `self.scheduler` take `await`. That's all the async you need to get started. Not ready for async? [`AppSync`](https://hassette.readthedocs.io/en/stable/pages/core-concepts/apps/#synchronous-apps) runs plain synchronous code, with `.sync` versions of the bus, scheduler and API.
+- Handlers receive only the parameters they declare. These two need nothing, so they take nothing.
+
+`MotionLightsConfig` holds the app's settings as typed fields. Override them in `hassette.toml`, once per room if you like:
+
+```toml
+# "motion_lights" is the app key: your name for it in the CLI and UI
+[hassette.apps.motion_lights]
+filename = "motion_lights.py"
+class_name = "MotionLights"
+
+# Each [[...config]] block runs one instance of the app
+[[hassette.apps.motion_lights.config]]
+instance_name = "hallway"  # uses the defaults from MotionLightsConfig
+
+[[hassette.apps.motion_lights.config]]
+instance_name = "garage"
+motion_sensor = "binary_sensor.garage_motion"
+light = "light.garage"
+```
+
+## Features
+
+- **Typed state.** Most built-in entity domains have a generated model, so `self.states.light` hands you lights whose `brightness` and `color_temp_kelvin` autocomplete in your editor instead of being dictionary lookups. Reads come from a local cache, not a round trip to Home Assistant.
+- **Filtering built into subscriptions.** Glob patterns (`sensor.*_temperature`), value conditions (`C.Increased()`), debounce and throttle (at most one call per N seconds) are arguments to `on_state_change` and friends, so handlers don't start with a block of `if` checks.
+- **Handlers declare their inputs.** Ask for the new state, the old one, or the entity ID in the handler's signature and Hassette passes it in, in the style of FastAPI's dependencies. See [Dependency Injection](https://hassette.readthedocs.io/en/stable/pages/core-concepts/bus/dependency-injection/).
+- **Scheduler.** Run a function after a delay, every N minutes, daily at a set time, or on a cron schedule. A job set for 07:00 still runs at 07:00 after the clocks change.
+- **Test harness.** `AppTestHarness` runs an app without a live Home Assistant: seed states, simulate events, move time forward, and assert which services it called. See [Write Your First Test](https://hassette.readthedocs.io/en/stable/pages/testing/).
+- **Web UI and CLI.** Each app's health, handler and job history, logs and config, in the browser or the terminal.
+- **Control apps from Home Assistant.** An optional HACS integration turns each app into a Home Assistant device you can start, stop and reload.
+- **Built to keep running.** Hassette reconnects to Home Assistant on its own, reloads apps when you edit them in dev mode, and flags synchronous code that would freeze every other app, naming the app responsible.
+
+## Get Started
+
+You need Python 3.11+ and [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+```bash
+uv tool install hassette
+hassette run
+```
+
+`uv tool install` puts the `hassette` command on your path. `hassette run` loads the apps in your project's `apps/` directory and connects to Home Assistant, using a URL and access token you set in a `.env` file. Once it's up, `hassette status` reports the connection and `hassette app` lists your apps.
+
+The [Quickstart](https://hassette.readthedocs.io/en/stable/pages/getting-started/) takes you from an empty directory to a running app, including creating the Home Assistant token. To run Hassette in a container, see [Docker Setup](https://hassette.readthedocs.io/en/stable/pages/getting-started/docker/). Not sure Hassette fits? Read [Is Hassette Right for You?](https://hassette.readthedocs.io/en/stable/pages/getting-started/is-hassette-right-for-you/)
+
+### Coming from AppDaemon?
+
+Most of what you know carries over: `listen_state` becomes `self.bus.on_state_change`, `call_service` becomes `self.api.call_service`, `run_in` and `run_daily` keep their names on `self.scheduler`, and `self.args` becomes a typed `AppConfig`. Hassette and AppDaemon can run against the same Home Assistant at once, so you can port one app at a time. The [migration guide](https://hassette.readthedocs.io/en/stable/pages/migration/) walks through each piece, including async basics and a checklist for porting an app.
+
+## Web UI
+
+The web UI runs by default at `http://<host>:8126/` (`http://localhost:8126/` on the machine running Hassette). It shows each app's status and health, the history of every handler and scheduled job down to single executions, live logs, and the resolved configuration. You can start, stop and reload apps and trigger jobs from it. It's protected by a token Hassette generates on first start; the [Web UI docs](https://hassette.readthedocs.io/en/stable/pages/web-ui/) show where to find it.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/NodeJSmith/hassette/main/docs/_static/web_ui_apps.png" alt="Hassette Web UI — Apps page" />
 </p>
 
-The web UI is enabled by default at `http://<host>:8126/`. See the [Web UI documentation](https://hassette.readthedocs.io/en/stable/pages/web-ui/) for details.
+## CLI
 
-## Terminal CLI
-
-Query a running Hassette instance from the terminal — no browser required:
+The same information is available from the terminal. `--app` takes the app's key from `hassette.toml`, and a listener is one bus subscription:
 
 ```bash
-# Check system health
-hassette status
-
-# List all apps and their status
-hassette app
-
-# Investigate a specific app
-hassette app health my-app
-hassette listener --app my-app --since 1h
-hassette log --app my-app --since 1h --limit 20
-
-# Pipe structured output to jq
-hassette listener --app my-app --json | jq '.[] | select(.failed > 0)'
+hassette status                                   # connection and system health
+hassette app                                      # every app and its status
+hassette listener --app motion_lights --since 1h  # subscription activity for one app
+hassette log --app motion_lights --since 1h       # recent logs for one app
+hassette listener --app motion_lights --json | jq '.[] | select(.failed > 0)'
 ```
 
-See the [CLI documentation](https://hassette.readthedocs.io/en/stable/pages/cli/) for the full command reference, scripting patterns, and shell completion setup.
+See the [CLI docs](https://hassette.readthedocs.io/en/stable/pages/cli/).
 
-## 🤔 Is Hassette Right for You?
+## Home Assistant Integration
 
-**New to automation frameworks?**
-- [Is Hassette Right for You?](https://hassette.readthedocs.io/en/stable/pages/getting-started/is-hassette-right-for-you/) - Decide if Hassette is right for your needs
+The optional [Hassette integration](https://github.com/NodeJSmith/hass-hassette), installed through HACS (the Home Assistant Community Store), creates a Home Assistant device for each app with:
 
-**Coming from AppDaemon?**
-- [AppDaemon Migration Guide](https://hassette.readthedocs.io/en/stable/pages/migration/) - See what's different and how to migrate
+- a **switch** that starts and stops the app
+- a **reload button** that re-imports the app's code and restarts it
+- a **status sensor**
 
-## 📖 Examples
+Use them on dashboards or in Home Assistant automations, for example to stop an app while you're away. It needs Hassette 0.56.0 or newer and Home Assistant 2026.9 or newer. Setup takes a few minutes: [Control Apps from Home Assistant](https://hassette.readthedocs.io/en/stable/pages/getting-started/home-assistant-integration/).
 
-Check out the [`examples/`](https://github.com/NodeJSmith/hassette/tree/main/examples) directory for complete working examples:
+## Examples
 
-- [motion_lights.py](https://github.com/NodeJSmith/hassette/blob/main/examples/motion_lights.py) - Motion-activated lights with debounce
-- [climate_controller.py](https://github.com/NodeJSmith/hassette/blob/main/examples/climate_controller.py) - Temperature monitoring with glob patterns
-- [cover_scheduler.py](https://github.com/NodeJSmith/hassette/blob/main/examples/cover_scheduler.py) - Cron/daily scheduling for blinds
-- [presence_tracker.py](https://github.com/NodeJSmith/hassette/blob/main/examples/presence_tracker.py) - Dynamic subscription management
-- [security_monitor.py](https://github.com/NodeJSmith/hassette/blob/main/examples/security_monitor.py) - Synchronous app with throttle
+[`examples/`](https://github.com/NodeJSmith/hassette/tree/main/examples) has complete apps, and the docs have [recipes](https://hassette.readthedocs.io/en/stable/pages/recipes/) for common automations:
 
-**Configuration examples**:
-- [Docker Compose Guide](https://hassette.readthedocs.io/en/stable/pages/getting-started/docker/) - Docker deployment setup
-- [HassetteConfig](https://hassette.readthedocs.io/en/stable/reference/hassette/config/) - Complete configuration reference
+- [motion_lights.py](https://github.com/NodeJSmith/hassette/blob/main/examples/motion_lights.py): motion-activated lights, one class configured for several rooms
+- [climate_controller.py](https://github.com/NodeJSmith/hassette/blob/main/examples/climate_controller.py): temperature monitoring across sensors with glob patterns
+- [cover_scheduler.py](https://github.com/NodeJSmith/hassette/blob/main/examples/cover_scheduler.py): daily and cron schedules for blinds
+- [presence_tracker.py](https://github.com/NodeJSmith/hassette/blob/main/examples/presence_tracker.py): adding and removing subscriptions at runtime
+- [security_monitor.py](https://github.com/NodeJSmith/hassette/blob/main/examples/security_monitor.py): reacting to service calls, with synchronous handlers and throttling
 
-## 🛣️ Status
+## Project Status
 
-Hassette is under active development. We follow [semantic versioning](https://semver.org/) and recommend pinning a minor version (e.g., `hassette~=0.x.0`) while the API stabilizes.
+Hassette is pre-1.0 and under active development. Minor releases can include breaking changes, each listed in the [changelog](CHANGELOG.md) with migration steps in the [upgrading guide](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/). Pin the minor version you're on (for example `hassette~=0.57.0`) and read the changelog before upgrading.
 
-Open an issue or PR if you'd like to contribute!
+## Contributing
 
-### Recent Highlights
+Bug reports, feature ideas, docs fixes and code are all welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
 
-- **Typed state models** - Generated Python models for 45+ Home Assistant entity domains
-- **Entity classes** - Rich entity objects with built-in async methods (e.g., `await light.turn_on()`)
-- **Test harness** - `AppTestHarness` for writing tests against your automations with simulated state and time control
-
-## 🤝 Contributing
-
-Contributions are welcome! Whether you're:
-
-- 🐛 Reporting bugs or issues
-- 💡 Suggesting features or improvements
-- 📝 Improving documentation
-- 🔧 Contributing code
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on getting started.
-
-## ⭐ Star History
+## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=NodeJSmith/hassette&type=date&legend=top-left)](https://www.star-history.com/#NodeJSmith/hassette&type=date&legend=top-left)
 
-## 📄 License
+## License
 
 [MIT](LICENSE)
