@@ -6,6 +6,7 @@ its error paths), PMD XML parsing, and the `--gate-new-code` merge-base cluster 
 without invoking the real PMD binary or network.
 """
 
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from collections import Counter
@@ -656,3 +657,46 @@ def test_main_skips_the_merge_base_scan_when_head_has_no_violations(
     monkeypatch.setattr(sys, "argv", ["check_duplicate_code.py", "--gate-new-code", base, head])
 
     assert check_duplicate_code.main() == 0
+
+
+def test_run_scan_hands_pmd_only_first_party_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A nested virtualenv inside a scanned directory (e.g. a local `codegen/.venv`) must never
+    # reach PMD: walking its third-party packages exhausts PMD's Java heap.
+    (tmp_path / "tests" / ".venv" / "lib").mkdir(parents=True)
+    (tmp_path / "tests" / ".venv" / "lib" / "vendored.py").write_text("x = 1\n")
+    (tmp_path / "tests" / "test_real.py").write_text("y = 2\n")
+    (tmp_path / "frontend" / "src" / "node_modules").mkdir(parents=True)
+    (tmp_path / "frontend" / "src" / "node_modules" / "dep.ts").write_text("export const a = 1;\n")
+    (tmp_path / "frontend" / "src" / "app.ts").write_text("export const b = 2;\n")
+
+    handed_to_pmd: list[str] = []
+    pmd_cwds: list[object] = []
+
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert "--dir" not in cmd, "PMD must get an explicit file list, not a directory to walk"
+        # Read the list now: run_pmd_cpd deletes its temp file as soon as PMD returns.
+        file_list = Path(cmd[cmd.index("--file-list") + 1])
+        handed_to_pmd.extend(line for line in file_list.read_text().splitlines() if line)
+        pmd_cwds.append(kwargs["cwd"])
+        return subprocess.CompletedProcess(cmd, 0, stdout=f'<pmd-cpd xmlns="{CPD_NS["cpd"]}"></pmd-cpd>')
+
+    monkeypatch.setattr(check_duplicate_code, "ensure_pmd_binary", lambda: Path("/fake/pmd"))
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert check_duplicate_code.run_scan(tmp_path) == []
+    assert sorted(handed_to_pmd) == [
+        str(tmp_path / "frontend" / "src" / "app.ts"),
+        str(tmp_path / "tests" / "test_real.py"),
+    ]
+    # Scanning a tree other than the checkout still runs PMD from REPO_ROOT, where mise provides Java.
+    assert pmd_cwds == [check_duplicate_code.REPO_ROOT, check_duplicate_code.REPO_ROOT]
+
+
+def test_run_pmd_cpd_failure_includes_pmd_stderr(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(cmd: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        raise subprocess.CalledProcessError(2, cmd, stderr="No java executable found in PATH\n")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match=r"(?s)exit 2.*No java executable found in PATH"):
+        check_duplicate_code.run_pmd_cpd(Path("/fake/pmd"), "python", [], tmp_path)
