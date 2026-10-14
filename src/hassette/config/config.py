@@ -20,7 +20,7 @@ from hassette import context as ctx
 from hassette.config.build import ACTIVE_BUILD, ConfigBuild, default_build_data_dir, open_build
 from hassette.config.checks import check_config_dir_not_in_files, check_explicit_locations, check_unknown_keys
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin, local_overlay_paths, unsafe_cache_path_reason
-from hassette.config.defaults import get_defaults_dict
+from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT, get_defaults_dict
 from hassette.config.helpers import filter_paths_to_unique_existing, get_dev_mode
 from hassette.config.locations import (
     ENV_NESTED_DELIMITER,
@@ -548,7 +548,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
         known_paths: set[Path] = {v["full_path"] for v in cleaned_apps_dict.values()}
 
         if self.apps.autodetect:
-            autodetected_apps = autodetect_apps(self.apps.directory, known_paths, set(self.apps.exclude_dirs))
+            autodetected_apps = autodetect_apps(
+                self.apps.directory, known_paths, {*AUTODETECT_EXCLUDE_DIRS_DEFAULT, *self.apps.exclude_dirs}
+            )
             for k, v in autodetected_apps.items():
                 app_dir = v["app_dir"]
                 full_path = app_dir / v["filename"]

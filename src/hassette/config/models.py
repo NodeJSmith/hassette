@@ -7,7 +7,7 @@ initialises them as sub-models, not independent settings roots.
 
 import os
 from functools import partial
-from logging import getLogger
+from logging import getLevelNamesMapping, getLogger
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -25,7 +25,6 @@ from pydantic import (
 
 from hassette.config.build import default_apps_dir
 from hassette.config.classes import AppManifest, ExcludeExtrasMixin
-from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.helpers import coerce_log_level, log_level_default_factory
 from hassette.logging_ import RESERVED_EXTRA_LOGGER_NAMES
 from hassette.types.enums import BlockingIOBehavior
@@ -187,16 +186,13 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     log_queue_max: int = Field(default=2000, ge=1)
     """Maximum size of the inter-thread log queue. Records are dropped when the queue is full."""
 
-    log_persistence_level: LogLevelAnnotation = Field(default="INFO")
-    """Minimum log level for database persistence. Records below this level are not stored.
+    log_persistence_level: LogLevelAnnotation = Field(default_factory=log_level_default_factory)
+    """Minimum log level for database persistence. Records below this level are not stored. Defaults to log_level.
 
-    Effectively clamped to never be stricter than ``log_level``: the web UI's log view reads
-    exclusively from persisted records, so setting this above ``log_level`` (e.g. ``"WARNING"``
-    while ``log_level`` stays ``"INFO"``) has no effect — it's silently pulled back down to
-    ``log_level``, since a stricter persistence floor would make records visible in the live log
-    stream unqueryable through the UI. This setting is only useful for persisting *more* than
-    ``log_level``: lower it (e.g. to ``"DEBUG"``) to persist records you don't otherwise log at
-    the global level, such as a per-service override logging at ``"DEBUG"``."""
+    May not be stricter than ``log_level`` (a validation error otherwise): the web UI's log view reads
+    exclusively from persisted records, so a stricter floor would make records visible in the live log
+    stream unqueryable through the UI. Lower it (e.g. to ``"DEBUG"``) to persist records you don't
+    otherwise log at the global level, such as a per-service override logging at ``"DEBUG"``."""
 
     log_retention_days: int = Field(default=3, ge=1)
     """Number of days to retain persisted log records. Must be <= database.retention_days."""
@@ -290,25 +286,24 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
             )
         return value
 
-    all_events: bool = Field(default=False)
-    """Whether to include all events in bus debug logging. Should be used sparingly."""
-
-    all_hass_events: bool | None = Field(default=None)
-    """Whether to include all Home Assistant events in bus debug logging.
-    Defaults to False or the value of all_events."""
-
-    all_hassette_events: bool | None = Field(default=None)
-    """Whether to include all Hassette events in bus debug logging.
-    Defaults to False or the value of all_events."""
-
     @model_validator(mode="after")
-    def fill_event_defaults(self) -> "LoggingConfig":
-        """Fill all_hass/hassette_events from all_events when not explicitly set."""
-        if self.all_hass_events is None:
-            self.all_hass_events = self.all_events
-        if self.all_hassette_events is None:
-            self.all_hassette_events = self.all_events
+    def reject_persistence_stricter_than_log_level(self) -> "LoggingConfig":
+        """Reject a ``log_persistence_level`` above ``log_level`` (see the field docstring for why)."""
+        levels = getLevelNamesMapping()
+        if levels[self.log_persistence_level] > levels[self.log_level]:
+            raise ValueError(
+                f"log_persistence_level ({self.log_persistence_level}) may not be stricter than "
+                f"log_level ({self.log_level}): records shown in the live log would be missing from the "
+                "web UI's log view. Lower log_persistence_level or raise log_level."
+            )
         return self
+
+    all_hass_events: bool = Field(default=False)
+    """Whether to include all Home Assistant events in bus debug logging. Should be used sparingly."""
+
+    all_hassette_events: bool = Field(default=False)
+    """Whether to include all Hassette events in bus debug logging, including topics apps publish with
+    ``Bus.emit``. Should be used sparingly."""
 
 
 class LifecycleConfig(ExcludeExtrasMixin, BaseModel):
@@ -533,17 +528,9 @@ class AppsConfig(ExcludeExtrasMixin, BaseModel):
     autodetect: bool = Field(default=True)
     """Whether to automatically detect apps in the app directory."""
 
-    extend_exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)
-    """Additional directories to exclude when auto-detecting apps in the app directory."""
-
-    exclude_dirs: tuple[str, ...] = Field(
-        default_factory=lambda data: (
-            *data.get("extend_exclude_dirs", ()),
-            *AUTODETECT_EXCLUDE_DIRS_DEFAULT,
-        )
-    )
-    """Directories to exclude when auto-detecting apps. Prefer extend_exclude_dirs to avoid
-    removing the defaults."""
+    exclude_dirs: tuple[str, ...] = Field(default_factory=tuple)
+    """Additional directory names to skip when auto-detecting apps. Always added to the built-in
+    exclusions (``AUTODETECT_EXCLUDE_DIRS_DEFAULT``), never a replacement for them."""
 
     manifests: dict[str, AppManifest] = Field(default_factory=dict)
     """Validated app manifests, keyed by app name."""

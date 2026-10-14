@@ -12,7 +12,6 @@ import pytest
 from pydantic import BaseModel, ValidationError
 from pydantic_settings import BaseSettings
 
-from hassette.config.defaults import AUTODETECT_EXCLUDE_DIRS_DEFAULT
 from hassette.config.models import (
     DEFAULT_WEB_API_PORT,
     AppsConfig,
@@ -192,24 +191,9 @@ class TestAppsConfig:
         """AppsConfig constructs with all defaults."""
         cfg = AppsConfig()
         assert cfg.autodetect is True
-        assert cfg.extend_exclude_dirs == ()
+        assert cfg.exclude_dirs == ()
         assert cfg.manifests == {}
         assert cfg.apps == {}
-
-    def test_exclude_dirs_includes_defaults(self):
-        """exclude_dirs always includes AUTODETECT_EXCLUDE_DIRS_DEFAULT."""
-        cfg = AppsConfig()
-        for d in AUTODETECT_EXCLUDE_DIRS_DEFAULT:
-            assert d in cfg.exclude_dirs, f"{d!r} missing from exclude_dirs"
-
-    def test_extend_exclude_dirs_prepended(self):
-        """extend_exclude_dirs values are prepended to exclude_dirs."""
-        cfg = AppsConfig(extend_exclude_dirs=(".hg", ".svn"))
-        assert ".hg" in cfg.exclude_dirs
-        assert ".svn" in cfg.exclude_dirs
-        # Defaults still present
-        for d in AUTODETECT_EXCLUDE_DIRS_DEFAULT:
-            assert d in cfg.exclude_dirs
 
     def test_remove_incomplete_apps(self):
         """Apps missing required keys are removed with a warning."""
@@ -252,7 +236,7 @@ class TestAppsConfig:
         AppsConfig(**original)
         assert original == snapshot
 
-    @pytest.mark.parametrize("reserved_name", ["directory", "autodetect", "extend_exclude_dirs", "exclude_dirs"])
+    @pytest.mark.parametrize("reserved_name", ["directory", "autodetect", "exclude_dirs"])
     def test_reserved_app_name_raises(self, reserved_name: str):
         """App names that collide with config fields produce a clear error."""
         with pytest.raises(ValidationError, match="conflicts with a reserved config field"):

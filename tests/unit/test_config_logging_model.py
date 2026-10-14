@@ -17,7 +17,8 @@ class TestLoggingConfig:
         assert cfg.log_queue_max == 2000
         assert cfg.log_persistence_level == "INFO"
         assert cfg.log_retention_days == 3
-        assert cfg.all_events is False
+        assert cfg.all_hass_events is False
+        assert cfg.all_hassette_events is False
 
     def test_per_service_levels_filled_from_log_level_default(self):
         """With no overrides, per-service log levels default to log_level (INFO)."""
@@ -53,23 +54,20 @@ class TestLoggingConfig:
         assert cfg.websocket == "WARNING"
         assert cfg.database_service == "DEBUG"
 
-    def test_all_hass_events_defaults_from_all_events_false(self):
-        """all_hass_events defaults to False when all_events is False."""
-        cfg = LoggingConfig()
-        assert cfg.all_hass_events is False
-        assert cfg.all_hassette_events is False
+    def test_persistence_level_defaults_to_log_level(self):
+        """An unset log_persistence_level follows log_level, like the per-service levels."""
+        assert LoggingConfig(log_level="DEBUG").log_persistence_level == "DEBUG"
+        assert LoggingConfig(log_level="WARNING").log_persistence_level == "WARNING"
 
-    def test_all_hass_events_defaults_from_all_events_true(self):
-        """all_hass_events and all_hassette_events default to True when all_events=True."""
-        cfg = LoggingConfig(all_events=True)
-        assert cfg.all_hass_events is True
-        assert cfg.all_hassette_events is True
+    def test_persistence_level_below_log_level_is_kept(self):
+        """Persisting more than is logged (a lower floor) is the setting's purpose."""
+        cfg = LoggingConfig(log_level="INFO", log_persistence_level="DEBUG")
+        assert cfg.log_persistence_level == "DEBUG"
 
-    def test_all_hass_events_can_be_set_independently(self):
-        """all_hass_events can override the all_events default."""
-        cfg = LoggingConfig(all_events=False, all_hass_events=True)
-        assert cfg.all_hass_events is True
-        assert cfg.all_hassette_events is False
+    def test_persistence_level_stricter_than_log_level_raises(self):
+        """A floor above log_level is rejected rather than silently clamped."""
+        with pytest.raises(ValidationError, match="may not be stricter than log_level"):
+            LoggingConfig(log_level="INFO", log_persistence_level="WARNING")
 
     def test_log_retention_days_ge_1(self):
         """log_retention_days rejects 0."""
