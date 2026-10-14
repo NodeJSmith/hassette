@@ -1,0 +1,13 @@
+# "motion_lights" is the app key: your name for it in the CLI and UI
+[hassette.apps.motion_lights]
+filename = "motion_lights.py"
+class_name = "MotionLights"
+
+# Each [[...config]] block runs one instance of the app
+[[hassette.apps.motion_lights.config]]
+instance_name = "hallway"  # uses the defaults from MotionLightsConfig
+
+[[hassette.apps.motion_lights.config]]
+instance_name = "garage"
+motion_sensor = "binary_sensor.garage_motion"
+light = "light.garage"

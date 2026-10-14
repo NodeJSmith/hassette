@@ -14,6 +14,8 @@ Hassette is a Python framework for writing Home Assistant automations as typed, 
 
 **Documentation:** https://hassette.readthedocs.io
 
+In `apps/motion_lights.py`:
+
 ```python
 from hassette import App, AppConfig
 
@@ -28,7 +30,7 @@ class MotionLights(App[MotionLightsConfig]):
         cfg = self.app_config
         await self.bus.on_state_change(cfg.motion_sensor, changed_to="on", handler=self.lights_on, name="motion_on")
         await self.bus.on_state_change(
-            cfg.motion_sensor, changed_to="off", debounce=120, handler=self.lights_off, name="motion_off"
+            cfg.motion_sensor, changed_to="off", duration=120, handler=self.lights_off, name="motion_off"
         )
 
     async def lights_on(self):
@@ -38,21 +40,23 @@ class MotionLights(App[MotionLightsConfig]):
         await self.api.turn_off(self.app_config.light)
 ```
 
-The light turns on when motion starts. It turns off once the sensor has been clear for 120 seconds: `debounce` waits for things to go quiet before calling the handler.
+The light turns on when motion starts. It turns off once the sensor has stayed clear for 120 seconds: `duration` fires the handler only if the new state holds that long, so motion coming back cancels the turn-off.
 
 - `on_initialize` runs once when the app starts. `self.bus` subscribes handlers to things that happen in Home Assistant, `self.api` calls services, and `name` labels each subscription in the web UI and CLI.
-- App methods are `async def`, and calls to `self.bus`, `self.api` and `self.scheduler` take `await`. That's all the async you need to get started.
+- App methods are `async def`, and calls to `self.bus`, `self.api` and `self.scheduler` take `await`. That's all the async you need to get started. Not ready for async? [`AppSync`](https://hassette.readthedocs.io/en/stable/pages/core-concepts/apps/#synchronous-apps) runs plain synchronous code, with `.sync` versions of the bus, scheduler and API.
 - Handlers receive only the parameters they declare. These two need nothing, so they take nothing.
 
 `MotionLightsConfig` holds the app's settings as typed fields. Override them in `hassette.toml`, once per room if you like:
 
 ```toml
+# "motion_lights" is the app key: your name for it in the CLI and UI
 [hassette.apps.motion_lights]
 filename = "motion_lights.py"
 class_name = "MotionLights"
 
+# Each [[...config]] block runs one instance of the app
 [[hassette.apps.motion_lights.config]]
-instance_name = "hallway"
+instance_name = "hallway"  # uses the defaults from MotionLightsConfig
 
 [[hassette.apps.motion_lights.config]]
 instance_name = "garage"
@@ -63,15 +67,17 @@ light = "light.garage"
 ## Features
 
 - **Typed state.** Every entity domain has a generated model, so `self.states.light` hands you lights whose `brightness` and `color_temp_kelvin` autocomplete in your editor instead of being dictionary lookups. Reads come from a local cache, not a round trip to Home Assistant.
-- **Filtering built into subscriptions.** Glob patterns (`sensor.*_temperature`), conditions, debounce and throttle are arguments to `on_state_change` and friends, so handlers don't start with a block of `if` checks.
+- **Filtering built into subscriptions.** Glob patterns (`sensor.*_temperature`), value conditions (`C.Increased()`), debounce and throttle (at most one call per N seconds) are arguments to `on_state_change` and friends, so handlers don't start with a block of `if` checks.
 - **Handlers declare their inputs.** Ask for the new state, the old one, or the entity ID in the handler's signature and Hassette passes it in, in the style of FastAPI's dependencies. See [Dependency Injection](https://hassette.readthedocs.io/en/stable/pages/core-concepts/bus/dependency-injection/).
-- **Scheduler.** Run a function after a delay, every N minutes, daily at a set time, or on a cron schedule. Daily and cron jobs stay on the wall clock across DST changes.
+- **Scheduler.** Run a function after a delay, every N minutes, daily at a set time, or on a cron schedule. A job set for 07:00 still runs at 07:00 after the clocks change.
 - **Test harness.** `AppTestHarness` runs an app without a live Home Assistant: seed states, simulate events, move time forward, and assert which services it called. See [Write Your First Test](https://hassette.readthedocs.io/en/stable/pages/testing/).
 - **Web UI and CLI.** Each app's health, handler and job history, logs and config, in the browser or the terminal.
 - **Control apps from Home Assistant.** An optional HACS integration turns each app into a Home Assistant device you can start, stop and reload.
 - **Built to keep running.** Hassette reconnects to Home Assistant on its own, reloads apps when you edit them in dev mode, and flags synchronous code that would freeze every other app, naming the app responsible.
 
 ## Get Started
+
+You need Python 3.11+ and [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 ```bash
 uv tool install hassette
@@ -84,7 +90,7 @@ The [Quickstart](https://hassette.readthedocs.io/en/stable/pages/getting-started
 
 ### Coming from AppDaemon?
 
-Most of what you know carries over: `listen_state` becomes `self.bus.on_state_change`, `call_service` becomes `self.api.call_service`, `run_in` and `run_daily` keep their names on `self.scheduler`, and `self.args` becomes a typed `AppConfig`. The [migration guide](https://hassette.readthedocs.io/en/stable/pages/migration/) walks through each piece, including async basics and a checklist for porting an app.
+Most of what you know carries over: `listen_state` becomes `self.bus.on_state_change`, `call_service` becomes `self.api.call_service`, `run_in` and `run_daily` keep their names on `self.scheduler`, and `self.args` becomes a typed `AppConfig`. Hassette and AppDaemon can run against the same Home Assistant at once, so you can port one app at a time. The [migration guide](https://hassette.readthedocs.io/en/stable/pages/migration/) walks through each piece, including async basics and a checklist for porting an app.
 
 ## Web UI
 

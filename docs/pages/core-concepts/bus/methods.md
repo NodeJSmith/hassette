@@ -29,7 +29,7 @@ Every subscription method accepts these parameters. Individual method tables bel
 | `on_error` | `BusErrorHandlerType \| None` | `None` | Per-listener error handler. Overrides the app-level handler set via [`bus.on_error()`](#app-level-handler). See [Per-registration handler](#per-registration-handler). |
 | `timeout` | `float \| None` | `None` | Per-listener timeout in seconds. If the handler runs longer, it is cancelled. `None` inherits `event_handler_timeout_seconds` from [`hassette.toml`](../configuration/index.md). |
 | `timeout_disabled` | `bool` | `False` | Disables timeout enforcement for this listener regardless of config. |
-| `debounce` | `float \| None` | `None` | Delays the handler until events have been quiet for N seconds. Each new event resets the timer. |
+| `debounce` | `float \| None` | `None` | Delays the handler until events have been quiet for N seconds. Each new event that passes this subscription's filters resets the timer; events it filters out, such as an `"on"` event on a `changed_to="off"` subscription, do not. To wait for a state to hold, use `duration` on `on_state_change` or `on_attribute_change`. |
 | `throttle` | `float \| None` | `None` | Limits the handler to one invocation per N seconds. Events during the cooldown are dropped. |
 | `once` | `bool` | `False` | Fires the handler exactly once, then cancels the subscription. |
 | `kwargs` | `Mapping \| None` | `None` | Keyword arguments passed to the handler at invocation time. |
