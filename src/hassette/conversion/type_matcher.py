@@ -129,7 +129,7 @@ def match_tuple(matcher: TypeMatcher, value: Any, tp: Any) -> bool:
         elem_tp = args[0]
         return all(matcher.matches(v, elem_tp) for v in value)
 
-    # tuple[T1, T2, ...]
+    # tuple[A, B, ...]
     if len(value) != len(args):
         return False
 

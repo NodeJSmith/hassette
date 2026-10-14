@@ -488,7 +488,7 @@ async def test_immediate_duration_per_listener_error_handler(
 # not just that the parameter exists on the delegate's signature.
 
 
-# dup-ignore-start: KI-002 (design/specs/097-dedupe-bus-test-scaffolding/known-issues.md) — decided
+# dup-ignore-start: see design/specs/097-dedupe-bus-test-scaffolding/known-issues.md — decided
 # to keep these 4 passthrough tests as separate functions rather than parametrize. Each varies on 3
 # independent axes at once (bus registration method, handler signature, simulate() call arity), so a
 # clean parametrize would need a per-case handler-builder function anyway — trading this file's direct

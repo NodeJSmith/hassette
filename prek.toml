@@ -63,7 +63,7 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/NodeJSmith/house-lint"
-rev = "v0.1.1"
+rev = "v0.2.0"
 hooks = [
     # HSL102 (file-size) is excluded here because of its known backlog. Only growth is gated,
     # by the `check-file-size-regressions` hook below and the `file-sizes` job in lint.yml.

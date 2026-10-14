@@ -622,10 +622,10 @@ class TestAppListEndpoint:
     async def test_get_apps_shows_degraded_status_for_mixed_running_and_failed_instances(
         self, client: "AsyncClient", mock_hassette, tmp_path: Path
     ) -> None:
-        """Full-chain check for KI-001: a real AppRegistry with one running and one failed
+        """Full-chain check for a degraded app: a real AppRegistry with one running and one failed
         instance for the same app_key must surface as ``status: "degraded"`` in the actual
         HTTP response body from /api/apps -- not just at the registry or mapper
-        level (see design/specs/096-registry-instance-unification/known-issues.md#KI-001).
+        level (see design/specs/096-registry-instance-unification/known-issues.md).
         """
         registry = AppRegistry()
         manifest = create_app_manifest("half_broken", tmp_path)

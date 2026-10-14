@@ -6,6 +6,7 @@
     "ignorePaths replaces config:recommended's defaults so tests/ is NOT ignored (the CI compose file lives under tests/), while the docs snippet compose files are excluded.",
     "chore(deps) commits keep dependency bumps out of the release-please changelog.",
     "customManagers tracks HASS_HASSETTE_VERSION in scripts/docker/.env (the hass-hassette release the system-test and demo HA containers install) against NodeJSmith/hass-hassette's GitHub releases.",
+    "customManagers also tracks each GitHub-hosted hook repo's rev in prek.toml against its tags: Renovate's built-in pre-commit manager only reads .pre-commit-config.yaml, so prek.toml pins would otherwise go stale silently.",
     "homeassistant/home-assistant is explicitly disabled (see packageRules) -- the .claude/skills/ha-version-bump skill owns bumping the compose-file HA image tags in lockstep with the codegen pin, monthly. Weekly Renovate PRs for this one package went unreviewed in practice."
   ],
   "extends": ["config:recommended"],
@@ -30,6 +31,13 @@
       "matchStrings": ["HASS_HASSETTE_VERSION=(?<currentValue>\\S+)"],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "NodeJSmith/hass-hassette"
+    },
+    {
+      "description": "prek.toml hook repo revs (each `repo = \"https://github.com/...\"` line followed directly by its `rev = ...` line)",
+      "customType": "regex",
+      "managerFilePatterns": ["/^prek\\.toml$/"],
+      "matchStrings": ["repo = \"https://github\\.com/(?<depName>[^\"]+)\"\\nrev = \"(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "github-tags"
     }
   ],
   "packageRules": [

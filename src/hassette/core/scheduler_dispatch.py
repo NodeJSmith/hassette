@@ -260,7 +260,8 @@ class SchedulerDispatchMixin:
         # `await scheduler_service.dispatch_and_log(job)`. Without this cleanup, that job's
         # original heap entry survives with its next_run/fire_at wiped to None by the
         # COMPLETED/WAITING transition, corrupting the heap's sort order and crashing
-        # pop_due_and_peek_next's `assert candidate.fire_at is not None` — see KI-006 in
+        # pop_due_and_peek_next's `assert candidate.fire_at is not None` — see the
+        # test_scheduler.py random-ordering flake in
         # design/specs/090-registered-manual-jobs/known-issues.md for the full incident.
         if job.trigger is not None and job.schedule_status is not ScheduleStatus.SCHEDULED:
             await self._job_queue.remove_job(job)

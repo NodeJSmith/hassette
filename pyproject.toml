@@ -86,7 +86,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 dev = [
     "bcrypt>=4.0",
     "hassette-codegen",
-    "house-lint>=0.1.1",
+    "house-lint>=0.2.0",
     "libcst>=1.5.0",
     "pyright>=1.1.408",
     "shot-scraper>=1.5",
@@ -248,41 +248,21 @@ max_lines = 800
 # '*_exc' is a suffix wildcard: matches any name ending in "_exc" (retry_exc, inner_exc, ...).
 allowed = ["exc", "*_exc"]
 
-# HSL101 has no default vocabulary — each family below is one token shape. AC/FR/NFR/WP and T
-# each need two families: one for comments/docstrings (case-sensitive, since lowercase prose
-# words like "tofu" or "frame" must not match) and one for filenames only (case-insensitive,
+# HSL101's built-in families (AC/FR/NFR/WP, T, KI) already cover comments, docstrings, and
+# filenames, but case-sensitively. These two families add case-insensitive filename matching,
 # since a leaked-token filename like `wp3_notes.py` should still be caught even though file
-# names are conventionally lowercase). house-lint's `case_sensitive` flag applies to every
-# scope in a family, so this split is required — a single family can't be case-sensitive for
-# content and case-insensitive for filenames at once.
+# names are conventionally lowercase. They stay filename-only: case-insensitive matching in
+# prose would flag ordinary lowercase words like "tofu" or "frame".
 
 [[tool.house-lint.rules.HSL101.tokens]]
 prefixes = ["AC", "FR", "NFR", "WP"]
-hash = "optional"
-min_digits = 1
-suffix = "optional-lower-alpha"
-scopes = ["comments", "docstrings"]
-case_sensitive = true
-
-[[tool.house-lint.rules.HSL101.tokens]]
-prefixes = ["AC", "FR", "NFR", "WP"]
-hash = "optional"
+separator = "hash-optional"
 min_digits = 1
 suffix = "optional-lower-alpha"
 scopes = ["filenames"]
 case_sensitive = false
 
-# T needs min_digits = 2: a single digit would match ordinary TypeVar names like T1/T2 in
-# prose/docstrings, which AC/FR/NFR/WP's multi-letter prefixes never collide with.
-[[tool.house-lint.rules.HSL101.tokens]]
-prefixes = ["T"]
-min_digits = 2
-scopes = ["comments", "docstrings"]
-case_sensitive = true
-# Excludes clock-time literals like "T00:00:00" (T + digits + ':' + digit) from matching —
-# without this, ISO timestamp strings in docstrings/comments read as leaked task tokens.
-not_followed_by_time = true
-
+# min_digits = 2 keeps ordinary filenames like `t1_fixtures.py` out of scope.
 [[tool.house-lint.rules.HSL101.tokens]]
 prefixes = ["T"]
 min_digits = 2
