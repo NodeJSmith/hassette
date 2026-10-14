@@ -86,7 +86,7 @@ Changelog = "https://github.com/nodejsmith/hassette/blob/main/CHANGELOG.md"
 dev = [
     "bcrypt>=4.0",
     "hassette-codegen",
-    "house-lint>=0.1.1",
+    "house-lint>=0.2.0",
     "libcst>=1.5.0",
     "pyright>=1.1.408",
     "shot-scraper>=1.5",
