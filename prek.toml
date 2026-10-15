@@ -42,14 +42,14 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/python-trio/flake8-async"
-rev = "26.4.2"
+rev = "26.8.1"
 hooks = [
     { id = "flake8-async", args = ["--enable=ASYNC103,ASYNC104"] },
 ]
 
 [[repos]]
 repo = "https://github.com/crate-ci/typos"
-rev = "v1.46.3"
+rev = "v1.51.1"
 hooks = [
     { id = "typos", args = ["--force-exclude"], require_serial = true, stages = ["pre-commit", "pre-push"] },
 ]
