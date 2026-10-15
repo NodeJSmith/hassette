@@ -18,9 +18,10 @@ exclude = [
     "opensource\\.org",
 ]
 
-# Accept 429 (rate-limited) and 503 (GitHub throttling CI requests for blob pages) as non-fatal.
+# Accept 429 (rate-limited), 503 (GitHub throttling CI requests for blob pages), and 504 (transient
+# GitHub gateway timeouts on commit, issue, and blob pages that exist) as non-fatal.
 # A genuinely missing page answers 404, which still fails.
-accept = [200, 429, 503]
+accept = [200, 429, 503, 504]
 
 # `/en/stable/` links are remapped onto docs/pages/ source files by the link-check job in
 # .github/workflows/lint.yml (the remap needs the absolute checkout path, which this file can't
