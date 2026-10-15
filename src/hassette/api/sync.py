@@ -202,7 +202,10 @@ class ApiSyncFacade(Resource):
         Args:
             domain: The domain of the service (e.g., "light").
             service: The name of the service to call (e.g., "turn_on").
-            target: Target entity IDs or areas.
+            target: What the call acts on, keyed by ``entity_id``, ``device_id``, ``area_id``,
+                ``floor_id`` or ``label_id``. This is the preferred form for targeting. Passing the
+                same keys in ``**data`` behaves identically, because Home Assistant merges
+                ``target`` into the service data before validating it; ``target`` wins on conflict.
             return_response: Whether to return the response from Home Assistant. Defaults to False.
                 Only valid for services Home Assistant declares as returning a response —
                 requesting it for any other service is rejected by Home Assistant. Services
