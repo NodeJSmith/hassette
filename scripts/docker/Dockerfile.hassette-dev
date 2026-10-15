@@ -12,4 +12,5 @@ RUN (getent group "$GID" >/dev/null 2>&1 || groupadd --gid "$GID" hassette) \
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 USER hassette
 WORKDIR /app
-CMD ["sh", "-c", "uv sync --locked && exec uv run python -m hassette --config-file examples/hassette.toml run"]
+# The run command lives in ha-demo.yml, so changing it never needs an image rebuild
+# (DemoStack runs `compose up` without --build and reuses a cached image).

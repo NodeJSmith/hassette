@@ -1,6 +1,6 @@
-# Hassette Demo Apps
+# Hassette Example Apps
 
-Five example automations that collectively exercise 27+ framework patterns. They are designed to run against Home Assistant's built-in `demo:` integration, which provides synthetic entities (lights, sensors, device trackers, covers, climate, locks, binary sensors) — no real hardware required.
+Five example automations to copy as templates for your own apps. Together they exercise 27+ framework patterns. They are designed to run against Home Assistant's built-in `demo:` integration, which provides synthetic entities (lights, sensors, device trackers, covers, climate, locks, binary sensors) — no real hardware required.
 
 ## Apps
 
@@ -34,12 +34,6 @@ Demonstrates: `AppSync`, `on_initialize_sync`, `on_call_service` with domain fil
 
 Monitors lock service calls (lock, unlock) and moisture sensor alerts using synchronous patterns (`AppSync`). The moisture handler is throttled to fire at most once per 5 minutes.
 
-### backpressure_demo.py — Load shedding with drop_newest backpressure
-
-Demonstrates: `backpressure=BackpressurePolicy.DROP_NEWEST`, dispatch-semaphore saturation, `bus.emit`, self-driving event burst.
-
-Registers one slow parallel handler and drives a burst larger than `lifecycle.max_concurrent_dispatches`. Once the dispatch semaphore is saturated, the `drop_newest` policy sheds the newest events at the acquire gate instead of waiting for a slot. The dropped count and rate surface as the "Backpressure Dropped" stat in the listener detail panel.
-
 ## Running the Demo Environment
 
 ```bash
@@ -50,9 +44,11 @@ This starts Home Assistant (Docker), the hassette backend, and the Vite frontend
 
 The demo environment uses a pre-seeded long-lived access token for API authentication — no login required. The hassette frontend at the reported URL is the primary interface.
 
+The demo also loads the fixture apps in [`scripts/demo_apps/`](../scripts/demo_apps/), which put the web UI into specific states (failing jobs, crashed instances, a blocked event loop) for visual QA and docs screenshots. They are framework dev tooling, not templates; `scripts/demo_apps/hassette.toml` is the config that loads both sets.
+
 ## App Registry
 
-`hassette.toml` registers all 5 apps with 7 total instances:
+`hassette.toml` configures 4 apps and autodetects `security_monitor.py`, for 7 instances in total:
 
 | Instance | App | Key patterns |
 |---|---|---|

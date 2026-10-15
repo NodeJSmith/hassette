@@ -33,6 +33,8 @@ services:
         UID: "${HOST_UID:-1000}"
         GID: "${HOST_GID:-1000}"
     container_name: "hassette-demo-hassette"
+    # scripts/demo_apps/hassette.toml loads the examples/ templates plus the demo fixture apps.
+    command: ["sh", "-c", "uv sync --locked && exec uv run python -m hassette --config-file scripts/demo_apps/hassette.toml run"]
     ports:
       - "127.0.0.1:${DEMO_HASSETTE_PORT:-18126}:8126"
     volumes:
@@ -49,7 +51,6 @@ services:
       # (tests/fixtures/demo-ha-config/.storage/core.config_entries); trusting the HA
       # service's address admits it without keeping a second copy of DEMO_AUTH_TOKEN.
       HASSETTE__WEB_API__TRUSTED_PROXIES: '["homeassistant"]'
-      HASSETTE__APPS__DIRECTORY: "/app/examples"
       HASSETTE__DATA_DIR: "/app/.demo-data"
     depends_on:
       homeassistant:

@@ -1,7 +1,7 @@
 # UI QA Harness — Demo Stack Lifecycle
 
 Everything in this skill runs against the demo environment, not mocks. The demo gives
-agents real behavior: a live HA container, the example apps generating activity and a
+agents real behavior: a live HA container, the example and demo apps generating activity and a
 deliberate failure (`demo_stimulator.sensor_health_check`), and a Vite dev server with
 hot reload so CSS/TSX edits apply without rebuilds.
 

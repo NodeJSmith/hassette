@@ -134,6 +134,8 @@ Use them on dashboards or in Home Assistant automations, for example to stop an 
 - [presence_tracker.py](https://github.com/NodeJSmith/hassette/blob/main/examples/presence_tracker.py): adding and removing subscriptions at runtime
 - [security_monitor.py](https://github.com/NodeJSmith/hassette/blob/main/examples/security_monitor.py): reacting to service calls, with synchronous handlers and throttling
 
+The apps in `scripts/demo_apps/` drive the web UI demo and docs screenshots; they aren't meant as templates.
+
 ## Project Status
 
 Hassette is pre-1.0 and under active development. Minor releases can include breaking changes, each listed in the [changelog](CHANGELOG.md) with migration steps in the [upgrading guide](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/). Pin the minor version you're on (for example `hassette~=0.57.0`) and read the changelog before upgrading.

@@ -8,13 +8,14 @@ paths:
   - "scripts/demo_stack.py"
   - "scripts/hassette_demo.py"
   - "examples/**"
+  - "scripts/demo_apps/**"
 ---
 
 # Demo Stack and Screenshots
 
 ## Live demo stack (visual QA)
 
-For visual/UI work, run the demo stack — **not** the e2e mock server. It starts a real HA container + Hassette (with the example apps) + a Vite dev server with hot reload.
+For visual/UI work, run the demo stack — **not** the e2e mock server. It starts a real HA container + Hassette (the `examples/` templates plus the demo fixtures in `scripts/demo_apps/`, loaded by `scripts/demo_apps/hassette.toml`) + a Vite dev server with hot reload.
 
 ```bash
 mise run demo            # or: uv run python scripts/hassette_demo.py  (~60-90s to come up)
@@ -43,6 +44,6 @@ New screenshot:
 2. Embed `![alt](../../_static/web_ui_<name>.png)` in the relevant `docs/pages/` page.
 3. Run the capture tool scoped with `--only`.
 
-If a UI state isn't config-driven (e.g. it needs a crashed instance), add a demo fixture (see `examples/degraded_demo.py` and its `autostart = false` entry in `examples/hassette.toml`) rather than faking the state.
+If a UI state isn't config-driven (e.g. it needs a crashed instance), add a demo fixture in `scripts/demo_apps/` (see `degraded_demo.py` and its entry in `scripts/demo_apps/hassette.toml`) rather than faking the state. Never add one to `examples/`: that directory holds only apps users copy as templates.
 
 After a UI change that alters a view documented with a screenshot, regenerate the affected `web_ui_*.png`. PRs touching rendered frontend files need visual evidence — see `.claude/rules/design-completeness.md`.

@@ -125,7 +125,7 @@ Tear down the demo stack when done (orphaned stacks thrash the machine).
 ## Design decisions
 
 **Why a live demo instead of mocks?** Mock data renders idealized states; the demo's
-example apps produce real tracebacks, real timing data, and a deliberately failing job.
+apps produce real tracebacks, real timing data, and a deliberately failing job.
 Realism is load-bearing: a persona chasing fake data reports fake friction.
 
 **Why personas are tasks, not page lists.** Per-page review can't see between pages —

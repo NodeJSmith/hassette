@@ -27,6 +27,10 @@ Operational scripts for building, running, and demoing hassette.
 - **`known_flakes.yaml`** — registry of already-tracked flaky tests, read by
   `ci_flake_scan.py`. Add an entry after filing an issue for a newly
   discovered flake.
+- **`demo_apps/`** — demo and screenshot fixture apps (`demo_stimulator`,
+  `degraded_demo`, `blocking_demo`, ...) that put the web UI into specific states.
+  Not user templates; those live in `examples/`. Its `hassette.toml` is the demo
+  stack's config and loads both sets.
 - **`docker_start.sh`** — Docker container entrypoint.
 - **`docker/`** — Docker Compose configs for demo/test environments
   (`ha-demo.yml` defines the HA + hassette + Vite demo stack;
