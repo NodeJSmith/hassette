@@ -134,6 +134,32 @@ async def test_registration_failure_rolls_back_registry_key(bus: "Bus") -> None:
     assert key in bus._registered_listeners
 
 
+async def test_registration_cancelled_mid_add_rolls_back_registry_key(bus: "Bus") -> None:
+    """Cancelling a registration inside add_listener must not leave a phantom key blocking retries."""
+    key = listener_key(bus)
+    entered = asyncio.Event()
+
+    async def blocking_add(_listener: Listener) -> int:
+        entered.set()
+        await asyncio.Event().wait()  # never set: only cancellation gets out
+        return 1
+
+    bus.bus_service.add_listener = AsyncMock(side_effect=blocking_add)
+    task = asyncio.create_task(bus.on(topic="test.topic", handler=handler_a, name="my_listener"))
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    assert key in bus._registered_listeners, "key is reserved while add_listener is in flight"
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert key not in bus._registered_listeners
+
+    with mock_add_listener(bus):
+        await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
+    assert key in bus._registered_listeners
+
+
 async def test_replace_then_add_listener_fails_propagates(bus: "Bus") -> None:
     """When if_exists='replace' has already cancelled the old listener but the new
     add_listener call then fails, the exception propagates (no silent degradation) and the
