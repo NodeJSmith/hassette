@@ -180,6 +180,15 @@ Then visit http://localhost:8000
 - Follow progressive disclosure (simple → complex)
 - Test all code examples
 
+### Example and Demo Apps
+
+`examples/` holds only apps users can copy as templates for their own automations. The apps that put
+the web UI into specific states for the demo stack and docs screenshots (a deliberately failing job, a
+crashed instance, a blocked event loop) are framework dev tooling and live in `scripts/demo_apps/`.
+`scripts/demo_apps/hassette.toml` loads both sets for `mise run demo` and
+`scripts/capture_screenshots.py`. A new screenshot fixture goes in `scripts/demo_apps/`, not
+`examples/`.
+
 ## Questions?
 
 - Open an issue for questions about contributing

@@ -10,7 +10,7 @@ POLL_TIMEOUT=30
 HASSETTE_PORT="${DEMO_HASSETTE_PORT:-18126}"
 HASSETTE_URL="http://localhost:$HASSETTE_PORT"
 
-# Expected app instance count — derived from hassette.toml config sections
+# Expected running instance count — the autostarting apps in scripts/demo_apps/hassette.toml
 EXPECTED_APPS=7
 
 # Single source of truth: scripts/docker/.env, also read by ha-demo.yml (via

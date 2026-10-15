@@ -184,7 +184,7 @@
   height: 900
   wait: 2000
 
-# cover_scheduler has autostart=false in examples/hassette.toml, so its row
+# cover_scheduler has autostart=false in scripts/demo_apps/hassette.toml, so its row
 # stays STOPPED and renders the "no autostart" chip. Crop to the whole row so
 # the chip shows in context (status dot, app key, class, chip, STATUS badge).
 # wait_for gates on the chip existing before the crop.
@@ -200,7 +200,7 @@
 # app_manifests rows for apps no longer in the running config (design/specs/087-db-manifest-union) —
 # also visible: the sidebar's app count excludes the removed app while the apps page total
 # includes it. Reproducing this state requires a DB-only manifest row (app_key not present in
-# examples/hassette.toml), which the demo stack has no config-driven way to produce. Captured
+# scripts/demo_apps/hassette.toml), which the demo stack has no config-driven way to produce. Captured
 # for PR #1464 by seeding the row directly into the running demo stack's SQLite DB via
 # `docker exec hassette-demo-hassette python3 -c "..."`, then running shot-scraper against the
 # live page — same tool, one-off setup step.
@@ -318,7 +318,7 @@
 
 # ===========================================================================
 # Cancelled execution status (restart/replace overlap modes)
-# The bus_overlap and scheduler_overlap example apps self-drive restart-mode
+# The bus_overlap and scheduler_overlap demo apps self-drive restart-mode
 # handlers/jobs, so their restart entry accumulates cancelled executions.
 # Longer waits give the self-driving bursts time to accumulate cancellations
 # before capture.
@@ -360,7 +360,7 @@
 
 # ===========================================================================
 # Backpressure dropped stat (drop_newest policy)
-# The backpressure_demo example app self-drives a slow drop_newest listener
+# The backpressure_demo demo app self-drives a slow drop_newest listener
 # past the dispatch semaphore, so its listener detail accumulates a non-zero
 # backpressure-dropped count and rate. The longer wait gives the self-driving
 # bursts time to shed enough events for a representative rate.
