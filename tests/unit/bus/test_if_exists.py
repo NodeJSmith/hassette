@@ -139,12 +139,14 @@ async def test_registration_cancelled_mid_add_rolls_back_registry_key(bus: "Bus"
     key = listener_key(bus)
     entered = asyncio.Event()
 
-    async def blocking_add(_listener: Listener) -> int:
+    async def blocking_register(_reg: object) -> int:
         entered.set()
         await asyncio.Event().wait()  # never set: only cancellation gets out
         return 1
 
-    bus.bus_service.add_listener = AsyncMock(side_effect=blocking_add)
+    # Block at the DB boundary so the real BusService.add_listener runs up to its executor await.
+    register = bus.bus_service._executor.register_listener
+    register.side_effect = blocking_register
     task = asyncio.create_task(bus.on(topic="test.topic", handler=handler_a, name="my_listener"))
     await asyncio.wait_for(entered.wait(), timeout=1)
     assert key in bus._registered_listeners, "key is reserved while add_listener is in flight"
@@ -154,9 +156,11 @@ async def test_registration_cancelled_mid_add_rolls_back_registry_key(bus: "Bus"
         await task
 
     assert key not in bus._registered_listeners
+    assert bus.bus_service.router.get_topic_listeners("test.topic") == []
 
-    with mock_add_listener(bus):
-        await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
+    register.side_effect = None
+    register.return_value = 1
+    await bus.on(topic="test.topic", handler=handler_a, name="my_listener")
     assert key in bus._registered_listeners
 
 
