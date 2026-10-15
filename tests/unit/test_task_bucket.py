@@ -9,6 +9,10 @@ Tests cover the snapshot-semantics and filtering guarantees of
 - Excludes tasks that have been cancelled
 - Returns a new list (snapshot) each call — not a reference to the internal set
 
+Concurrency bound (``max_tasks``):
+- Default is unbounded; when set, only that many spawned coroutines run at once
+- Slots are released on completion, failure, and cancellation while waiting
+
 Cross-thread spawn:
 - Raises RuntimeError (not hangs) when the event loop is stopped
 """
@@ -193,3 +197,116 @@ class TestCrossThreadSpawnTimeout:
         assert error is not None, "Expected RuntimeError from timed-out cross-thread spawn"
         assert "doomed-task" in str(error)
         assert "timed out" in str(error).lower()
+
+
+class TestMaxTasks:
+    """``max_tasks`` bounds concurrently running spawned work; the default stays unbounded."""
+
+    async def test_default_is_unbounded(self, hassette_mock) -> None:
+        bucket = TaskBucket(hassette_mock)
+        gate = asyncio.Event()
+        running = 0
+
+        async def worker() -> None:
+            nonlocal running
+            running += 1
+            await gate.wait()
+
+        tasks = [bucket.spawn(worker()) for _ in range(50)]
+        await asyncio.sleep(0)
+        assert running == 50
+
+        gate.set()
+        await asyncio.gather(*tasks)
+
+    async def test_bounded_limits_concurrently_running_work(self, hassette_mock) -> None:
+        bucket = TaskBucket(hassette_mock, max_tasks=2)
+        gate = asyncio.Event()
+        running = 0
+
+        async def worker() -> None:
+            nonlocal running
+            running += 1
+            await gate.wait()
+
+        tasks = [bucket.spawn(worker()) for _ in range(5)]
+        await asyncio.sleep(0)
+
+        assert running == 2
+        # spawn() is synchronous: every task exists immediately, even those still waiting for a slot.
+        assert not any(t.done() for t in tasks)
+
+        gate.set()
+        await asyncio.gather(*tasks)
+        assert running == 5
+
+    async def test_slot_released_when_task_completes(self, hassette_mock) -> None:
+        bucket = TaskBucket(hassette_mock, max_tasks=1)
+        first_gate = asyncio.Event()
+        second_started = asyncio.Event()
+
+        async def first() -> None:
+            await first_gate.wait()
+
+        async def second() -> None:
+            second_started.set()
+
+        t1 = bucket.spawn(first())
+        t2 = bucket.spawn(second())
+        await asyncio.sleep(0)
+        assert not second_started.is_set()
+
+        first_gate.set()
+        await asyncio.wait_for(t2, timeout=1.0)
+        assert t1.done()
+        assert second_started.is_set()
+
+    async def test_slot_released_when_task_fails(self, hassette_mock) -> None:
+        bucket = TaskBucket(hassette_mock, max_tasks=1)
+
+        async def boom() -> None:
+            raise ValueError("boom")
+
+        async def after() -> str:
+            return "ran"
+
+        t1 = bucket.spawn(boom())
+        t2 = bucket.spawn(after())
+        assert await asyncio.wait_for(t2, timeout=1.0) == "ran"
+        with pytest.raises(ValueError, match="boom"):
+            await t1
+
+    async def test_cancelling_a_waiting_task_closes_its_coroutine(self, hassette_mock) -> None:
+        bucket = TaskBucket(hassette_mock, max_tasks=1)
+        gate = asyncio.Event()
+        started = False
+
+        async def holder() -> None:
+            await gate.wait()
+
+        async def waiter() -> None:
+            nonlocal started
+            started = True
+
+        waiting_coro = waiter()
+        t1 = bucket.spawn(holder())
+        t2 = bucket.spawn(waiting_coro)
+        await asyncio.sleep(0)
+
+        t2.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await t2
+        assert not started
+        assert waiting_coro.cr_frame is None  # closed, so no "never awaited" warning
+
+        # The holder's slot is still held; a new spawn runs only once it is released.
+        t3 = bucket.spawn(async_noop())
+        await asyncio.sleep(0)
+        assert not t3.done()
+        gate.set()
+        await asyncio.wait_for(asyncio.gather(t1, t3), timeout=1.0)
+
+    @pytest.mark.parametrize("bad", [0, -1])
+    def test_rejects_non_positive_max_tasks(self, hassette_mock, bad: int) -> None:
+        with pytest.raises(ValueError, match="max_tasks"):
+            TaskBucket(hassette_mock, max_tasks=bad)
