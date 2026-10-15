@@ -1,6 +1,6 @@
 # How Hassette Is Built
 
-Hassette is written with AI coding agents, mostly [Claude Code](https://claude.com/claude-code). Nearly all of the code, tests, docs and design specs start as agent output. The design decisions in them are mine.
+Hassette is written by AI coding agents, mostly [Claude Code](https://claude.com/claude-code). I don't write the code, tests, docs or design specs by hand anymore. The design decisions in them are mine, and so is everything that ships: the best code in the repo, every bug, and everything in between. If it's in Hassette, I own it.
 
 ## Who decides what
 
@@ -20,7 +20,21 @@ The `main` branch is protected. A pull request can't merge until these checks pa
 
 ## Running it at home
 
-Hassette also runs my own house. My automation suite of a couple dozen apps tracks Hassette's `main` branch rather than releases, so new code runs in a real home before it ships. It uses most of the framework day to day: the bus, scheduler, API, state manager, cache and testing harness.
+Hassette also runs my own house. My automation suite of a couple dozen apps tracks Hassette's `main` branch rather than releases, so new code runs in a real home before it ships. It uses most of the framework day to day: the bus, scheduler, API, state manager, cache and testing harness. I change those apps several times a week.
+
+## Why I build it this way
+
+Hassette is my passion project. It started in my dotfiles as a tiny Home Assistant listener, a proof of concept, and grew until it needed its own repo. The first public release came in September 2025, and I plan to keep at it for years. I also work about 60 hours a week across two jobs, so I get fewer hours on Hassette than I'd like. Agents let those hours go to the decisions instead of the typing. Claude also writes better code than I do.
+
+My time goes to the parts an agent can't own:
+
+- Triage. Bug reports and feature requests from other users come first.
+- Tooling. When a mistake shows up twice, I add a linter or a check so it gets caught automatically next time. My [Claude Code setup](https://github.com/NodeJSmith/Claudefiles) grew out of building Hassette, and it improves every time Hassette exposes a gap in it.
+- Research. Before a design decision, I look at how other projects solved the same problem.
+- The backlog. An autofix pipeline turns small, well-specified issues into pull requests without me supervising each one, so simple fixes don't pile up. Its pull requests go through the same checks as everything else.
+- What's next. The [Home Assistant integration](getting-started/home-assistant-integration.md) is early and will do much more, and a [Home Assistant app](https://github.com/NodeJSmith/hassette-addon) (formerly add-on) will run Hassette on Home Assistant OS.
+
+I think about Hassette constantly, and I'm proud of it.
 
 ## Contributing with AI
 

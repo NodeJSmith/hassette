@@ -91,4 +91,4 @@ Hassette and AppDaemon can run against the same Home Assistant at once, so you c
 
 ## How It's Built
 
-Hassette is written with AI coding agents. I make every design decision, and every change passes type checking and the test suite, including tests against a real Home Assistant, before it merges. I also run my own house on Hassette's `main` branch. See [How Hassette Is Built](pages/how-hassette-is-built.md).
+Hassette is written by AI coding agents. I make every design decision and own every line, and every change passes type checking and the test suite, including tests against a real Home Assistant, before it merges. I also run my own house on Hassette's `main` branch. See [How Hassette Is Built](pages/how-hassette-is-built.md).

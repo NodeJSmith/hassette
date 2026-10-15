@@ -142,7 +142,7 @@ Hassette is pre-1.0 and under active development. Minor releases can include bre
 
 ## How Hassette Is Built
 
-Hassette is written with AI coding agents, mostly Claude Code. I make every design decision, and every change passes the same required checks before it merges, including tests against a real Home Assistant. Hassette also runs my own house: my automations track the `main` branch, so new code runs in a real home before it ships. [How Hassette Is Built](https://hassette.readthedocs.io/en/stable/pages/how-hassette-is-built/) has the details. Found something sloppy? [Open an issue](https://github.com/NodeJSmith/hassette/issues).
+Hassette is written by AI coding agents, mostly Claude Code. I make every design decision and I own every line, the best code and every bug alike. Every change passes the same required checks before it merges, including tests against a real Home Assistant. Hassette also runs my own house: my automations track the `main` branch, so new code runs in a real home before it ships. [How Hassette Is Built](https://hassette.readthedocs.io/en/stable/pages/how-hassette-is-built/) has the details. Found something sloppy? [Open an issue](https://github.com/NodeJSmith/hassette/issues).
 
 ## Contributing
 
