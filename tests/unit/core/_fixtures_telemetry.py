@@ -42,6 +42,7 @@ CREATE INDEX idx_lr_app_time ON log_records(app_key, timestamp);
 CREATE TABLE sessions (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at            REAL NOT NULL DEFAULT 0,
+    stopped_at            REAL,
     last_heartbeat_at     REAL NOT NULL DEFAULT 0,
     status                TEXT NOT NULL DEFAULT 'running'
 );

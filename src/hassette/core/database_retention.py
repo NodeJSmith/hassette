@@ -25,6 +25,9 @@ if typing.TYPE_CHECKING:
 REMOVED_APP_MANIFESTS_LABEL = "removed app manifests"
 """Label for pruned ``app_manifests`` rows in the "Retention cleanup summary" line."""
 
+SESSIONS_LABEL = "sessions"
+"""Label for deleted ``sessions`` rows in the "Retention cleanup summary" line."""
+
 PARENT_GUARD_SKIP_ESCALATION_CYCLES = 3
 """Consecutive retention cycles with parent-guard deletes skipped before the skip is logged as
 an ERROR instead of a WARNING — separates a transient one-off target failure from a target that
@@ -100,6 +103,7 @@ class ParentGuardResult:
     listeners_deleted: int = 0
     jobs_deleted: int = 0
     pruned_manifest_keys: tuple[str, ...] = ()
+    sessions_deleted: int = 0
 
 
 class DatabaseRetentionMixin:
@@ -210,7 +214,9 @@ class DatabaseRetentionMixin:
             keys.update(app_handler.registry.app_keys())
         return sorted(keys)
 
-    async def _run_parent_guard_deletes(self, cutoff: float, now: float, live_app_keys: list[str]) -> ParentGuardResult:
+    async def _run_parent_guard_deletes(
+        self, cutoff: float, now: float, live_app_keys: list[str], current_session_id: int | None
+    ) -> ParentGuardResult:
         """Retire removed apps' registrations, run the NOT EXISTS-guarded deletes, then prune manifests.
 
         "Parent-guard" names the whole second phase of a cleanup cycle; all of it runs in one
@@ -227,11 +233,18 @@ class DatabaseRetentionMixin:
            Rows retired in step 1 this cycle are not past the cutoff yet.
         3. Delete ``app_manifests`` rows of apps not in ``live_app_keys`` that nothing references
            anymore (``build_prune_removed_app_manifests_query``).
+        4. Delete ``sessions`` rows that stopped before the cutoff, are not the current session, and
+           are no longer referenced by any ``executions`` or ``blocking_events`` row. Sessions
+           still referenced wait until those rows age out under their own tier's window. A
+           session with ``stopped_at IS NULL`` (the live one, or a previous run's orphan not yet
+           backfilled by ``mark_orphaned_sessions``) is never deleted. The size failsafe does not
+           reclaim sessions: they are small, and only age-based retention removes them.
 
         Args:
-            cutoff: Retention cutoff for step 2's deletes.
+            cutoff: Retention cutoff for step 2's and step 4's deletes.
             now: Timestamp step 1 stamps into ``retired_at``.
             live_app_keys: App keys to leave alone (see ``live_app_keys()``).
+            current_session_id: The live session's id, never deleted; None if no session exists yet.
 
         Returns:
             ParentGuardResult: Rows retired and deleted, and the app keys retired and pruned.
@@ -275,6 +288,16 @@ class DatabaseRetentionMixin:
         )
         pruned_manifest_cursor = await self.db.execute(*build_prune_removed_app_manifests_query(live_app_keys))
         pruned_manifest_keys = tuple(sorted(row[0] for row in await pruned_manifest_cursor.fetchall()))
+        deleted_session_cursor = await self.db.execute(
+            """
+            DELETE FROM sessions
+            WHERE stopped_at IS NOT NULL AND stopped_at < ?
+              AND id IS NOT ?
+              AND NOT EXISTS (SELECT 1 FROM executions WHERE session_id = sessions.id)
+              AND NOT EXISTS (SELECT 1 FROM blocking_events WHERE session_id = sessions.id)
+            """,
+            (cutoff, current_session_id),
+        )
         await self.db.commit()
         return ParentGuardResult(
             listeners_retired=len(retired_listener_keys),
@@ -283,6 +306,7 @@ class DatabaseRetentionMixin:
             listeners_deleted=deleted_listener_cursor.rowcount or 0,
             jobs_deleted=deleted_job_cursor.rowcount or 0,
             pruned_manifest_keys=pruned_manifest_keys,
+            sessions_deleted=deleted_session_cursor.rowcount or 0,
         )
 
     def _record_parent_guard_skip(self, failed_labels: set[str], incomplete_labels: set[str]) -> None:
@@ -321,11 +345,12 @@ class DatabaseRetentionMixin:
         the per-cycle batch cap (see ``_delete_target_batched``'s ``exhausted`` return) skips
         the guard for this cycle so it can never run against a state where an upstream delete
         is known to be incomplete. The same gate covers pruning ``app_manifests`` rows for apps
-        removed from config, which runs inside the parent-guard transaction. A parent-guard
-        failure is rolled back, logged individually, and also folded into the "Retention
-        cleanup summary" line below (as "parent-guard deletes failed") so it isn't only
-        visible in a separate log line. Removed-app cleanup therefore advances only on cycles
-        where the parent-guard runs; a sustained skip streak (see below) stalls it too.
+        removed from config and deleting old unreferenced ``sessions`` rows, both of which run
+        inside the parent-guard transaction. A parent-guard failure is rolled back, logged
+        individually, and also folded into the "Retention cleanup summary" line below (as
+        "parent-guard deletes failed") so it isn't only visible in a separate log line. Removed-app
+        and session cleanup therefore advance only on cycles where the parent-guard runs; a
+        sustained skip streak (see below) stalls them too.
 
         Skipped cycles are counted by ``_record_parent_guard_skip``; the counter resets whenever
         the parent-guard actually runs, whether or not it succeeds. The cycle ends by reclaiming the
@@ -358,7 +383,9 @@ class DatabaseRetentionMixin:
             try:
                 # Use the standard retention window for parent-guard deletes.
                 cutoff = now - (config.database.retention_days * SECONDS_PER_DAY)
-                guard = await self._run_parent_guard_deletes(cutoff, now, self.live_app_keys())
+                guard = await self._run_parent_guard_deletes(
+                    cutoff, now, self.live_app_keys(), self.hassette.try_session_id()
+                )
             # Not BaseException: every cancellation path today either rolls back itself (the
             # startup catch-up timeout) or closes the connection (shutdown), which rolls back.
             except Exception:
@@ -369,6 +396,7 @@ class DatabaseRetentionMixin:
             self._record_parent_guard_skip(failed_labels, incomplete_labels)
 
         deleted_by_label[REMOVED_APP_MANIFESTS_LABEL] = len(guard.pruned_manifest_keys)
+        deleted_by_label[SESSIONS_LABEL] = guard.sessions_deleted
         deleted_summary = {label: count for label, count in deleted_by_label.items() if count > 0}
         if deleted_summary or failed_labels or incomplete_labels or parent_guard_failed:
             parts = ", ".join(f"{count} {label}" for label, count in deleted_summary.items())
