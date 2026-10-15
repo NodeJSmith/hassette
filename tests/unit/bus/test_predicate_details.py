@@ -2,12 +2,11 @@
 
 Covers pieces not exercised by test_predicates.py, test_combinator_predicates.py, or
 test_service_data_predicates.py: compare_value's validation branches, DidChange/IsPresent/
-IsMissing __call__ behavior, StateComparison/AttrComparison __call__ and the "passed a class
-instead of an instance" warning branch, ServiceDataWhere's auto_glob=False and from_kwargs
+IsMissing __call__ behavior, StateComparison/AttrComparison __call__ and the construction-time
+TypeError for a condition class passed instead of an instance, ServiceDataWhere's auto_glob=False and from_kwargs
 paths, and the summarize() fallback/edge-case helpers.
 """
 
-import logging
 import typing
 from types import SimpleNamespace
 
@@ -179,18 +178,10 @@ def test_state_comparison_false_when_condition_fails() -> None:
     assert predicate(event) is False
 
 
-def test_state_comparison_warns_and_instantiates_when_passed_a_class(caplog: pytest.LogCaptureFixture) -> None:
-    """StateComparison auto-instantiates a bare class (common typo) instead of raising.
-
-    Regression coverage for the defensive __post_init__ branch that converts
-    `StateComparison(condition=Increased)` (class) into `StateComparison(condition=Increased())`.
-    """
-    with caplog.at_level(logging.WARNING):
-        predicate = StateComparison(condition=Increased)  # pyright: ignore[reportArgumentType]
-
-    assert isinstance(predicate.condition, Increased)
-    event = create_state_change_event(entity_id="sensor.count", old_value="1", new_value="2")
-    assert predicate(event) is True
+def test_state_comparison_rejects_a_class_at_construction() -> None:
+    """Passing a condition class instead of an instance raises TypeError naming the fix."""
+    with pytest.raises(TypeError, match=r"StateComparison was passed the class Increased; .*e\.g\. Increased\(\)"):
+        StateComparison(condition=Increased)  # pyright: ignore[reportArgumentType]
 
 
 def test_attr_comparison_calls_condition_with_old_and_new_attr() -> None:
@@ -209,11 +200,10 @@ def test_attr_comparison_false_when_condition_fails() -> None:
     assert predicate(event) is False
 
 
-def test_attr_comparison_warns_and_instantiates_when_passed_a_class() -> None:
-    """AttrComparison auto-instantiates a bare class passed as condition, like StateComparison."""
-    predicate = AttrComparison(attr_name="brightness", condition=Increased)  # pyright: ignore[reportArgumentType]
-
-    assert isinstance(predicate.condition, Increased)
+def test_attr_comparison_rejects_a_class_at_construction() -> None:
+    """AttrComparison raises TypeError for a condition class, like StateComparison."""
+    with pytest.raises(TypeError, match=r"AttrComparison was passed the class Increased; .*e\.g\. Increased\(\)"):
+        AttrComparison(attr_name="brightness", condition=Increased)  # pyright: ignore[reportArgumentType]
 
 
 # ServiceDataWhere: auto_glob=False and from_kwargs
