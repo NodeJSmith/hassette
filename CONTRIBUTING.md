@@ -109,7 +109,6 @@ Hassette is built with AI coding agents (see [How Hassette Is Built](https://has
 - Read and run what you submit. You're responsible for every line, so if you can't explain why something is there, take it out or ask about it in the PR.
 - Mention in the PR description which AI tool you used and what it did (wrote the code, the tests, the docs). Autocomplete doesn't need a mention.
 - For anything beyond a small fix, open an issue and agree on the approach before generating code.
-- Write issue and PR descriptions yourself, so I know what you actually intend.
 
 I may close a PR that looks like unreviewed agent output.
 

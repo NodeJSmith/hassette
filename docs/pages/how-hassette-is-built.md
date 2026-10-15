@@ -1,12 +1,12 @@
 # How Hassette Is Built
 
-Hassette is written with AI coding agents, mostly [Claude Code](https://claude.com/claude-code). Nearly all of the code, tests and docs start as agent output. I make every design decision. Before an agent writes code, I settle the approach and record it in [`design/`](https://github.com/NodeJSmith/hassette/tree/main/design) or in the issue.
+Hassette is written with AI coding agents, mostly [Claude Code](https://claude.com/claude-code). Nearly all of the code, tests, docs and design specs start as agent output. The design decisions in them are mine.
 
 ## Who decides what
 
-The agents write code to a spec, and I write the spec. That covers what goes into the framework and how each feature behaves, edge cases included. The public API stays small on purpose. A convenience method has to save real boilerplate without adding new ways to fail. Larger changes start as a written design, with each open question settled before any code exists. Architecture decisions are recorded as ADRs in [`design/adrs/`](https://github.com/NodeJSmith/hassette/tree/main/design/adrs), along with the alternatives that were turned down.
+An agent drafts the spec for a change and lists the design questions it raises. I answer them: what goes into the framework, how a feature behaves at the edges, which trade-off to take. For larger changes, no code gets written until every open question has an answer. The answers are recorded in [`design/`](https://github.com/NodeJSmith/hassette/tree/main/design) or in the issue.
 
-Passing tests don't tell me a change is right for the people using Hassette. I decide that.
+The public API stays small on purpose. A convenience method has to save real boilerplate without adding new ways to fail.
 
 ## What every change has to pass
 
