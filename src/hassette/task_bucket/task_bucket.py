@@ -50,6 +50,12 @@ class TaskBucket(Resource):
     _exception_recorders: "list[ExceptionRecorderT]"
     """List of recorders called for each non-CancelledError task exception."""
 
+    _slots: "asyncio.Semaphore | None" = None
+    """Concurrency gate for ``spawn()``-ed work, or ``None`` when unbounded (the default).
+
+    Class-level default for the same ``TaskBucket.__new__`` reason as ``_sealed``.
+    """
+
     _sealed: bool = False
     """Whether the bucket is currently rejecting new owner work.
 
@@ -64,8 +70,28 @@ class TaskBucket(Resource):
         *,
         parent: "Resource | None" = None,
         sync_executor: "SyncExecutor | None" = None,
+        max_tasks: int | None = None,
     ) -> None:
+        """Create a task bucket.
+
+        Args:
+            hassette: The owning Hassette instance.
+            parent: Parent resource, if any.
+            sync_executor: Executor backing :meth:`run_in_thread`.
+            max_tasks: Upper bound on how many ``spawn()``-ed coroutines run concurrently. ``None``
+                (the default) means unbounded. ``spawn()`` stays synchronous: the task is created
+                and tracked immediately, but its coroutine waits for a free slot before running, so
+                ``len(bucket)`` can exceed ``max_tasks``. Tasks that join the bucket through the
+                task factory or :meth:`add` are tracked but not gated. A spawned coroutine that awaits
+                another task spawned into the same bounded bucket can deadlock once every slot is held.
+
+        Raises:
+            ValueError: If ``max_tasks`` is not ``None`` or a positive ``int`` (``bool`` is rejected).
+        """
+        if max_tasks is not None and (isinstance(max_tasks, bool) or not isinstance(max_tasks, int) or max_tasks < 1):
+            raise ValueError(f"max_tasks must be a positive integer or None, got {max_tasks!r}")
         super().__init__(hassette, parent=parent)
+        self._slots = asyncio.Semaphore(max_tasks) if max_tasks is not None else None
         self._tasks: set[asyncio.Task[Any]] = set()
         self._exception_recorders = []
         self._sync_executor = sync_executor
@@ -229,53 +255,67 @@ class TaskBucket(Resource):
 
         if current_thread == self.hassette.loop_thread_id:
             # Fast path: already on loop thread
-            with ctx.use_task_bucket(self):
-                return asyncio.create_task(coro, name=task_name)
-        else:
-            # Dev-mode tracking: log cross-thread spawn
-            if self.hassette.config.dev_mode:
-                self.logger.debug(
-                    "Cross-thread spawn: %s from thread %s (loop thread %s)",
-                    task_name,
-                    current_thread,
-                    self.hassette.loop_thread_id,
-                )
-            # Cross-thread: create the task on the real loop thread and wait for the handle
-            result: Future[asyncio.Task[T]] = Future()
+            return self._create_spawned_task(coro, task_name)
+        # Dev-mode tracking: log cross-thread spawn
+        if self.hassette.config.dev_mode:
+            self.logger.debug(
+                "Cross-thread spawn: %s from thread %s (loop thread %s)",
+                task_name,
+                current_thread,
+                self.hassette.loop_thread_id,
+            )
+        # Cross-thread: create the task on the real loop thread and wait for the handle
+        result: Future[asyncio.Task[T]] = Future()
 
-            def _create() -> None:
-                if self._sealed:
-                    self._close_rejected_coro(coro)
-                    result.set_exception(self._sealed_rejection(task_name))
-                    return
-                try:
-                    with ctx.use_task_bucket(self):
-                        task = asyncio.create_task(coro, name=task_name)
-                    result.set_result(task)
-                except Exception as exc:
-                    result.set_exception(exc)
-
-            self.hassette.loop.call_soon_threadsafe(_create)
+        def _create() -> None:
+            if self._sealed:
+                self._close_rejected_coro(coro)
+                result.set_exception(self._sealed_rejection(task_name))
+                return
             try:
-                return result.result(timeout=_CROSS_THREAD_SPAWN_TIMEOUT_SECS)
-            except CfTimeoutError:
-                # Accepted risk, not fixed: _create() is scheduled via call_soon_threadsafe()
-                # and may still run on the loop thread after this timeout fires here on the
-                # calling thread. If it does, the task is created and tracked by this bucket
-                # (bounded, not leaked) even though the caller already saw this timeout and the
-                # RuntimeError below. Closing the race would need a handshake between the two
-                # threads; the trigger condition — an event loop frozen for the full timeout — is
-                # itself a serious problem this bucket cannot mask, so the complexity is not
-                # justified. See hassette issue #1811.
-                self.logger.error(
-                    "Cross-thread spawn of '%s' timed out after %.0fs waiting for the event loop",
-                    task_name,
-                    _CROSS_THREAD_SPAWN_TIMEOUT_SECS,
-                )
-                raise RuntimeError(
-                    f"Cross-thread spawn of '{task_name}' timed out waiting for the event loop "
-                    "— the loop may have stopped or is severely congested"
-                ) from None
+                result.set_result(self._create_spawned_task(coro, task_name))
+            except Exception as exc:
+                result.set_exception(exc)
+
+        self.hassette.loop.call_soon_threadsafe(_create)
+        try:
+            return result.result(timeout=_CROSS_THREAD_SPAWN_TIMEOUT_SECS)
+        except CfTimeoutError:
+            # Accepted risk, not fixed: _create() is scheduled via call_soon_threadsafe()
+            # and may still run on the loop thread after this timeout fires here on the
+            # calling thread. If it does, the task is created and tracked by this bucket
+            # (bounded, not leaked) even though the caller already saw this timeout and the
+            # RuntimeError below. Closing the race would need a handshake between the two
+            # threads; the trigger condition — an event loop frozen for the full timeout — is
+            # itself a serious problem this bucket cannot mask, so the complexity is not
+            # justified. See hassette issue #1811.
+            self.logger.error(
+                "Cross-thread spawn of '%s' timed out after %.0fs waiting for the event loop",
+                task_name,
+                _CROSS_THREAD_SPAWN_TIMEOUT_SECS,
+            )
+            raise RuntimeError(
+                f"Cross-thread spawn of '{task_name}' timed out waiting for the event loop "
+                "— the loop may have stopped or is severely congested"
+            ) from None
+
+    def _create_spawned_task(self, coro: CoroLikeT[T], name: str) -> asyncio.Task[T]:
+        """Create the task for ``spawn()`` on the loop thread, gated on ``max_tasks`` when set."""
+        if self._slots is None:
+            with ctx.use_task_bucket(self):
+                return asyncio.create_task(coro, name=name)
+
+        try:
+            with ctx.use_task_bucket(self):
+                task = asyncio.create_task(_run_when_slot_free(self._slots, coro), name=name)
+        except BaseException:
+            coro.close()
+            raise
+        # A task cancelled before its first step, or while waiting for a slot, never starts
+        # `coro`; closing it once the task is done avoids a "never awaited" warning. Closing a
+        # coroutine that already ran to completion is a no-op.
+        task.add_done_callback(lambda _: coro.close())
+        return task
 
     def run_in_thread(self, fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> "asyncio.Future[R]":
         """Run a synchronous function on the dedicated sync-handler executor.
@@ -486,6 +526,15 @@ class TaskBucket(Resource):
 
     def __len__(self) -> int:
         return len(self._tasks)
+
+
+async def _run_when_slot_free(slots: asyncio.Semaphore, coro: CoroLikeT[T]) -> T:
+    """Run ``coro`` once ``slots`` has a free slot, releasing the slot when ``coro`` finishes."""
+    await slots.acquire()
+    try:
+        return await coro
+    finally:
+        slots.release()
 
 
 def make_task_factory(
