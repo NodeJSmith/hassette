@@ -44,6 +44,6 @@ New screenshot:
 2. Embed `![alt](../../_static/web_ui_<name>.png)` in the relevant `docs/pages/` page.
 3. Run the capture tool scoped with `--only`.
 
-If a UI state isn't config-driven (e.g. it needs a crashed instance), add a demo fixture in `scripts/demo_apps/` (see `degraded_demo.py` and its `autostart = false` entry in `scripts/demo_apps/hassette.toml`) rather than faking the state. Never add one to `examples/`: that directory holds only apps users copy as templates.
+If a UI state isn't config-driven (e.g. it needs a crashed instance), add a demo fixture in `scripts/demo_apps/` (see `degraded_demo.py` and its entry in `scripts/demo_apps/hassette.toml`) rather than faking the state. Never add one to `examples/`: that directory holds only apps users copy as templates.
 
 After a UI change that alters a view documented with a screenshot, regenerate the affected `web_ui_*.png`. PRs touching rendered frontend files need visual evidence — see `.claude/rules/design-completeness.md`.
