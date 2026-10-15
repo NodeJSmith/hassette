@@ -200,9 +200,12 @@ def test_hassette_error_without_suggestion_renders_message_unchanged() -> None:
 
 
 def test_hassette_error_with_suggestion_appends_suffix() -> None:
-    exc = HassetteError("msg")
-    exc.suggestion = "do the thing"
-    assert str(exc) == "msg\n  Suggestion: do the thing"
+    class SuggestingError(HassetteError):
+        def __init__(self, msg: str) -> None:
+            super().__init__(msg)
+            self.suggestion = "do the thing"
+
+    assert str(SuggestingError("msg")) == "msg\n  Suggestion: do the thing"
 
 
 def test_class_level_suggestion_surfaces_through_str() -> None:
