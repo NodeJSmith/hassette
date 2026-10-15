@@ -49,6 +49,9 @@ ADD ./LICENSE /app/LICENSE
 ADD ./scripts/.ignore /app/.ignore
 
 ENV UV_LINK_MODE=copy
+# Ship .pyc files in the image so a freshly created container doesn't compile every module on
+# first import, once in `hassette run --check` and again in `hassette run`.
+ENV UV_COMPILE_BYTECODE=1
 
 # Fail the build if uv.lock is stale relative to pyproject.toml
 RUN uv lock --check

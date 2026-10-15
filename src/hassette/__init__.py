@@ -1,3 +1,6 @@
+# Imported first so its clock starts before the eager imports below; see startup_clock.
+from . import startup_clock  # noqa: F401  # pyright: ignore[reportUnusedImport]  # isort: skip
+
 import logging
 
 from hassette_wire import BackpressurePolicy, ExecutionMode, ExecutionStatus, ResourceStatus
