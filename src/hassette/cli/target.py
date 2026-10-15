@@ -18,14 +18,14 @@ from typing import Literal
 
 from yarl import URL
 
-from hassette.config.config import HassetteConfig
-from hassette.exceptions import (
+from hassette.cli.exceptions import (
     CredentialResolutionError,
     ServerUrlApiSuffixError,
     ServerUrlHostRequiredError,
     ServerUrlParseError,
     ServerUrlSchemeRequiredError,
 )
+from hassette.config.config import HassetteConfig
 from hassette.utils.net_utils import format_host, is_loopback_host, substitute_host
 from hassette.web.auth.tokens import TOKEN_FILENAME
 
