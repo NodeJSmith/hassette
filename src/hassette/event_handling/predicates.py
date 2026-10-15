@@ -40,13 +40,11 @@ Examples:
     ```
 """
 
-import inspect
 import math
 import typing
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from inspect import isawaitable
-from logging import getLogger
 from typing import Any, Generic, Self, TypeVar
 
 from hassette.const import ANY_VALUE, MISSING_VALUE, NOT_PROVIDED
@@ -81,8 +79,6 @@ if typing.TYPE_CHECKING:
 
 V = TypeVar("V")
 CombinatorT = TypeVar("CombinatorT", bound="_PredicateCombinator")
-
-LOGGER = getLogger(__name__)
 
 
 class _PredicateOps:
@@ -434,9 +430,9 @@ class StateComparison(_PredicateOps):
     condition: ComparisonCondition
 
     def __post_init__(self) -> None:
-        if inspect.isclass(self.condition):
-            LOGGER.warning("StateComparison was passed a class instead of an instance.", stacklevel=2)
-            object.__setattr__(self, "condition", self.condition())
+        if isinstance(self.condition, type):
+            name = self.condition.__name__
+            raise TypeError(f"StateComparison was passed the class {name}; pass an instance instead, e.g. {name}().")
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         return self.condition(get_state_value_old(value), get_state_value_new(value))
@@ -484,9 +480,9 @@ class AttrComparison(_PredicateOps):
     condition: ComparisonCondition
 
     def __post_init__(self) -> None:
-        if inspect.isclass(self.condition):
-            LOGGER.warning("AttrComparison was passed a class instead of an instance.", stacklevel=2)
-            object.__setattr__(self, "condition", self.condition())
+        if isinstance(self.condition, type):
+            name = self.condition.__name__
+            raise TypeError(f"AttrComparison was passed the class {name}; pass an instance instead, e.g. {name}().")
 
     def __call__(self, value: "RawStateChangeEvent", /) -> bool:
         old_attr = get_attr_old(self.attr_name)(value)
