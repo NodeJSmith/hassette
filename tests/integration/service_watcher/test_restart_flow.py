@@ -1,0 +1,309 @@
+"""Integration tests for ServiceWatcher restart logic.
+
+Tests use RestartSpec-based per-service configuration rather than global config fields.
+"""
+
+import asyncio
+from typing import ClassVar
+from unittest.mock import patch
+
+from hassette_wire import ResourceStatus
+
+from hassette import context
+from hassette.core.service_watcher import ServiceWatcher
+from hassette.events import HassetteServiceEvent
+from hassette.resources.lifecycle import mark_ready
+from hassette.resources.restart import RestartSpec
+from hassette.resources.service import Service
+from hassette.testing import EventCapture, wait_for
+from hassette.types.enums import RestartType
+from tests.support.helpers import (
+    make_service_failed_event,
+    make_service_running_event,
+)
+
+from .helpers import (
+    AWAIT_TIMEOUT,
+    budget_entries,
+    make_call_counts,
+    make_fast_spec,
+    register_dummy_service,
+    restart_and_await,
+)
+
+
+async def on_running_and_await(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
+    """Call on_service_running and wait for the spawned readiness task to complete."""
+    pending_before = set(watcher.task_bucket.pending_tasks())
+    await watcher.on_service_running(event)
+    new_tasks = set(watcher.task_bucket.pending_tasks()) - pending_before
+    for task in new_tasks:
+        await asyncio.wait_for(asyncio.shield(task), timeout=AWAIT_TIMEOUT)
+
+
+async def test_restart_service_cancels_then_starts(watcher: ServiceWatcher):
+    """Restarting a failed service cancels and reinitializes it."""
+    dummy = register_dummy_service(watcher, restart_type=RestartType.TRANSIENT, budget_intensity=5)
+
+    await watcher.restart_service(dummy.failed_event)
+
+    await wait_for(
+        lambda: dummy.calls == {"cancel": 1, "start": 1},
+        desc="restart_service completed",
+    )
+
+    assert dummy.calls == {"cancel": 1, "start": 1}, (
+        f"Expected cancel and start to be called once each, got {dummy.calls}"
+    )
+
+
+async def test_exponential_backoff(watcher: ServiceWatcher):
+    """Backoff delay increases exponentially between restart attempts (using shutdown-safe sleep)."""
+    dummy = register_dummy_service(
+        watcher,
+        fail=True,
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=10,
+        backoff_base_seconds=1.0,
+        backoff_multiplier=2.0,
+        backoff_max_seconds=60.0,
+    )
+
+    sleep_calls: list[float] = []
+
+    async def mock_shutdown_safe_sleep(duration: float) -> bool:
+        sleep_calls.append(duration)
+        return True  # sleep completed normally
+
+    with patch.object(watcher, "shutdown_safe_sleep", side_effect=mock_shutdown_safe_sleep):
+        for _ in range(3):
+            await restart_and_await(watcher, dummy.failed_event)
+
+    # attempt 1: backoff = 1.0 * 2^0 = 1.0
+    # attempt 2: backoff = 1.0 * 2^1 = 2.0
+    # attempt 3: backoff = 1.0 * 2^2 = 4.0
+    assert sleep_calls == [1.0, 2.0, 4.0]
+
+
+async def test_budget_reset_on_recovery(watcher: ServiceWatcher):
+    """Budget resets when a service transitions to RUNNING and becomes ready."""
+    context.PROTECT_TASK.set(False)
+    dummy = register_dummy_service(
+        watcher, fail=True, restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=1.0
+    )
+
+    # Accumulate 2 restart attempts
+    for _ in range(2):
+        await restart_and_await(watcher, dummy.failed_event)
+
+    assert budget_entries(watcher, dummy.key) == 2
+
+    # Mark the service ready, then fire RUNNING event — budget should reset
+    mark_ready(dummy.service, reason="test")
+    await on_running_and_await(watcher, make_service_running_event(dummy.service))
+
+    assert budget_entries(watcher, dummy.key) == 0  # budget reset
+
+
+async def test_in_restart_guard_prevents_double_budget(watcher: ServiceWatcher):
+    """Two FAILED events while restart is in progress only record one budget entry."""
+    dummy = register_dummy_service(watcher, restart_type=RestartType.TRANSIENT, budget_intensity=10)
+
+    # Manually set the in-restart flag to simulate concurrent restart in progress
+    watcher._restarting.add(dummy.key)
+    # Ensure budget exists but has 1 entry (from the first restart)
+    watcher.get_budget(dummy.key, dummy.spec).record_restart()
+
+    # Second FAILED event arrives while restart is in progress — should be dropped
+    await watcher.restart_service(dummy.failed_event)
+
+    # Budget should still have only 1 entry
+    assert budget_entries(watcher, dummy.key) == 1, "Second FAILED event should have been dropped by in-restart guard"
+
+    # Clean up
+    watcher._restarting.discard(dummy.key)
+
+
+async def test_in_restart_guard_drops_duplicate_even_when_budget_exhausted(watcher: ServiceWatcher):
+    """A FAILED event racing the in-restart guard is always dropped, even if budget is exhausted.
+
+    Budget state alone cannot tell whether a FAILED event arriving while `_restarting` is set
+    is the in-flight attempt's own failure or a duplicate/redelivery of the original failure
+    that started this attempt -- record_restart() for the current attempt already ran before
+    the guard is ever consulted, so is_exhausted() reads the same either way. Treating an
+    already-exhausted budget as proof this racing event represents a genuine new failure was
+    a false positive: no second failure has actually happened yet. The in-flight attempt's own
+    failure is detected directly in execute_restart()'s own exception handler instead (see
+    test_execute_restart_own_failure_triggers_exhaustion), which cannot race this guard.
+    """
+    dummy = register_dummy_service(watcher, restart_type=RestartType.PERMANENT, budget_intensity=1)
+
+    watcher._restarting.add(dummy.key)
+    budget = watcher.get_budget(dummy.key, dummy.spec)
+    budget.record_restart()
+    assert budget.is_exhausted()
+
+    with EventCapture.capturing(watcher.hassette) as capture:
+        await watcher.restart_service(dummy.failed_event)
+
+    assert watcher.hassette.fatal_shutdown_reason is None, (
+        "A duplicate FAILED event racing the in-restart guard must not trigger exhaustion"
+    )
+    assert capture.events == [], "Dropped duplicate must not emit any status event"
+    assert dummy.key in watcher._restarting, "Guard must remain set -- the in-flight attempt still owns this key"
+
+    # Clean up
+    watcher._restarting.discard(dummy.key)
+
+
+async def test_shutdown_safe_sleep_aborts_on_shutdown(watcher: ServiceWatcher):
+    """Backoff sleep aborts early when shutdown_event is set."""
+    hassette = watcher.hassette
+    dummy = register_dummy_service(
+        watcher,
+        restart_type=RestartType.TRANSIENT,
+        budget_intensity=10,
+        backoff_base_seconds=5.0,  # real backoff that would be interrupted
+        backoff_multiplier=1.0,
+    )
+
+    # Set shutdown event to trigger early abort during backoff
+    hassette.shutdown_event.set()
+
+    await restart_and_await(watcher, dummy.failed_event)
+
+    # Service should NOT have been restarted
+    assert dummy.calls["start"] == 0, "Service should not restart when shutdown is requested during backoff"
+    # In-restart flag should be cleared
+    assert dummy.key not in watcher._restarting
+
+
+async def test_budget_reset_on_recovery_confirmed(watcher: ServiceWatcher):
+    """Budget resets when service reaches RUNNING and signals readiness."""
+    context.PROTECT_TASK.set(False)
+    dummy = register_dummy_service(
+        watcher, fail=True, restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=1.0
+    )
+
+    # Accumulate 2 restart attempts
+    await restart_and_await(watcher, dummy.failed_event)
+    await restart_and_await(watcher, dummy.failed_event)
+
+    assert budget_entries(watcher, dummy.key) == 2
+
+    # Mark the service ready, then fire RUNNING event — budget should reset
+    mark_ready(dummy.service, reason="test")
+    await on_running_and_await(watcher, make_service_running_event(dummy.service))
+
+    assert budget_entries(watcher, dummy.key) == 0  # budget.reset() was called
+    assert dummy.key not in watcher._restarting  # in-restart cleared
+
+
+async def test_readiness_timeout_no_budget_impact(watcher: ServiceWatcher):
+    """Readiness timeout after RUNNING does NOT increment restart budget."""
+    dummy = register_dummy_service(
+        watcher, fail=True, restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=0.05
+    )
+
+    # Accumulate 1 restart attempt
+    await restart_and_await(watcher, dummy.failed_event)
+
+    count_before = budget_entries(watcher, dummy.key)
+
+    # Fire RUNNING event WITHOUT marking ready — timeout will occur, no budget impact
+    # on_service_running spawns a readiness task; wait for it to time out
+    await watcher.on_service_running(make_service_running_event(dummy.service))
+    await wait_for(
+        lambda: watcher.task_bucket.pending_tasks() == [],
+        desc="readiness timeout task completed",
+        timeout=AWAIT_TIMEOUT,
+    )
+
+    assert budget_entries(watcher, dummy.key) == count_before, "Readiness timeout should not impact restart budget"
+
+
+async def test_concurrent_failures_independent_budgets(watcher: ServiceWatcher):
+    """Two services fail simultaneously — each tracked by its own budget."""
+    hassette = watcher.hassette
+
+    counts_a = make_call_counts()
+    counts_b = make_call_counts()
+
+    spec = make_fast_spec(restart_type=RestartType.TRANSIENT, budget_intensity=5)
+
+    class _DummyA(Service):
+        restart_spec: ClassVar[RestartSpec] = spec
+
+        async def serve(self):
+            pass
+
+        async def on_shutdown(self):
+            counts_a["cancel"] += 1
+
+        async def on_initialize(self):
+            counts_a["start"] += 1
+
+    class _DummyB(Service):
+        restart_spec: ClassVar[RestartSpec] = spec
+
+        async def serve(self):
+            pass
+
+        async def on_shutdown(self):
+            counts_b["cancel"] += 1
+
+        async def on_initialize(self):
+            counts_b["start"] += 1
+
+    service_a = _DummyA(hassette)
+    service_b = _DummyB(hassette)
+    hassette.children.extend([service_a, service_b])
+
+    event_a = make_service_failed_event(service_a)
+    event_b = make_service_failed_event(service_b)
+
+    key_a = watcher.service_key(service_a.class_name, service_a.role)
+    key_b = watcher.service_key(service_b.class_name, service_b.role)
+
+    # Fail both services
+    await asyncio.gather(
+        watcher.restart_service(event_a),
+        watcher.restart_service(event_b),
+    )
+
+    assert key_a in watcher._budgets
+    assert key_b in watcher._budgets
+
+    # Each should have independent budget with 1 restart recorded
+    assert budget_entries(watcher, key_a) == 1
+    assert budget_entries(watcher, key_b) == 1
+
+
+async def test_restart_exception_caught_no_double_count(watcher: ServiceWatcher):
+    """on_initialize raises → exception caught and logged, budget not double-counted."""
+    dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.TRANSIENT, budget_intensity=10)
+
+    await restart_and_await(watcher, dummy.failed_event)
+
+    # Only 1 budget entry recorded (before restart), not 2
+    assert budget_entries(watcher, dummy.key) == 1
+
+    # In-restart flag should be cleared after exception
+    assert dummy.key not in watcher._restarting
+
+
+async def test_bus_recovery_reconciliation(watcher: ServiceWatcher):
+    """BusService restarts, another service is in FAILED state during blind window → reconciliation picks it up."""
+    dummy = register_dummy_service(watcher, restart_type=RestartType.TRANSIENT, budget_intensity=5)
+
+    # Simulate the service being in FAILED state with no budget entry
+    # (as if FAILED event was dropped during BusService restart).
+    # Use ._status bypass — this is deliberate test fixture setup, not a lifecycle operation.
+    dummy.service._status = ResourceStatus.FAILED
+    assert dummy.key not in watcher._budgets  # no budget entry — dropped during blind window
+
+    # Run reconciliation
+    await watcher.reconcile_after_bus_recovery()
+
+    # Reconciliation should have picked up the FAILED service and entered restart flow
+    assert budget_entries(watcher, dummy.key) == 1, "Reconciliation should have recorded one restart"

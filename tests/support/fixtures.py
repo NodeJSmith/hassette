@@ -36,7 +36,7 @@ async def _start_module_harness(harness: HassetteHarness, request: pytest.Fixtur
     pytest-asyncio resumes a ``yield``-based async-generator fixture's teardown by creating
     a brand-new Task on the shared (session-scoped) event loop. If a test running against
     this harness triggers a real ``hassette.shutdown()`` (e.g. ServiceWatcher exhausting a
-    PERMANENT service's restart budget in ``tests/integration/test_service_watcher.py``),
+    PERMANENT service's restart budget in ``tests/integration/service_watcher/test_exhaustion.py``),
     the loop's task factory -- installed by ``HassetteHarness.start()`` and still pointing
     at this harness's now-sealed root TaskBucket -- rejects that very Task-creation call
     before ``HassetteHarness.stop()`` (which itself correctly restores the previous task

@@ -1,7 +1,7 @@
 """Unit tests filling coverage gaps in ServiceWatcher.
 
 Complements test_service_watcher_exhausted.py (handle_exhaustion/cooldown_and_retry
-status-setting) and tests/integration/test_service_watcher.py (restart_service branch
+status-setting) and tests/integration/service_watcher/ (restart_service branch
 coverage via a real bus-backed watcher). This file targets the remaining branches:
 listener registration, the BusService-recovery gate, on_service_running's early-return
 guards, cooldown abort/failure paths, and service lookup.
