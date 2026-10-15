@@ -478,15 +478,12 @@ class HassetteCLIClient:
         """Surface the resolved non-loopback target and any TLS-verification warning once per
         invocation on the success path.
 
-        JSON mode is deliberately left untouched here. Every command's ``get()`` result flows
-        straight into a render function (``render_table``/``render_detail``/etc. in
-        ``cli/output.py``) that owns the one JSON document written to stdout for that command —
-        there is no shared success envelope to add a ``"target"``/``"tls_verified"`` key to
-        without restructuring every command's JSON output path, which is out of scope here. See
-        the design doc's Architecture -> "Failing open, not fast" for the intended shape; this
-        is a known, called-out gap, not an oversight.
+        JSON mode prints the same lines: they go to stderr, so stdout still carries exactly the
+        one JSON document the command's render function writes. The target is not added as a key
+        to that document because most success outputs are bare JSON arrays with no envelope to
+        hold it.
         """
-        if self.json_mode or self._success_echoed:
+        if self._success_echoed:
             return
         self._success_echoed = True
         if not self.is_loopback:
