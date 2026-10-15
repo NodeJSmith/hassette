@@ -207,7 +207,7 @@ The generic service call method. Service data passes as keyword arguments. They 
 |---|---|---|---|
 | `domain` | `str` | — | Service domain (e.g., `"light"`). |
 | `service` | `str` | — | Service name (e.g., `"turn_on"`). |
-| `target` | `dict \| None` | `None` | Target entity IDs, areas, or devices. |
+| `target` | `dict \| None` | `None` | Entities, devices, areas, floors, or labels to act on. See [Targeting entities](#targeting-entities). |
 | `return_response` | `bool` | `False` | When `True`, returns the service response payload. Only valid for services that declare a response — see [Getting a response](#getting-a-response). |
 | `wait_for_ack` | `bool` | `False` | When `True`, waits for Home Assistant to confirm the call so failures raise instead of being dropped. |
 | `**data` | `Any` | — | Service data fields passed as keyword arguments. |
@@ -232,6 +232,35 @@ confirmation never arrives, it raises
 [`ResponseTimeoutError`][hassette.exceptions.ResponseTimeoutError] rather than re-sending, because
 a service call can have side effects and Home Assistant may already have applied it. The outcome is
 unknown, not skipped. [Low-level access](#low-level-access) covers how to check what happened.
+
+#### Targeting entities
+
+`target` is the preferred way to choose which entities, devices, areas, floors, or labels a
+call acts on. It keeps routing apart from the service's own fields, like the `target:` block in
+a Home Assistant action. Its keys are `entity_id`, `device_id`, `area_id`, `floor_id`, and
+`label_id`. Each takes one ID or a list of IDs.
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_call_service_target.py:target"
+```
+
+The porch light turns on at brightness 200. The same keys passed as keyword arguments have the
+same effect:
+
+```python
+--8<-- "pages/core-concepts/api/snippets/api_call_service_target.py:data"
+```
+
+Home Assistant merges `target` into the service data before it validates the call. The service
+receives the same data from both forms. Home Assistant applies the merge, so `target` wins when
+both forms set the same key.
+
+The equivalence covers what the service receives, not the `call_service` event a
+`bus.on_call_service` listener sees. That event carries the data before the service validates
+it, and Home Assistant only normalizes `target`. A single ID passed in `target` arrives in the
+event as a list (`"entity_id": ["light.porch"]`), while the same ID passed as a keyword argument
+stays a string (`"entity_id": "light.porch"`). A listener that reads `entity_id` from service
+data should accept both shapes.
 
 ### `turn_on(entity_id, domain, **data)`
 

@@ -202,17 +202,17 @@ class ApiSyncFacade(Resource):
         Args:
             domain: The domain of the service (e.g., "light").
             service: The name of the service to call (e.g., "turn_on").
-            target: Target entity IDs or areas.
-            return_response: Whether to return the response from Home Assistant. Defaults to False.
-                Only valid for services Home Assistant declares as returning a response —
-                requesting it for any other service is rejected by Home Assistant. Services
-                declared as returning *only* a response require it, so those need it alongside
-                ``wait_for_ack`` rather than ``wait_for_ack`` on its own.
-            wait_for_ack: Whether to wait for Home Assistant to acknowledge the call. Defaults to
-                False. Waits on Home Assistant's result envelope instead of sending
-                fire-and-forget, surfacing HA-side failures as ``FailedMessageError`` without
-                asking for response data — so it works for services that return no response,
-                which ``return_response`` cannot.
+            target: What the call acts on, keyed by ``entity_id``, ``device_id``, ``area_id``, ``floor_id`` or
+                ``label_id``. Preferred form; the same keys in ``**data`` reach the service identically, because
+                Home Assistant merges ``target`` into the service data before validating it (``target`` wins).
+            return_response: Whether to return the response from Home Assistant. Defaults to False. Only valid for
+                services Home Assistant declares as returning a response — requesting it for any other service is
+                rejected by Home Assistant. Services declared as returning *only* a response require it, so those
+                need it alongside ``wait_for_ack`` rather than ``wait_for_ack`` on its own.
+            wait_for_ack: Whether to wait for Home Assistant to acknowledge the call. Defaults to False. Waits on
+                Home Assistant's result envelope instead of sending fire-and-forget, surfacing HA-side failures as
+                ``FailedMessageError`` without asking for response data — so it works for services that return no
+                response, which ``return_response`` cannot.
             **data: Additional data to send with the service call.
 
         Returns:
