@@ -92,6 +92,25 @@ describe("CodeTab", () => {
     expect(gutterLines.length).toBe(defaultSource.line_count);
   });
 
+  // jsdom has no layout, so the copy regression is pinned at the class level: a flex or grid `.line`
+  // makes the browser serialize each token span onto its own line when a selection is copied.
+  it("keeps code lines inline-level so copied text is not split between tokens", async () => {
+    await renderAndWaitForLoad();
+    const contentWrapper = screen.getByTestId("code-tab-content").lastElementChild;
+    const lineDisplayClasses = (contentWrapper?.className ?? "")
+      .split(/\s+/)
+      .filter((cls) => /^\[&_\.line(-num)?\]:(inline-)?(flex|grid|block|inline-block)$/.test(cls));
+    expect(lineDisplayClasses).toEqual(["[&_.line]:inline-block", "[&_.line-num]:inline-block"]);
+
+    const line2 = screen.getByTestId("code-line-2");
+    const codeText = Array.from(line2.childNodes)
+      .filter((node) => !(node instanceof HTMLElement && node.classList.contains("line-num")))
+      .map((node) => node.textContent)
+      .join("");
+    expect(codeText).toBe("    def on_state_change(self):");
+    expect(codeText).not.toContain("\n");
+  });
+
   it("shows error message when source file not found", async () => {
     server.use(
       http.get(SOURCE_ENDPOINT, () => {
