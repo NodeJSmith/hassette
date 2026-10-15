@@ -13,9 +13,13 @@ See ``design/specs/031-helper-crud-api/design.md`` for the full spec.
 import pytest
 
 from hassette.exceptions import (
+    CannotOverrideFinalError,
     ConnectionClosedError,
+    DomainNotFoundError,
     EntityNotInViewError,
     FailedMessageError,
+    HassetteError,
+    InvalidAuthError,
     OutcomeUnknownError,
     ResponseLostError,
     ResponseTimeoutError,
@@ -189,3 +193,37 @@ def test_entity_not_in_view_error_defines_own_init() -> None:
     assert err.entity_id == "sensor.mode"
     assert err.device_class == "enum"
     assert err.state_class is NumericSensorState
+
+
+def test_hassette_error_without_suggestion_renders_message_unchanged() -> None:
+    assert str(HassetteError("msg")) == "msg"
+
+
+def test_hassette_error_with_suggestion_appends_suffix() -> None:
+    exc = HassetteError("msg")
+    exc.suggestion = "do the thing"
+    assert str(exc) == "msg\n  Suggestion: do the thing"
+
+
+def test_class_level_suggestion_surfaces_through_str() -> None:
+    assert str(InvalidAuthError("bad token")) == f"bad token\n  Suggestion: {InvalidAuthError.suggestion}"
+
+
+def test_domain_not_found_error_suggestion_names_domain() -> None:
+    text = str(DomainNotFoundError("my_domain"))
+    assert text.startswith("No state class found for domain 'my_domain'.\n  Suggestion: ")
+    assert "Literal['my_domain']" in text
+
+
+def test_cannot_override_final_error_moves_alt_to_suggestion_line() -> None:
+    exc = CannotOverrideFinalError("initialize", "Resource", "my.App", suggested_alt="on_initialize", location="a.py:3")
+    assert str(exc) == (
+        "App 'my.App' attempted to override the final lifecycle method 'initialize' defined in 'Resource'."
+        " (at a.py:3)\n  Suggestion: Use 'on_initialize' instead."
+    )
+
+
+def test_cannot_override_final_error_without_alt_has_no_suggestion() -> None:
+    exc = CannotOverrideFinalError("initialize", "Resource", "my.App")
+    assert exc.suggestion is None
+    assert "Suggestion" not in str(exc)

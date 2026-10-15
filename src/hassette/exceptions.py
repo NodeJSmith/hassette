@@ -52,7 +52,19 @@ class HassetteBlockingIOWarning(RuntimeWarning):
 
 
 class HassetteError(Exception):
-    """Base exception for all Hassette errors."""
+    """Base exception for all Hassette errors.
+
+    Set ``suggestion`` (as a class attribute or in ``__init__``) on user-facing errors to tell the user how to
+    resolve them; ``__str__`` appends it on its own line. Internal errors leave it ``None`` and render unchanged.
+    """
+
+    suggestion: str | None = None
+
+    def __str__(self) -> str:
+        base = super().__str__()
+        if self.suggestion:
+            return f"{base}\n  Suggestion: {self.suggestion}"
+        return base
 
 
 class FatalError(HassetteError):
@@ -65,13 +77,19 @@ class FatalError(HassetteError):
 class BaseUrlRequiredError(FatalError):
     """Custom exception to indicate that the base_url configuration is required."""
 
+    suggestion = "Set `base_url` in your configuration file to a full URL, e.g. 'http://homeassistant.local:8123'."
+
 
 class IPV6NotSupportedError(FatalError):
     """Custom exception to indicate that IPv6 addresses are not supported in base_url."""
 
+    suggestion = "Use the IPv4 address or hostname of your Home Assistant instance instead."
+
 
 class SchemeRequiredInBaseUrlError(FatalError):
     """Custom exception to indicate that the base_url must include a scheme (http:// or https://)."""
+
+    suggestion = "Prefix `base_url` with 'http://' or 'https://'."
 
 
 class ConnectionClosedError(HassetteError):
@@ -176,6 +194,8 @@ class InvalidAuthError(HassetteError):
     retries ``AUTH_RETRIES`` times (``hassette.core.websocket_reconnect``) and then stays up without
     reconnecting until the process restarts.
     """
+
+    suggestion = "Verify your long-lived access token in Home Assistant under Profile -> Security."
 
 
 class AuthTokenWriteError(HassetteError):
@@ -286,13 +306,13 @@ class CannotOverrideFinalError(TypeError, HassetteError):
     ):
         msg = (
             f"App '{subclass_name}' attempted to override the final lifecycle method "
-            f"'{method_name}' defined in {origin_name!r}. "
+            f"'{method_name}' defined in {origin_name!r}."
         )
-        if suggested_alt:
-            msg += f"Use '{suggested_alt}' instead."
         if location:
             msg += f" (at {location})"
         super().__init__(msg)
+        if suggested_alt:
+            self.suggestion = f"Use '{suggested_alt}' instead."
 
 
 class DependencyError(HassetteError):
@@ -311,6 +331,11 @@ class DependencyInjectionError(DependencyError):
 
     These errors should be fixed by updating the handler signature.
     """
+
+    suggestion = (
+        "See the supported handler signatures at "
+        "https://hassette.readthedocs.io/en/stable/pages/core-concepts/bus/dependency-injection/"
+    )
 
 
 class DependencyResolutionError(DependencyError):
@@ -348,15 +373,17 @@ class NoDomainAnnotationError(StateRegistryError):
     A class may optionally set :attr:`~hassette.models.states.base.BaseState.accessor_hint` to name
     a dedicated ``StateManager`` accessor that exists for exactly this case — e.g. the four narrowed
     sensor-shape classes in ``models/states/sensor_shapes.py``, which deliberately do not re-declare
-    ``domain`` and so always hit this error via ``self.states[<class>]``. When set, the hint is
-    appended to the message; every other state class has no hint and keeps the plain message.
+    ``domain`` and so always hit this error via ``self.states[<class>]``. When set, the hint becomes
+    the error's ``suggestion``; every other state class gets a suggestion to declare ``domain``.
     """
 
     def __init__(self, state_class: type["BaseState[Any]"], accessor_hint: str | None = None) -> None:
         msg = f"State class {state_class.__name__} does not define a domain annotation or the annotation is empty."
-        if accessor_hint is not None:
-            msg += f" Use self.states.{accessor_hint} instead."
         super().__init__(msg)
+        if accessor_hint is not None:
+            self.suggestion = f"Use self.states.{accessor_hint} instead."
+        else:
+            self.suggestion = f"Declare the domain on {state_class.__name__}, e.g. `domain: Literal['light']`."
         self.state_class = state_class
         self.accessor_hint = accessor_hint
 
@@ -367,6 +394,9 @@ class DomainNotFoundError(StateRegistryError):
     def __init__(self, domain: str):
         super().__init__(f"No state class found for domain '{domain}'.")
         self.domain = domain
+        self.suggestion = (
+            f"Check the domain for typos, or define a custom state class with `domain: Literal['{domain}']`."
+        )
 
 
 class DomainRequiredError(StateRegistryError):
