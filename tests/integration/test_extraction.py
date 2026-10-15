@@ -9,7 +9,7 @@ import pytest
 
 from hassette import MISSING_VALUE, D
 from hassette.di import AnnotatedMatcher, InjectionParam, TypeMatcher, build_injection_plan, validate_di_signature
-from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
+from hassette.events import AnyEvent, CallServiceEvent, Event, RawStateChangeEvent
 from hassette.exceptions import DependencyInjectionError
 from hassette.models import states
 from hassette.utils.type_utils import get_typed_signature
@@ -28,10 +28,10 @@ def _match_annotated(annotation: Any, source_type: type = Event) -> InjectionPar
 class TestTypeAliasExtractors:
     """Test pre-defined type alias extractors (EntityId, Domain, etc.)."""
 
-    def test_entity_id_extractor(self, all_events: list[Event]):
+    def test_entity_id_extractor(self, all_events: list[AnyEvent]):
         """Test EntityId type alias extracts entity_id."""
         # get an event of each type
-        event_types: defaultdict[type[Event], list[Event]] = defaultdict(list)
+        event_types: defaultdict[type[AnyEvent], list[AnyEvent]] = defaultdict(list)
         for event in all_events:
             if "automation_reloaded" in event.topic:
                 continue
@@ -53,7 +53,9 @@ class TestTypeAliasExtractors:
                 # and the test shouldn't need to be aware of that
                 assert extracted is not MISSING_VALUE, f"EntityId extractor returned MISSING_VALUE for event: {event}"
 
-    def test_entity_id_with_call_service_event_with_empty_data_returns_missing_value(self, other_events: list[Event]):
+    def test_entity_id_with_call_service_event_with_empty_data_returns_missing_value(
+        self, other_events: list[AnyEvent]
+    ):
         """Test MaybeEntityId extractor returns MISSING_VALUE for CallServiceEvent with empty service_data."""
         call_service_event = next(
             (e for e in other_events if isinstance(e, CallServiceEvent) and not e.payload.data.service_data), None
@@ -69,7 +71,7 @@ class TestTypeAliasExtractors:
             f"got: {extracted}"
         )
 
-    def test_domain_extractor(self, all_events: list[Event]):
+    def test_domain_extractor(self, all_events: list[AnyEvent]):
         """Test Domain type alias extracts domain from any Event."""
         # get an event of each type
         event_types = defaultdict(list)

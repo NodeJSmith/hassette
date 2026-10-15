@@ -100,7 +100,7 @@ if typing.TYPE_CHECKING:
 
     from hassette import Bus, Hassette
     from hassette.bus.listeners import Listener
-    from hassette.events.base import Event
+    from hassette.events.base import AnyEvent
     from hassette.types import ChangeType, HandlerType, Predicate
     from hassette.types.types import BusErrorHandlerType
     from hassette_wire import BackpressurePolicy, ExecutionMode

@@ -1,12 +1,12 @@
 """Error context dataclass for bus listener failures."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from hassette.error_context import ErrorContext
 
 if TYPE_CHECKING:
-    from hassette.events.base import Event
+    from hassette.events.base import AnyEvent
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,7 @@ class BusErrorContext(ErrorContext):
 
     topic: str
     listener_name: str
-    event: "Event[Any]"
+    event: "AnyEvent"
 
     @property
     def domain_label(self) -> str:

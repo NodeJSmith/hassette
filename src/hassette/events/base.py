@@ -1,7 +1,7 @@
 import typing
 import uuid
 from dataclasses import dataclass, field
-from typing import Generic, Literal, TypeVar
+from typing import Any, Generic, Literal, TypeAlias, TypeVar
 
 from whenever import ZonedDateTime
 
@@ -127,3 +127,10 @@ class Event(Generic[PayloadT]):
 
     def __repr__(self) -> str:
         return f"Event({self.payload})"
+
+
+AnyEvent: TypeAlias = Event[EventPayload[Any]]
+"""An event with any payload type.
+
+Use instead of bare `Event` or `Event[Any]` so `event.payload` is still known to be an `EventPayload`.
+"""

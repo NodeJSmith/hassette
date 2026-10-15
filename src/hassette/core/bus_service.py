@@ -21,7 +21,7 @@ from hassette.core.execution_record import ExecutionRecord
 from hassette.core.registration import ListenerRegistration
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.event_handling.predicates import summarize_top_level
-from hassette.events import Event, HassPayload
+from hassette.events import AnyEvent, HassPayload
 from hassette.events.base import HassContext
 from hassette.events.hass.hass import RawStateChangeEvent, RawStateChangePayload
 from hassette.exceptions import ResourceNotReadyError
@@ -59,7 +59,7 @@ class BusService(Service):
     depends_on: ClassVar[list[type["Resource"]]] = [DatabaseService, SyncExecutorService]
     restart_spec = CORE_PERMANENT_RESTART
 
-    stream: "MemoryObjectReceiveStream[Event[Any]]"
+    stream: "MemoryObjectReceiveStream[AnyEvent]"
     """Stream to receive events from."""
 
     router: "Router"
@@ -73,7 +73,7 @@ class BusService(Service):
         self,
         hassette: "Hassette",
         *,
-        stream: "MemoryObjectReceiveStream[Event[Any]]",
+        stream: "MemoryObjectReceiveStream[AnyEvent]",
         executor: "CommandExecutor",
         parent: "Resource | None" = None,
     ) -> None:
@@ -359,7 +359,7 @@ class BusService(Service):
         """Get all listeners owned by a specific owner."""
         return self.router.get_listeners_by_owner(owner)
 
-    def should_log_event(self, event: "Event[Any]") -> bool:
+    def should_log_event(self, event: "AnyEvent") -> bool:
         """Determine if an event should be logged based on where it came from.
 
         Events carrying a ``HassPayload`` came from Home Assistant; every other event is Hassette-side,
@@ -373,7 +373,7 @@ class BusService(Service):
 
         return self.hassette.config.logging.all_hassette_events
 
-    async def dispatch(self, base_topic: str, event: "Event[Any]") -> None:
+    async def dispatch(self, base_topic: str, event: "AnyEvent") -> None:
         """Dispatch an event to all matching listeners for the given topic."""
         if self._event_filter.should_skip(base_topic, event):
             return
@@ -398,7 +398,7 @@ class BusService(Service):
             for listener in listeners:
                 await self._spawn_dispatch_task(route, event, listener)
 
-    def _match_listeners(self, routes: list[str], event: "Event[Any]") -> dict[int, tuple[str, Listener]]:
+    def _match_listeners(self, routes: list[str], event: "AnyEvent") -> dict[int, tuple[str, Listener]]:
         """Resolve the listeners that match ``event`` across ``routes``.
 
         Routes first, then dedupes by "first match wins" because routes are ordered by
@@ -437,7 +437,7 @@ class BusService(Service):
             listeners_by_route[route].append(listener)
         return listeners_by_route
 
-    async def _spawn_dispatch_task(self, route: str, event: "Event[Any]", listener: "Listener") -> None:
+    async def _spawn_dispatch_task(self, route: str, event: "AnyEvent", listener: "Listener") -> None:
         """Acquire a dispatch slot for ``listener`` and spawn its handler task.
 
         Honors the listener's backpressure policy when the dispatch semaphore is saturated,
@@ -480,7 +480,7 @@ class BusService(Service):
         task.add_done_callback(self.release_dispatch_slot)
         task.add_done_callback(self.on_dispatch_done)
 
-    def expand_topics(self, topic: str, event: Event[Any]) -> list[str]:
+    def expand_topics(self, topic: str, event: AnyEvent) -> list[str]:
         payload = event.payload
         if not isinstance(payload, HassPayload):
             return [topic]
@@ -537,7 +537,7 @@ class BusService(Service):
         return self._duration_hold.duration_timers_active
 
     def record_predicate_failure_safely(
-        self, listener: "Listener", topic: str, event: "Event[Any]", exc: Exception, start_ts: float
+        self, listener: "Listener", topic: str, event: "AnyEvent", exc: Exception, start_ts: float
     ) -> None:
         """Call ``_record_predicate_failure``, logging (not raising) if recording itself fails.
 
@@ -550,7 +550,7 @@ class BusService(Service):
             self.logger.exception("Failed to record predicate failure for %s", listener)
 
     def _record_predicate_failure(
-        self, listener: "Listener", topic: str, event: "Event[Any]", exc: Exception, start_ts: float
+        self, listener: "Listener", topic: str, event: "AnyEvent", exc: Exception, start_ts: float
     ) -> None:
         """Record a raising predicate as a failed execution and route to error handlers.
 
@@ -604,7 +604,7 @@ class BusService(Service):
                 name="bus:predicate_error_handler",
             )
 
-    async def _dispatch(self, topic: str, event: "Event[Any]", listener: "Listener") -> None:
+    async def _dispatch(self, topic: str, event: "AnyEvent", listener: "Listener") -> None:
         """Dispatch an event to a specific listener.
 
         Builds an invoke_fn via ``build_tracked_invoke_fn``. Duration listeners
@@ -753,7 +753,7 @@ def compute_elapsed(current_state: "HassStateDict", duration_config: DurationCon
     return max(0.0, min(raw_elapsed, duration))
 
 
-def strip_old_state(event: Event[Any]) -> Event[Any]:
+def strip_old_state(event: AnyEvent) -> AnyEvent:
     """Strip old_state from a RawStateChangeEvent for cancel-predicate evaluation.
 
     For ``RawStateChangeEvent`` with a non-None ``old_state``, returns a copy with

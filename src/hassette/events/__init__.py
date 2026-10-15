@@ -1,4 +1,4 @@
-from .base import Event, EventPayload, HassContext, HassettePayload, HassPayload
+from .base import AnyEvent, Event, EventPayload, HassContext, HassettePayload, HassPayload
 from .hass.hass import (
     AutomationTriggeredEvent,
     CallServiceEvent,
@@ -30,6 +30,7 @@ from .hassette import (
 from .type_checks import is_event_type
 
 __all__ = [
+    "AnyEvent",
     "AppStateChangePayload",
     "AutomationTriggeredEvent",
     "CallServiceEvent",

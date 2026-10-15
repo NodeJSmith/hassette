@@ -2,12 +2,12 @@
 
 import time
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from hassette.bus.invocation import build_tracked_invoke_fn
 from hassette.bus.listeners import DurationConfig, Listener, Subscription
 from hassette.bus.router import Router
-from hassette.events.base import Event
+from hassette.events.base import AnyEvent
 from hassette.types import Topic
 
 if TYPE_CHECKING:
@@ -35,9 +35,9 @@ class DurationHoldManager:
         router: Router,
         task_bucket: "TaskBucket",
         logger: "logging.Logger",
-        make_synthetic_event: "Callable[[str, HassStateDict], Event[Any]]",
+        make_synthetic_event: "Callable[[str, HassStateDict], AnyEvent]",
         compute_elapsed: "Callable[[HassStateDict, DurationConfig], float]",
-        record_predicate_failure: "Callable[[Listener, str, Event[Any], Exception, float], None]",
+        record_predicate_failure: "Callable[[Listener, str, AnyEvent, Exception, float], None]",
     ) -> None:
         """Initialize the DurationHoldManager.
 
@@ -86,7 +86,7 @@ class DurationHoldManager:
         if self._duration_timers_active > 0:
             self._duration_timers_active -= 1
 
-    def hold_matches(self, listener: Listener, event: "Event[Any]") -> bool:
+    def hold_matches(self, listener: Listener, event: "AnyEvent") -> bool:
         """Check hold predicates (state-value only) against an event.
 
         Falls back to ``listener.matches()`` when no hold predicate is set.
@@ -98,7 +98,7 @@ class DurationHoldManager:
         return self.evaluate_predicate(listener, event, hold_pred if hold_pred is not None else listener.matches)
 
     def evaluate_predicate(
-        self, listener: Listener, event: "Event[Any]", predicate: "Callable[[Event[Any]], bool]"
+        self, listener: Listener, event: "AnyEvent", predicate: "Callable[[AnyEvent], bool]"
     ) -> bool:
         """Run ``predicate`` against ``event``; a raise is recorded and treated as a non-match."""
         predicate_start = time.time()
@@ -275,7 +275,7 @@ class DurationHoldManager:
         duration_timer = main_listener.duration_config.timer
         entity_id = main_listener.duration_config.entity_id
 
-        async def cancel_handler(event: Event[Any]) -> None:
+        async def cancel_handler(event: AnyEvent) -> None:
             duration_timer.evaluate_cancel_event(event)
 
         cancel_listener = Listener.create_cancel_listener(

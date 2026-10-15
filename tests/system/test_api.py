@@ -1,11 +1,9 @@
 """System tests for the API — real HA interactions through a running Hassette instance."""
 
-from typing import Any
-
 import pytest
 from whenever import Instant
 
-from hassette.events import Event
+from hassette.events import AnyEvent
 from hassette.testing import wait_for
 
 from .conftest import make_system_config, startup_context
@@ -65,9 +63,9 @@ async def test_fire_event_received_by_bus(ha_container: str, tmp_path) -> None:
     config = make_system_config(ha_container, tmp_path)
     async with startup_context(config) as hassette:
         bus = hassette._bus  # pyright: ignore[reportPrivateUsage]
-        captured: list[Event[Any]] = []
+        captured: list[AnyEvent] = []
 
-        async def _capture(event: Event[Any]) -> None:
+        async def _capture(event: AnyEvent) -> None:
             captured.append(event)
 
         # Custom HA events are dispatched on topic "hass.event.<event_type>"

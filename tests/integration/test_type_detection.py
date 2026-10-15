@@ -7,7 +7,7 @@ from typing import Annotated
 import pytest
 
 from hassette.di import AnnotatedMatcher, TypeMatcher
-from hassette.events import CallServiceEvent, Event, RawStateChangeEvent, is_event_type
+from hassette.events import AnyEvent, CallServiceEvent, Event, RawStateChangeEvent, is_event_type
 from hassette.utils.type_utils import get_typed_signature, is_annotated_type
 
 
@@ -100,14 +100,14 @@ class TestExtractFromEventType:
     def test_extract_with_event_class(self):
         """Test extraction with Event class returns identity function."""
 
-        def handler(event: Event):
+        def handler(event: AnyEvent):
             pass
 
         signature = get_typed_signature(handler)
         result = TypeMatcher(Event).match(signature.parameters["event"])
 
         assert result is not None
-        assert result.target_type is Event
+        assert result.target_type is AnyEvent
 
         # Test that extractor is identity function
         mock_event = Event(topic="test", payload={})

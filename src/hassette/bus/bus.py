@@ -102,7 +102,7 @@ from typing_extensions import Sentinel
 from hassette.const import NOT_PROVIDED
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
-from hassette.events.base import Event, HassettePayload
+from hassette.events.base import AnyEvent, Event, HassettePayload
 from hassette.exceptions import DuplicateListenerError, ListenerNameRequiredError
 from hassette.execution_mode import resolve_execution_mode
 from hassette.resources.base import Resource
@@ -158,7 +158,7 @@ class Bus(Resource):
         self.sync = self.add_child(BusSyncFacade, bus=self)
 
         # Pending `wait_for` futures keyed by listener db_id: filled in wait_for(), cancelled in _on_listener_removed().
-        self._wait_for_futures: dict[int, asyncio.Future[Event[Any]]] = {}
+        self._wait_for_futures: dict[int, asyncio.Future[AnyEvent]] = {}
 
         # Set during on_shutdown()'s remove_all_listeners() so _on_listener_removed logs one summary line instead of
         # a WARNING per pending wait_for future — concurrent waits at a clean teardown are routine, not a problem.
@@ -1702,7 +1702,7 @@ class Bus(Resource):
         where: WhereClause = None,
         timeout: float | None,
         name: str | None = None,
-    ) -> "Event[Any]":
+    ) -> "AnyEvent":
         """Wait for a single matching event, then return it.
 
         Must be awaited. Registers a one-shot listener before waiting begins, so only
@@ -1729,12 +1729,12 @@ class Bus(Resource):
             asyncio.CancelledError: If the underlying listener is removed before a match
                 (e.g. Bus shutdown, or explicit `Subscription.cancel()`/`remove_listener()`).
         """
-        fut: asyncio.Future[Event[Any]] = self.hassette.loop.create_future()
+        fut: asyncio.Future[AnyEvent] = self.hassette.loop.create_future()
 
         # Must be `async def`, not a plain sync `def` — a sync handler is dispatched through the
         # thread-pool executor, and `asyncio.Future.set_result()` is not safe to call off the
         # event loop thread. `async def` keeps dispatch on the loop thread.
-        async def _handler(event: "Event[Any]") -> None:
+        async def _handler(event: "AnyEvent") -> None:
             if not fut.done():
                 fut.set_result(event)
 

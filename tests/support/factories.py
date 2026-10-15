@@ -23,7 +23,7 @@ from hassette.core.registration import ListenerRegistration, ScheduledJobRegistr
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor import SyncExecutor
-from hassette.events.base import Event, HassContext, HassettePayload, HassPayload
+from hassette.events.base import AnyEvent, Event, HassContext, HassettePayload, HassPayload
 from hassette.logging_ import (
     LogCaptureHandler,
     LogRecordEntry,
@@ -614,7 +614,7 @@ def make_recording_api(states: dict[str, Any] | None = None) -> RecordingApi:
     return RecordingApi(hassette, state_proxy=state_proxy)
 
 
-def make_hassette_event(topic: str = "hassette.ready", data: Any = None) -> Event:
+def make_hassette_event(topic: str = "hassette.ready", data: Any = None) -> AnyEvent:
     """Build an Event carrying a HassettePayload."""
     return Event(topic=topic, payload=HassettePayload(data=data))
 
@@ -624,7 +624,7 @@ def make_hass_event(
     data: Any = None,
     origin: Literal["LOCAL", "REMOTE"] = "LOCAL",
     context_id: str = "ctx-test",
-) -> Event:
+) -> AnyEvent:
     """Build an Event carrying a HassPayload (Home Assistant origin)."""
     context = HassContext(id=context_id, parent_id=None, user_id=None)
     payload = HassPayload(

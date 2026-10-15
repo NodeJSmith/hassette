@@ -76,7 +76,7 @@ from .predicate_collections import ensure_tuple, is_predicate_collection
 
 if typing.TYPE_CHECKING:
     from hassette import RawStateChangeEvent
-    from hassette.events import CallServiceEvent, Event, HassEvent
+    from hassette.events import AnyEvent, CallServiceEvent, HassEvent
     from hassette.types import Predicate
 
 V = TypeVar("V")
@@ -257,7 +257,7 @@ class _PredicateCombinator(_PredicateOps):
 class AllOf(_PredicateCombinator):
     """Predicate that evaluates to True if all of the contained predicates evaluate to True."""
 
-    def __call__(self, value: "Event") -> bool:
+    def __call__(self, value: "AnyEvent") -> bool:
         return all(p(value) for p in self.predicates)
 
     def summarize(self) -> str:
@@ -277,7 +277,7 @@ class AllOf(_PredicateCombinator):
 class AnyOf(_PredicateCombinator):
     """Predicate that evaluates to True if any of the contained predicates evaluate to True."""
 
-    def __call__(self, event: "Event") -> bool:
+    def __call__(self, event: "AnyEvent") -> bool:
         return any(p(event) for p in self.predicates)
 
     def summarize(self) -> str:
@@ -299,7 +299,7 @@ class Not(_PredicateOps):
 
     predicate: "Predicate"
 
-    def __call__(self, value: "Event", /) -> bool:
+    def __call__(self, value: "AnyEvent", /) -> bool:
         return not self.predicate(value)
 
     def summarize(self) -> str:

@@ -9,7 +9,7 @@ import pytest
 from hassette import STATE_REGISTRY, A, D
 from hassette.bus.injection import ParameterInjector
 from hassette.conversion import ANNOTATION_CONVERTER
-from hassette.events import Event, RawStateChangeEvent
+from hassette.events import AnyEvent, RawStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
 from hassette.testing import make_full_state_change_event, make_light_state_dict
@@ -24,7 +24,7 @@ def get_random_model(exclude_models: list[type[states.BaseState]]) -> type[state
     return states.BaseState  # Fallback, should not happen in this test
 
 
-def inject(handler: Callable[..., Any], event: Event) -> dict[str, Any]:
+def inject(handler: Callable[..., Any], event: AnyEvent) -> dict[str, Any]:
     """Resolve `handler`'s parameters against `event` the way the bus does at dispatch time."""
     signature = get_typed_signature(handler)
     injector = ParameterInjector(handler.__name__, signature)

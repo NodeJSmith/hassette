@@ -52,7 +52,7 @@ if typing.TYPE_CHECKING:
     from hassette.config.classes import AppManifest
     from hassette.core.core import Hassette
     from hassette.core.state_proxy import StateProxy
-    from hassette.events import Event, HassStateDict
+    from hassette.events import AnyEvent, HassStateDict
 
 
 class HassetteHarness:
@@ -174,7 +174,7 @@ class HassetteHarness:
             raise RuntimeError("StateManager is not available — harness has not been started")
         return s
 
-    async def send_event(self, event: "Event[Any]") -> None:
+    async def send_event(self, event: "AnyEvent") -> None:
         """Delegate send_event to the underlying Hassette instance."""
         await self.hassette.send_event(event)
 

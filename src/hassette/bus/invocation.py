@@ -5,19 +5,19 @@ construction, and executor dispatch into a single reusable factory function.
 """
 
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from hassette.commands import InvokeHandler
 
 if TYPE_CHECKING:
     from hassette.bus.listeners import Listener
     from hassette.core.command_executor import CommandExecutor
-    from hassette.events.base import Event
+    from hassette.events.base import AnyEvent
 
 
 def build_tracked_invoke_fn(
     listener: "Listener",
-    event: "Event[Any]",
+    event: "AnyEvent",
     topic: str,
     executor: "CommandExecutor",
     config_resolver: Callable[[], float | None],

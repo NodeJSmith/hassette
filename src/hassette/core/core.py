@@ -60,7 +60,7 @@ from .websocket_service import WebsocketService
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
 
-    from hassette.events import Event
+    from hassette.events import AnyEvent
 
 
 class Hassette(HassetteAccessorsMixin, Resource):
@@ -292,7 +292,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         """Get the current instance of Hassette."""
         return context.get_hassette()
 
-    async def send_event(self, event: "Event[Any]") -> None:
+    async def send_event(self, event: "AnyEvent") -> None:
         """Send an event to the event bus."""
         if self._event_stream_service is None:
             raise service_not_wired_error("EventStreamService")

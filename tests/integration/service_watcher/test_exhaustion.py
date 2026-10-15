@@ -8,7 +8,7 @@ from hassette_wire import ResourceStatus
 
 from hassette import HassetteConfig
 from hassette.core.service_watcher import ServiceWatcher
-from hassette.events import Event
+from hassette.events import AnyEvent
 from hassette.testing import EventCapture
 from hassette.types import Topic
 from hassette.types.enums import RestartType
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-async def exhaust_budget(watcher: ServiceWatcher, dummy: DummyServiceSetup, restarts: int) -> list[Event]:
+async def exhaust_budget(watcher: ServiceWatcher, dummy: DummyServiceSetup, restarts: int) -> list[AnyEvent]:
     """Use up `restarts` budget slots, then fire the FAILED event that exhausts the budget.
 
     Returns the events emitted by that final, over-budget pass — the CRASHED / EXHAUSTED_COOLING

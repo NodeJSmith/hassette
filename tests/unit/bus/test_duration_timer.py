@@ -25,7 +25,7 @@ from hassette.testing import wait_for
 from tests.support.helpers import async_noop, create_listener, make_task_bucket
 
 if TYPE_CHECKING:
-    from hassette.events.base import Event
+    from hassette.events.base import AnyEvent
     from hassette.types import Predicate
 
 
@@ -34,7 +34,7 @@ def make_timer(
     predicates: "Predicate | None" = None,
     entity_id: str = "light.kitchen",
     owner_id: str = "test_owner",
-    normalize_cancel_event: "Callable[[Event[Any]], Event[Any]] | None" = None,
+    normalize_cancel_event: "Callable[[AnyEvent], AnyEvent] | None" = None,
     create_cancel_sub: MagicMock | None = None,
 ) -> tuple[DurationTimer, MagicMock, MagicMock]:
     """Create a DurationTimer with a real task_bucket (using asyncio directly for spawning)

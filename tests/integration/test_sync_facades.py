@@ -19,7 +19,7 @@ from hassette import context
 from hassette.app.app import AppSync
 from hassette.app.app_config import AppConfig
 from hassette.events import RawStateChangeEvent
-from hassette.events.base import Event
+from hassette.events.base import AnyEvent
 from hassette.models.entities.cover import CoverEntity
 from hassette.models.states import CoverState
 from hassette.testing import AppTestHarness
@@ -52,7 +52,7 @@ class SyncHomeassistantLifecycleApp(AppSync[SyncFacadeConfig]):
         self.bus.sync.on_homeassistant_start(handler=self.on_ha_event, name="sync_ha_start")
         self.bus.sync.on_homeassistant_stop(handler=self.on_ha_event, name="sync_ha_stop")
 
-    def on_ha_event(self, event: Event) -> None:
+    def on_ha_event(self, event: AnyEvent) -> None:
         pass
 
 
