@@ -29,7 +29,7 @@ A "blocked by" bail adds no label: autofix creates a GitHub dependency link and 
 
 1. For issue numbers, `gh issue view <n> --json number,title,labels,body,comments,state` each. Otherwise, for each label in scope, `gh issue list --label <label> --state open --limit 200 --json number,title,labels,body,comments` into a file in the scratchpad. If a result has exactly 200 entries, it may be truncated: rerun with a higher `--limit`. Dedupe by issue number, since one issue can carry two labels.
 2. For each issue, find autofix's latest bail comment. Its text starts with one of the `*_COMMENT_PREFIX` strings in the pipeline's `constants.py` (`~/Dotfiles/packages/hassette-pipeline/src/hassette_pipeline/`; if that path is absent, recognize the comment by its "Autofix …" opening). No bail comment on an `autofix:blocked` issue without `maybe-obsolete` means autofix failed it twice: look at its last autofix PR or branch, if any, for why. No bail comment on any other label means someone labeled it by hand: classify from the issue itself and say so. Check blockers with `gh api repos/NodeJSmith/hassette/issues/<n>/dependencies/blocked_by --jq '[.[] | select(.state == "open") | .number]'`; the endpoint lists closed blockers too.
-3. Group the issues by what is really blocking them, not by label, and show the user the counts with example numbers. If a group of three or more shares one cause, propose the batch decision now (Phase 4, "Batch decisions"), before walking through them one at a time.
+3. Group the issues by what is really blocking them, not by label, and show the user the counts with example numbers. The grouping is a hypothesis built from bail comments, which can be wrong. If a group of three or more seems to share one cause, verify every issue in it (Phase 2) first, then propose the batch decision (Phase 4, "Batch decisions") before walking through the rest one at a time. Drop any issue that verification shows doesn't belong.
 
 ## Phase 2: Verify before deciding
 
@@ -57,7 +57,7 @@ Present one issue at a time. In message text: what the issue wants, why autofix 
 
 The user's answer may be a question ("would it be rework, or would it move over cleanly?"). Answer it with evidence and change the recommendation if the evidence does. Don't defend the original pick.
 
-**Batch decisions.** When three or more issues are stuck on one cause (layout decisions the UI redesign will redo, a bespoke health field per concern), propose one decision for the group: park them together, or file one design issue and block the rest on it. Separate decisions on related issues drift apart and contradict each other.
+**Batch decisions.** When three or more verified issues are stuck on one cause (layout decisions the UI redesign will redo, a bespoke health field per concern), propose one decision for the group: park them together, or file one design issue and block the rest on it. Separate decisions on related issues drift apart and contradict each other.
 
 ## Phase 5: Apply each outcome
 

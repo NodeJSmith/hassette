@@ -37,9 +37,9 @@ Lead with the finding that changes the decision, and give each option its conseq
 ### Requeue
 The decision leaves concrete criteria and the work is small.
 1. Check what autofix's picker requires (`select_issue()` in the pipeline's `autofix_issues.py`): `size:small`, at least one type/topic label from its allowed set, an allowed author, a title that doesn't match `OPEN_ENDED_TITLE_RE` in `dfl_common` (titles opening with words like "Investigate" or "Decide"), no open blocker, the issue still open, and no other excluded label left (`EXCLUDE_LABELS` in `dfl_common`: `autofix:pr-open`, `autofix:in-progress`, `epic:ui-redesign` and the bail labels). If size fails, Resize instead. If the title or labels fail, fix them in step 2.
-2. Save the body (`gh issue view <n> --json body --jq .body > <file>`), rewrite the criteria, then `gh issue edit <n> --body-file <file>`.
+2. Save the body (`gh issue view <n> --json body --jq .body > <file>`), rewrite the criteria, then `gh issue edit <n> --body-file <file>`. Fix a failing title or label from step 1 in the same pass: `gh issue edit <n> --title "<new title>"`, `--add-label <type or topic label>`, `--remove-label <excluded label>`.
 3. Post a comment starting `Decision:` (or `Spec updated:` for a Phase 3 rewrite) saying what changed.
-4. Remove `<bail>` last. Then confirm with `dfl hassette eligible-issues` that the issue shows as ready, if that command exists on this machine.
+4. Remove `<bail>` last. Then confirm the issue shows as ready in `dfl hassette eligible-issues`. If that command isn't on this machine, re-fetch the issue (`gh issue view <n> --json title,labels,state`) and recheck every step 1 condition yourself. Report it as requeued only after one of these checks passes.
 
 ### Close
 The premise is gone, the feature shipped, or it doesn't earn its place. Post the reason with `gh issue comment <n> --body-file <file>`, including what would justify reopening it. Then `gh issue close <n> --reason "not planned"` (or `completed` if it shipped), and remove `<bail>`.
