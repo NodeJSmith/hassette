@@ -1,15 +1,15 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": [
-    "Per-repo Renovate config, processed by the self-hosted runner on smithfamily.",
+    "Per-repo Renovate config, processed by a self-hosted Renovate runner.",
     "docker-compose managerFilePatterns lists both patterns explicitly: the standard compose pattern (covers tests/system/docker-compose.yml) and ha-demo.yml (covers scripts/docker/ha-demo.yml, which is not named compose* and would otherwise be missed).",
     "ignorePaths replaces config:recommended's defaults so tests/ is NOT ignored (the CI compose file lives under tests/), while the docs snippet compose files are excluded.",
     "chore(deps) commits keep dependency bumps out of the release-please changelog.",
     "customManagers tracks HASS_HASSETTE_VERSION in scripts/docker/.env (the hass-hassette release the system-test and demo HA containers install) against NodeJSmith/hass-hassette's GitHub releases.",
     "customManagers also tracks each GitHub-hosted hook repo's rev in prek.toml against its tags: Renovate's built-in pre-commit manager only reads .pre-commit-config.yaml, so prek.toml pins would otherwise go stale silently.",
     "homeassistant/home-assistant is explicitly disabled (see packageRules) -- the .claude/skills/ha-version-bump skill owns bumping the compose-file HA image tags in lockstep with the codegen pin, monthly. Weekly Renovate PRs for this one package went unreviewed in practice.",
-    "Renovate runs daily (jessica-desktop timer) and may open PRs on any run. prHourlyLimit is 0 because a run lasts minutes: the preset's 2/hour cap meant about 2 new PRs per run and a months-long queue. prConcurrentLimit still bounds how many are open at once.",
-    "Non-major updates automerge through GitHub auto-merge once the required checks pass (tests-complete, e2e-complete, lint-complete, readthedocs), after minimumReleaseAge holds each release for 3 days. Major updates and language runtimes (python, java) never automerge. A non-major PR that fails CI or conflicts is picked up by the hassette-review-autofixes reviewer (Dotfiles packages/hassette-pipeline, reviewer_renovate.py).",
+    "Renovate runs daily and may open PRs on any run. prHourlyLimit is 0 because a run lasts minutes: the preset's 2/hour cap meant about 2 new PRs per run and a months-long queue. prConcurrentLimit still bounds how many are open at once.",
+    "Non-major updates automerge through GitHub auto-merge once the required checks pass (tests-complete, e2e-complete, lint-complete, readthedocs), after minimumReleaseAge holds each release for 3 days. Docker images outside Docker Hub (e.g. ghcr.io/astral-sh/uv) skip that hold: the docker datasource only reports release timestamps for Docker Hub, and an update with no timestamp would wait forever. Major updates and language runtimes (python, java) never automerge. A non-major PR that fails CI or conflicts is picked up by the hassette-review-autofixes reviewer (Dotfiles packages/hassette-pipeline, reviewer_renovate.py).",
     "Groups keep related bumps in one PR: prek, prek-action and every prek.toml hook rev move together; ruff's pre-commit hook moves with the ruff dev dependency so the two can't drift; npm and GitHub Actions non-major updates are batched."
   ],
   "extends": ["config:recommended"],
@@ -57,6 +57,12 @@
       "matchManagers": ["pep621"],
       "matchPackageNames": ["hassette-wire", "hassette-client"],
       "enabled": false
+    },
+    {
+      "description": "Docker images outside Docker Hub have no release timestamp, so minimumReleaseAge would hold them forever; registry-prefixed names (a dot in the first path segment) skip the hold",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["/^[^/]+\\.[^/]+\\//", "!docker.io/**"],
+      "minimumReleaseAge": null
     },
     {
       "description": "Automerge non-major updates once the required checks pass",
