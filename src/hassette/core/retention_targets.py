@@ -74,7 +74,11 @@ _RETENTION_TABLES: list[RetentionTarget] = [
 ]
 
 _FAILSAFE_TABLES: list[RetentionTarget] = [t for t in _RETENTION_TABLES if not t.failsafe_exempt]
-"""Subset of :data:`_RETENTION_TABLES` the size failsafe may delete from, in the same order."""
+"""Subset of :data:`_RETENTION_TABLES` the size failsafe may delete from, in the same order.
+
+``sessions`` is in neither list: age-based retention deletes it in the parent-guard phase
+(``DatabaseRetentionMixin._run_parent_guard_deletes``), and the size failsafe never reclaims it,
+since the table is small relative to the size limit."""
 
 
 def build_tier_where(target: RetentionTarget) -> tuple[str, list[Any]]:
