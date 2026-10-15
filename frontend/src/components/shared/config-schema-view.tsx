@@ -11,8 +11,8 @@
  * with the field type implied by how the value renders rather than spelled out.
  *
  * Labels: ui.label when set, otherwise the humanized field name. Help text from the schema
- * description, revealed on demand via the info popover. Group titles from ui.group_label,
- * otherwise the humanized key.
+ * description (docstring RST reduced to text + inline code by parseRstInline), revealed on
+ * demand via the info popover. Group titles from ui.group_label, otherwise the humanized key.
  *
  * Secret detection: mirrors backend _is_secret_node — checks writeOnly/format:password
  * on the node and inside anyOf branches (covers the SecretStr | None pattern).
@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 
 import type { ConfigRecord, SchemaNode, UiHints } from "../../api/config-view-types";
 import { MS_PER_SECOND, SECONDS_PER_HOUR, SECONDS_PER_MINUTE } from "../../utils/format";
+import { parseRstInline } from "../../utils/rst-inline";
 import { EmptyState } from "./empty-state";
 import { IconChevron } from "./icons";
 
@@ -60,6 +61,7 @@ const CONFIG_SECRET_ICON_CLASS = "shrink-0 text-[length:var(--text-mono-md)] opa
 const CONFIG_LIST_CLASS = "inline-flex flex-wrap justify-end gap-1 max-small-mobile:justify-start";
 const CONFIG_LIST_ITEM_CLASS =
   "rounded-sm border border-border bg-muted px-2 py-px font-mono text-xs text-foreground-secondary";
+const CONFIG_HELP_CODE_CLASS = "rounded-sm bg-muted px-1 font-mono text-[length:var(--text-mono-sm)]";
 const CONFIG_EXPAND_BUTTON_CLASS =
   "inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 font-mono text-[length:var(--text-mono-sm)] text-primary";
 const CONFIG_EXPANDED_PRE_CLASS =
@@ -352,7 +354,15 @@ function FieldHelpPopover({ text, label }: { text: string; label: string }) {
         </button>
       </PopoverTrigger>
       <PopoverContent role="note" data-testid="field-help" className="w-auto max-w-xs text-xs">
-        {text}
+        {parseRstInline(text).map((segment, i) =>
+          segment.kind === "code" ? (
+            <code key={i} className={CONFIG_HELP_CODE_CLASS}>
+              {segment.text}
+            </code>
+          ) : (
+            segment.text
+          ),
+        )}
       </PopoverContent>
     </Popover>
   );
