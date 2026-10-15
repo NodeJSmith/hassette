@@ -112,6 +112,7 @@ In `--json` mode:
 - stdout contains exactly one JSON document, either the success result or an error object
 - Exit code distinguishes success (`0`) from failure (`1` for HTTP errors, `2` for network errors)
 - No Rich formatting or human-readable text appears on stdout
+- Against a non-loopback target, stderr shows a `Target:` line naming the instance that answered, plus a warning when `cli.verify_ssl = false` turns off TLS verification. Human mode prints the same lines.
 
 ### `NO_COLOR`
 
