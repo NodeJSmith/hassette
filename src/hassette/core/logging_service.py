@@ -155,7 +155,7 @@ class LoggingService(Resource):
         if self._stream_handler is not None:
             _add_handler(loggers, self._stream_handler)
 
-        self.logger.warning("LoggingService shutting down — subsequent log records will be console-only")
+        self.logger.debug("LoggingService shutting down — subsequent log records will be console-only")
 
         # Stop QueueListener via asyncio.to_thread() to avoid blocking the event loop
         if self._queue_listener is not None:
