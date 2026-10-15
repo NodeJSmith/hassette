@@ -27,10 +27,12 @@ UV_PROJECT_PACKAGE_TIMEOUT_SECS=120
 UV_REQUIREMENTS_TIMEOUT_SECS=120
 REQUIREMENTS_MAX_DEPTH=5
 
-# Directories never needed to build the project package, skipped (at any depth) when copying it to
-# the temp build dir. A dev checkout's in-tree .venv alone can be hundreds of MB, copied on every start.
+# Directories never needed to build the project package, skipped when copying it to the temp build
+# dir. A dev checkout's in-tree .venv alone can be hundreds of MB, copied on every start.
+# Environment dirs are anchored to the project root ("./" prefix), since a nested directory with the
+# same name can be a real subpackage (e.g. src/mylib/venv); caches are skipped at any depth.
 # .git stays: VCS-versioned build backends (setuptools-scm, hatch-vcs) read it.
-PROJECT_COPY_EXCLUDES=(.venv venv node_modules __pycache__ .mypy_cache .ruff_cache .pytest_cache)
+PROJECT_COPY_EXCLUDES=(./.venv ./venv ./node_modules __pycache__ .mypy_cache .ruff_cache .pytest_cache)
 
 REMEDY_DEPS="Fix the dependency file named above, then run: docker restart <container>"
 REMEDY_CONFIG="Fix the setting named above (in its file or your compose environment), then run: docker compose up -d

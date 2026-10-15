@@ -378,6 +378,20 @@ def test_docker_project_install_skips_virtualenv_dir(docker_project_dir: Path):
     assert "project install: complete" in output, output
 
 
+def test_docker_project_install_keeps_nested_subpackage_named_like_a_venv(docker_project_dir: Path):
+    """Test that only the project-root venv is skipped, not a subpackage that shares its name."""
+    create_project_package(docker_project_dir, project_pyproject())
+    subpkg = docker_project_dir / "test_proj" / "venv"
+    subpkg.mkdir()
+    (subpkg / "__init__.py").write_text("")
+
+    result, output, diff_lines = run_project_container_and_diff(docker_project_dir)
+
+    assert result.returncode == 0, f"Project install failed. Output:\n{output}"
+    installed = [line for line in diff_lines if line.endswith("/site-packages/test_proj/venv/__init__.py")]
+    assert installed, f"Nested test_proj/venv subpackage was not installed. Diff:\n{diff_lines}"
+
+
 def test_docker_project_without_lockfile_warns(docker_project_dir: Path):
     """Test that pyproject.toml without uv.lock logs a warning to run uv lock."""
     (docker_project_dir / "pyproject.toml").write_text(
