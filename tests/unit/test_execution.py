@@ -91,7 +91,7 @@ class TestTrackExecution:
 
         assert result.status is ExecutionStatus.ERROR
         assert result.error_type == "DependencyInjectionError"
-        assert result.error_message == "bad sig"
+        assert result.error_message == f"bad sig\n  Suggestion: {DependencyInjectionError.suggestion}"
 
     async def test_known_errors_suppresses_traceback(self) -> None:
         """known_errors=(DependencyError,) produces error_traceback=None for DependencyError."""
