@@ -655,10 +655,7 @@ class RecordingApi(Resource):
         wait_for_ack: bool = False,
         **data: Any,
     ) -> ServiceResponse | None:
-        """Record a call_service call, including return_response and wait_for_ack.
-
-        Returns a stub ServiceResponse when return_response=True.
-        """
+        """Record a call_service call (with return_response and wait_for_ack); stub response if return_response."""
         self._record_call(
             ApiCall(
                 method="call_service",
