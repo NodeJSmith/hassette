@@ -29,6 +29,7 @@ PROBE_DIR = WORKTREE_ROOT / "tests" / "pyright_probes"
 PROBE_FILE = PROBE_DIR / "forgotten_await_probe.py"
 HARNESS_TYPE_PROBE_FILE = PROBE_DIR / "harness_typing_probe.py"
 CACHE_GET_PROBE_FILE = PROBE_DIR / "cache_get_typing_probe.py"
+CALL_SERVICE_TARGET_PROBE_FILE = PROBE_DIR / "call_service_target_probe.py"
 
 EXPECTED_PROBE_COUNT = 8
 
@@ -147,3 +148,9 @@ def test_pyright_cache_get_probe_narrows_non_none_default() -> None:
     """Pyright types cache ``get(key, default=x)`` as ``type(x)``, not ``type(x) | None`` (#2526)."""
     returncode, output = run_clean_probe(CACHE_GET_PROBE_FILE)
     assert returncode == 0, f"Cache get() typing probe failed:\n{output}"
+
+
+def test_pyright_call_service_accepts_mixed_target() -> None:
+    """Pyright accepts a ``target`` mixing a single ID with a list of IDs (#2831)."""
+    returncode, output = run_clean_probe(CALL_SERVICE_TARGET_PROBE_FILE)
+    assert returncode == 0, f"call_service target typing probe failed:\n{output}"

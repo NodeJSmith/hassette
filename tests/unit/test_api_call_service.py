@@ -9,6 +9,7 @@ Three routes exist, selected by ``return_response`` and ``wait_for_ack``:
 - ``return_response=True`` — waits and parses the response into a ``ServiceResponse``
 """
 
+from types import MappingProxyType
 from unittest.mock import AsyncMock
 
 import pytest
@@ -105,3 +106,15 @@ async def test_call_service_return_response_alone_does_not_retry_on_timeout() ->
     await api.call_service("weather", "get_forecasts", return_response=True)
 
     assert api.ws_send_and_wait.await_args.kwargs["retry_on_timeout"] is False
+
+
+async def test_call_service_sends_mixed_mapping_target_as_plain_dict() -> None:
+    """A non-dict Mapping target mixing single IDs and lists reaches the payload as a plain dict (#2831)."""
+    api = make_api()
+    target = MappingProxyType({"entity_id": "light.porch", "area_id": ["kitchen", "hall"]})
+
+    await api.call_service("light", "turn_on", target=target)
+
+    sent = api.ws_send_json.await_args.kwargs["target"]
+    assert type(sent) is dict
+    assert sent == {"entity_id": "light.porch", "area_id": ["kitchen", "hall"]}

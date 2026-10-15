@@ -162,7 +162,7 @@ Examples:
 """
 
 import typing
-from collections.abc import Coroutine  # noqa: TC003 — needed at runtime for annotation inspection
+from collections.abc import Coroutine, Mapping  # Coroutine is needed at runtime for annotation inspection
 from contextlib import suppress
 from enum import StrEnum
 from http import HTTPStatus
@@ -532,7 +532,7 @@ class Api(Resource):
         self,
         domain: str,
         service: str,
-        target: dict[str, str] | dict[str, list[str]] | None = None,
+        target: Mapping[str, str | list[str]] | None = None,
         return_response: typing.Literal[False] | None = None,
         *,
         wait_for_ack: bool = False,
@@ -547,7 +547,7 @@ class Api(Resource):
         self,
         domain: str,
         service: str,
-        target: dict[str, str] | dict[str, list[str]] | None = None,
+        target: Mapping[str, str | list[str]] | None = None,
         return_response: Literal[True] = True,
         *,
         wait_for_ack: bool = False,
@@ -561,7 +561,7 @@ class Api(Resource):
         self,
         domain: str,
         service: str,
-        target: dict[str, str] | dict[str, list[str]] | None = None,
+        target: Mapping[str, str | list[str]] | None = None,
         return_response: bool | None = False,
         *,
         wait_for_ack: bool = False,
@@ -610,7 +610,7 @@ class Api(Resource):
         self,
         domain: str,
         service: str,
-        target: dict[str, str] | dict[str, list[str]] | None = None,
+        target: Mapping[str, str | list[str]] | None = None,
         return_response: bool | None = False,
         *,
         wait_for_ack: bool = False,
@@ -622,7 +622,7 @@ class Api(Resource):
             "type": "call_service",
             "domain": domain,
             "service": service,
-            "target": target,
+            "target": dict(target) if target is not None else None,
             "return_response": return_response,
         }
 

@@ -16,6 +16,7 @@ Tests cover:
 """
 
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -562,6 +563,17 @@ async def test_call_service_target_dict_is_shallow_copied():
     assert recorded_target == {"entity_id": "light.kitchen"}, (
         "Recorded target was mutated — call_service must shallow-copy target at record time"
     )
+
+
+async def test_call_service_mixed_mapping_target_recorded_as_deep_copied_dict():
+    """A non-dict Mapping target mixing single IDs and lists is recorded as a deep-copied plain dict (#2831)."""
+    api = make_recording_api()
+    areas = ["kitchen", "hall"]
+    await api.call_service("light", "turn_on", target=MappingProxyType({"entity_id": "light.porch", "area_id": areas}))
+    areas.append("garage")
+    recorded_target = api.calls[0].kwargs["target"]
+    assert type(recorded_target) is dict
+    assert recorded_target == {"entity_id": "light.porch", "area_id": ["kitchen", "hall"]}
 
 
 async def test_set_state_attributes_dict_is_shallow_copied():
