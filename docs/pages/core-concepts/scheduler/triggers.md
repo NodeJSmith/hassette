@@ -28,7 +28,7 @@ Each convenience method on the scheduler maps to one trigger:
 
 | Method | Creates |
 |---|---|
-| `run_in(func, delay)` | `After(seconds=delay)` |
+| `run_in(func, delay, minutes=, hours=)` | `After(seconds=delay, minutes=minutes, hours=hours)` |
 | `run_once(func, at)` | `Once(at=at)` |
 | `run_every(func, ...)` | `Every(...)` |
 | `run_daily(func, at)` | `Daily(at=at)` |
