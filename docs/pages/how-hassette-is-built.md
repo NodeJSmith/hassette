@@ -24,7 +24,7 @@ Hassette also runs my own house. My automation suite of a couple dozen apps trac
 
 ## Why I build it this way
 
-Hassette is my passion project. It started in my dotfiles as a tiny Home Assistant listener, a proof of concept, and grew until it needed its own repo. The first public release came in September 2025, and I plan to keep at it for years. I also work about 60 hours a week across two jobs, so I get fewer hours on Hassette than I'd like. Agents let those hours go to the decisions instead of the typing. Claude also writes better code than I do.
+Hassette is my passion project. It started in June 2025 as a small Home Assistant WebSocket client in my homelab repo, and within a few weeks it had grown into its own project. The first public release came that September, and I plan to keep at it for years. I also work about 60 hours a week across two jobs, so I get fewer hours on Hassette than I'd like. Agents let those hours go to the decisions instead of the typing. Claude also writes better code than I do.
 
 My time goes to the parts an agent can't own:
 
