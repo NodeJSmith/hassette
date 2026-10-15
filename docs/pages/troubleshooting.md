@@ -20,7 +20,7 @@ To react to connection loss, subscribe to [`on_websocket_disconnected` / `on_web
 
 ## Apps Not Loading
 
-The app precheck runs before the WebSocket connection opens. It imports each app module, resolves the class, and checks that the class's config class is wired up correctly. Any failure blocks startup by default. Config *values* are not checked here: they are validated later, when each app instance is created.
+The app precheck runs before the WebSocket connection opens. It imports each app module, resolves the class, and checks the class's base-class order. Any failure blocks startup by default. A class without a config type parameter uses a bare `AppConfig`, which is not an error. Config *values* are not checked here: they are validated later, when each app instance is created.
 
 **Syntax error or bad import.** Look for this pattern in the log:
 
@@ -37,6 +37,14 @@ AttributeError: Class MyApp not found in module apps.my_app (/config/apps/my_app
 ```
 
 Check for typos in `class_name` in `hassette.toml` and confirm the class is defined at module level.
+
+**Wrong base-class order.** A base class that defines its own `__init__` is listed before `App`, so its `__init__` would run instead of `App.__init__`:
+
+```
+ERROR hassette.utils.app_utils — Failed to load app 'MyApp' due to bad configuration: MyApp inherits from MyMixin before App. ...
+```
+
+Move `App` ahead of that base class in the class definition.
 
 **Invalid config.** A required [`AppConfig`][hassette.app.app_config.AppConfig] field has no value and no default, or a value fails validation. This is caught when the instance is created, after the precheck, and is followed by the pydantic `ValidationError`:
 

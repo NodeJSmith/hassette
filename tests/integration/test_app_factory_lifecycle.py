@@ -10,12 +10,15 @@ from hassette_wire import ResourceStatus
 
 from hassette.config.classes import AppManifest
 from hassette.core.app_factory import AppFactory
+from hassette.core.app_lifecycle_common import AppAdmissionMode
 from hassette.core.app_lifecycle_service import AppLifecycleService
 from hassette.core.app_registry import AppRegistry
+from hassette.exceptions import AppPrecheckFailedError, InvalidInheritanceError
 from hassette.schemas.app_snapshots import AppInstanceInfo
 from hassette.utils import app_utils
 
 if TYPE_CHECKING:
+    from hassette import HassetteConfig
     from hassette.app.app import App, AppConfig
     from hassette.testing import HassetteHarness
 
@@ -665,3 +668,34 @@ class TestAppRestartPreservesChildren:
 
         # Clean up
         await app_instance.shutdown()
+
+
+class TestInvalidInheritanceBlocksLoad:
+    """An InvalidInheritanceError from validate_app fails the class load instead of being swallowed."""
+
+    def test_precheck_fails_for_invalid_inheritance(self, test_config: "HassetteConfig"):
+        """run_apps_pre_check reports the app as failed and blocks startup."""
+        manifest = make_manifest("invalid_inheritance", "invalid_inheritance_app.py", "InvalidInheritanceApp")
+        apps = test_config.apps.model_copy(update={"manifests": {"invalid_inheritance": manifest}})
+        config = test_config.model_copy(update={"apps": apps})
+
+        with pytest.raises(AppPrecheckFailedError):
+            app_utils.run_apps_pre_check(config)
+
+        assert isinstance(
+            app_utils.get_class_load_error(manifest.full_path, manifest.class_name), InvalidInheritanceError
+        )
+
+    async def test_start_app_records_failure_for_invalid_inheritance(
+        self, app_lifecycle: AppLifecycleService, app_registry: AppRegistry
+    ):
+        """start_app creates no instance and records the inheritance error as the app's failure."""
+        manifest = make_manifest("invalid_inheritance", "invalid_inheritance_app.py", "InvalidInheritanceApp")
+        app_registry.set_manifests({"invalid_inheritance": manifest})
+
+        await app_lifecycle.start_app("invalid_inheritance", admission_mode=AppAdmissionMode.WAIT_FOR_RELEASE)
+
+        assert "invalid_inheritance" not in app_registry
+        failed = get_failed_by_key(app_registry, "invalid_inheritance")
+        assert len(failed) == 1
+        assert isinstance(failed[0].error, InvalidInheritanceError)
