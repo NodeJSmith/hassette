@@ -65,6 +65,16 @@ class ServerTarget:
     is_loopback: bool
     verify_ssl: bool
 
+    @property
+    def display_url(self) -> str:
+        """``base_url`` with any ``user:password@`` userinfo removed, for printing.
+
+        ``base_url`` keeps the userinfo because httpx sends it as Basic auth. Anything the CLI
+        prints (stderr diagnostics, the JSON error envelope) uses this form instead, since that
+        output is routinely captured in CI and service logs.
+        """
+        return str(URL(self.base_url).with_user(None))
+
 
 @dataclass(frozen=True)
 class CredentialInputs:

@@ -8,17 +8,27 @@ non-loopback failure messaging.
 
 import os
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock, patch
 
+import httpx2 as httpx
 import pytest
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 import hassette.cli as cli_pkg
 from hassette.cli.client import CLI_AUTH_DOCS_URL, HassetteCLIClient
+from hassette.cli.commands.status import cmd_status
 from hassette.cli.target import CLI_AUTH_TOKEN_ENV, CREDENTIAL_SOURCES
 from hassette.config.config import HassetteConfig
 from hassette.web.auth.tokens import TOKEN_FILENAME
-from tests.unit.cli.conftest import REMOTE_SERVER_URL, CLIClientFactory, capture_stderr, make_cli_config
+from tests.support.web_response_helpers import make_system_status_response
+from tests.unit.cli.conftest import (
+    REMOTE_SERVER_URL,
+    CLIClientFactory,
+    CommandRunner,
+    capture_stderr,
+    make_cli_config,
+)
 from tests.unit.cli.test_client import (
     HEALTH_ENDPOINT,
     get_expecting_exit,
@@ -30,6 +40,8 @@ from tests.unit.cli.test_client import (
     stderr_for_successful_get,
 )
 
+USERINFO_SERVER_URL = "https://alice:s3cret@hassette.example.com:8126"
+
 
 def unwrapped(stderr: str) -> str:
     """Collapse Rich's soft line wrapping so a phrase assertion isn't a width assertion.
@@ -39,6 +51,22 @@ def unwrapped(stderr: str) -> str:
     nothing to do with the message's content.
     """
     return " ".join(stderr.split())
+
+
+status_runner = CommandRunner("hassette.cli.commands.status.make_client")
+
+
+def run_status_json(config: HassetteConfig, **client_kwargs: Any) -> tuple[Any, str]:
+    """Run ``hassette status --json`` against a client built from ``config``.
+
+    Returns the parsed stdout document and the captured stderr, so a test can check that the
+    success-path diagnostics land on stderr while stdout stays the command's own JSON.
+    """
+    body = make_system_status_response().model_dump(mode="json")
+    client = HassetteCLIClient(config, json_mode=True, transport=make_transport(200, body), **client_kwargs)
+    with capture_stderr() as buf:
+        parsed = status_runner.json_output(client, cmd_status)
+    return parsed, buf.getvalue()
 
 
 # Web API bearer-token credential attachment
@@ -469,3 +497,69 @@ class TestVerifySslWarning:
         config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
         stderr = stderr_for_malformed_response(config, verify_ssl_flag=False, server_url_flag=None)
         assert "TLS verification is disabled" not in stderr
+
+
+# JSON-mode success path: diagnostics go to stderr, stdout stays the command's JSON document
+
+
+class TestJsonModeSuccessDiagnostics:
+    def test_non_loopback_prints_target_to_stderr(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL)
+        _parsed, stderr = run_status_json(config)
+        assert f"Target: {REMOTE_SERVER_URL}" in stderr
+        assert "TLS verification is disabled" not in stderr
+
+    def test_config_sourced_insecure_prints_tls_warning_to_stderr(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
+        _parsed, stderr = run_status_json(config)
+        assert REMOTE_SERVER_URL in stderr
+        assert "TLS verification is disabled" in unwrapped(stderr)
+
+    def test_loopback_prints_nothing(self, tmp_path: Path) -> None:
+        _parsed, stderr = run_status_json(make_cli_config(data_dir=tmp_path))
+        assert stderr == ""
+
+    def test_stdout_identical_for_loopback_and_remote(self, tmp_path: Path) -> None:
+        """The diagnostics must not leak into stdout: a remote, insecure target produces the
+        same JSON document as a loopback one, with no added target/TLS keys.
+        """
+        loopback_parsed, _ = run_status_json(make_cli_config(data_dir=tmp_path))
+        remote_config = make_cli_config(data_dir=tmp_path, cli_server_url=REMOTE_SERVER_URL, cli_verify_ssl=False)
+        remote_parsed, _ = run_status_json(remote_config)
+        assert remote_parsed == loopback_parsed
+        assert "target" not in remote_parsed
+        assert "tls_verified" not in remote_parsed
+
+
+# Credentials embedded in the server URL never reach printed output
+
+
+class TestUserinfoRedaction:
+    def test_json_success_target_omits_userinfo(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=USERINFO_SERVER_URL)
+        _parsed, stderr = run_status_json(config)
+        assert "Target: https://hassette.example.com:8126" in stderr
+        assert "s3cret" not in stderr
+        assert "alice" not in stderr
+
+    def test_json_error_envelope_target_omits_userinfo(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=USERINFO_SERVER_URL)
+        client = HassetteCLIClient(config, json_mode=True, transport=make_transport(500, {"detail": "boom"}))
+        parsed = get_json_error(client, capsys)
+        assert parsed["target"] == "https://hassette.example.com:8126"
+
+    def test_request_still_sends_userinfo_as_basic_auth(self, tmp_path: Path) -> None:
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(200, json=make_system_status_response().model_dump(mode="json"))
+
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=USERINFO_SERVER_URL)
+        client = HassetteCLIClient(config, json_mode=True, transport=httpx.MockTransport(handler))
+        with capture_stderr():
+            status_runner.json_output(client, cmd_status)
+        assert seen
+        assert seen[0].headers.get("authorization", "").startswith("Basic ")

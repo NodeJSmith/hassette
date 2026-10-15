@@ -137,6 +137,7 @@ class HassetteCLIClient:
             self.error_usage(str(exc))
 
         self.base_url = target.base_url
+        self.display_url = target.display_url
         self.is_loopback = target.is_loopback
         # verify_ssl ended up False without an explicit --no-verify-ssl/--verify-ssl flag on
         # this invocation, so it came from cli.verify_ssl in config — a silent, durable
@@ -181,9 +182,9 @@ class HassetteCLIClient:
             else:
                 response = self._client.post(path, timeout=self.timeout)
         except httpx.ConnectError as exc:
-            self._handle_network_error(f"Connection refused: {self.base_url} ({exc})")
+            self._handle_network_error(f"Connection refused: {self.display_url} ({exc})")
         except httpx.TimeoutException:
-            self._handle_network_error(f"Request timed out after {self.timeout}s connecting to {self.base_url}")
+            self._handle_network_error(f"Request timed out after {self.timeout}s connecting to {self.display_url}")
         except httpx.RequestError as exc:
             self._handle_network_error(f"Network error: {exc}")
         return response
@@ -478,26 +479,23 @@ class HassetteCLIClient:
         """Surface the resolved non-loopback target and any TLS-verification warning once per
         invocation on the success path.
 
-        JSON mode is deliberately left untouched here. Every command's ``get()`` result flows
-        straight into a render function (``render_table``/``render_detail``/etc. in
-        ``cli/output.py``) that owns the one JSON document written to stdout for that command —
-        there is no shared success envelope to add a ``"target"``/``"tls_verified"`` key to
-        without restructuring every command's JSON output path, which is out of scope here. See
-        the design doc's Architecture -> "Failing open, not fast" for the intended shape; this
-        is a known, called-out gap, not an oversight.
+        JSON mode prints the same lines: they go to stderr, so stdout still carries exactly the
+        one JSON document the command's render function writes. The target is not added as a key
+        to that document because most success outputs are bare JSON arrays with no envelope to
+        hold it.
         """
-        if self.json_mode or self._success_echoed:
+        if self._success_echoed:
             return
         self._success_echoed = True
         if not self.is_loopback:
-            cli_output.stderr_console.print(f"[dim]Target:[/dim] {self.base_url}", highlight=False)
+            cli_output.stderr_console.print(f"[dim]Target:[/dim] {self.display_url}", highlight=False)
         if self._insecure_from_config:
             self._print_tls_warning()
 
     def _print_tls_warning(self) -> None:
-        """Print the "TLS verification is disabled" warning for the current ``base_url``."""
+        """Print the "TLS verification is disabled" warning for the current ``display_url``."""
         cli_output.stderr_console.print(
-            f"[bold yellow]Warning:[/bold yellow] TLS verification is disabled for {self.base_url} "
+            f"[bold yellow]Warning:[/bold yellow] TLS verification is disabled for {self.display_url} "
             "(cli.verify_ssl = false in config).",
             highlight=False,
         )
@@ -672,7 +670,7 @@ class HassetteCLIClient:
         Shared by :meth:`_handle_http_error` and :meth:`_handle_network_error` so the
         loopback-suppression and config-vs-flag TLS logic has a single source of truth.
         """
-        target = self.base_url if not self.is_loopback else None
+        target = self.display_url if not self.is_loopback else None
         tls_verified = False if self._insecure_from_config else None
         return target, tls_verified
 
