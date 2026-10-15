@@ -27,6 +27,11 @@ UV_PROJECT_PACKAGE_TIMEOUT_SECS=120
 UV_REQUIREMENTS_TIMEOUT_SECS=120
 REQUIREMENTS_MAX_DEPTH=5
 
+# Directories never needed to build the project package, skipped (at any depth) when copying it to
+# the temp build dir. A dev checkout's in-tree .venv alone can be hundreds of MB, copied on every start.
+# .git stays: VCS-versioned build backends (setuptools-scm, hatch-vcs) read it.
+PROJECT_COPY_EXCLUDES=(.venv venv node_modules __pycache__ .mypy_cache .ruff_cache .pytest_cache)
+
 REMEDY_DEPS="Fix the dependency file named above, then run: docker restart <container>"
 REMEDY_CONFIG="Fix the setting named above (in its file or your compose environment), then run: docker compose up -d
   (docker restart keeps the old environment)"
@@ -264,7 +269,7 @@ if [ -f "$PROJECT_DIR/uv.lock" ]; then
         -c "$CONSTRAINTS"
 
     log_phase "project install: installing project package"
-    cp -a "$PROJECT_DIR"/. "$tmp_project"/
+    tar -C "$PROJECT_DIR" "${PROJECT_COPY_EXCLUDES[@]/#/--exclude=}" -cf - . | tar -C "$tmp_project" -xf -
     run_uv_install "$UV_PROJECT_PACKAGE_TIMEOUT_SECS" "project" pip install \
         --no-deps "$tmp_project"
 
