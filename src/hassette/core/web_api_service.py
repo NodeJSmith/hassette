@@ -90,14 +90,13 @@ class WebApiService(Service):
                 "can reach the port. Set auth_enabled=True, or bind host to a loopback address."
             )
 
-        # Warning only: no evidence of a fronting proxy, so hassette cannot detect whether TLS is
-        # terminated anywhere in front of it. Auth (token/cookie) still protects the API — this is
-        # about transport security, not authentication.
+        # Informational only: this is the default deployment (all interfaces, plain HTTP, like
+        # Home Assistant's own default), so it must not warn. Auth (token/cookie) still protects
+        # the API — the note is about transport security, not authentication.
         if not is_loopback and not web_api_config.trusted_proxies:
-            self.logger.warning(
-                "Web API is bound to non-loopback host %r with no trusted_proxies configured. "
-                "Hassette has no TLS support of its own — if this instance is reachable from an "
-                "untrusted network, put a TLS-terminating reverse proxy in front of it.",
+            self.logger.info(
+                "Web API is serving plain HTTP on non-loopback host %r. "
+                "For remote access, put a TLS-terminating reverse proxy in front of it.",
                 web_api_config.host,
             )
 

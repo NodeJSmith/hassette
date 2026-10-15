@@ -180,7 +180,8 @@ class Hassette(HassetteAccessorsMixin, Resource):
         self.logger.info("Found %d active apps", len(active_apps), stacklevel=3)
 
         inactive_apps = [app for app in self.config.apps.manifests.values() if not app.enabled]
-        self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
+        if inactive_apps:
+            self.logger.info("Found %d inactive apps", len(inactive_apps), stacklevel=3)
 
         try:
             run_apps_pre_check(self.config)
@@ -265,13 +266,13 @@ class Hassette(HassetteAccessorsMixin, Resource):
             f"  {t.__name__} -> [{', '.join(d.__name__ for d in t.depends_on)}]" for t in all_types if t.depends_on
         ]
         if dep_lines:
-            self.logger.info("Resource dependency graph:\n%s", "\n".join(dep_lines))
+            self.logger.debug("Resource dependency graph:\n%s", "\n".join(dep_lines))
 
         # Validate STATE_REGISTRY and TYPE_REGISTRY after all service children are added
         # (importing service modules may register additional state/type converters).
         validate_registries(STATE_REGISTRY, TYPE_REGISTRY, strict=self.config.strict_lifecycle)
 
-        self.logger.info("All components registered...", stacklevel=2)
+        self.logger.debug("All components registered...", stacklevel=2)
 
     def get_app(self, app_name: str, index: int = 0) -> App[AppConfig] | None:
         """Get a specific app instance if running.
@@ -416,7 +417,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
         # Phase 2: Start remaining children wave-by-wave.  Each wave's deps
         # are guaranteed ready before the wave begins, so _auto_wait_dependencies
         # returns immediately (kept as defense-in-depth for restarts).
-        self.logger.info("Waiting for resources to initialize...")
+        self.logger.debug("Waiting for resources to initialize...")
         self.ready_event.set()
         type_to_instance = {type(c): c for c in self.children}
         already_started: set[int] = {id(self.database_service)}

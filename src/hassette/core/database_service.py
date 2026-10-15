@@ -210,7 +210,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
 
         await self.handle_schema_version(self._db_path)
 
-        self.logger.info("Running database migrations for %s", self._db_path)
+        self.logger.debug("Running database migrations for %s", self._db_path)
         timeout = self.hassette.config.database.migration_timeout_seconds
         await asyncio.wait_for(asyncio.to_thread(self.run_migrations), timeout=timeout)
 
