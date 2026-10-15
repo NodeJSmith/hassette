@@ -1,10 +1,17 @@
 /**
  * Reduce reStructuredText docstring markup to a small displayable subset.
  *
- * Config field descriptions come from Python docstrings written in RST. The UI renders only
- * two things from that markup: inline literals and Sphinx role targets, both as inline code.
- * Everything else (emphasis, interpreted text, hyperlink references, directive lines) is
- * stripped to plain text so no literal markup ever reaches the user.
+ * Config field descriptions come from Python docstrings written in RST: hassette's own config
+ * and, through ``use_attribute_docstrings``, user ``AppConfig`` fields. The UI renders only two
+ * things from that markup: inline literals and Sphinx role targets, both as inline code.
+ * Emphasis, strong, backtick interpreted text and hyperlink references, directive lines, and
+ * literal-block markers are stripped to plain text.
+ *
+ * This is a best-effort subset, not an RST parser. Rarer constructs (suffix-form roles,
+ * backslash escapes, hyperlink target lines, bare ``name_`` references, footnotes,
+ * substitutions) pass through as literal text. Hassette's own descriptions use only literals
+ * and prefix roles; full fidelity would need docutils on the backend, which a help popover
+ * does not justify.
  */
 
 export type RstSegment = { kind: "text"; text: string } | { kind: "code"; text: string };
