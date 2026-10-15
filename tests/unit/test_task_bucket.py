@@ -306,7 +306,7 @@ class TestMaxTasks:
         gate.set()
         await asyncio.wait_for(asyncio.gather(t1, t3), timeout=1.0)
 
-    @pytest.mark.parametrize("bad", [0, -1])
-    def test_rejects_non_positive_max_tasks(self, hassette_mock, bad: int) -> None:
+    @pytest.mark.parametrize("bad", [0, -1, 1.5, True])
+    def test_rejects_invalid_max_tasks(self, hassette_mock, bad: object) -> None:
         with pytest.raises(ValueError, match="max_tasks"):
-            TaskBucket(hassette_mock, max_tasks=bad)
+            TaskBucket(hassette_mock, max_tasks=bad)  # pyright: ignore[reportArgumentType]

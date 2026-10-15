@@ -86,10 +86,10 @@ class TaskBucket(Resource):
                 another task spawned into the same bounded bucket can deadlock once every slot is held.
 
         Raises:
-            ValueError: If ``max_tasks`` is less than 1.
+            ValueError: If ``max_tasks`` is not ``None`` or a positive ``int`` (``bool`` is rejected).
         """
-        if max_tasks is not None and max_tasks < 1:
-            raise ValueError(f"max_tasks must be >= 1 or None, got {max_tasks}")
+        if max_tasks is not None and (isinstance(max_tasks, bool) or not isinstance(max_tasks, int) or max_tasks < 1):
+            raise ValueError(f"max_tasks must be a positive integer or None, got {max_tasks!r}")
         super().__init__(hassette, parent=parent)
         self._slots = asyncio.Semaphore(max_tasks) if max_tasks is not None else None
         self._tasks: set[asyncio.Task[Any]] = set()
