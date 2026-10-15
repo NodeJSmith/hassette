@@ -349,6 +349,28 @@ describe("ConfigSchemaView", () => {
       expect(toggle.getAttribute("aria-expanded")).toBe("true");
     });
 
+    it("renders RST literals and role targets in the description as inline code", async () => {
+      const user = userEvent.setup();
+      const schema: SchemaNode = {
+        type: "object",
+        properties: {
+          some_value: {
+            type: "string",
+            description: 'Defaults to ``"warn"``; stored as :class:`~pydantic.SecretStr`.',
+          },
+        },
+      };
+      const { getByTestId } = render(<ConfigSchemaView schema={schema} values={{ some_value: "x" }} />);
+      const toggle = getByTestId("config-field-some_value").querySelector("button[aria-expanded]");
+      if (!(toggle instanceof Element)) throw new Error("expected an info toggle button");
+
+      await user.click(toggle);
+
+      const help = getByTestId("field-help");
+      expect(help.textContent).toBe('Defaults to "warn"; stored as SecretStr.');
+      expect([...help.querySelectorAll("code")].map((el) => el.textContent)).toEqual(['"warn"', "SecretStr"]);
+    });
+
     it("renders no info button when a field has no description", () => {
       const schema: SchemaNode = {
         type: "object",
