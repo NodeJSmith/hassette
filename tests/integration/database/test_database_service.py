@@ -150,8 +150,8 @@ async def test_retention_cleanup(initialized_service: DatabaseService) -> None:
     await db.commit()
 
     now = time.time()
-    old_ts = now - (8 * SECONDS_PER_DAY)  # 8 days ago (beyond 7-day retention)
-    # Within both the 7-day retention_days window and the 1-day framework_retention_days window.
+    old_ts = now - (31 * SECONDS_PER_DAY)  # 31 days ago (beyond 30-day retention)
+    # Within both the 30-day retention_days window and the 30-day framework_retention_days window.
     # Rows here default to source_tier='app', so only the app-tier cutoff (retention_days)
     # actually applies to them — the 0.1-day margin keeps this test correct regardless.
     recent_ts = now - (0.1 * SECONDS_PER_DAY)  # ~2.4 hours ago (within both retention windows)

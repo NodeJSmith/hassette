@@ -24,15 +24,27 @@ from .conftest import TELEMETRY_TEST_DDL as DDL
 
 SOURCE_TIER_FRAMEWORK = "framework"
 SOURCE_TIER_APP = "app"
+RETENTION_DAYS = 7
+FRAMEWORK_RETENTION_DAYS = 1
+LOG_RETENTION_DAYS = 3
 
 
 @pytest.fixture
 def mock_hassette_for_db(tmp_path: Path) -> MagicMock:
-    """Mock Hassette for DatabaseService tests."""
+    """Mock Hassette for DatabaseService tests.
+
+    Retention windows are pinned to distinct values (framework 1 < log 3 < app 7 days) rather than
+    taken from the config defaults, so retention tests can tell the three cutoffs apart.
+    """
     return make_mock_hassette(
         data_dir=tmp_path,
         set_ready=False,
-        database={"telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX},
+        database={
+            "telemetry_write_queue_max": DB_HASSETTE_TELEMETRY_WRITE_QUEUE_MAX,
+            "retention_days": RETENTION_DAYS,
+            "framework_retention_days": FRAMEWORK_RETENTION_DAYS,
+        },
+        logging={"log_retention_days": LOG_RETENTION_DAYS},
         lifecycle={"resource_shutdown_timeout_seconds": DB_HASSETTE_RESOURCE_SHUTDOWN_TIMEOUT_SECONDS},
     )
 

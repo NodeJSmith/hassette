@@ -119,8 +119,8 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
     Overrides are merged on top of these defaults before validation. Nested
     group overrides can be passed as dicts or model instances::
 
-        make_test_config(data_dir=tmp_path, database={"retention_days": 14})
-        make_test_config(data_dir=tmp_path, database=DatabaseConfig(retention_days=14))
+        make_test_config(data_dir=tmp_path, database={"retention_days": 60})
+        make_test_config(data_dir=tmp_path, database=DatabaseConfig(retention_days=60))
 
     Args:
         data_dir: Directory for Hassette data (caches, etc.). In pytest, pass
@@ -139,7 +139,7 @@ def make_test_config(*, data_dir: Path | str, **overrides: Any) -> HassetteConfi
 
         config = make_test_config(data_dir=tmp_path)
         config = make_test_config(data_dir=tmp_path, base_url="http://192.168.1.1:8123")
-        config = make_test_config(data_dir=tmp_path, database={"retention_days": 14})
+        config = make_test_config(data_dir=tmp_path, database={"retention_days": 60})
     """
     defaults: dict[str, Any] = {
         "token": TEST_TOKEN,

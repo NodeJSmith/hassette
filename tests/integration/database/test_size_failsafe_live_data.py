@@ -200,7 +200,7 @@ async def test_retention_cleanup_reclaims_freed_pages(initialized_service: Datab
     """Retention leaves no free list behind after deleting a large batch of old rows."""
     db = initialized_service.db
     await seed_listener_for_fk(db)
-    old_ts = time.time() - 30 * SECONDS_PER_DAY
+    old_ts = time.time() - 31 * SECONDS_PER_DAY
     await db.executemany(
         "INSERT INTO executions (kind, listener_id, session_id, execution_start_ts, duration_ms, status,"
         " error_message) VALUES ('handler', 1, ?, ?, 10.0, 'error', ?)",

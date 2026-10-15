@@ -16,7 +16,7 @@ class TestLoggingConfig:
         assert cfg.log_format == "auto"
         assert cfg.log_queue_max == 2000
         assert cfg.log_persistence_level == "INFO"
-        assert cfg.log_retention_days == 3
+        assert cfg.log_retention_days == 30
         assert cfg.all_hass_events is False
         assert cfg.all_hassette_events is False
 
