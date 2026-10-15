@@ -398,11 +398,11 @@ class Bus(Resource):
 
         try:
             await self.bus_service.add_listener(listener)
-        except Exception:
-            # _resolve_collision reserved natural_key before the await; drop it so a failed add
-            # doesn't leave a phantom registration that blocks retries with a false collision.
-            # Guard on identity: a concurrent replace may have re-pointed the key to a new listener
-            # while this task was awaiting, and that newer mapping must not be evicted.
+        except (Exception, asyncio.CancelledError):
+            # _resolve_collision reserved natural_key before the await; drop it so a failed or cancelled add
+            # doesn't leave a phantom key that blocks retries. Guard on identity: a concurrent replace may
+            # have re-pointed the key meanwhile. A DB row a cancelled add already committed is not rolled
+            # back here: post-ready reconciliation retires it on the app's next successful start.
             if self._registered_listeners.get(natural_key) is listener:
                 self._registered_listeners.pop(natural_key, None)
             if is_replacing:
