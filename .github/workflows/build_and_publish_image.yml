@@ -82,26 +82,26 @@ jobs:
             PYTHON_VERSION: ${{ matrix.python-version }}
             IS_RELEASE: ${{ inputs.is_release == true || github.event_name == 'workflow_dispatch' }}
         steps:
-            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   ref: ${{ inputs.tag_name || github.ref }}
                   persist-credentials: false
 
             - name: Set up QEMU
-              uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+              uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
 
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
 
             - name: Login to GHCR
-              uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4
+              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
               with:
                   registry: ${{ env.REGISTRY }}
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install uv
-              uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+              uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
               with:
                   activate-environment: true
                   enable-cache: false
@@ -144,7 +144,7 @@ jobs:
               # Fork-PR guard: skip only when the PR comes from a fork (forks can't push to GHCR).
               # push/workflow_call/workflow_dispatch always publish.
               if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-              uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+              uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
               with:
                   context: .
                   push: true

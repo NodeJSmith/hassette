@@ -28,7 +28,7 @@ jobs:
             tag_name: ${{ steps.release.outputs.tag_name }}
             pr: ${{ steps.release.outputs.pr }}
         steps:
-            - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+            - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
               id: app-token
               with:
                   app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
@@ -48,20 +48,20 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
-            - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+            - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
               id: app-token
               with:
                   app-id: ${{ secrets.RELEASE_PLEASE_APP_ID }}
                   private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
 
-            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   ref: ${{ fromJSON(needs.release-please.outputs.pr).headBranchName }}
                   token: ${{ steps.app-token.outputs.token }}
                   persist-credentials: false
 
             - name: Install uv
-              uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+              uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
               with:
                   enable-cache: true
 
@@ -125,7 +125,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 5
         steps:
-            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   ref: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
                   persist-credentials: false
@@ -177,19 +177,19 @@ jobs:
         permissions:
             contents: read
         steps:
-            - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   ref: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
                   persist-credentials: false
 
             - name: Install uv
-              uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+              uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
               with:
                   activate-environment: true
                   enable-cache: true
 
             - name: Set up Node.js
-              uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
               with:
                   node-version: "24"
                   cache: "npm"
@@ -235,7 +235,7 @@ jobs:
               run: uv run ./tools/release/check_wheel_spa.py --dist-dir dist/hassette
 
             - name: Publish build artifacts
-              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
               with:
                   name: pypi-dists
                   path: "./dist"
@@ -276,7 +276,7 @@ jobs:
             PACKAGES_DIR: dist/wire
         steps: &publish-pypi-steps
             - name: Download build artifacts
-              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
               with:
                   name: pypi-dists
                   path: "./dist"
@@ -286,7 +286,7 @@ jobs:
             - name: Publish ${{ env.PACKAGE_NAME }} to PyPI (attempt 1)
               id: attempt1
               continue-on-error: true
-              uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+              uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
               with:
                   packages-dir: ${{ env.PACKAGES_DIR }}
                   skip-existing: true
@@ -299,7 +299,7 @@ jobs:
               id: attempt2
               if: steps.attempt1.outcome == 'failure'
               continue-on-error: true
-              uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+              uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
               with:
                   packages-dir: ${{ env.PACKAGES_DIR }}
                   skip-existing: true
@@ -311,7 +311,7 @@ jobs:
             - name: Publish ${{ env.PACKAGE_NAME }} to PyPI (attempt 3)
               id: attempt3
               if: steps.attempt2.outcome == 'failure'
-              uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+              uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
               with:
                   packages-dir: ${{ env.PACKAGES_DIR }}
                   skip-existing: true
@@ -418,7 +418,7 @@ jobs:
 
             - name: Verify package on PyPI
               if: needs.publish-pypi-hassette.result == 'success'
-              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   ref: ${{ needs.release-please.outputs.tag_name || inputs.tag_name }}
                   sparse-checkout: tools/release/check_pypi_wheel.py

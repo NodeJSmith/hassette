@@ -38,12 +38,12 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   persist-credentials: false
 
             - name: Install uv and set the Python version
-              uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+              uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
               with:
                   python-version: "3.13"
 
@@ -58,7 +58,7 @@ jobs:
               run: uv run python tools/docs/check_snippet_orphans.py
 
             - name: Upload site artifact
-              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
               with:
                   name: docs-site
                   path: site/
@@ -73,14 +73,14 @@ jobs:
             # Before the artifact download: checkout cleans the workspace. mise.toml must sit in the
             # working directory for the muffet shim to resolve its pinned version.
             - name: Checkout mise.toml
-              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   persist-credentials: false
                   sparse-checkout: mise.toml
                   sparse-checkout-cone-mode: false
 
             - name: Download site artifact
-              uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+              uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
               with:
                   name: docs-site
                   path: site/
@@ -88,7 +88,7 @@ jobs:
             # Installs only muffet at the version pinned in mise.toml; env: false keeps mise.toml's
             # [env] (the .venv activation) out of the job environment.
             - name: Install muffet
-              uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+              uses: jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
               with:
                   install_args: github:raviqqe/muffet
                   env: false
@@ -114,12 +114,12 @@ jobs:
 
         steps:
             - name: Checkout code
-              uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   persist-credentials: false
 
             - name: Install uv and set the Python version
-              uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+              uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
               with:
                   python-version: "3.13"
 
