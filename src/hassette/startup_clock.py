@@ -1,16 +1,16 @@
-"""Process-start reference point for the startup log.
+"""Package-import reference point for the startup log.
 
-``hassette/__init__.py`` imports this module before anything else, so ``PROCESS_START`` is read
-before the package's eager imports, which make up nearly all of the time between interpreter start
-and ``Hassette.wire_services()``. Only the interpreter's own boot (well under 100ms) precedes it.
+``hassette/__init__.py`` imports this module before anything else, so ``IMPORT_START`` is read
+before the package's eager imports. Time a host process spends before its first ``import hassette``
+(interpreter boot, or an embedding application's own work) is not counted.
 """
 
 import time
 
-PROCESS_START = time.monotonic()
+IMPORT_START = time.monotonic()
 """``time.monotonic()`` as of the first import of the ``hassette`` package."""
 
 
-def seconds_since_process_start() -> float:
+def seconds_since_import() -> float:
     """Return the seconds elapsed since the ``hassette`` package was first imported."""
-    return time.monotonic() - PROCESS_START
+    return time.monotonic() - IMPORT_START

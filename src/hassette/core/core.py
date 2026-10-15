@@ -195,9 +195,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
 
         Must be called after construction and before run_forever().
         """
-        self.logger.info(
-            "Starting Hassette... (%.2fs after interpreter start)", startup_clock.seconds_since_process_start()
-        )
+        self.logger.info("Starting Hassette... (%.2fs since hassette import)", startup_clock.seconds_since_import())
 
         date_utils.configure(self.config.timezone)
         if self.config.timezone:
