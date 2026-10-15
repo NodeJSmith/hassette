@@ -97,9 +97,8 @@ from functools import partial
 from typing import Any, Unpack
 
 from hassette_wire import BackpressurePolicy, ExecutionMode, LogLevel, ResourceStatus
-from typing_extensions import Sentinel
 
-from hassette.const import NOT_PROVIDED
+from hassette.const import NOT_PROVIDED, FalseySentinel
 from hassette.event_handling import predicates as P
 from hassette.event_handling.accessors import get_path
 from hassette.events.base import AnyEvent, Event, HassettePayload
@@ -712,7 +711,7 @@ class Bus(Resource):
         """Common subscription tail: log, normalize where, delegate to _on_internal()."""
         if self.logger.isEnabledFor(logging.DEBUG):
             filtered = (
-                {k: v for k, v in log_params.items() if v is not None and not isinstance(v, Sentinel)}
+                {k: v for k, v in log_params.items() if v is not None and not isinstance(v, FalseySentinel)}
                 if log_params
                 else {}
             )
