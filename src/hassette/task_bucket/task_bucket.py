@@ -399,11 +399,10 @@ class TaskBucket(Resource):
             The result of the function call.
         """
         if isinstance(timeout_seconds, FalseySentinel):
-            # `isinstance`, not `is NOT_PROVIDED`: an `is`-identity check doesn't narrow the
-            # `FalseySentinel` arm out of the union for Pyright, since `NOT_PROVIDED` is a plain
-            # instance rather than a `Literal`-narrowable singleton type. This also matches the
-            # sibling sentinels `MISSING_VALUE`/`ANY_VALUE` if one were ever passed here by
-            # mistake — the parameter's type hint only documents `NOT_PROVIDED` as valid.
+            # `isinstance`, not `is NOT_PROVIDED`: the parameter accepts any `FalseySentinel`
+            # member, so an `is NOT_PROVIDED` check would leave `MISSING_VALUE`/`ANY_VALUE` in the
+            # narrowed union. Treating every member as "not provided" also tolerates a sibling
+            # sentinel passed here by mistake.
             timeout_seconds = self.hassette.config.lifecycle.run_sync_timeout_seconds
 
         # Name the wrapped coroutine (e.g. "Api.call_service") for error and log context; the
