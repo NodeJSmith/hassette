@@ -803,8 +803,10 @@ class Scheduler(Resource):
     def run_in(
         self,
         func: "JobCallable",
-        delay: float,
+        delay: float = 0,
         *,
+        minutes: float = 0,
+        hours: float = 0,
         name: str,
         group: str | None = None,
         jitter: float | None = None,
@@ -819,33 +821,29 @@ class Scheduler(Resource):
     ) -> "Coroutine[Any, Any, Job]":
         """Schedule a job to run after a fixed delay (one-shot).
 
-        Must be awaited. Scheduling completes before the call returns.
-        ``job.db_id`` is a valid integer immediately on return.
+        Must be awaited. Scheduling completes before the call returns, so ``job.db_id`` is set.
 
         Args:
             func: The function to run.
-            delay: The delay in seconds before running the job.
+            delay: Delay component in seconds. ``run_in(func, 30)`` waits 30 seconds.
+            minutes: Delay component in minutes. Components add up: ``minutes=1, delay=30`` waits 90 seconds.
+            hours: Delay component in hours. A total delay of zero or less raises ``ValueError``.
             name: Required stable name for the job.
             group: Optional group name.
-            jitter: Optional seconds of random offset to apply at enqueue time.
-                See ``schedule()`` for details.
+            jitter: Optional seconds of random offset to apply at enqueue time. See ``schedule()``.
             timeout: Per-job timeout in seconds. See ``schedule()`` for details.
             timeout_disabled: Disable timeout enforcement. See ``schedule()`` for details.
-            mode: Overlap mode. Accepted for API uniformity; has no overlap effect for
-                one-shot jobs since they never re-fire. See ``schedule()`` for the four
-                values, tier-aware default, and string coercion rules.
+            mode: Overlap mode. Accepted for API uniformity; no effect on one-shot jobs. See ``schedule()``.
             on_error: Optional per-job error handler. See ``schedule()`` for details.
-            if_exists: Behavior when a job with the same name already exists.
-                See :meth:`add_job` for details.
+            if_exists: Behavior when a job with the same name already exists. See :meth:`add_job`.
             args: Positional arguments to pass to the callable when it executes.
             kwargs: Keyword arguments to pass to the callable when it executes.
-            where: Optional predicate (or sequence of predicates) gating execution.
-                See ``schedule()`` for details.
+            where: Optional predicate (or sequence of predicates) gating execution. See ``schedule()``.
 
         Returns:
             The scheduled job.
         """
-        trigger = After(seconds=float(delay))
+        trigger = After(seconds=delay, minutes=minutes, hours=hours)
         # Shape B delegate — returns the callee's handle directly (no await, no second guard_await).
         # The single guard_await lives at add_job (the true primary). See design/071.
         return self.schedule(

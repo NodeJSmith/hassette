@@ -15,13 +15,13 @@ Each call returns a [`Job`][hassette.scheduler.classes.Job] handle. The handle r
 
 ### Run after a delay
 
-`run_in` schedules a one-shot job that fires after a fixed number of seconds.
+`run_in` schedules a one-shot job that fires after a fixed delay.
 
 ```python
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_run_in.py"
 ```
 
-The `delay` parameter accepts seconds as a `float`. The job fires once and does not repeat.
+`delay` is in seconds; `minutes=` and `hours=` state larger delays in their own units, and all three add together. The job fires once and does not repeat.
 
 ### Run on a repeating interval
 

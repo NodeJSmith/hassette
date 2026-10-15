@@ -35,6 +35,7 @@ class SyncRegisteringApp(AppSync[SyncFacadeConfig]):
     def on_initialize_sync(self) -> None:
         self.bus.sync.on_state_change("sensor.temp", handler=self.on_temp, name="sync_temp")
         self.scheduler.sync.run_in(self.delayed_task, 60, name="sync_delayed")
+        self.scheduler.sync.run_in(self.delayed_task, 30, minutes=1, name="sync_delayed_units")
         self.api.sync.turn_on("light.kitchen")
 
     def on_temp(self, event: RawStateChangeEvent) -> None:
@@ -91,6 +92,15 @@ async def test_scheduler_sync_facade_schedules_job_from_sync_init():
         db_id = by_name["sync_delayed"].db_id
         assert isinstance(db_id, int), f"Job db_id should be an int after sync registration, got {db_id!r}"
         assert db_id > 0, f"Job db_id should be a real row id, got {db_id}"
+
+
+async def test_scheduler_sync_facade_run_in_accepts_unit_keywords():
+    """self.scheduler.sync.run_in forwards minutes= to the async scheduler; the components add up."""
+    async with AppTestHarness(SyncRegisteringApp, config={}) as harness:
+        job = next(job for job in harness.scheduler.list_jobs() if job.name == "sync_delayed_units")
+
+        assert job.trigger is not None
+        assert job.trigger.trigger_detail() == "90s"
 
 
 async def test_bus_sync_facade_raises_inside_event_loop():

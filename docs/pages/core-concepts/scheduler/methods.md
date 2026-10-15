@@ -9,7 +9,7 @@ The scheduler runs handlers at times defined by trigger objects. The convenience
 
 | Timing need | Method |
 |---|---|
-| Run once, N seconds from now | `run_in` |
+| Run once after a delay | `run_in` |
 | Repeat on a fixed interval | `run_every` (or `run_minutely` / `run_hourly`) |
 | Run at the same time every day | `run_daily` |
 | Run on a complex or calendar schedule | `run_cron` |
@@ -18,12 +18,14 @@ The scheduler runs handlers at times defined by trigger objects. The convenience
 
 ## Run once after a delay: `run_in`
 
-The handler runs once after a fixed delay. The underlying [`After`][hassette.scheduler.triggers.After] trigger fires once and does not repeat.
+The handler runs once after a fixed delay. The underlying [`After`][hassette.scheduler.triggers.After] trigger fires once and does not repeat. `delay`, `minutes`, and `hours` add together (`run_in(func, 30, minutes=1)` waits 90 seconds), and the total must be positive: `run_in(func)` with no delay raises `ValueError`.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `func` | callable | *(required)* | The handler to run. |
-| `delay` | `float` | *(required)* | Seconds to wait before running. |
+| `delay` | `float` | `0` | Seconds component of the delay. Positional, so `run_in(func, 30)` waits 30 seconds. |
+| `minutes` | `float` | `0` | Minutes component of the delay. Keyword-only. |
+| `hours` | `float` | `0` | Hours component of the delay. Keyword-only. |
 
 Shared parameters apply (see [Parameters every method accepts](#parameters-every-method-accepts)).
 
