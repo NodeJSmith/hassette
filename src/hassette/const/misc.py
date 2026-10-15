@@ -11,6 +11,9 @@ class FalseySentinel(enum.Enum):
 
     An ``Enum`` so each member is a pickle-stable singleton that type checkers can narrow with
     ``is`` checks (``x is not MISSING_VALUE``) and know to be falsey.
+
+    The member set is closed: ``FalseySentinel("NAME")`` does not create a new sentinel and the class
+    cannot be subclassed. Code that needs its own sentinel should define its own ``Enum``.
     """
 
     MISSING_VALUE = enum.auto()
