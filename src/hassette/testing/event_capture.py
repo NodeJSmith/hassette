@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from hassette.events import Event
+from hassette.events import AnyEvent
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -38,12 +38,12 @@ class EventCapture:
         assert capture.by_topic(Topic.X)
     """
 
-    events: list[Event[Any]] = field(default_factory=list)
+    events: list[AnyEvent] = field(default_factory=list)
 
     def install(self, target: "Hassette | MagicMock") -> None:
         """Replace ``target.send_event`` with an async function that records events."""
 
-        async def capture(event: Event[Any]) -> None:
+        async def capture(event: AnyEvent) -> None:
             self.events.append(event)
 
         target.send_event = capture  # pyright: ignore[reportAttributeAccessIssue]
@@ -60,7 +60,7 @@ class EventCapture:
         finally:
             target.send_event = original  # pyright: ignore[reportAttributeAccessIssue]
 
-    def by_topic(self, topic: "Topic | str") -> list[Event[Any]]:
+    def by_topic(self, topic: "Topic | str") -> list[AnyEvent]:
         """Return captured events matching ``topic``, in emission order."""
         return [event for event in self.events if event.topic == topic]
 

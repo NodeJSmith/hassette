@@ -1,12 +1,12 @@
 """Internal event metadata helpers for framework coordination."""
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from hassette.events.base import Event
+    from hassette.events.base import AnyEvent
 
 
-def stamp_websocket_generation(event: "Event[Any]", generation: int | None) -> None:
+def stamp_websocket_generation(event: "AnyEvent", generation: int | None) -> None:
     """Stamp an event with the WebSocket connection generation it was observed under.
 
     Args:
@@ -18,7 +18,7 @@ def stamp_websocket_generation(event: "Event[Any]", generation: int | None) -> N
     object.__setattr__(event, "websocket_generation", generation)
 
 
-def get_websocket_generation(event: "Event[Any]") -> int | None:
+def get_websocket_generation(event: "AnyEvent") -> int | None:
     """Return the WebSocket connection generation an event was stamped with, if any.
 
     Args:

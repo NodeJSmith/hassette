@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any, Generic, Literal, TypeAlias
 
 from hassette.const import MISSING_VALUE
-from hassette.events.base import Event, HassContext, HassPayload
+from hassette.events.base import AnyEvent, Event, HassContext, HassPayload
 from hassette.types import StateT, Topic
 from hassette.utils.date_utils import convert_datetime_str_to_tz
 
@@ -207,7 +207,7 @@ class ScriptStartedEvent(Event[HassPayload[ScriptStartedPayload]]):
     """Event representing a script started in Home Assistant."""
 
 
-def create_event_from_hass(data: HassEventEnvelopeDict) -> Event:
+def create_event_from_hass(data: HassEventEnvelopeDict) -> AnyEvent:
     """Create an Event from a dictionary."""
     event = data.get("event", {})
     event_type = event.get("event_type")

@@ -9,7 +9,7 @@ from hassette_wire import ResourceStatus
 
 from hassette import HassetteConfig
 from hassette.core.service_watcher import ServiceWatcher
-from hassette.events import Event, HassetteServiceEvent
+from hassette.events import AnyEvent, HassetteServiceEvent
 from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.testing import HassetteHarness, build_harness, wait_for
@@ -165,7 +165,7 @@ def budget_entries(watcher: ServiceWatcher, key: str) -> int:
     return len(budget._timestamps)
 
 
-def crashed_events(events: "list[Event]") -> "list[Event]":
+def crashed_events(events: "list[AnyEvent]") -> "list[AnyEvent]":
     """Filter EventCapture output down to CRASHED service-status events."""
     return [
         e

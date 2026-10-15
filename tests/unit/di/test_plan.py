@@ -8,12 +8,12 @@ import pytest
 
 from hassette.bus.injection import ParameterInjector
 from hassette.di import AnnotatedMatcher, AnnotationDetails, TypeMatcher, build_injection_plan, validate_di_signature
-from hassette.events import Event, RawStateChangeEvent
+from hassette.events import AnyEvent, Event, RawStateChangeEvent
 from hassette.exceptions import DependencyInjectionError
 from hassette.utils.type_utils import get_typed_signature
 
 
-def _entity_id_extractor(_event: Event) -> str:
+def _entity_id_extractor(_event: AnyEvent) -> str:
     return "light.kitchen"
 
 

@@ -26,7 +26,7 @@ from hassette.core.app_registry import overlay_runtime_state
 from hassette.core.bus_service import BusService
 from hassette.core.logging_service import LoggingService
 from hassette.core.state_proxy import StateProxy
-from hassette.events import Event
+from hassette.events import AnyEvent
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.schemas.app_snapshots import AppManifestInfo
@@ -173,7 +173,7 @@ class RuntimeQueryService(Resource):
     async def build_and_broadcast(self, event_type: str, payload: BaseModel) -> None:
         await self.broadcast_envelope(event_type, payload.model_dump())
 
-    async def on_app_state_changed(self, event: Event) -> None:
+    async def on_app_state_changed(self, event: AnyEvent) -> None:
         data = event.payload.data
         payload = AppStatusChangedData(
             app_key=data.app_key,
@@ -188,7 +188,7 @@ class RuntimeQueryService(Resource):
         )
         await self.build_and_broadcast("app_status_changed", payload)
 
-    async def on_service_status(self, event: Event[Any]) -> None:
+    async def on_service_status(self, event: AnyEvent) -> None:
         data = event.payload.data
         payload = ServiceStatusData(
             resource_name=data.resource_name,
@@ -219,7 +219,7 @@ class RuntimeQueryService(Resource):
     async def on_ws_disconnected(self) -> None:
         await self.build_and_broadcast("connectivity", ConnectivityData(connected=False))
 
-    async def on_execution_completed(self, event: Event[Any]) -> None:
+    async def on_execution_completed(self, event: AnyEvent) -> None:
         """Accumulate an execution completion (handler or job) into the pending batch for this drain tick.
 
         Builds the wire model through its constructor, so a malformed payload raises here — this

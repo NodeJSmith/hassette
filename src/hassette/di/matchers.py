@@ -21,8 +21,9 @@ from .types import AnnotationDetails, InjectionParam, identity
 class TypeMatcher:
     """Matches parameters whose (unwrapped) annotation is `match_type` or a subclass of it.
 
-    Parameterized generics (e.g. `Event[Any]`) are unwrapped to their origin before the
-    subclass check, matching the behavior of `hassette.events.type_checks.is_event_type`.
+    Parameterized generics (e.g. `Event[EventPayload[Any]]`) are unwrapped to their origin before the
+    subclass check, matching the behavior of `hassette.events.type_checks.is_event_type`. Union members
+    are unwrapped the same way, so `AnyEvent | None` matches `Event`.
     """
 
     match_type: type
@@ -38,7 +39,10 @@ class TypeMatcher:
         matched = inspect.isclass(base_type) and issubclass(base_type, self.match_type)
         if not matched and (origin is types.UnionType or origin is typing.Union):
             args = get_args(annotation)
-            matched = any(inspect.isclass(arg) and issubclass(arg, self.match_type) for arg in args)
+            matched = any(
+                inspect.isclass(arg_type := get_origin(arg) or arg) and issubclass(arg_type, self.match_type)
+                for arg in args
+            )
 
         if not matched:
             return None

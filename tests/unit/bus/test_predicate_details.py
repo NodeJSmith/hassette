@@ -36,10 +36,10 @@ from hassette.testing import create_state_change_event
 from tests.support.helpers import create_attr_change_event
 
 if typing.TYPE_CHECKING:
-    from hassette.events import Event
+    from hassette.events import AnyEvent, Event
 
 
-def make_call_service_event(service_data: dict) -> "Event":
+def make_call_service_event(service_data: dict) -> "AnyEvent":
     """Build a minimal fake CallServiceEvent-shaped object for ServiceDataWhere tests."""
     payload = SimpleNamespace(data=SimpleNamespace(service_data=service_data))
     return typing.cast("Event", SimpleNamespace(payload=payload))

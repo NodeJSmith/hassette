@@ -26,7 +26,7 @@ if typing.TYPE_CHECKING:
     import asyncio
 
     from hassette import TaskBucket
-    from hassette.events.base import Event
+    from hassette.events.base import AnyEvent
     from hassette.types import AsyncHandlerType, HandlerType, Predicate
     from hassette.types.types import BusErrorHandlerType
 
@@ -342,7 +342,7 @@ class HandlerInvoker:
         """
         await release_and_drain(self.guard, self.pending_done)
 
-    async def invoke(self, event: "Event[Any]") -> None:
+    async def invoke(self, event: "AnyEvent") -> None:
         """Invoke the handler with dependency injection."""
         kwargs = self.injector.inject_parameters(event, **(self.kwargs or {}))
         await self.async_handler(**kwargs)
@@ -395,7 +395,7 @@ class DurationConfig:
         owner_id: str,
         create_cancel_sub: "Callable[[], Subscription]",
         on_cancel: Callable[[], None] | None = None,
-        normalize_cancel_event: "Callable[[Event[Any]], Event[Any]] | None" = None,
+        normalize_cancel_event: "Callable[[AnyEvent], AnyEvent] | None" = None,
     ) -> None:
         """Construct a DurationTimer and store it.
 
@@ -534,7 +534,7 @@ class Listener:
         """
         return [name for name, comparator in _CONFIG_MATCH_FIELDS if not comparator(self, other)]
 
-    def matches(self, ev: "Event[Any]") -> bool:
+    def matches(self, ev: "AnyEvent") -> bool:
         """Check if the event matches the listener's predicate.
 
         Raises if the predicate raises — the caller (BusService.dispatch) handles

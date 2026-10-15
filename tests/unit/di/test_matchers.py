@@ -7,7 +7,7 @@ from typing import Annotated
 import pytest
 
 from hassette.di import AnnotatedMatcher, AnnotationDetails, TypeMatcher
-from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
+from hassette.events import AnyEvent, CallServiceEvent, Event, RawStateChangeEvent
 from hassette.utils.type_utils import get_typed_signature
 
 
@@ -15,7 +15,7 @@ class TestTypeMatcher:
     """Tests for TypeMatcher.match."""
 
     def test_matches_exact_type(self):
-        def handler(event: Event):
+        def handler(event: AnyEvent):
             pass
 
         sig = get_typed_signature(handler)
@@ -26,7 +26,7 @@ class TestTypeMatcher:
         assert result is not None
         assert result.name == "event"
         assert result.source_type is Event
-        assert result.target_type is Event
+        assert result.target_type is AnyEvent
 
     def test_matches_subclass(self):
         def handler(event: RawStateChangeEvent):
@@ -93,7 +93,7 @@ class TestTypeMatcher:
         assert matcher.match(sig.parameters["value"]) is None
 
     def test_matches_union_containing_target(self):
-        def handler(event: Event | None):
+        def handler(event: AnyEvent | None):
             pass
 
         sig = get_typed_signature(handler)
@@ -113,7 +113,7 @@ class TestTypeMatcher:
         assert matcher.match(sig.parameters["value"]) is None
 
     def test_parameterized_generic_containing_target_returns_none(self):
-        def handler(events: list[Event]):
+        def handler(events: list[AnyEvent]):
             pass
 
         sig = get_typed_signature(handler)
@@ -126,7 +126,7 @@ class TestAnnotatedMatcher:
     """Tests for AnnotatedMatcher.match."""
 
     def test_matches_annotation_details_metadata(self):
-        def extractor(_source: Event) -> str:
+        def extractor(_source: AnyEvent) -> str:
             return "extracted"
 
         def handler(value: Annotated[str, AnnotationDetails(extractor=extractor)]):
@@ -145,7 +145,7 @@ class TestAnnotatedMatcher:
         assert result.converter is None
 
     def test_auto_wraps_bare_callable(self):
-        def bare_extractor(_source: Event) -> str:
+        def bare_extractor(_source: AnyEvent) -> str:
             return "extracted"
 
         def handler(value: Annotated[str, bare_extractor]):
@@ -172,7 +172,7 @@ class TestAnnotatedMatcher:
         assert result is None
 
     def test_propagates_converter(self):
-        def extractor(_source: Event) -> str:
+        def extractor(_source: AnyEvent) -> str:
             return "extracted"
 
         def converter(value: object, _target_type: object) -> object:
@@ -190,7 +190,7 @@ class TestAnnotatedMatcher:
         assert result.converter is converter
 
     def test_source_type_falls_back_to_constructor_default(self):
-        def extractor(_source: Event) -> str:
+        def extractor(_source: AnyEvent) -> str:
             return "extracted"
 
         def handler(value: Annotated[str, AnnotationDetails(extractor=extractor)]):

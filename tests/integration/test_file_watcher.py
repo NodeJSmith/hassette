@@ -5,7 +5,7 @@ from typing import Any
 import anyio
 import pytest
 
-from hassette.events.hassette import Event
+from hassette.events import AnyEvent
 from hassette.types import Topic
 
 if typing.TYPE_CHECKING:
@@ -19,7 +19,7 @@ async def test_event_emitted_on_file_change(hassette_with_file_watcher: "Hassett
 
     file_event_received = asyncio.Event()
 
-    async def handler(event: Event[Any]) -> None:
+    async def handler(event: AnyEvent) -> None:
         hassette_with_file_watcher.task_bucket.post_to_loop(file_event_received.set)
         assert event.topic == Topic.HASSETTE_EVENT_FILE_WATCHER, f"Unexpected topic: {event.topic}"
 

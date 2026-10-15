@@ -27,7 +27,7 @@ if typing.TYPE_CHECKING:
 
     from hassette import Bus, Hassette
     from hassette.bus.listeners import Listener
-    from hassette.events.base import Event
+    from hassette.events.base import AnyEvent
     from hassette.types import ChangeType, HandlerType, Predicate
     from hassette.types.types import BusErrorHandlerType
 
@@ -389,7 +389,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
 
     def wait_for(
         self, topic: str, *, where: WhereClause = None, timeout: float | None, name: str | None = None
-    ) -> "Event[Any]":
+    ) -> "AnyEvent":
         """Wait for a single matching event, then return it.
 
         Registers a one-shot listener before waiting begins, so only

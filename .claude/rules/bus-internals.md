@@ -22,7 +22,7 @@ Registration is synchronous with the DB — `sub.listener.db_id` is a valid inte
 
 ## `wait_for`
 
-`wait_for(topic, *, where=None, timeout, name=None) -> Event[Any]` suspends the caller until a matching event is dispatched and returns that event directly — no handler, no `Subscription` to manage. It only matches events dispatched after the call is awaited (pre-existing state never resolves it), raises `asyncio.TimeoutError` on expiry and `CancelledError` on shutdown/cancellation, and composes with `call_service` via the arm-before-fire pattern documented in `docs/pages/core-concepts/bus/methods.md`.
+`wait_for(topic, *, where=None, timeout, name=None) -> AnyEvent` suspends the caller until a matching event is dispatched and returns that event directly — no handler, no `Subscription` to manage. It only matches events dispatched after the call is awaited (pre-existing state never resolves it), raises `asyncio.TimeoutError` on expiry and `CancelledError` on shutdown/cancellation, and composes with `call_service` via the arm-before-fire pattern documented in `docs/pages/core-concepts/bus/methods.md`.
 
 ## Parameter injection
 

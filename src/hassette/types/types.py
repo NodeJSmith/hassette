@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from hassette.bus.error_context import BusErrorContext
     from hassette.const.misc import FalseySentinel
     from hassette.events import HassStateDict
-    from hassette.events.base import Event, EventPayload
+    from hassette.events.base import AnyEvent, EventPayload
     from hassette.models.states.base import BaseState
     from hassette.scheduler.classes import Job
     from hassette.scheduler.error_context import SchedulerErrorContext
@@ -95,7 +95,7 @@ CoroLikeT = Coroutine[Any, Any, CoroT]
 """A coroutine returning a value of type CoroT."""
 
 
-EventT = TypeVar("EventT", bound="Event[Any]", contravariant=True)
+EventT = TypeVar("EventT", bound="AnyEvent", contravariant=True)
 """Represents an event type."""
 
 PayloadT = TypeVar("PayloadT", bound="EventPayload[Any]", covariant=True)

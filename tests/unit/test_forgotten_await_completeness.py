@@ -118,7 +118,7 @@ INHERITED_LIFECYCLE_EXCLUSIONS: set[str] = {
 #:
 #: Bus:       emit        — event delivery failure is observable downstream.
 #:            on_initialize / on_shutdown — internal lifecycle hooks, not user API.
-#:            wait_for    — returns Event[Any], not Subscription, so it is
+#:            wait_for    — returns AnyEvent, not Subscription, so it is
 #:            intentionally not wrapped in guard_await (no forgotten-Subscription-await
 #:            footgun to guard against). A forgotten `await bus.wait_for(...)` is already
 #:            caught by Python's own "coroutine was never awaited" warning.

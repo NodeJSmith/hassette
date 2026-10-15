@@ -21,7 +21,7 @@ from hassette.event_handling.predicates import (
     ServiceDataWhere,
     StateDidChange,
 )
-from hassette.events.base import Event
+from hassette.events.base import AnyEvent, Event
 from hassette.testing import create_call_service_event, create_state_change_event, wait_for
 
 if TYPE_CHECKING:
@@ -104,7 +104,7 @@ async def test_on_registers_listener_and_supports_unsubscribe(
 async def test_on_state_change_builds_predicates(bus: "Bus") -> None:
     """on_state_change composes entity, state, and extra predicates."""
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         pass
 
     subscription = await bus.on_state_change(
@@ -132,7 +132,7 @@ async def test_on_state_change_builds_predicates(bus: "Bus") -> None:
 async def test_on_attribute_change_targets_attribute(bus: "Bus") -> None:
     """on_attribute_change adds AttrDidChange predicate for the supplied attribute."""
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         pass
 
     subscription = await bus.on_attribute_change(
@@ -173,7 +173,7 @@ async def test_on_attribute_change_targets_attribute(bus: "Bus") -> None:
 async def test_on_call_service_handles_mapping_predicates(bus: "Bus") -> None:
     """on_call_service composes domain/service guards with ServiceDataWhere and extra predicates."""
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         pass
 
     extra_guard = Guard(lambda event: event.payload.data.service_data.get("brightness", 0) > 150)
@@ -367,7 +367,7 @@ async def test_listener_registration_spawns_background_task(hassette_with_bus: "
     bus = hassette.bus
     assert bus is not None
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         pass
 
     subscription = await bus.on_state_change("sensor.eager_test", handler=handler, name="eager_test")
@@ -411,7 +411,7 @@ async def test_dispatch_calls_executor(hassette_with_bus: "HassetteHarness") -> 
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         hassette_with_bus.task_bucket.post_to_loop(event_handled.set)
 
     await hassette.bus.on(topic="custom.exec_test", handler=handler, name="exec_test")
@@ -447,7 +447,7 @@ async def test_dispatch_non_app_listener_routes_through_executor(hassette_with_b
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         hassette.task_bucket.post_to_loop(event_handled.set)
 
     await hassette.bus.on(topic="custom.internal_test", handler=handler, name="internal_test")
@@ -475,7 +475,7 @@ async def test_dispatch_handler_exception_routed_through_executor(hassette_with_
     hassette = hassette_with_bus
     error_raised = asyncio.Event()
 
-    def failing_handler(_event: Event) -> None:
+    def failing_handler(_event: AnyEvent) -> None:
         hassette.task_bucket.post_to_loop(error_raised.set)
         raise ValueError("test error from internal handler")
 
@@ -505,7 +505,7 @@ async def test_debounced_dispatch_coalesces_events_through_executor(hassette_wit
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         hassette.task_bucket.post_to_loop(event_handled.set)
 
     await hassette.bus.on(topic="custom.debounce_test", handler=handler, debounce=0.1, name="debounce_test")
@@ -539,7 +539,7 @@ async def test_throttled_dispatch_drops_events_through_executor(hassette_with_bu
     hassette = hassette_with_bus
     event_handled = asyncio.Event()
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         hassette.task_bucket.post_to_loop(event_handled.set)
 
     await hassette.bus.on(topic="custom.throttle_test", handler=handler, throttle=5.0, name="throttle_test")
@@ -574,7 +574,7 @@ async def test_internal_dispatch_with_debounce_coalesces_events(hassette_with_bu
     call_count = 0
     event_handled = asyncio.Event()
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         nonlocal call_count
         call_count += 1
         hassette.task_bucket.post_to_loop(event_handled.set)
@@ -608,7 +608,7 @@ async def test_internal_dispatch_with_throttle_drops_events(hassette_with_bus: "
     call_count = 0
     event_handled = asyncio.Event()
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         nonlocal call_count
         call_count += 1
         hassette.task_bucket.post_to_loop(event_handled.set)
@@ -642,7 +642,7 @@ async def test_internal_dispatch_with_debounce_routes_through_executor(
     hassette = hassette_with_bus
     error_raised = asyncio.Event()
 
-    def failing_handler(_event: Event) -> None:
+    def failing_handler(_event: AnyEvent) -> None:
         hassette.task_bucket.post_to_loop(error_raised.set)
         raise ValueError("test error from debounced internal handler")
 
@@ -672,7 +672,7 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
     hassette = hassette_with_bus
     handler_fired = False
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         nonlocal handler_fired
         handler_fired = True
 
@@ -710,7 +710,7 @@ async def test_cancel_during_debounce_prevents_handler_fire(hassette_with_bus: "
 async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:
     """on_state_change(immediate=True) registers successfully and sets field on listener."""
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         pass
 
     subscription = await bus.on_state_change("light.kitchen", handler=handler, immediate=True, name="kitchen_immediate")
@@ -721,7 +721,7 @@ async def test_on_state_change_accepts_immediate_param(bus: "Bus") -> None:
 async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
     """on_state_change(duration=5.0) registers successfully and sets field on listener."""
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         pass
 
     subscription = await bus.on_state_change("light.kitchen", handler=handler, duration=5.0, name="kitchen_duration")
@@ -732,7 +732,7 @@ async def test_on_state_change_accepts_duration_param(bus: "Bus") -> None:
 async def test_on_state_change_rejects_glob_with_immediate(bus: "Bus") -> None:
     """on_state_change raises ValueError if entity_id contains glob chars and immediate=True."""
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         pass
 
     with pytest.raises(ValueError, match="immediate"):
@@ -745,7 +745,7 @@ async def test_on_state_change_rejects_glob_with_immediate(bus: "Bus") -> None:
 async def test_on_attribute_change_accepts_immediate_param(bus: "Bus") -> None:
     """on_attribute_change(immediate=True) registers successfully and sets field on listener."""
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         pass
 
     subscription = await bus.on_attribute_change(
@@ -758,7 +758,7 @@ async def test_on_attribute_change_accepts_immediate_param(bus: "Bus") -> None:
 async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
     """on_attribute_change(duration=5.0) registers successfully and sets field on listener."""
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         pass
 
     subscription = await bus.on_attribute_change(
@@ -771,7 +771,7 @@ async def test_on_attribute_change_accepts_duration_param(bus: "Bus") -> None:
 async def test_on_attribute_change_rejects_glob_with_immediate(bus: "Bus") -> None:
     """on_attribute_change raises ValueError if entity_id contains glob chars and immediate=True."""
 
-    def handler(_event: Event) -> None:
+    def handler(_event: AnyEvent) -> None:
         pass
 
     with pytest.raises(ValueError, match="immediate"):

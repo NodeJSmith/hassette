@@ -8,7 +8,7 @@ import pytest
 from hassette import MISSING_VALUE, A, D
 from hassette.bus.injection import ParameterInjector
 from hassette.di import AnnotatedMatcher, AnnotationDetails
-from hassette.events import CallServiceEvent, Event, RawStateChangeEvent
+from hassette.events import AnyEvent, CallServiceEvent, Event, RawStateChangeEvent
 from hassette.exceptions import DependencyResolutionError
 from hassette.models import states
 from hassette.utils.type_utils import get_type_and_details, get_typed_signature
@@ -71,7 +71,7 @@ class TestMaybeAnnotations:
         assert result is not MISSING_VALUE
         assert result == event.payload.data.entity_id
 
-    def test_maybe_domain_with_value(self, other_events: list[Event]):
+    def test_maybe_domain_with_value(self, other_events: list[AnyEvent]):
         """Test MaybeDomain returns domain when present."""
         # Use CallServiceEvent which has domain
         call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
@@ -119,7 +119,7 @@ class TestRequiredAnnotations:
         assert result is not MISSING_VALUE
         assert result == event.payload.data.entity_id
 
-    def test_domain_succeeds_with_value(self, other_events: list[Event]):
+    def test_domain_succeeds_with_value(self, other_events: list[AnyEvent]):
         """Test Domain succeeds when domain is extractable."""
         call_service_event = next((e for e in other_events if isinstance(e, CallServiceEvent)), None)
         assert call_service_event is not None, "No CallServiceEvent found"

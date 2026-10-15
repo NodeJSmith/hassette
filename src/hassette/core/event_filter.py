@@ -5,13 +5,9 @@ This class has NO dependency on Resource or Service — it is a plain utility.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
 
-from hassette.events import Event, HassPayload
+from hassette.events import AnyEvent, HassPayload
 from hassette.utils.glob_utils import matches_globs, split_exact_and_glob
-
-if TYPE_CHECKING:
-    from hassette.events import EventPayload
 
 _SYSTEM_LOG_SKIP_EVENT_TYPE = "call_service"
 _SYSTEM_LOG_SKIP_DOMAIN = "system_log"
@@ -54,7 +50,7 @@ class EventFilter:
                 self._excluded_entity_globs,
             )
 
-    def should_skip(self, topic: str, event: "Event[EventPayload[Any]]") -> bool:
+    def should_skip(self, topic: str, event: "AnyEvent") -> bool:
         """Return True if the event should be dropped from dispatch.
 
         Only Home Assistant events (HassPayload) are subject to exclusion filtering.

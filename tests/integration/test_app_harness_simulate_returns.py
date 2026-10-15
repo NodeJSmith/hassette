@@ -5,7 +5,6 @@ only be returned after dispatch and drain complete — so no ``wait_for`` is use
 """
 
 from collections.abc import Awaitable, Callable
-from typing import Any
 
 import pytest
 from hassette_wire import ResourceStatus
@@ -13,9 +12,9 @@ from hassette_wire import ResourceStatus
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
 from hassette.events import (
+    AnyEvent,
     CallServiceEvent,
     ComponentLoadedEvent,
-    Event,
     RawStateChangeEvent,
     ServiceRegisteredEvent,
 )
@@ -30,19 +29,19 @@ class CaptureConfig(AppConfig):
 class CaptureAllApp(App[CaptureConfig]):
     """Records every event delivered on the bus."""
 
-    received: list[Event[Any]]
+    received: list[AnyEvent]
 
     async def on_initialize(self) -> None:
         self.received = []
         await self.bus.on(topic="*", handler=self.capture, name="capture_all")
 
-    async def capture(self, event: Event[Any]) -> None:
+    async def capture(self, event: AnyEvent) -> None:
         self.received.append(event)
 
 
-Simulate = Callable[[AppTestHarness[CaptureAllApp]], Awaitable[Event[Any]]]
+Simulate = Callable[[AppTestHarness[CaptureAllApp]], Awaitable[AnyEvent]]
 
-SIMULATIONS: list[tuple[str, Simulate, type[Event[Any]]]] = [
+SIMULATIONS: list[tuple[str, Simulate, type[AnyEvent]]] = [
     (
         "state_change",
         lambda h: h.simulate_state_change("sensor.temp", old_value="1", new_value="2"),
@@ -83,7 +82,7 @@ SIMULATIONS: list[tuple[str, Simulate, type[Event[Any]]]] = [
 @pytest.mark.parametrize(
     ("simulate", "event_type"), [(s, t) for _, s, t in SIMULATIONS], ids=[n for n, _, _ in SIMULATIONS]
 )
-async def test_simulate_returns_dispatched_event(simulate: Simulate, event_type: type[Event[Any]]) -> None:
+async def test_simulate_returns_dispatched_event(simulate: Simulate, event_type: type[AnyEvent]) -> None:
     """The returned event is the instance handlers received, delivered before the call returned."""
     async with AppTestHarness(CaptureAllApp, config={}) as harness:
         event = await simulate(harness)

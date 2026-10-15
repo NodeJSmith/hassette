@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock
 
 from hassette.core.event_filter import EventFilter
-from hassette.events import Event
+from hassette.events import AnyEvent, Event
 from tests.support.factories import make_hass_event, make_hassette_event
 
 
@@ -34,7 +34,7 @@ def make_filter(
     )
 
 
-def make_no_payload_event() -> Event:
+def make_no_payload_event() -> AnyEvent:
     return Event(topic="hass.state_changed", payload=None)
 
 

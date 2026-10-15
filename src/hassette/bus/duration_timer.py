@@ -12,11 +12,10 @@ from logging import getLogger
 
 if typing.TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
-    from typing import Any
 
     from hassette import TaskBucket
     from hassette.bus.listeners import Subscription
-    from hassette.events.base import Event
+    from hassette.events.base import AnyEvent
     from hassette.types import Predicate
 
 LOGGER = getLogger(__name__)
@@ -57,7 +56,7 @@ class DurationTimer:
         owner_id: str,
         create_cancel_sub: "Callable[[], Subscription]",
         on_cancel: "Callable[[], None] | None" = None,
-        normalize_cancel_event: "Callable[[Event[Any]], Event[Any]] | None" = None,
+        normalize_cancel_event: "Callable[[AnyEvent], AnyEvent] | None" = None,
     ) -> None:
         """Initialize the DurationTimer.
 
@@ -223,7 +222,7 @@ class DurationTimer:
         if had_pending_task:
             self.completed.set()
 
-    def evaluate_cancel_event(self, event: "Event[Any]") -> None:
+    def evaluate_cancel_event(self, event: "AnyEvent") -> None:
         """Evaluate whether a state-change event should cancel the timer.
 
         Re-evaluates the main listener's hold predicates (state-value predicates

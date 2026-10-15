@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from hassette.bus.error_context import BusErrorContext
-from hassette.events.base import Event
+from hassette.events.base import AnyEvent, Event
 from hassette.testing import create_call_service_event, wait_for
 from tests.support.helpers import settle
 
@@ -25,7 +25,7 @@ async def test_app_level_error_handler_called_on_failure(hassette_with_bus: "Has
         error_contexts.append(ctx)
         hassette.task_bucket.post_to_loop(handler_ran.set)
 
-    async def bad_handler(_event: Event) -> None:
+    async def bad_handler(_event: AnyEvent) -> None:
         raise ValueError("listener failed")
 
     bus.on_error(on_error)
@@ -58,7 +58,7 @@ async def test_per_listener_error_handler_wins(hassette_with_bus: "HassetteHarne
         per_listener_calls.append(ctx)
         hassette.task_bucket.post_to_loop(per_listener_ran.set)
 
-    async def bad_handler(_event: Event) -> None:
+    async def bad_handler(_event: AnyEvent) -> None:
         raise RuntimeError("per-listener failure")
 
     bus.on_error(app_level_handler)
@@ -85,7 +85,7 @@ async def test_no_handler_framework_default_behavior(hassette_with_bus: "Hassett
 
     completed = asyncio.Event()
 
-    async def bad_handler(_event: Event) -> None:
+    async def bad_handler(_event: AnyEvent) -> None:
         hassette.task_bucket.post_to_loop(completed.set)
         raise KeyError("unhandled error")
 
@@ -124,10 +124,10 @@ async def test_multiple_listeners_different_handlers(hassette_with_bus: "Hassett
         if call_count >= 2:
             hassette.task_bucket.post_to_loop(both_ran.set)
 
-    async def fail_a(_event: Event) -> None:
+    async def fail_a(_event: AnyEvent) -> None:
         raise ValueError("fail A")
 
-    async def fail_b(_event: Event) -> None:
+    async def fail_b(_event: AnyEvent) -> None:
         raise TypeError("fail B")
 
     await bus.on(topic="test.multi_a", handler=fail_a, on_error=handler_a, name="multi_fail_a")
@@ -152,7 +152,7 @@ async def test_on_error_registered_after_listeners_still_works(hassette_with_bus
     error_contexts: list[BusErrorContext] = []
     handler_ran = asyncio.Event()
 
-    async def bad_handler(_event: Event) -> None:
+    async def bad_handler(_event: AnyEvent) -> None:
         raise AttributeError("late registration test")
 
     # Register the listener BEFORE calling on_error()
@@ -183,10 +183,10 @@ async def test_on_error_after_multiple_listeners_applies_to_all(hassette_with_bu
     error_contexts: list[BusErrorContext] = []
     both_ran = asyncio.Event()
 
-    async def bad_handler_a(_event: Event) -> None:
+    async def bad_handler_a(_event: AnyEvent) -> None:
         raise ValueError("listener A failed")
 
-    async def bad_handler_b(_event: Event) -> None:
+    async def bad_handler_b(_event: AnyEvent) -> None:
         raise TypeError("listener B failed")
 
     await bus.on(topic="test.multi_late.a", handler=bad_handler_a, name="multi_late_a")
@@ -221,7 +221,7 @@ async def test_on_call_service_error_handler(hassette_with_bus: "HassetteHarness
         error_contexts.append(ctx)
         hassette.task_bucket.post_to_loop(handler_ran.set)
 
-    async def bad_handler(_event: Event) -> None:
+    async def bad_handler(_event: AnyEvent) -> None:
         raise ValueError("service handler failed")
 
     await bus.on_call_service(

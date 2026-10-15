@@ -12,7 +12,7 @@ import pytest
 
 from hassette.core.core import Hassette
 from hassette.core.sync_executor import SyncExecutor
-from hassette.events import Event, RawStateChangeEvent, create_event_from_hass
+from hassette.events import AnyEvent, RawStateChangeEvent, create_event_from_hass
 from hassette.testing import HassetteHarness
 from hassette.testing.config import TEST_SYNC_EXECUTOR_SHUTDOWN_TIMEOUT_SECONDS
 from tests.support.factories import make_sync_executor
@@ -192,7 +192,7 @@ async def hassette_with_state_registry(
     return await _start_module_harness(hassette_harness(test_config).with_bus().with_state_registry(), request)
 
 
-def _load_and_shuffle_events(path: Path) -> list[Event]:
+def _load_and_shuffle_events(path: Path) -> list[AnyEvent]:
     """Load events from a JSONL file and shuffle with a seeded RNG."""
     events = []
     with open(path) as f:
@@ -243,7 +243,7 @@ def state_change_events_with_both_states(
 
 
 @pytest.fixture(scope="session")
-def other_events(test_events_path: Path) -> list[Event]:
+def other_events(test_events_path: Path) -> list[AnyEvent]:
     """Load other events from test data file."""
     return _load_and_shuffle_events(test_events_path / "other_events.jsonl")
 
@@ -251,8 +251,8 @@ def other_events(test_events_path: Path) -> list[Event]:
 @pytest.fixture(scope="session")
 def all_events(
     state_change_events: list[RawStateChangeEvent],
-    other_events: list[Event],
-) -> list[Event]:
+    other_events: list[AnyEvent],
+) -> list[AnyEvent]:
     """Combine all events into a single list."""
     return state_change_events + other_events
 

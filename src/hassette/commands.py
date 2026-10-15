@@ -9,7 +9,7 @@ dataclasses (no Pydantic, no ``get_type_hints()`` at runtime).
 """
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from hassette_wire import SourceTier
 
@@ -17,7 +17,7 @@ from hassette.types import AsyncHandlerType
 
 if TYPE_CHECKING:
     from hassette.bus.listeners import Listener
-    from hassette.events.base import Event
+    from hassette.events.base import AnyEvent
     from hassette.scheduler.classes import Job
     from hassette.types.types import BusErrorHandlerType, SchedulerErrorHandlerType
 
@@ -29,7 +29,7 @@ class InvokeHandler:
     listener: "Listener"
     """The listener to invoke."""
 
-    event: "Event[Any]"
+    event: "AnyEvent"
     """The event to pass to the handler."""
 
     topic: str

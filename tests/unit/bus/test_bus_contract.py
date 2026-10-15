@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from hassette.bus.router import Router
-from hassette.events.base import Event
+from hassette.events.base import AnyEvent
 
 if typing.TYPE_CHECKING:
     from hassette.bus import Bus
@@ -82,9 +82,9 @@ async def test_listener_routable_after_registration(
     happen inside add_listener() before returning. The listener must be fully
     ready (routable + persisted) by the time on() returns to the caller.
     """
-    received: list[Event] = []
+    received: list[AnyEvent] = []
 
-    async def capturing_handler(event: Event) -> None:
+    async def capturing_handler(event: AnyEvent) -> None:
         received.append(event)
 
     sub = await bus.on(topic="test.contract.routable", handler=capturing_handler, name="routable_test")

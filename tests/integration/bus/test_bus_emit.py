@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from hassette import D
 from hassette.app.app import App, AppSync
-from hassette.events.base import Event, HassettePayload
+from hassette.events.base import AnyEvent, HassettePayload
 
 if TYPE_CHECKING:
     from hassette.testing import HassetteHarness
@@ -23,10 +23,10 @@ class BroadcastPayload:
 async def test_bus_emit_delivers_to_subscriber(hassette_with_bus: "HassetteHarness") -> None:
     """bus.emit delivers the event to a handler subscribed to the same topic."""
     bus = hassette_with_bus.bus
-    received: list[Event] = []
+    received: list[AnyEvent] = []
     done = asyncio.Event()
 
-    async def handler(event: Event) -> None:
+    async def handler(event: AnyEvent) -> None:
         received.append(event)
         hassette_with_bus.task_bucket.post_to_loop(done.set)
 

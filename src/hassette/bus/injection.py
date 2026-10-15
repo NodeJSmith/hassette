@@ -7,7 +7,7 @@ from typing import Any
 
 from hassette.conversion import ANNOTATION_CONVERTER, TYPE_MATCHER
 from hassette.di import AnnotatedMatcher, CallableInvoker, TypeMatcher, build_injection_plan
-from hassette.events import Event
+from hassette.events import AnyEvent, Event
 from hassette.exceptions import DependencyError, DependencyInjectionError, DependencyResolutionError
 from hassette.utils.func_utils import callable_short_name
 from hassette.utils.type_utils import get_pretty_actual_type_from_value, is_optional, normalize_annotation
@@ -43,7 +43,7 @@ class ParameterInjector:
         self.invoker = CallableInvoker(plan)
         self.conversion_map = {param.name: (param.target_type, param.converter) for param in plan}
 
-    def inject_parameters(self, event: Event[Any], **kwargs: Any) -> dict[str, Any]:
+    def inject_parameters(self, event: AnyEvent, **kwargs: Any) -> dict[str, Any]:
         """Extract and inject parameters from event into kwargs.
 
         Args:

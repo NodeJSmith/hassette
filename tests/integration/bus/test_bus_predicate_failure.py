@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 from hassette.bus.error_context import BusErrorContext
-from hassette.events.base import Event
+from hassette.events.base import AnyEvent, Event
 from hassette.testing import create_state_change_event, wait_for
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ async def test_predicate_failure_enqueues_error_record(hassette_with_bus: "Hasse
     def bad_predicate(_event: object) -> bool:
         raise ZeroDivisionError("boom")
 
-    async def handler(_event: Event) -> None:
+    async def handler(_event: AnyEvent) -> None:
         pass
 
     await bus.on(topic="test.pred_record", handler=handler, where=bad_predicate, name="pred_record")
@@ -61,7 +61,7 @@ async def test_predicate_failure_invokes_per_listener_error_handler(hassette_wit
     def bad_predicate(_event: object) -> bool:
         raise ValueError("pred failed")
 
-    async def handler(_event: Event) -> None:
+    async def handler(_event: AnyEvent) -> None:
         pass
 
     async def on_error(ctx: BusErrorContext) -> None:
@@ -102,7 +102,7 @@ async def test_predicate_failure_invokes_app_level_error_handler(hassette_with_b
     def bad_predicate(_event: object) -> bool:
         raise RuntimeError("app level test")
 
-    async def handler(_event: Event) -> None:
+    async def handler(_event: AnyEvent) -> None:
         pass
 
     async def app_on_error(ctx: BusErrorContext) -> None:
@@ -135,10 +135,10 @@ async def test_predicate_failure_does_not_crash_sibling_listeners(hassette_with_
     def bad_predicate(_event: object) -> bool:
         raise TypeError("broken predicate")
 
-    async def bad_handler(_event: Event) -> None:
+    async def bad_handler(_event: AnyEvent) -> None:
         pass
 
-    async def good_handler(_event: Event) -> None:
+    async def good_handler(_event: AnyEvent) -> None:
         hassette.task_bucket.post_to_loop(sibling_ran.set)
 
     await bus.on(topic="test.pred_isolation", handler=bad_handler, where=bad_predicate, name="pred_isolation_bad")
@@ -163,7 +163,7 @@ async def test_predicate_failure_no_error_handler_still_records(hassette_with_bu
     def bad_predicate(_event: object) -> bool:
         raise KeyError("no handler")
 
-    async def handler(_event: Event) -> None:
+    async def handler(_event: AnyEvent) -> None:
         pass
 
     await bus.on(topic="test.pred_no_handler", handler=handler, where=bad_predicate, name="pred_no_handler")
@@ -201,7 +201,7 @@ async def test_glob_listener_predicate_failure_recorded_once(hassette_with_bus: 
         call_count += 1
         raise ValueError("glob boom")
 
-    async def handler(_event: Event) -> None:
+    async def handler(_event: AnyEvent) -> None:
         pass
 
     await bus.on_state_change(
