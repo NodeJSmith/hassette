@@ -244,8 +244,8 @@ a Home Assistant action. Its keys are `entity_id`, `device_id`, `area_id`, `floo
 --8<-- "pages/core-concepts/api/snippets/api_call_service_target.py:target"
 ```
 
-The porch light turns on at brightness 200. The same keys passed as keyword arguments behave
-identically:
+The porch light turns on at brightness 200. The same keys passed as keyword arguments have the
+same effect:
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_call_service_target.py:data"
@@ -254,6 +254,13 @@ identically:
 Home Assistant merges `target` into the service data before it validates the call. The service
 receives the same data from both forms. Home Assistant applies the merge, so `target` wins when
 both forms set the same key.
+
+The equivalence covers what the service receives, not the `call_service` event a
+`bus.on_call_service` listener sees. That event carries the data before the service validates
+it, and Home Assistant only normalizes `target`. A single ID passed in `target` arrives in the
+event as a list (`"entity_id": ["light.porch"]`), while the same ID passed as a keyword argument
+stays a string (`"entity_id": "light.porch"`). A listener that reads `entity_id` from service
+data should accept both shapes.
 
 ### `turn_on(entity_id, domain, **data)`
 
