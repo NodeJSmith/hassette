@@ -257,7 +257,7 @@ def autodetect_apps(app_dir: Path, known_paths: set[Path], exclude_dirs: set[str
                         config=[],
                     )
                     app_manifests[app_key] = app_dict
-                    LOGGER.info(
+                    LOGGER.debug(
                         "Auto-detected app manifest: %s",
                         json.dumps(app_dict, default=str, indent=2),
                     )

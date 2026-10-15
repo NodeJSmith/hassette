@@ -81,7 +81,7 @@ class SessionManager(Resource):
     async def create_session(self) -> None:
         """Insert a new session row and store the session ID."""
         self._session_id = await self._database_service.submit(self._do_create_session())
-        self.logger.info("Created session %d", self._session_id)
+        self.logger.debug("Created session %d", self._session_id)
 
     async def cleanup_stale_once_listeners(self) -> None:
         """Delete stale once=True listeners from previous sessions.

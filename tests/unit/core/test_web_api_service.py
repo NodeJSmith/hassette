@@ -114,18 +114,21 @@ class TestBindFailure:
                 await service.serve()
 
 
-async def collect_warning_messages(service: WebApiService) -> list[str]:
+async def collect_log_messages(service: WebApiService) -> dict[str, list[str]]:
     """Run on_initialize() with service.logger patched and return the text of every
-    warning-level log call.
+    info- and warning-level log call, keyed by level name.
     """
     with patch.object(service, "logger") as mock_logger:
         await service.on_initialize()
 
-    return [call.args[0] for call in mock_logger.warning.call_args_list]
+    return {
+        "info": [call.args[0] for call in mock_logger.info.call_args_list],
+        "warning": [call.args[0] for call in mock_logger.warning.call_args_list],
+    }
 
 
 class TestStartupGuards:
-    """Hard-block guard (auth disabled + non-loopback host) and warning-only guard (no
+    """Hard-block guard (auth disabled + non-loopback host) and the informational TLS note (no
     trusted_proxies + non-loopback host).
     """
 
@@ -147,28 +150,29 @@ class TestStartupGuards:
 
         await service.on_initialize()  # must not raise
 
-    async def test_warns_when_non_loopback_and_no_trusted_proxies(self, unused_tcp_port_factory, tmp_path) -> None:
+    async def test_default_bind_logs_tls_note_at_info_without_warning(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="0.0.0.0", trusted_proxies=())
 
-        warning_messages = await collect_warning_messages(service)
+        messages = await collect_log_messages(service)
 
-        assert any("TLS" in msg for msg in warning_messages)
+        assert any("TLS" in msg for msg in messages["info"])
+        assert messages["warning"] == []
 
-    async def test_no_warning_when_trusted_proxies_configured(self, unused_tcp_port_factory, tmp_path) -> None:
+    async def test_no_tls_note_when_trusted_proxies_configured(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(
             unused_tcp_port_factory, tmp_path, host="0.0.0.0", trusted_proxies=("10.0.0.5",)
         )
 
-        warning_messages = await collect_warning_messages(service)
+        messages = await collect_log_messages(service)
 
-        assert not any("TLS" in msg for msg in warning_messages)
+        assert not any("TLS" in msg for msg in messages["info"] + messages["warning"])
 
-    async def test_no_warning_when_host_is_loopback(self, unused_tcp_port_factory, tmp_path) -> None:
+    async def test_no_tls_note_when_host_is_loopback(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="localhost", trusted_proxies=())
 
-        warning_messages = await collect_warning_messages(service)
+        messages = await collect_log_messages(service)
 
-        assert not any("TLS" in msg for msg in warning_messages)
+        assert not any("TLS" in msg for msg in messages["info"] + messages["warning"])
 
 
 class TestTrustedProxyRefreshScheduling:

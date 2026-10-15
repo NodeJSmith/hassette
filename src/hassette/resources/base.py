@@ -336,7 +336,7 @@ class Resource(LifecycleMixin, metaclass=FinalMeta):
                     deps.append(match)
 
         dep_names = ", ".join(dep.class_name for dep in deps)
-        self.logger.info("Waiting for dependencies: [%s]", dep_names)
+        self.logger.debug("Waiting for dependencies: [%s]", dep_names)
 
         ready = await self.hassette.wait_for_ready(deps)
         if not ready:
