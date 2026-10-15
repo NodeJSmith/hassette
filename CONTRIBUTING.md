@@ -102,6 +102,16 @@ uv run pyright
 - Follow existing code style and conventions
 - Ensure all tests pass and prek checks succeed
 
+## AI-Assisted Contributions
+
+Hassette is built with AI coding agents (see [How Hassette Is Built](https://hassette.readthedocs.io/en/stable/pages/how-hassette-is-built/)), so AI-assisted pull requests are welcome. A few things I ask:
+
+- Read and run what you submit. You're responsible for every line, so if you can't explain why something is there, take it out or ask about it in the PR.
+- Mention in the PR description which AI tool you used and what it did (wrote the code, the tests, the docs). Autocomplete doesn't need a mention.
+- For anything beyond a small fix, open an issue and agree on the approach before generating code.
+
+I may close a PR that looks like unreviewed agent output.
+
 ## Code Style
 
 ### Python

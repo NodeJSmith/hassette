@@ -130,6 +130,7 @@ nav:
       - Testing: pages/migration/testing.md
       - Checklist: pages/migration/checklist.md
   - Troubleshooting: pages/troubleshooting.md
+  - How Hassette Is Built: pages/how-hassette-is-built.md
   - Changelog: CHANGELOG.md  # symlinked from repo root
   - API Reference: reference/
 

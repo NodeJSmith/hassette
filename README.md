@@ -140,6 +140,10 @@ The apps in `scripts/demo_apps/` drive the web UI demo and docs screenshots; the
 
 Hassette is pre-1.0 and under active development. Minor releases can include breaking changes, each listed in the [changelog](CHANGELOG.md) with migration steps in the [upgrading guide](https://hassette.readthedocs.io/en/stable/pages/operating/upgrading/). Pin the minor version you're on (for example `hassette~=0.57.0`) and read the changelog before upgrading.
 
+## How Hassette Is Built
+
+Hassette is written by AI coding agents, mostly Claude Code. I make every design decision and I own every line, the best code and every bug alike. Every change passes the same required checks before it merges, including tests against a real Home Assistant. Hassette also runs my own house: my automations track the `main` branch, so new code runs in a real home before it ships. [How Hassette Is Built](https://hassette.readthedocs.io/en/stable/pages/how-hassette-is-built/) has the details. Found something sloppy? [Open an issue](https://github.com/NodeJSmith/hassette/issues).
+
 ## Contributing
 
 Bug reports, feature ideas, docs fixes and code are all welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
