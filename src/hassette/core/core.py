@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from hassette_wire import ResourceStatus
 
 import hassette.utils.date_utils as date_utils
-from hassette import context
+from hassette import context, startup_clock
 from hassette.api import Api
 from hassette.app.app import App
 from hassette.app.app_config import AppConfig
@@ -195,7 +195,7 @@ class Hassette(HassetteAccessorsMixin, Resource):
 
         Must be called after construction and before run_forever().
         """
-        self.logger.info("Starting Hassette...")
+        self.logger.info("Starting Hassette... (%.2fs since hassette import)", startup_clock.seconds_since_import())
 
         date_utils.configure(self.config.timezone)
         if self.config.timezone:
