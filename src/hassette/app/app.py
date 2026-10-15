@@ -80,9 +80,6 @@ class App(Generic[AppConfigT], Resource, metaclass=FinalMeta):
     which send an event to the Bus and set the `status` attribute, based on the app's lifecycle.
     """
 
-    _import_exception: ClassVar[Exception | None] = None
-    """Exception raised during import, if any. This prevents having all apps in a module fail due to one exception."""
-
     default_cache_ttl: ClassVar[int | None] = None
     """Default TTL (seconds) for this app's cache entries. Falls back to
     ``hassette.config.default_cache_ttl`` when unset, and to no expiration when both are unset."""

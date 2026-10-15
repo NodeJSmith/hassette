@@ -149,11 +149,8 @@ def run_apps_pre_check(config: "HassetteConfig") -> None:
             LOGGER.error("App %s: %s", app_manifest.display_name, exc)
             had_errors = True
 
-        except (UndefinedUserConfigError, InvalidInheritanceError):
-            LOGGER.error(
-                "Failed to load app '%s' due to bad configuration - check previous logs for details",
-                app_manifest.display_name,
-            )
+        except (UndefinedUserConfigError, InvalidInheritanceError) as exc:
+            LOGGER.error("Failed to load app '%s' due to bad configuration: %s", app_manifest.display_name, exc)
             had_errors = True
 
         except Exception as exc:
@@ -430,14 +427,11 @@ def load_app_class(
         FAILED_TO_LOAD_CLASSES[cache_key] = TypeError(f"Class {class_name} is not a subclass of App or AppSync")
         raise FAILED_TO_LOAD_CLASSES[cache_key]
 
-    if app_class._import_exception:
-        FAILED_TO_LOAD_CLASSES[cache_key] = app_class._import_exception
-        raise FAILED_TO_LOAD_CLASSES[cache_key]
-
     try:
         app_class.app_config_cls = validate_app(app_class)
     except Exception as exc:
-        app_class._import_exception = exc
+        FAILED_TO_LOAD_CLASSES[cache_key] = exc
+        raise
 
     LOADED_CLASSES[cache_key] = app_class
     return app_class
