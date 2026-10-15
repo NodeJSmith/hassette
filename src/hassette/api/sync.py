@@ -6,6 +6,7 @@ It is generated from `api.Api` by `codegen/src/hassette_codegen/sync_facade/`.
 """
 
 import typing
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any
 
@@ -191,7 +192,7 @@ class ApiSyncFacade(Resource):
         self,
         domain: str,
         service: str,
-        target: dict[str, str] | dict[str, list[str]] | None = None,
+        target: Mapping[str, str | list[str]] | None = None,
         return_response: bool | None = False,
         *,
         wait_for_ack: bool = False,

@@ -10,6 +10,7 @@ fidelity should use a full integration test with a live HA connection.
 
 import copy
 import inspect
+from collections.abc import Mapping
 from difflib import get_close_matches
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar, Never, Protocol, runtime_checkable
@@ -218,7 +219,7 @@ class ApiProtocol(Protocol):
         self,
         domain: str,
         service: str,
-        target: dict[str, str] | dict[str, list[str]] | None = None,
+        target: Mapping[str, str | list[str]] | None = None,
         return_response: bool | None = False,
         *,
         wait_for_ack: bool = False,
@@ -648,7 +649,7 @@ class RecordingApi(Resource):
         self,
         domain: str,
         service: str,
-        target: dict[str, str] | dict[str, list[str]] | None = None,
+        target: Mapping[str, str | list[str]] | None = None,
         return_response: bool | None = False,
         *,
         wait_for_ack: bool = False,
@@ -665,7 +666,7 @@ class RecordingApi(Resource):
                 kwargs={
                     "domain": domain,
                     "service": service,
-                    "target": copy.deepcopy(target),
+                    "target": copy.deepcopy(dict(target)) if target is not None else None,
                     "return_response": return_response,
                     "wait_for_ack": wait_for_ack,
                     **data,

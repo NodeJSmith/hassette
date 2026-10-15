@@ -22,7 +22,7 @@ It is generated from `api.Api` by `codegen/src/hassette_codegen/sync_facade/`.
 """
 
 import typing
-from collections.abc import Generator
+from collections.abc import Generator, Mapping
 from enum import StrEnum
 from typing import Any
 
