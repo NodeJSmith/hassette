@@ -51,7 +51,7 @@ def make_mock_hassette(
             override. Merged on top of ``make_test_config()`` defaults. Nested group fields
             may be passed as dicts::
 
-                make_mock_hassette(database={"retention_days": 14})
+                make_mock_hassette(database={"retention_days": 60})
                 make_mock_hassette(strict_lifecycle=True)
 
     Returns:

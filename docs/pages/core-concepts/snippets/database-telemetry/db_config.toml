@@ -1,8 +1,8 @@
 # hassette.toml
 [hassette.database]
 path = "/path/to/hassette.db"   # default: {data_dir}/hassette.db
-retention_days = 7              # default: 7 (minimum: 1)
-framework_retention_days = 1    # default: 1 (must be <= retention_days)
+retention_days = 30             # default: 30 (minimum: 1)
+framework_retention_days = 30   # default: 30 (must be <= retention_days)
 max_size_mb = 500               # default: 500 (live data, not file size; 0 = no size limit)
 framework_record_errors = true  # default: true (persist all non-success framework executions)
 framework_record_slow_ms = 100  # default: 100 (persist framework executions slower than this)

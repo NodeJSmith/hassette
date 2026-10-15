@@ -526,14 +526,14 @@
           "title": "Path"
         },
         "retention_days": {
-          "default": 7,
+          "default": 30,
           "description": "Number of days to retain app-tier execution records in the ``executions`` table.\nFramework-tier records use ``framework_retention_days`` instead.",
           "minimum": 1,
           "title": "Retention Days",
           "type": "integer"
         },
         "framework_retention_days": {
-          "default": 1,
+          "default": 30,
           "description": "Number of days to retain framework-tier execution records. Must be <= retention_days.",
           "minimum": 1,
           "title": "Framework Retention Days",
@@ -902,7 +902,7 @@
           "type": "string"
         },
         "log_retention_days": {
-          "default": 3,
+          "default": 30,
           "description": "Number of days to retain persisted log records. Must be <= database.retention_days.",
           "minimum": 1,
           "title": "Log Retention Days",

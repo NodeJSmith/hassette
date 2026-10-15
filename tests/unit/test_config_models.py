@@ -62,8 +62,8 @@ class TestDatabaseConfig:
         """DatabaseConfig constructs with all defaults."""
         cfg = DatabaseConfig()
         assert cfg.path is None
-        assert cfg.retention_days == 7
-        assert cfg.framework_retention_days == 1
+        assert cfg.retention_days == 30
+        assert cfg.framework_retention_days == 30
         assert cfg.max_size_mb == 500
         assert cfg.migration_timeout_seconds == 120
         assert cfg.write_queue_max == 2000
@@ -94,6 +94,11 @@ class TestDatabaseConfig:
         error_text = str(exc_info.value)
         assert "framework_retention_days (5)" in error_text
         assert "retention_days (3)" in error_text
+
+    def test_lowering_only_retention_days_below_framework_default_raises(self):
+        """Lowering retention_days alone below the framework_retention_days default is rejected."""
+        with pytest.raises(ValidationError, match="framework_retention_days"):
+            DatabaseConfig(retention_days=7)
 
     def test_framework_retention_days_equal_to_retention_days_is_valid(self):
         """framework_retention_days == retention_days is valid."""

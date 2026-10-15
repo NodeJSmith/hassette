@@ -58,11 +58,11 @@ class DatabaseConfig(ExcludeExtrasMixin, BaseModel):
     """Path to the SQLite database file: absolute, or relative to the config file that sets it. Defaults to
     data_dir / "hassette.db" when None."""
 
-    retention_days: int = Field(default=7, ge=1)
+    retention_days: int = Field(default=30, ge=1)
     """Number of days to retain app-tier execution records in the ``executions`` table.
     Framework-tier records use ``framework_retention_days`` instead."""
 
-    framework_retention_days: int = Field(default=1, ge=1)
+    framework_retention_days: int = Field(default=30, ge=1)
     """Number of days to retain framework-tier execution records. Must be <= retention_days."""
 
     max_size_mb: float = Field(default=500, ge=0)
@@ -194,7 +194,7 @@ class LoggingConfig(ExcludeExtrasMixin, BaseModel):
     stream unqueryable through the UI. Lower it (e.g. to ``"DEBUG"``) to persist records you don't
     otherwise log at the global level, such as a per-service override logging at ``"DEBUG"``."""
 
-    log_retention_days: int = Field(default=3, ge=1)
+    log_retention_days: int = Field(default=30, ge=1)
     """Number of days to retain persisted log records. Must be <= database.retention_days."""
 
     database_service: LogLevelAnnotation = Field(default_factory=log_level_default_factory)

@@ -152,8 +152,8 @@ class TestRetentionCleanup:
     ) -> None:
         """Framework and app tier executions use independent retention cutoffs.
 
-        ``mock_hassette_for_db`` defaults to ``framework_retention_days=1`` and
-        ``retention_days=7`` (unmodified ``DatabaseConfig`` defaults). Seed both tiers at the
+        ``mock_hassette_for_db`` pins ``framework_retention_days=1`` and
+        ``retention_days=7``. Seed both tiers at the
         same set of ages and assert the exact survival set each cutoff implies.
         """
         now = time.time()

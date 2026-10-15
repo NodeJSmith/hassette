@@ -649,11 +649,11 @@ class TestLogRecordModel:
 
 class TestConfigValidator:
     def test_log_retention_days_field_exists(self) -> None:
-        """LoggingConfig has a log_retention_days field with default=3."""
+        """LoggingConfig has a log_retention_days field with default=30."""
         fields = LoggingConfig.model_fields
         assert "log_retention_days" in fields
         default = fields["log_retention_days"].default
-        assert default == 3
+        assert default == 30
 
     def test_log_retention_days_ge_1(self) -> None:
         """log_retention_days rejects values < 1."""
@@ -669,7 +669,7 @@ class TestConfigValidator:
         with pytest.raises(ConfigError, match="log_retention_days"):
             HassetteConfig(
                 token="tok",
-                database={"retention_days": 3},
+                database={"retention_days": 3, "framework_retention_days": 1},
                 logging={"log_retention_days": 5},
                 _cli_parse_args=False,
             )
@@ -678,7 +678,7 @@ class TestConfigValidator:
         """log_retention_days == db_retention_days is valid."""
         cfg = HassetteConfig(
             token="tok",
-            database={"retention_days": 5},
+            database={"retention_days": 5, "framework_retention_days": 1},
             logging={"log_retention_days": 5},
             _cli_parse_args=False,
         )
@@ -688,7 +688,7 @@ class TestConfigValidator:
         """log_retention_days < db_retention_days is valid."""
         cfg = HassetteConfig(
             token="tok",
-            database={"retention_days": 7},
+            database={"retention_days": 7, "framework_retention_days": 1},
             logging={"log_retention_days": 3},
             _cli_parse_args=False,
         )

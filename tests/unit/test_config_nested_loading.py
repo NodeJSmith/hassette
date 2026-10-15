@@ -42,9 +42,9 @@ class TestHassetteConfigNested:
         assert config.database.path is None
 
     def test_database_retention_days_default(self, isolated_config_cls):
-        """config.database.retention_days returns 7 by default."""
+        """config.database.retention_days returns 30 by default."""
         config = isolated_config_cls()
-        assert config.database.retention_days == 7
+        assert config.database.retention_days == 30
 
     def test_websocket_heartbeat_default(self, isolated_config_cls):
         """config.websocket.heartbeat_interval_seconds returns 30 by default."""
@@ -89,12 +89,12 @@ class TestNestedTomlLoading:
         """A TOML file with [hassette.database] sets database fields."""
         toml = tmp_path / "hassette.toml"
         toml.write_text(
-            "[hassette]\ntoken = 'test-token'\n\n[hassette.database]\nretention_days = 14\n",
+            "[hassette]\ntoken = 'test-token'\n\n[hassette.database]\nretention_days = 60\n",
             encoding="utf-8",
         )
 
         config = load_toml_config(toml)
-        assert config.database.retention_days == 14
+        assert config.database.retention_days == 60
         # Other database defaults are preserved
         assert config.database.max_size_mb == 500
 
@@ -118,7 +118,7 @@ class TestNestedTomlLoading:
         )
 
         config = load_toml_config(toml)
-        assert config.database.retention_days == 7
+        assert config.database.retention_days == 30
         assert config.database.max_size_mb == 500
 
 
@@ -126,8 +126,8 @@ class TestEnvVarPartialUpdate:
     """Setting a single env var for a nested field does not replace entire group defaults."""
 
     def test_single_env_var_sets_only_that_field(self, monkeypatch, tmp_path):
-        """HASSETTE__DATABASE__RETENTION_DAYS=14 sets only retention_days."""
-        monkeypatch.setenv("HASSETTE__DATABASE__RETENTION_DAYS", "14")
+        """HASSETTE__DATABASE__RETENTION_DAYS=60 sets only retention_days."""
+        monkeypatch.setenv("HASSETTE__DATABASE__RETENTION_DAYS", "60")
 
         class EnvDatabaseConfig(HassetteConfig):
             model_config = HassetteConfig.model_config.copy() | {
@@ -139,7 +139,7 @@ class TestEnvVarPartialUpdate:
             token: SecretStr = SecretStr(TEST_TOKEN)
 
         config = EnvDatabaseConfig()
-        assert config.database.retention_days == 14
+        assert config.database.retention_days == 60
         # Other database defaults are preserved
         assert config.database.max_size_mb == 500
         assert config.database.write_queue_max == 2000
@@ -214,7 +214,7 @@ class TestCrossModelValidation:
 
         with pytest.raises((ValidationError, ValueError)) as exc_info:
             ValidationConfig(
-                database={"retention_days": 3},
+                database={"retention_days": 3, "framework_retention_days": 1},
                 logging={"log_retention_days": 5},
             )
         error_text = str(exc_info.value)

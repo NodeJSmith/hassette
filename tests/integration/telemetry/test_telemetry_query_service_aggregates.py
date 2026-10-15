@@ -459,7 +459,7 @@ class TestCrossSessionAndRetiredRows:
         db_svc, _session_id = db
 
         now = time.time()
-        old_retired_at = now - (8 * SECONDS_PER_DAY)  # 8 days ago — beyond 7-day retention
+        old_retired_at = now - (31 * SECONDS_PER_DAY)  # 31 days ago — beyond 30-day retention
         recent_retired_at = now - (1 * SECONDS_PER_DAY)  # 1 day ago — within retention
 
         old_listener_id = await insert_listener(db_svc, handler_method="on_old")
@@ -503,7 +503,7 @@ class TestCrossSessionAndRetiredRows:
         db_svc, session_id = db
 
         now = time.time()
-        old_retired_at = now - (8 * SECONDS_PER_DAY)  # beyond 7-day retention
+        old_retired_at = now - (31 * SECONDS_PER_DAY)  # beyond 30-day retention
         recent_execution_ts = now - (1 * SECONDS_PER_DAY)  # within retention
 
         listener_id = await insert_listener(db_svc, handler_method="on_guarded")
