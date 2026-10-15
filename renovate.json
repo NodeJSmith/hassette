@@ -9,7 +9,7 @@
     "customManagers also tracks each GitHub-hosted hook repo's rev in prek.toml against its tags: Renovate's built-in pre-commit manager only reads .pre-commit-config.yaml, so prek.toml pins would otherwise go stale silently.",
     "homeassistant/home-assistant is explicitly disabled (see packageRules) -- the .claude/skills/ha-version-bump skill owns bumping the compose-file HA image tags in lockstep with the codegen pin, monthly. Weekly Renovate PRs for this one package went unreviewed in practice.",
     "Renovate runs daily and may open PRs on any run. prHourlyLimit is 0 because a run lasts minutes: the preset's 2/hour cap meant about 2 new PRs per run and a months-long queue. prConcurrentLimit still bounds how many are open at once.",
-    "Non-major updates automerge through GitHub auto-merge once the required checks pass (tests-complete, e2e-complete, lint-complete, readthedocs), after minimumReleaseAge holds each release for 3 days. Docker images outside Docker Hub (e.g. ghcr.io/astral-sh/uv) skip that hold: the docker datasource only reports release timestamps for Docker Hub, and an update with no timestamp would wait forever. Major updates and language runtimes (python, java) never automerge. A non-major PR that fails CI or conflicts is picked up by the hassette-review-autofixes reviewer (Dotfiles packages/hassette-pipeline, reviewer_renovate.py).",
+    "Non-major updates automerge through GitHub auto-merge once the required checks pass (tests-complete, e2e-complete, lint-complete, readthedocs), after minimumReleaseAge holds each release for 3 days. Updates with no release timestamp skip that hold (minimumReleaseAgeBehaviour timestamp-optional): Renovate has none for digest updates, which is how the SHA-pinned GitHub Actions tracking a major tag update, or for Docker images outside Docker Hub (ghcr.io/astral-sh/uv), and the default timestamp-required would hold those forever. Major updates and language runtimes (python, java) never automerge. A non-major PR that fails CI or conflicts is picked up by the hassette-review-autofixes reviewer (Dotfiles packages/hassette-pipeline, reviewer_renovate.py).",
     "Groups keep related bumps in one PR: prek, prek-action and every prek.toml hook rev move together; ruff's pre-commit hook moves with the ruff dev dependency so the two can't drift; npm and GitHub Actions non-major updates are batched."
   ],
   "extends": ["config:recommended"],
@@ -21,6 +21,7 @@
   "prConcurrentLimit": 10,
   "prHourlyLimit": 0,
   "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
   "ignorePaths": ["docs/**", "**/node_modules/**"],
   "docker-compose": {
     "managerFilePatterns": [
@@ -57,12 +58,6 @@
       "matchManagers": ["pep621"],
       "matchPackageNames": ["hassette-wire", "hassette-client"],
       "enabled": false
-    },
-    {
-      "description": "Docker images outside Docker Hub have no release timestamp, so minimumReleaseAge would hold them forever; registry-prefixed names (a dot in the first path segment) skip the hold",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["/^[^/]+\\.[^/]+\\//", "!docker.io/**"],
-      "minimumReleaseAge": null
     },
     {
       "description": "Automerge non-major updates once the required checks pass",
