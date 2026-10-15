@@ -177,10 +177,12 @@ export function CodeTab({ appKey, listeners }: Props) {
           "[&_.shiki]:text-sm [&_.shiki]:leading-relaxed [&_.shiki_code]:block [&_.shiki_code]:bg-transparent [&_.shiki_code]:p-0",
           "[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-light,var(--ink-1))]",
           "dark:[&_.shiki_span:not(.line):not(.line-num)]:text-[var(--shiki-dark,var(--ink-1))]",
-          "[&_.line]:inline-flex [&_.line]:min-w-full [&_.line]:pr-4",
+          // Lines and the gutter stay inline-level: a flex/grid line turns each token span into its own
+          // box, and the browser then puts a line break between tokens when serializing a copied selection.
+          "[&_.line]:inline-block [&_.line]:min-w-full [&_.line]:pr-4",
           "[&_.line--annotated]:cursor-help [&_.line--annotated]:bg-[var(--code-annotate-bg)]",
           "[&_.line--focus]:bg-[var(--code-focus-bg)]",
-          "[&_.line-num]:mr-3 [&_.line-num]:min-w-[3ch] [&_.line-num]:shrink-0 [&_.line-num]:select-none",
+          "[&_.line-num]:mr-3 [&_.line-num]:inline-block [&_.line-num]:min-w-[3ch] [&_.line-num]:select-none",
           "[&_.line-num]:border-r [&_.line-num]:border-border [&_.line-num]:px-3 [&_.line-num]:text-right",
           "[&_.line-num]:text-foreground-faint",
         )}
