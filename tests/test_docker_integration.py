@@ -360,6 +360,24 @@ def test_docker_project_install_cleans_up_tmp_build_dir(docker_project_dir: Path
     assert not leaked, f"Leftover project-build tmp dir(s) found: {leaked}"
 
 
+def test_docker_project_install_skips_virtualenv_dir(docker_project_dir: Path):
+    """Test that the project's in-tree .venv isn't copied into the build dir (regression for #2773).
+
+    The .venv holds a file the container user can't read, so copying it would fail the install.
+    """
+    create_project_package(docker_project_dir, project_pyproject())
+    venv_dir = docker_project_dir / ".venv"
+    venv_dir.mkdir()
+    unreadable = venv_dir / "unreadable"
+    unreadable.write_text("")
+    unreadable.chmod(0)
+
+    result, output = run_project_container(docker_project_dir)
+
+    assert result.returncode == 0, f"Project install failed. Output:\n{output}"
+    assert "project install: complete" in output, output
+
+
 def test_docker_project_without_lockfile_warns(docker_project_dir: Path):
     """Test that pyproject.toml without uv.lock logs a warning to run uv lock."""
     (docker_project_dir / "pyproject.toml").write_text(
