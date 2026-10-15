@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import httpx2 as httpx
 import pytest
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
@@ -38,6 +39,8 @@ from tests.unit.cli.test_client import (
     stderr_for_malformed_response,
     stderr_for_successful_get,
 )
+
+USERINFO_SERVER_URL = "https://alice:s3cret@hassette.example.com:8126"
 
 
 def unwrapped(stderr: str) -> str:
@@ -526,3 +529,37 @@ class TestJsonModeSuccessDiagnostics:
         assert remote_parsed == loopback_parsed
         assert "target" not in remote_parsed
         assert "tls_verified" not in remote_parsed
+
+
+# Credentials embedded in the server URL never reach printed output
+
+
+class TestUserinfoRedaction:
+    def test_json_success_target_omits_userinfo(self, tmp_path: Path) -> None:
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=USERINFO_SERVER_URL)
+        _parsed, stderr = run_status_json(config)
+        assert "Target: https://hassette.example.com:8126" in stderr
+        assert "s3cret" not in stderr
+        assert "alice" not in stderr
+
+    def test_json_error_envelope_target_omits_userinfo(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=USERINFO_SERVER_URL)
+        client = HassetteCLIClient(config, json_mode=True, transport=make_transport(500, {"detail": "boom"}))
+        parsed = get_json_error(client, capsys)
+        assert parsed["target"] == "https://hassette.example.com:8126"
+
+    def test_request_still_sends_userinfo_as_basic_auth(self, tmp_path: Path) -> None:
+        seen: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request)
+            return httpx.Response(200, json=make_system_status_response().model_dump(mode="json"))
+
+        config = make_cli_config(data_dir=tmp_path, cli_server_url=USERINFO_SERVER_URL)
+        client = HassetteCLIClient(config, json_mode=True, transport=httpx.MockTransport(handler))
+        with capture_stderr():
+            status_runner.json_output(client, cmd_status)
+        assert seen
+        assert seen[0].headers.get("authorization", "").startswith("Basic ")
