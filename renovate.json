@@ -1,21 +1,27 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "description": [
-    "Per-repo Renovate config, processed by the self-hosted runner on smithfamily.",
+    "Per-repo Renovate config, processed by a self-hosted Renovate runner.",
     "docker-compose managerFilePatterns lists both patterns explicitly: the standard compose pattern (covers tests/system/docker-compose.yml) and ha-demo.yml (covers scripts/docker/ha-demo.yml, which is not named compose* and would otherwise be missed).",
     "ignorePaths replaces config:recommended's defaults so tests/ is NOT ignored (the CI compose file lives under tests/), while the docs snippet compose files are excluded.",
     "chore(deps) commits keep dependency bumps out of the release-please changelog.",
     "customManagers tracks HASS_HASSETTE_VERSION in scripts/docker/.env (the hass-hassette release the system-test and demo HA containers install) against NodeJSmith/hass-hassette's GitHub releases.",
     "customManagers also tracks each GitHub-hosted hook repo's rev in prek.toml against its tags: Renovate's built-in pre-commit manager only reads .pre-commit-config.yaml, so prek.toml pins would otherwise go stale silently.",
-    "homeassistant/home-assistant is explicitly disabled (see packageRules) -- the .claude/skills/ha-version-bump skill owns bumping the compose-file HA image tags in lockstep with the codegen pin, monthly. Weekly Renovate PRs for this one package went unreviewed in practice."
+    "homeassistant/home-assistant is explicitly disabled (see packageRules) -- the .claude/skills/ha-version-bump skill owns bumping the compose-file HA image tags in lockstep with the codegen pin, monthly. Weekly Renovate PRs for this one package went unreviewed in practice.",
+    "Renovate runs daily and may open PRs on any run. prHourlyLimit is 0 because a run lasts minutes: the preset's 2/hour cap meant about 2 new PRs per run and a months-long queue. prConcurrentLimit still bounds how many are open at once.",
+    "Non-major updates automerge through GitHub auto-merge once the required checks pass (tests-complete, e2e-complete, lint-complete, readthedocs), after minimumReleaseAge holds each release for 3 days. Updates with no release timestamp skip that hold (minimumReleaseAgeBehaviour timestamp-optional): Renovate has none for digest updates, which is how the SHA-pinned GitHub Actions tracking a major tag update, or for Docker images outside Docker Hub (ghcr.io/astral-sh/uv), and the default timestamp-required would hold those forever. Major updates and language runtimes (python, java) never automerge. A non-major PR that fails CI or conflicts is picked up by the hassette-review-autofixes reviewer (Dotfiles packages/hassette-pipeline, reviewer_renovate.py).",
+    "Groups keep related bumps in one PR: prek, prek-action and every prek.toml hook rev move together; ruff's pre-commit hook moves with the ruff dev dependency so the two can't drift; npm and GitHub Actions non-major updates are batched."
   ],
   "extends": ["config:recommended"],
-  "schedule": ["before 9am on monday"],
+  "schedule": ["before 9am"],
   "timezone": "America/New_York",
   "semanticCommits": "enabled",
   "semanticCommitType": "chore",
   "semanticCommitScope": "deps",
-  "prConcurrentLimit": 5,
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
+  "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
   "ignorePaths": ["docs/**", "**/node_modules/**"],
   "docker-compose": {
     "managerFilePatterns": [
@@ -52,6 +58,47 @@
       "matchManagers": ["pep621"],
       "matchPackageNames": ["hassette-wire", "hassette-client"],
       "enabled": false
+    },
+    {
+      "description": "Automerge non-major updates once the required checks pass",
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "automerge": true
+    },
+    {
+      "description": "Language runtimes are upgraded deliberately and never automerged: a python 3.x minor is a language upgrade. matchDepNames, not matchPackageNames: the package names are python/cpython, actions/python-versions, java-jdk",
+      "matchDepNames": ["python", "java"],
+      "automerge": false
+    },
+    {
+      "description": "prek tooling: every hook rev in prek.toml moves together",
+      "matchFileNames": ["prek.toml"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "prek tooling"
+    },
+    {
+      "description": "prek tooling: the prek CLI (mise.toml) and its GitHub Action join the hook revs",
+      "matchDepNames": ["prek", "j178/prek-action"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "prek tooling"
+    },
+    {
+      "description": "ruff's pre-commit hook rev moves with the ruff dev dependency. Listed after prek tooling so it wins for the hook",
+      "matchDepNames": ["astral-sh/ruff-pre-commit", "ruff"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "ruff"
+    },
+    {
+      "description": "Batch frontend non-major npm updates into one PR",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "frontend non-major"
+    },
+    {
+      "description": "Batch GitHub Actions non-major and digest updates into one PR (prek-action stays in prek tooling; the python-version runtime pin is excluded)",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["!j178/prek-action", "!python"],
+      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "groupName": "github-actions non-major"
     }
   ]
 }
