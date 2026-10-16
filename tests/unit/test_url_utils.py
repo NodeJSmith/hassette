@@ -6,7 +6,7 @@ from pydantic import SecretStr
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import BaseUrlRequiredError, IPV6NotSupportedError, SchemeRequiredInBaseUrlError
 from hassette.testing.config import TEST_TOKEN
-from hassette.utils.url_utils import _parse_and_normalize_url, build_rest_url, build_ws_url
+from hassette.utils.url_utils import _parse_and_normalize_url, build_rest_url, build_ws_url, resolve_rest_path
 
 
 def make_config(base_url: str, api_port: int = 8123) -> HassetteConfig:
@@ -51,6 +51,36 @@ def test_https_with_custom_port():
 
 
 @pytest.mark.parametrize(
+    ("input_url", "expected_rest", "expected_ws"),
+    [
+        ("http://ha.local:8123/", "http://ha.local:8123/api/", "ws://ha.local:8123/api/websocket"),
+        ("http://supervisor/core", "http://supervisor/core/api/", "ws://supervisor/core/api/websocket"),
+        ("http://supervisor/core/", "http://supervisor/core/api/", "ws://supervisor/core/api/websocket"),
+        (
+            "https://example.com/ha/proxy",
+            "https://example.com/ha/proxy/api/",
+            "wss://example.com/ha/proxy/api/websocket",
+        ),
+        (
+            "https://example.com:8443/ha//",
+            "https://example.com:8443/ha/api/",
+            "wss://example.com:8443/ha/api/websocket",
+        ),
+        ("http://h/my%20ha", "http://h/my%20ha/api/", "ws://h/my%20ha/api/websocket"),
+        ("http://h/tenant%2Fblue", "http://h/tenant%2Fblue/api/", "ws://h/tenant%2Fblue/api/websocket"),
+        ("http://h/tenant%2Fblue%2F", "http://h/tenant%2Fblue%2F/api/", "ws://h/tenant%2Fblue%2F/api/websocket"),
+        ("http://supervisor/core?x=1#frag", "http://supervisor/core/api/", "ws://supervisor/core/api/websocket"),
+    ],
+)
+def test_base_url_path_becomes_endpoint_prefix(input_url: str, expected_rest: str, expected_ws: str):
+    """A path in base_url prefixes both endpoints; a lone or trailing slash adds nothing."""
+    config = make_config(input_url)
+
+    assert build_rest_url(config) == expected_rest
+    assert build_ws_url(config) == expected_ws
+
+
+@pytest.mark.parametrize(
     ("input_url", "expected_port"),
     [
         ("http://test.local", None),
@@ -64,9 +94,7 @@ def test_no_port_added_if_not_provided(input_url: str, expected_port: int | None
     """Test that no port is added if not provided in the URL."""
     config = make_config(input_url)
 
-    _, _, port = _parse_and_normalize_url(config)
-
-    assert port == expected_port
+    assert _parse_and_normalize_url(config).port == expected_port
 
 
 @pytest.mark.parametrize(
@@ -130,8 +158,25 @@ def test_quoted_urls_are_stripped(input_url: str, expected_scheme: str, expected
     """Test that literal quote characters wrapping a URL are stripped before parsing."""
     config = make_config(input_url)
 
-    scheme, host, port = _parse_and_normalize_url(config)
+    parts = _parse_and_normalize_url(config)
 
-    assert scheme == expected_scheme
-    assert host == expected_host
-    assert port == expected_port
+    assert parts.scheme == expected_scheme
+    assert parts.host == expected_host
+    assert parts.port == expected_port
+
+
+@pytest.mark.parametrize(
+    ("rest_url", "path", "expected"),
+    [
+        ("http://ha:8123/api/", "/api/thing", "/api/thing"),
+        ("http://ha:8123/api/", "states/x", "states/x"),
+        ("https://example.com/ha/api/", "/api/thing", "https://example.com/ha/api/thing"),
+        ("https://example.com/ha/api/", "/api/thing?a=1", "https://example.com/ha/api/thing?a=1"),
+        ("https://example.com/ha/api/", "states/x", "states/x"),
+        ("https://example.com:8443/t%2Fb/api/", "/local/x", "https://example.com:8443/t%2Fb/local/x"),
+        ("https://example.com/ha/api/", "https://other.test/api/x", "https://other.test/api/x"),
+    ],
+)
+def test_resolve_rest_path_keeps_root_relative_paths_under_prefix(rest_url: str, path: str, expected: str):
+    """A root-relative raw REST path stays under the base_url prefix; other forms pass through."""
+    assert resolve_rest_path(rest_url, path) == expected

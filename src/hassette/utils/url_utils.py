@@ -1,6 +1,7 @@
 """URL utilities for constructing Home Assistant API endpoints."""
 
 import typing
+from typing import NamedTuple
 
 from yarl import URL
 
@@ -10,14 +11,27 @@ if typing.TYPE_CHECKING:
     from hassette.config.config import HassetteConfig
 
 
-def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int | None]:
-    """Parse base_url and extract normalized components.
+class BaseUrlParts(NamedTuple):
+    """The parts of ``base_url`` that Home Assistant endpoint URLs are built from."""
+
+    scheme: str
+    host: str
+    port: int | None
+    path_prefix: str
+    """Percent-encoded path with no trailing literal slash; ``""`` when base_url has no path or a lone ``/``.
+
+    Kept encoded so a ``%2F`` inside a segment is not turned into a path separator.
+    """
+
+
+def _parse_and_normalize_url(config: "HassetteConfig") -> BaseUrlParts:
+    """Parse base_url into the parts endpoint URLs are built from.
 
     Args:
-        config: Hassette configuration containing base_url and api_port
+        config: Hassette configuration containing base_url
 
     Returns:
-        schema, hostname, and port
+        The scheme, host, explicit port, and path prefix. Query string and fragment are dropped.
 
     Raises:
         BaseUrlRequiredError: If base_url is not set in the configuration.
@@ -39,16 +53,17 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> tuple[str, str, int | 
     if yurl.host is None:
         raise BaseUrlRequiredError(f"base_url must include a valid hostname, got: {cleaned_url}")
 
-    return yurl.scheme, yurl.host, yurl.explicit_port
+    return BaseUrlParts(yurl.scheme, yurl.host, yurl.explicit_port, yurl.raw_path.rstrip("/"))
 
 
 def _build_ha_url(config: "HassetteConfig", *, ws: bool = False) -> str:
     """Construct a Home Assistant API URL (REST or WebSocket)."""
-    scheme, hostname, port = _parse_and_normalize_url(config)
+    parts = _parse_and_normalize_url(config)
+    scheme = parts.scheme
     if ws:
         scheme = "wss" if scheme == "https" else "ws"
-    path = "/api/websocket" if ws else "/api/"
-    return str(URL.build(scheme=scheme, host=hostname, port=port, path=path))
+    path = f"{parts.path_prefix}/api/websocket" if ws else f"{parts.path_prefix}/api/"
+    return str(URL.build(scheme=scheme, host=parts.host, port=parts.port, path=path, encoded=True))
 
 
 def build_ws_url(config: "HassetteConfig") -> str:
@@ -59,3 +74,21 @@ def build_ws_url(config: "HassetteConfig") -> str:
 def build_rest_url(config: "HassetteConfig") -> str:
     """Construct the REST API URL for Home Assistant."""
     return _build_ha_url(config)
+
+
+def resolve_rest_path(rest_url: str, path: str) -> str:
+    """Keep a root-relative raw REST path (``/api/...``) beneath the ``base_url`` path prefix.
+
+    aiohttp resolves a root-relative path against the origin, which drops the prefix that
+    ``rest_url`` carries. Relative and absolute URLs are returned unchanged, as is any path when
+    there is no prefix.
+    """
+    if not path.startswith("/") or path.startswith("//"):
+        return path
+
+    base = URL(rest_url)
+    prefix = base.raw_path.removesuffix("api/").rstrip("/")
+    if not prefix:
+        return path
+
+    return f"{base.origin()}{prefix}{path}"

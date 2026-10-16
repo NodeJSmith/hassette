@@ -167,7 +167,9 @@ class HassetteConfig(ExcludeExtrasMixin, BaseSettings):
 
     # Home Assistant connection — cross-cutting
     base_url: str = Field(default="http://127.0.0.1:8123", json_schema_extra={"ui": {"label": "Base URL"}})
-    """Base URL of the Home Assistant instance"""
+    """Base URL of the Home Assistant instance. A path is kept as a prefix: ``http://supervisor/core`` connects to
+    ``http://supervisor/core/api/`` and ``ws://supervisor/core/api/websocket``. A trailing slash is ignored, as are
+    a query string and fragment."""
 
     verify_ssl: bool = Field(default=True, json_schema_extra={"ui": {"label": "Verify SSL"}})
     """Whether to verify SSL certificates when connecting to Home Assistant. Useful to disable for self-signed

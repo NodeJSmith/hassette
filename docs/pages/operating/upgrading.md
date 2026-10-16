@@ -74,6 +74,34 @@ To keep reading config from the old versioned directory, pass `--config-dir` or 
 
 Docker data volumes carry over across major versions. Mount points are version-independent.
 
+## `base_url` Paths
+
+`base_url` (in `[hassette]` of `hassette.toml`, or `HASSETTE__BASE_URL`) is the address Hassette builds its Home Assistant URLs from. Versions up to 0.57 dropped any path in it. Newer versions keep the path as a prefix: `https://example.com/ha` connects to `https://example.com/ha/api/` and `wss://example.com/ha/api/websocket`.
+
+If your `base_url` is just a scheme, host and port, such as `http://homeassistant.local:8123`, nothing changes. A trailing `/` makes no difference either.
+
+If it has a path, decide whether Home Assistant is really served there. A reverse proxy that serves Home Assistant under `/ha` needs the path, so keep it. A path copied from the browser, such as `http://ha.local:8123/lovelace/0`, is not part of the address, so remove it:
+
+=== "Before"
+
+    ```toml
+    [hassette]
+    base_url = "http://ha.local:8123/lovelace/0"
+    ```
+
+=== "After"
+
+    ```toml
+    [hassette]
+    base_url = "http://ha.local:8123"
+    ```
+
+Hassette logs the URLs it uses at startup. A leftover path shows up in that line, and in the `Cannot reach Home Assistant at ...` error that follows when the connection fails:
+
+```text
+Home Assistant URLs: REST http://ha.local:8123/lovelace/0/api/, WebSocket ws://ha.local:8123/lovelace/0/api/websocket
+```
+
 ## Config Paths and Unknown Keys
 
 Upgrading from 0.56 or earlier, four changes can break an existing setup: Hassette resolves relative paths against the file that sets them, rejects setting names it doesn't recognize, keeps Docker apps inside the config mount, and has apps read the same `.env` files as Hassette. This section lists each one. The [Configuration](../core-concepts/configuration/index.md#file-locations) page has the full rules.

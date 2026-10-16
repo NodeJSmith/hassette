@@ -30,7 +30,7 @@ mkdir -p my-hassette/apps && cd my-hassette
 --8<-- "pages/getting-started/snippets/env_file.sh"
 ```
 
-Replace the token value with the one you created in step 2. Update `HASSETTE__BASE_URL` to the URL you normally open in your browser, typically `http://homeassistant.local:8123` or `http://<your-ip>:8123`. The double underscores in `HASSETTE__TOKEN` and `HASSETTE__BASE_URL` are required. Hassette uses them to separate configuration namespaces.
+Replace the token value with the one you created in step 2. Update `HASSETTE__BASE_URL` to your Home Assistant address without any page path, typically `http://homeassistant.local:8123` or `http://<your-ip>:8123`. The double underscores in `HASSETTE__TOKEN` and `HASSETTE__BASE_URL` are required. Hassette uses them to separate configuration namespaces.
 
 ## 4. Create your first app
 
