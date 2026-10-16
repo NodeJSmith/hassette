@@ -13,7 +13,7 @@ from types import ModuleType
 
 import pytest
 
-from hassette import App
+from hassette import App, AppSync
 from hassette.testing import AppTestHarness
 
 EXAMPLES_DIR = Path(__file__).resolve().parents[2] / "examples"
@@ -45,20 +45,35 @@ def capturing_initialize_errors(app_cls: type[App], errors: list[BaseException])
     """Subclass ``app_cls`` so an exception raised by ``on_initialize`` is recorded before it propagates.
 
     The harness reports an initialization failure only as a timeout waiting for RUNNING; the recorded
-    exception is what names the registration that failed.
+    exception is what names the registration that failed. ``AppSync`` marks ``on_initialize`` final, so
+    for those apps the sync hook it delegates to is wrapped instead.
     """
+    if issubclass(app_cls, AppSync):
 
-    class Capturing(app_cls):  # pyright: ignore[reportGeneralTypeIssues, reportUntypedBaseClass]
-        async def on_initialize(self) -> None:
-            try:
-                await super().on_initialize()
-            except Exception as exc:
-                errors.append(exc)
-                raise
+        class CapturingSync(app_cls):  # pyright: ignore[reportGeneralTypeIssues, reportUntypedBaseClass]
+            def on_initialize_sync(self) -> None:
+                try:
+                    super().on_initialize_sync()
+                except Exception as exc:
+                    errors.append(exc)
+                    raise
 
-    Capturing.__name__ = app_cls.__name__
-    Capturing.__qualname__ = app_cls.__qualname__
-    return Capturing
+        capturing: type[App] = CapturingSync
+    else:
+
+        class Capturing(app_cls):  # pyright: ignore[reportGeneralTypeIssues, reportUntypedBaseClass]
+            async def on_initialize(self) -> None:
+                try:
+                    await super().on_initialize()
+                except Exception as exc:
+                    errors.append(exc)
+                    raise
+
+        capturing = Capturing
+
+    capturing.__name__ = app_cls.__name__
+    capturing.__qualname__ = app_cls.__qualname__
+    return capturing
 
 
 def test_examples_discovered() -> None:
@@ -82,3 +97,17 @@ async def test_example_app_initializes(example_path: Path, monkeypatch: pytest.M
                 f"examples/{example_path.name}: {app_cls.__name__} failed to initialize: "
                 f"{type(cause).__name__}: {cause}"
             ) from cause
+
+
+class FailingSyncApp(AppSync):
+    def on_initialize_sync(self) -> None:
+        raise RuntimeError("sync registration failed")
+
+
+async def test_capture_wraps_appsync_sync_hook() -> None:
+    """``AppSync.on_initialize`` is final, so the capture wraps ``on_initialize_sync`` and still records its error."""
+    errors: list[BaseException] = []
+    with pytest.raises(Exception):  # noqa: B017, PT011 - the harness surfaces this as a RUNNING timeout
+        async with AppTestHarness(capturing_initialize_errors(FailingSyncApp, errors)):
+            pass
+    assert [str(error) for error in errors] == ["sync registration failed"]
