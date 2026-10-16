@@ -1,6 +1,9 @@
-"""Unit tests for wait_for_ready() in hassette.utils.service_utils.
+"""Unit tests for the async helpers in hassette.utils.service_utils.
 
-Covers concurrent waiting on independent dependencies: every resource's ``wait_ready``
+``cancel_and_drain`` tests cover the shutdown contract: ``None`` is a no-op, and cancelling a
+running, already-failed, or already-finished task never raises into the caller.
+
+``wait_for_ready`` tests cover concurrent waiting on independent dependencies: every resource's ``wait_ready``
 is awaited at once, readiness order does not matter, and one dependency timing out fails
 the whole wait even when the others become ready.
 
@@ -14,6 +17,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 
 from hassette.utils import wait_for_ready
+from hassette.utils.service_utils import cancel_and_drain
 
 if TYPE_CHECKING:
     from hassette.resources.base import Resource
@@ -99,3 +103,48 @@ async def test_one_dep_times_out_while_other_succeeds(with_shutdown_event: bool)
     assert result is False
     assert ready_dep.ready_event.is_set()
     assert not stuck_dep.ready_event.is_set()
+
+
+async def test_cancel_and_drain_none_is_noop() -> None:
+    await cancel_and_drain(None)
+
+
+async def test_cancel_and_drain_cancels_and_awaits_running_task() -> None:
+    started = asyncio.Event()
+
+    async def run_forever() -> None:
+        started.set()
+        await asyncio.Event().wait()
+
+    task = asyncio.create_task(run_forever())
+    await asyncio.wait_for(started.wait(), timeout=WAIT_TIMEOUT)
+
+    await asyncio.wait_for(cancel_and_drain(task), timeout=WAIT_TIMEOUT)
+
+    assert task.done()
+    assert task.cancelled()
+
+
+async def test_cancel_and_drain_absorbs_exception_from_failed_task() -> None:
+    async def fail() -> None:
+        raise RuntimeError("boom")
+
+    task = asyncio.create_task(fail())
+    await asyncio.gather(task, return_exceptions=True)
+    assert task.done()
+
+    await cancel_and_drain(task)
+
+    assert isinstance(task.exception(), RuntimeError)
+
+
+async def test_cancel_and_drain_accepts_already_finished_task() -> None:
+    async def finish() -> int:
+        return 42
+
+    task = asyncio.create_task(finish())
+    await task
+
+    await cancel_and_drain(task)
+
+    assert task.result() == 42

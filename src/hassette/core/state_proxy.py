@@ -28,6 +28,7 @@ from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.scheduler import Job, Scheduler
 from hassette.types import Topic
 from hassette.utils.hass_utils import extract_domain
+from hassette.utils.service_utils import cancel_and_drain
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -218,17 +219,13 @@ class StateProxy(Resource):
         self.hassette.websocket_service.connected_observers.remove(self._on_websocket_connected)
         self.hassette.websocket_service.disconnected_observers.remove(self._on_websocket_disconnected)
 
-        if self._bootstrap_task is not None:
-            self._bootstrap_task.cancel()
-            await asyncio.gather(self._bootstrap_task, return_exceptions=True)
-            self._bootstrap_task = None
+        await cancel_and_drain(self._bootstrap_task)
+        self._bootstrap_task = None
 
         await cancel_retry_task(self)
 
-        if self._sync_task is not None:
-            self._sync_task.cancel()
-            await asyncio.gather(self._sync_task, return_exceptions=True)
-            self._sync_task = None
+        await cancel_and_drain(self._sync_task)
+        self._sync_task = None
 
         self._active_sync = None
         self._pending_reconnect_generation = None
