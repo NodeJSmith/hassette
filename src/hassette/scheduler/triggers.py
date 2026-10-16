@@ -544,13 +544,15 @@ class EntityTime:
         offset doesn't recover the entity's time, and a rolled-over value still maps to today's
         slot anyway.
 
-        ``run`` was rounded to the nearest second, so the recovered time can sit up to half a
-        second after the entity's real one (``sun.sun`` reports microseconds). Rounding
-        ``current_time`` up to the next second absorbs that.
+        ``run`` was rounded to the nearest second, so the recovered time can be up to half a
+        second off the entity's real one either way (``sun.sun`` reports microseconds). The
+        comparison allows exactly that half second, so a time that rounded up still counts as
+        arrived. The cost is that an edit in the last half second before a time counts it as
+        arrived too.
         """
         if run is None or self.daily or self.offset <= TimeDelta():
             return False
-        return run.subtract(seconds=self.offset.total("seconds")) <= current_time.round("second", mode="ceil")
+        return run.subtract(seconds=self.offset.total("seconds") + 0.5) <= current_time
 
     def first_run_time(self, current_time: ZonedDateTime) -> "ZonedDateTime | _WaitingSentinel":
         """Return the entity's next time, or :data:`WAITING` when it has none right now."""
