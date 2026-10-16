@@ -66,6 +66,12 @@ class LoggingService(Resource):
     on failure (QueueListener still runs with stream + capture handlers).
     """
 
+    # Shutdown runs the init waves in reverse, so this placement (one level above DatabaseService) is
+    # already the latest wave LoggingService can shut down in while the persistence handler still has a
+    # database to write to. Records logged during shutdown by its wave peers and by the final wave
+    # (DatabaseService and the other dependency-free services) reach the console only. Moving it later
+    # would mean dropping the DatabaseService dependency or adding artificial depends_on edges to
+    # services that don't need logging, so the gap is accepted (#881).
     depends_on: ClassVar[list[type[Resource]]] = [DatabaseService]
 
     capture_handler: LogCaptureHandler
