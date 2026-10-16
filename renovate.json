@@ -88,6 +88,12 @@
       "groupName": "ruff"
     },
     {
+      "description": "Hold typescript below 7: typescript-eslint's peer range stops at <6.1.0 and `npm run lint` refuses TS 7. Remove this rule once typescript-eslint's peerDependencies accept 7",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
+    },
+    {
       "description": "Batch frontend non-major npm updates into one PR",
       "matchManagers": ["npm"],
       "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
