@@ -490,7 +490,7 @@ Behavior to pin:
   `python_packages: ['match(^[A-Za-z0-9][A-Za-z0-9._\-\[\],<>=!~ ;]*$)']`, single-quoted because `\-`, `\[` and
   `\]` are invalid escapes in a YAML double-quoted string. Supervisor rejects anything but a plain requirement
   specifier when the user saves. The add-on repo's CI validates `config.yaml` against Supervisor's schema, so a
-  pattern that doesn't parse fails before release.
+  pattern that doesn't parse fails before release. (Amended: see the 2026-10-16 #2672 Addendum entry.)
 - The glue passes the list to `docker_start.sh` as `HASSETTE_DOCKER_PYTHON_PACKAGES`, one entry per line.
   Newline-separated is safe because the schema admits no newline in an entry, and it needs no JSON parser in
   the script.
@@ -769,6 +769,7 @@ hassette's own reconnect logic.
 **Reversibility:** easy
 **Challenge:** the every-start install, the uncapped application watchdog and the `HEALTHCHECK` start gate came from challenge findings.
 **Ratified:** Chose `watchdog: http://[HOST]:[PORT:8126]/api/health/live` plus a Docker `HEALTHCHECK` on the same URL with a `--start-period` covering the worst-case install, in the variant image only, over the URL alone, no URL, a stub listener, or readiness, so Supervisor never restarts a slow start yet still restarts a hung hassette, accepting that the HEALTHCHECK behavior is confirmed on HAOS during the build; DOCS.md recommends Watchdog on from install.
+**Amended:** the `watchdog:` URL was dropped and the `HEALTHCHECK` kept; see the 2026-10-16 #2672 Addendum entry.
 
 ### D15: Which neighboring issues join the milestone?
 
@@ -887,7 +888,7 @@ docs should. **Pick "both out" instead if** you'd rather keep the milestone to t
 ## Build
 
 - [x] Run the D13 spike against its pass criteria; on failure, v0.1 ships manual pairing. Passed 2026-10-11 (#2663): v0.1 ships discovery (A) with the R1 refresh; results in the Addendum
-- [ ] D1 prefix e2e gate: the frontend passes an e2e test served under a URL prefix, and a grep finds no remaining absolute paths, before the `hassette-addon` repo is created
+- [x] D1 prefix e2e gate: the frontend passes an e2e test served under a URL prefix, and a grep finds no remaining absolute paths, before the `hassette-addon` repo is created. Passed with #2664 (spec 130, `tests/e2e/test_ingress_prefix.py`)
 - [x] Verify `uv --offline` installs from a warm `/data/uv_cache` with the network blocked, with per-start pruning off as the add-on runs it (D4). Passed 2026-10-16 (#2667): D4 stays option D; results in the Addendum
 - [ ] Verify on real HAOS that Supervisor holds the add-on in `STARTUP` until the image `HEALTHCHECK` passes (D14)
 - [ ] Verify on real HAOS that a client of the mapped direct port is never presented as `172.30.32.2`; record the result in the Addendum (D7)
@@ -960,3 +961,17 @@ a network failure during the install still halts and retries as before, but its 
 index couldn't be reached, with a network remedy, instead of reporting a dependency conflict. It reuses the
 connection-failure check the add-on's offline retry needs. Exit 0 on stop and this banner are the only changes
 Docker users see.
+
+**2026-10-16 — D14 and D9 amended at the add-on repo scaffold (#2672).** The add-on repo's CI runs
+`frenck/action-app-linter` (the renamed `action-addon-linter`), the linter HA's `apps-example` template, ESPHome
+and evcc run; Frigate, go2rtc and Music Assistant have no workflows on their add-on repos, and none of these
+validates against Supervisor's own schema. That linter fails any `watchdog:` key as obsolete in favor of an image `HEALTHCHECK`,
+so `config.yaml` drops the `watchdog:` URL and keeps D14's `HEALTHCHECK` alone. A hung hassette still restarts
+when the container goes `UNHEALTHY`, through Supervisor's throttled container path (backoff from 10 s, at most
+10 restarts per 30 minutes) in place of the uncapped URL probe. D9's "CI validates `config.yaml` against
+Supervisor's schema" becomes the frenck lint. The frenck lint doesn't compile the `match()` regex either, so
+"a bad pattern fails before release" is no longer enforced by CI. The regex is a constant, checked once by
+hand against Supervisor 2026.10.1's schemas and options validator, which reject option injection
+(`--extra-index-url`, `-r`), VCS URLs, and environment markers with quoted values.
+`backup_pre` names `/app/docker/addon/backup_pre.sh`, so the variant image (#2669) must put #2670's snapshot
+script at that path; today's `Dockerfile` copies no `docker/` directory.
