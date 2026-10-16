@@ -70,7 +70,7 @@ export function AppTableRow({
         {/* Name */}
         <td className="min-w-0">
           <div className="flex min-w-0 items-center gap-2 [&_a]:min-w-0 [&_a]:overflow-hidden [&_a]:text-ellipsis [&_a]:whitespace-nowrap max-sidebar:after:ml-auto max-sidebar:after:text-[length:var(--text-h3)] max-sidebar:after:text-foreground-faint max-sidebar:after:content-['›']">
-            <span className="flex w-4 shrink-0 items-center justify-center">
+            <span className="flex w-4 shrink-0 items-center justify-center max-sidebar:w-[var(--size-touch)]">
               {isMulti && (
                 <Button
                   variant="ghost"
