@@ -433,9 +433,15 @@ class EntityTime:
     The entity holds the schedule: a phone alarm sensor, an ``input_datetime``
     helper, or any entity whose state or attribute is a time. Whenever that value
     changes, ``Scheduler`` moves the job to the new time — no manual cancel and
-    reschedule. The exception is a pending positive-``offset`` run whose entity time
-    has already arrived (see :meth:`is_run_for_passed_occurrence`): that run fires
-    first, and the job then follows the entity's current time.
+    reschedule. With ``attribute=``, a change to that attribute moves the job too.
+
+    A change replaces any pending run, as Home Assistant's own time trigger does. An
+    entity that moves on to its next time once that time arrives (a phone's next-alarm
+    sensor, ``sun.sun``'s ``next_*`` attributes) therefore drops a non-``daily``
+    positive-``offset`` run before it fires. Use a negative offset with such entities,
+    or an entity that keeps its value after the time passes, such as an
+    ``input_datetime`` helper. A ``daily`` job keeps its run when the new value has the
+    same time of day.
 
     An entity with no usable value (unavailable, ``unknown``, no alarm set) returns
     :data:`WAITING` instead of a timestamp. The job stays registered and watched — see
@@ -446,7 +452,8 @@ class EntityTime:
         entity_id: The entity holding the time, e.g. ``"sensor.phone_next_alarm"``.
         attribute: Read the time from this attribute instead of the entity's state.
         offset: Shift the fire time. Negative values fire before the entity's time
-            (``TimeDelta(minutes=-30)`` fires 30 minutes early).
+            (``TimeDelta(minutes=-30)`` fires 30 minutes early). Without ``daily``, a
+            positive offset only fires if the entity keeps its value until the run.
         daily: Keep only the time of day and fire at it every day. Without this, the
             trigger fires at the entity's absolute date and time and then waits for
             the entity to name a new one.
@@ -508,7 +515,11 @@ class EntityTime:
         the state-change event. The scheduler's listener and the StateProxy's cache update
         are dispatched concurrently, so reading the cache there could see the old value.
         """
-        parsed = self.named_time(state)
+        if state is None:
+            return None
+        raw = state.get("attributes", {}).get(self.attribute) if self.attribute is not None else state.get("state")
+
+        parsed = parse_entity_time(raw)
         if parsed is None:
             return None
 
@@ -523,36 +534,6 @@ class EntityTime:
         if target <= current_time:
             return None
         return target.round("second")
-
-    def named_time(self, state: "HassStateDict | None") -> ZonedDateTime | None:
-        """Return the time ``state`` names, before ``offset`` and ``daily``, or ``None`` when it names none."""
-        if state is None:
-            return None
-        raw = state.get("attributes", {}).get(self.attribute) if self.attribute is not None else state.get("state")
-        return parse_entity_time(raw)
-
-    def is_run_for_passed_occurrence(self, run: ZonedDateTime | None, current_time: ZonedDateTime) -> bool:
-        """Whether ``run`` follows an entity time that has already arrived.
-
-        Only a positive ``offset`` puts a run after the time it was computed from, and
-        subtracting it back recovers that time. An entity naming "the next occurrence" (a
-        phone's next alarm, ``sun.sun``'s ``next_setting``) moves on the moment that occurrence
-        arrives, while its offset run is still ahead. The occurrence happened, so its run should
-        fire however the entity changes afterward, instead of being moved to the new time.
-
-        Always ``False`` for ``daily``: there ``run`` is a time-of-day slot, so subtracting the
-        offset doesn't recover the entity's time, and a rolled-over value still maps to today's
-        slot anyway.
-
-        ``run`` was rounded to the nearest second, so the recovered time can be up to half a
-        second off the entity's real one either way (``sun.sun`` reports microseconds). The
-        comparison allows exactly that half second, so a time that rounded up still counts as
-        arrived. The cost is that an edit in the last half second before a time counts it as
-        arrived too.
-        """
-        if run is None or self.daily or self.offset <= TimeDelta():
-            return False
-        return run.subtract(seconds=self.offset.total("seconds") + 0.5) <= current_time
 
     def first_run_time(self, current_time: ZonedDateTime) -> "ZonedDateTime | _WaitingSentinel":
         """Return the entity's next time, or :data:`WAITING` when it has none right now."""

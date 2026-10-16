@@ -63,16 +63,10 @@ The job fires when `sensor.phone_next_alarm` says it should. An earlier alarm mo
 
 That job fires 30 minutes before the configured routine time each day. Without `daily=True`, the trigger fires once at the entity's absolute date and time. It then waits until the entity names a new time.
 
-A positive offset puts the run after the entity's time, and many entities move on before the run fires. Take a job 10 minutes after a phone alarm:
+Each change to the watched value replaces the job's pending run with one computed from the new value. The watched value is the entity's state, or the named attribute when `attribute=` is set. Home Assistant's own time trigger replaces its pending run the same way.
 
-1. At 07:00 the alarm rings, and `sensor.phone_next_alarm` changes to tomorrow's 07:00.
-2. The job keeps its 07:10 run, because the alarm it belongs to already happened.
-3. At 07:10 the job fires, then reschedules to tomorrow's 07:10.
-
-Any entity change between 07:00 and 07:10 waits until the 07:10 run fires. That includes the sensor going `unavailable` and a manual edit to an `input_datetime`. The job then reads the entity's current value. Negative offsets fire before the entity's time, so they never hit this window. `daily=True` jobs follow every change right away, since their fire time comes from the time of day alone.
-
-!!! warning "A restart between the entity's time and the offset run loses that run"
-    After a restart, the job rebuilds its schedule from the entity's current value. In the example, a restart at 07:05 sees only tomorrow's alarm, so today's 07:10 run never fires. For a run that has to survive restarts, read the time from an entity that keeps naming it after it passes, such as an `input_datetime` helper.
+!!! warning "Positive offsets need an entity that keeps its time"
+    Some entities move on to their next time the moment the current one arrives. A phone's next-alarm sensor and `sun.sun`'s `next_*` attributes both do this. That move replaces the pending run, so `offset=TimeDelta(minutes=10)` on such an alarm never fires. At 07:00 the sensor changes to tomorrow's alarm, and the 07:10 run moves to tomorrow's 07:10. A negative offset is safe here, because its run fires before the entity moves on. An entity that keeps its value after the time passes, such as an `input_datetime` helper, works with either sign. A `daily=True` job keeps its 07:10 run, because tomorrow's alarm has the same time of day.
 
 `attribute=` reaches times that live outside an entity's state:
 

@@ -774,18 +774,8 @@ class Scheduler(Resource):
     async def _reschedule_entity_time_job(
         self, job: "Job", trigger: EntityTime, new_state: "HassStateDict | None"
     ) -> None:
-        """Move an entity-driven job to the time the entity's new state reports.
-
-        A pending run for an occurrence that already happened is kept rather than moved (see
-        ``EntityTime.is_run_for_passed_occurrence``); ``EntityTime.next_run_time`` re-reads the
-        entity after it fires and picks up the new time then.
-        """
-        now = date_utils.now()
-        still_pending = job.fire_at is not None and job.fire_at > now
-        if still_pending and trigger.is_run_for_passed_occurrence(job.next_run, now):
-            self.logger.debug("Keeping '%s' run %s: its occurrence already passed", job.name, job.next_run)
-            return
-        next_run = trigger.resolve_from_state(new_state, now)
+        """Move an entity-driven job to the time the entity's new state reports, replacing any pending run."""
+        next_run = trigger.resolve_from_state(new_state, date_utils.now())
         await self._move_entity_time_job(job, WAITING if next_run is None else next_run)
 
     async def _move_entity_time_job(self, job: "Job", next_run: "ZonedDateTime | _WaitingSentinel") -> None:

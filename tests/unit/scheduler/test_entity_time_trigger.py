@@ -210,51 +210,6 @@ class TestEntityTimeParking:
         assert trigger.first_run_time(now) == zdt(2026, 7, 28, 7, 0)
 
 
-class TestEntityTimeRunForPassedOccurrence:
-    def test_positive_offset_run_whose_time_has_arrived(self) -> None:
-        """07:10 is the +10 min run of a 07:00 time; at 07:05 that time has arrived."""
-        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=10))
-        assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 28, 7, 10), zdt(2026, 7, 28, 7, 5)) is True
-
-    def test_positive_offset_run_whose_time_is_still_ahead(self) -> None:
-        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=10))
-        assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 28, 7, 10), zdt(2026, 7, 28, 6, 55)) is False
-
-    def test_subsecond_time_that_rounded_up_has_arrived(self) -> None:
-        """sun.sun reports microseconds; 07:00:00.750 + 10 min rounds to a 07:10:01 run.
-
-        Subtracting the offset back gives 07:00:01, but the entity's time arrived at
-        07:00:00.750, so a rollover at 07:00:00.800 must still keep the run.
-        """
-        trigger = bound_trigger("2026-07-28T07:00:00.750-05:00", offset=TimeDelta(minutes=10))
-        run = trigger.resolve(zdt(2026, 7, 28, 6, 0))
-        assert run == zdt(2026, 7, 28, 7, 10, 1)
-        assert isinstance(run, ZonedDateTime)
-        rollover = zdt(2026, 7, 28, 7, 0).add(milliseconds=800)
-        assert trigger.is_run_for_passed_occurrence(run, rollover) is True
-
-    def test_whole_second_time_still_most_of_a_second_away(self) -> None:
-        """An edit at 07:00:00.200 comes before a 07:00:01 time, so the run is not for a passed occurrence."""
-        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=10))
-        edit = zdt(2026, 7, 28, 7, 0).add(milliseconds=200)
-        assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 28, 7, 10, 1), edit) is False
-
-    @pytest.mark.parametrize("minutes", [0, -10])
-    def test_zero_or_negative_offset_never_qualifies(self, minutes: int) -> None:
-        """Without a positive offset the run is at or before its time, so there is nothing to keep."""
-        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=minutes))
-        assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 28, 7, 10), zdt(2026, 7, 28, 7, 30)) is False
-
-    def test_daily_never_qualifies(self) -> None:
-        """A daily run is a time-of-day slot, so run minus offset is not the entity's time."""
-        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(hours=25), daily=True)
-        assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 29, 8, 0), zdt(2026, 7, 28, 9, 0)) is False
-
-    def test_no_run(self) -> None:
-        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=10))
-        assert trigger.is_run_for_passed_occurrence(None, zdt(2026, 7, 28, 7, 5)) is False
-
-
 class TestEntityTimeMetadata:
     def test_label_is_not_a_reserved_builtin_name(self) -> None:
         """Custom triggers must not claim a built-in trigger label."""

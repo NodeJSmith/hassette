@@ -9,12 +9,12 @@ both methods derive from `_CONFIG_MATCH_FIELDS` in
 `src/hassette/bus/listeners.py` — does that table list every logical listener
 option, or was a new option added without an entry?
 
-## EntityTime Keep-Pending Rule
-`_reschedule_entity_time_job()` leaves a job alone when its run is still pending (`fire_at`,
-not `next_run`, which ignores jitter) and `EntityTime.is_run_for_passed_occurrence()` says
-the run follows an entity time that already arrived. Does a change to either side keep that
-consistent with `next_run_time`'s post-fire re-read, and does the registration-time re-read
-in `_add_job_and_watch_entity()` still bypass the rule as intended?
+## EntityTime Replace-on-Change
+`_reschedule_entity_time_job()` replaces a job's pending run on every entity change, as Home
+Assistant's time trigger does. Does a change try to keep a pending positive-offset run across
+the entity rolling to its next time? The job stores one rounded run, so that rule has to guess
+the run's occurrence from timestamps; it was tried and dropped (see
+`design/research/2026-10-16-sun-relative-scheduling/prior-art.md`).
 
 ## EntityTime Registration-to-Listener Gap
 `_add_job_and_watch_entity()` in `src/hassette/scheduler/scheduler.py` registers
