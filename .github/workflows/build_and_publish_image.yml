@@ -8,6 +8,7 @@ on:
         # isn't a required status check (a required check filtered out here would stay pending).
         paths:
             - "Dockerfile"
+            - "docker/**"
             - ".dockerignore"
             - "src/**"
             - "frontend/**"
@@ -47,14 +48,15 @@ on:
                 required: true
                 type: string
 
-permissions:
-    contents: read
-    packages: write
-    id-token: write
+permissions: {}
 
 jobs:
     build:
         runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+            id-token: write
         timeout-minutes: 60
         # Release/dispatch predicate — true for a real release build (workflow_call from
         # release-please with is_release=true, or a manual workflow_dispatch), false for
@@ -63,9 +65,9 @@ jobs:
         # itself — the root cause of issue #1473 (releases silently degraded to a single-
         # python dev build with no semver tags). The same `inputs.is_release == true ||
         # github.event_name == 'workflow_dispatch'` expression is repeated below in
-        # cancel-in-progress, matrix.python-version, and env.IS_RELEASE — GitHub Actions
-        # can't share an expression across those three scopes, so keep all three in sync
-        # if this predicate ever changes.
+        # cancel-in-progress, matrix.python-version, and env.IS_RELEASE, and in build-addon's
+        # cancel-in-progress and env.IS_RELEASE — GitHub Actions can't share an expression
+        # across those scopes, so keep all five in sync if this predicate ever changes.
         concurrency:
             group: ${{ github.workflow }}-${{ github.event_name }}-${{ inputs.tag_name || github.event.pull_request.number || github.ref }}-${{ matrix.python-version }}
             # Releases must run to completion so version/latest tags are never published half-finished.
@@ -75,6 +77,9 @@ jobs:
             matrix:
                 # PRs and main-branch pushes build only 3.13 for speed; releases build all supported versions
                 python-version: ${{ (inputs.is_release == true || github.event_name == 'workflow_dispatch') && fromJSON('["3.11", "3.12", "3.13", "3.14"]') || fromJSON('["3.13"]') }}
+        outputs:
+            # identical across the matrix, so whichever leg sets it last is fine
+            version: ${{ steps.version.outputs.version }}
         env:
             IMAGE_NAME: hassette
             REGISTRY: ghcr.io
@@ -126,6 +131,11 @@ jobs:
                       exit 1
                   fi
 
+            - name: Expose VERSION to build-addon
+              id: version
+              if: env.IS_RELEASE == 'true'
+              run: echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
             - name: Docker metadata
               id: meta
               uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
@@ -155,3 +165,97 @@ jobs:
                   platforms: linux/amd64,linux/arm64
                   build-args: |
                       PYTHON_VERSION=${{ matrix.python-version }}
+
+    # The Home Assistant add-on image (design/specs/129-ha-addon-v01/design.md, D3): docker/addon/Dockerfile on top
+    # of the hassette image `build` just pushed. Supervisor pulls ghcr.io/<owner>/hassette-addon:<add-on version>,
+    # so a release publishes the bare hassette version, built on one Python: the newest in `build`'s matrix.
+    build-addon:
+        needs: build
+        # Fork-PR guard, as in `build`: a fork's PR pushes no base image to build on.
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        permissions:
+            contents: read
+            packages: write
+        concurrency:
+            group: ${{ github.workflow }}-${{ github.event_name }}-${{ inputs.tag_name || github.event.pull_request.number || github.ref }}-addon
+            # Same release predicate as `build` (see the comment there).
+            cancel-in-progress: ${{ !(inputs.is_release == true || github.event_name == 'workflow_dispatch') }}
+        env:
+            IMAGE_NAME: hassette-addon
+            REGISTRY: ghcr.io
+            OWNER: ${{ github.repository_owner }}
+            IS_RELEASE: ${{ inputs.is_release == true || github.event_name == 'workflow_dispatch' }}
+            VERSION: ${{ needs.build.outputs.version }}
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  ref: ${{ inputs.tag_name || github.ref }}
+                  persist-credentials: false
+
+            - name: Verify VERSION is set for releases
+              if: env.IS_RELEASE == 'true' && env.VERSION == ''
+              run: |
+                  echo "::error::build published no VERSION output"
+                  exit 1
+
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+            - name: Login to GHCR
+              uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Docker metadata
+              id: meta
+              uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
+              with:
+                  images: ${{ env.REGISTRY }}/${{ env.OWNER }}/${{ env.IMAGE_NAME }}
+                  flavor: |
+                      latest=false
+                  tags: |
+                      type=ref,event=pr,enable=${{ github.event_name == 'pull_request' }}
+                      # A release run inherits event_name "push" too; without the IS_RELEASE check it would also
+                      # push :main, racing the ordinary main build (build's tags avoid this by their -py suffix).
+                      type=ref,event=branch,enable=${{ github.event_name == 'push' && env.IS_RELEASE != 'true' }}
+                      type=raw,value=${{ env.VERSION }},enable=${{ env.IS_RELEASE == 'true' }}
+
+            # Rebuilds the tag `build` pushed for this event: its metadata step's tag plus the -py<version> suffix.
+            # Releases build every Python in `build`'s matrix and the add-on takes the newest; dev builds have only
+            # 3.13. Update these when that matrix changes.
+            - name: Resolve the base image
+              env:
+                  EVENT_NAME: ${{ github.event_name }}
+                  PR_NUMBER: ${{ github.event.pull_request.number }}
+                  REF_NAME: ${{ github.ref_name }}
+              run: |
+                  if [ "$IS_RELEASE" = "true" ]; then
+                      base_tag="${VERSION}-py3.14"
+                  elif [ "$EVENT_NAME" = "pull_request" ]; then
+                      base_tag="pr-${PR_NUMBER}-py3.13"
+                  else
+                      base_tag="${REF_NAME}-py3.13"
+                  fi
+                  # GHCR image names are lowercase; the owner may not be.
+                  echo "BASE_IMAGE=${REGISTRY}/${OWNER,,}/hassette:${base_tag}" >> "$GITHUB_ENV"
+
+            # VERSION is empty on dev builds, so their io.hass.version label is the dev tag (pr-N, main).
+            - name: Build & Push
+              uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+              with:
+                  context: .
+                  file: docker/addon/Dockerfile
+                  push: true
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  platforms: linux/amd64,linux/arm64
+                  build-args: |
+                      BASE_IMAGE=${{ env.BASE_IMAGE }}
+                      VERSION=${{ env.VERSION || steps.meta.outputs.version }}
