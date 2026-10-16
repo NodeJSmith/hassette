@@ -9,9 +9,17 @@ both methods derive from `_CONFIG_MATCH_FIELDS` in
 `src/hassette/bus/listeners.py` — does that table list every logical listener
 option, or was a new option added without an entry?
 
+## EntityTime Keep-Pending Rule
+`_reschedule_entity_time_job()` leaves a job alone when its run is still pending (`fire_at`,
+not `next_run`, which ignores jitter) and `EntityTime.is_run_for_passed_occurrence()` says
+the run follows an entity time that already arrived. Does a change to either side keep that
+consistent with `next_run_time`'s post-fire re-read, and does the registration-time re-read
+in `_add_job_and_watch_entity()` still bypass the rule as intended?
+
 ## EntityTime Registration-to-Listener Gap
 `_add_job_and_watch_entity()` in `src/hassette/scheduler/scheduler.py` registers
-the job, then creates a state-change listener, then re-reads the entity to close
+the job, then creates the entity watcher (a state-change listener, or an
+attribute-change listener when `attribute=` is set), then re-reads the entity to close
 the window. If the entity changes during the re-read and produces a `WAITING`
 result while the job is already `SCHEDULED`, does `reschedule_job()` correctly
 remove the heap entry?

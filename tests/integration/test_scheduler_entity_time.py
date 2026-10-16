@@ -17,7 +17,7 @@ from whenever import TimeDelta
 import hassette.utils.date_utils as date_utils
 from hassette.resources.lifecycle import mark_ready
 from hassette.scheduler.triggers import EntityTime
-from hassette.testing import HassetteHarness, create_state_change_event, make_state_dict
+from hassette.testing import HassetteHarness, create_state_change_event, make_state_dict, wait_for
 from tests.support.helpers import entity_topic, noop
 
 if typing.TYPE_CHECKING:
@@ -485,6 +485,7 @@ async def test_rollover_keeps_the_pending_run_after_the_passed_time(entity_time_
     "10 minutes after the alarm" run for today is still ahead and must not be replaced.
     """
     rang = iso_in(-1)
+    tomorrow = iso_in(24 * 60 - 1)  # minutes: the next day's alarm
     await seed_alarm(entity_time_harness, rang)
 
     job = await entity_time_harness.scheduler.schedule(
@@ -493,10 +494,108 @@ async def test_rollover_keeps_the_pending_run_after_the_passed_time(entity_time_
     pending = date_utils.convert_datetime_str_to_tz(rang).add(minutes=10)
     assert job.next_run == pending
 
-    await change_alarm(entity_time_harness, rang, iso_in(24 * 60 - 1))
+    await change_alarm(entity_time_harness, rang, tomorrow)
 
     assert job.schedule_status == ScheduleStatus.SCHEDULED
     assert job.next_run == pending
+    job.remove()
+
+
+async def test_kept_rollover_run_fires_then_follows_the_new_time(entity_time_harness: HassetteHarness) -> None:
+    """The kept run fires, and the job then moves to the occurrence the entity rolled to."""
+    now = date_utils.now().round("second")
+    rang = now.add(seconds=-1).format_iso()
+    tomorrow = now.add(hours=24).format_iso()
+    await seed_alarm(entity_time_harness, rang)
+    fired = asyncio.Event()
+
+    async def on_fire() -> None:
+        fired.set()
+
+    # Real time: the kept run fires ~4s after `rang`. The margin absorbs slow harness setup
+    # under xdist; the wait below allows several times that.
+    job = await entity_time_harness.scheduler.schedule(
+        on_fire, EntityTime(ALARM_ENTITY, offset=TimeDelta(seconds=5)), name="entity_time_rollover_then_follows"
+    )
+    assert job.schedule_status == ScheduleStatus.SCHEDULED
+    # Cache first: the post-fire re-read uses the cache, and the event only drives the reschedule.
+    await seed_alarm(entity_time_harness, tomorrow)
+    await change_alarm(entity_time_harness, rang, tomorrow)
+
+    await asyncio.wait_for(fired.wait(), timeout=15)
+    following = date_utils.convert_datetime_str_to_tz(tomorrow).add(seconds=5)
+    await wait_for(lambda: job.next_run == following, desc="job follows tomorrow's alarm")
+    job.remove()
+
+
+async def test_rollover_through_unavailable_keeps_the_pending_run(entity_time_harness: HassetteHarness) -> None:
+    """A rollover in two steps (alarm, unavailable, next alarm) still keeps the passed alarm's run."""
+    rang = iso_in(-1)
+    tomorrow = iso_in(24 * 60 - 1)
+    await seed_alarm(entity_time_harness, rang)
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY, offset=TimeDelta(minutes=10)), name="entity_time_rollover_two_step"
+    )
+    pending = job.next_run
+
+    await change_alarm(entity_time_harness, rang, "unavailable")
+    await change_alarm(entity_time_harness, "unavailable", tomorrow)
+
+    assert job.schedule_status == ScheduleStatus.SCHEDULED
+    assert job.next_run == pending
+    job.remove()
+
+
+async def test_attribute_rollover_keeps_the_pending_run(entity_time_harness: HassetteHarness) -> None:
+    """The sun.sun shape: the time attribute rolls to tomorrow while the state flips, and the run stays."""
+    passed = iso_in(-1)
+    await entity_time_harness.seed_state(
+        ALARM_ENTITY, make_state_dict(ALARM_ENTITY, "above_horizon", attributes={"next_setting": passed})
+    )
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop,
+        EntityTime(ALARM_ENTITY, attribute="next_setting", offset=TimeDelta(minutes=30)),
+        name="entity_time_attribute_rollover",
+    )
+    pending = job.next_run
+
+    await change_alarm(
+        entity_time_harness,
+        "above_horizon",
+        "below_horizon",
+        old_attrs={"next_setting": passed},
+        new_attrs={"next_setting": iso_in(24 * 60 - 2)},
+    )
+
+    assert job.next_run == pending
+    job.remove()
+
+
+async def test_daily_edit_after_the_offset_run_passed_still_moves_the_job(
+    entity_time_harness: HassetteHarness,
+) -> None:
+    """A passed time does not freeze a daily job: once today's offset run is gone, an edit moves it.
+
+    Pins the rollover rule to the run the old time scheduled. Here that run (today's) already
+    passed and the job sits on tomorrow's, so a new time later today is an edit to follow.
+    """
+    passed = iso_in(-30)
+    await seed_alarm(entity_time_harness, passed)
+    job = await entity_time_harness.scheduler.schedule(
+        noop,
+        EntityTime(ALARM_ENTITY, offset=TimeDelta(minutes=10), daily=True),
+        name="entity_time_daily_edit_after_passed",
+    )
+    assert job.next_run > date_utils.now(), "today's run 20 minutes ago is gone, so the job waits on tomorrow's"
+
+    edited = iso_in(30)
+    await change_alarm(entity_time_harness, passed, edited)
+
+    target = date_utils.convert_datetime_str_to_tz(edited).add(minutes=10)
+    # Cron granularity is whole minutes, so compare the wall-clock minute.
+    assert (job.next_run.date(), job.next_run.hour, job.next_run.minute) == (target.date(), target.hour, target.minute)
     job.remove()
 
 
@@ -513,6 +612,7 @@ async def test_attribute_only_change_moves_the_job(entity_time_harness: Hassette
     assert job.next_run == date_utils.convert_datetime_str_to_tz(first)
 
     second = iso_in(15)
+    # Same state on both sides: only the attribute changes.
     await change_alarm(entity_time_harness, "on", "on", old_attrs={"next_time": first}, new_attrs={"next_time": second})
 
     assert job.next_run == date_utils.convert_datetime_str_to_tz(second)
