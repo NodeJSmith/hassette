@@ -233,6 +233,12 @@ class TestEntityTimeRunForPassedOccurrence:
         rollover = zdt(2026, 7, 28, 7, 0).add(milliseconds=800)
         assert trigger.is_run_for_passed_occurrence(run, rollover) is True
 
+    def test_whole_second_time_still_most_of_a_second_away(self) -> None:
+        """An edit at 07:00:00.200 comes before a 07:00:01 time, so the run is not for a passed occurrence."""
+        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=10))
+        edit = zdt(2026, 7, 28, 7, 0).add(milliseconds=200)
+        assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 28, 7, 10, 1), edit) is False
+
     @pytest.mark.parametrize("minutes", [0, -10])
     def test_zero_or_negative_offset_never_qualifies(self, minutes: int) -> None:
         """Without a positive offset the run is at or before its time, so there is nothing to keep."""
