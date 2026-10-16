@@ -701,14 +701,16 @@ def test_unrecognized_runtime_warns_and_keeps_docker_behavior():
     assert "docker compose up -d" in output
 
 
-def test_docker_network_failure_still_halts_without_an_offline_retry(tmp_path: Path):
-    """Without the add-on runtime, a network failure halts as before: no offline retry, no degraded start."""
+def test_docker_network_failure_halts_as_a_network_error(tmp_path: Path):
+    """Without the add-on runtime, a network failure halts, named as the network rather than a dependency conflict."""
     apps_dir = write_requirements(tmp_path, "tabulate")
 
     result, output = run_requirements_container(apps_dir, env={**NO_RETRY, **UV_FAIL_FAST}, network="none")
 
     assert result.returncode == 1, output
-    assert "HASSETTE CAN'T START" in output
+    assert "HASSETTE CAN'T START: the package index couldn't be reached" in output
+    assert "Check the container's network access" in output
+    assert "DEPENDENCY CONFLICT" not in output
     assert OFFLINE_RETRY_MESSAGE not in output
 
 

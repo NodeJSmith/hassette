@@ -954,3 +954,9 @@ Two findings shaped the implementation:
 - The design's "`uv` without `--offline` contacts the index even when the cache is warm" holds only once the
   cached index page is stale. Within its HTTP max-age (600 s for PyPI) a networkless install passes with no
   retry at all.
+
+**2026-10-16 — D4: Docker users also get an accurate network-failure banner (#2667).** Outside the add-on,
+a network failure during the install still halts and retries as before, but its banner now says the package
+index couldn't be reached, with a network remedy, instead of reporting a dependency conflict. It reuses the
+connection-failure check the add-on's offline retry needs. Exit 0 on stop and this banner are the only changes
+Docker users see.

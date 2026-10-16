@@ -59,6 +59,8 @@ else
     REMEDY_IMAGE="Pull the image again: docker compose pull && docker compose up -d"
     REMEDY_UNEXPECTED="Check the error above: fix the container's command arguments if it names one,
   otherwise report it at ${ISSUES_URL}"
+    # the add-on never halts on a network failure: it installs from the uv cache or starts degraded instead
+    REMEDY_NETWORK="Check the container's network access (DNS and the route to the package index)"
 fi
 EX_CONFIG=78  # EX_CONFIG in hassette/cli/commands/run.py; a test keeps them in sync
 # Args that make `hassette run` print and exit instead of starting: cyclopts' help flags and the
@@ -331,14 +333,14 @@ run_uv_install() {
         return
     fi
 
-    local exit_code=0 retry_offline=0
+    local exit_code=0 network_failure=0
     # || halt: this runs where set -e is off (callers use `|| return 0` / `|| true`), and tee into an empty path
     # would fail a successful install
     uv_log_file=$(mktemp "${TMP_ROOT}/uv-log.XXXXXX") || halt 1 "couldn't create a temp file in ${TMP_ROOT}" "${REMEDY_UNEXPECTED}"
     wait_interruptibly uv_with_log "${timeout_secs}" "${uv_log_file}" "$@" || exit_code=$?
-    if [ "${exit_code}" -ne 0 ] && [ "${RUNTIME}" = "addon" ]; then
+    if [ "${exit_code}" -ne 0 ]; then
         if [ "${exit_code}" -eq 124 ] || grep -qE "${UV_NETWORK_ERROR_PATTERN}" "${uv_log_file}"; then
-            retry_offline=1
+            network_failure=1
         fi
     fi
     rm -f "${uv_log_file}"
@@ -348,7 +350,7 @@ run_uv_install() {
         return 0
     fi
 
-    if [ "${retry_offline}" -eq 1 ]; then
+    if [ "${network_failure}" -eq 1 ] && [ "${RUNTIME}" = "addon" ]; then
         INDEX_UNREACHABLE=1
         echo "WARNING: couldn't reach the package index (exit ${exit_code}); retrying from the uv cache (--offline)"
         run_uv_offline "${timeout_secs}" "${label}" "$@"
@@ -357,7 +359,11 @@ run_uv_install() {
 
     if [ "${exit_code}" -eq 124 ]; then
         echo "ERROR: dependency install timed out after ${timeout_secs}s"
-        halt 1 "the dependency install timed out" "Check the container's network access."
+        halt 1 "the dependency install timed out" "${REMEDY_NETWORK}"
+    fi
+    if [ "${network_failure}" -eq 1 ]; then
+        echo "ERROR: dependency install couldn't reach the package index (exit ${exit_code})"
+        halt 1 "the package index couldn't be reached (see above)" "${REMEDY_NETWORK}"
     fi
 
     print_install_failure_banner "${failure_type}"
