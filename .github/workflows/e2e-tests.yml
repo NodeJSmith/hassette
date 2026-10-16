@@ -65,6 +65,15 @@ jobs:
 
             - run: uv sync
 
+            # The nox e2e session runs `npm ci` for the frontend build; pin Node so the lockfile is
+            # read by the same npm major as the other frontend jobs.
+            - name: Set up Node.js
+              uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+              with:
+                  node-version: "24"
+                  cache: "npm"
+                  cache-dependency-path: frontend/package-lock.json
+
             # Key the browser cache on the locked Playwright version, not the whole lockfile:
             # each Playwright release pins its own Chromium build, and nothing else in uv.lock
             # changes which browser gets downloaded.
