@@ -2,13 +2,21 @@
 
 """Unit tests for TypeMatcher and AnnotatedMatcher."""
 
-from typing import Annotated
+from collections.abc import Callable
+from typing import Annotated, Any
 
 import pytest
 
-from hassette.di import AnnotatedMatcher, AnnotationDetails, TypeMatcher
+from hassette.di import AnnotatedMatcher, AnnotationDetails, InjectionParam, TypeMatcher
 from hassette.events import AnyEvent, CallServiceEvent, Event, RawStateChangeEvent
 from hassette.utils.type_utils import get_typed_signature
+
+
+def match_param(
+    matcher: TypeMatcher | AnnotatedMatcher, handler: Callable[..., Any], name: str
+) -> InjectionParam | None:
+    """Run `matcher` against the parameter `name` of `handler`'s typed signature."""
+    return matcher.match(get_typed_signature(handler).parameters[name])
 
 
 class TestTypeMatcher:
@@ -18,10 +26,9 @@ class TestTypeMatcher:
         def handler(event: AnyEvent):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = TypeMatcher(Event)
 
-        result = matcher.match(sig.parameters["event"])
+        result = match_param(matcher, handler, "event")
 
         assert result is not None
         assert result.name == "event"
@@ -32,10 +39,9 @@ class TestTypeMatcher:
         def handler(event: RawStateChangeEvent):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = TypeMatcher(Event)
 
-        result = matcher.match(sig.parameters["event"])
+        result = match_param(matcher, handler, "event")
 
         assert result is not None
         assert result.source_type is Event
@@ -45,9 +51,8 @@ class TestTypeMatcher:
         def handler(event: RawStateChangeEvent):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = TypeMatcher(Event)
-        result = matcher.match(sig.parameters["event"])
+        result = match_param(matcher, handler, "event")
 
         assert result is not None
         sentinel = object()
@@ -57,10 +62,9 @@ class TestTypeMatcher:
         def handler(event: "Event[str]"):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = TypeMatcher(Event)
 
-        result = matcher.match(sig.parameters["event"])
+        result = match_param(matcher, handler, "event")
 
         assert result is not None
         assert result.source_type is Event
@@ -69,37 +73,33 @@ class TestTypeMatcher:
         def handler(value: str):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = TypeMatcher(Event)
 
-        assert matcher.match(sig.parameters["value"]) is None
+        assert match_param(matcher, handler, "value") is None
 
     def test_unrelated_subclass_family_returns_none(self):
         def handler(event: CallServiceEvent):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = TypeMatcher(str)
 
-        assert matcher.match(sig.parameters["event"]) is None
+        assert match_param(matcher, handler, "event") is None
 
     def test_empty_annotation_returns_none(self):
         def handler(value):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = TypeMatcher(Event)
 
-        assert matcher.match(sig.parameters["value"]) is None
+        assert match_param(matcher, handler, "value") is None
 
     def test_matches_union_containing_target(self):
         def handler(event: AnyEvent | None):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = TypeMatcher(Event)
 
-        result = matcher.match(sig.parameters["event"])
+        result = match_param(matcher, handler, "event")
         assert result is not None
         assert result.source_type is Event
 
@@ -107,19 +107,17 @@ class TestTypeMatcher:
         def handler(value: str | None):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = TypeMatcher(Event)
 
-        assert matcher.match(sig.parameters["value"]) is None
+        assert match_param(matcher, handler, "value") is None
 
     def test_parameterized_generic_containing_target_returns_none(self):
         def handler(events: list[AnyEvent]):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = TypeMatcher(Event)
 
-        assert matcher.match(sig.parameters["events"]) is None
+        assert match_param(matcher, handler, "events") is None
 
 
 class TestAnnotatedMatcher:
@@ -132,10 +130,9 @@ class TestAnnotatedMatcher:
         def handler(value: Annotated[str, AnnotationDetails(extractor=extractor)]):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = AnnotatedMatcher(source_type=Event)
 
-        result = matcher.match(sig.parameters["value"])
+        result = match_param(matcher, handler, "value")
 
         assert result is not None
         assert result.name == "value"
@@ -151,10 +148,9 @@ class TestAnnotatedMatcher:
         def handler(value: Annotated[str, bare_extractor]):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = AnnotatedMatcher(source_type=Event)
 
-        result = matcher.match(sig.parameters["value"])
+        result = match_param(matcher, handler, "value")
 
         assert result is not None
         assert result.extractor is bare_extractor
@@ -163,11 +159,10 @@ class TestAnnotatedMatcher:
         def handler(value: Annotated[str, "not_callable"]):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = AnnotatedMatcher(source_type=Event)
 
         with pytest.warns(UserWarning, match="Invalid Annotated metadata"):
-            result = matcher.match(sig.parameters["value"])
+            result = match_param(matcher, handler, "value")
 
         assert result is None
 
@@ -181,10 +176,9 @@ class TestAnnotatedMatcher:
         def handler(value: Annotated[str, AnnotationDetails(extractor=extractor, converter=converter)]):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = AnnotatedMatcher(source_type=Event)
 
-        result = matcher.match(sig.parameters["value"])
+        result = match_param(matcher, handler, "value")
 
         assert result is not None
         assert result.converter is converter
@@ -196,10 +190,9 @@ class TestAnnotatedMatcher:
         def handler(value: Annotated[str, AnnotationDetails(extractor=extractor)]):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = AnnotatedMatcher(source_type=Event)
 
-        result = matcher.match(sig.parameters["value"])
+        result = match_param(matcher, handler, "value")
 
         assert result is not None
         assert result.source_type is Event
@@ -214,10 +207,9 @@ class TestAnnotatedMatcher:
         def handler(value: Annotated[str, AnnotationDetails(extractor=extractor, source_type=OtherSource)]):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = AnnotatedMatcher(source_type=Event)
 
-        result = matcher.match(sig.parameters["value"])
+        result = match_param(matcher, handler, "value")
 
         assert result is not None
         assert result.source_type is OtherSource
@@ -226,16 +218,14 @@ class TestAnnotatedMatcher:
         def handler(value: str):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = AnnotatedMatcher(source_type=Event)
 
-        assert matcher.match(sig.parameters["value"]) is None
+        assert match_param(matcher, handler, "value") is None
 
     def test_empty_annotation_returns_none(self):
         def handler(value):
             pass
 
-        sig = get_typed_signature(handler)
         matcher = AnnotatedMatcher(source_type=Event)
 
-        assert matcher.match(sig.parameters["value"]) is None
+        assert match_param(matcher, handler, "value") is None
