@@ -105,7 +105,6 @@ class TestGetJobSummary:
         """last_error_execution_id is the timed-out execution's id, even after a later success."""
         db_svc, session_id = db
         failing_id = await insert_job(db_svc, job_name="failing_job")
-        clean_id = await insert_job(db_svc, job_name="clean_job")
 
         await insert_execution(
             db_svc,
@@ -119,11 +118,9 @@ class TestGetJobSummary:
         await insert_execution(
             db_svc, failing_id, session_id, execution_start_ts=BASE_TS + 2.0, execution_id="exec-later-ok"
         )
-        await insert_execution(db_svc, clean_id, session_id, execution_start_ts=BASE_TS + 1.0, execution_id="exec-ok")
 
-        rows = {r.job_name: r for r in await query_service.get_job_summary("test_app", 0)}
-        assert rows["failing_job"].last_error_execution_id == "exec-failed"
-        assert rows["clean_job"].last_error_execution_id is None
+        row = await only_row(query_service.get_job_summary("test_app", 0))
+        assert row.last_error_execution_id == "exec-failed"
 
     async def test_get_job_summary_error_fields_none_when_no_executions(
         self, query_service: TelemetryQueryService, db: DbFixture

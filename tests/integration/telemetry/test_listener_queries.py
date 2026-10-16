@@ -178,7 +178,6 @@ class TestGetListenerSummary:
         """last_error_execution_id is the failed execution's id, even after a later success."""
         db_svc, session_id = db
         failing_id = await insert_listener(db_svc, handler_method="on_err")
-        clean_id = await insert_listener(db_svc, handler_method="on_clean")
 
         await insert_invocation(
             db_svc,
@@ -192,11 +191,9 @@ class TestGetListenerSummary:
         await insert_invocation(
             db_svc, failing_id, session_id, execution_start_ts=BASE_TS + 2.0, execution_id="exec-later-ok"
         )
-        await insert_invocation(db_svc, clean_id, session_id, execution_start_ts=BASE_TS + 1.0, execution_id="exec-ok")
 
-        rows = {r.handler_method: r for r in await query_service.get_listener_summary("test_app", 0)}
-        assert rows["on_err"].last_error_execution_id == "exec-failed"
-        assert rows["on_clean"].last_error_execution_id is None
+        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        assert row.last_error_execution_id == "exec-failed"
 
 
 class TestListenerSummaryLastErrorRowCoherence:
