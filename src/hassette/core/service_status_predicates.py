@@ -1,8 +1,7 @@
 """Shared predicates for filtering HASSETTE_EVENT_SERVICE_STATUS subscriptions by role.
 
 Extracted from service_watcher.py so multiple subscribers can share the same role filter.
-Current consumers: ServiceWatcher and SessionManager (#2153).
-Planned: RuntimeQueryService (#1666).
+Current consumers: ServiceWatcher, SessionManager (#2153), and RuntimeQueryService (#1666).
 """
 
 from hassette_wire import ResourceRole
@@ -20,7 +19,9 @@ Every ``Resource`` emits ``HASSETTE_EVENT_SERVICE_STATUS`` through the shared li
 machinery, so an app's status transitions land on the same topic the framework's own do. This
 guards the acting handlers — the ones that do something to the resource they observe (restart
 it, take the process down, or record a session-level failure), as opposed to logging-only
-handlers. One app's failure is not a framework failure.
+handlers. One app's failure is not a framework failure. It also keeps app transitions out of
+the web UI's framework-services stream, where apps (keyed by class name, not instance) would
+collide; app status reaches the UI through ``app_status_changed`` instead.
 
 Excludes APP rather than admitting SERVICE only, and the difference matters: several framework
 resources are plain ``Resource`` subclasses (RESOURCE role), not ``Service``. A SERVICE-only
