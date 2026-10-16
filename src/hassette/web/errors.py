@@ -270,7 +270,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> Respo
     headers. Starlette re-raises after this returns, and uvicorn logs it again to its own stderr
     handler; this record is the one that reaches hassette's log and the web UI.
     """
-    LOGGER.exception("Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc)
+    LOGGER.error("Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc)
     return problem_response(ProblemCode.INTERNAL_ERROR, INTERNAL_ERROR_DETAIL)
 
 

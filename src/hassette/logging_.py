@@ -623,8 +623,8 @@ def enable_basic_logging(
         extra_logger = _reset_logger(extra_name, log_level)
         extra_logger.addHandler(stream_handler)
 
-    sys.excepthook = lambda *args: logging.getLogger().exception("Uncaught exception", exc_info=args)
-    threading.excepthook = lambda args: logging.getLogger().exception(
+    sys.excepthook = lambda *args: logging.getLogger().error("Uncaught exception", exc_info=args)
+    threading.excepthook = lambda args: logging.getLogger().error(
         "Uncaught thread exception",
         exc_info=(args.exc_type, args.exc_value, args.exc_traceback),  # pyright: ignore[reportArgumentType]
     )

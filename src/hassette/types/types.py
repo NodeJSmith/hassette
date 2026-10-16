@@ -171,7 +171,7 @@ class TriggerProtocol(Protocol):
 
     def next_run_time(
         self, previous_run: ZonedDateTime, current_time: ZonedDateTime
-    ) -> "ZonedDateTime | None | _WaitingSentinel":
+    ) -> "ZonedDateTime | _WaitingSentinel | None":
         """Return the next run time after previous_run, or None for one-shot triggers."""
         ...
 
@@ -263,7 +263,7 @@ HandlerType = SyncHandler | AsyncHandlerType
 
 ChangeType = TypeAliasType(
     "ChangeType",
-    "None | FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel]",
+    "FalseySentinel | V | Condition[V | FalseySentinel] | ComparisonCondition[V | FalseySentinel] | None",
     type_params=(V,),
 )
 """Type representing a value that can be used to specify changes in predicates."""

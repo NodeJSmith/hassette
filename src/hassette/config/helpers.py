@@ -46,7 +46,7 @@ def get_dev_mode() -> bool:
     return enabled
 
 
-def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | None | set[Path]) -> set[Path]:
+def filter_paths_to_unique_existing(value: Sequence[str | Path | None] | str | Path | set[Path] | None) -> set[Path]:
     """Filter the provided paths to only include unique existing paths.
 
     Args:
