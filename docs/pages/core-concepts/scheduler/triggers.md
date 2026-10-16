@@ -76,6 +76,20 @@ Each change to the watched value replaces the job's pending run with one compute
 
 `EntityTime` parses the value shapes Home Assistant uses for times. It accepts offset-aware ISO strings, naive ISO date-times, time-only strings, and unix timestamps. Naive and time-only values are read in the configured timezone.
 
+### Sunrise and sunset
+
+Home Assistant's `sun` integration publishes the next solar events as `sun.sun` attributes. `next_rising` holds the next sunrise and `next_setting` holds the next sunset. Pairing one with a negative `offset` schedules a job before the sun event:
+
+```python
+--8<-- "pages/core-concepts/scheduler/snippets/scheduler_entity_time.py:sun_offset"
+```
+
+The porch lights turn on 30 minutes before every sunset. After each sunset, `sun.sun` advances `next_setting` to the following day. That change moves the job to tomorrow's time, so it repeats without `daily=True`. With `daily=True`, the trigger would keep only today's sunset time of day, and sunset drifts by minutes each week.
+
+Without `daily=True`, a positive offset never fires with `next_rising` or `next_setting`. At sunset, `next_setting` jumps to tomorrow and moves the pending "30 minutes after sunset" run with it. Lights that track dusk or dawn react to the sun's height instead, through `sun.sun`'s `elevation` attribute and [`bus.on_attribute_change`](../bus/methods.md). Home Assistant [recommends elevation over offsets](https://www.home-assistant.io/docs/automation/trigger/#sun-elevation-trigger) for this, because twilight length changes with the season.
+
+`sun.sun` exists only while the `sun` integration is loaded. Without it, the job stays in the `waiting` state described below. Home Assistant loads `sun` through `default_config`. A setup without `default_config` needs the `sun` integration added separately.
+
 ### When the entity has no time
 
 An entity can be unavailable, report `unknown`, or hold a non-time value. A phone with no alarm set does exactly this. The job's `schedule_status` becomes `waiting`: it stays registered and watched by the entity-change listener, but carries no `next_run` and sits off the scheduler's due-time heap. The entity's next change puts it back on a real schedule — reactivation goes through the same watcher, so no polling or timer is involved.
