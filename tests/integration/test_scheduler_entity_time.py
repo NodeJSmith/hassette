@@ -8,7 +8,6 @@ the entity reports (or loses) a usable time.
 import asyncio
 import typing
 from collections.abc import AsyncIterator
-from unittest.mock import AsyncMock
 
 import pytest
 from hassette_wire import ScheduleStatus
@@ -32,11 +31,6 @@ async def entity_time_harness(test_config) -> AsyncIterator[HassetteHarness]:
     """Harness with bus + scheduler + state proxy, so entity-driven jobs can be scheduled."""
     harness = HassetteHarness(test_config, skip_global_set=False)
     harness.with_bus().with_scheduler().with_state_proxy().with_state_registry()
-
-    api_mock = AsyncMock()
-    api_mock.sync = AsyncMock()
-    api_mock.get_states_raw = AsyncMock(return_value=[])
-    harness.hassette._api = api_mock
 
     await harness.start()
     mark_ready(harness.state_proxy, reason="entity_time_harness: mark ready for test")

@@ -24,7 +24,6 @@ from contextlib import AsyncExitStack
 from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast
-from unittest.mock import AsyncMock
 
 import pydantic
 from hassette_wire import ResourceStatus
@@ -285,15 +284,6 @@ class AppTestHarness(SimulationMixin, TimeControlMixin, Generic[AppType]):
             .with_state_registry()
         )
         self._harness = harness
-
-        # Step 5: Pre-configure hassette.api mock before state proxy starts.
-        # HassetteHarness.start() checks "if not self.hassette.api" before setting it,
-        # so we set it here first with get_states_raw returning [] to prevent
-        # StateProxy.load_cache() from failing when on_initialize() runs.
-        api_mock = AsyncMock()
-        api_mock.sync = AsyncMock()
-        api_mock.get_states_raw = AsyncMock(return_value=[])
-        harness.hassette._api = api_mock
 
         # Step 6: Start harness — registers stop() as teardown (early registration = late unwind)
         await harness.start()
