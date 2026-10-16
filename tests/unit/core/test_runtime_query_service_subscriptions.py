@@ -4,13 +4,14 @@ Calling a handler directly cannot catch a wrong topic, a dropped registration, o
 ``where=`` filter in on_initialize(); these tests dispatch real events instead.
 """
 
+import asyncio
 import contextlib
 import typing
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from hassette_wire import ResourceRole, ResourceStatus
 
+from hassette.core.logging_service import LoggingService
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.events.hassette import HassetteServiceEvent, HassetteSimpleEvent
 from hassette.testing import wait_for
@@ -28,23 +29,33 @@ async def initialized_runtime(harness: "HassetteHarness") -> "AsyncIterator[list
     """Run a RuntimeQueryService's real on_initialize() against a harness Bus, recording broadcasts.
 
     Lets a test exercise the bus subscriptions on_initialize() registers (topic and ``where=``
-    filter), which calling a handler directly cannot detect. The harness config needs
+    filter), which calling a handler directly cannot detect. Broadcasts are captured through a
+    real WS client queue, so the real ``broadcast()`` path runs. The harness config needs
     ``web_api.run=True``: on_initialize() returns early without subscribing otherwise.
     """
-    svc = RuntimeQueryService(harness.hassette)
-    broadcast_calls: list[dict] = []
-    svc.broadcast = AsyncMock(side_effect=lambda msg: broadcast_calls.append(msg))
+    # with_bus() doesn't call wire_services(), so hassette.logging_service is unset.
+    # on_initialize() only reads its capture_handler, so a constructed-but-uninitialized
+    # LoggingService is enough; it installs no logger handlers until its own on_initialize().
+    previous_logging_service = harness.hassette._logging_service
+    harness.hassette._logging_service = LoggingService(harness.hassette, stream_handler=None)
 
-    # with_bus() doesn't call wire_services(), so hassette.logging_service is unset --
-    # on_initialize() only needs its capture_handler for the log-broadcast wiring, which
-    # is orthogonal to the bus registrations under test.
-    harness.hassette._logging_service = MagicMock()
+    svc = RuntimeQueryService(harness.hassette)
+    queue = await svc.register_ws_client()
+    broadcast_calls: list[dict] = []
+
+    async def drain() -> None:
+        while (msg := await queue.get()) is not None:
+            broadcast_calls.append(msg)
 
     await svc.on_initialize()
+    drain_task = asyncio.create_task(drain())
     try:
         yield broadcast_calls
     finally:
+        # on_shutdown() closes every WS client queue with a None sentinel, which ends drain().
         await svc.on_shutdown()
+        await asyncio.wait_for(drain_task, timeout=5)
+        harness.hassette._logging_service = previous_logging_service
 
 
 class TestSubscriptionWiring:
