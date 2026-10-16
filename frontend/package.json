@@ -54,7 +54,7 @@
     "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-simple-import-sort": "^13.0.0",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
     "jsdom": "^29.1.1",
     "json-schema-to-typescript": "^16.0.0",
     "msw": "^2.15.0",
