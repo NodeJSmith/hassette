@@ -51,6 +51,34 @@ def test_https_with_custom_port():
 
 
 @pytest.mark.parametrize(
+    ("input_url", "expected_rest", "expected_ws"),
+    [
+        ("http://ha.local:8123/", "http://ha.local:8123/api/", "ws://ha.local:8123/api/websocket"),
+        ("http://supervisor/core", "http://supervisor/core/api/", "ws://supervisor/core/api/websocket"),
+        ("http://supervisor/core/", "http://supervisor/core/api/", "ws://supervisor/core/api/websocket"),
+        (
+            "https://example.com/ha/proxy",
+            "https://example.com/ha/proxy/api/",
+            "wss://example.com/ha/proxy/api/websocket",
+        ),
+        (
+            "https://example.com:8443/ha//",
+            "https://example.com:8443/ha/api/",
+            "wss://example.com:8443/ha/api/websocket",
+        ),
+        ("http://h/my%20ha", "http://h/my%20ha/api/", "ws://h/my%20ha/api/websocket"),
+        ("http://supervisor/core?x=1#frag", "http://supervisor/core/api/", "ws://supervisor/core/api/websocket"),
+    ],
+)
+def test_base_url_path_prefix_is_kept(input_url: str, expected_rest: str, expected_ws: str):
+    """A path in base_url prefixes both endpoints; a lone or trailing slash adds nothing."""
+    config = make_config(input_url)
+
+    assert build_rest_url(config) == expected_rest
+    assert build_ws_url(config) == expected_ws
+
+
+@pytest.mark.parametrize(
     ("input_url", "expected_port"),
     [
         ("http://test.local", None),
