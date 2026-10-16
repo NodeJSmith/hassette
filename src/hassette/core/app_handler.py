@@ -20,6 +20,7 @@ from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
 from hassette.schemas.app_snapshots import AppStatusSnapshot
 from hassette.types import Topic
+from hassette.utils.service_utils import cancel_and_drain
 
 if typing.TYPE_CHECKING:
     from hassette import AppConfig, Hassette
@@ -121,10 +122,8 @@ class AppHandler(Resource):
         """Shutdown all app instances gracefully."""
         self.logger.debug("Stopping '%s' %s", self.class_name, self.role)
         mark_not_ready(self, reason="shutting-down")
-        if self._bootstrap_task is not None:
-            self._bootstrap_task.cancel()
-            await asyncio.gather(self._bootstrap_task, return_exceptions=True)
-            self._bootstrap_task = None
+        await cancel_and_drain(self._bootstrap_task)
+        self._bootstrap_task = None
         await self.lifecycle.shutdown_all()
 
     def is_action_in_progress(self, app_key: str) -> bool:

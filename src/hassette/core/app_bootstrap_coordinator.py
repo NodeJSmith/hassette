@@ -10,6 +10,7 @@ from hassette.core.state_proxy import StateProxy
 from hassette.core.sync_executor_service import SyncExecutorService
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_not_ready, mark_ready
+from hassette.utils.service_utils import cancel_and_drain
 
 if TYPE_CHECKING:
     from hassette import Hassette
@@ -84,7 +85,5 @@ class AppBootstrapCoordinator(Resource):
 
     async def on_shutdown(self) -> None:
         mark_not_ready(self, reason="shutting-down")
-        if self._bootstrap_task is not None:
-            self._bootstrap_task.cancel()
-            await asyncio.gather(self._bootstrap_task, return_exceptions=True)
-            self._bootstrap_task = None
+        await cancel_and_drain(self._bootstrap_task)
+        self._bootstrap_task = None
