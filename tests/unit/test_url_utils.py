@@ -6,7 +6,7 @@ from pydantic import SecretStr
 from hassette.config.config import HassetteConfig
 from hassette.exceptions import BaseUrlRequiredError, IPV6NotSupportedError, SchemeRequiredInBaseUrlError
 from hassette.testing.config import TEST_TOKEN
-from hassette.utils.url_utils import _parse_and_normalize_url, build_rest_url, build_ws_url
+from hassette.utils.url_utils import _parse_and_normalize_url, build_rest_url, build_ws_url, resolve_rest_path
 
 
 def make_config(base_url: str, api_port: int = 8123) -> HassetteConfig:
@@ -163,3 +163,20 @@ def test_quoted_urls_are_stripped(input_url: str, expected_scheme: str, expected
     assert parts.scheme == expected_scheme
     assert parts.host == expected_host
     assert parts.port == expected_port
+
+
+@pytest.mark.parametrize(
+    ("rest_url", "path", "expected"),
+    [
+        ("http://ha:8123/api/", "/api/thing", "/api/thing"),
+        ("http://ha:8123/api/", "states/x", "states/x"),
+        ("https://example.com/ha/api/", "/api/thing", "https://example.com/ha/api/thing"),
+        ("https://example.com/ha/api/", "/api/thing?a=1", "https://example.com/ha/api/thing?a=1"),
+        ("https://example.com/ha/api/", "states/x", "states/x"),
+        ("https://example.com:8443/t%2Fb/api/", "/local/x", "https://example.com:8443/t%2Fb/local/x"),
+        ("https://example.com/ha/api/", "https://other.test/api/x", "https://other.test/api/x"),
+    ],
+)
+def test_resolve_rest_path_keeps_root_relative_paths_under_prefix(rest_url: str, path: str, expected: str):
+    """A root-relative raw REST path stays under the base_url prefix; other forms pass through."""
+    assert resolve_rest_path(rest_url, path) == expected

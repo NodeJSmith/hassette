@@ -74,3 +74,21 @@ def build_ws_url(config: "HassetteConfig") -> str:
 def build_rest_url(config: "HassetteConfig") -> str:
     """Construct the REST API URL for Home Assistant."""
     return _build_ha_url(config)
+
+
+def resolve_rest_path(rest_url: str, path: str) -> str:
+    """Keep a root-relative raw REST path (``/api/...``) beneath the ``base_url`` path prefix.
+
+    aiohttp resolves a root-relative path against the origin, which drops the prefix that
+    ``rest_url`` carries. Relative and absolute URLs are returned unchanged, as is any path when
+    there is no prefix.
+    """
+    if not path.startswith("/") or path.startswith("//"):
+        return path
+
+    base = URL(rest_url)
+    prefix = base.raw_path.removesuffix("api/").rstrip("/")
+    if not prefix:
+        return path
+
+    return f"{base.origin()}{prefix}{path}"

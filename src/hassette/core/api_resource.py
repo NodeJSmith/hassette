@@ -32,6 +32,7 @@ from hassette.models.history import normalize_history
 from hassette.resources.base import Resource
 from hassette.resources.lifecycle import mark_ready
 from hassette.utils.request_utils import clean_kwargs, format_time_param, orjson_dump
+from hassette.utils.url_utils import resolve_rest_path
 
 _SSL_SHUTDOWN_DELAY = 0.25
 
@@ -61,6 +62,9 @@ class ApiResource(Resource):
     _session: aiohttp.ClientSession | None
     """HTTP client session for making requests."""
 
+    _session_rest_url: str
+    """The ``base_url`` the session was created with; root-relative raw paths are resolved against it."""
+
     def __init__(
         self,
         hassette: "Hassette",
@@ -72,6 +76,7 @@ class ApiResource(Resource):
         super().__init__(hassette, parent=parent)
         self._stack = AsyncExitStack()
         self._session = None
+        self._session_rest_url = ""
         self._rest_url_override: str | None = rest_url
         self._headers_factory: Callable[[], dict[str, str]] | None = headers_factory
 
@@ -80,6 +85,7 @@ class ApiResource(Resource):
         # Use injected overrides when provided; fall back to config-derived properties.
         rest_url = self._rest_url_override if self._rest_url_override is not None else self.rest_url
         headers = self._headers_factory() if self._headers_factory is not None else self.headers
+        self._session_rest_url = rest_url
         await self._stack.__aenter__()
         self._session = await self._stack.enter_async_context(aiohttp.ClientSession(headers=headers, base_url=rest_url))
         mark_ready(self, reason="API session initialized")
@@ -156,7 +162,11 @@ class ApiResource(Resource):
 
             try:
                 response = await self._session.request(
-                    method, url, ssl=self.hassette.config.verify_ssl, **request_kwargs, **kwargs
+                    method,
+                    resolve_rest_path(self._session_rest_url, url),
+                    ssl=self.hassette.config.verify_ssl,
+                    **request_kwargs,
+                    **kwargs,
                 )
                 self.logger.debug("Making %s request to %s with data %s", method, response.real_url, str_data)
                 response.raise_for_status()
