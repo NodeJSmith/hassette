@@ -91,6 +91,14 @@ class StateRegistry:
     def try_convert_state(self, data: "HassStateDict", entity_id: str | None = None) -> "BaseState":
         """Convert a raw HA state dict to the most specific registered state class, falling back to BaseState.
 
+        This is the only conversion path with a ``BaseState`` fallback. The fallback is
+        intentional: callers here have no specific type contract, only an entity id or
+        domain, so a usable ``BaseState`` beats an error. When conversion to the resolved
+        class fails, the fallback is logged at WARNING. The other two paths are strict:
+        dependency injection (``AnnotationConverter.convert``) converts to the annotated
+        type, and ``self.states`` (``DomainStates``) converts to the view's model via
+        ``coerce_and_construct``. Neither falls back.
+
         Args:
             data: Dictionary containing state data from Home Assistant.
             entity_id: Optional entity ID to assist in domain determination.
@@ -102,7 +110,8 @@ class StateRegistry:
         Raises:
             InvalidDataForStateConversionError: If the provided data is an event payload.
             InvalidEntityIdError: If the entity_id is missing or malformed.
-            UnableToConvertStateError: If conversion to the resolved state class fails.
+            UnableToConvertStateError: If the final ``BaseState`` conversion fails. A failure to
+                convert to the resolved class falls back to ``BaseState`` instead of raising.
         """
         if "event" in data:
             LOGGER.error(
@@ -164,6 +173,10 @@ class StateRegistry:
         Applies domain extraction and unknown/unavailable normalization before coercing
         the value, so the pipeline never attempts to coerce "unknown" or "unavailable"
         against a non-string value_type.
+
+        Unlike ``try_convert_state``, there is no ``BaseState`` fallback: the caller names
+        the target class, and a failure raises. ``DomainStates`` (``self.states``) uses
+        this path because a view's model type is a contract.
 
         Args:
             state_class: The target state model class (e.g., LightState, SensorState).
