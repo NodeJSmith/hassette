@@ -19,9 +19,11 @@ from hassette.cli.exceptions import (
 )
 from hassette.cli.target import (
     CREDENTIAL_SOURCES,
+    ResolvedCredential,
     resolve_cli_auth_token,
     resolve_server_target,
 )
+from hassette.config.config import HassetteConfig
 from hassette.web.auth.tokens import TOKEN_FILENAME
 from tests.unit.cli.conftest import REMOTE_SERVER_URL, REMOTE_SERVER_URL_BARE, make_cli_config
 
@@ -193,32 +195,24 @@ class TestCredentialPrecedence:
         token_file = tmp_path / "config-token-file"
         token_file.write_text("config-file-token", encoding="utf-8")
         config = make_cli_config(data_dir=tmp_path, cli_token_file=token_file, cli_auth_token="config-auth-token")
-        target = resolve_server_target(config)
-        result = resolve_cli_auth_token(config, target)
-        assert result is not None
+        result = resolve_attached_credential(config)
         assert result.token == "config-file-token"
 
     def test_cli_auth_token_overrides_web_api_auth_token(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_auth_token="cli-token", web_api_auth_token="web-api-token")
-        target = resolve_server_target(config)
-        result = resolve_cli_auth_token(config, target)
-        assert result is not None
+        result = resolve_attached_credential(config)
         assert result.token == "cli-token"
 
     def test_web_api_auth_token_overrides_data_dir_token_file(self, tmp_path: Path) -> None:
         (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
         config = make_cli_config(data_dir=tmp_path, web_api_auth_token="web-api-token")
-        target = resolve_server_target(config)
-        result = resolve_cli_auth_token(config, target)
-        assert result is not None
+        result = resolve_attached_credential(config)
         assert result.token == "web-api-token"
 
     def test_data_dir_token_file_is_last_resort(self, tmp_path: Path) -> None:
         (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
         config = make_cli_config(data_dir=tmp_path)
-        target = resolve_server_target(config)
-        result = resolve_cli_auth_token(config, target)
-        assert result is not None
+        result = resolve_attached_credential(config)
         assert result.token == "file-token"
 
     def test_no_source_returns_none(self, tmp_path: Path) -> None:
@@ -230,9 +224,7 @@ class TestCredentialPrecedence:
     def test_blank_cli_auth_token_falls_through(self, tmp_path: Path) -> None:
         (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
         config = make_cli_config(data_dir=tmp_path, cli_auth_token="   ")
-        target = resolve_server_target(config)
-        result = resolve_cli_auth_token(config, target)
-        assert result is not None
+        result = resolve_attached_credential(config)
         assert result.token == "file-token"
 
 
@@ -298,29 +290,23 @@ class TestResolvedCredentialSource:
         token_file = tmp_path / "config-token-file"
         token_file.write_text("config-file-token", encoding="utf-8")
         config = make_cli_config(data_dir=tmp_path, cli_token_file=token_file)
-        target = resolve_server_target(config)
-        result = resolve_cli_auth_token(config, target)
-        assert result is not None
+        result = resolve_attached_credential(config)
         assert "cli.token_file" in result.source
         assert str(token_file) in result.source
 
     def test_cli_auth_token_names_setting_and_env_var(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, cli_auth_token="cli-token")
-        target = resolve_server_target(config)
-        result = resolve_cli_auth_token(config, target)
-        assert result is not None
+        result = resolve_attached_credential(config)
         assert "cli.auth_token" in result.source
         assert "HASSETTE__CLI__AUTH_TOKEN" in result.source
 
     def test_web_api_auth_token_source_marks_it_as_local(self, tmp_path: Path) -> None:
         config = make_cli_config(data_dir=tmp_path, web_api_auth_token="web-api-token")
-        target = resolve_server_target(config)
-        result = resolve_cli_auth_token(config, target)
-        assert result is not None
+        result = resolve_attached_credential(config)
         assert "web_api.auth_token" in result.source
         assert "this machine's instance" in result.source
 
-    def test_data_dir_token_file_names_the_concrete_path(self, tmp_path: Path) -> None:
+    def test_web_api_token_file_names_the_concrete_path(self, tmp_path: Path) -> None:
         """The companion trap: a second local instance gets this machine's token file attached.
 
         The 401 can only distinguish that from a plain bad token if the source names the file.
@@ -328,9 +314,19 @@ class TestResolvedCredentialSource:
         token_path = tmp_path / TOKEN_FILENAME
         token_path.write_text("file-token", encoding="utf-8")
         config = make_cli_config(data_dir=tmp_path)
-        target = resolve_server_target(config)
-        result = resolve_cli_auth_token(config, target)
-        assert result is not None
+        result = resolve_attached_credential(config)
+        assert "web_api.token_file" in result.source
+        assert str(token_path) in result.source
+
+    def test_configured_web_api_token_file_is_read_instead_of_data_dir(self, tmp_path: Path) -> None:
+        """The CLI reads the same file the server writes when ``web_api.token_file`` moves it."""
+        (tmp_path / TOKEN_FILENAME).write_text("data-dir-token", encoding="utf-8")
+        token_path = tmp_path / "elsewhere" / "token"
+        token_path.parent.mkdir()
+        token_path.write_text("configured-file-token", encoding="utf-8")
+        config = make_cli_config(data_dir=tmp_path, web_api_token_file=token_path)
+        result = resolve_attached_credential(config)
+        assert result.token == "configured-file-token"
         assert str(token_path) in result.source
 
 
@@ -349,9 +345,7 @@ class TestTokenFileFailureModes:
         (tmp_path / TOKEN_FILENAME).write_text("file-token", encoding="utf-8")
         missing = tmp_path / "does-not-exist"
         config = make_cli_config(data_dir=tmp_path, cli_token_file=missing)
-        target = resolve_server_target(config)
-        result = resolve_cli_auth_token(config, target)
-        assert result is not None
+        result = resolve_attached_credential(config)
         assert result.token == "file-token"
 
     def test_empty_token_file_flag_treated_as_no_credential(self, tmp_path: Path) -> None:
@@ -387,3 +381,10 @@ class TestCredentialHeaderSafety:
         target = resolve_server_target(config)
         with pytest.raises(CredentialResolutionError, match=TOKEN_FILENAME.replace(".", r"\.")):
             resolve_cli_auth_token(config, target)
+
+
+def resolve_attached_credential(config: HassetteConfig) -> ResolvedCredential:
+    """Resolve the credential the CLI attaches for ``config``'s default target, asserting one resolved."""
+    result = resolve_cli_auth_token(config, resolve_server_target(config))
+    assert result is not None
+    return result

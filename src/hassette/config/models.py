@@ -455,10 +455,18 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     ``auth_token.get_secret_value()`` only at the point of use (comparing the ``Authorization``
     header, minting a session cookie).
 
-    When ``None`` at startup, ``WebApiService`` resolves one in this order: an existing
-    ``<data_dir>/.web_api_token`` file, or a freshly generated ``secrets.token_urlsafe(32)``
-    value written there. This field carries either an explicit operator-configured value or the
-    value resolved during startup — it is not itself responsible for token generation."""
+    When ``None`` at startup, ``WebApiService`` resolves one in this order: an existing token file
+    at ``token_file``, or a freshly generated ``secrets.token_urlsafe(32)`` value written there.
+    This field carries either an explicit operator-configured value or the value resolved during
+    startup — it is not itself responsible for token generation."""
+
+    token_file: Path | None = Field(default=None, json_schema_extra={"ui": {"label": "Token File"}})
+    """Where the server reads and persists its own generated token: absolute, or relative to the
+    config file that sets it. Defaults to ``<data_dir>/.web_api_token``.
+
+    Ignored when ``auth_token`` is configured, which wins over the file; Hassette logs a warning
+    when both are set. Not to be confused with ``cli.token_file``, the credential the CLI *sends*
+    to a target."""
 
     trusted_proxies: tuple[str, ...] = Field(default=(), json_schema_extra={"ui": {"label": "Trusted Proxies"}})
     """Peer addresses that need no credential of their own.
@@ -686,8 +694,9 @@ class CliConfig(ExcludeExtrasMixin, BaseModel):
 
     token_file: Path | None = Field(default=None, json_schema_extra={"ui": {"label": "Token File"}})
     """Path to a file containing the bearer credential for the target Hassette instance (absolute, or
-    relative to the config file that sets it). Applies to any target, unlike the loopback-only
-    ``<data_dir>/.web_api_token`` fallback."""
+    relative to the config file that sets it). Applies to any target, unlike the server-scoped,
+    loopback-only ``web_api.token_file`` fallback (the server's own token location, not a credential
+    you supply)."""
 
     auth_token: SecretStr | None = Field(default=None, json_schema_extra={"ui": {"label": "Auth Token"}})
     """Bearer credential for the target Hassette instance.

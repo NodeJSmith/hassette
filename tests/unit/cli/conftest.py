@@ -56,6 +56,7 @@ def make_cli_config(
     cli_token_file: Path | None = None,
     cli_auth_token: str | None = None,
     web_api_auth_token: str | None = None,
+    web_api_token_file: Path | None = None,
 ) -> HassetteConfig:
     """Build a HassetteConfig with explicit cli/web_api settings for CLI target/client tests.
 
@@ -74,6 +75,8 @@ def make_cli_config(
     web_api_kwargs: dict[str, Any] = {"host": host, "port": port, "run": False}
     if web_api_auth_token is not None:
         web_api_kwargs["auth_token"] = web_api_auth_token
+    if web_api_token_file is not None:
+        web_api_kwargs["token_file"] = web_api_token_file
 
     cli_kwargs: dict[str, Any] = {"verify_ssl": cli_verify_ssl}
     if cli_server_url is not None:

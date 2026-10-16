@@ -32,7 +32,7 @@ Run `hassette app` to see each app's key and display name. Every app device show
 --8<-- "pages/getting-started/docker/snippets/read-web-api-token.sh"
 ```
 
-The output is one line: the token Hassette generated on its first start. Outside Docker, read `<data_dir>/.web_api_token` instead. The startup log names that path, on a line beginning `Generated new web API auth_token` on first start and `Loaded existing web API auth_token` after that. The log never prints the token itself.
+The output is one line: the token Hassette generated on its first start. Outside Docker, read `<data_dir>/.web_api_token` instead. If you set `web_api.token_file`, the token is at that path, in Docker or not. The startup log names that path, on a line beginning `Generated new web API auth_token` on first start and `Loaded existing web API auth_token` after that. The log never prints the token itself.
 
 To set your own token instead, add it to `hassette.toml` and restart Hassette. From then on, use that value, not the file:
 

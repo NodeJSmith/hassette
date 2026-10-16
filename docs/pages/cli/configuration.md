@@ -54,11 +54,11 @@ The server's web API requires authentication for every request (see [Web UI](../
 | `cli.token_file` | CLI | any target |
 | `cli.auth_token` / `HASSETTE__CLI__AUTH_TOKEN` | CLI | any target |
 | `web_api.auth_token` / `HASSETTE__WEB_API__AUTH_TOKEN` | server | loopback only |
-| `<data_dir>/.web_api_token` | server | loopback only |
+| `web_api.token_file` (default `<data_dir>/.web_api_token`) | server | loopback only |
 
 Precedence runs top to bottom: `--token-file` wins over `cli.token_file`, which wins over `cli.auth_token`, and so on.
 
-`web_api.*` settings describe what the local instance accepts, not what a remote one does. `web_api.auth_token` is the value the running server checks incoming requests against; `<data_dir>/.web_api_token` is the file that server wrote for itself on first start. Neither is meaningful for a different instance, so the CLI attaches them only when the resolved target is loopback (`127.0.0.1`, `::1`, or `localhost`). For any other target it skips both and falls back to a `cli.*` source. Against a non-loopback target with no `cli.*` credential configured, the CLI still sends the request rather than failing before the network call — a `trusted_proxies` deployment needs no bearer token at all, and a genuinely missing credential surfaces as a 401 naming the remedy (see [Common Errors](#common-errors)).
+`web_api.*` settings describe what the local instance accepts, not what a remote one does. `web_api.auth_token` is the value the running server checks incoming requests against; `web_api.token_file` is the file that server reads its token from, and writes on first start if it's missing or empty (`<data_dir>/.web_api_token` unless configured). Neither is meaningful for a different instance, so the CLI attaches them only when the resolved target is loopback (`127.0.0.1`, `::1`, or `localhost`). For any other target it skips both and falls back to a `cli.*` source. Against a non-loopback target with no `cli.*` credential configured, the CLI still sends the request rather than failing before the network call — a `trusted_proxies` deployment needs no bearer token at all, and a genuinely missing credential surfaces as a 401 naming the remedy (see [Common Errors](#common-errors)).
 
 No CLI flag accepts a literal token value as a bare argument. `--token-file` takes a path, not a token — passing a secret directly on the command line would leave it visible in shell history and `ps` output for the life of the process. A direct value is available only through config or the environment: `cli.auth_token` or `HASSETTE__CLI__AUTH_TOKEN`.
 
@@ -202,35 +202,35 @@ Every 401 names the credential the CLI actually sent — or says that none was a
 A credential resolved and was rejected:
 
 ```text
-Error 401: Not authenticated (the credential sent came from <data_dir>/.web_api_token
+Error 401: Not authenticated (the credential sent came from web_api.token_file
 (/data/.web_api_token — this machine's instance), and it was rejected. Point the CLI at
 the target's own credential with --token-file, cli.token_file, or
 HASSETTE__CLI__AUTH_TOKEN. See
 https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
 ```
 
-The named source is the diagnosis. `<data_dir>/.web_api_token` and `web_api.auth_token` belong to *this machine's* instance, and they are attached to any loopback target — including a second Hassette instance on the same host, listening on a different port, with a different token. When the source named is one of those and the target is not the local instance, the fix is to point the CLI at the target's own credential rather than to regenerate anything. Against a remote target this variant adds one caveat: a forward-auth proxy in front of the target can answer 401 itself, so the rejection is not necessarily Hassette's.
+The named source is the diagnosis. `web_api.token_file` and `web_api.auth_token` belong to *this machine's* instance, and they are attached to any loopback target — including a second Hassette instance on the same host, listening on a different port, with a different token. When the source named is one of those and the target is not the local instance, the fix is to point the CLI at the target's own credential rather than to regenerate anything. Against a remote target this variant adds one caveat: a forward-auth proxy in front of the target can answer 401 itself, so the rejection is not necessarily Hassette's.
 
 Nothing resolved against a local target:
 
 ```text
 Error 401: Not authenticated (no credential was attached — nothing in the credential chain
 resolved to a usable value (--token-file, cli.token_file, cli.auth_token,
-web_api.auth_token, <data_dir>/.web_api_token). If one of those is configured, check that
+web_api.auth_token, web_api.token_file). If one of those is configured, check that
 the file exists, is readable, and is not empty; otherwise, has hassette been started?
 Attach one with --token-file, cli.token_file, or HASSETTE__CLI__AUTH_TOKEN. See
 https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
 ```
 
-Usually the server has not started yet — it writes `<data_dir>/.web_api_token` on first start. A running server paired with this message means the CLI resolved a different `data_dir` than the server uses, which an explicit credential settles.
+Usually the server has not started yet — it writes its token file (`<data_dir>/.web_api_token` by default) on first start. A running server paired with this message means the CLI resolved a different `data_dir` or `web_api.token_file` than the server uses, which an explicit credential settles.
 
-The message names the whole chain rather than asserting which entries are unset, because it cannot tell the difference: a `cli.token_file` or `<data_dir>/.web_api_token` that is missing, unreadable, or empty falls through to the next source silently, exactly like one that was never configured. Check the file before concluding the setting is absent.
+The message names the whole chain rather than asserting which entries are unset, because it cannot tell the difference: a `cli.token_file` or `web_api.token_file` that is missing, unreadable, or empty falls through to the next source silently, exactly like one that was never configured. Check the file before concluding the setting is absent.
 
 Nothing resolved against a remote target:
 
 ```text
 Error 401: Not authenticated (no credential was attached to this remote request —
-server-scoped sources (web_api.auth_token, <data_dir>/.web_api_token) describe this
+server-scoped sources (web_api.auth_token, web_api.token_file) describe this
 machine's instance and are never sent to a remote target. Attach one locally with
 --token-file, cli.token_file, or HASSETTE__CLI__AUTH_TOKEN — or, if this target sits
 behind a forward-auth proxy, configure trusted_proxies on the remote instance, which
@@ -238,7 +238,7 @@ requires access to that host and a restart. See
 https://hassette.readthedocs.io/en/stable/pages/cli/configuration/#web-api-token)
 ```
 
-The resolved target is non-loopback and no `cli.*` credential was found, so `web_api.auth_token` and `<data_dir>/.web_api_token` were withheld — see [Web API Token](#web-api-token). Fix it locally with `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN`. Fixing it remotely means adding the proxy's address or CIDR — the peer address Hassette actually observes, not the CLI's own host — to `trusted_proxies` on the target instance (see [Letting CLI Traffic Through a Reverse Proxy](#letting-cli-traffic-through-a-reverse-proxy)). Keep that entry narrow: a broad range can let unintended peers on the same network skip the bearer-token check too.
+The resolved target is non-loopback and no `cli.*` credential was found, so `web_api.auth_token` and `web_api.token_file` were withheld — see [Web API Token](#web-api-token). Fix it locally with `--token-file`, `cli.token_file`, or `HASSETTE__CLI__AUTH_TOKEN`. Fixing it remotely means adding the proxy's address or CIDR — the peer address Hassette actually observes, not the CLI's own host — to `trusted_proxies` on the target instance (see [Letting CLI Traffic Through a Reverse Proxy](#letting-cli-traffic-through-a-reverse-proxy)). Keep that entry narrow: a broad range can let unintended peers on the same network skip the bearer-token check too.
 
 **Redirect response (3xx):**
 
