@@ -8,7 +8,6 @@ instead of starting the server.
 
 import shutil
 import subprocess
-import tempfile
 import time
 import uuid
 from collections.abc import Iterator
@@ -25,7 +24,6 @@ from tests.support.docker import (
     CONTAINER_TIMEOUT,
     DEGRADED_BANNER,
     DOCKER_CLEANUP_TIMEOUT,
-    DOCKER_IMAGE,
     DOCKER_STOP_GRACE_SECS,
     HALT_BANNER,
     MAX_HALT_STOP_SECS,
@@ -34,8 +32,11 @@ from tests.support.docker import (
     OFFLINE_RETRY_MESSAGE,
     PROJECT_CONTAINER_TIMEOUT,
     UV_FAIL_FAST,
-    UV_LOCK_TIMEOUT,
+    create_project_package,
+    installed_distributions,
+    project_pyproject,
     run_hassette_container,
+    run_project_container_and_diff,
     write_requirements,
 )
 
@@ -48,7 +49,6 @@ CONFLICTING_REQUIREMENTS = [
     pytest.param(CONFLICTING_REQUIREMENT, id="direct"),
     pytest.param(TRANSITIVE_CONFLICTING_REQUIREMENT, id="transitive"),
 ]
-HATCHLING_BUILD_SYSTEM = '[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
 
 pytestmark = [
     pytest.mark.integration,
@@ -73,52 +73,6 @@ def run_project_container(
 ) -> tuple[subprocess.CompletedProcess[str], str]:
     """Run the container with the project mounted as the config volume, found by walking up from /config/apps."""
     return run_hassette_container(volumes=[f"{project_dir}:/config"], env=env, timeout=timeout)
-
-
-def create_project_package(project_dir: Path, pyproject_content: str) -> None:
-    """Write pyproject.toml, create a minimal package, and run ``uv lock``."""
-    (project_dir / "pyproject.toml").write_text(pyproject_content)
-    pkg_dir = project_dir / "test_proj"
-    pkg_dir.mkdir()
-    (pkg_dir / "__init__.py").write_text("")
-    subprocess.run(
-        ["uv", "lock", "--directory", str(project_dir)], check=True, capture_output=True, timeout=UV_LOCK_TIMEOUT
-    )
-
-
-@pytest.fixture
-def docker_project_dir() -> Iterator[Path]:
-    """Temp directory for project-based Docker tests with UID-safe cleanup.
-
-    The container's hassette user (UID 1000) creates build artifacts (egg-info, build/)
-    that the CI runner (different UID) cannot delete. The teardown uses `docker run --user root`
-    to chmod everything before rmtree.
-    """
-    tmpdir = tempfile.mkdtemp()
-    project_dir = Path(tmpdir) / "project"
-    project_dir.mkdir()
-    yield project_dir
-    # Fix ownership so rmtree can clean up container-created files
-    subprocess.run(
-        [
-            "docker",
-            "run",
-            "--rm",
-            "--user",
-            "root",
-            "--entrypoint",
-            "chmod",
-            "-v",
-            f"{tmpdir}:/mnt",
-            DOCKER_IMAGE,
-            "-R",
-            "777",
-            "/mnt",
-        ],
-        capture_output=True,
-        timeout=DOCKER_CLEANUP_TIMEOUT,
-    )
-    shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def test_docker_installs_user_requirements(tmp_path: Path):
@@ -253,57 +207,6 @@ def test_docker_constraint_conflict(tmp_path: Path, requirement: str):
     assert result.returncode == 1, f"Expected exit 1 for conflict. Output:\n{output}"
     assert "DEPENDENCY CONFLICT" in output, f"Expected DEPENDENCY CONFLICT banner. Output:\n{output}"
     assert HALT_BANNER in output
-
-
-def project_pyproject(dependencies: list[str] | None = None, *, build_system: bool = True) -> str:
-    """Return a minimal ``test-proj`` pyproject.toml, optionally with a hatchling ``[build-system]``."""
-    deps = ", ".join(f'"{dep}"' for dep in dependencies or [])
-    content = f'[project]\nname = "test-proj"\nversion = "0.1.0"\nrequires-python = ">=3.11"\ndependencies = [{deps}]\n'
-    if build_system:
-        content += "\n" + HATCHLING_BUILD_SYSTEM
-    return content
-
-
-def run_project_container_and_diff(project_dir: Path) -> tuple[subprocess.CompletedProcess[str], str, list[str]]:
-    """Run the project container, returning (result, combined output, ``docker diff`` lines).
-
-    The container is kept until its filesystem changes are read, so a test can check what the
-    entrypoint installed or left behind after the process exits.
-    """
-    container_name = f"hassette-project-test-{uuid.uuid4().hex[:12]}"
-    try:
-        result, output = run_hassette_container(
-            volumes=[f"{project_dir}:/config"],
-            timeout=PROJECT_CONTAINER_TIMEOUT,
-            name=container_name,
-            remove=False,
-        )
-        diff = subprocess.run(
-            ["docker", "diff", container_name],
-            capture_output=True,
-            text=True,
-            timeout=DOCKER_CLEANUP_TIMEOUT,
-            check=True,
-        )
-    finally:
-        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
-    return result, output, diff.stdout.splitlines()
-
-
-def installed_distributions(diff_lines: list[str]) -> set[str]:
-    """Return the distributions whose ``.dist-info`` directory ``docker diff`` lines (``<A|C|D> <path>``) show as added.
-
-    Every installed distribution gets a ``<name>-<version>.dist-info`` directory, whether it ships a
-    package directory or a single module, so this doesn't depend on the distribution's layout.
-    """
-    added = (line.removeprefix("A ") for line in diff_lines if line.startswith("A "))
-    return {
-        entry.split("-", 1)[0]
-        for path in added
-        if "/site-packages/" in path
-        and "/" not in (entry := path.split("/site-packages/", 1)[1])
-        and entry.endswith(".dist-info")
-    }
 
 
 @pytest.mark.parametrize(
