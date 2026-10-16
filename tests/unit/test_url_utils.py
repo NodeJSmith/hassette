@@ -67,6 +67,8 @@ def test_https_with_custom_port():
             "wss://example.com:8443/ha/api/websocket",
         ),
         ("http://h/my%20ha", "http://h/my%20ha/api/", "ws://h/my%20ha/api/websocket"),
+        ("http://h/tenant%2Fblue", "http://h/tenant%2Fblue/api/", "ws://h/tenant%2Fblue/api/websocket"),
+        ("http://h/tenant%2Fblue%2F", "http://h/tenant%2Fblue%2F/api/", "ws://h/tenant%2Fblue%2F/api/websocket"),
         ("http://supervisor/core?x=1#frag", "http://supervisor/core/api/", "ws://supervisor/core/api/websocket"),
     ],
 )
