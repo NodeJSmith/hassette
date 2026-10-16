@@ -433,7 +433,9 @@ class EntityTime:
     The entity holds the schedule: a phone alarm sensor, an ``input_datetime``
     helper, or any entity whose state or attribute is a time. Whenever that value
     changes, ``Scheduler`` moves the job to the new time — no manual cancel and
-    reschedule.
+    reschedule. The exception is a pending positive-``offset`` run whose entity time
+    has already arrived (see :meth:`is_run_for_passed_occurrence`): that run fires
+    first, and the job then follows the entity's current time.
 
     An entity with no usable value (unavailable, ``unknown``, no alarm set) returns
     :data:`WAITING` instead of a timestamp. The job stays registered and watched — see
@@ -506,11 +508,7 @@ class EntityTime:
         the state-change event. The scheduler's listener and the StateProxy's cache update
         are dispatched concurrently, so reading the cache there could see the old value.
         """
-        if state is None:
-            return None
-        raw = state.get("attributes", {}).get(self.attribute) if self.attribute is not None else state.get("state")
-
-        parsed = parse_entity_time(raw)
+        parsed = self.named_time(state)
         if parsed is None:
             return None
 
@@ -525,6 +523,30 @@ class EntityTime:
         if target <= current_time:
             return None
         return target.round("second")
+
+    def named_time(self, state: "HassStateDict | None") -> ZonedDateTime | None:
+        """Return the time ``state`` names, before ``offset`` and ``daily``, or ``None`` when it names none."""
+        if state is None:
+            return None
+        raw = state.get("attributes", {}).get(self.attribute) if self.attribute is not None else state.get("state")
+        return parse_entity_time(raw)
+
+    def is_run_for_passed_occurrence(self, run: ZonedDateTime | None, current_time: ZonedDateTime) -> bool:
+        """Whether ``run`` follows an entity time that has already arrived.
+
+        Only a positive ``offset`` puts a run after the time it was computed from, and
+        subtracting it back recovers that time. An entity naming "the next occurrence" (a
+        phone's next alarm, ``sun.sun``'s ``next_setting``) moves on the moment that occurrence
+        arrives, while its offset run is still ahead. The occurrence happened, so its run should
+        fire however the entity changes afterward, instead of being moved to the new time.
+
+        Always ``False`` for ``daily``: there ``run`` is a time-of-day slot, so subtracting the
+        offset doesn't recover the entity's time, and a rolled-over value still maps to today's
+        slot anyway.
+        """
+        if run is None or self.daily or self.offset <= TimeDelta():
+            return False
+        return run.subtract(seconds=self.offset.total("seconds")) <= current_time
 
     def first_run_time(self, current_time: ZonedDateTime) -> "ZonedDateTime | _WaitingSentinel":
         """Return the entity's next time, or :data:`WAITING` when it has none right now."""

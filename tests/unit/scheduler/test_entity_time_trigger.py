@@ -210,6 +210,32 @@ class TestEntityTimeParking:
         assert trigger.first_run_time(now) == zdt(2026, 7, 28, 7, 0)
 
 
+class TestEntityTimeRunForPassedOccurrence:
+    def test_positive_offset_run_whose_time_has_arrived(self) -> None:
+        """07:10 is the +10 min run of a 07:00 time; at 07:05 that time has arrived."""
+        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=10))
+        assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 28, 7, 10), zdt(2026, 7, 28, 7, 5)) is True
+
+    def test_positive_offset_run_whose_time_is_still_ahead(self) -> None:
+        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=10))
+        assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 28, 7, 10), zdt(2026, 7, 28, 6, 55)) is False
+
+    @pytest.mark.parametrize("minutes", [0, -10])
+    def test_zero_or_negative_offset_never_qualifies(self, minutes: int) -> None:
+        """Without a positive offset the run is at or before its time, so there is nothing to keep."""
+        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=minutes))
+        assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 28, 7, 10), zdt(2026, 7, 28, 7, 30)) is False
+
+    def test_daily_never_qualifies(self) -> None:
+        """A daily run is a time-of-day slot, so run minus offset is not the entity's time."""
+        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(hours=25), daily=True)
+        assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 29, 8, 0), zdt(2026, 7, 28, 9, 0)) is False
+
+    def test_no_run(self) -> None:
+        trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=10))
+        assert trigger.is_run_for_passed_occurrence(None, zdt(2026, 7, 28, 7, 5)) is False
+
+
 class TestEntityTimeMetadata:
     def test_label_is_not_a_reserved_builtin_name(self) -> None:
         """Custom triggers must not claim a built-in trigger label."""

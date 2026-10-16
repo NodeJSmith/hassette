@@ -747,13 +747,19 @@ class Scheduler(Resource):
         async def on_entity_change(event: RawStateChangeEvent) -> None:
             await self._reschedule_entity_time_job(job, trigger, event.payload.data.new_state)
 
+        watch_name = f"scheduler.entity_time.{self.owner_id}.{job.name}"
         try:
-            self._entity_time_subs[job.name] = await self.hassette.bus.on_state_change(
-                trigger.entity_id,
-                handler=on_entity_change,
-                name=f"scheduler.entity_time.{self.owner_id}.{job.name}",
-                if_exists="replace",
-            )
+            # With attribute=, the time lives in that attribute, which can change while the main
+            # state doesn't, so watch the attribute rather than the state.
+            if trigger.attribute is not None:
+                watch = self.hassette.bus.on_attribute_change(
+                    trigger.entity_id, trigger.attribute, handler=on_entity_change, name=watch_name, if_exists="replace"
+                )
+            else:
+                watch = self.hassette.bus.on_state_change(
+                    trigger.entity_id, handler=on_entity_change, name=watch_name, if_exists="replace"
+                )
+            self._entity_time_subs[job.name] = await watch
         except Exception:
             self.remove_job(job)
             raise
@@ -789,8 +795,20 @@ class Scheduler(Resource):
         existing heap entry, without dropping the registration or watcher, so it reactivates
         as soon as a later change reports a real time. A job that is already ``WAITING`` is
         left alone (nothing changed).
+
+        A pending run for an occurrence that already happened is kept rather than moved (see
+        ``EntityTime.is_run_for_passed_occurrence``); ``EntityTime.next_run_time`` re-reads the
+        entity after it fires and picks up the new time then.
         """
-        next_run = trigger.resolve_from_state(new_state, date_utils.now())
+        now = date_utils.now()
+        still_pending = job.fire_at is not None and job.fire_at > now
+        if still_pending and trigger.is_run_for_passed_occurrence(job.next_run, now):
+            self.logger.debug(
+                "Keeping '%s' pending run %s for an occurrence that already passed", job.name, job.next_run
+            )
+            return
+
+        next_run = trigger.resolve_from_state(new_state, now)
         if next_run is None:
             if job.schedule_status is ScheduleStatus.WAITING:
                 return
