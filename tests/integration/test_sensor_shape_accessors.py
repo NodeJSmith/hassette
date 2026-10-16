@@ -234,8 +234,10 @@ class TestSensorShapeAccessorRuntimeDeviceClassChange:
         event = make_full_state_change_event("sensor.flexible", temperature_dict, enum_dict)
         await hassette.send_event(event)
         await wait_for(
-            lambda: (hassette.state_proxy.get_state("sensor.flexible") or {}).get("attributes", {}).get("device_class")
-            == "enum",
+            lambda: (
+                (hassette.state_proxy.get_state("sensor.flexible") or {}).get("attributes", {}).get("device_class")
+                == "enum"
+            ),
             desc="sensor.flexible device_class flipped to enum",
         )
 

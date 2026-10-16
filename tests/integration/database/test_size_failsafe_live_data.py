@@ -171,7 +171,7 @@ async def test_size_failsafe_deletes_when_wal_is_blocked_and_live_data_exceeds_l
         await initialized_service._check_size_failsafe()  # pyright: ignore[reportPrivateUsage]
         # A completed TRUNCATE checkpoint leaves a zero-byte WAL, so a non-empty one proves the block.
         wal_path = Path(f"{initialized_service._db_path}-wal")  # pyright: ignore[reportPrivateUsage]
-        assert wal_path.stat().st_size > 0
+        assert wal_path.stat().st_size > 0  # noqa: ASYNC240
     finally:
         await reader.execute("COMMIT")
 

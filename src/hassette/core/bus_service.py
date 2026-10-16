@@ -104,8 +104,8 @@ class BusService(Service):
         )
 
         # Lambda — must remain callable so hot-reload picks up config changes at fire time.
-        self._config_resolver: Callable[[], float | None] = (
-            lambda: self.hassette.config.lifecycle.event_handler_timeout_seconds
+        self._config_resolver: Callable[[], float | None] = lambda: (
+            self.hassette.config.lifecycle.event_handler_timeout_seconds
         )
 
         self._duration_hold = DurationHoldManager(

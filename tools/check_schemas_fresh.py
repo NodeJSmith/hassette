@@ -19,7 +19,7 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from schema_helpers import build_config_schema, build_openapi_schema, build_ws_schema, create_stub_hassette  # noqa: E402,I001
+from schema_helpers import build_config_schema, build_openapi_schema, build_ws_schema, create_stub_hassette  # noqa: E402
 
 
 def _check_file(repo_root: Path, path: Path, generated: dict) -> str | None:

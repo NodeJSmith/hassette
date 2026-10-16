@@ -321,7 +321,7 @@ async def test_export_client_operations_for_floor_check(client: HassetteClient, 
             else:
                 parses_503_by_operation.setdefault(key, False)
 
-    Path(OPERATIONS_FILE).write_text(
+    Path(OPERATIONS_FILE).write_text(  # noqa: ASYNC240
         json.dumps(
             [
                 {"method": method, "path": path, "parses_503": parses_503}

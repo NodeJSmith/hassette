@@ -231,7 +231,7 @@ async def test_clear_succeeds_while_another_connection_blocks_the_wal_checkpoint
         await instance.clear()
         assert await instance.get("a") is None
         # A completed TRUNCATE checkpoint leaves a zero-byte WAL, so a non-empty one proves the block.
-        assert Path(f"{db_path}-wal").stat().st_size > 0
+        assert Path(f"{db_path}-wal").stat().st_size > 0  # noqa: ASYNC240
     finally:
         reader.close()
         await instance.close()
@@ -441,17 +441,17 @@ async def test_initialize_deletes_wal_and_shm_sidecars_on_corruption(tmp_path: P
     db_path.write_bytes(b"not a valid sqlite database" * 10)
     wal_path = Path(str(db_path) + "-wal")
     shm_path = Path(str(db_path) + "-shm")
-    wal_path.write_bytes(b"stale wal data")
-    shm_path.write_bytes(b"stale shm data")
+    wal_path.write_bytes(b"stale wal data")  # noqa: ASYNC240
+    shm_path.write_bytes(b"stale shm data")  # noqa: ASYNC240
 
     instance = AsyncCache(db_path)
     try:
         await instance.initialize()
         # The original corrupt sidecars are gone; any fresh WAL/SHM state has different content.
-        if wal_path.exists():
-            assert wal_path.read_bytes() != b"stale wal data"
-        if shm_path.exists():
-            assert shm_path.read_bytes() != b"stale shm data"
+        if wal_path.exists():  # noqa: ASYNC240
+            assert wal_path.read_bytes() != b"stale wal data"  # noqa: ASYNC240
+        if shm_path.exists():  # noqa: ASYNC240
+            assert shm_path.read_bytes() != b"stale shm data"  # noqa: ASYNC240
     finally:
         await instance.close()
 

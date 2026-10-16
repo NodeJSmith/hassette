@@ -34,7 +34,11 @@ exclude = [
 # hook's `exclude: ^docs/.*\.(py|rst)$` in prek.toml; this keeps a
 # direct `ruff check .` in agreement with CI. Snippets keep Pyright coverage
 # separately via `pyright --project docs` (docs.yml).
-extend-exclude = ["docs/**/*.py"]
+#
+# Markdown is excluded too: ruff formats Python code blocks in .md files, and reads the
+# pymdownx snippet include `--8<-- "path"` as an expression, rewriting it to
+# `--8 < --"path"`, which silently drops the snippet from the built docs.
+extend-exclude = ["docs/**/*.py", "*.md"]
 
 # Honor excludes even when a file is passed explicitly (editor "lint this file",
 # explicit paths). Matches the `--force-exclude` the ruff-check hook already uses,

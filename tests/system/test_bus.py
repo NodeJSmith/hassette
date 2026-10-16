@@ -41,9 +41,11 @@ async def test_attribute_change_handler_fires(ha_container: str, tmp_path) -> No
         # Set a known starting state BEFORE registering the handler
         await api.call_service(DOMAIN, "turn_on", {"entity_id": ENTITY}, brightness=50)
         await wait_for(
-            lambda: (s := hassette.state_proxy.states.get(ENTITY)) is not None
-            and s.get("state") == "on"
-            and s.get("attributes", {}).get("brightness") == 50,
+            lambda: (
+                (s := hassette.state_proxy.states.get(ENTITY)) is not None
+                and s.get("state") == "on"
+                and s.get("attributes", {}).get("brightness") == 50
+            ),
             timeout=10.0,
             desc="brightness settled to 50",
         )
