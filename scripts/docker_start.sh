@@ -254,7 +254,7 @@ print_install_failure_banner() {
             echo "  DEPENDENCY CONFLICT"
             echo ""
             echo "  A requirements.txt dependency conflicts with this version"
-            echo "  of Hassette."
+            echo "  of Hassette or one of its dependencies (named above)."
             echo ""
             echo "  To fix: relax the version pin in your requirements.txt, or"
             echo "  check which version hassette requires:"
@@ -372,6 +372,28 @@ run_uv_install() {
     halt 1 "a dependency conflict (see above)" "${REMEDY_DEPS}"
 }
 
+# ── helper: pip-install user requirements without breaking hassette ─────────
+# Usage: run_uv_pip_install_guarded <timeout_seconds> <failure_type> <label> <pip install args...>
+# The constraints file only bounds packages the user asks for, so hassette's exact pin is also
+# passed as a requirement: that pulls hassette's full dependency tree (pydantic, hassette-wire, ...)
+# into the resolution, and a user pin that would downgrade any of it fails as a conflict. uv
+# resolves the pin from the already-installed hassette, so the image's version needn't be on PyPI.
+# Returns what run_uv_install returns.
+run_uv_pip_install_guarded() {
+    local timeout_secs="$1" failure_type="$2" label="$3"
+    shift 3
+
+    run_uv_install "${timeout_secs}" "${failure_type}" "${label}" pip install "$@" \
+        -c "$CONSTRAINTS" \
+        "${HASSETTE_REQUIREMENT}"
+}
+
+HASSETTE_REQUIREMENT=$(grep -m1 '^hassette==' "$CONSTRAINTS" || true)
+if [ -z "${HASSETTE_REQUIREMENT}" ]; then
+    echo "ERROR: $CONSTRAINTS has no hassette== pin."
+    halt 1 "the image's constraints file is incomplete" "${REMEDY_IMAGE}"
+fi
+
 # ---------------------------------------------------------------------------
 # 1. Project-based install (export deps → install with constraints → install package)
 # ---------------------------------------------------------------------------
@@ -392,9 +414,7 @@ install_project() {
         --output-file "${user_deps_file}" || return 0
 
     log_phase "project install: installing deps with constraints"
-    run_uv_install "$UV_PROJECT_DEPS_TIMEOUT_SECS" "project" "${label}" pip install \
-        -r "${user_deps_file}" \
-        -c "$CONSTRAINTS" || return 0
+    run_uv_pip_install_guarded "$UV_PROJECT_DEPS_TIMEOUT_SECS" "project" "${label}" -r "${user_deps_file}" || return 0
 
     log_phase "project install: installing project package"
     tar -C "$PROJECT_DIR" "${PROJECT_COPY_EXCLUDES[@]/#/--exclude=}" -cf - . | tar -C "$tmp_project" -xf -
@@ -442,9 +462,7 @@ if [ "${INSTALL_DEPS}" = "1" ]; then
             found_files=$((found_files + 1))
             echo "Installing requirements from $req (with constraints)..."
             # a skipped file (failed offline retry) is recorded for the banner; the other files still install
-            run_uv_install "$UV_REQUIREMENTS_TIMEOUT_SECS" "requirements" "${req}" pip install \
-                -r "$req" \
-                -c "$CONSTRAINTS" || true
+            run_uv_pip_install_guarded "$UV_REQUIREMENTS_TIMEOUT_SECS" "requirements" "${req}" -r "$req" || true
         done < <("$FD_BIN" -t f -a -0 --max-depth "$REQUIREMENTS_MAX_DEPTH" '^requirements\.txt$' "${ROOTS[@]}" | sort -z)
     fi
 
