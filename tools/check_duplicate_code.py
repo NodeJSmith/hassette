@@ -402,7 +402,7 @@ def ensure_pmd_binary() -> Path:
     os.close(fd)
     tmp_path = Path(tmp_name)
     try:
-        with urllib.request.urlopen(PMD_DIST_URL, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:  # noqa: S310 -- trusted, pinned GitHub release URL
+        with urllib.request.urlopen(PMD_DIST_URL, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
             tmp_path.write_bytes(response.read())
         digest = hashlib.sha256(tmp_path.read_bytes()).hexdigest()
         if digest != PMD_DIST_SHA256:

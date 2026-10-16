@@ -54,7 +54,7 @@ async def test_state_change_propagates_to_proxy(ha_container: str, tmp_path) -> 
 
         # Wait until the proxy reflects a different state
         await wait_for(
-            lambda: ((current := state_proxy.get_state(ENTITY)) is not None and current["state"] != original_value),
+            lambda: (current := state_proxy.get_state(ENTITY)) is not None and current["state"] != original_value,
             timeout=15.0,
             desc=f"state proxy to reflect toggled state for {ENTITY}",
         )

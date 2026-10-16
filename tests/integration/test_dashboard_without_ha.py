@@ -389,7 +389,7 @@ class TestInitialStateSyncBeforeApps:
             release_connection.set()
 
             await wait_for(
-                lambda: ((app := hassette.app_handler.registry.get("state_reader", 0)) is not None and app.is_ready()),
+                lambda: (app := hassette.app_handler.registry.get("state_reader", 0)) is not None and app.is_ready(),
                 timeout=WEBAPI_READY_TIMEOUT,
                 desc="state-reading app ready",
             )
