@@ -319,7 +319,7 @@ Context: D1.3 writes only changed rows, so run size scales with listeners and jo
 
 **Recommendation:** A. File a "DB as source of truth" milestone whose Done-when is: `mise run seed:serve --scenario degraded` serves a seeded DB to the Vite UI with no Hassette instance and no runtime stubs, rendering the scenario's apps, instance statuses including DEGRADED, handlers, jobs with next run, and services under the default time preset with a snapshot banner; no GET route that renders automation state reads process memory, except config (D11) and app source (D5), which stay on the live seam; and the compat-fixture generator uses the shared factory with a fake live seam.
 
-New issues (eight new, plus #1446 rewritten as issue 5), each citing this ledger:
+New issues (eight new, plus #1446 rewritten as issue 5), each citing this ledger. Filed as 1 #2989, 2 #2990, 3 #2991, 4 #2992, 5 #1446, 6 #2993, 7 #2994, 8 #2995, 9 #2996; the MSW/dev-panel split of #760 is #2988.
 
 | # | Issue | Depends on |
 |---|---|---|

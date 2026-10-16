@@ -89,7 +89,7 @@ hass-hassette v0.1 ──> HACS v0.2 ──> v0.3 webhooks
 #2664 ingress base-path e2e ──> #2672 hassette-addon repo
 #2665, #2666, #2667 ──> #2669 add-on image ──> #2670 DB backup, #2671 announce, #2673 release bump
 testing redesign + all breaking changes ──> v1.0 tag
-#2695 required DB ──> DB-as-source-of-truth issues 4-9; issue 5 projector ──> #2806 issues registry ──> issue 7 ──> issue 8 ──> issue 9 snapshot mode
+#2695 required DB ──> #2992 WebContext, #1446 projector ──> #2806 issues registry ──> #2994 status from DB ──> #2995 WS invalidations ──> #2996 snapshot mode
 ```
 
 ## Buckets (never "done", never a milestone)
