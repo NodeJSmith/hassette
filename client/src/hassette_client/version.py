@@ -8,7 +8,7 @@ from hassette_client.errors import UnsupportedServerVersionError
 
 LOGGER = logging.getLogger(__name__)
 
-MIN_API_SCHEMA_VERSION = 1
+MIN_API_SCHEMA_VERSION = 2
 """The oldest API schema a hassette server may report for this client release to work with it.
 
 A server reports its schema as ``api_schema_version`` in :meth:`~hassette_client.HassetteClient.get_health`,
