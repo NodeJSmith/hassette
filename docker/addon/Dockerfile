@@ -34,7 +34,7 @@ COPY docker/addon/ /app/docker/addon/
 # hassette's own startup. tests/unit/test_addon_image.py fails when the uv timeouts outgrow it. 8126 is the
 # port run.sh pins. A passing check
 # ends the start period early, so a long one only delays noticing a start that never finishes (D14).
-HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=30m \
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=35m \
     CMD curl -fsS http://127.0.0.1:8126/api/health/live || exit 1
 
 ENTRYPOINT ["tini", "--", "/app/docker/addon/run.sh"]
