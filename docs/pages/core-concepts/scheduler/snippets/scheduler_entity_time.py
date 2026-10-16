@@ -34,8 +34,22 @@ class WakeUpApp(App[AppConfig]):
         )
         # --8<-- [end:attribute]
 
+        # --8<-- [start:sun_offset]
+        await self.scheduler.schedule(
+            self.porch_lights_on,
+            EntityTime(
+                "sun.sun",
+                attribute="next_setting",
+                offset=TimeDelta(minutes=-30),
+            ),
+            name="porch_lights_before_sunset",
+        )
+        # --8<-- [end:sun_offset]
+
     async def start_the_day(self) -> None: ...
 
     async def preheat_coffee(self) -> None: ...
 
     async def open_blinds(self) -> None: ...
+
+    async def porch_lights_on(self) -> None: ...
