@@ -11,6 +11,7 @@ on:
             - "wire/**"
             - "client/**"
             - "tests/test_docker_*.py"
+            - "tests/support/docker.py"
             - ".github/workflows/docker-tests.yml"
 
 concurrency:
@@ -56,6 +57,6 @@ jobs:
 
             - name: Run Docker integration tests
               run: |
-                  uv run pytest tests/test_docker_integration.py -v -m docker
+                  uv run pytest tests/test_docker_*.py -v -m docker
               env:
                   HASSETTE_TEST_IMAGE: hassette:test
