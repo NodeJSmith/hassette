@@ -223,9 +223,11 @@ class TrustedProxyConfigError(HassetteError):
     """Raised when a ``trusted_proxies`` entry is invalid config.
 
     Covers two failure modes, both fail-loud at startup rather than silently skipping the bad
-    entry: an entry that is neither a valid IP/CIDR literal nor a syntactically valid hostname, and
-    a literal that matches the entire IPv4/IPv6 address space (``0.0.0.0/0``, ``::/0`` — an auth
-    *bypass*, not an additive check). A valid hostname that doesn't resolve is not a config error
+    entry: an entry that is neither a valid IP/CIDR literal nor a name any DNS lookup could resolve
+    (empty, a mistyped literal like ``10.0.0.300`` or one containing ``/`` or ``:``, an empty or
+    over-long label), and a literal that
+    matches the entire IPv4/IPv6 address space (``0.0.0.0/0``, ``::/0`` — an auth *bypass*, not an
+    additive check). A hostname that doesn't resolve right now is not a config error
     and never raises this; it trusts no peer until the periodic refresh resolves it. Deliberately a
     plain :class:`HassetteError`, not :class:`FatalError` — the caller
     (``WebApiService.on_initialize()``) decides how to surface it at startup.

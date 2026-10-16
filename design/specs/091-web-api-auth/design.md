@@ -521,9 +521,15 @@ registered with Docker's DNS after Hassette started made the process exit (#2712
 
 The second statement wins. Startup now separates config errors from DNS misses:
 
-- A malformed literal, an entire-address-space CIDR, or an entry that isn't a syntactically valid
-  hostname still fails startup with `TrustedProxyConfigError`, checked before any DNS lookup.
-- A valid hostname that doesn't resolve (NXDOMAIN, resolver timeout, zero addresses) logs a
+- A malformed literal, an entire-address-space CIDR, or an entry no DNS lookup could ever resolve
+  (empty or whitespace-only, containing `/` or `:`, all-digit labels, an empty or over-long label)
+  still fails startup with
+  `TrustedProxyConfigError`, checked before any DNS lookup. Other hostname syntax is left to the
+  resolver: a local pattern kept rejecting names `getaddrinfo` accepts (IDNA, numeric labels), and
+  a typo'd name already fails closed with a warning on every refresh.
+- Hostnames resolve concurrently, so hung lookups cost about one DNS timeout in total (while they
+  don't outnumber the default executor's threads) and can't outlast the startup wave.
+- A hostname that doesn't resolve (NXDOMAIN, resolver timeout, zero addresses) logs a
   warning and starts with no addresses, so it fails closed. The refresh job is scheduled anyway
   and trusts the entry once DNS answers.
 - A `WebApiService` restart passes its current set into `resolve_trusted_proxies()`, so an entry

@@ -10,7 +10,6 @@ mechanism this implements.
 
 import asyncio
 import ipaddress
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from logging import getLogger
@@ -44,20 +43,9 @@ Without an explicit deadline, a slow or unreachable resolver would leave the awa
 give up — this bounds the wait instead of trusting the OS default.
 """
 
-_HOSTNAME_LABEL = r"[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?"
-_HOSTNAME_PATTERN = re.compile(rf"(?:{_HOSTNAME_LABEL}\.)*{_HOSTNAME_LABEL}\.?")
-"""Syntactic shape of a DNS hostname: dot-separated labels of letters, digits, ``-`` and ``_``.
-
-Underscores are allowed because Docker Compose service names (``my_proxy``) may contain them, and
-those names are exactly what a self-managed deployment lists. :func:`_validate_hostname` applies
-this together with the length and IPv4-shaped checks.
-"""
-
-_MAX_HOSTNAME_LENGTH = 253
-
 
 class HostnameResolutionError(Exception):
-    """A syntactically valid ``trusted_proxies`` hostname did not resolve right now.
+    """A ``trusted_proxies`` hostname did not resolve right now.
 
     Distinct from :class:`~hassette.exceptions.TrustedProxyConfigError`: a DNS miss (NXDOMAIN, a
     resolver timeout, zero addresses) is a transient runtime condition, not a config error. Callers
@@ -160,26 +148,33 @@ def _parse_literal(entry: str) -> ipaddress.IPv4Network | ipaddress.IPv6Network 
     return network
 
 
-def _validate_hostname(entry: str) -> None:
-    """Reject an entry that is neither an IP/CIDR literal nor a syntactically valid hostname.
+def _reject_unresolvable_entry(entry: str) -> None:
+    """Reject a non-literal entry that no DNS lookup could ever resolve.
 
-    Runs before any DNS lookup so a typo (``10.0.0.300``, ``proxy!``, an empty string) fails startup
-    as a config error instead of being retried forever as an unresolved hostname. An entry whose
-    labels are all digits (``10.0.0.300``, ``10.0.300``) is IPv4-shaped, so it is rejected as a
-    malformed IP literal. A name with only a numeric final label (``proxy.123``) is still a valid
-    private DNS name and is left for the resolver.
+    Hostname syntax is otherwise the resolver's call, not a local pattern's: ``getaddrinfo`` accepts
+    IDNA names, underscores and numeric labels, and an entry it can't resolve fails closed (trusts no
+    peer) with a warning on every refresh. Only entries that can never resolve are config errors:
+
+    - empty or whitespace-only;
+    - shaped like a mistyped literal: containing ``/`` or ``:`` (CIDR or IPv6 syntax no hostname
+      uses), or made only of digit labels (``10.0.0.300``);
+    - rejected by the ``idna`` codec (an empty label as in ``a..b``, a label over 63 characters),
+      which is the encoding ``getaddrinfo`` itself applies, so it would raise ``UnicodeError``
+      there instead of a resolver miss.
 
     Raises:
-        TrustedProxyConfigError: ``entry`` is not a valid hostname.
+        TrustedProxyConfigError: ``entry`` can never resolve.
     """
     labels = entry.rstrip(".").split(".")
-    if (
-        len(entry) > _MAX_HOSTNAME_LENGTH
-        or not _HOSTNAME_PATTERN.fullmatch(entry)
-        or all(label.isdigit() for label in labels)
-    ):
+    malformed = not entry.strip() or "/" in entry or ":" in entry or all(label.isdigit() for label in labels)
+    if not malformed:
+        try:
+            entry.encode("idna")
+        except UnicodeError:
+            malformed = True
+    if malformed:
         raise TrustedProxyConfigError(
-            f"trusted_proxies entry {entry!r} is neither a valid IP/CIDR literal nor a valid hostname"
+            f"trusted_proxies entry {entry!r} is neither a valid IP/CIDR literal nor a resolvable hostname"
         )
 
 
@@ -218,17 +213,17 @@ async def resolve_trusted_proxies(
     """Parse and resolve every ``trusted_proxies`` config entry.
 
     Called from ``WebApiService.on_initialize()``, at startup and again on every service restart.
-    Each entry is tried as an IP/CIDR literal first (fast, no DNS); any other entry must be a
-    syntactically valid hostname. Every entry is validated before any DNS lookup runs, so a config
-    error fails fast: a malformed literal, an entire-address-space CIDR, or an empty entry raises
-    rather than being silently dropped (design.md Edge Cases, "A trusted_proxies entry that's wrong
-    or too broad").
+    Each entry is tried as an IP/CIDR literal first (fast, no DNS); any other entry is a hostname.
+    Every entry is checked before any DNS lookup runs, so a config error fails fast: a malformed
+    literal, an entire-address-space CIDR, an empty entry, or a name no lookup could resolve (see
+    :func:`_reject_unresolvable_entry`) raises rather than being silently dropped (design.md Edge
+    Cases, "A trusted_proxies entry that's wrong or too broad").
 
-    A valid hostname that doesn't resolve right now (NXDOMAIN, resolver timeout) is not a config
-    error — a Compose sibling may simply not have registered with Docker's DNS yet. That entry keeps
-    its networks from ``previous`` (none at first startup, so it fails closed and trusts no peer), a
+    A hostname that doesn't resolve right now (NXDOMAIN, resolver timeout) is not a config error — a
+    Compose sibling may simply not have registered with Docker's DNS yet. That entry keeps its
+    networks from ``previous`` (none at first startup, so it fails closed and trusts no peer), a
     warning is logged, and the periodic :func:`refresh_trusted_proxies` job picks it up once DNS
-    answers.
+    answers. Hostnames resolve concurrently.
 
     Args:
         entries: ``WebApiConfig.trusted_proxies`` — IP, CIDR, or hostname strings.
@@ -239,8 +234,8 @@ async def resolve_trusted_proxies(
         The resolved :class:`TrustedProxySet`.
 
     Raises:
-        TrustedProxyConfigError: Any entry is neither a valid IP/CIDR literal nor a valid hostname,
-            or a literal matches the entire address space.
+        TrustedProxyConfigError: Any entry is neither a valid IP/CIDR literal nor a resolvable
+            hostname, or a literal matches the entire address space.
     """
     literal_networks: set[ipaddress.IPv4Network | ipaddress.IPv6Network] = set()
     hostnames: list[str] = []
@@ -249,25 +244,13 @@ async def resolve_trusted_proxies(
         if network is not None:
             literal_networks.add(network)
             continue
-        _validate_hostname(entry)
+        _reject_unresolvable_entry(entry)
         hostnames.append(entry)
 
-    hostname_entries: dict[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
-    for hostname in hostnames:
-        try:
-            hostname_entries[hostname] = await _resolve_hostname(hostname)
-        except HostnameResolutionError as exc:
-            fallback = previous.hostname_entries.get(hostname, frozenset())
-            LOGGER.warning(
-                "trusted_proxies hostname %r did not resolve (%s); %s until a periodic refresh resolves it",
-                hostname,
-                exc,
-                "keeping last-known-good address(es)" if fallback else "trusting no peer for it",
-            )
-            hostname_entries[hostname] = fallback
-    return TrustedProxySet(
-        literal_networks=frozenset(literal_networks), hostname_entries=MappingProxyType(hostname_entries)
+    hostname_entries = await _resolve_hostnames(
+        {hostname: previous.hostname_entries.get(hostname, frozenset()) for hostname in hostnames}
     )
+    return TrustedProxySet(literal_networks=frozenset(literal_networks), hostname_entries=hostname_entries)
 
 
 async def refresh_trusted_proxies(current: TrustedProxySet) -> TrustedProxySet:
@@ -288,18 +271,45 @@ async def refresh_trusted_proxies(current: TrustedProxySet) -> TrustedProxySet:
         failed refresh for one hostname is logged and that hostname's prior networks are carried
         forward unchanged.
     """
-    updated: dict[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
-    for hostname, previous_networks in current.hostname_entries.items():
+    updated = await _resolve_hostnames(current.hostname_entries)
+    return TrustedProxySet(literal_networks=current.literal_networks, hostname_entries=updated)
+
+
+async def _resolve_hostnames(
+    fallbacks: Mapping[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]],
+) -> Mapping[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
+    """Resolve every hostname in ``fallbacks`` concurrently, keeping its fallback networks on a DNS miss.
+
+    Concurrent so the total wait is about one :data:`_DNS_RESOLVE_TIMEOUT_SECONDS` rather than one per
+    hostname: a sequential loop over a handful of hung lookups would outlast the lifecycle startup
+    wave (``startup_timeout_seconds``) and fail ``WebApiService`` startup, which an unresolved
+    hostname must never do. The bound holds while hostnames don't outnumber the default executor's
+    threads (``loop.getaddrinfo`` runs there); lookups queued past that may time out waiting and
+    fail closed until the next refresh.
+
+    Args:
+        fallbacks: Maps each hostname to the networks it keeps if it doesn't resolve now — its
+            last-known-good resolution, or an empty set (trust no peer) if it never resolved.
+    """
+
+    async def resolve_or_keep(hostname: str) -> frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]:
         try:
-            updated[hostname] = await _resolve_hostname(hostname)
+            return await _resolve_hostname(hostname)
         except HostnameResolutionError as exc:
+            fallback = fallbacks[hostname]
             LOGGER.warning(
-                "Could not refresh trusted_proxies hostname %r (%s); keeping last-known-good address(es)",
+                "trusted_proxies hostname %r did not resolve (%s); %s until a periodic refresh resolves it",
                 hostname,
                 exc,
+                "keeping last-known-good address(es)" if fallback else "trusting no peer for it",
             )
-            updated[hostname] = previous_networks
-    return TrustedProxySet(literal_networks=current.literal_networks, hostname_entries=MappingProxyType(updated))
+            return fallback
+
+    # TaskGroup rather than gather: an unexpected error cancels the sibling lookups instead of
+    # leaving them running unawaited.
+    async with asyncio.TaskGroup() as group:
+        tasks = {hostname: group.create_task(resolve_or_keep(hostname)) for hostname in fallbacks}
+    return MappingProxyType({hostname: task.result() for hostname, task in tasks.items()})
 
 
 def is_trusted_peer(client_address: str, trusted: TrustedProxySet) -> bool:

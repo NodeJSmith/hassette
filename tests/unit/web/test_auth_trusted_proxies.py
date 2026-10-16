@@ -29,9 +29,11 @@ class TestResolveTrustedProxiesLiteral:
         assert is_trusted_peer("10.0.0.254", trusted) is True
         assert is_trusted_peer("10.0.1.1", trusted) is False
 
-    @pytest.mark.parametrize("entry", ["not-a-valid-entry!!!", "10.0.0.300", "10.0.300", "10.0.0.0/33", "", "a..b"])
-    async def test_malformed_entry_raises_before_any_dns_lookup(self, entry: str) -> None:
-        """Neither a literal nor a syntactically valid hostname: a config error, never retried as DNS."""
+    @pytest.mark.parametrize(
+        "entry", ["10.0.0.300", "10.0.300", "10.0.0.0/33", "fe80::zz", "", "   ", "a..b", f"{'x' * 64}.example"]
+    )
+    async def test_unresolvable_entry_raises_before_any_dns_lookup(self, entry: str) -> None:
+        """A malformed literal or a name no lookup could resolve: a config error, never retried as DNS."""
         with (
             patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]) as mock_resolver,
             pytest.raises(TrustedProxyConfigError, match=re.escape(repr(entry))),
@@ -73,8 +75,12 @@ class TestResolveTrustedProxiesHostname:
         assert is_trusted_peer("172.30.32.2", trusted) is True
         assert is_trusted_peer("172.30.32.3", trusted) is False
 
-    @pytest.mark.parametrize("hostname", ["caddy", "my_proxy", "proxy.internal.", "PROXY-1.example.com", "proxy.123"])
-    async def test_valid_hostname_shapes_are_resolved(self, hostname: str) -> None:
+    @pytest.mark.parametrize(
+        "hostname",
+        ["caddy", "my_proxy", "proxy.internal.", "PROXY-1.example.com", "proxy.123", "münchen.example", "proxy!"],
+    )
+    async def test_non_literal_names_are_left_to_the_resolver(self, hostname: str) -> None:
+        """Hostname syntax is the resolver's call: IDNA, underscores and odd characters all reach DNS."""
         with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
             trusted = await resolve_trusted_proxies((hostname,))
 
@@ -106,6 +112,31 @@ class TestResolveTrustedProxiesHostname:
             trusted = await resolve_trusted_proxies(("proxy.internal",))
 
         assert trusted.hostname_entries["proxy.internal"] == frozenset()
+
+    async def test_hung_lookups_resolve_concurrently(self) -> None:
+        """Many hung lookups cost one DNS timeout in total, not one each, so startup can't outlast its wave."""
+        all_started = asyncio.Event()
+        hostnames = tuple(f"proxy{i}.internal" for i in range(6))
+        started: list[str] = []
+
+        async def hang(host: str, *_args: object, **_kwargs: object) -> list[tuple[Any, ...]]:
+            started.append(host)
+            if len(started) == len(hostnames):
+                all_started.set()
+            await asyncio.sleep(10)
+            return [make_addrinfo("172.30.32.2")]
+
+        with (
+            patch("hassette.web.auth.trusted_proxies._DNS_RESOLVE_TIMEOUT_SECONDS", 1),
+            patch("asyncio.BaseEventLoop.getaddrinfo", new_callable=AsyncMock, side_effect=hang),
+        ):
+            task = asyncio.create_task(resolve_trusted_proxies(hostnames))
+            # Every lookup is in flight at once before any one of them has timed out.
+            await asyncio.wait_for(all_started.wait(), timeout=0.5)
+            trusted = await task
+
+        assert set(trusted.hostname_entries) == set(hostnames)
+        assert all(networks == frozenset() for networks in trusted.hostname_entries.values())
 
     async def test_resolving_to_no_addresses_leaves_entry_unresolved(self) -> None:
         with patch_loop_getaddrinfo(return_value=[]):
