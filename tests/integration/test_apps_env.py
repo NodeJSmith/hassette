@@ -1,165 +1,55 @@
 import os
 import sys
-import textwrap
 from pathlib import Path
 
 import pytest
-from pydantic import SecretStr
 
-from hassette import HassetteConfig, context
+from hassette import context
 from hassette.testing import HassetteHarness, build_harness, wait_for
-from hassette.testing.config import TEST_TOKEN
-from hassette.utils import app_utils
+from tests.support.app_staging_helpers import (
+    ENV_CUSTOM_FILENAME,
+    ENV_IMPORT_FILENAME,
+    ENV_IMPORT_KEY,
+    ENV_READER_CLASS,
+    ENV_READER_FILENAME,
+    ENV_SETTINGS_CLASS,
+    ENV_SETTINGS_FILENAME,
+    ENV_SETTINGS_KEY,
+    build_config_class,
+    cleanup_env,
+    stage_app,
+    write_env_reader_app,
+    write_env_settings_app,
+)
 from tests.support.fixtures import run_hassette_startup_tasks
-
-APP_KEY = "env_reader"
-TOKEN = TEST_TOKEN
-
-ENV_IMPORT_KEY = "HASSETTE_TEST_APP_IMPORT"
-ENV_SETTINGS_KEY = "MY_SECRET"
-
-ENV_READER_FILENAME = "env_reader_app.py"
-ENV_SETTINGS_FILENAME = "env_settings_app.py"
-
-ENV_READER_CLASS = "EnvReaderApp"
-ENV_SETTINGS_CLASS = "SettingsApp"
-
-TOML_FILENAME = "hassette.toml"
-ENV_IMPORT_FILENAME = "app_import.env"
-ENV_CUSTOM_FILENAME = "custom.env"
-
-
-def cleanup_env(*keys: str) -> None:
-    for key in keys:
-        os.environ.pop(key, None)
-
-
-def new_unique_app_dir(tmp_path: Path) -> tuple[str, Path]:
-    """Create a unique apps dir for test-created app modules."""
-    pkg_name = "testapps_" + os.urandom(6).hex()
-    app_dir = tmp_path / pkg_name
-    app_dir.mkdir(parents=True, exist_ok=True)
-    return pkg_name, app_dir
-
-
-def clear_app_import_caches(pkg_name: str, module_name: str) -> None:
-    """Avoid cross-test module collisions and cached failures/successes."""
-    sys.modules.pop(f"{pkg_name}.{module_name}", None)
-    sys.modules.pop(pkg_name, None)
-
-    app_utils.LOADED_CLASSES.clear()
-    app_utils.FAILED_TO_LOAD_CLASSES.clear()
-
-
-def write_env_reader_app(app_dir: Path) -> None:
-    path = app_dir / ENV_READER_FILENAME
-
-    path.write_text(
-        textwrap.dedent(
-            f"""
-            import os
-            from hassette import App
-
-            READ_AT_IMPORT = os.getenv({ENV_IMPORT_KEY!r}, 'NOT_FOUND')
-
-            class {ENV_READER_CLASS}(App):
-                async def on_initialize(self) -> None:
-                    return
-            """
-        ).lstrip(),
-        encoding="utf-8",
-    )
-
-
-def write_env_settings_app(app_dir: Path) -> None:
-    path = app_dir / ENV_SETTINGS_FILENAME
-    path.write_text(
-        textwrap.dedent(
-            f"""
-            from hassette import App, AppConfig
-
-            class SettingsConfig(AppConfig):
-                {ENV_SETTINGS_KEY.lower()}: str
-
-            class {ENV_SETTINGS_CLASS}(App[SettingsConfig]):
-                async def on_initialize(self) -> None:
-                    self.seen = getattr(self.app_config, {ENV_SETTINGS_KEY.lower()!r})
-            """
-        ).lstrip(),
-        encoding="utf-8",
-    )
-
-
-def write_env_file(path: Path, key: str, value: str) -> None:
-    path.write_text(f"{key}={value}\n", encoding="utf-8")
-
-
-def write_toml(
-    toml_file: Path,
-    *,
-    app_dir: Path,
-    filename: str,
-    class_name: str,
-) -> None:
-    toml_file.write_text(
-        textwrap.dedent(
-            f"""
-            [hassette.apps]
-            directory = {app_dir.as_posix()!r}
-            autodetect = false
-
-            [hassette.apps.{APP_KEY}]
-            enabled = true
-            filename = {filename!r}
-            class_name = {class_name!r}
-            app_dir = {app_dir.as_posix()!r}
-            """
-        ).lstrip(),
-        encoding="utf-8",
-    )
-
-
-def build_config_class(*, toml_file: Path, env_files: list[Path], scratch_dir: Path):
-    class _TestConfig(HassetteConfig):
-        model_config = HassetteConfig.model_config.copy() | {
-            "cli_parse_args": False,
-            "toml_file": [toml_file],
-            "env_file": env_files,
-        }
-
-        token: SecretStr = SecretStr(TOKEN)
-        data_dir: Path = scratch_dir
-
-    return _TestConfig
 
 
 async def test_import_dot_env_files_makes_values_visible_during_app_import(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     """With import_dot_env_files=True, Hassette loads env_files before app precheck imports."""
-    pkg_name, app_dir = new_unique_app_dir(tmp_path)
-    write_env_reader_app(app_dir)
-
-    env_file = tmp_path / ENV_IMPORT_FILENAME
-    write_env_file(env_file, ENV_IMPORT_KEY, "from_dotenv")
-
-    toml_file = tmp_path / TOML_FILENAME
-    write_toml(
-        toml_file,
-        app_dir=app_dir,
+    staged = stage_app(
+        tmp_path,
+        writer=write_env_reader_app,
         filename=ENV_READER_FILENAME,
         class_name=ENV_READER_CLASS,
+        module_name="env_reader_app",
+        env_file_name=ENV_IMPORT_FILENAME,
+        env_key=ENV_IMPORT_KEY,
+        env_value="from_dotenv",
     )
+    assert staged.env_file is not None
 
     monkeypatch.delenv(ENV_IMPORT_KEY, raising=False)
-    clear_app_import_caches(pkg_name, "env_reader_app")
 
-    app_import_config = build_config_class(toml_file=toml_file, env_files=[env_file], scratch_dir=tmp_path / "data")
+    app_import_config = build_config_class(
+        toml_file=staged.toml_file, env_files=[staged.env_file], scratch_dir=tmp_path / "data"
+    )
     config = app_import_config(import_dot_env_files=True)
     with context.use_hassette_config(config):
         run_hassette_startup_tasks(config)
 
-    mod = sys.modules.get(f"{pkg_name}.env_reader_app")
+    mod = sys.modules.get(f"{staged.pkg_name}.env_reader_app")
     assert mod is not None, "Expected app module to be imported during precheck"
     assert mod.READ_AT_IMPORT == "from_dotenv"  # pyright: ignore[reportAttributeAccessIssue]
     cleanup_env(ENV_IMPORT_KEY)
@@ -169,29 +59,28 @@ async def test_import_dot_env_files_disabled_not_visible_during_app_import(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
     """Without import_dot_env_files, app import-time env reads should not see custom env_files values."""
-    pkg_name, app_dir = new_unique_app_dir(tmp_path)
-    write_env_reader_app(app_dir)
-
-    env_file = tmp_path / ENV_IMPORT_FILENAME
-    write_env_file(env_file, ENV_IMPORT_KEY, "from_dotenv")
-
-    toml_file = tmp_path / TOML_FILENAME
-    write_toml(
-        toml_file,
-        app_dir=app_dir,
+    staged = stage_app(
+        tmp_path,
+        writer=write_env_reader_app,
         filename=ENV_READER_FILENAME,
         class_name=ENV_READER_CLASS,
+        module_name="env_reader_app",
+        env_file_name=ENV_IMPORT_FILENAME,
+        env_key=ENV_IMPORT_KEY,
+        env_value="from_dotenv",
     )
+    assert staged.env_file is not None
 
     monkeypatch.delenv(ENV_IMPORT_KEY, raising=False)
-    clear_app_import_caches(pkg_name, "env_reader_app")
 
-    app_import_config = build_config_class(toml_file=toml_file, env_files=[env_file], scratch_dir=tmp_path / "data")
+    app_import_config = build_config_class(
+        toml_file=staged.toml_file, env_files=[staged.env_file], scratch_dir=tmp_path / "data"
+    )
     config = app_import_config(import_dot_env_files=False)
     with context.use_hassette_config(config):
         run_hassette_startup_tasks(config)
 
-    mod = sys.modules.get(f"{pkg_name}.env_reader_app")
+    mod = sys.modules.get(f"{staged.pkg_name}.env_reader_app")
     assert mod is not None, "Expected app module to be imported during precheck"
     assert mod.READ_AT_IMPORT == "NOT_FOUND"
     cleanup_env(ENV_IMPORT_KEY)
@@ -204,20 +93,15 @@ async def test_app_config_can_read_from_os_environ(monkeypatch: pytest.MonkeyPat
     cleanup_env(ENV_SETTINGS_KEY)
     monkeypatch.setenv(ENV_SETTINGS_KEY, "from_os_environ")
 
-    pkg_name, app_dir = new_unique_app_dir(tmp_path)
-    write_env_settings_app(app_dir)
-
-    toml_file = tmp_path / TOML_FILENAME
-    write_toml(
-        toml_file,
-        app_dir=app_dir,
+    staged = stage_app(
+        tmp_path,
+        writer=write_env_settings_app,
         filename=ENV_SETTINGS_FILENAME,
         class_name=ENV_SETTINGS_CLASS,
+        module_name="env_settings_app",
     )
 
-    clear_app_import_caches(pkg_name, "env_settings_app")
-
-    app_settings_config = build_config_class(toml_file=toml_file, env_files=[], scratch_dir=tmp_path / "data")
+    app_settings_config = build_config_class(toml_file=staged.toml_file, env_files=[], scratch_dir=tmp_path / "data")
     config = app_settings_config(import_dot_env_files=False)
 
     async with build_harness(HassetteHarness(config).with_app_handler().with_scheduler()) as harness:
@@ -244,23 +128,21 @@ async def test_app_config_reads_hassette_env_files_without_import_dot_env_files(
 
     cleanup_env(ENV_SETTINGS_KEY)
 
-    pkg_name, app_dir = new_unique_app_dir(tmp_path)
-    write_env_settings_app(app_dir)
-
-    custom_env = tmp_path / ENV_CUSTOM_FILENAME
-    write_env_file(custom_env, ENV_SETTINGS_KEY, "from_custom_env")
-
-    toml_file = tmp_path / TOML_FILENAME
-    write_toml(
-        toml_file,
-        app_dir=app_dir,
+    staged = stage_app(
+        tmp_path,
+        writer=write_env_settings_app,
         filename=ENV_SETTINGS_FILENAME,
         class_name=ENV_SETTINGS_CLASS,
+        module_name="env_settings_app",
+        env_file_name=ENV_CUSTOM_FILENAME,
+        env_key=ENV_SETTINGS_KEY,
+        env_value="from_custom_env",
     )
+    assert staged.env_file is not None
 
-    clear_app_import_caches(pkg_name, "env_settings_app")
-
-    custom_env_config = build_config_class(toml_file=toml_file, env_files=[custom_env], scratch_dir=tmp_path / "data")
+    custom_env_config = build_config_class(
+        toml_file=staged.toml_file, env_files=[staged.env_file], scratch_dir=tmp_path / "data"
+    )
     config = custom_env_config(import_dot_env_files=False)
     run_hassette_startup_tasks(config)
 
@@ -283,23 +165,21 @@ async def test_app_config_sees_custom_env_file_when_import_dot_env_files_true(
 
     cleanup_env(ENV_SETTINGS_KEY)
 
-    pkg_name, app_dir = new_unique_app_dir(tmp_path)
-    write_env_settings_app(app_dir)
-
-    custom_env = tmp_path / ENV_CUSTOM_FILENAME
-    write_env_file(custom_env, ENV_SETTINGS_KEY, "from_custom_env")
-
-    toml_file = tmp_path / TOML_FILENAME
-    write_toml(
-        toml_file,
-        app_dir=app_dir,
+    staged = stage_app(
+        tmp_path,
+        writer=write_env_settings_app,
         filename=ENV_SETTINGS_FILENAME,
         class_name=ENV_SETTINGS_CLASS,
+        module_name="env_settings_app",
+        env_file_name=ENV_CUSTOM_FILENAME,
+        env_key=ENV_SETTINGS_KEY,
+        env_value="from_custom_env",
     )
+    assert staged.env_file is not None
 
-    clear_app_import_caches(pkg_name, "env_settings_app")
-
-    custom_env_config = build_config_class(toml_file=toml_file, env_files=[custom_env], scratch_dir=tmp_path / "data")
+    custom_env_config = build_config_class(
+        toml_file=staged.toml_file, env_files=[staged.env_file], scratch_dir=tmp_path / "data"
+    )
     config = custom_env_config(import_dot_env_files=True)
     with context.use_hassette_config(config):
         run_hassette_startup_tasks(config)
