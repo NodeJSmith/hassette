@@ -18,7 +18,10 @@ class BaseUrlParts(NamedTuple):
     host: str
     port: int | None
     path_prefix: str
-    """Decoded path with no trailing slash; ``""`` when base_url has no path or a lone ``/``."""
+    """Percent-encoded path with no trailing literal slash; ``""`` when base_url has no path or a lone ``/``.
+
+    Kept encoded so a ``%2F`` inside a segment is not turned into a path separator.
+    """
 
 
 def _parse_and_normalize_url(config: "HassetteConfig") -> BaseUrlParts:
@@ -50,7 +53,7 @@ def _parse_and_normalize_url(config: "HassetteConfig") -> BaseUrlParts:
     if yurl.host is None:
         raise BaseUrlRequiredError(f"base_url must include a valid hostname, got: {cleaned_url}")
 
-    return BaseUrlParts(yurl.scheme, yurl.host, yurl.explicit_port, yurl.path.rstrip("/"))
+    return BaseUrlParts(yurl.scheme, yurl.host, yurl.explicit_port, yurl.raw_path.rstrip("/"))
 
 
 def _build_ha_url(config: "HassetteConfig", *, ws: bool = False) -> str:
@@ -60,7 +63,7 @@ def _build_ha_url(config: "HassetteConfig", *, ws: bool = False) -> str:
     if ws:
         scheme = "wss" if scheme == "https" else "ws"
     path = f"{parts.path_prefix}/api/websocket" if ws else f"{parts.path_prefix}/api/"
-    return str(URL.build(scheme=scheme, host=parts.host, port=parts.port, path=path))
+    return str(URL.build(scheme=scheme, host=parts.host, port=parts.port, path=path, encoded=True))
 
 
 def build_ws_url(config: "HassetteConfig") -> str:
