@@ -40,6 +40,8 @@ class TestSubcommandRouting:
             pytest.param(["dashboard"], "cmd_dashboard", id="dashboard"),
             pytest.param(["execution", "some-uuid"], "cmd_execution", id="execution"),
             pytest.param(["job"], "cmd_job", id="job"),
+            pytest.param(["job", "42"], "cmd_job", id="job-id"),
+            pytest.param(["job", "trigger", "42"], "cmd_job_trigger", id="job-trigger"),
             pytest.param(["listener"], "cmd_listener", id="listener"),
             pytest.param(["blocking"], "cmd_blocking", id="blocking"),
             pytest.param(["log"], "cmd_log", id="log"),
@@ -99,6 +101,18 @@ class TestFlagCombinations:
 
         assert bound.arguments["app"] == "car_climate"
         assert bound.arguments["instance"] == "1"
+
+    def test_job_trigger_binds_job_id(self) -> None:
+        cmd, bound, _ = app.parse_args(["job", "trigger", "42"])
+
+        assert cmd.__name__ == "cmd_job_trigger"
+        assert bound.arguments["job_id"] == 42
+
+    def test_job_id_still_routes_to_job_history(self) -> None:
+        cmd, bound, _ = app.parse_args(["job", "42"])
+
+        assert cmd.__name__ == "cmd_job"
+        assert bound.arguments["job_id"] == 42
 
     def test_job_app_source_tier(self) -> None:
         _cmd, bound, _ = app.parse_args(["job", "--app", "my-app", "--source-tier", "framework"])

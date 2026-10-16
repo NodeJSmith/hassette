@@ -16,7 +16,7 @@ from hassette.cli.commands.app import (
     cmd_app_stop,
 )
 from hassette.cli.commands.blocking import cmd_blocking
-from hassette.cli.commands.job import cmd_job
+from hassette.cli.commands.job import cmd_job, cmd_job_trigger
 from hassette.cli.commands.listener import cmd_listener
 from hassette.cli.commands.log import cmd_execution, cmd_log
 from hassette.cli.commands.misc import cmd_config
@@ -77,7 +77,7 @@ app.command(apps_app)
 listener_app = App(name="listener", help="List listeners and invocation history.")
 app.command(listener_app)
 
-job_app = App(name="job", help="List scheduled jobs and execution history.")
+job_app = App(name="job", help="List scheduled jobs, show execution history, or trigger a job.")
 app.command(job_app)
 
 log_app = App(name="log", help="Show recent log entries.")
@@ -115,6 +115,7 @@ apps_app.command(cmd_app_reload, name="reload")
 
 listener_app.default(cmd_listener)
 job_app.default(cmd_job)
+job_app.command(cmd_job_trigger, name="trigger")
 
 log_app.default(cmd_log)
 execution_app.default(cmd_execution)

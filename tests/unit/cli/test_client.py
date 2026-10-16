@@ -409,13 +409,13 @@ class TestPostMalformedResponse:
     def test_invalid_json_body_exits_instead_of_crashing(self) -> None:
         client = make_raw_body_client(b"not json", content_type="application/json")
         with pytest.raises(SystemExit) as exc_info:
-            client.post("/api/apps/my_app/stop")
+            client.post("/api/apps/my_app/stop", ActionResponse)
         assert exc_info.value.code == 1
 
     def test_invalid_json_body_prints_clean_error_to_stderr(self) -> None:
         client = make_raw_body_client(b"not json", content_type="application/json")
         with capture_stderr() as buf, pytest.raises(SystemExit):
-            client.post("/api/apps/my_app/stop")
+            client.post("/api/apps/my_app/stop", ActionResponse)
         assert "not valid JSON" in buf.getvalue()
         assert "Traceback" not in buf.getvalue()
 
@@ -425,7 +425,7 @@ class TestPostMalformedResponse:
         transport = make_transport(200, {"unexpected": "shape"})
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.post("/api/apps/my_app/stop")
+            client.post("/api/apps/my_app/stop", ActionResponse)
         assert exc_info.value.code == 1
 
     def test_schema_mismatch_json_mode_writes_error_doc(self, capsys: pytest.CaptureFixture[str]) -> None:
@@ -433,7 +433,7 @@ class TestPostMalformedResponse:
         transport = make_transport(200, {"unexpected": "shape"})
         client = HassetteCLIClient(config, json_mode=True, transport=transport)
         with pytest.raises(SystemExit) as exc_info:
-            client.post("/api/apps/my_app/stop")
+            client.post("/api/apps/my_app/stop", ActionResponse)
         assert exc_info.value.code == 1
         parsed = json.loads(capsys.readouterr().out)
         assert parsed["error"] is True
@@ -444,7 +444,7 @@ class TestPostMalformedResponse:
         body = ActionResponse(app_key="my_app", action="stop", instance_index=None).model_dump()
         transport = make_transport(200, body)
         client = HassetteCLIClient(config, json_mode=False, transport=transport)
-        result = client.post("/api/apps/my_app/stop")
+        result = client.post("/api/apps/my_app/stop", ActionResponse)
         assert isinstance(result, ActionResponse)
         assert result.app_key == "my_app"
 

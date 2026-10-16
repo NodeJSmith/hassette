@@ -9,7 +9,7 @@ Hassette — async-first Home Assistant automation framework.
 │ config                 Show current configuration.                                               │
 │ dashboard              Show app dashboard grid.                                                  │
 │ execution              Show logs for a specific execution.                                       │
-│ job                    List scheduled jobs and execution history.                                │
+│ job                    List scheduled jobs, show execution history, or trigger a job.            │
 │ listener               List listeners and invocation history.                                    │
 │ log                    Show recent log entries.                                                  │
 │ run                    Start the Hassette framework server.                                      │
@@ -312,10 +312,13 @@ Show logs for a specific execution.
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 
 $ hassette job --help
-Usage: hassette job [OPTIONS] [ARGS]
+Usage: hassette job COMMAND [OPTIONS] [ARGS]
 
-List scheduled jobs and execution history.
+List scheduled jobs, show execution history, or trigger a job.
 
+╭─ Commands ───────────────────────────────────────────────────────────────────────────────────────╮
+│ trigger  Manually fire a scheduled job now, outside its normal schedule.                         │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
 │ JOB-ID --job-id                                                                                  │
 │ APP --app                  Filter by app key.                                                    │
@@ -327,6 +330,27 @@ List scheduled jobs and execution history.
 │ SOURCE-TIER --source-tier  Filter by telemetry source tier: 'app', 'framework', or 'all'.        │
 │                            [choices: app, framework, all]                                        │
 │ LIMIT --limit              Maximum number of results to return.                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
+│ --config-dir                  Directory to read hassette.toml and .env from, and the default     │
+│                               home of the apps directory.                                        │
+│ --config-file -c              Path to the TOML configuration file, instead of searching.         │
+│ --env-file --env -e           Path to the .env file, instead of searching.                       │
+│ --json                        Output results as JSON. [default: False]                           │
+│ --debug                       Show full HTTP response on CLI errors. [default: False]            │
+│ --server-url -s               Base URL of a remote Hassette instance to connect to.              │
+│ --token-file                  Path to a file containing the bearer credential to attach.         │
+│ --verify-ssl --no-verify-ssl  Verify TLS certificates for the resolved target. Pass              │
+│                               --no-verify-ssl to disable.                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+$ hassette job trigger --help
+Usage: hassette job trigger [OPTIONS] JOB-ID
+
+Manually fire a scheduled job now, outside its normal schedule.
+
+╭─ Parameters ─────────────────────────────────────────────────────────────────────────────────────╮
+│ *  JOB-ID --job-id  The job ID, as shown in the ID column of hassette job. [required]            │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Global Options ─────────────────────────────────────────────────────────────────────────────────╮
 │ --config-dir                  Directory to read hassette.toml and .env from, and the default     │

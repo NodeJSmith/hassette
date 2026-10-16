@@ -1,7 +1,10 @@
-"""Unit tests for hassette job and job <id> commands."""
+"""Unit tests for hassette job, job <id>, and job trigger commands."""
+
+import json
+from unittest.mock import patch
 
 import pytest
-from hassette_wire import ScheduleStatus
+from hassette_wire import JobTriggerResponse, ScheduleStatus
 
 from hassette.cli.client import HassetteCLIClient
 from hassette.cli.commands.job import (
@@ -10,16 +13,20 @@ from hassette.cli.commands.job import (
     JOB_LIST_COLUMNS,
     _next_run_display,
     cmd_job,
+    cmd_job_trigger,
 )
+from hassette.cli.context import CLIContext
 from tests.support.web_job_helpers import make_job_summary
 from tests.support.web_telemetry_helpers import make_execution
-from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner
+from tests.unit.cli.conftest import SINCE_EPOCH, CLIClientFactory, CommandRunner, capture_json_stdout, make_post_spy
 
 runner = CommandRunner("hassette.cli.commands.job.make_client")
 JOBS_ENDPOINT = "/api/scheduler/jobs"
 MY_APP_JOBS_ENDPOINT = "/api/telemetry/app/my-app/jobs"
 JOB_5_EXECUTIONS_ENDPOINT = "/api/telemetry/job/5/executions"
 JOB_1_EXECUTIONS_ENDPOINT = "/api/telemetry/job/1/executions"
+JOB_42_TRIGGER_ENDPOINT = "/api/scheduler/jobs/42/trigger"
+JOB_NOT_REGISTERED_DETAIL = "Job 42 has no live registration"
 
 # cmd_job (bare — list all jobs)
 
@@ -239,3 +246,72 @@ class TestCmdJobDetail:
     def test_execution_columns_count_is_compact(self) -> None:
         """JOB_EXECUTION_COLUMNS uses at most 7 columns for 80-column fit."""
         assert len(JOB_EXECUTION_COLUMNS) <= 7
+
+
+# cmd_job_trigger (POST /api/scheduler/jobs/{id}/trigger)
+
+
+def _trigger_response() -> JobTriggerResponse:
+    return JobTriggerResponse(status="accepted", job_id=42, job_name="check_lights")
+
+
+class TestCmdJobTrigger:
+    def test_posts_to_trigger_endpoint(self, cli_client_factory: CLIClientFactory) -> None:
+        """Job trigger 42 sends POST /api/scheduler/jobs/42/trigger."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", JOB_42_TRIGGER_ENDPOINT, 202, _trigger_response().model_dump())]
+        )
+        spy = make_post_spy(client)
+        with patch.object(client, "post", spy):
+            runner.stdout(client, cmd_job_trigger, 42)
+
+        spy.assert_called_once_with(JOB_42_TRIGGER_ENDPOINT, JobTriggerResponse)
+
+    def test_human_mode_confirms_job_id_and_name(self, cli_client_factory: CLIClientFactory) -> None:
+        """A 202 renders a confirmation naming the triggered job."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", JOB_42_TRIGGER_ENDPOINT, 202, _trigger_response().model_dump())]
+        )
+        output = runner.stdout(client, cmd_job_trigger, 42)
+
+        assert "42" in output
+        assert "check_lights" in output
+        assert "accepted" in output
+
+    def test_json_mode_outputs_raw_response(self, cli_client_factory: CLIClientFactory) -> None:
+        """Job trigger --json emits the JobTriggerResponse fields as a JSON object."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", JOB_42_TRIGGER_ENDPOINT, 202, _trigger_response().model_dump())], json_mode=True
+        )
+        parsed = runner.json_output(client, cmd_job_trigger, 42)
+
+        assert parsed == {"status": "accepted", "job_id": 42, "job_name": "check_lights"}
+
+    def test_409_exits_non_zero_with_detail(self, cli_client_factory: CLIClientFactory) -> None:
+        """A 409 (job not registered) exits 1 and prints the server's detail on stderr."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", JOB_42_TRIGGER_ENDPOINT, 409, {"detail": JOB_NOT_REGISTERED_DETAIL})]
+        )
+        code, stderr = runner.usage_error(client, cmd_job_trigger, 42)
+
+        assert code == 1
+        assert "409" in stderr
+        assert JOB_NOT_REGISTERED_DETAIL in stderr
+
+    def test_409_json_mode_emits_structured_error(self, cli_client_factory: CLIClientFactory) -> None:
+        """A 409 under --json writes a JSON error document and exits 1."""
+        client = cli_client_factory.build_with_routes(
+            [("POST", JOB_42_TRIGGER_ENDPOINT, 409, {"detail": JOB_NOT_REGISTERED_DETAIL})], json_mode=True
+        )
+        with (
+            patch(runner.make_client_path, return_value=client),
+            capture_json_stdout() as captured,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            cmd_job_trigger(42, ctx=CLIContext(json_mode=True))
+
+        assert exc_info.value.code == 1
+        doc = json.loads("".join(captured))
+        assert doc["error"] is True
+        assert doc["status"] == 409
+        assert JOB_NOT_REGISTERED_DETAIL in doc["detail"]

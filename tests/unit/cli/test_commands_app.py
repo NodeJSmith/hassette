@@ -508,7 +508,7 @@ class TestCmdAppActionRouting:
         with patch.object(client, "post", spy):
             runner.stdout(client, cmd, "my_app", **extra)
 
-        spy.assert_called_once_with(f"/api/apps/my_app/{action}")
+        spy.assert_called_once_with(f"/api/apps/my_app/{action}", ActionResponse)
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_with_instance_resolves_and_hits_instance_route(
@@ -520,7 +520,7 @@ class TestCmdAppActionRouting:
         with patch.object(client, "post", spy):
             runner.stdout(client, cmd, "my_app", instance="1", **extra)
 
-        spy.assert_called_once_with(f"/api/apps/my_app/instances/1/{action}")
+        spy.assert_called_once_with(f"/api/apps/my_app/instances/1/{action}", ActionResponse)
 
     @pytest.mark.parametrize(("cmd", "action", "verb", "extra"), _ACTION_CASES)
     def test_success_message_app_level(
