@@ -29,15 +29,16 @@ class TestResolveTrustedProxiesLiteral:
         assert is_trusted_peer("10.0.0.254", trusted) is True
         assert is_trusted_peer("10.0.1.1", trusted) is False
 
-    async def test_malformed_entry_raises_at_parse_time(self) -> None:
-        # Not a valid IP/CIDR literal, and DNS resolution also fails for it — this is the
-        # "neither a literal nor a resolvable hostname" case that must fail loudly rather
-        # than silently skip the bad entry.
+    @pytest.mark.parametrize("entry", ["not-a-valid-entry!!!", "10.0.0.300", "10.0.0.0/33", "", "a..b"])
+    async def test_malformed_entry_raises_before_any_dns_lookup(self, entry: str) -> None:
+        """Neither a literal nor a syntactically valid hostname: a config error, never retried as DNS."""
         with (
-            patch_loop_getaddrinfo(side_effect=socket.gaierror("not found")),
-            pytest.raises(TrustedProxyConfigError, match="not-a-valid-entry"),
+            patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]) as mock_resolver,
+            pytest.raises(TrustedProxyConfigError, match=re.escape(repr(entry))),
         ):
-            await resolve_trusted_proxies(("not-a-valid-entry!!!",))
+            await resolve_trusted_proxies(("proxy.internal", entry))
+
+        mock_resolver.assert_not_called()
 
     async def test_non_matching_address_not_trusted_with_no_header_input(self) -> None:
         """The match function only ever sees an address string — there is no headers
@@ -72,18 +73,26 @@ class TestResolveTrustedProxiesHostname:
         assert is_trusted_peer("172.30.32.2", trusted) is True
         assert is_trusted_peer("172.30.32.3", trusted) is False
 
-    async def test_hostname_resolution_failure_raises_at_parse_time(self) -> None:
-        with (
-            patch_loop_getaddrinfo(side_effect=socket.gaierror("no such host")),
-            pytest.raises(TrustedProxyConfigError, match=re.escape("proxy.internal")),
-        ):
-            await resolve_trusted_proxies(("proxy.internal",))
+    @pytest.mark.parametrize("hostname", ["caddy", "my_proxy", "proxy.internal.", "PROXY-1.example.com"])
+    async def test_valid_hostname_shapes_are_resolved(self, hostname: str) -> None:
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
+            trusted = await resolve_trusted_proxies((hostname,))
 
-    async def test_resolution_exceeding_timeout_raises_trusted_proxy_config_error(self) -> None:
+        assert is_trusted_peer("172.30.32.2", trusted) is True
+
+    async def test_unresolvable_hostname_does_not_raise_and_trusts_no_peer(self) -> None:
+        """A DNS miss at startup is transient, not a config error: the entry fails closed."""
+        with patch_loop_getaddrinfo(side_effect=socket.gaierror("no such host")):
+            trusted = await resolve_trusted_proxies(("proxy.internal", "10.0.0.5"))
+
+        assert trusted.hostname_entries["proxy.internal"] == frozenset()
+        assert is_trusted_peer("10.0.0.5", trusted) is True
+        assert is_trusted_peer("172.30.32.2", trusted) is False
+
+    async def test_resolution_exceeding_timeout_leaves_entry_unresolved(self) -> None:
         """A resolver that never returns must not hang ``_resolve_hostname`` forever -- the
-        call is bounded by ``_DNS_RESOLVE_TIMEOUT_SECONDS`` and a timeout surfaces as the same
-        ``TrustedProxyConfigError`` any other resolution failure raises, not an unhandled
-        ``TimeoutError``.
+        call is bounded by ``_DNS_RESOLVE_TIMEOUT_SECONDS`` and a timeout is treated like any
+        other DNS miss, not an unhandled ``TimeoutError``.
         """
 
         async def hang(*_args: object, **_kwargs: object) -> list[tuple[Any, ...]]:
@@ -93,9 +102,36 @@ class TestResolveTrustedProxiesHostname:
         with (
             patch("hassette.web.auth.trusted_proxies._DNS_RESOLVE_TIMEOUT_SECONDS", 0.01),
             patch("asyncio.BaseEventLoop.getaddrinfo", new_callable=AsyncMock, side_effect=hang),
-            pytest.raises(TrustedProxyConfigError, match=re.escape("proxy.internal")),
         ):
-            await resolve_trusted_proxies(("proxy.internal",))
+            trusted = await resolve_trusted_proxies(("proxy.internal",))
+
+        assert trusted.hostname_entries["proxy.internal"] == frozenset()
+
+    async def test_resolving_to_no_addresses_leaves_entry_unresolved(self) -> None:
+        with patch_loop_getaddrinfo(return_value=[]):
+            trusted = await resolve_trusted_proxies(("proxy.internal",))
+
+        assert trusted.hostname_entries["proxy.internal"] == frozenset()
+
+    async def test_unresolvable_hostname_keeps_previous_resolution(self) -> None:
+        """A ``WebApiService`` restart during a DNS outage keeps last-known-good addresses."""
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
+            previous = await resolve_trusted_proxies(("proxy.internal",))
+
+        with patch_loop_getaddrinfo(side_effect=socket.gaierror("temporary failure")):
+            trusted = await resolve_trusted_proxies(("proxy.internal",), previous=previous)
+
+        assert is_trusted_peer("172.30.32.2", trusted) is True
+
+    async def test_successful_resolution_replaces_previous_resolution(self) -> None:
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
+            previous = await resolve_trusted_proxies(("proxy.internal",))
+
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.9")]):
+            trusted = await resolve_trusted_proxies(("proxy.internal",), previous=previous)
+
+        assert is_trusted_peer("172.30.32.9", trusted) is True
+        assert is_trusted_peer("172.30.32.2", trusted) is False
 
 
 class TestRefreshTrustedProxies:
@@ -131,3 +167,14 @@ class TestRefreshTrustedProxies:
 
         assert refreshed.literal_networks == trusted.literal_networks
         assert is_trusted_peer("192.168.1.10", refreshed) is True
+
+    async def test_refresh_trusts_hostname_unresolved_at_startup(self) -> None:
+        """A hostname that missed DNS at startup becomes trusted on the next tick."""
+        with patch_loop_getaddrinfo(side_effect=socket.gaierror("no such host")):
+            trusted = await resolve_trusted_proxies(("proxy.internal",))
+        assert is_trusted_peer("172.30.32.2", trusted) is False
+
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
+            refreshed = await refresh_trusted_proxies(trusted)
+
+        assert is_trusted_peer("172.30.32.2", refreshed) is True

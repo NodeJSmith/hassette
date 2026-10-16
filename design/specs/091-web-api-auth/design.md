@@ -508,3 +508,23 @@ No tests to remove — this is purely additive.
 - [x] **Verify `websocket.cookies`/`websocket.headers` availability pre-`accept()`** under this project's specific `ws="websockets-sansio"` uvicorn backend — confirm the pre-accept close(1008) pattern works cleanly (doesn't raise, doesn't silently complete-then-close in a way that changes what the frontend's `onclose` observes) before this becomes the shipped implementation. **Resolved (T07), CONTESTED → accepted:** `websocket.cookies`/`websocket.headers` are populated pre-accept as needed. The close(1008) pattern does *not* work cleanly as literally specified — this backend turns it into an HTTP 403-equivalent handshake rejection, never delivering a WS close frame with code 1008 to the client. The security property (no data flows, `accept()` never called) holds; see the WebSocket auth section above and T12 for the frontend-side consequence (detecting a rejected handshake via "closed before `onopen` fired" instead of `event.code === 1008`).
 - [ ] **Verify Docker's loopback-bind-unreachable-from-host behavior empirically** (build the image with `HASSETTE__WEB_API__HOST=127.0.0.1`, run with `-p 8126:8126`, confirm the host cannot reach it while the container healthcheck still passes) — this is the load-bearing fact under "don't change the default bind."
 - [ ] **Whether HA add-on store review requires denying all non-`trusted_proxies` peers outright** (vs. merely requiring a token from them) — if add-on review raises this, a `web_api.deny_untrusted_peers: bool = False` field on the same middleware is a small addition; not built speculatively.
+
+## Addendum
+
+### 2026-10-16: An unresolved `trusted_proxies` hostname no longer fails startup
+
+Edge Cases ("`trusted_proxies` DNS resolution failure at startup or on periodic refresh") said a
+hostname that fails to resolve at startup fails loudly. Dependencies and Assumptions ("Docker
+Compose embedded DNS") said the periodic refresh (FR#5) recovers from exactly that case. The two
+contradicted each other, and the implementation followed the first, so a Compose sibling that
+registered with Docker's DNS after Hassette started made the process exit (#2712).
+
+The second statement wins. Startup now separates config errors from DNS misses:
+
+- A malformed literal, an entire-address-space CIDR, or an entry that isn't a syntactically valid
+  hostname still fails startup with `TrustedProxyConfigError`, checked before any DNS lookup.
+- A valid hostname that doesn't resolve (NXDOMAIN, resolver timeout, zero addresses) logs a
+  warning and starts with no addresses, so it fails closed. The refresh job is scheduled anyway
+  and trusts the entry once DNS answers.
+- A `WebApiService` restart passes its current set into `resolve_trusted_proxies()`, so an entry
+  that misses DNS during the restart keeps its last-known-good addresses, matching the refresh path.

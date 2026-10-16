@@ -468,8 +468,10 @@ class WebApiConfig(ExcludeExtrasMixin, BaseModel):
     forward-auth gateway sitting in front of Hassette (a Home Assistant add-on's ingress, or a
     self-managed reverse proxy with its own login) so that gateway's own authentication can stand
     in for Hassette's. Hostname entries are resolved via DNS at startup and re-resolved
-    periodically; entry parsing and matching are implemented separately from this field
-    declaration.
+    periodically. A hostname that doesn't resolve yet (a Compose sibling that hasn't started)
+    doesn't block startup: it trusts no peer until a later refresh resolves it. A malformed entry
+    or one matching the entire address space (``0.0.0.0/0``, ``::/0``) fails startup. Entry parsing
+    and matching are implemented separately from this field declaration.
 
     A matching peer skips the bearer-token/session-cookie check only for requests that send no
     ``Authorization`` header. A request carrying that header is validated against ``auth_token``

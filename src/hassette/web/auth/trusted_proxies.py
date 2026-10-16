@@ -10,6 +10,7 @@ mechanism this implements.
 
 import asyncio
 import ipaddress
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from logging import getLogger
@@ -42,6 +43,26 @@ Without an explicit deadline, a slow or unreachable resolver would leave the awa
 (and, on the refresh path, that scheduler tick) hanging for however long the OS resolver takes to
 give up — this bounds the wait instead of trusting the OS default.
 """
+
+_HOSTNAME_LABEL = r"[A-Za-z0-9_](?:[A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?"
+_HOSTNAME_PATTERN = re.compile(rf"(?:{_HOSTNAME_LABEL}\.)*{_HOSTNAME_LABEL}\.?")
+"""Syntactic shape of a DNS hostname: dot-separated labels of letters, digits, ``-`` and ``_``.
+
+Underscores are allowed because Docker Compose service names (``my_proxy``) may contain them, and
+those names are exactly what a self-managed deployment lists. :func:`_validate_hostname` applies
+this together with the length and all-numeric-final-label checks.
+"""
+
+_MAX_HOSTNAME_LENGTH = 253
+
+
+class HostnameResolutionError(Exception):
+    """A syntactically valid ``trusted_proxies`` hostname did not resolve right now.
+
+    Distinct from :class:`~hassette.exceptions.TrustedProxyConfigError`: a DNS miss (NXDOMAIN, a
+    resolver timeout, zero addresses) is a transient runtime condition, not a config error. Callers
+    keep the entry with its last-known-good networks (or none) and let the periodic refresh retry.
+    """
 
 
 @dataclass(frozen=True)
@@ -139,6 +160,24 @@ def _parse_literal(entry: str) -> ipaddress.IPv4Network | ipaddress.IPv6Network 
     return network
 
 
+def _validate_hostname(entry: str) -> None:
+    """Reject an entry that is neither an IP/CIDR literal nor a syntactically valid hostname.
+
+    Runs before any DNS lookup so a typo (``10.0.0.300``, ``proxy!``, an empty string) fails startup
+    as a config error instead of being retried forever as an unresolved hostname. A final label made
+    only of digits is rejected because no real hostname ends that way; such an entry is a malformed
+    IP literal.
+
+    Raises:
+        TrustedProxyConfigError: ``entry`` is not a valid hostname.
+    """
+    labels = entry.rstrip(".").split(".")
+    if len(entry) > _MAX_HOSTNAME_LENGTH or not _HOSTNAME_PATTERN.fullmatch(entry) or labels[-1].isdigit():
+        raise TrustedProxyConfigError(
+            f"trusted_proxies entry {entry!r} is neither a valid IP/CIDR literal nor a valid hostname"
+        )
+
+
 async def _resolve_hostname(hostname: str) -> frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]:
     """Resolve ``hostname`` via the running event loop's resolver, returning each address as a /32 or /128 network.
 
@@ -153,52 +192,74 @@ async def _resolve_hostname(hostname: str) -> frozenset[ipaddress.IPv4Network | 
     instead of blocking this coroutine indefinitely.
 
     Raises:
-        TrustedProxyConfigError: DNS resolution failed, timed out, or resolved to zero addresses.
+        HostnameResolutionError: DNS resolution failed, timed out, or resolved to zero addresses.
     """
     loop = asyncio.get_running_loop()
     try:
         async with asyncio.timeout(_DNS_RESOLVE_TIMEOUT_SECONDS):
             infos = await loop.getaddrinfo(hostname, None)
     except (OSError, TimeoutError) as exc:
-        raise TrustedProxyConfigError(
-            f"trusted_proxies entry {hostname!r} is not a valid IP/CIDR literal and could not be "
-            f"resolved as a hostname: {exc}"
-        ) from exc
+        raise HostnameResolutionError(str(exc) or type(exc).__name__) from exc
 
     networks = {ipaddress.ip_network(info[4][0], strict=False) for info in infos}
     if not networks:
-        raise TrustedProxyConfigError(f"trusted_proxies entry {hostname!r} resolved to no addresses")
+        raise HostnameResolutionError("resolved to no addresses")
     return frozenset(networks)
 
 
-async def resolve_trusted_proxies(entries: tuple[str, ...]) -> TrustedProxySet:
+async def resolve_trusted_proxies(
+    entries: tuple[str, ...], previous: TrustedProxySet = EMPTY_TRUSTED_PROXY_SET
+) -> TrustedProxySet:
     """Parse and resolve every ``trusted_proxies`` config entry.
 
-    Called once at startup (``WebApiService.on_initialize()``). Each entry is tried as an
-    IP/CIDR literal first (fast, no DNS); entries that aren't valid literals are resolved as
-    hostnames via DNS. Failure at this first resolution — a malformed literal, an
-    entire-address-space CIDR, or an unresolvable hostname — fails loudly rather than silently
-    dropping the bad entry, since a wrong ``trusted_proxies`` entry is a security-relevant
-    misconfiguration (design.md Edge Cases, "A trusted_proxies entry that's wrong or too broad").
+    Called from ``WebApiService.on_initialize()``, at startup and again on every service restart.
+    Each entry is tried as an IP/CIDR literal first (fast, no DNS); any other entry must be a
+    syntactically valid hostname. Every entry is validated before any DNS lookup runs, so a config
+    error fails fast: a malformed literal, an entire-address-space CIDR, or an empty entry raises
+    rather than being silently dropped (design.md Edge Cases, "A trusted_proxies entry that's wrong
+    or too broad").
+
+    A valid hostname that doesn't resolve right now (NXDOMAIN, resolver timeout) is not a config
+    error — a Compose sibling may simply not have registered with Docker's DNS yet. That entry keeps
+    its networks from ``previous`` (none at first startup, so it fails closed and trusts no peer), a
+    warning is logged, and the periodic :func:`refresh_trusted_proxies` job picks it up once DNS
+    answers.
 
     Args:
         entries: ``WebApiConfig.trusted_proxies`` — IP, CIDR, or hostname strings.
+        previous: The set resolved before a ``WebApiService`` restart, so a restart during a DNS
+            outage keeps last-known-good resolutions instead of starting from nothing.
 
     Returns:
         The resolved :class:`TrustedProxySet`.
 
     Raises:
-        TrustedProxyConfigError: Any entry is neither a valid IP/CIDR literal nor a resolvable
-            hostname, or a literal matches the entire address space.
+        TrustedProxyConfigError: Any entry is neither a valid IP/CIDR literal nor a valid hostname,
+            or a literal matches the entire address space.
     """
     literal_networks: set[ipaddress.IPv4Network | ipaddress.IPv6Network] = set()
-    hostname_entries: dict[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
+    hostnames: list[str] = []
     for entry in entries:
         network = _parse_literal(entry)
         if network is not None:
             literal_networks.add(network)
             continue
-        hostname_entries[entry] = await _resolve_hostname(entry)
+        _validate_hostname(entry)
+        hostnames.append(entry)
+
+    hostname_entries: dict[str, frozenset[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
+    for hostname in hostnames:
+        try:
+            hostname_entries[hostname] = await _resolve_hostname(hostname)
+        except HostnameResolutionError as exc:
+            fallback = previous.hostname_entries.get(hostname, frozenset())
+            LOGGER.warning(
+                "trusted_proxies hostname %r did not resolve (%s); %s until a periodic refresh resolves it",
+                hostname,
+                exc,
+                "keeping last-known-good address(es)" if fallback else "trusting no peer for it",
+            )
+            hostname_entries[hostname] = fallback
     return TrustedProxySet(
         literal_networks=frozenset(literal_networks), hostname_entries=MappingProxyType(hostname_entries)
     )
@@ -226,10 +287,11 @@ async def refresh_trusted_proxies(current: TrustedProxySet) -> TrustedProxySet:
     for hostname, previous_networks in current.hostname_entries.items():
         try:
             updated[hostname] = await _resolve_hostname(hostname)
-        except TrustedProxyConfigError:
+        except HostnameResolutionError as exc:
             LOGGER.warning(
-                "Could not refresh trusted_proxies hostname %r; keeping last-known-good address(es)",
+                "Could not refresh trusted_proxies hostname %r (%s); keeping last-known-good address(es)",
                 hostname,
+                exc,
             )
             updated[hostname] = previous_networks
     return TrustedProxySet(literal_networks=current.literal_networks, hostname_entries=MappingProxyType(updated))

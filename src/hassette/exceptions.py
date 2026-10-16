@@ -220,14 +220,14 @@ class AuthTokenWriteError(HassetteError):
 
 
 class TrustedProxyConfigError(HassetteError):
-    """Raised when a ``trusted_proxies`` entry cannot be parsed or resolved.
+    """Raised when a ``trusted_proxies`` entry is invalid config.
 
-    Covers three failure modes, all fail-loud at config-load/first-resolution time rather than
-    silently skipping the bad entry: an entry that is neither a valid IP/CIDR literal nor a
-    resolvable hostname, a literal that matches the entire IPv4/IPv6 address space (``0.0.0.0/0``,
-    ``::/0`` — an auth *bypass*, not an additive check), and a hostname that resolves to zero
-    addresses. Deliberately a plain :class:`HassetteError`, not :class:`FatalError` — a bad
-    ``trusted_proxies`` entry should not crash or block-restart ``WebApiService``; the caller
+    Covers two failure modes, both fail-loud at startup rather than silently skipping the bad
+    entry: an entry that is neither a valid IP/CIDR literal nor a syntactically valid hostname, and
+    a literal that matches the entire IPv4/IPv6 address space (``0.0.0.0/0``, ``::/0`` — an auth
+    *bypass*, not an additive check). A valid hostname that doesn't resolve is not a config error
+    and never raises this; it trusts no peer until the periodic refresh resolves it. Deliberately a
+    plain :class:`HassetteError`, not :class:`FatalError` — the caller
     (``WebApiService.on_initialize()``) decides how to surface it at startup.
     """
 
