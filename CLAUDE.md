@@ -2,6 +2,7 @@
 audience: open-source library
 developers: solo
 data-sensitivity: personal
+peers: AppDaemon, pyscript, NetDaemon, Node-RED, Home Assistant core, Home Assistant frontend
 ---
 
 # CLAUDE.md
