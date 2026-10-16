@@ -38,6 +38,10 @@ Looks up the entity in the state registry and returns the domain-specific
 (`bool`, `float`, `str`, etc.), along with `.attributes`, `.last_changed`,
 `.last_updated`, and `.context`.
 
+The state registry is Hassette's map from each Home Assistant domain to its typed state class.
+It lives in Hassette, separate from Home Assistant's state machine.
+[State Conversion](../states/conversion.md) covers how it picks a class.
+
 The return annotation is `BaseState`, so type checkers see the base type.
 A cast narrows it to the specific subclass; `get_state().value` returns the
 converted value directly when the base type isn't needed.
@@ -69,7 +73,9 @@ Returns `True` if the entity exists, `False` otherwise.
 
 ### `get_state_raw(entity_id)`
 
-Returns the raw Home Assistant state payload as an untyped dict (`HassStateDict`). Use this when working outside the type registry or inspecting the raw HA payload for debugging.
+Returns the raw Home Assistant state payload as an untyped dict (`HassStateDict`). The payload skips
+the type registry, the Hassette converters that turn HA's state strings into typed Python values.
+It suits code that needs the original strings, and debugging the raw HA payload.
 
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_get_state_raw.py"
@@ -376,6 +382,11 @@ Omitting `end_time` returns changes from `start_time` to the present.
 | `minimal_response` | `bool` | `False` | Omits attributes from all but the last entry per entity. |
 | `no_attributes` | `bool` | `False` | Strips attributes entirely from every entry. |
 
+`PlainDateTime` (a wall-clock time with no timezone), `ZonedDateTime`, `Date`, and `Instant` come
+from `whenever`, the date/time library that ships with Hassette. `self.now()` is available on every
+`App` and returns the current time as a `ZonedDateTime`.
+[Dates and Times](../apps/index.md#dates-and-times) introduces both.
+
 ```python
 --8<-- "pages/core-concepts/api/snippets/api_history.py"
 ```
@@ -564,7 +575,7 @@ Removes an entity from the Home Assistant state machine. Raises `RuntimeError` w
 --8<-- "pages/core-concepts/api/snippets/api_system.py:delete_entity"
 ```
 
-`delete_entity` removes the entity from the HA REST state machine. It does not remove a
+`delete_entity` removes the entity from Home Assistant's state machine. It does not remove a
 device or integration-backed entity from the HA entity registry. The HA UI or the registry
 WebSocket API handles that.
 
