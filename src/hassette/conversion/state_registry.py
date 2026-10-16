@@ -110,7 +110,8 @@ class StateRegistry:
         Raises:
             InvalidDataForStateConversionError: If the provided data is an event payload.
             InvalidEntityIdError: If the entity_id is missing or malformed.
-            UnableToConvertStateError: If conversion to the resolved state class fails.
+            UnableToConvertStateError: If the final ``BaseState`` conversion fails. A failure to
+                convert to the resolved class falls back to ``BaseState`` instead of raising.
         """
         if "event" in data:
             LOGGER.error(

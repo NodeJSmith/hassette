@@ -12,7 +12,7 @@ Each state class declares a `value_type` class variable — the type (or tuple o
 --8<-- "pages/core-concepts/states/snippets/state-registry/value_type_example.py"
 ```
 
-`StateRegistry.try_convert_state()` runs the full pipeline on a raw state dict. It picks the class from the entity's domain. Dependency injection and `self.states` skip that lookup and convert straight to a declared class. Direct calls are for converting raw dicts outside a handler, such as in tests or data scripts. Given this raw input:
+`StateRegistry.try_convert_state()` runs the full pipeline on a raw state dict. It picks the class from the entity's domain on every call. Dependency injection converts straight to the annotated class, with no lookup. `self.states.light` resolves the domain's class once, when it builds the view, and converts each entity to that class. `self.states[CustomState]` skips the lookup entirely. Direct calls are for converting raw dicts outside a handler, such as in tests or data scripts. Given this raw input:
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/flow_raw_input.py"
@@ -44,7 +44,8 @@ The three conversion paths handle failure differently, by design:
   When the resolved class fails to validate, it falls back to `BaseState` and logs a WARNING.
 - Dependency injection is strict. A typed annotation is a contract, so a failed conversion skips the handler.
 - `self.states` is strict. A view's declared model is a contract, so an entity that fails to convert
-  is left out of the view. Looking it up by entity id raises `EntityNotInViewError`.
+  is left out of the view. Looking it up by entity id on a domain view like `self.states.light`
+  raises `UnableToConvertStateError`. A filtered view like `self.states.numeric_sensor` raises `EntityNotInViewError` instead.
 
 `try_convert_state` serves callers with only an entity id or domain, where a generic `BaseState` beats an error.
 To accept several types in a handler, annotate a union, as described in [Union Type Support](#union-type-support).
