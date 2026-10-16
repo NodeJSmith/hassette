@@ -17,9 +17,11 @@ Every app is a Python class that inherits from [`App`][hassette.app.app.App]. `A
 
 The example defines every method with `async def` and awaits the registration call. All bus, scheduler, and API calls follow this pattern; without `await`, a call never runs (see [Call Services](#call-services) below) — [Async Basics](../../migration/async-basics.md) explains why. Every subscription requires `name=`, which labels the listener in logs and the [web UI](../../web-ui/index.md).
 
+`self.logger` is a standard `logging.Logger` scoped to the app. Hassette creates it, so it needs no setup. Its level follows the app's `log_level` setting.
+
 ## Configuration
 
-[`AppConfig`][hassette.app.app_config.AppConfig] loads and validates an app's settings from `hassette.toml` and environment variables. A subclass declares typed fields; Hassette populates them at startup.
+[`AppConfig`][hassette.app.app_config.AppConfig] loads and validates an app's settings from `hassette.toml` and environment variables. `hassette.toml` is Hassette's main configuration file; it registers each app and holds its config values ([Configuration](../configuration/index.md) covers where it lives). A subclass declares typed fields; Hassette populates them at startup.
 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/app_config_definition.py"
@@ -93,6 +95,8 @@ The `hassette.toml` file registers each app and supplies its config values. See 
 --8<-- "pages/core-concepts/apps/snippets/app_config.toml"
 ```
 
+The double brackets in `[[hassette.apps.my_monitor.config]]` are TOML's array-of-tables syntax. Each block creates one instance of the app. A second block runs the same class again with different values ([Multiple Instances](configuration.md#multiple-instances)).
+
 ## Dates and Times
 
 `self.now()` returns the current time as a `ZonedDateTime` from the [`whenever`](https://whenever.readthedocs.io/en/latest/) library, which ships with Hassette — no separate install needed. All scheduler parameters, persistent storage examples, and custom state definitions use `whenever` types.
@@ -136,6 +140,10 @@ See the [`Scheduler`](../scheduler/index.md) page for triggers, job groups, and 
 ```python
 --8<-- "pages/core-concepts/apps/snippets/apps_check_state.py:check_state"
 ```
+
+`self.states.light` holds every entity in the `light` domain. Its keys accept the name after the dot, so `self.states.light["kitchen"]` reads `light.kitchen`.
+
+`self.states` reads a local cache that Hassette keeps current from Home Assistant's state-change events. A lookup returns immediately, with no network call. `self.api` sends a request to Home Assistant on every call, so each call is awaited.
 
 See the [States](../states/index.md) page for typed domain access and custom state models.
 
@@ -204,7 +212,7 @@ Nothing in the source changes, so there is nothing to remember to remove before 
 ```
 
 !!! note "Self-delivery"
-    An app that both emits and subscribes on the same topic receives its own events. To filter self-emitted events, include a `source` field on the emitted dataclass (as `LightsSyncedData` does above) and guard in the handler: `if data.source == self.instance_name: return`.
+    An app that both emits and subscribes on the same topic receives its own events. To filter self-emitted events, include a `source` field on the emitted dataclass (as `LightsSyncedData` does above) and guard in the handler: `if data.source == self.instance_name: return`. `self.instance_name` is shorthand for `self.app_config.instance_name`.
 
 ## Synchronous Apps
 

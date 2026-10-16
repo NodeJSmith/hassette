@@ -28,6 +28,8 @@ A blocking call made directly in a handler — `requests.get(...)`, a database d
 
 `run_in_thread` suits HTTP clients without async support, database drivers, file I/O, and CPU-bound computation.
 
+The call runs on Hassette's dedicated sync-handler thread pool, not Python's default executor. Sync handlers and `AppSync` hooks share that pool. `lifecycle.sync_executor_max_workers` sets its size ([Sync-handler pool](../../operating/index.md#sync-handler-pool)).
+
 ## Normalizing Sync/Async Callables
 
 ??? note "Advanced: make_async_adapter"
@@ -111,10 +113,12 @@ snapshot of their names, safe to call without awaiting anything. `cancel_all()` 
 tracked task and returns a tuple of the names still pending after the bounded wait described above
 — an empty tuple means every task finished. `cancel_all_sync()` is the fire-and-forget variant for
 sync contexts. `seal()` and the `is_sealed` property expose the bucket's admission state directly. Custom
-teardown sequences and the [test harness](../../testing/harness.md) drain helpers use these.
+teardown sequences use these, as do the [test harness](../../testing/harness.md)'s drain helpers.
+Drain helpers are test-only methods that wait until the app's pending handlers and tasks finish; tasks
+from listeners registered directly on a Bus outside an App aren't covered.
 
 ??? note "Advanced: collecting task exceptions in test infrastructure"
-    `install_exception_recorder(fn)` registers a callback that receives every non-cancellation exception raised by a bucket task — `asyncio.CancelledError` is excluded; `uninstall_exception_recorder()` removes it. The [test harness](../../testing/harness.md) uses this to surface handler failures as `DrainError`. Custom harnesses can do the same.
+    `install_exception_recorder(fn)` registers a callback that receives every non-cancellation exception raised by a bucket task — `asyncio.CancelledError` is excluded; `uninstall_exception_recorder()` removes it. The [test harness](../../testing/harness.md) uses this to surface handler failures as `DrainError`, the test-only exception a drain raises when a task failed. Custom harnesses can do the same.
 
 ## See Also
 
