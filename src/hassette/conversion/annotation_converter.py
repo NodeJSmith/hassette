@@ -38,6 +38,22 @@ class AnnotationConverter:
     """Converts runtime values to match rich annotations (including nested containers)."""
 
     def convert(self, value: Any, annotation: Any) -> Any:
+        """Convert ``value`` to match ``annotation``, raising when no conversion fits.
+
+        This is the dependency injection conversion path. It has no ``BaseState`` fallback by
+        design: a typed handler annotation is a contract, so a state dict that fits no
+        annotated type raises. ``ParameterInjector.convert_value`` wraps the failure in
+        ``DependencyResolutionError`` and the handler is skipped. Of the other state
+        conversion paths, ``StateRegistry.try_convert_state`` falls back to ``BaseState`` with
+        a WARNING, and ``self.states`` (``DomainStates``) is strict like this one.
+
+        Args:
+            value: The runtime value to convert.
+            annotation: The target type annotation, including unions and nested containers.
+
+        Returns:
+            ``value`` unchanged when it already matches, otherwise the converted value.
+        """
         tp = normalize_annotation(annotation, constructible=True)
 
         # Already correct (deep) => no-op

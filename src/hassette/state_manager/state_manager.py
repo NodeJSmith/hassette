@@ -106,6 +106,16 @@ class DomainStates(Mapping[str, StateT]):
         self._cache: dict[str, CacheValue[StateT]] = {}
 
     def _validate_or_return_from_cache(self, entity_id: str, state: "HassStateDict") -> StateT:
+        """Return the cached model for ``state``, or convert and cache it.
+
+        Conversion goes through ``STATE_REGISTRY.coerce_and_construct`` with no ``BaseState``
+        fallback, because the view's model type is a contract. Dependency injection
+        (``AnnotationConverter.convert``) is strict for the same reason; only
+        ``StateRegistry.try_convert_state`` falls back to ``BaseState``.
+
+        Raises:
+            UnableToConvertStateError: If ``state`` does not convert to the view's model.
+        """
         last_updated: str | None = state.get("last_updated")
 
         cached = self._cache.get(entity_id)

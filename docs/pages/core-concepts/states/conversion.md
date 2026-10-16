@@ -12,7 +12,7 @@ Each state class declares a `value_type` class variable — the type (or tuple o
 --8<-- "pages/core-concepts/states/snippets/state-registry/value_type_example.py"
 ```
 
-`StateRegistry.try_convert_state()` runs the full pipeline on a raw state dict. Dependency injection does not go through it: it converts straight to the class named in the annotation. Direct calls are for converting raw dicts outside a handler, such as in tests or data scripts. Given this raw input:
+`StateRegistry.try_convert_state()` runs the full pipeline on a raw state dict. It picks the class from the entity's domain. Dependency injection and `self.states` skip that lookup and convert straight to a declared class. Direct calls are for converting raw dicts outside a handler, such as in tests or data scripts. Given this raw input:
 
 ```python
 --8<-- "pages/core-concepts/states/snippets/state-registry/flow_raw_input.py"
@@ -36,8 +36,18 @@ The pipeline runs four steps:
 
 `StateRegistry` answers "which class?". `TypeRegistry` answers "which type for the value?". The state model handles shape normalization — extracting the domain from `entity_id` and mapping `"unknown"`/`"unavailable"` to `None` — but performs no value coercion. The conversion pipeline owns type conversion: reading `value_type`, selecting the right converter, and constructing the typed state.
 
-When `resolve` returns `None` for an unregistered domain, `try_convert_state` falls back
-to [`BaseState`][hassette.models.states.base.BaseState].
+### Strict and Forgiving Paths
+
+The three conversion paths handle failure differently, by design:
+
+- `try_convert_state` is forgiving. It returns [`BaseState`][hassette.models.states.base.BaseState] for an unregistered domain.
+  When the resolved class fails to validate, it falls back to `BaseState` and logs a WARNING.
+- Dependency injection is strict. A typed annotation is a contract, so a failed conversion skips the handler.
+- `self.states` is strict. A view's declared model is a contract, so an entity that fails to convert
+  is left out of the view. Looking it up by entity id raises `EntityNotInViewError`.
+
+`try_convert_state` serves callers with only an entity id or domain, where a generic `BaseState` beats an error.
+To accept several types in a handler, annotate a union, as described in [Union Type Support](#union-type-support).
 
 ## Domain-to-Class Mapping
 
@@ -104,8 +114,9 @@ For `D.StateNew[states.SensorState | states.BinarySensorState]`, dependency inje
 extracts the raw `new_state` dict and tries each union member in order — `SensorState`
 first, then `BinarySensorState`. Each model validates its own `Literal` domain (derived
 from `entity_id`), so the wrong type fails validation and the next member is tried. There
-is no `BaseState` fallback: when no member matches, dependency resolution fails before the
-handler is called (see [Dependency Injection](../bus/dependency-injection.md)).
+is no `BaseState` fallback, because the annotation is a contract. When no member matches,
+dependency resolution fails and the handler is skipped (see [Dependency Injection](../bus/dependency-injection.md)).
+To also accept other entities, add `BaseState` as the last union member.
 
 ## Value Conversion
 
