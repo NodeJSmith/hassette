@@ -249,43 +249,34 @@ def test_decreased_behavior(old: str | int, new: str | int, expected: bool) -> N
 
 
 @pytest.mark.parametrize(
-    ("old", "new", "expected"),
+    ("condition", "old", "new", "expected"),
     [
-        pytest.param("24", "26", True, id="normal_crossing"),
-        pytest.param("25", "25.1", True, id="from_exactly_threshold"),
-        pytest.param("24", "25", False, id="reaching_threshold_is_not_above"),
-        pytest.param("25.1", "25.3", False, id="already_above"),
-        pytest.param("26", "24", False, id="wrong_direction"),
-        pytest.param(24, 26, True, id="numeric_inputs"),
-        pytest.param("unavailable", "26", False, id="unavailable_to_numeric"),
-        pytest.param("24", "unknown", False, id="numeric_to_unknown"),
-        pytest.param("unknown", "26", False, id="unknown_to_numeric"),
-        pytest.param(MISSING_VALUE, "26", False, id="missing_old"),
-        pytest.param(None, "26", False, id="none_old"),
+        pytest.param(CrossedAbove(25), "24", "26", True, id="above_normal_crossing"),
+        pytest.param(CrossedAbove(25), "25", "25.1", True, id="above_from_exactly_threshold"),
+        pytest.param(CrossedAbove(25), "24", "25", False, id="above_reaching_threshold_is_not_above"),
+        pytest.param(CrossedAbove(25), "25.1", "25.3", False, id="above_already_above"),
+        pytest.param(CrossedAbove(25), "26", "24", False, id="above_wrong_direction"),
+        pytest.param(CrossedAbove(25), 24, 26, True, id="above_numeric_inputs"),
+        pytest.param(CrossedAbove(25), "unavailable", "26", False, id="above_unavailable_to_numeric"),
+        pytest.param(CrossedAbove(25), "24", "unknown", False, id="above_numeric_to_unknown"),
+        pytest.param(CrossedAbove(25), MISSING_VALUE, "26", False, id="above_missing_old"),
+        pytest.param(CrossedAbove(25), None, "26", False, id="above_none_old"),
+        pytest.param(CrossedBelow(20), "21", "19", True, id="below_normal_crossing"),
+        pytest.param(CrossedBelow(20), "20", "19.9", True, id="below_from_exactly_threshold"),
+        pytest.param(CrossedBelow(20), "21", "20", False, id="below_reaching_threshold_is_not_below"),
+        pytest.param(CrossedBelow(20), "19", "18", False, id="below_already_below"),
+        pytest.param(CrossedBelow(20), "19", "21", False, id="below_wrong_direction"),
+        pytest.param(CrossedBelow(20), 21, 19, True, id="below_numeric_inputs"),
+        pytest.param(CrossedBelow(20), "unavailable", "19", False, id="below_unavailable_to_numeric"),
+        pytest.param(CrossedBelow(20), "21", "unknown", False, id="below_numeric_to_unknown"),
+        pytest.param(CrossedBelow(20), MISSING_VALUE, "19", False, id="below_missing_old"),
+        pytest.param(CrossedBelow(20), None, "19", False, id="below_none_old"),
     ],
 )
-def test_crossed_above_behavior(old: object, new: object, expected: bool) -> None:
-    assert CrossedAbove(25)(old, new) is expected
-
-
-@pytest.mark.parametrize(
-    ("old", "new", "expected"),
-    [
-        pytest.param("21", "19", True, id="normal_crossing"),
-        pytest.param("20", "19.9", True, id="from_exactly_threshold"),
-        pytest.param("21", "20", False, id="reaching_threshold_is_not_below"),
-        pytest.param("19", "18", False, id="already_below"),
-        pytest.param("19", "21", False, id="wrong_direction"),
-        pytest.param(21, 19, True, id="numeric_inputs"),
-        pytest.param("unavailable", "19", False, id="unavailable_to_numeric"),
-        pytest.param("21", "unknown", False, id="numeric_to_unknown"),
-        pytest.param("unknown", "19", False, id="unknown_to_numeric"),
-        pytest.param(MISSING_VALUE, "19", False, id="missing_old"),
-        pytest.param(None, "19", False, id="none_old"),
-    ],
-)
-def test_crossed_below_behavior(old: object, new: object, expected: bool) -> None:
-    assert CrossedBelow(20)(old, new) is expected
+def test_crossed_threshold_behavior(
+    condition: CrossedAbove | CrossedBelow, old: object, new: object, expected: bool
+) -> None:
+    assert condition(old, new) is expected
 
 
 def test_crossed_above_rapid_fluctuation_fires_once() -> None:
