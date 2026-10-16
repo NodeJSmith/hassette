@@ -261,10 +261,11 @@ class TestResolveAuthTokenConfiguredTokenFile:
     ) -> None:
         token_path = tmp_path / "token"
         token_path.write_text("file-token", encoding="utf-8")
-        config = _make_config(auth_token=SecretStr("configured-secret-value"), token_file=token_path)
+        caplog.set_level(logging.INFO, logger="hassette.web.auth.tokens")
 
-        with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
-            token = resolve_auth_token(config, tmp_path)
+        token = resolve_auth_token(
+            _make_config(auth_token=SecretStr("configured-secret-value"), token_file=token_path), tmp_path
+        )
 
         assert token == "configured-secret-value"
         assert token_path.read_text(encoding="utf-8") == "file-token"
