@@ -1,12 +1,12 @@
 import type { RefObject } from "react";
 
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 import { useBreadcrumbs } from "../../hooks/use-breadcrumbs";
 import { useSidebarHidden } from "../../hooks/use-sidebar-hidden";
 import { useAppStore } from "../../state/store";
 import { Breadcrumbs } from "../shared/breadcrumbs";
+import { IconChevronRight, IconMenu } from "../shared/icons";
 import { SystemHealth } from "../shared/system-health";
 import { ThemeToggle } from "../shared/theme-toggle";
 import { TimePresetSelector } from "./time-preset-selector";
@@ -30,28 +30,26 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
       {...(drawerOpen ? { inert: true } : {})}
     >
       <div className="flex min-w-[var(--size-touch)] flex-1 items-center gap-3 overflow-hidden max-mobile:gap-2">
-        <button
+        <Button
           ref={hamburgerRef}
-          type="button"
-          className="hidden size-[var(--sz-touch)] shrink-0 items-center justify-center rounded-md border border-border bg-transparent text-foreground-secondary transition-colors hover:bg-accent max-sidebar:flex [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-2 [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
+          variant="subtle"
+          size="icon"
+          touch
+          className="hidden max-sidebar:flex"
           aria-label="Open navigation"
           aria-expanded={drawerOpen}
           data-testid="hamburger"
           onClick={onMenuClick}
         >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <line x1="3" y1="6" x2="21" y2="6" />
-            <line x1="3" y1="12" x2="21" y2="12" />
-            <line x1="3" y1="18" x2="21" y2="18" />
-          </svg>
-        </button>
+          <IconMenu />
+        </Button>
 
         {/* Collapsing unmounts the sidebar, so this is the only way back to it. */}
         {sidebarCollapsed && (
           <Button
             variant="ghost"
             size="icon-sm"
-            className={cn("max-sidebar:hidden")}
+            className="max-sidebar:hidden"
             title="Expand sidebar ([)"
             aria-label="Expand sidebar"
             data-testid="sidebar-expand"
@@ -59,9 +57,7 @@ export function StatusBar({ onMenuClick, drawerOpen, hamburgerRef }: StatusBarPr
               setSidebarCollapsed(false);
             }}
           >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <polyline points="6,3 11,8 6,13" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            </svg>
+            <IconChevronRight />
           </Button>
         )}
 

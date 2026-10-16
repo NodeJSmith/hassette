@@ -37,9 +37,9 @@ export function StackDisclosure({ frames, testId }: Props) {
   return (
     <div className="flex flex-col gap-2">
       <Button
-        variant="ghost"
+        variant="link"
         size="xs"
-        className="w-fit px-0 text-primary"
+        className="w-fit px-0"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
         data-testid={`${testId}-toggle`}

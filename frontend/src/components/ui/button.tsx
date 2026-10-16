@@ -15,9 +15,14 @@ const buttonVariants = cva(
         outline:
           "border border-border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "border border-transparent hover:bg-muted",
+        // Neutral control with no visible border (the transparent one keeps its height level with
+        // bordered siblings): muted at rest, highlight tint on hover.
+        ghost:
+          "border border-transparent bg-transparent text-muted-foreground hover:bg-[var(--highlight-bg)] hover:text-foreground",
+        // Text actions: `link` for the primary one, `link-muted` for secondary ones.
         link: "text-primary underline-offset-4 hover:underline",
-        // Solid semantic variants — bordered, colored text, tinted hover.
+        "link-muted": "text-muted-foreground underline-offset-4 hover:text-foreground hover:underline",
+        // Outlined semantic variants — toned border and text, transparent fill, tinted hover.
         success:
           "border border-[color:color-mix(in_srgb,var(--status-success)_45%,transparent)] text-[var(--status-success)] bg-transparent hover:bg-[var(--status-success-bg)]",
         warning:
@@ -25,13 +30,15 @@ const buttonVariants = cva(
         info: "border border-border text-primary bg-transparent hover:bg-muted hover:text-primary",
         danger:
           "border border-[color:color-mix(in_srgb,var(--destructive)_45%,transparent)] text-destructive bg-transparent hover:bg-destructive/10",
-        // Ghost + semantic color combos — transparent at rest, tinted hover, no border.
-        // Preserves the original hand-rolled Button's `.ghost.success` etc. combinations
-        // (icon-only action buttons in action-buttons.tsx and registration-footer.tsx),
-        // which shadcn's single-axis variant model has no built-in way to express.
+        // Ghost with a semantic tone: transparent at rest, tone-tinted hover, no visible border. Separate
+        // variants because cva's single variant axis can't combine `ghost` with a tone.
         "success-ghost": "border border-transparent text-[var(--ok)] hover:bg-[var(--ok-bg)]",
         "warning-ghost": "border border-transparent text-[var(--warn)] hover:bg-[var(--warn-bg)]",
         "info-ghost": "border border-transparent text-primary hover:bg-muted",
+        // `ghost` with a resting border, for a control that stands alone rather than inside a
+        // denser surface. Unlike `outline` it has no fill or shadow of its own.
+        subtle:
+          "border border-border bg-transparent text-muted-foreground hover:bg-[var(--highlight-bg)] hover:text-foreground",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -42,11 +49,20 @@ const buttonVariants = cva(
         "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
+        // No box (height, padding, border) and the surrounding font size: for controls that sit
+        // on a line of text without changing that line's height.
+        inline: "h-auto gap-1 border-0 p-0 text-[length:inherit] [&_svg:not([class*='size-'])]:size-3",
+      },
+      // Grow to the touch-target minimum on narrow (no persistent sidebar) layouts.
+      touch: {
+        true: "max-sidebar:min-h-[var(--size-touch)] max-sidebar:min-w-[var(--size-touch)]",
+        false: "",
       },
     },
     defaultVariants: {
       variant: "default",
       size: "default",
+      touch: false,
     },
   },
 );
@@ -55,6 +71,7 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  touch,
   asChild = false,
   type = "button",
   ...props
@@ -70,7 +87,7 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant, size, touch, className }))}
       {...props}
     />
   );

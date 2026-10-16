@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 import { EmptyState } from "../components/shared/empty-state";
 import { LogTableView, LogTableWithDrawer, useLogTable } from "../components/shared/log-table";
 import { ColumnPicker } from "../components/shared/log-table/column-picker";
@@ -50,14 +52,9 @@ export function LogsPage() {
   const footerExtras = (
     <>
       {log.livePaused && (
-        <button
-          type="button"
-          className="inline-flex cursor-pointer appearance-none items-center gap-1 rounded-sm border-none bg-transparent px-2 py-[var(--spacing-0-5)] font-sans text-xs font-medium text-[var(--status-warning)] transition-colors hover:bg-[var(--status-warning-bg)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--status-warning)] focus-visible:outline-offset-[var(--spacing-0-5)]"
-          onClick={log.resetSort}
-          aria-label="Resume live log streaming"
-        >
+        <Button variant="warning-ghost" size="xs" onClick={log.resetSort} aria-label="Resume live log streaming">
           paused — click to resume
-        </button>
+        </Button>
       )}
       {!log.isMobile && (
         <ColumnPicker

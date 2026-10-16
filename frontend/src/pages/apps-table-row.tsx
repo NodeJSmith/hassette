@@ -7,6 +7,7 @@ import { IconChevron } from "@/components/shared/icons";
 import { MiniSparkline } from "@/components/shared/mini-sparkline";
 import { StatusShape } from "@/components/shared/status-shape";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useRelativeTime } from "@/hooks/use-relative-time";
 import { cn } from "@/lib/utils";
 import type { AppStatusEntry } from "@/state/store";
@@ -69,18 +70,19 @@ export function AppTableRow({
         {/* Name */}
         <td className="min-w-0">
           <div className="flex min-w-0 items-center gap-2 [&_a]:min-w-0 [&_a]:overflow-hidden [&_a]:text-ellipsis [&_a]:whitespace-nowrap max-sidebar:after:ml-auto max-sidebar:after:text-[length:var(--text-h3)] max-sidebar:after:text-foreground-faint max-sidebar:after:content-['›']">
-            <span className="flex w-4 shrink-0 items-center justify-center">
+            <span className="flex w-4 shrink-0 items-center justify-center max-sidebar:w-[var(--size-touch)]">
               {isMulti && (
-                <button
-                  type="button"
-                  className="w-4 cursor-pointer border-0 bg-transparent p-0 text-[length:var(--text-mono-md)] leading-none text-foreground-secondary max-sidebar:flex max-sidebar:min-h-[var(--sz-touch)] max-sidebar:min-w-[var(--sz-touch)] max-sidebar:items-center max-sidebar:justify-center"
+                <Button
+                  variant="ghost"
+                  size="inline"
+                  touch
                   onClick={onToggle}
                   aria-expanded={isExpanded}
                   aria-label={`${isExpanded ? "Collapse" : "Expand"} ${app.app_key}`}
                   data-testid="app-row-expand"
                 >
                   <IconChevron open={isExpanded} />
-                </button>
+                </Button>
               )}
             </span>
             <StatusShape kind={kind} size={APP_ROW_STATUS_SHAPE_SIZE} muted={muteStatus} />

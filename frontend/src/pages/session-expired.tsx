@@ -48,7 +48,7 @@ export function SessionExpiredPage({ offerLogin = AT_ROOT_BASE }: SessionExpired
         </p>
         <Button onClick={reloadTop}>Reload</Button>
         {offerLogin && (
-          <Button variant="ghost" onClick={() => window.location.assign(resolveAppUrl(LOGIN_PATH))}>
+          <Button variant="outline" onClick={() => window.location.assign(resolveAppUrl(LOGIN_PATH))}>
             Log in to Hassette
           </Button>
         )}

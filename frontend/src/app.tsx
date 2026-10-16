@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import { Redirect, Route, Router, Switch, useLocation, useSearch } from "wouter";
 
+import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
   CommandEmpty,
@@ -28,6 +29,7 @@ import {
 } from "./components/layout/palette-items";
 import { Sidebar } from "./components/layout/sidebar";
 import { StatusBar } from "./components/layout/status-bar";
+import { IconClose } from "./components/shared/icons";
 import { StatusShape } from "./components/shared/status-shape";
 import { useManifests } from "./hooks/use-manifests";
 import { BREAKPOINT_SIDEBAR, useMediaQuery } from "./hooks/use-media-query";
@@ -226,17 +228,9 @@ function AppShell() {
           {drawerMounted && (
             <>
               <div className="flex justify-end border-b border-border px-3 py-2">
-                <button
-                  type="button"
-                  className="flex size-[var(--size-touch)] cursor-pointer items-center justify-center rounded-md border border-border bg-transparent text-foreground-secondary transition-colors hover:bg-[var(--highlight-bg)] hover:text-foreground [&_svg]:size-5 [&_svg]:fill-none [&_svg]:stroke-current [&_svg]:stroke-2 [&_svg]:[stroke-linecap:round] [&_svg]:[stroke-linejoin:round]"
-                  aria-label="Close navigation"
-                  onClick={() => closeDrawer()}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                  </svg>
-                </button>
+                <Button variant="subtle" size="icon" touch aria-label="Close navigation" onClick={() => closeDrawer()}>
+                  <IconClose />
+                </Button>
               </div>
               <Sidebar mobileDrawer onOpenPalette={() => setPaletteOpen(true)} />
             </>

@@ -22,6 +22,7 @@
 import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -62,8 +63,6 @@ const CONFIG_LIST_CLASS = "inline-flex flex-wrap justify-end gap-1 max-small-mob
 const CONFIG_LIST_ITEM_CLASS =
   "rounded-sm border border-border bg-muted px-2 py-px font-mono text-xs text-foreground-secondary";
 const CONFIG_HELP_CODE_CLASS = "rounded-sm bg-muted px-1 font-mono text-[length:var(--text-mono-sm)]";
-const CONFIG_EXPAND_BUTTON_CLASS =
-  "inline-flex cursor-pointer items-center gap-1 border-none bg-transparent p-0 font-mono text-[length:var(--text-mono-sm)] text-primary";
 const CONFIG_EXPANDED_PRE_CLASS =
   "mt-1 max-h-[200px] overflow-y-auto whitespace-pre-wrap rounded-sm bg-muted p-2 text-left font-mono text-[length:var(--text-mono-sm)] break-words";
 
@@ -252,15 +251,16 @@ export function ExpandableValue({ value }: { value: unknown }) {
 
   return (
     <span>
-      <button
-        type="button"
-        className={CONFIG_EXPAND_BUTTON_CLASS}
+      <Button
+        variant="link"
+        size="inline"
+        className="font-mono text-[length:var(--text-mono-sm)]"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
       >
         <IconChevron open={expanded} />
         {label}
-      </button>
+      </Button>
       {expanded && <pre className={CONFIG_EXPANDED_PRE_CLASS}>{JSON.stringify(value, null, 2)}</pre>}
     </span>
   );
@@ -341,17 +341,18 @@ function FieldHelpPopover({ text, label }: { text: string; label: string }) {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex size-[18px] shrink-0 items-center justify-center self-center rounded-sm text-muted-foreground hover:text-primary"
+        <Button
+          variant="ghost"
+          size="inline"
+          className="self-center"
           aria-label={open ? `Hide ${label} description` : `Show ${label} description`}
         >
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <svg viewBox="0 0 16 16" aria-hidden="true" className="size-3.5">
             <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
             <line x1="8" y1="7.5" x2="8" y2="11.5" stroke="currentColor" strokeWidth="1.5" />
             <circle cx="8" cy="4.5" r="0.95" fill="currentColor" />
           </svg>
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent role="note" data-testid="field-help" className="w-auto max-w-xs text-xs">
         {parseRstInline(text).map((segment, i) =>

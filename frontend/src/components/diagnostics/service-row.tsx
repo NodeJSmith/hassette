@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { useRelativeTime } from "../../hooks/use-relative-time";
@@ -66,14 +67,14 @@ export function ServiceRow({ service }: ServiceRowProps) {
         </span>
         <ServiceRowMeta service={service} />
         {service.exception && (
-          <button
-            type="button"
-            className="cursor-pointer border-0 bg-transparent p-0 text-sm text-muted-foreground underline hover:text-foreground-secondary"
+          <Button
+            variant="link-muted"
+            size="inline"
             aria-expanded={exceptionOpen}
             onClick={() => setExceptionOpen((v) => !v)}
           >
             {exceptionOpen ? "hide exception" : "show exception"}
-          </button>
+          </Button>
         )}
       </div>
       {exceptionOpen && service.exception && (
