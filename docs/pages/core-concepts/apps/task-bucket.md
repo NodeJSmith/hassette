@@ -114,7 +114,8 @@ tracked task and returns a tuple of the names still pending after the bounded wa
 — an empty tuple means every task finished. `cancel_all_sync()` is the fire-and-forget variant for
 sync contexts. `seal()` and the `is_sealed` property expose the bucket's admission state directly. Custom
 teardown sequences use these, as do the [test harness](../../testing/harness.md)'s drain helpers.
-Drain helpers are test-only methods that wait until every pending handler and task finishes.
+Drain helpers are test-only methods that wait until the app's pending handlers and tasks finish; tasks
+from listeners registered directly on a Bus outside an App aren't covered.
 
 ??? note "Advanced: collecting task exceptions in test infrastructure"
     `install_exception_recorder(fn)` registers a callback that receives every non-cancellation exception raised by a bucket task — `asyncio.CancelledError` is excluded; `uninstall_exception_recorder()` removes it. The [test harness](../../testing/harness.md) uses this to surface handler failures as `DrainError`, the test-only exception a drain raises when a task failed. Custom harnesses can do the same.

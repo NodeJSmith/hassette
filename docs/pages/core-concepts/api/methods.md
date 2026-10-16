@@ -38,7 +38,8 @@ Looks up the entity in the state registry and returns the domain-specific
 (`bool`, `float`, `str`, etc.), along with `.attributes`, `.last_changed`,
 `.last_updated`, and `.context`.
 
-The state registry is Hassette's map from each Home Assistant domain to its typed state class.
+The state registry is Hassette's map from each registered domain to its typed state class.
+A domain with no registered class falls back to `BaseState`.
 It lives in Hassette, separate from Home Assistant's state machine.
 [State Conversion](../states/conversion.md) covers how it picks a class.
 
