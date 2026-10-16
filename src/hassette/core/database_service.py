@@ -28,6 +28,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types.enums import RestartType
 from hassette.utils.aiosqlite_utils import close_connection_pair, connect_daemon, stop_connection_sync
+from hassette.utils.service_utils import cancel_and_drain
 
 if typing.TYPE_CHECKING:
     from hassette import Hassette
@@ -327,15 +328,13 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 queue = detach_write_queue(self)
                 if queue is not None:
                     await self.drain_write_queue(queue)
-                self._db_worker_task.cancel()
-                await asyncio.gather(self._db_worker_task, return_exceptions=True)
+                await cancel_and_drain(self._db_worker_task)
                 self._db_worker_task = None
         except Exception:
             self.logger.exception("Error draining write queue during shutdown")
         finally:
             if self._db_worker_task is not None:
-                self._db_worker_task.cancel()
-                await asyncio.gather(self._db_worker_task, return_exceptions=True)
+                await cancel_and_drain(self._db_worker_task)
                 self._db_worker_task = None
             self.close_remaining_queue_items(queue)
             await self.close_connections()
