@@ -747,13 +747,19 @@ class Scheduler(Resource):
         async def on_entity_change(event: RawStateChangeEvent) -> None:
             await self._reschedule_entity_time_job(job, trigger, event.payload.data.new_state)
 
+        watch_name = f"scheduler.entity_time.{self.owner_id}.{job.name}"
         try:
-            self._entity_time_subs[job.name] = await self.hassette.bus.on_state_change(
-                trigger.entity_id,
-                handler=on_entity_change,
-                name=f"scheduler.entity_time.{self.owner_id}.{job.name}",
-                if_exists="replace",
-            )
+            # With attribute=, the time lives in that attribute, which can change while the main
+            # state doesn't, so watch the attribute rather than the state.
+            if trigger.attribute is not None:
+                watch = self.hassette.bus.on_attribute_change(
+                    trigger.entity_id, trigger.attribute, handler=on_entity_change, name=watch_name, if_exists="replace"
+                )
+            else:
+                watch = self.hassette.bus.on_state_change(
+                    trigger.entity_id, handler=on_entity_change, name=watch_name, if_exists="replace"
+                )
+            self._entity_time_subs[job.name] = await watch
         except Exception:
             self.remove_job(job)
             raise
@@ -762,43 +768,24 @@ class Scheduler(Resource):
         # only exists now — a change landing in that window reached neither. Re-read once so it
         # is picked up here instead of waiting for whenever the entity next changes, which for
         # something like an alarm sensor could be a day away.
-        #
-        # A WAITING result while the job is already WAITING (schedule()'s own registration-time
-        # read already built it that way) is a no-op — nothing changed. A WAITING result while
-        # the job is SCHEDULED means the entity went unavailable between that initial read and
-        # now; reschedule_job() removes its heap entry and transitions it to WAITING without
-        # dropping the registration or watcher.
-        #
-        # isinstance (not `is WAITING`) so pyright narrows current to ZonedDateTime in the
-        # elif — identity comparison against a plain-object singleton does not narrow.
-        current = trigger.resolve(date_utils.now())
-        if isinstance(current, _WaitingSentinel):
-            if job.schedule_status is not ScheduleStatus.WAITING:
-                await self.scheduler_service.reschedule_job(job, current)
-        elif current != job.next_run:
-            await self.scheduler_service.reschedule_job(job, current)
+        await self._move_entity_time_job(job, trigger.resolve(date_utils.now()))
         return registered
 
     async def _reschedule_entity_time_job(
         self, job: "Job", trigger: EntityTime, new_state: "HassStateDict | None"
     ) -> None:
-        """Move an entity-driven job to the time the entity's new state reports.
-
-        When the new state names no usable time — the alarm was cleared, the entity went
-        unavailable — transitions the job to ``ScheduleStatus.WAITING`` and removes any
-        existing heap entry, without dropping the registration or watcher, so it reactivates
-        as soon as a later change reports a real time. A job that is already ``WAITING`` is
-        left alone (nothing changed).
-        """
+        """Move an entity-driven job to the time the entity's new state reports, replacing any pending run."""
         next_run = trigger.resolve_from_state(new_state, date_utils.now())
-        if next_run is None:
-            if job.schedule_status is ScheduleStatus.WAITING:
-                return
-            await self.scheduler_service.reschedule_job(job, WAITING)
-            return
-        if next_run == job.next_run:
-            return
-        await self.scheduler_service.reschedule_job(job, next_run)
+        await self._move_entity_time_job(job, WAITING if next_run is None else next_run)
+
+    async def _move_entity_time_job(self, job: "Job", next_run: "ZonedDateTime | _WaitingSentinel") -> None:
+        """Move ``job`` to ``next_run``, or park it as ``WAITING`` with its watcher kept; a no-op if unchanged."""
+        # isinstance (not `is WAITING`) so pyright narrows next_run to ZonedDateTime in the elif.
+        if isinstance(next_run, _WaitingSentinel):
+            if job.schedule_status is not ScheduleStatus.WAITING:
+                await self.scheduler_service.reschedule_job(job, next_run)
+        elif next_run != job.next_run:
+            await self.scheduler_service.reschedule_job(job, next_run)
 
     def run_in(
         self,

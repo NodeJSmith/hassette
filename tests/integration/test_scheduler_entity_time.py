@@ -52,7 +52,14 @@ async def seed_alarm(harness: HassetteHarness, value: str) -> None:
     await harness.seed_state(ALARM_ENTITY, make_state_dict(ALARM_ENTITY, value))
 
 
-async def change_alarm(harness: HassetteHarness, old_value: str, new_value: str) -> None:
+async def change_alarm(
+    harness: HassetteHarness,
+    old_value: str,
+    new_value: str,
+    *,
+    old_attrs: dict[str, typing.Any] | None = None,
+    new_attrs: dict[str, typing.Any] | None = None,
+) -> None:
     """Send a state change for the alarm entity and wait until its handlers have finished.
 
     ``await_dispatch_idle`` alone is not enough: its stability check is a short wall-clock
@@ -62,7 +69,9 @@ async def change_alarm(harness: HassetteHarness, old_value: str, new_value: str)
     task is already counted as pending when ``await_dispatch_idle`` runs. The sentinel matches
     regardless of whether the scheduler still watches the entity (e.g. after the job was removed).
     """
-    event = create_state_change_event(entity_id=ALARM_ENTITY, old_value=old_value, new_value=new_value)
+    event = create_state_change_event(
+        entity_id=ALARM_ENTITY, old_value=old_value, new_value=new_value, old_attrs=old_attrs, new_attrs=new_attrs
+    )
     fired = asyncio.Event()
 
     async def sentinel() -> None:
@@ -466,6 +475,69 @@ async def test_watcher_survives_transition_to_waiting(entity_time_harness: Hasse
 
     assert job.schedule_status == ScheduleStatus.WAITING
     assert expected_name in watch_listener_names(hassette), "watcher must survive the waiting transition"
+    job.remove()
+
+
+async def test_rollover_replaces_the_pending_offset_run(entity_time_harness: HassetteHarness) -> None:
+    """An entity change replaces the pending run, even a positive-offset run whose time already passed.
+
+    Pins the documented limit: the alarm rang a minute ago and the sensor moved to tomorrow's,
+    so today's "10 minutes after the alarm" run moves to tomorrow, as Home Assistant's time
+    trigger does.
+    """
+    rang = iso_in(-1)
+    tomorrow = iso_in(24 * 60 - 1)  # minutes: the next day's alarm
+    await seed_alarm(entity_time_harness, rang)
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY, offset=TimeDelta(minutes=10)), name="entity_time_rollover_replaces"
+    )
+    assert job.next_run == date_utils.convert_datetime_str_to_tz(rang).add(minutes=10)
+
+    await change_alarm(entity_time_harness, rang, tomorrow)
+
+    assert job.next_run == date_utils.convert_datetime_str_to_tz(tomorrow).add(minutes=10)
+    job.remove()
+
+
+async def test_daily_rollover_to_the_same_time_of_day_keeps_the_run(entity_time_harness: HassetteHarness) -> None:
+    """A daily job's run is a time-of-day slot, so rolling to tomorrow's same-time alarm leaves it in place."""
+    rang = iso_in(-1)
+    tomorrow = date_utils.convert_datetime_str_to_tz(rang).add(hours=24).format_iso()
+    await seed_alarm(entity_time_harness, rang)
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop,
+        EntityTime(ALARM_ENTITY, offset=TimeDelta(minutes=10), daily=True),
+        name="entity_time_daily_rollover_keeps",
+    )
+    pending = job.next_run
+    assert pending is not None
+    assert pending < date_utils.now().add(minutes=10), "today's slot, not tomorrow's"
+
+    await change_alarm(entity_time_harness, rang, tomorrow)
+
+    assert job.next_run == pending
+    job.remove()
+
+
+async def test_attribute_only_change_moves_the_job(entity_time_harness: HassetteHarness) -> None:
+    """With attribute=, a change to that attribute moves the job even when the state stays the same."""
+    first = iso_in(60)
+    await entity_time_harness.seed_state(
+        ALARM_ENTITY, make_state_dict(ALARM_ENTITY, "on", attributes={"next_time": first})
+    )
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY, attribute="next_time"), name="entity_time_attribute_change"
+    )
+    assert job.next_run == date_utils.convert_datetime_str_to_tz(first)
+
+    second = iso_in(15)
+    # Same state on both sides: only the attribute changes.
+    await change_alarm(entity_time_harness, "on", "on", old_attrs={"next_time": first}, new_attrs={"next_time": second})
+
+    assert job.next_run == date_utils.convert_datetime_str_to_tz(second)
     job.remove()
 
 

@@ -63,6 +63,11 @@ The job fires when `sensor.phone_next_alarm` says it should. An earlier alarm mo
 
 That job fires 30 minutes before the configured routine time each day. Without `daily=True`, the trigger fires once at the entity's absolute date and time. It then waits until the entity names a new time.
 
+Each change to the watched value replaces the job's pending run with one computed from the new value. The watched value is the entity's state, or the named attribute when `attribute=` is set. Home Assistant's own time trigger replaces its pending run the same way.
+
+!!! warning "Positive offsets need an entity that keeps its time"
+    Some entities move on to their next time the moment the current one arrives. A phone's next-alarm sensor and `sun.sun`'s `next_*` attributes both do this. That move replaces the pending run, so `offset=TimeDelta(minutes=10)` on such an alarm never fires. At 07:00 the sensor changes to tomorrow's alarm, and the 07:10 run moves to tomorrow's 07:10. A negative offset is safe here, because its run fires before the entity moves on. An entity that keeps its value after the time passes, such as an `input_datetime` helper, works with either sign. A `daily=True` job keeps its 07:10 run, because tomorrow's alarm has the same time of day.
+
 `attribute=` reaches times that live outside an entity's state:
 
 ```python

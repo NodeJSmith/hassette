@@ -433,7 +433,15 @@ class EntityTime:
     The entity holds the schedule: a phone alarm sensor, an ``input_datetime``
     helper, or any entity whose state or attribute is a time. Whenever that value
     changes, ``Scheduler`` moves the job to the new time — no manual cancel and
-    reschedule.
+    reschedule. With ``attribute=``, a change to that attribute moves the job too.
+
+    A change replaces any pending run, as Home Assistant's own time trigger does. An
+    entity that moves on to its next time once that time arrives (a phone's next-alarm
+    sensor, ``sun.sun``'s ``next_*`` attributes) therefore drops a non-``daily``
+    positive-``offset`` run before it fires. Use a negative offset with such entities,
+    or an entity that keeps its value after the time passes, such as an
+    ``input_datetime`` helper. A ``daily`` job keeps its run when the new value has the
+    same time of day.
 
     An entity with no usable value (unavailable, ``unknown``, no alarm set) returns
     :data:`WAITING` instead of a timestamp. The job stays registered and watched — see
@@ -444,7 +452,8 @@ class EntityTime:
         entity_id: The entity holding the time, e.g. ``"sensor.phone_next_alarm"``.
         attribute: Read the time from this attribute instead of the entity's state.
         offset: Shift the fire time. Negative values fire before the entity's time
-            (``TimeDelta(minutes=-30)`` fires 30 minutes early).
+            (``TimeDelta(minutes=-30)`` fires 30 minutes early). Without ``daily``, a
+            positive offset only fires if the entity keeps its value until the run.
         daily: Keep only the time of day and fire at it every day. Without this, the
             trigger fires at the entity's absolute date and time and then waits for
             the entity to name a new one.
