@@ -71,9 +71,9 @@ Every issue you act on (except closes) gets a comment starting `Size triage:`. L
 
 4. STALE: comment the evidence, ending "Reopen if this still applies.", then `gh issue close <n> --reason "not planned"`, or `--reason completed` if it shipped.
 
-5. DUPLICATE: copy any unique finding to the survivor as a comment, comment on the duplicate naming the survivor, then `gh issue close <n> --reason duplicate`.
+5. DUPLICATE: copy any unique finding to the survivor as a comment, comment on the duplicate naming the survivor, then `gh issue close <n> --duplicate-of <survivor>`, which sets the duplicate reason and records the link.
 
-6. DECISION: `gh issue edit <n> --add-label autofix:needs-decision` and comment `Size triage: needs a decision. <the choice in one line>. <option> would make it small.`
+6. DECISION: `gh issue edit <n> --add-label autofix:needs-decision` and comment `Size triage: needs a decision. <the choice in one line>. <option> would make it small.` Leave `size:medium` on it: once the maintainer picks that option, the Requeue outcome in `triage-autofix-issues` swaps it to `size:small`. If no option makes it small, say so instead of naming one.
 
 7. KEEP: comment `Size triage: kept medium. <reason>.` Nothing else.
 
