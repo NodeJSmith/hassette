@@ -249,6 +249,7 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
         level: str | None = None,
         execution_id: str | None = None,
         source_tier: QuerySourceTier = "all",
+        instance_index: int | None = None,
     ) -> list[dict]:
         # dup-ignore-end
         entries: list[LogRecordEntry] = handler.captured
@@ -266,6 +267,8 @@ def make_log_records_from_buffer(handler: RecordingLogCaptureHandler):
             result = [r for r in result if r.get("execution_id") == execution_id]
         if source_tier != "all":
             result = [r for r in result if r.get("source_tier") == source_tier]
+        if instance_index is not None:
+            result = [r for r in result if r.get("instance_index") == instance_index]
         result.sort(key=lambda r: r["timestamp"], reverse=True)
         return result[:limit]
 

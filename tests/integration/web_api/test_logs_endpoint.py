@@ -96,6 +96,22 @@ class TestLogsEndpoints:
         assert response.status_code == 200
         assert mock_hassette.telemetry_query_service.get_log_records.await_args.kwargs["source_tier"] == "all"
 
+    async def test_get_logs_recent_forwards_instance_index(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
+        response = await client.get(f"{LOGS_RECENT_PATH}?app_key=x&instance_index=1")
+        assert response.status_code == 200
+        assert mock_hassette.telemetry_query_service.get_log_records.await_args.kwargs["instance_index"] == 1
+
+    async def test_get_logs_recent_defaults_to_all_instances(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
+        response = await client.get(f"{LOGS_RECENT_PATH}?app_key=x")
+        assert response.status_code == 200
+        assert mock_hassette.telemetry_query_service.get_log_records.await_args.kwargs["instance_index"] is None
+
     async def test_put_log_level_valid(self, client: "AsyncClient") -> None:
         response = await client.put(LOGS_LEVEL_PATH, json={"logger": "hassette.test", "level": "DEBUG"})
         assert response.status_code == 200
