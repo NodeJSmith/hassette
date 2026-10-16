@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
-# BASE_IMAGE has no default on purpose (below); skip the lint that flags that.
 # check=skip=InvalidDefaultArgInFrom
+# (Parser directives only count above any other comment. The skip is for BASE_IMAGE, which has no default on
+# purpose: see below.)
 
 # The Home Assistant add-on image: the published hassette image plus the add-on glue
 # (design/specs/129-ha-addon-v01/design.md, D3). Build from the repo root:
