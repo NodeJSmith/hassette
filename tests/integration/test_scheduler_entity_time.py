@@ -52,7 +52,14 @@ async def seed_alarm(harness: HassetteHarness, value: str) -> None:
     await harness.seed_state(ALARM_ENTITY, make_state_dict(ALARM_ENTITY, value))
 
 
-async def change_alarm(harness: HassetteHarness, old_value: str, new_value: str) -> None:
+async def change_alarm(
+    harness: HassetteHarness,
+    old_value: str,
+    new_value: str,
+    *,
+    old_attrs: dict[str, typing.Any] | None = None,
+    new_attrs: dict[str, typing.Any] | None = None,
+) -> None:
     """Send a state change for the alarm entity and wait until its handlers have finished.
 
     ``await_dispatch_idle`` alone is not enough: its stability check is a short wall-clock
@@ -62,7 +69,9 @@ async def change_alarm(harness: HassetteHarness, old_value: str, new_value: str)
     task is already counted as pending when ``await_dispatch_idle`` runs. The sentinel matches
     regardless of whether the scheduler still watches the entity (e.g. after the job was removed).
     """
-    event = create_state_change_event(entity_id=ALARM_ENTITY, old_value=old_value, new_value=new_value)
+    event = create_state_change_event(
+        entity_id=ALARM_ENTITY, old_value=old_value, new_value=new_value, old_attrs=old_attrs, new_attrs=new_attrs
+    )
     fired = asyncio.Event()
 
     async def sentinel() -> None:
@@ -466,6 +475,47 @@ async def test_watcher_survives_transition_to_waiting(entity_time_harness: Hasse
 
     assert job.schedule_status == ScheduleStatus.WAITING
     assert expected_name in watch_listener_names(hassette), "watcher must survive the waiting transition"
+    job.remove()
+
+
+async def test_rollover_keeps_the_pending_run_after_the_passed_time(entity_time_harness: HassetteHarness) -> None:
+    """An entity rolling to its next occurrence keeps the pending offset run of the one that just passed.
+
+    The alarm rang a minute ago and the sensor moved to tomorrow's alarm, but the job's
+    "10 minutes after the alarm" run for today is still ahead and must not be replaced.
+    """
+    rang = iso_in(-1)
+    await seed_alarm(entity_time_harness, rang)
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY, offset=TimeDelta(minutes=10)), name="entity_time_rollover_keeps_pending"
+    )
+    pending = date_utils.convert_datetime_str_to_tz(rang).add(minutes=10)
+    assert job.next_run == pending
+
+    await change_alarm(entity_time_harness, rang, iso_in(24 * 60 - 1))
+
+    assert job.schedule_status == ScheduleStatus.SCHEDULED
+    assert job.next_run == pending
+    job.remove()
+
+
+async def test_attribute_only_change_moves_the_job(entity_time_harness: HassetteHarness) -> None:
+    """With attribute=, a change to that attribute moves the job even when the state stays the same."""
+    first = iso_in(60)
+    await entity_time_harness.seed_state(
+        ALARM_ENTITY, make_state_dict(ALARM_ENTITY, "on", attributes={"next_time": first})
+    )
+
+    job = await entity_time_harness.scheduler.schedule(
+        noop, EntityTime(ALARM_ENTITY, attribute="next_time"), name="entity_time_attribute_change"
+    )
+    assert job.next_run == date_utils.convert_datetime_str_to_tz(first)
+
+    second = iso_in(15)
+    await change_alarm(entity_time_harness, "on", "on", old_attrs={"next_time": first}, new_attrs={"next_time": second})
+
+    assert job.next_run == date_utils.convert_datetime_str_to_tz(second)
     job.remove()
 
 
