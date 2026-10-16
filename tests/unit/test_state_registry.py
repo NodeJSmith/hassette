@@ -1,5 +1,7 @@
 import typing
 
+from pydantic import model_validator
+
 from hassette.models.states import BaseState
 from hassette.testing import make_state_dict
 
@@ -82,3 +84,32 @@ def test_custom_state_defined_at_module_level_works_without_calling_register(
     assert return_value is not None, "State conversion failed"
     assert type(return_value) is not BaseState, "Expected a specific state class, got BaseState"
     assert isinstance(return_value, CustomOuterDefinition), f"Expected CustomOuterDefinition, got {type(return_value)}"
+
+
+def test_try_convert_state_falls_back_to_base_state_when_domain_class_fails(
+    hassette_with_state_registry: "HassetteHarness",
+) -> None:
+    """try_convert_state returns BaseState when the registered domain class cannot convert the payload."""
+    hassette = hassette_with_state_registry
+
+    class AlwaysFailingState(BaseState):
+        domain: typing.Literal["always_failing"]
+
+        @model_validator(mode="after")
+        def reject(self) -> "AlwaysFailingState":
+            raise ValueError("payload rejected")
+
+    hassette.hassette.state_registry.register(AlwaysFailingState, domain="always_failing")
+
+    state_dict = make_state_dict(
+        "always_failing.test",
+        "value",
+        {},
+        last_changed="2024-01-01T00:00:00Z",
+        last_updated="2024-01-01T00:00:00Z",
+    )
+
+    return_value = hassette.hassette.state_registry.try_convert_state(state_dict)
+
+    assert type(return_value) is BaseState
+    assert return_value.entity_id == "always_failing.test"

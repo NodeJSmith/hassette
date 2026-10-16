@@ -124,13 +124,14 @@ class StateRegistry:
         for i, cls in enumerate(classes):
             try:
                 return self.conversion_with_error_handling(cls, data, entity_id, domain)
-            except UnableToConvertStateError:
+            except UnableToConvertStateError as exc:
                 if i == final_idx:
                     raise
-                LOGGER.debug(
-                    "Falling back to next state class after failure to convert to '%s' for entity '%s'",
-                    cls.__name__,
+                LOGGER.warning(
+                    "Falling back to BaseState for entity '%s' after failure to convert to '%s': %s",
                     entity_id,
+                    cls.__name__,
+                    exc,
                 )
 
         raise RuntimeError("Unreachable code reached in try_convert_state")
