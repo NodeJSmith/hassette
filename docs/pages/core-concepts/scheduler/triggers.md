@@ -79,7 +79,7 @@ Home Assistant's `sun` integration publishes the next solar events as `sun.sun` 
 --8<-- "pages/core-concepts/scheduler/snippets/scheduler_entity_time.py:sun_offset"
 ```
 
-The porch lights turn on 30 minutes before every sunset. After each sunset, `sun.sun` advances `next_setting` to the following day. That change moves the job to tomorrow's time, so it repeats without `daily=True`. `daily=True` would pin the job to one clock time and lose the seasonal drift.
+The porch lights turn on 30 minutes before every sunset. After each sunset, `sun.sun` advances `next_setting` to the following day. That change moves the job to tomorrow's time, so it repeats without `daily=True`. `daily=True` adds nothing here, because the entity already names the next sunset.
 
 `sun.sun` exists only while the `sun` integration is loaded. Without it, the job stays in the `waiting` state described below. Home Assistant loads `sun` through `default_config`. A setup without `default_config` needs the `sun` integration added separately.
 
