@@ -2,7 +2,7 @@
 prek = "0.5.5"
 python = ["3.14.8"]
 uv = "latest"
-java = "temurin-21.0.12+101.0.LTS" # PMD CPD (tools/check_duplicate_code.py) is a JVM tool
+java = "temurin-25.0.4+101.0.LTS" # PMD CPD (tools/check_duplicate_code.py) is a JVM tool
 # Single version pin for these CLIs: CI installs them from this file via jdx/mise-action.
 # oasdiff: tools/check_wire_compat.py and tools/check_client_floor.py (.github/actions/setup-oasdiff).
 "github:oasdiff/oasdiff" = "1.33.0"
