@@ -54,7 +54,6 @@ jobs:
               run: uv run mkdocs build --strict
 
             - name: Check snippet orphans
-              continue-on-error: true # TODO: remove after Phase 3 writing cleans up pre-existing orphans
               run: uv run python tools/docs/check_snippet_orphans.py
 
             - name: Upload site artifact
