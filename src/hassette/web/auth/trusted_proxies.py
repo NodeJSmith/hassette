@@ -50,7 +50,7 @@ _HOSTNAME_PATTERN = re.compile(rf"(?:{_HOSTNAME_LABEL}\.)*{_HOSTNAME_LABEL}\.?")
 
 Underscores are allowed because Docker Compose service names (``my_proxy``) may contain them, and
 those names are exactly what a self-managed deployment lists. :func:`_validate_hostname` applies
-this together with the length and all-numeric-final-label checks.
+this together with the length and IPv4-shaped checks.
 """
 
 _MAX_HOSTNAME_LENGTH = 253
@@ -164,15 +164,20 @@ def _validate_hostname(entry: str) -> None:
     """Reject an entry that is neither an IP/CIDR literal nor a syntactically valid hostname.
 
     Runs before any DNS lookup so a typo (``10.0.0.300``, ``proxy!``, an empty string) fails startup
-    as a config error instead of being retried forever as an unresolved hostname. A final label made
-    only of digits is rejected because no real hostname ends that way; such an entry is a malformed
-    IP literal.
+    as a config error instead of being retried forever as an unresolved hostname. An entry whose
+    labels are all digits (``10.0.0.300``, ``10.0.300``) is IPv4-shaped, so it is rejected as a
+    malformed IP literal. A name with only a numeric final label (``proxy.123``) is still a valid
+    private DNS name and is left for the resolver.
 
     Raises:
         TrustedProxyConfigError: ``entry`` is not a valid hostname.
     """
     labels = entry.rstrip(".").split(".")
-    if len(entry) > _MAX_HOSTNAME_LENGTH or not _HOSTNAME_PATTERN.fullmatch(entry) or labels[-1].isdigit():
+    if (
+        len(entry) > _MAX_HOSTNAME_LENGTH
+        or not _HOSTNAME_PATTERN.fullmatch(entry)
+        or all(label.isdigit() for label in labels)
+    ):
         raise TrustedProxyConfigError(
             f"trusted_proxies entry {entry!r} is neither a valid IP/CIDR literal nor a valid hostname"
         )

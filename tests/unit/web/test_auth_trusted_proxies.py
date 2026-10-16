@@ -29,7 +29,7 @@ class TestResolveTrustedProxiesLiteral:
         assert is_trusted_peer("10.0.0.254", trusted) is True
         assert is_trusted_peer("10.0.1.1", trusted) is False
 
-    @pytest.mark.parametrize("entry", ["not-a-valid-entry!!!", "10.0.0.300", "10.0.0.0/33", "", "a..b"])
+    @pytest.mark.parametrize("entry", ["not-a-valid-entry!!!", "10.0.0.300", "10.0.300", "10.0.0.0/33", "", "a..b"])
     async def test_malformed_entry_raises_before_any_dns_lookup(self, entry: str) -> None:
         """Neither a literal nor a syntactically valid hostname: a config error, never retried as DNS."""
         with (
@@ -73,7 +73,7 @@ class TestResolveTrustedProxiesHostname:
         assert is_trusted_peer("172.30.32.2", trusted) is True
         assert is_trusted_peer("172.30.32.3", trusted) is False
 
-    @pytest.mark.parametrize("hostname", ["caddy", "my_proxy", "proxy.internal.", "PROXY-1.example.com"])
+    @pytest.mark.parametrize("hostname", ["caddy", "my_proxy", "proxy.internal.", "PROXY-1.example.com", "proxy.123"])
     async def test_valid_hostname_shapes_are_resolved(self, hostname: str) -> None:
         with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
             trusted = await resolve_trusted_proxies((hostname,))
