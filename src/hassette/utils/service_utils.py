@@ -163,6 +163,24 @@ def topological_levels(types: "list[type[Resource]]") -> "list[list[type[Resourc
     return levels
 
 
+async def cancel_and_drain(task: "asyncio.Task[typing.Any] | None") -> None:
+    """Cancel ``task`` if present and await its completion, absorbing its ``CancelledError``.
+
+    ``gather(..., return_exceptions=True)`` is required: awaiting a cancelled task directly would
+    raise ``CancelledError`` into the caller's shutdown path. It also absorbs any exception the task
+    already raised, so a failed background task cannot abort teardown.
+
+    The caller still owns resetting whatever field held the task.
+
+    Args:
+        task: The task to cancel, or ``None`` (a no-op).
+    """
+    if task is None:
+        return
+    task.cancel()
+    await asyncio.gather(task, return_exceptions=True)
+
+
 async def wait_for_ready(
     resources: "list[Resource] | Resource",
     timeout: float = 20,
