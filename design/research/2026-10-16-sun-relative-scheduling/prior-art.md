@@ -69,7 +69,19 @@ Drift is handled for free, since every date's solar time is computed fresh. Days
 
 **Strengths**: Agrees with what HA displays; no solar math; uses HA's location.
 
-**Weaknesses**: The base jumps to tomorrow at the event instant. Keeping a pending run across that jump fixes the running case, but a restart inside the gap can't recover: the entity no longer says when tonight's sunset was.
+**Weaknesses**: The base jumps to tomorrow at the event instant, which replaces any pending offset run (Pattern 5). Even keeping that run couldn't survive a restart inside the gap: the entity no longer says when tonight's sunset was.
+
+### Pattern 5: Entity time + offset, replaced on every change (the generic case)
+
+**Used by**: Home Assistant core (`trigger: time` with `at: {entity_id, offset}`), Node-RED's HA-websocket `time` node. AppDaemon and pyscript document no trigger bound to an entity's time (from their docs and the trigger sources read for Pattern 1; not re-checked for this pattern); users combine a state listener with `run_at` by hand.
+
+**How it works**: Every state change cancels the pending timer and arms a new one at the new value + offset, if that is still in the future (HA: `update_entity_trigger` in `homeassistant/components/homeassistant/triggers/time.py`; Node-RED: `#processEvent` in `src/nodes/time/TimeController.ts`). A time-only value repeats daily, like `EntityTime(daily=True)`.
+
+**Strengths**: No state beyond the one timer. A change always wins, so edits and `unavailable` behave predictably.
+
+**Weaknesses**: A one-off positive offset on an entity that rolls to its next time when the current one arrives never fires; the rollover replaces it. (A daily time-of-day run survives when the rolled value keeps the same time of day.) Neither project tries to keep it.
+
+Hassette tried keeping the pending run across a rollover (PR #2978). The job stores one whole-second run, so the rule had to recover the run's occurrence as `run - offset` and decide "already dispatched" from the wall clock. Three review rounds found holes in that reconstruction: sub-second rounding in both directions, an overdue run dropped before dispatch, and an offset longer than the entity's interval skipping occurrences. The rule was dropped in favour of Pattern 5 plus a documented limit. Offsets after a rolling event belong to a trigger that computes each occurrence itself (Pattern 1).
 
 ## Anti-Patterns
 
@@ -83,15 +95,15 @@ HA core now routes every sun-like trigger (sunrise/sunset, dawn/dusk, golden and
 
 ## Relevance to Us
 
-The `EntityTime` defect is a real, general bug, independent of the sun: when the entity's previously named time has already passed, the change is the entity rolling to its next occurrence, not an edit. The pending run should survive it, and `next_run_time` will pick up the new value after the fire. That fixes alarms and the continuously running sun case at no cost. The attribute-only watcher gap is a second small, general bug.
+Losing a positive offset on rollover is not sun-specific, but it is also not something the generic case fixes elsewhere: HA and Node-RED replace the pending run on every change (Pattern 5). Keeping it means reconstructing which occurrence a run belongs to from one rounded timestamp, which proved leaky (see Pattern 5). The attribute-only watcher gap is a separate small, general bug.
 
-It does not make `sun.sun` a sound base for offsets after the event. A restart between sunset and sunset + offset loses the run, the same class as AppDaemon #2188, because only computing tonight's sunset can recover it.
+`sun.sun` is not a sound base for offsets after the event either way. Even a kept run is lost on a restart between sunset and sunset + offset, the same class as AppDaemon #2188, because only computing tonight's sunset can recover it.
 
 Pattern 1 is not "AppDaemon's own logic" in the problematic sense. HA itself computes sun triggers this way, with astral and `hass.config`'s latitude, longitude and elevation. Hassette can read the same location through `Api.get_config()` and get the same answers HA's own automations get, with no Hassette-side location config to drift.
 
 ## Recommendation
 
-1. **Fix `EntityTime` regardless.** Keep a pending run when the entity's previous time has already passed. Watch the attribute, not only the main state, when `attribute=` is set. Both are general bugs (alarm sensors hit the first), small, and need no new dependency.
+1. **Keep `EntityTime` on Pattern 5 and document its limit.** Watch the attribute, not only the main state, when `attribute=` is set. Document that a change replaces the pending run, so a positive offset needs an entity that keeps its time. (A keep-pending rule was built and dropped; see Pattern 5.)
 2. **Add a dedicated sun trigger if sun offsets should be first-class.** It would implement Pattern 1 (per-date astral, offset inside the loop, start at yesterday, skip polar days) using HA's location from `get_config`, re-reading it on HA's core config update event. That makes it restart-safe for both offset signs, which `EntityTime` on `sun.sun` can't be. It costs an `astral` dependency, and handling for an HA instance with no location set.
 3. **Until then**, document `EntityTime` on `sun.sun` for offsets before the event only, and point dusk/dawn light-level automations at a sun elevation condition. HA's own docs recommend elevation over offsets because twilight length varies by season.
 
@@ -111,6 +123,9 @@ Note: these URLs were not live-verified after the research pass.
 - https://raw.githubusercontent.com/custom-components/pyscript/master/custom_components/pyscript/trigger.py — `once(sunset + 30min)` via HA's astral helper
 - https://raw.githubusercontent.com/rdmtc/node-red-contrib-sun-position/master/nodes/10-position-config.js — SunCalc, offset per day then loop forward
 - https://raw.githubusercontent.com/scargill/node-red-contrib-bigtimer/master/bigtimer.js — 1-minute polling windows
+
+- https://raw.githubusercontent.com/home-assistant/core/dev/homeassistant/components/homeassistant/triggers/time.py — `trigger: time` entity + offset, replaced on every state change
+- https://raw.githubusercontent.com/zachowj/node-red-contrib-home-assistant-websocket/main/src/nodes/time/TimeController.ts — Node-RED `time` node, cron rebuilt on every entity event
 
 ### Bug reports
 - https://github.com/AppDaemon/appdaemon/issues/2188 — restart between sunset and sunset + offset schedules for the next day
