@@ -220,6 +220,19 @@ class TestEntityTimeRunForPassedOccurrence:
         trigger = EntityTime(ENTITY_ID, offset=TimeDelta(minutes=10))
         assert trigger.is_run_for_passed_occurrence(zdt(2026, 7, 28, 7, 10), zdt(2026, 7, 28, 6, 55)) is False
 
+    def test_subsecond_time_that_rounded_up_has_arrived(self) -> None:
+        """sun.sun reports microseconds; 07:00:00.750 + 10 min rounds to a 07:10:01 run.
+
+        Subtracting the offset back gives 07:00:01, but the entity's time arrived at
+        07:00:00.750, so a rollover at 07:00:00.800 must still keep the run.
+        """
+        trigger = bound_trigger("2026-07-28T07:00:00.750-05:00", offset=TimeDelta(minutes=10))
+        run = trigger.resolve(zdt(2026, 7, 28, 6, 0))
+        assert run == zdt(2026, 7, 28, 7, 10, 1)
+        assert isinstance(run, ZonedDateTime)
+        rollover = zdt(2026, 7, 28, 7, 0).add(milliseconds=800)
+        assert trigger.is_run_for_passed_occurrence(run, rollover) is True
+
     @pytest.mark.parametrize("minutes", [0, -10])
     def test_zero_or_negative_offset_never_qualifies(self, minutes: int) -> None:
         """Without a positive offset the run is at or before its time, so there is nothing to keep."""
