@@ -107,7 +107,11 @@ class WebApiService(Service):
         if web_api_config.auth_enabled:
             self._resolved_auth_token = resolve_auth_token(web_api_config, self.hassette.config.data_dir)
 
-            self._trusted_proxies = await resolve_trusted_proxies(web_api_config.trusted_proxies)
+            # Passing the current set carries last-known-good hostname resolutions across a
+            # ServiceWatcher restart; a hostname that doesn't resolve never fails startup.
+            self._trusted_proxies = await resolve_trusted_proxies(
+                web_api_config.trusted_proxies, previous=self._trusted_proxies
+            )
             await self.scheduler.run_every(
                 self._refresh_trusted_proxies,
                 minutes=_TRUSTED_PROXY_REFRESH_INTERVAL_MINUTES,

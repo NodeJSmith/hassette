@@ -61,6 +61,14 @@ The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `
     a client-suppliable header like `X-Forwarded-For` — so a bad actor on the
     same network can't spoof their way past it.
 
+    Hostname entries resolve through DNS at startup and again every five
+    minutes. A hostname that doesn't resolve yet doesn't block startup, which
+    covers a Compose service that starts after Hassette. Hassette logs a
+    warning and trusts no peer for that entry until a later lookup succeeds.
+    After that, a failed lookup keeps the last addresses that resolved. A
+    malformed entry, or one matching every address (`0.0.0.0/0`, `::/0`),
+    stops startup instead.
+
     Peer trust covers only requests that send no `Authorization` header. A
     request carrying that header is always validated against the token,
     even from a trusted peer, and a wrong or malformed header gets a 401

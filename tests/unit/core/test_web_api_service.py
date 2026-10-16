@@ -202,6 +202,31 @@ class TestTrustedProxyRefreshScheduling:
         addr = ipaddress.ip_address("10.0.0.5")
         assert any(addr in network for network in service._trusted_proxies.all_networks())
 
+    async def test_unresolvable_hostname_still_initializes_and_schedules_refresh(
+        self, unused_tcp_port_factory, tmp_path
+    ) -> None:
+        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1", trusted_proxies=("caddy",))
+
+        with patch_loop_getaddrinfo(side_effect=socket.gaierror("Name or service not known")):
+            await service.on_initialize()
+
+        assert service.is_ready()
+        assert service._trusted_proxies.hostname_entries["caddy"] == frozenset()
+        service.scheduler.run_every.assert_awaited_once()
+
+    async def test_reinitialize_during_dns_outage_keeps_previous_resolution(
+        self, unused_tcp_port_factory, tmp_path
+    ) -> None:
+        """A ServiceWatcher restart re-runs on_initialize(); it must not discard last-known-good."""
+        service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1", trusted_proxies=("caddy",))
+        with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
+            await service.on_initialize()
+
+        with patch_loop_getaddrinfo(side_effect=socket.gaierror("temporary failure")):
+            await service.on_initialize()
+
+        assert ipaddress.ip_network("172.30.32.2/32") in service._trusted_proxies.all_networks()
+
     async def test_refresh_job_calls_refresh_trusted_proxies(self, unused_tcp_port_factory, tmp_path) -> None:
         service = _make_web_api_service(unused_tcp_port_factory, tmp_path, host="127.0.0.1")
 

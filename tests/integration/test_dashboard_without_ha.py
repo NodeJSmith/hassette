@@ -7,6 +7,9 @@ dependency-decoupling fix end-to-end: WebApiService must still reach ready and s
 apps must still bootstrap, and the health endpoint must report "starting" rather than hanging
 or tearing down the process.
 
+The same boot also covers a ``trusted_proxies`` hostname that doesn't resolve yet: the web API
+must still start, trusting no peer for that entry until a refresh tick resolves it.
+
 The same boot also covers the opposite case: when the web API's port is already taken, the
 bind failure must tear the process down through Hassette's own shutdown and finalize the
 session as 'failure', instead of uvicorn's sys.exit(1) ending it with no teardown.
@@ -20,6 +23,7 @@ import socket
 import sqlite3
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -32,7 +36,7 @@ from hassette.exceptions import FatalError
 from hassette.testing import make_light_state_dict, wait_for
 from hassette.types.enums import ConnectionState
 from hassette.web.app import create_fastapi_app
-from tests.support.helpers import cleanup_hassette_streams
+from tests.support.helpers import cleanup_hassette_streams, make_addrinfo, patch_loop_getaddrinfo
 from tests.support.mock_hassette import TEST_TOTAL_TIMEOUT_SECONDS
 
 WEBAPI_READY_TIMEOUT = 10.0
@@ -99,7 +103,9 @@ async def _teardown_bare_hassette(
                 hassette_context.HASSETTE_INSTANCE.reset(instance_token)  # pyright: ignore[reportArgumentType]
 
 
-def _wire_hassette_without_ha(tmp_path: Path, port: int) -> tuple[Hassette, asyncio.Event, object]:
+def _wire_hassette_without_ha(
+    tmp_path: Path, port: int, **web_api_overrides: Any
+) -> tuple[Hassette, asyncio.Event, object]:
     """Build and wire a real Hassette instance whose WebsocketService never connects.
 
     ``StateProxy.load_cache()`` is short-circuited (``hassette.api.get_states_raw`` raises
@@ -108,6 +114,8 @@ def _wire_hassette_without_ha(tmp_path: Path, port: int) -> tuple[Hassette, asyn
     uses, and it keeps these tests fast and deterministic. ``WebsocketService.serve()`` is
     replaced with a coroutine that awaits the returned ``asyncio.Event``, so the connection
     state stays DISCONNECTED and ``has_ever_connected`` stays False until the caller sets it.
+
+    ``web_api_overrides`` replace keys of the default ``web_api`` config below.
 
     Returns the instance, that event, and the ``HASSETTE_INSTANCE`` token to reset on teardown.
     """
@@ -120,7 +128,7 @@ def _wire_hassette_without_ha(tmp_path: Path, port: int) -> tuple[Hassette, asyn
         # `_get_health()`, and auth is on by default now that the default-deny middleware actually
         # enforces it. Pinning host to loopback alongside disabling auth matches the project's
         # startup guard (a non-loopback host with auth disabled refuses to start).
-        web_api={"run": True, "port": port, "auth_enabled": False, "host": "127.0.0.1"},
+        web_api={"run": True, "port": port, "auth_enabled": False, "host": "127.0.0.1", **web_api_overrides},
         websocket={"total_timeout_seconds": TEST_TOTAL_TIMEOUT_SECONDS},
         apps={
             "directory": TEST_APPS_PATH,
@@ -161,12 +169,14 @@ def _wire_hassette_without_ha(tmp_path: Path, port: int) -> tuple[Hassette, asyn
 
 @contextlib.asynccontextmanager
 async def _running_hassette_without_ha(
-    tmp_path: Path, unused_tcp_port_factory: Callable[[], int]
+    tmp_path: Path, unused_tcp_port_factory: Callable[[], int], **web_api_overrides: Any
 ) -> AsyncIterator[Hassette]:
     """Boot a real Hassette instance whose WebsocketService never connects (see ``_wire_hassette_without_ha``)."""
     loop = asyncio.get_running_loop()
     previous_task_factory = loop.get_task_factory()
-    hassette, never_connects, instance_token = _wire_hassette_without_ha(tmp_path, unused_tcp_port_factory())
+    hassette, never_connects, instance_token = _wire_hassette_without_ha(
+        tmp_path, unused_tcp_port_factory(), **web_api_overrides
+    )
 
     run_task = asyncio.create_task(hassette.run_forever())
     try:
@@ -228,6 +238,36 @@ class TestDashboardWithoutHA:
             body = response.json()
             assert body["status"] == "starting"
             assert body["websocket_connected"] is False
+
+
+class TestUnresolvableTrustedProxyHostname:
+    async def test_startup_serves_and_refresh_trusts_hostname_once_it_resolves(
+        self, tmp_path: Path, unused_tcp_port_factory: Callable[[], int]
+    ) -> None:
+        """A trusted_proxies hostname that misses DNS at startup no longer fails the web API.
+
+        The entry trusts no peer until it resolves; the scheduled refresh job then trusts it with
+        no restart.
+        """
+        with patch_loop_getaddrinfo(side_effect=socket.gaierror("Name or service not known")):
+            async with _running_hassette_without_ha(
+                tmp_path, unused_tcp_port_factory, auth_enabled=True, trusted_proxies=("caddy",)
+            ) as hassette:
+                service = hassette._web_api_service
+                assert service is not None
+                await wait_for(lambda: service._app is not None, timeout=WEBAPI_READY_TIMEOUT, desc="app built")
+                live_app = service._app
+                assert live_app is not None
+
+                transport = ASGITransport(app=live_app, client=("172.30.32.2", 12345))
+                async with AsyncClient(transport=transport, base_url="http://test") as client:
+                    assert (await client.get("/api/health/live")).status_code == 200
+                    assert (await client.get("/api/config")).status_code == 401
+
+                    with patch_loop_getaddrinfo(return_value=[make_addrinfo("172.30.32.2")]):
+                        await service._refresh_trusted_proxies()
+
+                    assert (await client.get("/api/config")).status_code == 200
 
 
 class TestWebApiPortInUse:
