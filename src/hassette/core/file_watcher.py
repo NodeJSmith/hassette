@@ -1,3 +1,5 @@
+import asyncio
+from collections.abc import Iterable
 from pathlib import Path
 from typing import ClassVar
 
@@ -52,15 +54,7 @@ class FileWatcherService(Service):
             if self.shutdown_event.is_set():
                 break
 
-            all_changed_paths: set[Path] = set()
-            for _, changed_path in changes:
-                changed_path = Path(changed_path).resolve()
-                if changed_path in all_changed_paths:
-                    continue
-                if changed_path.parent in all_changed_paths:
-                    continue
-
-                all_changed_paths.add(changed_path)
+            all_changed_paths = await asyncio.to_thread(collapse_changed_paths, changes)
 
             if all_changed_paths:
                 self.logger.debug("Detected changes in %s", all_changed_paths)
@@ -69,3 +63,17 @@ class FileWatcherService(Service):
 
             # update paths in case new apps were added
             paths = self.hassette.config.get_watchable_files()
+
+
+def collapse_changed_paths(changes: Iterable[tuple[object, str]]) -> set[Path]:
+    """Resolve each changed path, skipping one already seen or whose parent directory was already seen."""
+    all_changed_paths: set[Path] = set()
+    for _, raw_path in changes:
+        changed_path = Path(raw_path).resolve()
+        if changed_path in all_changed_paths:
+            continue
+        if changed_path.parent in all_changed_paths:
+            continue
+
+        all_changed_paths.add(changed_path)
+    return all_changed_paths

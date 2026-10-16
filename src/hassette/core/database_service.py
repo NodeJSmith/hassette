@@ -399,7 +399,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
             SchemaVersionError: When the DB version is ahead of the expected head version.
             RuntimeError: When the DB file cannot be deleted due to permissions.
         """
-        if not db_path.exists():
+        if not await asyncio.to_thread(db_path.exists):
             return
 
         expected_head = await asyncio.to_thread(self.get_expected_head_version)
@@ -435,9 +435,7 @@ class DatabaseService(DatabaseWriteQueueMixin, DatabaseRetentionMixin, DatabaseS
                 expected_head,
             )
             try:
-                db_path.unlink(missing_ok=True)
-                for suffix in ("-wal", "-shm"):
-                    Path(str(db_path) + suffix).unlink(missing_ok=True)
+                await asyncio.to_thread(delete_db_files, db_path)
             except PermissionError as exc:
                 raise RuntimeError(
                     f"Cannot delete stale database file {db_path}: {exc}. Please remove it manually and restart."
@@ -614,3 +612,10 @@ def maintenance_deadlines(
         retention_attempt.next_due(config.retention_interval_seconds, retry_interval=retry),
         size_failsafe_attempt.next_due(config.size_failsafe_interval_seconds, retry_interval=retry),
     )
+
+
+def delete_db_files(db_path: Path) -> None:
+    """Delete a SQLite database file and its ``-wal``/``-shm`` sidecars, ignoring any that are missing."""
+    db_path.unlink(missing_ok=True)
+    for suffix in ("-wal", "-shm"):
+        Path(str(db_path) + suffix).unlink(missing_ok=True)
