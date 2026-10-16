@@ -181,6 +181,7 @@ class HassetteClient:
         *,
         limit: int | None = None,
         app_key: str | None = None,
+        instance_index: int | None = None,
         level: LogLevel | None = None,
         since: float | None = None,
         execution_id: str | None = None,
@@ -191,6 +192,7 @@ class HassetteClient:
         Args:
             limit: The most records to return.
             app_key: Only records emitted by this app.
+            instance_index: Only records emitted by this app instance. ``None`` covers every instance.
             level: Only records at this level.
             since: Only records at or after this Unix timestamp.
             execution_id: Only records emitted during this handler or job execution.
@@ -202,6 +204,7 @@ class HassetteClient:
         params = {
             "limit": limit,
             "app_key": app_key,
+            "instance_index": instance_index,
             "level": level,
             "since": since,
             "execution_id": execution_id,

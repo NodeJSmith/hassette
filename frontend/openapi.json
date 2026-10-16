@@ -1120,6 +1120,24 @@
               "title": "Source Tier"
             },
             "description": "Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything."
+          },
+          {
+            "name": "instance_index",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "App instance index. Omit for every instance of the app.",
+              "title": "Instance Index"
+            },
+            "description": "App instance index. Omit for every instance of the app."
           }
         ],
         "responses": {

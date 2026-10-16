@@ -249,6 +249,7 @@ class SummaryQueriesMixin:
         level: str | None = None,
         execution_id: str | None = None,
         source_tier: QuerySourceTier = "all",
+        instance_index: int | None = None,
     ) -> list[dict[str, Any]]:
         """Fetch log records with optional filters, ordered by timestamp DESC.
 
@@ -257,7 +258,12 @@ class SummaryQueriesMixin:
         """
         # dup-ignore-end
         clauses, params = log_record_filter_clauses(
-            since=since, app_key=app_key, level=level, execution_id=execution_id, source_tier=source_tier
+            since=since,
+            app_key=app_key,
+            level=level,
+            execution_id=execution_id,
+            source_tier=source_tier,
+            instance_index=instance_index,
         )
 
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""

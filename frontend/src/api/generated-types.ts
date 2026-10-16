@@ -2919,6 +2919,8 @@ export interface operations {
                 execution_id?: string | null;
                 /** @description Filter by source tier. 'app' excludes framework internals. 'framework' returns only internal actors. 'all' returns everything. */
                 source_tier?: "app" | "framework" | "all";
+                /** @description App instance index. Omit for every instance of the app. */
+                instance_index?: number | null;
             };
             header?: never;
             path?: never;

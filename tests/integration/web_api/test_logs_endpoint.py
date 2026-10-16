@@ -1,7 +1,7 @@
 """Integration tests for the log query and log-level endpoints."""
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -85,16 +85,24 @@ class TestLogsEndpoints:
     async def test_get_logs_recent_accepts_source_tier_param(
         self, client: "AsyncClient", mock_hassette: MagicMock, tier: str
     ) -> None:
-        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
-        response = await client.get(f"{LOGS_RECENT_PATH}?source_tier={tier}")
-        assert response.status_code == 200
-        assert mock_hassette.telemetry_query_service.get_log_records.await_args.kwargs["source_tier"] == tier
+        forwarded = await get_recent_logs_forwarded_kwargs(client, mock_hassette, f"?source_tier={tier}")
+        assert forwarded["source_tier"] == tier
 
     async def test_get_logs_recent_defaults_to_all_tiers(self, client: "AsyncClient", mock_hassette: MagicMock) -> None:
-        mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
-        response = await client.get(LOGS_RECENT_PATH)
-        assert response.status_code == 200
-        assert mock_hassette.telemetry_query_service.get_log_records.await_args.kwargs["source_tier"] == "all"
+        forwarded = await get_recent_logs_forwarded_kwargs(client, mock_hassette)
+        assert forwarded["source_tier"] == "all"
+
+    async def test_get_logs_recent_forwards_instance_index(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        forwarded = await get_recent_logs_forwarded_kwargs(client, mock_hassette, "?app_key=x&instance_index=1")
+        assert forwarded["instance_index"] == 1
+
+    async def test_get_logs_recent_defaults_to_all_instances(
+        self, client: "AsyncClient", mock_hassette: MagicMock
+    ) -> None:
+        forwarded = await get_recent_logs_forwarded_kwargs(client, mock_hassette, "?app_key=x")
+        assert forwarded["instance_index"] is None
 
     async def test_put_log_level_valid(self, client: "AsyncClient") -> None:
         response = await client.put(LOGS_LEVEL_PATH, json={"logger": "hassette.test", "level": "DEBUG"})
@@ -115,3 +123,13 @@ class TestLogsEndpoints:
         r2 = await client.put(LOGS_LEVEL_PATH, json={"logger": "hassette.rqs.test.lvl", "level": "INFO"})
         assert r2.status_code == 200
         assert logging.getLogger("hassette.rqs.test.lvl").level == logging.INFO
+
+
+async def get_recent_logs_forwarded_kwargs(
+    client: "AsyncClient", mock_hassette: MagicMock, query: str = ""
+) -> dict[str, Any]:
+    """GET /logs/recent with ``query`` and return the kwargs the route forwarded to ``get_log_records``."""
+    mock_hassette.telemetry_query_service.get_log_records = AsyncMock(return_value=[])
+    response = await client.get(f"{LOGS_RECENT_PATH}{query}")
+    assert response.status_code == 200
+    return mock_hassette.telemetry_query_service.get_log_records.await_args.kwargs

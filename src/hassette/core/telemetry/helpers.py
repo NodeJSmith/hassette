@@ -100,6 +100,7 @@ def log_record_filter_clauses(
     level: str | None,
     execution_id: str | None,
     source_tier: QuerySourceTier,
+    instance_index: int | None,
 ) -> tuple[list[str], dict[str, Any]]:
     """Return a (clauses, params) tuple for the log_records filter set.
 
@@ -113,6 +114,8 @@ def log_record_filter_clauses(
         execution_id: When provided, adds ``lr.execution_id = :execution_id``.
         source_tier: When ``'app'`` or ``'framework'``, adds ``lr.source_tier = :source_tier``.
             ``'all'`` applies no filter.
+        instance_index: When provided, adds ``lr.instance_index = :instance_index``. ``None`` matches
+            every instance.
     """
     clauses: list[str] = []
     params: dict[str, Any] = {}
@@ -131,6 +134,9 @@ def log_record_filter_clauses(
     if source_tier != "all":
         clauses.append("lr.source_tier = :source_tier")
         params["source_tier"] = source_tier
+    if instance_index is not None:
+        clauses.append("lr.instance_index = :instance_index")
+        params["instance_index"] = instance_index
     return clauses, params
 
 
