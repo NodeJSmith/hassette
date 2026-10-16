@@ -11,7 +11,7 @@ from hassette import P, C, A
 
 **Event types:** Tables below reference three event types. [`RawStateChangeEvent`][hassette.events.hass.hass.RawStateChangeEvent] fires on entity state changes. [`CallServiceEvent`][hassette.events.hass.hass.CallServiceEvent] fires on service calls. [`HassEvent`][hassette.events.hass.hass.HassEvent] is the base type for all Home Assistant events.
 
-**Key types in signatures:** `ChangeType` is a union of literal value, `C.*` condition instance, glob string, or callable `(value) -> bool`. `ComparisonCondition` is a two-argument callable `(old_value, new_value) -> bool` — accepts `C.Increased`, `C.Decreased`, or a custom function. [`MISSING_VALUE`][hassette.const.MISSING_VALUE] is a falsy sentinel from `hassette.const` indicating a field does not exist on the event (distinct from `None`). Its sibling [`NOT_PROVIDED`][hassette.const.NOT_PROVIDED] is the default for the `changed_from=`/`changed_to=` parameters on [`on_state_change()`](methods.md#on_state_changeentity_id) — it marks an argument the caller did not pass, so `None` stays usable as a real filter value.
+**Key types in signatures:** `ChangeType` is a union of literal value, `C.*` condition instance, glob string, or callable `(value) -> bool`. `ComparisonCondition` is a two-argument callable `(old_value, new_value) -> bool` — accepts `C.Increased`, `C.Decreased`, `C.CrossedAbove`, `C.CrossedBelow`, or a custom function. [`MISSING_VALUE`][hassette.const.MISSING_VALUE] is a falsy sentinel from `hassette.const` indicating a field does not exist on the event (distinct from `None`). Its sibling [`NOT_PROVIDED`][hassette.const.NOT_PROVIDED] is the default for the `changed_from=`/`changed_to=` parameters on [`on_state_change()`](methods.md#on_state_changeentity_id) — it marks an argument the caller did not pass, so `None` stays usable as a real filter value.
 
 ## Predicates (`P`)
 
@@ -160,6 +160,8 @@ A condition is a single-value callable `(value) -> bool`. Predicates like `P.Val
 | `C.Comparison` | `Comparison(op: OPS, value: Any)` | Returns `True` when `extracted_value op value` holds. A string value goes through [literal coercion](#literal-coercion) first. An unconvertible string returns `False`. `op` is one of `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="` (or their spelled-out equivalents `"gt"`, `"lt"`, `"ge"`, `"le"`, `"eq"`, `"ne"`). |
 | `C.Increased` | `Increased()` | Two-argument condition. Returns `True` when `float(new) > float(old)`. For use with `P.StateComparison` or `P.AttrComparison`. |
 | `C.Decreased` | `Decreased()` | Two-argument condition. Returns `True` when `float(new) < float(old)`. For use with `P.StateComparison` or `P.AttrComparison`. |
+| `C.CrossedAbove` | `CrossedAbove(threshold: float)` | Two-argument condition. Returns `True` when `float(old) <= threshold < float(new)`. A missing or non-numeric value returns `False`. For use with `changed=`, `P.StateComparison`, or `P.AttrComparison`. |
+| `C.CrossedBelow` | `CrossedBelow(threshold: float)` | Two-argument condition. Returns `True` when `float(old) >= threshold > float(new)`. A missing or non-numeric value returns `False`. For use with `changed=`, `P.StateComparison`, or `P.AttrComparison`. |
 
 No `C.InRange` condition exists. For range checks, combine two `C.Comparison` instances inside `P.AllOf`:
 

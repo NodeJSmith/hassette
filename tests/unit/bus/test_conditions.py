@@ -4,12 +4,16 @@ Tests condition matchers like Contains, EndsWith, StartsWith, Present, Missing,
 Glob, Regex, etc. that are used within predicates to test extracted values.
 """
 
+from itertools import pairwise
+
 import pytest
 
 from hassette.const import MISSING_VALUE
 from hassette.event_handling.conditions import (
     Comparison,
     Contains,
+    CrossedAbove,
+    CrossedBelow,
     Decreased,
     EndsWith,
     Glob,
@@ -204,6 +208,8 @@ def test_comparison_string_to_string_unchanged(op: str, threshold: str, value: s
         pytest.param(Comparison("ne", "off"), "!= off", id="ne_alias"),
         pytest.param(Increased(), "increased", id="increased"),
         pytest.param(Decreased(), "decreased", id="decreased"),
+        pytest.param(CrossedAbove(25), "crossed above 25", id="crossed_above"),
+        pytest.param(CrossedBelow(20.5), "crossed below 20.5", id="crossed_below"),
     ],
 )
 def test_condition_summarize(condition: object, expected: str) -> None:
@@ -240,6 +246,59 @@ def test_increased_behavior(old: str | int, new: str | int, expected: bool) -> N
 )
 def test_decreased_behavior(old: str | int, new: str | int, expected: bool) -> None:
     assert Decreased()(old, new) is expected
+
+
+@pytest.mark.parametrize(
+    ("condition", "old", "new", "expected"),
+    [
+        pytest.param(CrossedAbove(25), "24", "26", True, id="above_normal_crossing"),
+        pytest.param(CrossedAbove(25), "25", "25.1", True, id="above_from_exactly_threshold"),
+        pytest.param(CrossedAbove(25), "24", "25", False, id="above_reaching_threshold_is_not_above"),
+        pytest.param(CrossedAbove(25), "25.1", "25.3", False, id="above_already_above"),
+        pytest.param(CrossedAbove(25), "26", "24", False, id="above_wrong_direction"),
+        pytest.param(CrossedAbove(25), 24, 26, True, id="above_numeric_inputs"),
+        pytest.param(CrossedAbove(25), "unavailable", "26", False, id="above_unavailable_to_numeric"),
+        pytest.param(CrossedAbove(25), "24", "unknown", False, id="above_numeric_to_unknown"),
+        pytest.param(CrossedAbove(25), MISSING_VALUE, "26", False, id="above_missing_old"),
+        pytest.param(CrossedAbove(25), None, "26", False, id="above_none_old"),
+        pytest.param(CrossedAbove(0.5), False, True, False, id="above_bool_values"),
+        pytest.param(CrossedBelow(20), "21", "19", True, id="below_normal_crossing"),
+        pytest.param(CrossedBelow(20), "20", "19.9", True, id="below_from_exactly_threshold"),
+        pytest.param(CrossedBelow(20), "21", "20", False, id="below_reaching_threshold_is_not_below"),
+        pytest.param(CrossedBelow(20), "19", "18", False, id="below_already_below"),
+        pytest.param(CrossedBelow(20), "19", "21", False, id="below_wrong_direction"),
+        pytest.param(CrossedBelow(20), 21, 19, True, id="below_numeric_inputs"),
+        pytest.param(CrossedBelow(20), "unavailable", "19", False, id="below_unavailable_to_numeric"),
+        pytest.param(CrossedBelow(20), "21", "unknown", False, id="below_numeric_to_unknown"),
+        pytest.param(CrossedBelow(20), MISSING_VALUE, "19", False, id="below_missing_old"),
+        pytest.param(CrossedBelow(20), None, "19", False, id="below_none_old"),
+        pytest.param(CrossedBelow(0.5), True, False, False, id="below_bool_values"),
+    ],
+)
+def test_crossed_threshold_behavior(
+    condition: CrossedAbove | CrossedBelow, old: object, new: object, expected: bool
+) -> None:
+    assert condition(old, new) is expected
+
+
+def test_crossed_above_rapid_fluctuation_fires_once() -> None:
+    """A reading that hovers above the threshold fires only on the first crossing."""
+    readings = ["24.8", "25.1", "25.3", "25.2", "25.4"]
+    condition = CrossedAbove(25)
+
+    fired = [condition(old, new) for old, new in pairwise(readings)]
+
+    assert fired == [True, False, False, False]
+
+
+def test_crossed_below_numeric_unknown_numeric_does_not_fire() -> None:
+    """A non-numeric state between two numeric readings breaks the crossing on both sides."""
+    readings = ["21", "unknown", "19"]
+    condition = CrossedBelow(20)
+
+    fired = [condition(old, new) for old, new in pairwise(readings)]
+
+    assert fired == [False, False]
 
 
 def test_is_in_condition_behavior() -> None:
