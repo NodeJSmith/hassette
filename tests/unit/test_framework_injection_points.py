@@ -13,7 +13,7 @@ import re
 from contextvars import ContextVar, Token
 from pathlib import Path
 from typing import ClassVar
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from fair_async_rlock import FairAsyncRLock
@@ -146,11 +146,6 @@ class TestHarnessTeardownClearsSingletonOnError:
         config = make_test_config(data_dir=tmp_path)
         harness = HassetteHarness(config, skip_global_set=False)
         harness.with_bus().with_scheduler().with_state_proxy().with_state_registry()
-
-        api_mock = AsyncMock()
-        api_mock.sync = AsyncMock()
-        api_mock.get_states_raw = AsyncMock(return_value=[])
-        harness.hassette._api = api_mock
 
         await harness.start()
         # The harness set the global singleton on the isolated contextvar.

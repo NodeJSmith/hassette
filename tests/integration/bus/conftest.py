@@ -3,7 +3,6 @@
 import typing
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock
 
 import pytest
 
@@ -39,11 +38,6 @@ async def bus_harness(test_config) -> AsyncIterator[tuple[HassetteHarness, "Hass
     """
     harness = HassetteHarness(test_config, skip_global_set=False)
     harness.with_bus().with_scheduler().with_state_proxy().with_state_registry()
-
-    api_mock = AsyncMock()
-    api_mock.sync = AsyncMock()
-    api_mock.get_states_raw = AsyncMock(return_value=[])
-    harness.hassette._api = api_mock
 
     await harness.start()
 
