@@ -76,9 +76,31 @@ Docker data volumes carry over across major versions. Mount points are version-i
 
 ## `base_url` Paths
 
-Upgrading from 0.57 or earlier, Hassette keeps the path in `base_url`. Earlier versions dropped it and always connected to `<scheme>://<host>:<port>/api/`. A `base_url` of `http://supervisor/core` now connects to `http://supervisor/core/api/` and `ws://supervisor/core/api/websocket`. A trailing slash is still ignored.
+`base_url` (in `[hassette]` of `hassette.toml`, or `HASSETTE__BASE_URL`) is the address Hassette builds its Home Assistant URLs from. Versions up to 0.57 dropped any path in it. Newer versions keep the path as a prefix: `https://example.com/ha` connects to `https://example.com/ha/api/` and `wss://example.com/ha/api/websocket`.
 
-A `base_url` with no path, or just `/`, behaves exactly as before. One with a leftover path, such as `http://ha.local:8123/lovelace/0` copied from the browser, now points at an address outside Home Assistant's API, and the connection fails. Remove the path. The `Home Assistant URLs:` line in the startup log shows the URLs Hassette uses.
+If your `base_url` is just a scheme, host and port, such as `http://homeassistant.local:8123`, nothing changes. A trailing `/` makes no difference either.
+
+If it has a path, decide whether Home Assistant is really served there. A reverse proxy that serves Home Assistant under `/ha` needs the path, so keep it. A path copied from the browser, such as `http://ha.local:8123/lovelace/0`, is not part of the address, so remove it:
+
+=== "Before"
+
+    ```toml
+    [hassette]
+    base_url = "http://ha.local:8123/lovelace/0"
+    ```
+
+=== "After"
+
+    ```toml
+    [hassette]
+    base_url = "http://ha.local:8123"
+    ```
+
+Hassette logs the URLs it uses at startup. A leftover path shows up in that line, and in the `Cannot reach Home Assistant at ...` error that follows when the connection fails:
+
+```text
+Home Assistant URLs: REST http://ha.local:8123/lovelace/0/api/, WebSocket ws://ha.local:8123/lovelace/0/api/websocket
+```
 
 ## Config Paths and Unknown Keys
 
