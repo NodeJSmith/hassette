@@ -10,7 +10,7 @@
     "homeassistant/home-assistant is explicitly disabled (see packageRules) -- the .claude/skills/ha-version-bump skill owns bumping the compose-file HA image tags in lockstep with the codegen pin, monthly. Weekly Renovate PRs for this one package went unreviewed in practice.",
     "Renovate runs daily and may open PRs on any run. prHourlyLimit is 0 because a run lasts minutes: the preset's 2/hour cap meant about 2 new PRs per run and a months-long queue. prConcurrentLimit still bounds how many are open at once.",
     "Non-major updates automerge through GitHub auto-merge once the required checks pass (tests-complete, e2e-complete, lint-complete, readthedocs), after minimumReleaseAge holds each release for 3 days. Updates with no release timestamp skip that hold (minimumReleaseAgeBehaviour timestamp-optional): Renovate has none for digest updates, which is how the SHA-pinned GitHub Actions tracking a major tag update, or for Docker images outside Docker Hub (ghcr.io/astral-sh/uv), and the default timestamp-required would hold those forever. Major updates and language runtimes (python, java) never automerge. A non-major PR that fails CI or conflicts is picked up by the hassette-review-autofixes reviewer (Dotfiles packages/hassette-pipeline, reviewer_renovate.py).",
-    "Groups keep related bumps in one PR: prek, prek-action and every prek.toml hook rev move together; ruff's pre-commit hook moves with the ruff dev dependency so the two can't drift; npm and GitHub Actions non-major updates are batched."
+    "Groups keep related bumps in one PR: prek, prek-action and every prek.toml hook rev move together; every ruff pin (pre-commit hook, dev dependency, lint.yml's standalone install) moves together so they can't drift; npm and GitHub Actions non-major updates are batched."
   ],
   "extends": ["config:recommended"],
   "schedule": ["before 9am"],
@@ -37,6 +37,14 @@
       "matchStrings": ["HASS_HASSETTE_VERSION=(?<currentValue>\\S+)"],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "NodeJSmith/hass-hassette"
+    },
+    {
+      "description": "The standalone ruff that lint.yml installs for the generator drift check; joins the ruff group",
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/lint\\.yml$/"],
+      "matchStrings": ["uv tool install ruff==(?<currentValue>\\S+)"],
+      "datasourceTemplate": "pypi",
+      "depNameTemplate": "ruff"
     },
     {
       "description": "prek.toml hook repo revs (each `repo = \"https://github.com/...\"` line followed directly by its `rev = ...` line)",
@@ -82,9 +90,9 @@
       "groupName": "prek tooling"
     },
     {
-      "description": "ruff's pre-commit hook rev moves with the ruff dev dependency. Listed after prek tooling so it wins for the hook",
+      "description": "Every ruff pin moves together: the pre-commit hook rev, the dev dependency (rangeStrategy bump raises its >= floor, not just uv.lock) and lint.yml's standalone install. Covers every update type, since a 0.x minor can reformat the codebase. Listed after prek tooling so it wins for the hook",
       "matchDepNames": ["astral-sh/ruff-pre-commit", "ruff"],
-      "matchUpdateTypes": ["minor", "patch", "digest", "pinDigest"],
+      "rangeStrategy": "bump",
       "groupName": "ruff"
     },
     {

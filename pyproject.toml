@@ -116,7 +116,7 @@ docs = [
     "mkdocstrings[python]>=0.25.0",
     "pymdown-extensions>=10.8.1",
     "watchdog>=6.0.0",
-    "ruff>=0.14.9",
+    "ruff>=0.17.0",
     "mkdocs-glightbox>=0.5.2",
     "mkdocs-panzoom-plugin>=0.5.2",
 ]
