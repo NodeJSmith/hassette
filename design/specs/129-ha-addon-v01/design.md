@@ -171,15 +171,15 @@ looping, and bring a correctly configured add-on back after a reboot even when t
 The image's entrypoint is `tini -- /app/scripts/docker_start.sh` (`Dockerfile:117`). It runs
 `hassette run --check`, installs user deps, then `exec hassette run`. On an unrecoverable error it prints a
 banner, idles `HASSETTE_DOCKER_RETRY_DELAY` seconds (default 300), then exits so Docker retries
-(`scripts/docker_start.sh:56-84`, spec 128 D12). Exit 78 marks deterministic config errors, and spec 128
+(`halt` in `scripts/docker_start.sh`, spec 128 D12). Exit 78 marks deterministic config errors, and spec 128
 designed it as a contract for "the add-on's s6 `finish` script".
 
 The dependency install runs on every start, not only the first: `/app/.venv` resets on each start (Assumed:
 container removal), so the `uv.lock` and `python_packages` (D9) installs run again on each restart, reboot and
 update. Only `/data/uv_cache` persists (D10). After a power cut, HAOS often boots
 before the router and WAN, so a network failure during the install is a normal boot event, not a rare blip.
-`uv` without `--offline` contacts the index even when the cache is warm (no `--offline` anywhere in
-`scripts/docker_start.sh`).
+`uv` without `--offline` contacts the index once its cached index pages are stale, even when the cache
+holds every package (2026-10-16 Addendum).
 
 Unlike Docker's restart policy, Supervisor restarts an exited add-on only with the add-on's **Watchdog** toggle
 on, and the toggle is off by default, so an exited add-on normally stays stopped with its log showing why. With
@@ -223,20 +223,20 @@ Behavior to pin:
 - The glue sets `HASSETTE_DOCKER_RUNTIME=addon` (the `HASSETTE_DOCKER_` prefix keeps it out of the settings
   namespace, spec 128 D6). Every add-on-specific behavior in the shared `docker_start.sh` runs only under it:
   the offline retry and degraded start above, the remedy text ("Fix … then restart the add-on from its page"
-  in place of the Docker commands at `scripts/docker_start.sh:30-35`), and the `python_packages` install step
+  in place of the Docker commands in `scripts/docker_start.sh`'s `REMEDY_*`), and the `python_packages` install step
   (D9). Without it, Docker users keep today's behavior, including the 300 s halt idle, apart from the TERM
   trap below.
 - `docker_start.sh` traps TERM for the whole script, unconditionally, so stopping the container during the
-  install exits 0, not 143. Today the script traps only EXIT (`scripts/docker_start.sh:50`), and TERM only
-  inside the halt idle (`:74`). A TERM during the halt idle exits 0 as well, replacing `exit 143` at `:74`.
+  install exits 0, not 143. This replaces the halt idle's own TERM trap, which exited 143: a TERM during
+  the halt idle exits 0 as well.
   Docker users get the same clean exit 0 on stop as a side benefit; it is the only change they see.
 - The glue sets `HASSETTE_DOCKER_RETRY_DELAY=0` on every start, so `halt` exits at once instead of idling
-  (`scripts/docker_start.sh:57-78`).
+  (`halt` in `scripts/docker_start.sh`).
 - The glue sets `HASSETTE_DOCKER_PRUNE_UV_CACHE=0`. `/data/uv_cache` is the persistent cache the offline retry
-  installs from (D10), and the default per-start `uv cache prune` (`scripts/docker_start.sh:17,325-328`) could
+  installs from (D10), and the default per-start `uv cache prune` (`PRUNE_UV_CACHE` in `scripts/docker_start.sh`) could
   discard entries that retry needs.
 - Glue steps that fail before `docker_start.sh` runs (seeding, the DB restore in D10) can't use
-  `docker_start.sh`'s `halt` (`scripts/docker_start.sh:57-78`), which isn't loaded yet. The glue has its own
+  `docker_start.sh`'s `halt` (`halt` in `scripts/docker_start.sh`), which isn't loaded yet. The glue has its own
   minimal banner function that prints the same banner format with add-on remedies and exits at once. The
   discovery announce never fails the start (D13).
 - Exits after `exec hassette run` are outside this fallback. A `FatalError` such as
@@ -497,13 +497,13 @@ Behavior to pin:
 - The install is a step inside `docker_start.sh`, run only under `HASSETTE_DOCKER_RUNTIME=addon` (D4), on every
   start, after the `uv.lock` project install (step 1) and the requirements step (step 2), so neither can remove
   or conflict with the extra packages afterward.
-- The glue leaves `HASSETTE_DOCKER_INSTALL_DEPS` at its default (off, `scripts/docker_start.sh:16`), so step 2 is
+- The glue leaves `HASSETTE_DOCKER_INSTALL_DEPS` at its default (off, `INSTALL_DEPS` in `scripts/docker_start.sh`), so step 2 is
   skipped in the add-on; DOCS.md points users with real projects to `uv.lock`.
 - The step runs one `uv pip install … -c /app/constraints.txt` with each entry as its own argv element, never
   through a requirements file, so no entry can become a uv option line (`--extra-index-url`, `-r`,
   `--find-links`).
 - It follows the same rules as the other install steps: its own timeout constant beside
-  `UV_REQUIREMENTS_TIMEOUT_SECS` (`scripts/docker_start.sh:24-27`), counted in D14's `--start-period`, D4's
+  `UV_REQUIREMENTS_TIMEOUT_SECS` (`scripts/docker_start.sh`), counted in D14's `--start-period`, D4's
   `--offline` retry and degraded start on a network-class failure, and a halt on a resolution conflict.
 - URL and VCS specifiers are unsupported in v0.1, and DOCS.md points those users to `uv.lock`.
 
@@ -728,7 +728,7 @@ add-ons omit `watchdog:`; Frigate uses an HTTP URL and Mosquitto `tcp://`. Witho
 container exits, through the throttled container path.
 
 The pre-serve phase runs on every start (D4): port 8126 isn't served until the installs finish and hassette
-starts. That can take up to the sum of the uv step timeouts (`scripts/docker_start.sh:24-27`, plus D9's
+starts. That can take up to the sum of the uv step timeouts (the `UV_*_TIMEOUT_SECS` constants in `scripts/docker_start.sh`, plus D9's
 `python_packages` step) plus startup. The hassette image has no Docker `HEALTHCHECK` (`Dockerfile`), so the
 add-on is `STARTED` at once and the application watchdog starts probing a port nobody listens on yet. An image
 `HEALTHCHECK` changes that (Assumed: `HEALTHCHECK`).
@@ -817,7 +817,7 @@ docs should. **Pick "both out" instead if** you'd rather keep the milestone to t
   registry. Evidence: `~/source/supervisor/supervisor/apps/model.py:780-789` (`_image`),
   `docker/interface.py:279-300,351-368` (`install`), `:213-248` (`_get_credentials`).
 - `hassette run --check` resolves and prints `CONFIG_DIR`, `CONFIG_HOME`, `APPS_DIR` and exits 78 on
-  config errors; `docker_start.sh` consumes it. Evidence: `scripts/docker_start.sh:99-140`, spec 128 D12/D14.
+  config errors; `docker_start.sh` consumes it. Evidence: the config-check section of `scripts/docker_start.sh`, spec 128 D12/D14.
 - With `HASSETTE__CONFIG_DIR=/config` (already set by the image), apps default to `/config/apps` with no
   other setting. Evidence: `src/hassette/config/locations.py`, spec 128 D5.
 - **Watchdog:** Supervisor restarts an exited or `UNHEALTHY` add-on, and acts on the `watchdog:` URL, only when the user has
@@ -888,7 +888,7 @@ docs should. **Pick "both out" instead if** you'd rather keep the milestone to t
 
 - [x] Run the D13 spike against its pass criteria; on failure, v0.1 ships manual pairing. Passed 2026-10-11 (#2663): v0.1 ships discovery (A) with the R1 refresh; results in the Addendum
 - [ ] D1 prefix e2e gate: the frontend passes an e2e test served under a URL prefix, and a grep finds no remaining absolute paths, before the `hassette-addon` repo is created
-- [ ] Verify `uv --offline` installs from a warm `/data/uv_cache` with the network blocked, with per-start pruning off as the add-on runs it (D4)
+- [x] Verify `uv --offline` installs from a warm `/data/uv_cache` with the network blocked, with per-start pruning off as the add-on runs it (D4). Passed 2026-10-16 (#2667): D4 stays option D; results in the Addendum
 - [ ] Verify on real HAOS that Supervisor holds the add-on in `STARTUP` until the image `HEALTHCHECK` passes (D14)
 - [ ] Verify on real HAOS that a client of the mapped direct port is never presented as `172.30.32.2`; record the result in the Addendum (D7)
 - [ ] Verify the add-on container stops with exit 0 on `ha apps stop`, both while hassette serves and during the pre-serve install (D4)
@@ -937,3 +937,26 @@ canned `/api/health` and `/api/apps` and checks a bearer token set as an add-on 
 `<base href>` injection. It also honors `X-Forwarded-Prefix` from the same trusted peers (its D1), and a
 base header that is present but rejected now gets a 403 diagnostic page, not a `/` shell (its D6). "Any
 other request gets `/`" still holds for requests carrying neither header.
+
+**2026-10-16 — D4 offline check (#2667): passes; D4 stays option D.** Run in the release image
+(`ghcr.io/nodejsmith/hassette:main-py3.13`, uv 0.13.1) with a persisted cache volume and no pruning. After one
+networked start warmed the cache, every step of `docker_start.sh`'s install ran under `--network none` with
+`--offline`: `uv export --frozen`, the deps install with constraints, the project package build (its
+`setuptools` build requirement came from the cache), and a `requirements.txt` install. With `--refresh`
+forcing revalidation, the deps install and the package build failed without `--offline`, then passed with it
+from the same cache.
+Two findings shaped the implementation:
+
+- uv's exit code doesn't separate a network failure from a resolution failure: a direct fetch exits 2, but a
+  failed fetch of a build requirement exits 1 and reads "No solution found". The script classifies on uv's
+  `Failed to fetch` / `error sending request for url` cause lines instead, which neither a conflict nor a
+  package missing from the index prints.
+- The design's "`uv` without `--offline` contacts the index even when the cache is warm" holds only once the
+  cached index page is stale. Within its HTTP max-age (600 s for PyPI) a networkless install passes with no
+  retry at all.
+
+**2026-10-16 — D4: Docker users also get an accurate network-failure banner (#2667).** Outside the add-on,
+a network failure during the install still halts and retries as before, but its banner now says the package
+index couldn't be reached, with a network remedy, instead of reporting a dependency conflict. It reuses the
+connection-failure check the add-on's offline retry needs. Exit 0 on stop and this banner are the only changes
+Docker users see.

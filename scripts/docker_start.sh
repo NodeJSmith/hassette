@@ -16,6 +16,12 @@ log_phase "entrypoint started"
 INSTALL_DEPS="${HASSETTE_DOCKER_INSTALL_DEPS:-0}"
 PRUNE_UV_CACHE="${HASSETTE_DOCKER_PRUNE_UV_CACHE:-1}"
 RETRY_DELAY="${HASSETTE_DOCKER_RETRY_DELAY:-300}"
+# "addon" under the Home Assistant add-on, whose glue sets it; every add-on-only behavior below is gated on it
+RUNTIME="${HASSETTE_DOCKER_RUNTIME:-}"
+case "${RUNTIME}" in
+    "" | addon) ;;
+    *) echo "WARNING: HASSETTE_DOCKER_RUNTIME='${RUNTIME}' is not recognized — only 'addon' is. Using Docker behavior." ;;
+esac
 CONSTRAINTS="/app/constraints.txt"
 IMAGE_APP_DIR="/app"  # Hassette's own install, with its own pyproject.toml and uv.lock; never a user project
 TMP_ROOT="${TMPDIR:-/tmp}"
@@ -34,12 +40,29 @@ REQUIREMENTS_MAX_DEPTH=5
 # .git stays: VCS-versioned build backends (setuptools-scm, hatch-vcs) read it.
 PROJECT_COPY_EXCLUDES=(./.venv ./venv ./node_modules __pycache__ .mypy_cache .ruff_cache .pytest_cache)
 
-REMEDY_DEPS="Fix the dependency file named above, then run: docker restart <container>"
-REMEDY_CONFIG="Fix the setting named above (in its file or your compose environment), then run: docker compose up -d
+# uv's cause line when it couldn't connect to an index or download URL (DNS, refused, timed out). The exit code
+# doesn't tell this apart from a resolution failure: uv exits 2 for a direct fetch but 1 when the fetch was for a
+# build requirement, which it reports as "No solution found". A resolution failure, a package missing from the
+# index and an HTTP error status (a 404 URL, which uv prints as "Failed to fetch" too) never print these lines.
+UV_NETWORK_ERROR_PATTERN='error sending request for url|operation timed out'
+
+ISSUES_URL="https://github.com/NodeJSmith/hassette/issues"
+if [ "${RUNTIME}" = "addon" ]; then
+    REMEDY_DEPS="Fix the dependency file named above, then restart the add-on from its page"
+    REMEDY_CONFIG="Fix the setting named above, then restart the add-on from its page"
+    REMEDY_IMAGE="Update or reinstall the add-on; if that doesn't help, report it at ${ISSUES_URL}"
+    REMEDY_UNEXPECTED="Check the error above and report it at ${ISSUES_URL}"
+else
+    REMEDY_DEPS="Fix the dependency file named above, then run: docker restart <container>"
+    REMEDY_CONFIG="Fix the setting named above (in its file or your compose environment), then run: docker compose up -d
   (docker restart keeps the old environment)"
-REMEDY_IMAGE="Pull the image again: docker compose pull && docker compose up -d"
-REMEDY_UNEXPECTED="Check the error above: fix the container's command arguments if it names one,
-  otherwise report it at https://github.com/NodeJSmith/hassette/issues"
+    REMEDY_IMAGE="Pull the image again: docker compose pull && docker compose up -d"
+    REMEDY_UNEXPECTED="Check the error above: fix the container's command arguments if it names one,
+  otherwise report it at ${ISSUES_URL}"
+fi
+# Only Docker halts on a network failure (the add-on installs from the uv cache or starts degraded), but it's set
+# for both so a future add-on halt can't trip set -u
+REMEDY_NETWORK="Check the container's network access (DNS and the route to the package index)"
 EX_CONFIG=78  # EX_CONFIG in hassette/cli/commands/run.py; a test keeps them in sync
 # Args that make `hassette run` print and exit instead of starting: cyclopts' help flags and the
 # root app's version_flags (hassette/cli/__init__.py). A test keeps this list in sync.
@@ -48,13 +71,42 @@ PASSTHROUGH_FLAGS=(--help -h --version -v)
 # Temp files, removed on exit and before a halt's idle.
 user_deps_file=""
 tmp_project=""
+uv_log_file=""
 cleanup_tmp() {
     if [ -n "${user_deps_file}" ]; then rm -f "${user_deps_file}"; fi
     if [ -n "${tmp_project}" ]; then rm -rf "${tmp_project}"; fi
+    # run_uv_install removes its own log; this covers a stop or halt landing mid-step
+    if [ -n "${uv_log_file}" ]; then rm -f "${uv_log_file}"; fi
     user_deps_file=""
     tmp_project=""
+    uv_log_file=""
 }
 trap cleanup_tmp EXIT
+
+# ── stop handling ─────────────────────────────────────────────────────────────
+# `docker stop` (and Supervisor's add-on stop) sends TERM, which tini forwards to this script only. A stop exits 0
+# whatever phase it lands in, never 143, which Supervisor logs as a failure. Bash runs a trap only once the
+# foreground command finishes, so the long steps (uv, the halt idle) run in the background under `wait`, which a
+# trapped signal interrupts at once; STOP_WAIT_PID is that step. The short foreground steps (the config check, the
+# project copy, fd, the cache prune) delay the exit until they finish. For uv, STOP_WAIT_PID is the subshell running
+# uv_with_log, so killing it leaves timeout, uv and tee running; they end with the container when tini exits.
+STOP_WAIT_PID=""
+on_stop() {
+    if [ -n "${STOP_WAIT_PID}" ]; then kill "${STOP_WAIT_PID}" 2>/dev/null || true; fi
+    exit 0
+}
+trap on_stop TERM INT
+
+# Usage: wait_interruptibly <command...>
+# Runs the command in the background and returns its exit code, so a stop ends the script without waiting for it.
+wait_interruptibly() {
+    local code=0
+    "$@" &
+    STOP_WAIT_PID=$!
+    wait "${STOP_WAIT_PID}" || code=$?
+    STOP_WAIT_PID=""
+    return "${code}"
+}
 
 # ── helper: halt on an unrecoverable startup error ────────────────────────────
 # Usage: halt <exit_code> <what failed> <remedy>
@@ -75,11 +127,7 @@ halt() {
     fi
     echo "─────────────────────────────────────────────────────────"
     if [ "${RETRY_DELAY}" != "0" ]; then
-        # sleep in the background so `docker stop` (SIGTERM, forwarded by tini) ends the idle at once
-        sleep "${RETRY_DELAY}" &
-        HALT_SLEEP_PID=$!
-        trap 'kill "${HALT_SLEEP_PID}" 2>/dev/null; exit 143' TERM INT
-        wait "${HALT_SLEEP_PID}" || true
+        wait_interruptibly sleep "${RETRY_DELAY}" || true  # the idle's own status doesn't matter; a stop exits in on_stop
     fi
     exit "${exit_code}"
 }
@@ -219,28 +267,104 @@ print_install_failure_banner() {
     esac
 }
 
-# ── helper: run a uv command with timeout and friendly error messages ─────────
-# Usage: run_uv_install <timeout_seconds> <failure_type> <uv args...>
-# failure_type: see print_install_failure_banner for the valid set
-run_uv_install() {
-    local timeout_secs="$1"
-    local failure_type="$2"
-    shift 2
+# ── helper: user-facing banner for a degraded start ───────────────────────────
+# Installs skipped because the network was down and the uv cache couldn't stand in (add-on only).
+SKIPPED_INSTALLS=()
+print_degraded_start_banner() {
+    echo ""
+    echo "─────────────────────────────────────────────────────────"
+    echo "  HASSETTE IS STARTING WITHOUT SOME DEPENDENCIES"
+    echo ""
+    echo "  The package index couldn't be reached and the uv cache"
+    echo "  doesn't hold everything needed, so these installs didn't run:"
+    local label
+    for label in "${SKIPPED_INSTALLS[@]}"; do
+        echo "    - ${label}"
+    done
+    echo ""
+    echo "  Apps that import a missing package will fail to load."
+    echo "  Once the network is back, restart the add-on from its page."
+    echo "─────────────────────────────────────────────────────────"
+}
 
-    # uv's output streams straight to the container log; set -e is off so a failure reaches the checks below
-    local exit_code
-    set +e
-    timeout "${timeout_secs}" uv "$@" 2>&1
-    exit_code=$?
-    set -e
+# Usage: uv_with_log <timeout_seconds> <log_file> <uv args...>
+# Runs uv with a timeout, its output streamed to the container log and copied to log_file (/dev/null to keep no
+# copy). Exits with uv's code, 124 on timeout: the script-wide pipefail makes the pipeline report it, not tee's.
+uv_with_log() {
+    local timeout_secs="$1" log_file="$2"
+    shift 2
+    timeout "${timeout_secs}" uv "$@" 2>&1 | tee "${log_file}"
+}
+
+# Set once a step's online attempt fails to connect (add-on only), so later steps go straight to --offline instead
+# of each waiting out the same network failure.
+INDEX_UNREACHABLE=0
+
+# Usage: run_uv_offline <timeout_seconds> <label> <uv args...>
+# The add-on's fallback: the step again with --offline, from the persisted uv cache. On failure, records label in
+# SKIPPED_INSTALLS and returns 1.
+run_uv_offline() {
+    local timeout_secs="$1" label="$2"
+    shift 2
+    local exit_code=0
+    wait_interruptibly uv_with_log "${timeout_secs}" /dev/null "$@" --offline || exit_code=$?
+    if [ "${exit_code}" -eq 0 ]; then
+        echo "Installed from the uv cache."
+        return 0
+    fi
+    echo "WARNING: the offline install failed too (exit ${exit_code}); continuing without ${label}"
+    SKIPPED_INSTALLS+=("${label}")
+    return 1
+}
+
+# ── helper: run a uv install step, with an offline fallback under the add-on ──
+# Usage: run_uv_install <timeout_seconds> <failure_type> <label> <uv args...>
+# failure_type: see print_install_failure_banner for the valid set
+# label: what the step installs, named in the degraded-start banner
+# Returns 0 on success. Under the add-on, a timeout or a connection failure retries the step with --offline; if that
+# fails too, the step is recorded for the degraded-start banner and it returns 1, so the caller can skip what depends
+# on it. Every other failure halts, so 1 always means "skipped".
+run_uv_install() {
+    local timeout_secs="$1" failure_type="$2" label="$3"
+    shift 3
+
+    if [ "${INDEX_UNREACHABLE}" -eq 1 ]; then
+        echo "The package index was unreachable earlier; installing from the uv cache (--offline)"
+        run_uv_offline "${timeout_secs}" "${label}" "$@"
+        return
+    fi
+
+    local exit_code=0 network_failure=0
+    # || halt: this runs where set -e is off (callers use `|| return 0` / `|| true`), and tee into an empty path
+    # would fail a successful install
+    uv_log_file=$(mktemp "${TMP_ROOT}/uv-log.XXXXXX") || halt 1 "couldn't create a temp file in ${TMP_ROOT}" "${REMEDY_UNEXPECTED}"
+    wait_interruptibly uv_with_log "${timeout_secs}" "${uv_log_file}" "$@" || exit_code=$?
+    if [ "${exit_code}" -ne 0 ]; then
+        if [ "${exit_code}" -eq 124 ] || grep -qE "${UV_NETWORK_ERROR_PATTERN}" "${uv_log_file}"; then
+            network_failure=1
+        fi
+    fi
+    rm -f "${uv_log_file}"
+    uv_log_file=""
 
     if [ "${exit_code}" -eq 0 ]; then
         return 0
     fi
 
+    if [ "${network_failure}" -eq 1 ] && [ "${RUNTIME}" = "addon" ]; then
+        INDEX_UNREACHABLE=1
+        echo "WARNING: couldn't reach the package index (exit ${exit_code}); retrying from the uv cache (--offline)"
+        run_uv_offline "${timeout_secs}" "${label}" "$@"
+        return
+    fi
+
     if [ "${exit_code}" -eq 124 ]; then
         echo "ERROR: dependency install timed out after ${timeout_secs}s"
-        halt 1 "the dependency install timed out" "Check the container's network access."
+        halt 1 "the dependency install timed out" "${REMEDY_NETWORK}"
+    fi
+    if [ "${network_failure}" -eq 1 ]; then
+        echo "ERROR: dependency install couldn't reach the package index (exit ${exit_code})"
+        halt 1 "the package index couldn't be reached (see above)" "${REMEDY_NETWORK}"
     fi
 
     print_install_failure_banner "${failure_type}"
@@ -251,36 +375,41 @@ run_uv_install() {
 # ---------------------------------------------------------------------------
 # 1. Project-based install (export deps → install with constraints → install package)
 # ---------------------------------------------------------------------------
-if [ -f "$PROJECT_DIR/uv.lock" ]; then
-    log_phase "project install: starting (from $PROJECT_DIR)"
-
+# A step skipped by a failed offline install (run_uv_install returns 1) ends the project install, since each later
+# step needs the one before it. `|| return 0`, not `|| return`: the skip is already recorded in SKIPPED_INSTALLS, and
+# a non-zero return here would end the script under set -e.
+install_project() {
+    local label="your project (${PROJECT_DIR}/uv.lock)"
     user_deps_file=$(mktemp "${TMP_ROOT}/user-deps.XXXXXX")
     tmp_project=$(mktemp -d "${TMP_ROOT}/project-build.XXXXXX")
 
     log_phase "project install: exporting locked deps"
-    run_uv_install "$UV_EXPORT_TIMEOUT_SECS" "export" export \
+    run_uv_install "$UV_EXPORT_TIMEOUT_SECS" "export" "${label}" export \
         --no-hashes --frozen \
         --directory "$PROJECT_DIR" \
         --no-default-groups \
         --no-dev --no-editable --no-emit-project \
-        --output-file "${user_deps_file}"
+        --output-file "${user_deps_file}" || return 0
 
     log_phase "project install: installing deps with constraints"
-    run_uv_install "$UV_PROJECT_DEPS_TIMEOUT_SECS" "project" pip install \
+    run_uv_install "$UV_PROJECT_DEPS_TIMEOUT_SECS" "project" "${label}" pip install \
         -r "${user_deps_file}" \
-        -c "$CONSTRAINTS"
+        -c "$CONSTRAINTS" || return 0
 
     log_phase "project install: installing project package"
     tar -C "$PROJECT_DIR" "${PROJECT_COPY_EXCLUDES[@]/#/--exclude=}" -cf - . | tar -C "$tmp_project" -xf -
-    run_uv_install "$UV_PROJECT_PACKAGE_TIMEOUT_SECS" "project" pip install \
-        --no-deps "$tmp_project"
+    run_uv_install "$UV_PROJECT_PACKAGE_TIMEOUT_SECS" "project" "${label}" pip install \
+        --no-deps "$tmp_project" || return 0
 
+    log_phase "project install: complete"
+}
+
+if [ -f "$PROJECT_DIR/uv.lock" ]; then
+    log_phase "project install: starting (from $PROJECT_DIR)"
+    install_project
     # Explicit cleanup — the EXIT trap never fires on the happy path because
     # the script ends in `exec`, which replaces the shell process instead of exiting it.
     cleanup_tmp
-
-    log_phase "project install: complete"
-
 elif [ -f "$PROJECT_DIR/pyproject.toml" ]; then
     log_phase "project install: skipped (pyproject.toml found but no uv.lock — run 'uv lock' to generate a lockfile, then restart)"
 else
@@ -312,9 +441,10 @@ if [ "${INSTALL_DEPS}" = "1" ]; then
             [ -s "$req" ] || continue
             found_files=$((found_files + 1))
             echo "Installing requirements from $req (with constraints)..."
-            run_uv_install "$UV_REQUIREMENTS_TIMEOUT_SECS" "requirements" pip install \
+            # a skipped file (failed offline retry) is recorded for the banner; the other files still install
+            run_uv_install "$UV_REQUIREMENTS_TIMEOUT_SECS" "requirements" "${req}" pip install \
                 -r "$req" \
-                -c "$CONSTRAINTS"
+                -c "$CONSTRAINTS" || true
         done < <("$FD_BIN" -t f -a -0 --max-depth "$REQUIREMENTS_MAX_DEPTH" '^requirements\.txt$' "${ROOTS[@]}" | sort -z)
     fi
 
@@ -340,6 +470,10 @@ else
             ;;
     esac
     log_phase "uv cache prune: disabled"
+fi
+
+if [ "${#SKIPPED_INSTALLS[@]}" -gt 0 ]; then
+    print_degraded_start_banner
 fi
 
 log_phase "handing off to hassette"
