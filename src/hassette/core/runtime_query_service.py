@@ -25,6 +25,7 @@ from hassette.bus import Bus
 from hassette.core.app_registry import overlay_runtime_state
 from hassette.core.bus_service import BusService
 from hassette.core.logging_service import LoggingService
+from hassette.core.service_status_predicates import IS_NOT_APP_ROLE
 from hassette.core.state_proxy import StateProxy
 from hassette.events import AnyEvent
 from hassette.resources.base import Resource
@@ -108,6 +109,8 @@ class RuntimeQueryService(Resource):
                 topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
                 handler=self.on_service_status,
                 name="hassette.rqs.on_service_status",
+                # Apps have their own app_status_changed stream; the Services panel is framework-only.
+                where=IS_NOT_APP_ROLE,
             )
         )
         self._subscriptions.append(
