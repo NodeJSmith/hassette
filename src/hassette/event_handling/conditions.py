@@ -542,3 +542,63 @@ class Decreased:
 
     def summarize(self) -> str:
         return "decreased"
+
+
+@dataclass(frozen=True)
+class CrossedAbove:
+    """Comparison condition that checks if a numeric value crossed above a threshold.
+
+    Fires only on the transition: the old value is at or below the threshold and the new value is above it. Later
+    updates that stay above the threshold do not fire again. A missing or non-numeric old or new value (such as
+    ``unavailable`` or ``unknown``) never fires, so ``unavailable`` → ``26`` does not count as a crossing.
+
+    Expected to be used with predicates that provide both old and new values, such as StateComparison and
+    AttrComparison.
+
+    Examples:
+    ```python
+    self.on_state_change("sensor.temperature", changed=CrossedAbove(25))
+    ```
+    """
+
+    threshold: float
+    """Value the reading must rise above."""
+
+    def __call__(self, old_value: Any, new_value: Any) -> bool:
+        try:
+            return float(old_value) <= self.threshold < float(new_value)
+        except (TypeError, ValueError):
+            return False
+
+    def summarize(self) -> str:
+        return f"crossed above {self.threshold}"
+
+
+@dataclass(frozen=True)
+class CrossedBelow:
+    """Comparison condition that checks if a numeric value crossed below a threshold.
+
+    Fires only on the transition: the old value is at or above the threshold and the new value is below it. Later
+    updates that stay below the threshold do not fire again. A missing or non-numeric old or new value (such as
+    ``unavailable`` or ``unknown``) never fires.
+
+    Expected to be used with predicates that provide both old and new values, such as StateComparison and
+    AttrComparison.
+
+    Examples:
+    ```python
+    self.on_state_change("sensor.phone_battery", changed=CrossedBelow(20))
+    ```
+    """
+
+    threshold: float
+    """Value the reading must fall below."""
+
+    def __call__(self, old_value: Any, new_value: Any) -> bool:
+        try:
+            return float(old_value) >= self.threshold > float(new_value)
+        except (TypeError, ValueError):
+            return False
+
+    def summarize(self) -> str:
+        return f"crossed below {self.threshold}"

@@ -23,7 +23,7 @@ from hassette.event_handling.accessors import (
     get_state_value_old,
     get_state_value_old_new,
 )
-from hassette.event_handling.conditions import Comparison, Glob, Increased, IsIn
+from hassette.event_handling.conditions import Comparison, CrossedAbove, Glob, Increased, IsIn
 from hassette.event_handling.predicates import (
     AllOf,
     AnyOf,
@@ -483,6 +483,25 @@ def test_predicate_summarize_golden_state_comparison() -> None:
 
 def test_predicate_summarize_golden_state_comparison_with_comparison() -> None:
     assert StateComparison(condition=Comparison(">", 50)).summarize() == "state > 50"
+
+
+@pytest.mark.parametrize(
+    ("old", "new", "expected"),
+    [
+        pytest.param("24.5", "25.5", True, id="crossing"),
+        pytest.param("25.5", "25.7", False, id="still_above"),
+        pytest.param("unavailable", "26", False, id="unavailable_to_numeric"),
+    ],
+)
+def test_state_comparison_crossed_above(old: str, new: str, expected: bool) -> None:
+    """StateComparison feeds the old and new state values to CrossedAbove."""
+    event = create_state_change_event(entity_id="sensor.temp", old_value=old, new_value=new)
+
+    assert StateComparison(condition=CrossedAbove(25))(event) is expected
+
+
+def test_predicate_summarize_golden_state_comparison_crossed_above() -> None:
+    assert StateComparison(condition=CrossedAbove(25)).summarize() == "state crossed above 25"
 
 
 def test_predicate_summarize_golden_attr_comparison() -> None:

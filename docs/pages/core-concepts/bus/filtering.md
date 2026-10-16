@@ -78,6 +78,16 @@ Supported operators: `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="`, and their nam
 --8<-- "pages/core-concepts/bus/snippets/filtering_increased_decreased.py"
 ```
 
+### Threshold crossing: `C.CrossedAbove` and `C.CrossedBelow`
+
+`C.CrossedAbove` and `C.CrossedBelow` fire once when a numeric value crosses a threshold. Updates that stay past the threshold don't fire again. Both go in `changed=`, like `C.Increased`.
+
+```python
+--8<-- "pages/core-concepts/bus/snippets/filtering/threshold_crossing.py:threshold_crossing"
+```
+
+A reading of 24.8, then 25.1, then 25.3 fires the handler once, on the move to 25.1. A non-numeric old or new state, such as `"unavailable"`, never counts as a crossing. So `"unavailable"` → `26` doesn't fire. To act on a reading that is already past the threshold, use `C.Comparison` in `changed_to=`.
+
 The full conditions table, including string matching, collection membership, and null checks, is on the [Predicate Reference](predicate-reference.md) page.
 
 ## Predicates and the `where` Parameter
