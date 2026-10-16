@@ -36,8 +36,8 @@ Lead with the finding that changes the decision, and give each option its conseq
 
 ### Requeue
 The decision leaves concrete criteria and the work is small.
-1. Check what autofix's picker requires (`select_issue()` in the pipeline's `autofix_issues.py`): `size:small`, at least one type/topic label from its allowed set, an allowed author, a title that doesn't match `OPEN_ENDED_TITLE_RE` in `dfl_common` (titles opening with words like "Investigate" or "Decide"), no open blocker, the issue still open, and no other excluded label left (`EXCLUDE_LABELS` in `dfl_common`: `autofix:pr-open`, `autofix:in-progress`, `epic:ui-redesign` and the bail labels). If size fails, Resize instead. If the title or labels fail, fix them in step 2.
-2. Save the body (`gh issue view <n> --json body --jq .body > <file>`), rewrite the criteria, then `gh issue edit <n> --body-file <file>`. Fix a failing title or label from step 1 in the same pass: `gh issue edit <n> --title "<new title>"`, `--add-label <type or topic label>`, `--remove-label <excluded label>`.
+1. Check what autofix's picker requires (`select_issue()` in the pipeline's `autofix_issues.py`): `size:small`, at least one type/topic label from its allowed set, an allowed author, a title that doesn't match `OPEN_ENDED_TITLE_RE` in `dfl_common` (titles opening with words like "Investigate" or "Decide"), no open blocker, the issue still open, and no other excluded label left (`EXCLUDE_LABELS` in `dfl_common`: `autofix:pr-open`, `autofix:in-progress`, the parked labels `epic:ui-redesign` and `area:ui`, and the bail labels). If it is `size:medium` and the decision took the option its `Size triage: needs a decision` comment says would make it small, swap it to `size:small` in step 2. If size still fails, Resize instead. If the title or labels fail, fix them in step 2.
+2. Save the body (`gh issue view <n> --json body --jq .body > <file>`), rewrite the criteria, then `gh issue edit <n> --body-file <file>`. Fix a failing title or label from step 1 in the same pass: `gh issue edit <n> --title "<new title>"`, `--add-label <type or topic label>`, `--remove-label <excluded label>`, and for a narrowed medium `--remove-label size:medium --add-label size:small`.
 3. Post a comment starting `Decision:` (or `Spec updated:` for a Phase 3 rewrite) saying what changed.
 4. Remove `<bail>` last. Then confirm the issue shows as ready in `dfl hassette eligible-issues`. If that command isn't on this machine, re-fetch the issue (`gh issue view <n> --json title,labels,state`) and recheck every step 1 condition yourself. Report it as requeued only after one of these checks passes.
 
@@ -56,7 +56,7 @@ The work must wait for another issue. Confirm the blocker is open (`gh issue vie
 A UI layout question the redesign will settle. Add `epic:ui-redesign`, remove `<bail>`, comment. Autofix skips parked labels.
 
 ### Resize
-It's really a medium or large feature. `gh issue edit <n> --remove-label size:small --add-label size:medium` (one `size:` label only), remove `<bail>`, and record the decisions made so far in a comment. Autofix only picks up `size:small`.
+It's really a medium or large feature. `gh issue edit <n> --remove-label size:small --add-label size:medium` (one `size:` label only; skip the swap if it is already medium or larger), remove `<bail>`, and record the decisions made so far in a comment. Autofix only picks up `size:small`.
 
 ### Defer
 Nothing argues for acting now. Leave the labels alone. If verification turned up something, comment it so the next triage starts from there.

@@ -23,7 +23,7 @@ $ARGUMENTS: optional issue numbers, or one short label name (`needs-decision`, `
 | `autofix:needs-human` | Anything else | Classify it first; many are really one of the above |
 | `autofix:blocked` (+ `autofix:maybe-obsolete`) | It failed twice, or found nothing to change (with `maybe-obsolete`) | Check whether it already shipped; usually a close or a requeue |
 
-A "blocked by" bail adds no label: autofix creates a GitHub dependency link and skips the issue until the blocker closes. `epic:ui-redesign` issues are parked and skipped too. Neither needs triage unless it also carries a label above.
+A "blocked by" bail adds no label: autofix creates a GitHub dependency link and skips the issue until the blocker closes. Issues labeled `epic:ui-redesign` or `area:ui` are parked and skipped too (`PARKED_LABELS` in `dfl_common`). Neither needs triage unless it also carries a label above.
 
 ## Phase 1: Gather
 
