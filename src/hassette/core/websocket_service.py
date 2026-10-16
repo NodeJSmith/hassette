@@ -40,6 +40,7 @@ from hassette.resources.restart import RestartSpec
 from hassette.resources.service import Service
 from hassette.types import Topic
 from hassette.types.enums import ConnectionState, RestartType
+from hassette.utils.service_utils import cancel_and_drain
 
 if typing.TYPE_CHECKING:
     from collections.abc import Callable
@@ -550,8 +551,7 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         # Stop the recv loop
         if (recv_task := self._recv_task) is not None:
             self._recv_task = None  # detach first: the done-callback ignores a task we cancel
-            recv_task.cancel()
-            await asyncio.gather(recv_task, return_exceptions=True)
+            await cancel_and_drain(recv_task)
 
         # Close the WebSocket
         if self._ws and not self._ws.closed:
