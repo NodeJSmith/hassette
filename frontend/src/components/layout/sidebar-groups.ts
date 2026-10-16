@@ -15,7 +15,8 @@ export interface GroupDef {
   tone: "err" | "warn" | "ok" | "mute";
   defaultOpen: boolean;
   /** Whether apps in this group are excluded from the `allHealthy` tally.
-   *  `true` for "ok" (genuinely healthy) and "disabled" (inert — neither healthy nor unhealthy). */
+   *  `true` for "ok" (genuinely healthy) and for the neutral "stopped" and "disabled" groups,
+   *  which are expected states rather than problems and must not collapse RUNNING. */
   healthy: boolean;
 }
 
@@ -24,7 +25,7 @@ export const GROUP_DEFS: GroupDef[] = [
   { key: "blocked", label: "BLOCKED", tone: "err", defaultOpen: true, healthy: false },
   { key: "warn", label: "WARNING", tone: "warn", defaultOpen: true, healthy: false },
   { key: HEALTHY_GROUP_KEY, label: "RUNNING", tone: "ok", defaultOpen: false, healthy: true },
-  { key: "stopped", label: "STOPPED", tone: "mute", defaultOpen: true, healthy: false },
+  { key: "stopped", label: "STOPPED", tone: "mute", defaultOpen: true, healthy: true },
   { key: "disabled", label: "DISABLED", tone: "mute", defaultOpen: false, healthy: true },
 ];
 

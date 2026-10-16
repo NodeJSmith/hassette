@@ -509,4 +509,40 @@ describe("Sidebar — status groups", () => {
     expect(await screen.findByText("App One")).toBeDefined();
     expect(screen.getByText("App Two")).toBeDefined();
   });
+
+  it("keeps RUNNING group open when stopped apps are also present", async () => {
+    withManifests([
+      createAppSummary({ app_key: "app1", display_name: "App One", status: "running" }),
+      createAppSummary({ app_key: "app2", display_name: "Stopped App", status: "stopped" }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    expect(await screen.findByText("App One")).toBeDefined();
+    expect(screen.getByText("Stopped App")).toBeDefined();
+  });
+
+  it("lets the user collapse the RUNNING group when all apps are healthy", async () => {
+    const user = userEvent.setup();
+    withManifests([
+      createAppSummary({ app_key: "app1", display_name: "App One", status: "running" }),
+      createAppSummary({ app_key: "app2", display_name: "Stopped App", status: "stopped" }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    expect(await screen.findByText("App One")).toBeDefined();
+    const header = screen.getByText("RUNNING").closest<HTMLButtonElement>("[data-testid='group-header']")!;
+    await user.click(header);
+    expect(screen.queryByText("App One")).toBeNull();
+    await user.click(header);
+    expect(screen.queryByText("App One")).not.toBeNull();
+  });
+
+  it("does not force RUNNING open when a failing app is present", async () => {
+    withManifests([
+      createAppSummary({ app_key: "app1", display_name: "App One", status: "running" }),
+      createAppSummary({ app_key: "app2", display_name: "Failed App", status: "failed" }),
+    ]);
+    renderWithAppState(<Sidebar />);
+    expect(await screen.findByText("Failed App")).toBeDefined();
+    expect(screen.getByText("RUNNING")).toBeDefined();
+    expect(screen.queryByText("App One")).toBeNull();
+  });
 });
