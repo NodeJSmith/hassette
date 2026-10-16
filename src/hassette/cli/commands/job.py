@@ -1,10 +1,11 @@
-"""Job-related CLI commands: job list and execution history."""
+"""Job-related CLI commands: job list, execution history, and manual trigger."""
 
 from typing import Any
 
 from hassette_wire import (
     Execution,
     JobSummary,
+    JobTriggerResponse,
     ScheduleStatus,
     ScheduleStatusReason,
     UnknownValue,
@@ -12,7 +13,7 @@ from hassette_wire import (
 
 from hassette.cli.client import make_client, parse_wire_list, query_params
 from hassette.cli.context import DEFAULT_CLI_CONTEXT, CLIContextParam
-from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_table
+from hassette.cli.output import Column, fmt_duration_ms, fmt_relative_time, render_detail, render_table
 from hassette.cli.types import AppKeyArg, InstanceArg, LimitArg, SinceArg, SourceTierArg
 
 JOB_EXECUTION_COLUMNS: list[Column] = [
@@ -118,3 +119,14 @@ def cmd_job(
     )
     jobs = parse_wire_list(JobSummary, raw)
     render_table(jobs, JOB_LIST_COLUMNS, json_mode=ctx.json_mode)
+
+
+def cmd_job_trigger(job_id: int, *, ctx: CLIContextParam = DEFAULT_CLI_CONTEXT) -> None:
+    """Manually fire a scheduled job now, outside its normal schedule.
+
+    Args:
+        job_id: The job ID, as shown in the ID column of ``hassette job``.
+    """
+    client = make_client(ctx)
+    result = client.post(f"/api/scheduler/jobs/{job_id}/trigger", JobTriggerResponse)
+    render_detail(result, json_mode=ctx.json_mode)

@@ -283,6 +283,21 @@ hassette job 1 --limit 20
 
 The execution table shows status, duration, error type, error message, timestamp, and execution ID for each run.
 
+### `hassette job trigger <id>`
+
+Fires a job once, right now, outside its normal schedule. The job ID comes from the ID column of `hassette job`.
+
+```console
+$ hassette job trigger 1
+╭───────── Job Trigger ──────────╮
+│  status    accepted            │
+│  job_id    1                   │
+│  job_name  StateProxy.sync_all │
+╰────────────────────────────────╯
+```
+
+`accepted` means the scheduler queued the run. The job's mode decides what happens when a run is already in progress. A job that was never registered, or has since been removed, fails with a 409 and exit code 1. `hassette job` lists the current IDs. `--json` prints the response object on success and a JSON error document on failure.
+
 ### Flags
 
 | Flag                   | Description                                              |
@@ -299,6 +314,7 @@ The execution table shows status, duration, error type, error message, timestamp
 - `hassette job` hits `GET /api/scheduler/jobs`
 - `hassette job --app <key>` hits `GET /api/telemetry/app/{key}/jobs`
 - `hassette job <id>` hits `GET /api/telemetry/job/{id}/executions`
+- `hassette job trigger <id>` hits `POST /api/scheduler/jobs/{id}/trigger`
 
 ## `hassette log`
 

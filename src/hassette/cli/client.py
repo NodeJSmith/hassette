@@ -244,16 +244,19 @@ class HassetteCLIClient:
         self._echo_success_target_and_warnings()
         return result
 
-    def post(self, path: str) -> ActionResponse:
-        """Perform a POST request to an app mutation endpoint, deserialize, and handle errors.
+    def post(self, path: str, model: type[M]) -> M:
+        """Perform a POST request to a mutation endpoint, deserialize, and handle errors.
 
-        Action routes (start/stop/reload) take no request body or query params and always
-        respond with an :class:`~hassette_wire.ActionResponse` on success.
+        Mutation routes (app start/stop/reload, job trigger) take no request body or query
+        params and respond with a single wire model on success.
+
+        Args:
+            model: The wire model the endpoint returns on success.
 
         Raises:
             SystemExit: On HTTP 4xx/5xx (code 1), network errors (code 2), or a
                 successful-looking response whose body is not valid JSON or doesn't match
-                ``ActionResponse`` (code 1).
+                ``model`` (code 1).
         """
         response = self._send("POST", path)
 
@@ -261,11 +264,11 @@ class HassetteCLIClient:
             self._handle_http_error(response)
 
         try:
-            result = parse_wire(ActionResponse, response.json())
+            result = parse_wire(model, response.json())
         except (json.JSONDecodeError, ValidationError, UnicodeDecodeError) as exc:
             # Mirrors get()'s malformed-response handling above — a 2xx response we can't
-            # parse into an ActionResponse means the same thing there does: wrong
-            # --server-url, or CLI/server version skew.
+            # parse into ``model`` means the same thing there does: wrong --server-url, or
+            # CLI/server version skew.
             self._handle_malformed_response(response, exc)
 
         self._echo_success_target_and_warnings()
@@ -297,7 +300,7 @@ class HassetteCLIClient:
             if instance_index is None
             else f"{APPS_PATH}/{app_key}/instances/{instance_index}/{action}"
         )
-        return self.post(path)
+        return self.post(path, ActionResponse)
 
     def get_with_app_routing(
         self,
