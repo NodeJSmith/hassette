@@ -261,6 +261,7 @@ def test_decreased_behavior(old: str | int, new: str | int, expected: bool) -> N
         pytest.param(CrossedAbove(25), "24", "unknown", False, id="above_numeric_to_unknown"),
         pytest.param(CrossedAbove(25), MISSING_VALUE, "26", False, id="above_missing_old"),
         pytest.param(CrossedAbove(25), None, "26", False, id="above_none_old"),
+        pytest.param(CrossedAbove(0.5), False, True, False, id="above_bool_values"),
         pytest.param(CrossedBelow(20), "21", "19", True, id="below_normal_crossing"),
         pytest.param(CrossedBelow(20), "20", "19.9", True, id="below_from_exactly_threshold"),
         pytest.param(CrossedBelow(20), "21", "20", False, id="below_reaching_threshold_is_not_below"),
@@ -271,6 +272,7 @@ def test_decreased_behavior(old: str | int, new: str | int, expected: bool) -> N
         pytest.param(CrossedBelow(20), "21", "unknown", False, id="below_numeric_to_unknown"),
         pytest.param(CrossedBelow(20), MISSING_VALUE, "19", False, id="below_missing_old"),
         pytest.param(CrossedBelow(20), None, "19", False, id="below_none_old"),
+        pytest.param(CrossedBelow(0.5), True, False, False, id="below_bool_values"),
     ],
 )
 def test_crossed_threshold_behavior(

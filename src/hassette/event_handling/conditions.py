@@ -551,6 +551,7 @@ class CrossedAbove:
     Fires only on the transition: the old value is at or below the threshold and the new value is above it. Later
     updates that stay above the threshold do not fire again. A missing or non-numeric old or new value (such as
     ``unavailable`` or ``unknown``) never fires, so ``unavailable`` → ``26`` does not count as a crossing.
+    Boolean values never fire either, so an attribute flipping ``False`` → ``True`` is not read as ``0`` → ``1``.
 
     Expected to be used with predicates that provide both old and new values, such as StateComparison and
     AttrComparison.
@@ -565,6 +566,8 @@ class CrossedAbove:
     """Value the reading must rise above."""
 
     def __call__(self, old_value: Any, new_value: Any) -> bool:
+        if isinstance(old_value, bool) or isinstance(new_value, bool):
+            return False
         try:
             return float(old_value) <= self.threshold < float(new_value)
         except (TypeError, ValueError):
@@ -580,7 +583,7 @@ class CrossedBelow:
 
     Fires only on the transition: the old value is at or above the threshold and the new value is below it. Later
     updates that stay below the threshold do not fire again. A missing or non-numeric old or new value (such as
-    ``unavailable`` or ``unknown``) never fires.
+    ``unavailable`` or ``unknown``) never fires, and neither does a boolean value.
 
     Expected to be used with predicates that provide both old and new values, such as StateComparison and
     AttrComparison.
@@ -595,6 +598,8 @@ class CrossedBelow:
     """Value the reading must fall below."""
 
     def __call__(self, old_value: Any, new_value: Any) -> bool:
+        if isinstance(old_value, bool) or isinstance(new_value, bool):
+            return False
         try:
             return float(old_value) >= self.threshold > float(new_value)
         except (TypeError, ValueError):

@@ -86,7 +86,7 @@ Supported operators: `">"`, `"<"`, `">="`, `"<="`, `"=="`, `"!="`, and their nam
 --8<-- "pages/core-concepts/bus/snippets/filtering/threshold_crossing.py:threshold_crossing"
 ```
 
-A reading of 24.8, then 25.1, then 25.3 fires the handler once, on the move to 25.1. A non-numeric old or new state, such as `"unavailable"`, never counts as a crossing. So `"unavailable"` → `26` doesn't fire. To act on a reading that is already past the threshold, use `C.Comparison` in `changed_to=`.
+A reading of 24.8, then 25.1, then 25.3 fires the handler once, on the move to 25.1. A non-numeric old or new state, such as `"unavailable"`, never counts as a crossing. So `"unavailable"` → `26` doesn't fire. `C.Comparison` in `changed_to=` matches readings that are already past the threshold.
 
 The full conditions table, including string matching, collection membership, and null checks, is on the [Predicate Reference](predicate-reference.md) page.
 
