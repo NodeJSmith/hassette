@@ -33,6 +33,28 @@ BASE_CONTAINER_ENV = {
     "HASSETTE__BASE_URL": "http://test",
 }
 NO_RETRY = {"HASSETTE_DOCKER_RETRY_DELAY": "0"}
+# What the add-on glue sets (design/specs/129-ha-addon-v01 D4)
+ADDON = {"HASSETTE_DOCKER_RUNTIME": "addon", "HASSETTE_DOCKER_PRUNE_UV_CACHE": "0", **NO_RETRY}
+# With `--network none`, uv fails a fetch at once instead of retrying it for ~25s
+UV_FAIL_FAST = {"UV_HTTP_RETRIES": "0"}
+ADDON_REMEDY = "restart the add-on from its page"
+DEGRADED_BANNER = "HASSETTE IS STARTING WITHOUT SOME DEPENDENCIES"
+OFFLINE_RETRY_MESSAGE = "retrying from the uv cache (--offline)"
+# A uv stand-in that fails every online run with uv's connection error and passes --offline runs to the real uv,
+# so a test can exercise the offline retry without a stale cache (uv trusts a freshly cached index page offline).
+# It's mounted over /app/.venv/bin/uv, which the activated venv puts ahead of the image's real uv at /bin/uv. The
+# error text must match UV_NETWORK_ERROR_PATTERN in scripts/docker_start.sh.
+NETWORK_DOWN_UV_SHIM = """#!/bin/sh
+for arg in "$@"; do
+    [ "$arg" = "--offline" ] && exec /bin/uv "$@"
+done
+echo "error: Request failed after 3 retries"
+echo "  Caused by: Failed to fetch: \\`https://pypi.org/simple/pydantic/\\`"
+echo "  Caused by: error sending request for url (https://pypi.org/simple/pydantic/)"
+exit 2
+"""
+# A wheel URL that returns 404: uv prints "Failed to fetch" for it too, but it's a dependency error, not the network
+MISSING_WHEEL_REQUIREMENT = "foo @ https://files.pythonhosted.org/packages/xx/nope/foo-1.0-py3-none-any.whl"
 
 # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
 CONFLICTING_REQUIREMENT = "aiohttp==3.0.0"
@@ -53,17 +75,25 @@ def run_hassette_container(
     name: str | None = None,
     remove: bool = True,
     args: list[str] | None = None,
+    network: str | None = None,
+    detach: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], str]:
     """Run the hassette Docker image with `args` (default ``--check``), returning (result, combined output).
 
     Pass ``name`` and ``remove=False`` to keep the stopped container around for inspection
-    (e.g. via ``docker diff``) instead of letting ``--rm`` discard it on exit.
+    (e.g. via ``docker diff``) instead of letting ``--rm`` discard it on exit. ``network="none"``
+    cuts the container off from the package index. ``detach=True`` returns once the container starts,
+    with the container ID as the output; read its log with ``docker_logs(name)``.
     """
     cmd = ["docker", "run"]
     if remove:
         cmd.append("--rm")
+    if detach:
+        cmd.append("-d")
     if name:
         cmd.extend(["--name", name])
+    if network:
+        cmd.extend(["--network", network])
     for vol in volumes or []:
         cmd.extend(["-v", vol])
     merged_env = {**BASE_CONTAINER_ENV, **(env or {})}
@@ -75,11 +105,13 @@ def run_hassette_container(
 
 
 def run_requirements_container(
-    apps_dir: Path, *, env: dict[str, str] | None = None
+    apps_dir: Path, *, env: dict[str, str] | None = None, network: str | None = None
 ) -> tuple[subprocess.CompletedProcess[str], str]:
     """Run the container with INSTALL_DEPS=1 and apps mounted read-only at /config/apps."""
     return run_hassette_container(
-        volumes=[f"{apps_dir}:/config/apps:ro"], env={"HASSETTE_DOCKER_INSTALL_DEPS": "1", **(env or {})}
+        volumes=[f"{apps_dir}:/config/apps:ro"],
+        env={"HASSETTE_DOCKER_INSTALL_DEPS": "1", **(env or {})},
+        network=network,
     )
 
 
@@ -508,34 +540,197 @@ def test_docker_config_dir_arg_reaches_both_invocations(tmp_path: Path):
     assert "CONFIG_DIR=/alt" in output
 
 
-def test_docker_stop_ends_a_halt_promptly():
-    """The halt's idle is interruptible: `docker stop` returns well before the stop timeout."""
-    container_name = f"hassette-halt-stop-test-{os.getpid()}"
+def stop_container_once_logged(container_name: str, marker: str) -> tuple[float, int]:
+    """Wait for `marker` in the container's log, then `docker stop` it.
+
+    Returns:
+        (seconds the stop took, the container's exit code)
+    """
+    deadline = time.monotonic() + CONTAINER_TIMEOUT
+    while marker not in (logs := docker_logs(container_name)):
+        assert time.monotonic() < deadline, logs
+        time.sleep(0.5)
+
+    started = time.monotonic()
+    subprocess.run(
+        ["docker", "stop", "-t", str(DOCKER_STOP_GRACE_SECS), container_name],
+        check=True,
+        capture_output=True,
+        timeout=CONTAINER_TIMEOUT,
+    )
+    stop_secs = time.monotonic() - started
+    exit_code = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.ExitCode}}", container_name],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=DOCKER_CLEANUP_TIMEOUT,
+    ).stdout.strip()
+    return stop_secs, int(exit_code)
+
+
+def test_docker_stop_ends_a_halt_promptly_with_exit_0():
+    """The halt's idle is interruptible: `docker stop` returns well before the stop timeout, and exits 0."""
+    container_name = f"hassette-halt-stop-test-{uuid.uuid4().hex[:12]}"
     try:
-        subprocess.run(
-            [
-                "docker", "run", "-d", "--name", container_name,
-                "-e", "HASSETTE__APP_DIR=/apps", "-e", "HASSETTE_DOCKER_RETRY_DELAY=300",
-                DOCKER_IMAGE, "--check",
-            ],
-            check=True, capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT,
-        )  # fmt: skip
-        deadline = time.monotonic() + CONTAINER_TIMEOUT
-        while "HASSETTE CAN'T START" not in (logs := docker_logs(container_name)):
-            assert time.monotonic() < deadline, logs
-            time.sleep(0.5)
-
-        started = time.monotonic()
-        subprocess.run(
-            ["docker", "stop", "-t", str(DOCKER_STOP_GRACE_SECS), container_name],
-            check=True,
-            capture_output=True,
-            timeout=CONTAINER_TIMEOUT,
+        run_hassette_container(
+            name=container_name,
+            remove=False,
+            detach=True,
+            env={"HASSETTE__APP_DIR": "/apps", "HASSETTE_DOCKER_RETRY_DELAY": "300"},
         )
+        stop_secs, exit_code = stop_container_once_logged(container_name, "HASSETTE CAN'T START")
 
-        assert time.monotonic() - started < MAX_HALT_STOP_SECS
+        assert stop_secs < MAX_HALT_STOP_SECS
+        assert exit_code == 0
     finally:
         subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
+
+
+def test_docker_stop_during_the_install_exits_0_promptly(tmp_path: Path):
+    """A stop mid-install ends the install at once and exits 0, not 143 (Supervisor logs 143 as a failure)."""
+    apps_dir = tmp_path / "apps"
+    apps_dir.mkdir()
+    (apps_dir / "requirements.txt").write_text("tabulate\n")
+    container_name = f"hassette-install-stop-test-{uuid.uuid4().hex[:12]}"
+    try:
+        # With no network and uv's default retries, the install keeps retrying the index for ~25s
+        run_hassette_container(
+            volumes=[f"{apps_dir}:/config/apps:ro"],
+            env={"HASSETTE_DOCKER_INSTALL_DEPS": "1"},
+            name=container_name,
+            remove=False,
+            detach=True,
+            network="none",
+        )
+        stop_secs, exit_code = stop_container_once_logged(container_name, "Installing requirements from")
+
+        assert stop_secs < MAX_HALT_STOP_SECS
+        assert exit_code == 0
+        # the stop landed mid-install, not after the install had already failed into the halt idle
+        assert "HASSETTE CAN'T START" not in docker_logs(container_name)
+    finally:
+        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
+
+
+def write_requirements(tmp_path: Path, requirement: str) -> Path:
+    """Create ``tmp_path/apps`` holding a one-line requirements.txt, and return the apps dir."""
+    apps_dir = tmp_path / "apps"
+    apps_dir.mkdir()
+    (apps_dir / "requirements.txt").write_text(f"{requirement}\n")
+    return apps_dir
+
+
+def test_addon_network_failure_retries_offline_from_the_cache(tmp_path: Path):
+    """Under the add-on, a network failure retries the install with --offline, and a passing retry starts normally."""
+    # pydantic is in the image's venv, so the offline retry passes with an empty cache
+    apps_dir = write_requirements(tmp_path, "pydantic")
+    shim = tmp_path / "uv"
+    shim.write_text(NETWORK_DOWN_UV_SHIM)
+    shim.chmod(0o755)
+
+    result, output = run_hassette_container(
+        volumes=[f"{apps_dir}:/config/apps:ro", f"{shim}:/app/.venv/bin/uv:ro"],
+        env={"HASSETTE_DOCKER_INSTALL_DEPS": "1", **ADDON},
+    )
+
+    assert result.returncode == 0, output
+    assert OFFLINE_RETRY_MESSAGE in output
+    assert "Installed from the uv cache." in output
+    assert DEGRADED_BANNER not in output
+
+
+def test_addon_failed_offline_retry_starts_degraded_with_a_banner(tmp_path: Path):
+    """Under the add-on, with no network and nothing cached, hassette still starts and the banner names the install."""
+    apps_dir = write_requirements(tmp_path, "tabulate")
+
+    result, output = run_hassette_container(
+        volumes=[f"{apps_dir}:/config/apps:ro"],
+        env={"HASSETTE_DOCKER_INSTALL_DEPS": "1", **ADDON, **UV_FAIL_FAST},
+        network="none",
+    )
+
+    assert result.returncode == 0, output
+    assert OFFLINE_RETRY_MESSAGE in output
+    assert DEGRADED_BANNER in output
+    assert "    - /config/apps/requirements.txt" in output
+    assert "HASSETTE CAN'T START" not in output
+
+
+def test_addon_failed_offline_retry_skips_the_rest_of_the_project_install(docker_project_dir: Path):
+    """A project step skipped offline stops the later project steps, and later installs go straight to --offline."""
+    create_project_package(docker_project_dir, project_pyproject(["tabulate>=0.9"]))
+    (docker_project_dir / "apps").mkdir()
+    (docker_project_dir / "apps" / "requirements.txt").write_text("requests-toolbelt\n")  # not in the image's venv
+
+    result, output = run_hassette_container(
+        volumes=[f"{docker_project_dir}:/config"],
+        env={"HASSETTE_DOCKER_INSTALL_DEPS": "1", **ADDON, **UV_FAIL_FAST},
+        network="none",
+        timeout=PROJECT_CONTAINER_TIMEOUT,
+    )
+
+    assert result.returncode == 0, output
+    assert "    - your project (/config/uv.lock)" in output
+    assert "    - /config/apps/requirements.txt" in output
+    assert "project install: installing project package" not in output
+    assert "project install: complete" not in output
+    assert output.count(OFFLINE_RETRY_MESSAGE) == 1, output
+    assert "The package index was unreachable earlier" in output
+
+
+def test_addon_http_error_status_halts_instead_of_starting_degraded(tmp_path: Path):
+    """A 404 dependency URL is a dependency error, not the network: it halts under the add-on, with no offline retry."""
+    apps_dir = write_requirements(tmp_path, MISSING_WHEEL_REQUIREMENT)
+
+    result, output = run_requirements_container(apps_dir, env=ADDON)
+
+    assert result.returncode == 1, output
+    assert "HASSETTE CAN'T START" in output
+    assert OFFLINE_RETRY_MESSAGE not in output
+
+
+def test_unrecognized_runtime_warns_and_keeps_docker_behavior():
+    """An unknown HASSETTE_DOCKER_RUNTIME value is named in a warning, and the Docker remedies apply."""
+    result, output = run_hassette_container(
+        env={"HASSETTE_DOCKER_RUNTIME": "add-on", "HASSETTE__APP_DIR": "/apps", **NO_RETRY}
+    )
+
+    assert result.returncode == 78, output
+    assert "HASSETTE_DOCKER_RUNTIME='add-on' is not recognized" in output
+    assert "docker compose up -d" in output
+
+
+def test_docker_network_failure_still_halts_without_an_offline_retry(tmp_path: Path):
+    """Without the add-on runtime, a network failure halts as before: no offline retry, no degraded start."""
+    apps_dir = write_requirements(tmp_path, "tabulate")
+
+    result, output = run_requirements_container(apps_dir, env={**NO_RETRY, **UV_FAIL_FAST}, network="none")
+
+    assert result.returncode == 1, output
+    assert "HASSETTE CAN'T START" in output
+    assert OFFLINE_RETRY_MESSAGE not in output
+
+
+def test_addon_constraint_conflict_halts_without_an_offline_retry(tmp_path: Path):
+    """A resolution conflict halts under the add-on too, with the add-on remedy and no offline retry."""
+    apps_dir = write_requirements(tmp_path, CONFLICTING_REQUIREMENT)
+
+    result, output = run_requirements_container(apps_dir, env=ADDON)
+
+    assert result.returncode == 1, output
+    assert "DEPENDENCY CONFLICT" in output
+    assert ADDON_REMEDY in output
+    assert OFFLINE_RETRY_MESSAGE not in output
+
+
+def test_addon_config_error_gets_the_addon_remedy():
+    """Under the add-on, a config error still halts with exit 78, and the remedy names the add-on page."""
+    result, output = run_hassette_container(env={"HASSETTE__APP_DIR": "/apps", **ADDON})
+
+    assert result.returncode == 78, output
+    assert ADDON_REMEDY in output
+    assert "docker compose" not in output
 
 
 def docker_logs(container_name: str) -> str:
