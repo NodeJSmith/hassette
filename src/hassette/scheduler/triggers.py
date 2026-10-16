@@ -543,10 +543,14 @@ class EntityTime:
         Always ``False`` for ``daily``: there ``run`` is a time-of-day slot, so subtracting the
         offset doesn't recover the entity's time, and a rolled-over value still maps to today's
         slot anyway.
+
+        ``run`` was rounded to the nearest second, so the recovered time can sit up to half a
+        second after the entity's real one (``sun.sun`` reports microseconds). Rounding
+        ``current_time`` up to the next second absorbs that.
         """
         if run is None or self.daily or self.offset <= TimeDelta():
             return False
-        return run.subtract(seconds=self.offset.total("seconds")) <= current_time
+        return run.subtract(seconds=self.offset.total("seconds")) <= current_time.round("second", mode="ceil")
 
     def first_run_time(self, current_time: ZonedDateTime) -> "ZonedDateTime | _WaitingSentinel":
         """Return the entity's next time, or :data:`WAITING` when it has none right now."""
