@@ -194,6 +194,8 @@ class JobSummary(BaseModel):
     last_error_traceback: str | None = None
     """Traceback from the most recent error or timeout within the query window. None when there is none,
     or when that row recorded no traceback (timeouts never do)."""
+    last_error_execution_id: str | None = None
+    """``execution_id`` of the most recent error or timeout within the query window, or None."""
     min_duration_ms: float | None = None
     """Minimum duration in milliseconds across non-skipped executions. None means no non-skipped executions."""
     max_duration_ms: float | None = None
@@ -260,6 +262,8 @@ class ListenerSummary(BaseModel):
     last_error_message: str | None = None
     last_error_type: str | None = None
     last_error_traceback: str | None = None
+    last_error_execution_id: str | None = None
+    """``execution_id`` of the most recent error or timeout within the query window, or None."""
     timed_out: int = 0
     thread_leaked: int = 0
     source_location: str = ""

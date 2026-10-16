@@ -4165,6 +4165,18 @@
             "title": "Last Error Traceback",
             "description": "Traceback from the most recent error or timeout within the query window. None when there is none,\nor when that row recorded no traceback (timeouts never do)."
           },
+          "last_error_execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Execution Id",
+            "description": "``execution_id`` of the most recent error or timeout within the query window, or None."
+          },
           "min_duration_ms": {
             "anyOf": [
               {
@@ -4489,6 +4501,18 @@
               }
             ],
             "title": "Last Error Traceback"
+          },
+          "last_error_execution_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error Execution Id",
+            "description": "``execution_id`` of the most recent error or timeout within the query window, or None."
           },
           "timed_out": {
             "type": "integer",

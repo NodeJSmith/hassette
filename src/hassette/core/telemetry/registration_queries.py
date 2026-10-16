@@ -92,7 +92,8 @@ LISTENER_SUMMARY_SOURCE = RegistrationSummarySource(
                 MAX(e.execution_start_ts) AS last_invoked_at,
                 last_err.error_type AS last_error_type,
                 last_err.error_message AS last_error_message,
-                last_err.error_traceback AS last_error_traceback""",
+                last_err.error_traceback AS last_error_traceback,
+                last_err.execution_id AS last_error_execution_id""",
 )
 
 JOB_SUMMARY_SOURCE = RegistrationSummarySource(
@@ -136,7 +137,8 @@ JOB_SUMMARY_SOURCE = RegistrationSummarySource(
                 last_err.error_type AS last_error_type,
                 last_err.error_message AS last_error_message,
                 last_err.execution_start_ts AS last_error_ts,
-                last_err.error_traceback AS last_error_traceback""",
+                last_err.error_traceback AS last_error_traceback,
+                last_err.execution_id AS last_error_execution_id""",
 )
 
 
@@ -282,7 +284,7 @@ def build_registration_summary_query(
     live_filter = "".join(f"\n            AND {alias}.{column} IS NULL" for column in source.tombstone_columns)
     query = f"""
             WITH ranked_errors AS (
-                SELECT e_err.{source.fk_column}, e_err.error_type, e_err.error_message,
+                SELECT e_err.{source.fk_column}, e_err.execution_id, e_err.error_type, e_err.error_message,
                        e_err.error_traceback, e_err.execution_start_ts,
                        ROW_NUMBER() OVER (
                            PARTITION BY e_err.{source.fk_column} ORDER BY e_err.execution_start_ts DESC
