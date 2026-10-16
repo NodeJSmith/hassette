@@ -129,14 +129,15 @@ async def insert_invocation(
     source_tier: str = "app",
     is_di_failure: int = 0,
     thread_leaked: int = 0,
+    execution_id: str | None = None,
 ) -> int:
     ts = execution_start_ts if execution_start_ts is not None else time.time()
     cursor = await db_svc.db.execute(
         """INSERT INTO executions
                (kind, listener_id, session_id, execution_start_ts, duration_ms,
                 status, error_type, error_message, error_traceback, source_tier, is_di_failure,
-                thread_leaked)
-           VALUES ('handler', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                thread_leaked, execution_id)
+           VALUES ('handler', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             listener_id,
             session_id,
@@ -149,6 +150,7 @@ async def insert_invocation(
             source_tier,
             is_di_failure,
             thread_leaked,
+            execution_id,
         ),
     )
     return await commit_returning_id(db_svc, cursor)
@@ -228,6 +230,7 @@ def assert_no_last_error(row: Any) -> None:
     assert row.last_error_type is None
     assert row.last_error_message is None
     assert row.last_error_traceback is None
+    assert row.last_error_execution_id is None
     if hasattr(row, "last_error_ts"):
         assert row.last_error_ts is None
 
@@ -303,14 +306,15 @@ async def insert_execution(
     source_tier: str = "app",
     is_di_failure: int = 0,
     thread_leaked: int = 0,
+    execution_id: str | None = None,
 ) -> int:
     ts = execution_start_ts if execution_start_ts is not None else time.time()
     cursor = await db_svc.db.execute(
         """INSERT INTO executions
                (kind, job_id, session_id, execution_start_ts, duration_ms,
                 status, error_type, error_message, error_traceback, source_tier, is_di_failure,
-                thread_leaked)
-           VALUES ('job', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                thread_leaked, execution_id)
+           VALUES ('job', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             job_id,
             session_id,
@@ -323,6 +327,7 @@ async def insert_execution(
             source_tier,
             is_di_failure,
             thread_leaked,
+            execution_id,
         ),
     )
     return await commit_returning_id(db_svc, cursor)

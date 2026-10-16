@@ -60,6 +60,8 @@ class ListenerSummaryRow(BaseModel):
     last_error_type: str | None
     last_error_message: str | None
     last_error_traceback: str | None = None
+    last_error_execution_id: str | None = None
+    """``execution_id`` of the most recent error or timeout within the query window, or None."""
 
 
 class SlowHandlerRecord(BaseModel):

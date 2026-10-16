@@ -1562,6 +1562,11 @@ export interface components {
              */
             last_error_traceback?: string | null;
             /**
+             * Last Error Execution Id
+             * @description ``execution_id`` of the most recent error or timeout within the query window, or None.
+             */
+            last_error_execution_id?: string | null;
+            /**
              * Min Duration Ms
              * @description Minimum duration in milliseconds across non-skipped executions. None means no non-skipped executions.
              */
@@ -1712,6 +1717,11 @@ export interface components {
             last_error_type?: string | null;
             /** Last Error Traceback */
             last_error_traceback?: string | null;
+            /**
+             * Last Error Execution Id
+             * @description ``execution_id`` of the most recent error or timeout within the query window, or None.
+             */
+            last_error_execution_id?: string | null;
             /**
              * Timed Out
              * @default 0

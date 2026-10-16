@@ -172,6 +172,29 @@ class TestGetListenerSummary:
         row = await only_row(query_service.get_listener_summary("test_app", 0))
         assert row.last_error_traceback is None
 
+    async def test_get_listener_summary_last_error_execution_id(
+        self, query_service: TelemetryQueryService, db: DbFixture
+    ) -> None:
+        """last_error_execution_id is the failed execution's id, even after a later success."""
+        db_svc, session_id = db
+        failing_id = await insert_listener(db_svc, handler_method="on_err")
+
+        await insert_invocation(
+            db_svc,
+            failing_id,
+            session_id,
+            status="error",
+            error_type="ValueError",
+            execution_start_ts=BASE_TS + 1.0,
+            execution_id="exec-failed",
+        )
+        await insert_invocation(
+            db_svc, failing_id, session_id, execution_start_ts=BASE_TS + 2.0, execution_id="exec-later-ok"
+        )
+
+        row = await only_row(query_service.get_listener_summary("test_app", 0))
+        assert row.last_error_execution_id == "exec-failed"
+
 
 class TestListenerSummaryLastErrorRowCoherence:
     """Verify that last_error_* fields all come from the same invocation row (row coherence)."""
