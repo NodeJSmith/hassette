@@ -82,7 +82,7 @@ Target: the shared shells (`Panel`, `TableCard`, `StatsStrip` frame, login/sessi
 
 ### 11. Small fixes found along the way
 
-- Relative times that never refresh (no `useRelativeTime`/tick): `recent-activity-section.tsx:97`, `execution-table.tsx:146`, `loop-stalls-panel.tsx:24`. A bug regardless of redesign.
+- Relative times formatted with `formatRelativeTime` directly instead of `useRelativeTime`, so they refresh only if an ancestor subscribes to the store tick: `recent-activity-section.tsx:97` (its section subscribes, so it refreshes), `execution-table.tsx:146` and `loop-stalls-panel.tsx:24` (not verified).
 - Local duration formatter `config-schema-view.tsx:187`; hand-built rate `apps.tsx:146`.
 - Empty-state copy casing/periods inconsistent (`handler-health-grid.tsx:29`, palette in `app.tsx:402`); ad-hoc empty text in `execution-logs.tsx:32`, `sidebar.tsx:312`.
 - Mobile nav drawer hand-rolled in `app.tsx:215` (own Escape/focus handling) while `ui/Drawer` exists.
