@@ -61,6 +61,12 @@ MISSING_WHEEL_REQUIREMENT = "foo @ https://files.pythonhosted.org/packages/xx/no
 
 # aiohttp==3.0.0 conflicts with hassette's aiohttp>=3.9 constraint
 CONFLICTING_REQUIREMENT = "aiohttp==3.0.0"
+# pydantic<2 is in no constraint line; it conflicts only through hassette's dependency tree
+TRANSITIVE_CONFLICTING_REQUIREMENT = "pydantic<2"
+CONFLICTING_REQUIREMENTS = [
+    pytest.param(CONFLICTING_REQUIREMENT, id="direct"),
+    pytest.param(TRANSITIVE_CONFLICTING_REQUIREMENT, id="transitive"),
+]
 HATCHLING_BUILD_SYSTEM = '[build-system]\nrequires = ["hatchling"]\nbuild-backend = "hatchling.build"\n'
 
 pytestmark = [
@@ -290,12 +296,13 @@ def test_docker_skips_requirements_by_default(tmp_path: Path):
     assert "Installing requirements from" not in output
 
 
-def test_docker_constraint_conflict(tmp_path: Path):
-    """Test that a requirements.txt conflicting with constraints fails with a clear error."""
+@pytest.mark.parametrize("requirement", CONFLICTING_REQUIREMENTS)
+def test_docker_constraint_conflict(tmp_path: Path, requirement: str):
+    """Test that a requirements.txt conflicting with hassette's dependencies fails with a clear error."""
     apps_dir = tmp_path / "apps"
     apps_dir.mkdir()
 
-    (apps_dir / "requirements.txt").write_text(f"{CONFLICTING_REQUIREMENT}\n")
+    (apps_dir / "requirements.txt").write_text(f"{requirement}\n")
 
     result, output = run_requirements_container(apps_dir, env=NO_RETRY)
 
@@ -438,9 +445,10 @@ def test_docker_project_without_lockfile_warns(docker_project_dir: Path):
     assert "uv lock" in output, f"Expected lockfile warning. Output:\n{output}"
 
 
-def test_docker_project_constraint_conflict(docker_project_dir: Path):
-    """Test that a project whose lockfile conflicts with hassette's constraints fails with a clear error."""
-    create_project_package(docker_project_dir, project_pyproject([CONFLICTING_REQUIREMENT]))
+@pytest.mark.parametrize("requirement", CONFLICTING_REQUIREMENTS)
+def test_docker_project_constraint_conflict(docker_project_dir: Path, requirement: str):
+    """Test that a project whose lockfile conflicts with hassette's dependencies fails with a clear error."""
+    create_project_package(docker_project_dir, project_pyproject([requirement]))
     result, output = run_project_container(docker_project_dir, env=NO_RETRY)
 
     assert result.returncode == 1, f"Expected exit 1 for project constraint conflict. Output:\n{output}"
