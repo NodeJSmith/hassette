@@ -12,7 +12,8 @@ __all__ = [  # packed to stay under the 800-line limit; keep sorted (RUF022) and
     "DomainNotFoundError", "DomainRequiredError",
     "DuplicateListenerError", "EntityNotFoundError", "EntityNotInViewError", "EntityShapeError", "FailedMessageError",
     "FatalError", "HassetteBlockingIOWarning", "HassetteError", "HassetteForgottenAwaitWarning",
-    "HassetteNotInitializedError", "IPV6NotSupportedError", "InvalidAuthError", "InvalidDataForStateConversionError",
+    "HassetteNotInitializedError", "HttpRequestError",
+    "IPV6NotSupportedError", "InvalidAuthError", "InvalidDataForStateConversionError",
     "InvalidEntityIdError", "InvalidInheritanceError", "InvalidLifecycleTransitionError", "JobRemovedError",
     "LifecycleReentryError", "ListenerNameRequiredError", "NoDomainAnnotationError", "OutcomeUnknownError",
     "RegistryNotReadyError", "RegistryValidationError", "ResourceNotReadyError", "ResponseLostError",
@@ -241,6 +242,27 @@ class UndefinedUserConfigError(TypeError, HassetteError):
 
 class EntityNotFoundError(ValueError, HassetteError):
     """Custom error for handling 404 in the Api."""
+
+
+class HttpRequestError(HassetteError):
+    """Raised when a Home Assistant REST request fails with a non-404 HTTP status.
+
+    A 404 raises :class:`EntityNotFoundError` instead. The original
+    ``aiohttp.ClientResponseError`` is chained as ``__cause__``.
+
+    Attributes:
+        status: The HTTP status code Home Assistant returned.
+        message: The HTTP reason phrase from the response.
+        method: The HTTP method of the failed request.
+        url: The request URL, relative to the REST API base.
+    """
+
+    def __init__(self, status: int, message: str, *, method: str, url: str) -> None:
+        self.status = status
+        self.message = message
+        self.method = method
+        self.url = url
+        super().__init__(f"{method} {url} failed with HTTP {status}: {message}")
 
 
 class ResourceNotReadyError(HassetteError):
