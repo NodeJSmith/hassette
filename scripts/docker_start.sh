@@ -14,6 +14,8 @@ log_phase "entrypoint started"
 
 # Script-only settings live outside the HASSETTE__ namespace, which is reserved for Hassette settings.
 INSTALL_DEPS="${HASSETTE_DOCKER_INSTALL_DEPS:-0}"
+# The add-on's python_packages option, one requirement per line; installed only under the add-on (section 3 below)
+PYTHON_PACKAGES="${HASSETTE_DOCKER_PYTHON_PACKAGES:-}"
 PRUNE_UV_CACHE="${HASSETTE_DOCKER_PRUNE_UV_CACHE:-1}"
 RETRY_DELAY="${HASSETTE_DOCKER_RETRY_DELAY:-300}"
 # "addon" under the Home Assistant add-on, whose glue sets it; every add-on-only behavior below is gated on it
@@ -31,6 +33,7 @@ UV_EXPORT_TIMEOUT_SECS=300
 UV_PROJECT_DEPS_TIMEOUT_SECS=300
 UV_PROJECT_PACKAGE_TIMEOUT_SECS=120
 UV_REQUIREMENTS_TIMEOUT_SECS=120
+UV_PYTHON_PACKAGES_TIMEOUT_SECS=120
 REQUIREMENTS_MAX_DEPTH=5
 
 # Directories never needed to build the project package, skipped when copying it to the temp build
@@ -48,7 +51,7 @@ UV_NETWORK_ERROR_PATTERN='error sending request for url|operation timed out'
 
 ISSUES_URL="https://github.com/NodeJSmith/hassette/issues"
 if [ "${RUNTIME}" = "addon" ]; then
-    REMEDY_DEPS="Fix the dependency file named above, then restart the add-on from its page"
+    REMEDY_DEPS="Fix the dependency named above (in its file, or in the add-on's Configuration tab), then restart the add-on from its page"
     REMEDY_CONFIG="Fix the setting named above, then restart the add-on from its page"
     REMEDY_IMAGE="Update or reinstall the add-on; if that doesn't help, report it at ${ISSUES_URL}"
     REMEDY_UNEXPECTED="Check the error above and report it at ${ISSUES_URL}"
@@ -219,7 +222,7 @@ fi
 
 # ── helper: user-facing banner for a failed uv command ──────────────────────
 # Usage: print_install_failure_banner <failure_type>
-# failure_type (valid set): "export" | "project" | "requirements"
+# failure_type (valid set): "export" | "project" | "requirements" | "python_packages"
 print_install_failure_banner() {
     local failure_type="$1"
 
@@ -259,6 +262,17 @@ print_install_failure_banner() {
             echo "  To fix: relax the version pin in your requirements.txt, or"
             echo "  check which version hassette requires:"
             echo "    cat /app/constraints.txt | grep <package>"
+            echo "─────────────────────────────────────────────────────────"
+            ;;
+        python_packages)
+            echo "─────────────────────────────────────────────────────────"
+            echo "  DEPENDENCY CONFLICT"
+            echo ""
+            echo "  A package in the add-on's python_packages option can't be"
+            echo "  installed alongside this version of Hassette (named above)."
+            echo ""
+            echo "  To fix: relax or remove that package's version pin in the"
+            echo "  add-on's Configuration tab."
             echo "─────────────────────────────────────────────────────────"
             ;;
         *)
@@ -307,7 +321,8 @@ run_uv_offline() {
     local timeout_secs="$1" label="$2"
     shift 2
     local exit_code=0
-    wait_interruptibly uv_with_log "${timeout_secs}" /dev/null "$@" --offline || exit_code=$?
+    # --offline is uv's global flag, so it goes before the subcommand: args may end with `-- <requirement...>`
+    wait_interruptibly uv_with_log "${timeout_secs}" /dev/null --offline "$@" || exit_code=$?
     if [ "${exit_code}" -eq 0 ]; then
         echo "Installed from the uv cache."
         return 0
@@ -374,6 +389,8 @@ run_uv_install() {
 
 # ── helper: pip-install user requirements without breaking hassette ─────────
 # Usage: run_uv_pip_install_guarded <timeout_seconds> <failure_type> <label> <pip install args...>
+# The args go last, so they may end with `-- <requirement...>`; anything added to the uv command later (like
+# run_uv_offline's --offline) must go before them.
 # The constraints file only bounds packages the user asks for, so hassette's exact pin is also
 # passed as a requirement: that pulls hassette's full dependency tree (pydantic, hassette-wire, ...)
 # into the resolution, and a user pin that would downgrade any of it fails as a conflict. uv
@@ -383,9 +400,10 @@ run_uv_pip_install_guarded() {
     local timeout_secs="$1" failure_type="$2" label="$3"
     shift 3
 
-    run_uv_install "${timeout_secs}" "${failure_type}" "${label}" pip install "$@" \
+    run_uv_install "${timeout_secs}" "${failure_type}" "${label}" pip install \
         -c "$CONSTRAINTS" \
-        "${HASSETTE_REQUIREMENT}"
+        "${HASSETTE_REQUIREMENT}" \
+        "$@"
 }
 
 HASSETTE_REQUIREMENT=$(grep -m1 '^hassette==' "$CONSTRAINTS" || true)
@@ -475,6 +493,32 @@ else
             ;;
     esac
     log_phase "requirements install: disabled (set HASSETTE_DOCKER_INSTALL_DEPS=1 to enable)"
+fi
+
+# ---------------------------------------------------------------------------
+# 3. The add-on's python_packages option (add-on only). It runs after the project and requirements.txt
+#    installs, so neither can remove or downgrade what it installs.
+# ---------------------------------------------------------------------------
+if [ "${RUNTIME}" = "addon" ]; then
+    python_packages=()
+    while IFS= read -r entry; do
+        if [ -n "${entry}" ]; then python_packages+=("${entry}"); fi
+    done <<< "${PYTHON_PACKAGES}"
+    if [ "${#python_packages[@]}" -gt 0 ]; then
+        log_phase "python_packages install: starting (${#python_packages[@]} package(s))"
+        # Each entry is its own argument after `--`, so none can be read as a uv option. A skip (failed offline
+        # retry) is recorded for the degraded-start banner.
+        if run_uv_pip_install_guarded "$UV_PYTHON_PACKAGES_TIMEOUT_SECS" "python_packages" \
+            "the python_packages option" -- "${python_packages[@]}"; then
+            log_phase "python_packages install: complete"
+        else
+            log_phase "python_packages install: skipped (the offline install failed)"
+        fi
+    else
+        log_phase "python_packages install: skipped (the option is empty)"
+    fi
+elif [ -n "${PYTHON_PACKAGES}" ]; then
+    echo "WARNING: HASSETTE_DOCKER_PYTHON_PACKAGES is ignored outside the Home Assistant add-on; its packages will NOT be installed. Use a uv.lock project, or requirements.txt with HASSETTE_DOCKER_INSTALL_DEPS=1."
 fi
 
 if [ "${PRUNE_UV_CACHE}" = "1" ]; then

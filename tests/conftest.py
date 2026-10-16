@@ -84,6 +84,8 @@ pytest_plugins: list[str] = [
     "hassette.testing.fixtures",
     "tests.support.fixtures",
     "tests.support.resource_tracker",
+    # docker_project_dir, for the Docker entrypoint tests (tests/test_docker_*.py)
+    "tests.support.docker",
     # Saves each process's coverage during the run instead of leaving it to atexit, which xdist
     # may kill a worker before it reaches. Registered here rather than passed as `-p` from the
     # noxfile because pytest resolves `-p` before the repo root is on sys.path. No-ops unless
