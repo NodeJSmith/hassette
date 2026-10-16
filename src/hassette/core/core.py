@@ -31,6 +31,7 @@ from hassette.state_manager import StateManager
 from hassette.task_bucket import TaskBucket, make_task_factory
 from hassette.utils.app_utils import apps_dir_warning, run_apps_pre_check
 from hassette.utils.service_utils import topological_levels, topological_sort, validate_dependency_graph, wait_for_ready
+from hassette.utils.version_utils import get_version
 
 from .api_resource import ApiResource
 from .app_bootstrap_coordinator import AppBootstrapCoordinator
@@ -196,7 +197,11 @@ class Hassette(HassetteAccessorsMixin, Resource):
 
         Must be called after construction and before run_forever().
         """
-        self.logger.info("Starting Hassette... (%.2fs since hassette import)", startup_clock.seconds_since_import())
+        self.logger.info(
+            "Starting Hassette v%s... (%.2fs since hassette import)",
+            get_version(),
+            startup_clock.seconds_since_import(),
+        )
 
         date_utils.configure(self.config.timezone)
         if self.config.timezone:
