@@ -13,7 +13,9 @@ import tempfile
 import time
 import uuid
 from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -38,6 +40,7 @@ ADDON = {"HASSETTE_DOCKER_RUNTIME": "addon", "HASSETTE_DOCKER_PRUNE_UV_CACHE": "
 # With `--network none`, uv fails a fetch at once instead of retrying it for ~25s
 UV_FAIL_FAST = {"UV_HTTP_RETRIES": "0"}
 ADDON_REMEDY = "restart the add-on from its page"
+HALT_BANNER = "HASSETTE CAN'T START"
 DEGRADED_BANNER = "HASSETTE IS STARTING WITHOUT SOME DEPENDENCIES"
 OFFLINE_RETRY_MESSAGE = "retrying from the uv cache (--offline)"
 # A uv stand-in that fails every online run with uv's connection error and passes --offline runs to the real uv,
@@ -298,7 +301,7 @@ def test_docker_constraint_conflict(tmp_path: Path):
 
     assert result.returncode == 1, f"Expected exit 1 for conflict. Output:\n{output}"
     assert "DEPENDENCY CONFLICT" in output, f"Expected DEPENDENCY CONFLICT banner. Output:\n{output}"
-    assert "HASSETTE CAN'T START" in output
+    assert HALT_BANNER in output
 
 
 def project_pyproject(dependencies: list[str] | None = None, *, build_system: bool = True) -> str:
@@ -485,7 +488,7 @@ def test_docker_config_error_halts_with_exit_78():
 
     assert result.returncode == 78, output
     assert "HASSETTE__APP_DIR (from environment)" in output
-    assert "HASSETTE CAN'T START" in output
+    assert HALT_BANNER in output
     assert "docker compose up -d" in output
     assert "project install" not in output
 
@@ -509,7 +512,7 @@ def test_docker_help_and_version_skip_the_check(flag: str):
     result, output = run_hassette_container(env={"HASSETTE__APP_DIR": "/apps", **NO_RETRY}, args=[flag])
 
     assert result.returncode == 0, output
-    assert "HASSETTE CAN'T START" not in output
+    assert HALT_BANNER not in output
     assert "project install" not in output
 
 
@@ -569,46 +572,13 @@ def stop_container_once_logged(container_name: str, marker: str) -> tuple[float,
     return stop_secs, int(exit_code)
 
 
-def test_docker_stop_ends_a_halt_promptly_with_exit_0():
-    """The halt's idle is interruptible: `docker stop` returns well before the stop timeout, and exits 0."""
-    container_name = f"hassette-halt-stop-test-{uuid.uuid4().hex[:12]}"
+@contextmanager
+def detached_container(**kwargs: Any) -> Iterator[str]:
+    """Start a detached container (``run_hassette_container`` kwargs) and yield its name; it's removed on exit."""
+    container_name = f"hassette-detached-test-{uuid.uuid4().hex[:12]}"
     try:
-        run_hassette_container(
-            name=container_name,
-            remove=False,
-            detach=True,
-            env={"HASSETTE__APP_DIR": "/apps", "HASSETTE_DOCKER_RETRY_DELAY": "300"},
-        )
-        stop_secs, exit_code = stop_container_once_logged(container_name, "HASSETTE CAN'T START")
-
-        assert stop_secs < MAX_HALT_STOP_SECS
-        assert exit_code == 0
-    finally:
-        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
-
-
-def test_docker_stop_during_the_install_exits_0_promptly(tmp_path: Path):
-    """A stop mid-install ends the install at once and exits 0, not 143 (Supervisor logs 143 as a failure)."""
-    apps_dir = tmp_path / "apps"
-    apps_dir.mkdir()
-    (apps_dir / "requirements.txt").write_text("tabulate\n")
-    container_name = f"hassette-install-stop-test-{uuid.uuid4().hex[:12]}"
-    try:
-        # With no network and uv's default retries, the install keeps retrying the index for ~25s
-        run_hassette_container(
-            volumes=[f"{apps_dir}:/config/apps:ro"],
-            env={"HASSETTE_DOCKER_INSTALL_DEPS": "1"},
-            name=container_name,
-            remove=False,
-            detach=True,
-            network="none",
-        )
-        stop_secs, exit_code = stop_container_once_logged(container_name, "Installing requirements from")
-
-        assert stop_secs < MAX_HALT_STOP_SECS
-        assert exit_code == 0
-        # the stop landed mid-install, not after the install had already failed into the halt idle
-        assert "HASSETTE CAN'T START" not in docker_logs(container_name)
+        run_hassette_container(name=container_name, remove=False, detach=True, **kwargs)
+        yield container_name
     finally:
         subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, timeout=DOCKER_CLEANUP_TIMEOUT)
 
@@ -619,6 +589,31 @@ def write_requirements(tmp_path: Path, requirement: str) -> Path:
     apps_dir.mkdir()
     (apps_dir / "requirements.txt").write_text(f"{requirement}\n")
     return apps_dir
+
+
+def test_docker_stop_ends_a_halt_promptly_with_exit_0():
+    """The halt's idle is interruptible: `docker stop` returns well before the stop timeout, and exits 0."""
+    with detached_container(env={"HASSETTE__APP_DIR": "/apps", "HASSETTE_DOCKER_RETRY_DELAY": "300"}) as name:
+        stop_secs, exit_code = stop_container_once_logged(name, HALT_BANNER)
+
+    assert stop_secs < MAX_HALT_STOP_SECS
+    assert exit_code == 0
+
+
+def test_docker_stop_during_the_install_exits_0_promptly(tmp_path: Path):
+    """A stop mid-install ends the install at once and exits 0, not 143 (Supervisor logs 143 as a failure)."""
+    apps_dir = write_requirements(tmp_path, "tabulate")
+    # With no network and uv's default retries, the install keeps retrying the index for ~25s
+    with detached_container(
+        volumes=[f"{apps_dir}:/config/apps:ro"], env={"HASSETTE_DOCKER_INSTALL_DEPS": "1"}, network="none"
+    ) as name:
+        stop_secs, exit_code = stop_container_once_logged(name, "Installing requirements from")
+        logs = docker_logs(name)
+
+    assert stop_secs < MAX_HALT_STOP_SECS
+    assert exit_code == 0
+    # the stop landed mid-install, not after the install had already failed into the halt idle
+    assert HALT_BANNER not in logs
 
 
 def test_addon_network_failure_retries_offline_from_the_cache(tmp_path: Path):
@@ -654,7 +649,7 @@ def test_addon_failed_offline_retry_starts_degraded_with_a_banner(tmp_path: Path
     assert OFFLINE_RETRY_MESSAGE in output
     assert DEGRADED_BANNER in output
     assert "    - /config/apps/requirements.txt" in output
-    assert "HASSETTE CAN'T START" not in output
+    assert HALT_BANNER not in output
 
 
 def test_addon_failed_offline_retry_skips_the_rest_of_the_project_install(docker_project_dir: Path):
@@ -686,7 +681,7 @@ def test_addon_http_error_status_halts_instead_of_starting_degraded(tmp_path: Pa
     result, output = run_requirements_container(apps_dir, env=ADDON)
 
     assert result.returncode == 1, output
-    assert "HASSETTE CAN'T START" in output
+    assert HALT_BANNER in output
     assert OFFLINE_RETRY_MESSAGE not in output
 
 
@@ -708,7 +703,7 @@ def test_docker_network_failure_halts_as_a_network_error(tmp_path: Path):
     result, output = run_requirements_container(apps_dir, env={**NO_RETRY, **UV_FAIL_FAST}, network="none")
 
     assert result.returncode == 1, output
-    assert "HASSETTE CAN'T START: the package index couldn't be reached" in output
+    assert f"{HALT_BANNER}: the package index couldn't be reached" in output
     assert "Check the container's network access" in output
     assert "DEPENDENCY CONFLICT" not in output
     assert OFFLINE_RETRY_MESSAGE not in output

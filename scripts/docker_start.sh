@@ -59,9 +59,10 @@ else
     REMEDY_IMAGE="Pull the image again: docker compose pull && docker compose up -d"
     REMEDY_UNEXPECTED="Check the error above: fix the container's command arguments if it names one,
   otherwise report it at ${ISSUES_URL}"
-    # the add-on never halts on a network failure: it installs from the uv cache or starts degraded instead
-    REMEDY_NETWORK="Check the container's network access (DNS and the route to the package index)"
 fi
+# Only Docker halts on a network failure (the add-on installs from the uv cache or starts degraded), but it's set
+# for both so a future add-on halt can't trip set -u
+REMEDY_NETWORK="Check the container's network access (DNS and the route to the package index)"
 EX_CONFIG=78  # EX_CONFIG in hassette/cli/commands/run.py; a test keeps them in sync
 # Args that make `hassette run` print and exit instead of starting: cyclopts' help flags and the
 # root app's version_flags (hassette/cli/__init__.py). A test keeps this list in sync.
