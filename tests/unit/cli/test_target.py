@@ -320,7 +320,7 @@ class TestResolvedCredentialSource:
         assert "web_api.auth_token" in result.source
         assert "this machine's instance" in result.source
 
-    def test_data_dir_token_file_names_the_concrete_path(self, tmp_path: Path) -> None:
+    def test_web_api_token_file_names_the_concrete_path(self, tmp_path: Path) -> None:
         """The companion trap: a second local instance gets this machine's token file attached.
 
         The 401 can only distinguish that from a plain bad token if the source names the file.
@@ -331,6 +331,20 @@ class TestResolvedCredentialSource:
         target = resolve_server_target(config)
         result = resolve_cli_auth_token(config, target)
         assert result is not None
+        assert "web_api.token_file" in result.source
+        assert str(token_path) in result.source
+
+    def test_configured_web_api_token_file_is_read_instead_of_data_dir(self, tmp_path: Path) -> None:
+        """The CLI reads the same file the server writes when ``web_api.token_file`` moves it."""
+        (tmp_path / TOKEN_FILENAME).write_text("data-dir-token", encoding="utf-8")
+        token_path = tmp_path / "elsewhere" / "token"
+        token_path.parent.mkdir()
+        token_path.write_text("configured-file-token", encoding="utf-8")
+        config = make_cli_config(data_dir=tmp_path, web_api_token_file=token_path)
+        target = resolve_server_target(config)
+        result = resolve_cli_auth_token(config, target)
+        assert result is not None
+        assert result.token == "configured-file-token"
         assert str(token_path) in result.source
 
 

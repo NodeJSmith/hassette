@@ -27,7 +27,7 @@ from hassette.cli.exceptions import (
 )
 from hassette.config.config import HassetteConfig
 from hassette.utils.net_utils import format_host, is_loopback_host, substitute_host
-from hassette.web.auth.tokens import TOKEN_FILENAME
+from hassette.web.auth.tokens import web_api_token_path
 
 SERVER_SCOPE_QUALIFIER = "this machine's instance"
 """What a ``scope="server"`` source's qualifier has to say beyond naming the setting.
@@ -54,7 +54,7 @@ SOURCE_TOKEN_FILE_FLAG = "--token-file"  # noqa: S105
 SOURCE_CLI_TOKEN_FILE = "cli.token_file"  # noqa: S105
 SOURCE_CLI_AUTH_TOKEN = "cli.auth_token"  # noqa: S105
 SOURCE_WEB_API_AUTH_TOKEN = "web_api.auth_token"  # noqa: S105
-SOURCE_DATA_DIR_TOKEN_FILE = f"<data_dir>/{TOKEN_FILENAME}"
+SOURCE_WEB_API_TOKEN_FILE = "web_api.token_file"  # noqa: S105
 
 
 @dataclass(frozen=True)
@@ -280,7 +280,7 @@ def _resolve_token_file_flag(inputs: CredentialInputs) -> ResolvedCredential | N
 def _read_token_file(path: Path, source: str) -> ResolvedCredential | None:
     """Read and validate a token file, treating missing/unreadable/empty content as "no credential".
 
-    Shared by ``cli.token_file`` and ``<data_dir>/.web_api_token`` resolution — both fall through
+    Shared by ``cli.token_file`` and ``web_api.token_file`` resolution — both fall through
     to the next source on any read failure, unlike ``--token-file`` (:func:`_resolve_token_file_flag`),
     which raises instead.
     """
@@ -330,15 +330,17 @@ def _resolve_web_api_auth_token(inputs: CredentialInputs) -> ResolvedCredential 
     )
 
 
-def _resolve_data_dir_token_file(inputs: CredentialInputs) -> ResolvedCredential | None:
-    """``<data_dir>/.web_api_token``. Server-scoped, same reasoning as ``web_api.auth_token``.
+def _resolve_web_api_token_file(inputs: CredentialInputs) -> ResolvedCredential | None:
+    """``web_api.token_file`` (default ``<data_dir>/.web_api_token``), the server's own token file.
+
+    Server-scoped, same reasoning as ``web_api.auth_token``.
 
     Never generates a token: the CLI is a *consumer* of an already-resolved credential, not the
     service that owns generation — a CLI-minted token would never match what the running service
     actually validates against.
     """
-    path = inputs.config.data_dir / TOKEN_FILENAME
-    return _read_token_file(path, _format_source(SOURCE_DATA_DIR_TOKEN_FILE, f"{path} — {SERVER_SCOPE_QUALIFIER}"))
+    path = web_api_token_path(inputs.config.web_api, inputs.config.data_dir)
+    return _read_token_file(path, _format_source(SOURCE_WEB_API_TOKEN_FILE, f"{path} — {SERVER_SCOPE_QUALIFIER}"))
 
 
 CREDENTIAL_SOURCES: tuple[CredentialSource, ...] = (
@@ -346,7 +348,7 @@ CREDENTIAL_SOURCES: tuple[CredentialSource, ...] = (
     CredentialSource(name=SOURCE_CLI_TOKEN_FILE, scope="cli", resolve=_resolve_cli_token_file),
     CredentialSource(name=SOURCE_CLI_AUTH_TOKEN, scope="cli", resolve=_resolve_cli_auth_token_field),
     CredentialSource(name=SOURCE_WEB_API_AUTH_TOKEN, scope="server", resolve=_resolve_web_api_auth_token),
-    CredentialSource(name=SOURCE_DATA_DIR_TOKEN_FILE, scope="server", resolve=_resolve_data_dir_token_file),
+    CredentialSource(name=SOURCE_WEB_API_TOKEN_FILE, scope="server", resolve=_resolve_web_api_token_file),
 )
 """Credential precedence chain, in the order documented by design/specs/092-cli-remote-url/design.md
 (Architecture -> Credential scoping). See :class:`CredentialSource` for the scope gate."""

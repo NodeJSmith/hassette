@@ -19,7 +19,7 @@ from hassette.utils.net_utils import format_host
 LOGGER = getLogger(__name__)
 
 TOKEN_FILENAME = ".web_api_token"  # noqa: S105 — a filename, not a hardcoded credential
-"""Name of the persisted token file, relative to ``data_dir``."""
+"""Name of the persisted token file, relative to ``data_dir``, when ``web_api.token_file`` is unset."""
 
 TOKEN_BYTE_LENGTH = 32
 """Byte length passed to ``secrets.token_urlsafe()`` when generating a fresh token."""
@@ -36,13 +36,14 @@ def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
        publicly-guessable empty credential (e.g. from ``AUTH_TOKEN=""`` in the
        environment), which ``check_bearer_token`` would then accept from any caller
        presenting an empty token.
-    2. An existing ``<data_dir>/.web_api_token`` file. A corrupt or unreadable file
+       A configured value wins even when ``config.token_file`` is also set; that
+       combination logs a WARNING, since the file is then neither read nor written.
+    2. An existing token file at :func:`web_api_token_path`. A corrupt or unreadable file
        (empty, undecodable, or an OS-level read failure) is treated identically to
        "no file exists" — the failure is logged at ERROR and resolution falls through
        to step 3 rather than crashing.
     3. A freshly generated ``secrets.token_urlsafe(32)`` value, persisted atomically
-       (temp file in the same directory + atomic rename, mode ``0600``) to
-       ``<data_dir>/.web_api_token``.
+       (temp file in the same directory + atomic rename, mode ``0600``) to that same path.
 
     Whichever branch fires is logged at INFO with a distinct, identifiable message on
     every startup, not only the generate branch — so an operator who lost a
@@ -53,8 +54,9 @@ def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
     Args:
         config: The web API config. Its ``host``/``port`` are used to build the
             ready-to-use login URL logged on the generate branch.
-        data_dir: Directory the token file is read from/written to. Callers pass
-            ``HassetteConfig.data_dir`` — this function does not resolve it itself.
+        data_dir: Directory holding the default token file when ``config.token_file`` is
+            unset. Callers pass ``HassetteConfig.data_dir`` — this function does not
+            resolve it itself.
 
     Returns:
         The plaintext token, unwrapped from ``SecretStr`` when it came from config.
@@ -69,10 +71,15 @@ def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
         configured_token = config.auth_token.get_secret_value().strip()
         if configured_token:
             LOGGER.info("Using configured web API auth_token")
+            if config.token_file is not None:
+                LOGGER.warning(
+                    "Configured web API auth_token overrides web_api.token_file; %s is neither read nor written",
+                    config.token_file,
+                )
             return configured_token
         LOGGER.error("Configured web API auth_token is blank; generating a new token instead")
 
-    token_path = data_dir / TOKEN_FILENAME
+    token_path = web_api_token_path(config, data_dir)
     existing_token = _read_existing_token(token_path)
     if existing_token is not None:
         LOGGER.info("Loaded existing web API auth_token from %s", token_path)
@@ -87,6 +94,15 @@ def resolve_auth_token(config: WebApiConfig, data_dir: Path) -> str:
         login_url,
     )
     return token
+
+
+def web_api_token_path(config: WebApiConfig, data_dir: Path) -> Path:
+    """The file the server keeps its own token in: ``web_api.token_file``, else ``<data_dir>/.web_api_token``.
+
+    The server's resolver and the CLI's same-host fallback both read through this, so they always
+    agree on where the token lives.
+    """
+    return config.token_file if config.token_file is not None else data_dir / TOKEN_FILENAME
 
 
 def _read_existing_token(token_path: Path) -> str | None:

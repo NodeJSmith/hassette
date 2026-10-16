@@ -21,8 +21,9 @@ The default bind address is `0.0.0.0:8126`. The `host` and `port` fields under `
     under `trusted_proxies` is the other exception — it reaches every
     `/api/*` route without a credential, as long as it sends no
     `Authorization` header. On first start with no token configured, Hassette
-    generates one, logs it once, and writes it to
-    `<data_dir>/.web_api_token` (mode `0600`). Open the dashboard and paste
+    generates one, writes it to `web_api.token_file` (default
+    `<data_dir>/.web_api_token`, mode `0600`), and logs the file's location
+    once; the token itself is never logged. Open the dashboard and paste
     that token into the login screen, or send it as
     `Authorization: Bearer <token>` from a script — see
     [CLI Configuration](../cli/configuration.md) for how the `hassette` CLI
@@ -170,7 +171,8 @@ start a new session.
     | `[hassette.web_api] host` | string | `"0.0.0.0"` | Bind host |
     | `[hassette.web_api] port` | int | `8126` | Bind port |
     | `[hassette.web_api] auth_enabled` | bool | `true` | Requires a credential for every `/api/*` route except the two health endpoints, `POST /api/auth/session`, and requests from a `trusted_proxies` peer that send no `Authorization` header |
-    | `[hassette.web_api] auth_token` | string | *(generated)* | Bearer token; generated and persisted to `<data_dir>/.web_api_token` when unset |
+    | `[hassette.web_api] auth_token` | string | *(generated)* | Bearer token; generated and persisted to `token_file` when unset |
+    | `[hassette.web_api] token_file` | path | `<data_dir>/.web_api_token` | Where the server reads and writes its generated token. Ignored, with a warning, when `auth_token` is set |
     | `[hassette.web_api] trusted_proxies` | tuple | `()` | IPs, CIDRs, or hostnames exempt from the token check when the request sends no `Authorization` header |
     | `[hassette.web_api] session_ttl` | int | `3600` | Seconds before an *idle* browser session cookie expires; an actively used session is renewed past the halfway mark and never interrupted |
     | `[hassette.web_api] cors_origins` | tuple | `("http://localhost:3000", "http://localhost:5173")` | Allowed CORS origins |

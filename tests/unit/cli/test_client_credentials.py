@@ -334,6 +334,7 @@ class TestAuthFailureNamesCredentialSource:
         factory = CLIClientFactory(make_cli_config(data_dir=tmp_path))
         client = factory.build(make_transport(401, {"detail": "Not authenticated"}), json_mode=True)
         detail = get_json_error(client, capsys, expect_code=1)["detail"]
+        assert "web_api.token_file" in detail
         assert str(token_path) in detail
         assert "--token-file" in detail
         assert CLI_AUTH_TOKEN_ENV in detail
@@ -359,7 +360,6 @@ class TestAuthFailureNamesCredentialSource:
         # source fails here instead of silently leaving the message listing a stale chain.
         for source in CREDENTIAL_SOURCES:
             assert source.name in detail
-        assert TOKEN_FILENAME in detail
         assert "--token-file" in detail
         assert CLI_AUTH_TOKEN_ENV in detail
         assert CLI_AUTH_DOCS_URL in detail

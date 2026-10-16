@@ -13,7 +13,7 @@ from pydantic import SecretStr
 
 from hassette.config.models import WebApiConfig
 from hassette.exceptions import AuthTokenWriteError
-from hassette.web.auth.tokens import TOKEN_FILENAME, resolve_auth_token
+from hassette.web.auth.tokens import TOKEN_FILENAME, resolve_auth_token, web_api_token_path
 
 
 def _make_config(**overrides: Any) -> WebApiConfig:
@@ -215,3 +215,76 @@ class TestResolveAuthTokenDistinctLogMessages:
         caplog.clear()
 
         assert len(set(messages)) == 3, f"expected 3 distinct messages, got: {messages}"
+
+
+class TestResolveAuthTokenConfiguredTokenFile:
+    """``web_api.token_file`` moves the file the resolver reads and writes."""
+
+    def test_generates_at_configured_path_with_mode_0600(self, tmp_path: Path) -> None:
+        token_path = tmp_path / "config" / ".web_api_token"
+        data_dir = tmp_path / "data"
+        config = _make_config(token_file=token_path)
+
+        token = resolve_auth_token(config, data_dir)
+
+        assert token_path.read_text(encoding="utf-8") == token
+        assert stat.S_IMODE(token_path.stat().st_mode) == 0o600
+        assert not (data_dir / TOKEN_FILENAME).exists()
+
+    def test_reads_existing_file_at_configured_path(self, tmp_path: Path) -> None:
+        token_path = tmp_path / "token"
+        token_path.write_text("configured-file-token\n", encoding="utf-8")
+        (tmp_path / TOKEN_FILENAME).write_text("data-dir-token", encoding="utf-8")
+
+        token = resolve_auth_token(_make_config(token_file=token_path), tmp_path)
+
+        assert token == "configured-file-token"
+
+    def test_empty_configured_file_is_replaced_in_place(self, tmp_path: Path) -> None:
+        token_path = tmp_path / "token"
+        token_path.write_text("", encoding="utf-8")
+
+        token = resolve_auth_token(_make_config(token_file=token_path), tmp_path)
+
+        assert token
+        assert token_path.read_text(encoding="utf-8") == token
+        assert not (tmp_path / TOKEN_FILENAME).exists()
+
+    def test_unset_token_file_keeps_data_dir_default(self) -> None:
+        config = _make_config()
+
+        assert config.token_file is None
+        assert web_api_token_path(config, Path("/srv/data")) == Path("/srv/data") / TOKEN_FILENAME
+
+    def test_configured_auth_token_wins_and_warns_without_logging_the_value(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        token_path = tmp_path / "token"
+        token_path.write_text("file-token", encoding="utf-8")
+        config = _make_config(auth_token=SecretStr("configured-secret-value"), token_file=token_path)
+
+        with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
+            token = resolve_auth_token(config, tmp_path)
+
+        assert token == "configured-secret-value"
+        assert token_path.read_text(encoding="utf-8") == "file-token"
+        warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+        assert any(str(token_path) in m for m in warnings), warnings
+        assert all("configured-secret-value" not in r.getMessage() for r in caplog.records)
+
+    def test_configured_auth_token_without_token_file_does_not_warn(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        with caplog.at_level("WARNING", logger="hassette.web.auth.tokens"):
+            resolve_auth_token(_make_config(auth_token=SecretStr("configured-secret-value")), tmp_path)
+
+        assert not caplog.records
+
+    def test_token_file_pointing_at_a_directory_fails_startup_naming_it(self, tmp_path: Path) -> None:
+        token_dir = tmp_path / "not-a-file"
+        token_dir.mkdir()
+
+        with pytest.raises(AuthTokenWriteError) as exc_info:
+            resolve_auth_token(_make_config(token_file=token_dir), tmp_path)
+
+        assert exc_info.value.path == token_dir

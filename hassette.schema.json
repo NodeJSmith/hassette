@@ -477,7 +477,7 @@
             }
           ],
           "default": null,
-          "description": "Path to a file containing the bearer credential for the target Hassette instance (absolute, or\nrelative to the config file that sets it). Applies to any target, unlike the loopback-only\n``<data_dir>/.web_api_token`` fallback.",
+          "description": "Path to a file containing the bearer credential for the target Hassette instance (absolute, or\nrelative to the config file that sets it). Applies to any target, unlike the server-scoped,\nloopback-only ``web_api.token_file`` fallback (the server's own token location, not a credential\nyou supply).",
           "title": "Token File",
           "ui": {
             "label": "Token File"
@@ -1269,10 +1269,27 @@
             }
           ],
           "default": null,
-          "description": "Bearer token / session-cookie credential for the web API.\n\nStored as a :class:`~pydantic.SecretStr` so the value is masked in logs, string\nrepresentations, and the ``GET /api/config`` response. Unwrap with\n``auth_token.get_secret_value()`` only at the point of use (comparing the ``Authorization``\nheader, minting a session cookie).\n\nWhen ``None`` at startup, ``WebApiService`` resolves one in this order: an existing\n``<data_dir>/.web_api_token`` file, or a freshly generated ``secrets.token_urlsafe(32)``\nvalue written there. This field carries either an explicit operator-configured value or the\nvalue resolved during startup \u2014 it is not itself responsible for token generation.",
+          "description": "Bearer token / session-cookie credential for the web API.\n\nStored as a :class:`~pydantic.SecretStr` so the value is masked in logs, string\nrepresentations, and the ``GET /api/config`` response. Unwrap with\n``auth_token.get_secret_value()`` only at the point of use (comparing the ``Authorization``\nheader, minting a session cookie).\n\nWhen ``None`` at startup, ``WebApiService`` resolves one in this order: an existing token file\nat ``token_file``, or a freshly generated ``secrets.token_urlsafe(32)`` value written there.\nThis field carries either an explicit operator-configured value or the value resolved during\nstartup \u2014 it is not itself responsible for token generation.",
           "title": "Auth Token",
           "ui": {
             "label": "Auth Token"
+          }
+        },
+        "token_file": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Where the server reads and persists its own generated token: absolute, or relative to the\nconfig file that sets it. Defaults to ``<data_dir>/.web_api_token``.\n\nIgnored when ``auth_token`` is configured, which wins over the file; Hassette logs a warning\nwhen both are set. Not to be confused with ``cli.token_file``, the credential the CLI *sends*\nto a target.",
+          "title": "Token File",
+          "ui": {
+            "label": "Token File"
           }
         },
         "trusted_proxies": {

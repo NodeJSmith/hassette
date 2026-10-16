@@ -87,7 +87,7 @@ hassette app
 
 `websocket_connected: True` confirms the Home Assistant connection. `apps.main.MyApp` shows `running`. `Invocations/1h` counts how many times your app's handlers have fired in the last hour. Zero is normal — the app logs a greeting at startup but does not react to anything in Home Assistant yet. The next guide covers that.
 
-Those commands query Hassette's own web API, not Home Assistant. That API has a credential of its own, and `HASSETTE__TOKEN` is not it — Hassette wrote a separate token to `<data_dir>/.web_api_token` on first start. The CLI finds that file and uses it automatically, which is why the commands above needed no setup. Point the CLI at a *different* instance — a remote host, or a second instance on this machine — and it needs that instance's token instead. See [CLI Configuration: Web API Token](../cli/configuration.md#web-api-token) for how to supply one. An `Error 401` names the credential the CLI sent and what to do about it.
+Those commands query Hassette's own web API, not Home Assistant. That API has a credential of its own, and `HASSETTE__TOKEN` is not it — Hassette wrote a separate token to `<data_dir>/.web_api_token` on first start (or to `web_api.token_file`, if you set it). The CLI finds that file and uses it automatically, which is why the commands above needed no setup. Point the CLI at a *different* instance — a remote host, or a second instance on this machine — and it needs that instance's token instead. See [CLI Configuration: Web API Token](../cli/configuration.md#web-api-token) for how to supply one. An `Error 401` names the credential the CLI sent and what to do about it.
 
 ## 6. Open the dashboard
 
