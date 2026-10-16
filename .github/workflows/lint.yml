@@ -39,6 +39,7 @@ jobs:
                         - 'codegen/**'
                         - 'docs/**'
                         - 'scripts/**'
+                        - 'docker/**'
                         - 'pyproject.toml'
                         - 'pyrightconfig.json'
                         - 'uv.lock'

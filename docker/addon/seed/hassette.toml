@@ -1,0 +1,14 @@
+#:schema https://raw.githubusercontent.com/NodeJSmith/hassette/main/hassette.schema.json
+
+# Hassette's settings for the add-on. Nothing here is active yet; uncomment and edit what you need. Apps
+# in the apps folder next to this file are found and started without any entry here.
+#
+# The add-on sets the connection to Home Assistant, the web UI's address, port and authentication, and
+# the database location itself, and those win over anything set here. The log level comes from the
+# add-on's Configuration tab.
+
+# To give an app its own settings, add a section named after it. filename and class_name are required.
+# [hassette.apps.example_app]
+# filename = "example_app.py"
+# class_name = "ExampleApp"
+# config = { greeting = "Hello from the add-on!" }
