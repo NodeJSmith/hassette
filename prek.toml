@@ -56,7 +56,7 @@ hooks = [
 
 [[repos]]
 repo = "https://github.com/RobertCraigie/pyright-python"
-rev = "v1.1.408"
+rev = "v1.1.414"
 hooks = [
     { id = "pyright", stages = ["pre-push"], exclude = '^(docs|scripts)/.*\.(py|rst)$' },
 ]
