@@ -6,8 +6,6 @@ export const DEFAULT_LEVEL: LevelFilter = "INFO";
 // Empty string means "show all levels" in app code; serialized as "all" in URL params.
 export const ALL_LEVELS: LevelFilter = "";
 
-export const COPY_CONFIRM_MS = 1500;
-
 export const DEFAULT_SORT: LogSortState = { key: "timestamp", dir: "desc" };
 
 // Enforced in: use-column-visibility.ts readStored() (persistence) and column-picker.tsx (UI disabled state)

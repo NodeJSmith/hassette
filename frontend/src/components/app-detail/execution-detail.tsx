@@ -1,6 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import type { MouseEvent as ReactMouseEvent } from "react";
-import { useCallback, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 
@@ -11,12 +9,12 @@ import { useDocumentTitle } from "../../hooks/use-document-title";
 import { STATUS_SHAPE_SIZE } from "../../utils/constants";
 import { formatDuration, formatTimestamp, truncateId } from "../../utils/format";
 import { executionStatusKind, TIMED_OUT_LABEL } from "../../utils/status";
+import { CopyButton } from "../shared/copy-button";
 import type { DetailStatsCell } from "../shared/detail-stats";
 import { DetailStats } from "../shared/detail-stats";
 import { EmptyState } from "../shared/empty-state";
 import { ErrorDisplay } from "../shared/error-display";
 import { ExecutionLogs } from "../shared/execution-logs";
-import { COPY_CONFIRM_MS } from "../shared/log-table/constants";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 import { TracebackViewer } from "../shared/traceback-viewer";
@@ -75,38 +73,6 @@ function StatusBadge({ status, threadLeaked }: { status: ExecutionStatus; thread
   );
 }
 
-function CopyIdButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(
-    async (e: ReactMouseEvent) => {
-      e.stopPropagation();
-      try {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => {
-          setCopied(false);
-        }, COPY_CONFIRM_MS);
-      } catch {
-        /* clipboard unavailable */
-      }
-    },
-    [text],
-  );
-
-  return (
-    <button
-      type="button"
-      className="shrink-0 rounded-sm border border-[var(--border-subtle)] px-1 py-0 text-xs leading-none text-muted-foreground hover:border-border hover:text-foreground"
-      onClick={handleCopy}
-      aria-label="Copy execution ID"
-      title={copied ? "Copied" : "Copy execution ID"}
-    >
-      {copied ? "✓" : "⧉"}
-    </button>
-  );
-}
-
 interface ContentProps {
   record: ExecutionData;
 }
@@ -133,7 +99,7 @@ export function ExecutionDetailContent({ record }: ContentProps) {
           <code className="break-all font-mono text-xs text-muted-foreground" title={record.execution_id}>
             {record.execution_id}
           </code>
-          <CopyIdButton text={record.execution_id} />
+          <CopyButton text={record.execution_id} label="Copy execution ID" />
         </div>
       )}
 

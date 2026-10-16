@@ -1,16 +1,10 @@
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 
 import { COLUMNS, REQUIRED_COLUMNS } from "./constants";
 import type { ColumnId } from "./types";
-
-// The bare-button look (no border or background) plus the hover affordance,
-// shared by this popover's two buttons so the pair cannot drift apart. Per-button layout
-// and sizing stay at the call sites.
-const BARE_BUTTON_CLASS =
-  "cursor-pointer border-none bg-transparent text-muted-foreground transition-colors hover:text-foreground";
 
 export interface ColumnPickerProps {
   selectedColumns: ColumnId[];
@@ -25,19 +19,14 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(BARE_BUTTON_CLASS, "inline-flex items-center rounded-sm p-1")}
-          aria-label="Choose visible columns"
-          data-testid="column-picker"
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        <Button variant="ghost" size="icon-xs" aria-label="Choose visible columns" data-testid="column-picker">
+          <svg viewBox="0 0 14 14" fill="none" aria-hidden="true" className="size-3.5">
             <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
             <rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
             <rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
             <rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" />
           </svg>
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent align="start" data-testid="column-picker-popover" className="w-auto">
         <div className="mb-2 flex flex-col gap-1">
@@ -61,9 +50,9 @@ export function ColumnPicker({ selectedColumns, viewportHidden, onToggle, onRese
             );
           })}
         </div>
-        <button type="button" className={cn(BARE_BUTTON_CLASS, "px-0 py-1 text-xs")} onClick={onReset}>
+        <Button variant="link-muted" size="inline" className="py-1 text-xs" onClick={onReset}>
           Reset to defaults
-        </button>
+        </Button>
       </PopoverContent>
     </Popover>
   );

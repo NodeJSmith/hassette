@@ -81,14 +81,16 @@ function AppEntry({ manifest, location, searchString, appStatuses, labelIsAmbigu
           </Link>
           {isMulti && (
             <CollapsiblePrimitive.Trigger asChild>
-              <button
-                type="button"
-                className="mr-1 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-sm border-none bg-transparent text-[var(--ink-3)] transition-colors hover:bg-[var(--bg-active)] hover:text-[var(--ink-1)] max-[900px]:size-11"
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                touch
+                className="mr-1"
                 aria-label={expanded ? `Collapse ${label}` : `Expand ${label}`}
                 data-testid={`app-expand-${manifest.app_key}`}
               >
                 <SidebarChevron open={expanded} />
-              </button>
+              </Button>
             </CollapsiblePrimitive.Trigger>
           )}
         </div>

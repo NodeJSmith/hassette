@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { STATUS_SHAPE_SIZE } from "../../utils/constants";
@@ -68,14 +69,15 @@ export function ErrorSpotlight({ failingItems, appKey, instanceQs }: ErrorSpotli
         <SpotlightEntry key={`${item.kind}-${item.id}`} item={item} appKey={appKey} instanceQs={instanceQs} />
       ))}
       {!expanded && hiddenCount > 0 && (
-        <button
-          type="button"
-          className="px-3 py-2 text-left text-sm text-muted-foreground hover:text-foreground"
+        <Button
+          variant="link-muted"
+          size="xs"
+          className="self-start"
           data-testid="overview-error-spotlight-show-more"
           onClick={() => setExpanded(true)}
         >
           show {hiddenCount} more
-        </button>
+        </Button>
       )}
     </section>
   );

@@ -8,7 +8,7 @@ interface Props {
 
 export function ShowMoreButton({ showAll, onToggle, totalCount }: Props) {
   return (
-    <Button variant="ghost" size="xs" className="mt-auto pt-2 text-primary" onClick={onToggle}>
+    <Button variant="link" size="xs" className="mt-auto pt-2" onClick={onToggle}>
       {showAll ? "Show less" : `Show all ${totalCount}`}
     </Button>
   );

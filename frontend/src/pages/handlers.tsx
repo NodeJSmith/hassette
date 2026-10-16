@@ -201,7 +201,7 @@ export function HandlersPage() {
           {sorted.length === 0 ? (
             <EmptyState title={emptyStateTitle} data-testid="handlers-empty">
               {(selectedApp || search) && (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <Button variant="link" size="sm" onClick={clearFilters}>
                   clear filters
                 </Button>
               )}

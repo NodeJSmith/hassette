@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
 
 import { BREAKPOINT_MOBILE, useMediaQuery } from "../../hooks/use-media-query";
 import { FilterIcon } from "./filter-icon";
@@ -35,18 +35,17 @@ export function TableFooter({ count, columnFilters, onResetFilters, extras }: Ta
         {showMobileFilterBtn && columnFilters && (
           <Popover open={filterOpen} onOpenChange={setFilterOpen}>
             <PopoverTrigger asChild>
-              <button
-                type="button"
-                className={cn(
-                  "inline-flex items-center rounded-sm border border-border bg-transparent p-1 text-muted-foreground transition-colors",
-                  "hover:bg-[var(--highlight-bg)] hover:text-foreground",
-                  hasActiveFilter && "border-[var(--primary-border)] text-primary",
-                )}
+              <Button
+                variant="subtle"
+                size="icon-xs"
+                className={
+                  hasActiveFilter ? "border-[var(--primary-border)] text-primary hover:text-primary" : undefined
+                }
                 aria-label="Open filters"
                 data-testid="mobile-filters-btn"
               >
                 <FilterIcon active={hasActiveFilter} />
-              </button>
+              </Button>
             </PopoverTrigger>
             <PopoverContent align="end" data-testid="table-footer-mobile-filters-popover" className="w-auto">
               <div className="flex min-w-[220px] flex-col gap-3">
@@ -59,14 +58,15 @@ export function TableFooter({ count, columnFilters, onResetFilters, extras }: Ta
                   </div>
                 ))}
                 {onResetFilters && hasActiveFilter && (
-                  <button
-                    type="button"
-                    className="self-start text-sm text-primary underline underline-offset-2"
+                  <Button
+                    variant="link-muted"
+                    size="inline"
+                    className="self-start"
                     onClick={onResetFilters}
                     aria-label="Reset filters"
                   >
                     Reset to defaults
-                  </button>
+                  </Button>
                 )}
               </div>
             </PopoverContent>

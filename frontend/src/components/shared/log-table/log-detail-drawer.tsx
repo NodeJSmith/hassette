@@ -1,15 +1,17 @@
-import type { MouseEvent as ReactMouseEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Link } from "wouter";
 
 import type { LogEntry } from "@/api/endpoints";
+import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContentUnstyled, DrawerOverlay, DrawerTitle } from "@/components/ui/drawer";
 import { BREAKPOINT_MOBILE, BREAKPOINT_TABLET, useMediaQuery } from "@/hooks/use-media-query";
 import { cn } from "@/lib/utils";
 import { appDetailPath } from "@/utils/app-routes";
 import { formatTimestamp } from "@/utils/format";
 
-import { COPY_CONFIRM_MS, DETAIL_DRAWER_ID, getLogLevelStyle } from "./constants";
+import { CopyButton } from "../copy-button";
+import { IconClose } from "../icons";
+import { DETAIL_DRAWER_ID, getLogLevelStyle } from "./constants";
 import { ExecutionIdLink } from "./execution-id-link";
 import type { RowKey } from "./types";
 import { rowKey } from "./types";
@@ -27,38 +29,6 @@ interface Props {
   entries: readonly LogEntry[];
   onClose: () => void;
   onNavigate: (key: RowKey) => void;
-}
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(
-    async (e: ReactMouseEvent) => {
-      e.stopPropagation();
-      try {
-        await navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => {
-          setCopied(false);
-        }, COPY_CONFIRM_MS);
-      } catch {
-        /* clipboard unavailable */
-      }
-    },
-    [text],
-  );
-
-  return (
-    <button
-      type="button"
-      className="shrink-0 cursor-pointer rounded-sm border-none bg-transparent p-0 text-[length:var(--text-mono-sm)] text-foreground-faint transition-colors hover:text-foreground-secondary"
-      onClick={handleCopy}
-      aria-label={label}
-      title={copied ? "Copied" : label}
-    >
-      {copied ? "✓" : "⧉"}
-    </button>
-  );
 }
 
 export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: Props) {
@@ -157,45 +127,36 @@ export function LogDetailDrawer({ selectedKey, entries, onClose, onNavigate }: P
         <DrawerTitle className="sr-only">Log entry detail</DrawerTitle>
         <div className="flex shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-3 py-2">
           <div className="flex gap-1">
-            <button
-              type="button"
-              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={navigatePrev}
               disabled={currentIndex <= 0}
               aria-label="Previous entry"
             >
               ←
-            </button>
-            <button
-              type="button"
-              className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:text-foreground-faint disabled:hover:bg-transparent"
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
               onClick={navigateNext}
               disabled={currentIndex >= entries.length - 1}
               aria-label="Next entry"
             >
               →
-            </button>
+            </Button>
           </div>
-          <button
-            type="button"
-            className="inline-flex size-[var(--size-icon-btn)] items-center justify-center rounded-sm border-none bg-transparent p-0 text-[length:var(--text-body)] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={onClose}
-            aria-label="Close detail panel"
-          >
-            ✕
-          </button>
+          <Button variant="ghost" size="icon-sm" onClick={onClose} aria-label="Close detail panel">
+            <IconClose />
+          </Button>
         </div>
 
         {isFilteredOut ? (
           <div className="px-4 py-6 text-center font-sans text-sm text-muted-foreground">
             <p>This entry is no longer visible with the current filters.</p>
-            <button
-              type="button"
-              className="mt-3 cursor-pointer border-none bg-transparent text-sm text-foreground-secondary underline underline-offset-[var(--spacing-0-5)] hover:text-foreground"
-              onClick={onClose}
-            >
+            <Button variant="link-muted" size="inline" className="mt-3" onClick={onClose}>
               Close
-            </button>
+            </Button>
           </div>
         ) : entry ? (
           <div className="flex-1 overflow-y-auto p-0">

@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
+import { IconClose, IconMenu } from "../shared/icons";
 import { Spinner } from "../shared/spinner";
 import { StatusShape } from "../shared/status-shape";
 import { DESIGN_HEADING_CLASS, DESIGN_SECTION_CLASS, ShowcaseGroup } from "./design-showcase";
@@ -34,6 +35,25 @@ export function ComponentShowcase() {
           <Button variant="success-ghost">Success Ghost</Button>
           <Button variant="warning-ghost">Warning Ghost</Button>
           <Button variant="info-ghost">Info Ghost</Button>
+        </div>
+        <div className={ROW_CLASS}>
+          <Button variant="subtle" size="icon-sm" aria-label="Subtle icon button">
+            <IconClose />
+          </Button>
+          <Button variant="ghost" size="icon-sm" aria-label="Ghost icon button">
+            <IconClose />
+          </Button>
+          <Button variant="link-muted">Link Muted</Button>
+          <span className="text-sm">
+            inline{" "}
+            <Button variant="link" size="inline">
+              link
+            </Button>{" "}
+            in a sentence
+          </span>
+          <Button variant="subtle" size="icon-sm" touch aria-label="Touch-sized below the sidebar breakpoint">
+            <IconMenu />
+          </Button>
         </div>
         <div className={ROW_CLASS}>
           <Button size="sm">Small</Button>

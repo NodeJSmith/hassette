@@ -82,12 +82,54 @@ describe("Button", () => {
       const { getByRole } = render(<Button size="icon-xs">btn</Button>);
       expect(getByRole("button").getAttribute("data-size")).toBe("icon-xs");
     });
+
+    it("inline size inherits the surrounding font size instead of the base text-sm", () => {
+      const { getByRole } = render(<Button size="inline">btn</Button>);
+      const cls = getByRole("button").className;
+      expect(cls).toMatch(/text-\[length:inherit\]/);
+      expect(cls).not.toMatch(/\btext-sm\b/);
+      expect(cls).not.toMatch(/\bh-9\b/);
+    });
+
+    it("inline size drops a bordered variant's border so it adds no height", () => {
+      const { getByRole } = render(
+        <Button variant="ghost" size="inline">
+          btn
+        </Button>,
+      );
+      const cls = getByRole("button").className;
+      expect(cls).toMatch(/\bborder-0\b/);
+      expect(cls).not.toMatch(/(^|\s)border(\s|$)/);
+    });
+  });
+
+  describe("touch prop", () => {
+    it("adds touch-target minimums on narrow layouts when set", () => {
+      const { getByRole } = render(<Button touch>btn</Button>);
+      expect(getByRole("button").className).toMatch(/max-sidebar:min-h-\[var\(--size-touch\)\]/);
+    });
+
+    it("adds no touch-target classes by default", () => {
+      const { getByRole } = render(<Button>btn</Button>);
+      expect(getByRole("button").className).not.toMatch(/--size-touch/);
+    });
   });
 
   describe("class prop", () => {
     it("merges additional class into button className", () => {
       const { getByRole } = render(<Button className="my-custom-class">btn</Button>);
       expect(getByRole("button").className).toMatch(/my-custom-class/);
+    });
+
+    it("lets a caller's text color replace the variant's", () => {
+      const { getByRole } = render(
+        <Button variant="link-muted" className="text-destructive">
+          btn
+        </Button>,
+      );
+      const cls = getByRole("button").className;
+      expect(cls).toMatch(/\btext-destructive\b/);
+      expect(cls).not.toMatch(/\btext-muted-foreground\b/);
     });
   });
 

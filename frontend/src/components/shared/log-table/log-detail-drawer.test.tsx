@@ -6,7 +6,7 @@ import type { LogEntry } from "@/api/endpoints";
 import { createLogEntry } from "@/test/factories";
 import { createWouterMock } from "@/test/mock-wouter";
 
-import { COPY_CONFIRM_MS } from "./constants";
+import { COPY_CONFIRM_MS } from "../copy-button";
 import { LogDetailDrawer } from "./log-detail-drawer";
 import { rowKey } from "./types";
 

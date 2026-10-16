@@ -173,7 +173,6 @@
   --sp-3h: 14px;
   --sz-touch: 44px;
   --sz-icon-sm: 14px;
-  --sz-icon-btn: 28px;
   --sz-sidebar: 240px;
   --sz-search-min: 160px;
   --sz-popover-min: 200px;
@@ -347,7 +346,6 @@
   --spacing-3-5: var(--sp-3h);
   --size-touch: var(--sz-touch);
   --size-icon-sm: var(--sz-icon-sm);
-  --size-icon-btn: var(--sz-icon-btn);
   --size-sidebar: var(--sz-sidebar);
   --size-search-min: var(--sz-search-min);
   --size-popover-min: var(--sz-popover-min);
