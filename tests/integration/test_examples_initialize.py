@@ -46,7 +46,8 @@ def capturing_initialize_errors(app_cls: type[App], errors: list[BaseException])
 
     The harness reports an initialization failure only as a timeout waiting for RUNNING; the recorded
     exception is what names the registration that failed. ``AppSync`` marks ``on_initialize`` final, so
-    for those apps the sync hook it delegates to is wrapped instead.
+    for those apps the sync hook it delegates to is wrapped instead. Delete this wrapper once the harness
+    surfaces the original startup exception itself (#1328).
     """
     if issubclass(app_cls, AppSync):
 
@@ -73,6 +74,8 @@ def capturing_initialize_errors(app_cls: type[App], errors: list[BaseException])
 
     capturing.__name__ = app_cls.__name__
     capturing.__qualname__ = app_cls.__qualname__
+    # Resource.__init_subclass__ already set class_name from the wrapper's own name.
+    capturing.class_name = app_cls.class_name
     return capturing
 
 
