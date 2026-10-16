@@ -6,6 +6,8 @@
 
 **Connection refused or timeout.** Hassette keeps retrying every few seconds and logs an ERROR every 5 minutes until the first connection succeeds. Check `base_url` in `hassette.toml`. The default is `http://127.0.0.1:8123`. Include the scheme (`http://`) and port explicitly — `homeassistant.local` without the scheme raises [`SchemeRequiredInBaseUrlError`][hassette.exceptions.SchemeRequiredInBaseUrlError] at startup. Use `http://homeassistant.local:8123` instead.
 
+**Extra path in `base_url`.** Hassette keeps any path in `base_url` and puts it in front of `/api/`. A URL copied from the browser, such as `http://ha.local:8123/lovelace/0`, sends every request to `/lovelace/0/api/...`, which is not Home Assistant's API, so the connection never succeeds. The `Home Assistant URLs:` line at startup shows the URLs Hassette uses. Remove the path unless Home Assistant really is served under one, as behind a reverse proxy.
+
 **Running in Docker.** Hassette must reach Home Assistant's network. If Home Assistant runs in a separate container or on a different host, `base_url` must point to its actual address, not `127.0.0.1`. See [Docker Troubleshooting](getting-started/docker/troubleshooting.md#cant-access-the-web-ui).
 
 **Invalid token.** Look for a CRITICAL "rejected the access token" line in the log. Hassette retries 3 times, 60 seconds apart, then stays up but stops connecting. The [Diagnostics page](web-ui/diagnostics.md) in the web UI shows the WebSocket service (Hassette's connection to HA) as running, with the reason "Home Assistant rejected the access token". Generate a new long-lived token, update `HASSETTE__TOKEN`, and restart Hassette. See [Rejected access token](operating/index.md#rejected-access-token).

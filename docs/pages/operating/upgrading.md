@@ -74,6 +74,12 @@ To keep reading config from the old versioned directory, pass `--config-dir` or 
 
 Docker data volumes carry over across major versions. Mount points are version-independent.
 
+## `base_url` Paths
+
+Upgrading from 0.57 or earlier, Hassette keeps the path in `base_url`. Earlier versions dropped it and always connected to `<scheme>://<host>:<port>/api/`. A `base_url` of `http://supervisor/core` now connects to `http://supervisor/core/api/` and `ws://supervisor/core/api/websocket`. A trailing slash is still ignored.
+
+A `base_url` with no path, or just `/`, behaves exactly as before. One with a leftover path, such as `http://ha.local:8123/lovelace/0` copied from the browser, now points at an address outside Home Assistant's API, and the connection fails. Remove the path. The `Home Assistant URLs:` line in the startup log shows the URLs Hassette uses.
+
 ## Config Paths and Unknown Keys
 
 Upgrading from 0.56 or earlier, four changes can break an existing setup: Hassette resolves relative paths against the file that sets them, rejects setting names it doesn't recognize, keeps Docker apps inside the config mount, and has apps read the same `.env` files as Hassette. This section lists each one. The [Configuration](../core-concepts/configuration/index.md#file-locations) page has the full rules.

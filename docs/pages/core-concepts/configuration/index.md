@@ -56,6 +56,12 @@ Every config file has its own overlay, named by inserting `.local` before the ex
 
 No editor configuration is needed. The schema is generated from [`HassetteConfig`][hassette.config.HassetteConfig] and stays current with each release.
 
+## Home Assistant URL
+
+`base_url` sets where Hassette reaches Home Assistant. The default is `http://127.0.0.1:8123`. Hassette adds `/api/` for REST calls and `/api/websocket` for the WebSocket, so `http://homeassistant.local:8123` uses `http://homeassistant.local:8123/api/` and `ws://homeassistant.local:8123/api/websocket`.
+
+A path in `base_url` becomes a prefix for both. `https://example.com/ha` reaches a Home Assistant served under `/ha` behind a reverse proxy, at `https://example.com/ha/api/` and `wss://example.com/ha/api/websocket`. A trailing slash adds nothing. Hassette logs both resolved URLs at startup, in a line starting `Home Assistant URLs:`.
+
 ## Authentication
 
 The `token` field accepts four aliases: `token`, `hassette__token`, `ha_token`, and `home_assistant_token`. This means the same token can be supplied under any of those names in any source.

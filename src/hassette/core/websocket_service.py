@@ -167,7 +167,11 @@ class WebsocketService(WebsocketMessageIOMixin, Service):
         a fatal shutdown before later waves (e.g. WebApiService) ever start. serve() begins
         the actual connection loop afterward. Readiness then stays set until shutdown; the HA
         connection's status is shown through the ready reason (``report_connection_status``).
+
+        Both resolved Home Assistant URLs are logged here, before any connection attempt, so a
+        ``base_url`` whose path is wrong shows up in the log even when every connection fails.
         """
+        self.logger.info("Home Assistant URLs: REST %s, WebSocket %s", self.hassette.rest_url, self.hassette.ws_url)
         mark_ready(self, reason="WebSocket service initialized")
 
     @property

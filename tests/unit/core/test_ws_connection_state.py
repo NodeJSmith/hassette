@@ -14,6 +14,7 @@ import hassette.core.websocket_reconnect as reconnect_module
 from hassette.core.websocket_service import WebsocketService
 from hassette.exceptions import InvalidAuthError, InvalidLifecycleTransitionError, RetryableConnectionClosedError
 from hassette.testing import wait_for
+from hassette.testing.config import TEST_WS_URL
 from hassette.types.enums import ConnectionState
 
 from .conftest import cleanup_disconnected, stub_refused_attempts
@@ -162,6 +163,19 @@ class TestConnectionStateLogging:
         websocket_service.set_connection_state(ConnectionState.DISCONNECTED)
 
         websocket_service.logger.info.assert_not_called()
+
+
+class TestStartupUrlLogging:
+    async def test_initialize_logs_both_resolved_urls(self, websocket_service: WebsocketService) -> None:
+        """Both URLs are reported before any connection attempt, so a wrong base_url path is visible on failure."""
+        websocket_service.hassette.rest_url = "http://supervisor/core/api/"
+        websocket_service.logger = Mock()
+
+        await websocket_service.on_initialize()
+
+        websocket_service.logger.info.assert_called_once_with(
+            "Home Assistant URLs: REST %s, WebSocket %s", "http://supervisor/core/api/", TEST_WS_URL
+        )
 
 
 class TestInvalidTransitions:

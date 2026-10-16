@@ -70,7 +70,7 @@ def test_https_with_custom_port():
         ("http://supervisor/core?x=1#frag", "http://supervisor/core/api/", "ws://supervisor/core/api/websocket"),
     ],
 )
-def test_base_url_path_prefix_is_kept(input_url: str, expected_rest: str, expected_ws: str):
+def test_base_url_path_becomes_endpoint_prefix(input_url: str, expected_rest: str, expected_ws: str):
     """A path in base_url prefixes both endpoints; a lone or trailing slash adds nothing."""
     config = make_config(input_url)
 
@@ -92,9 +92,7 @@ def test_no_port_added_if_not_provided(input_url: str, expected_port: int | None
     """Test that no port is added if not provided in the URL."""
     config = make_config(input_url)
 
-    _, _, port = _parse_and_normalize_url(config)
-
-    assert port == expected_port
+    assert _parse_and_normalize_url(config).port == expected_port
 
 
 @pytest.mark.parametrize(
@@ -158,8 +156,8 @@ def test_quoted_urls_are_stripped(input_url: str, expected_scheme: str, expected
     """Test that literal quote characters wrapping a URL are stripped before parsing."""
     config = make_config(input_url)
 
-    scheme, host, port = _parse_and_normalize_url(config)
+    parts = _parse_and_normalize_url(config)
 
-    assert scheme == expected_scheme
-    assert host == expected_host
-    assert port == expected_port
+    assert parts.scheme == expected_scheme
+    assert parts.host == expected_host
+    assert parts.port == expected_port
