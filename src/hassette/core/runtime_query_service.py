@@ -109,7 +109,9 @@ class RuntimeQueryService(Resource):
                 topic=Topic.HASSETTE_EVENT_SERVICE_STATUS,
                 handler=self.on_service_status,
                 name="hassette.rqs.on_service_status",
-                # Apps have their own app_status_changed stream; the Services panel is framework-only.
+                # App instances have their own app_status_changed stream, so keep them out of the
+                # Services panel. App-owned children (Bus, Scheduler, ...) carry RESOURCE role and
+                # still pass this filter.
                 where=IS_NOT_APP_ROLE,
             )
         )
