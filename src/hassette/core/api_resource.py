@@ -24,6 +24,7 @@ from hassette.core.retry_policy import MAX_RETRY_ATTEMPTS
 from hassette.exceptions import (
     ConnectionClosedError,
     EntityNotFoundError,
+    HttpRequestError,
     InvalidAuthError,
     ResourceNotReadyError,
 )
@@ -169,7 +170,7 @@ class ApiResource(Resource):
                         )
 
                     raise EntityNotFoundError(f"Entity not found: {url}") from None
-                raise
+                raise HttpRequestError(exc.status, exc.message, method=method, url=url) from exc
 
             except aiohttp.ClientError as exc:
                 if not suppress_error_message:

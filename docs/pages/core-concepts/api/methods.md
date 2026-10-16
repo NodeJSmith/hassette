@@ -601,6 +601,13 @@ effect (a service response reports only what Home Assistant chose to return), so
 effect means reading state directly — for example, the target entity's state. For helpers, [Managing
 Helpers](managing-helpers.md#common-pitfalls) shows how to check with `helpers.list`.
 
+REST-backed methods raise HTTP errors from Home Assistant as `HassetteError` subclasses. A 404
+raises [`EntityNotFoundError`][hassette.exceptions.EntityNotFoundError] and is never retried. Any
+other error status, such as a 503 during a Home Assistant restart, raises
+[`HttpRequestError`][hassette.exceptions.HttpRequestError] once Hassette's retries run out. Its
+`status` attribute holds the HTTP status code, and `message` holds the reason phrase. Calling code
+can branch on `status` to retry a 5xx and give up on a 4xx.
+
 ---
 
 ## See Also

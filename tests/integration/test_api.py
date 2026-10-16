@@ -7,6 +7,7 @@ import pytest
 from hassette import STATE_REGISTRY
 from hassette.api import Api
 from hassette.core import api_resource as api_resource_module
+from hassette.exceptions import EntityNotFoundError, HassetteError, HttpRequestError
 from hassette.models.entities.light import LightEntity
 from hassette.testing._harness import SimpleTestServer
 from hassette.utils.request_utils import clean_kwargs
@@ -141,6 +142,40 @@ async def test_rest_request_propagates_timeout_error(
         pytest.raises(aiohttp.ServerTimeoutError),
     ):
         await api_client.rest_request("GET", "/api/thing")
+
+
+async def test_rest_request_wraps_non_404_status_in_http_request_error(
+    hassette_with_mock_api: tuple[Api, SimpleTestServer], monkeypatch: pytest.MonkeyPatch
+):
+    """A non-404 HTTP failure surfaces as HttpRequestError (a HassetteError) carrying the status and reason."""
+    api_client, mock_server = hassette_with_mock_api
+    monkeypatch.setattr(api_resource_module, "MAX_RETRY_ATTEMPTS", 1)
+
+    mock_server.expect("GET", "/api/thing", "", json={"message": "restarting"}, status=503)
+
+    with pytest.raises(HttpRequestError) as exc_info:
+        await api_client.rest_request("GET", "/api/thing")
+
+    err = exc_info.value
+    assert isinstance(err, HassetteError)
+    assert err.status == 503
+    assert err.message == "Service Unavailable"
+    assert err.method == "GET"
+    assert err.url == "/api/thing"
+    assert isinstance(err.__cause__, aiohttp.ClientResponseError)
+
+
+async def test_rest_request_404_still_raises_entity_not_found(
+    hassette_with_mock_api: tuple[Api, SimpleTestServer], monkeypatch: pytest.MonkeyPatch
+):
+    """A 404 keeps raising EntityNotFoundError rather than the generic HttpRequestError."""
+    api_client, mock_server = hassette_with_mock_api
+    monkeypatch.setattr(api_resource_module, "MAX_RETRY_ATTEMPTS", 1)
+
+    mock_server.expect("GET", "/api/thing", "", json={"message": "not found"}, status=404)
+
+    with pytest.raises(EntityNotFoundError):
+        await api_client.rest_request("GET", "/api/thing", suppress_error_message=True)
 
 
 async def test_get_entity_or_none_returns_none_for_missing_entity(
