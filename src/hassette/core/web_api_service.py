@@ -8,6 +8,7 @@ import uvicorn
 from fastapi import FastAPI
 from hassette_wire import LogLevel
 
+from hassette.config.helpers import is_addon_runtime
 from hassette.core.runtime_query_service import RuntimeQueryService
 from hassette.core.scheduler_service import SchedulerService
 from hassette.core.telemetry.query_service import TelemetryQueryService
@@ -105,7 +106,9 @@ class WebApiService(Service):
         # resolving/writing them here would be pure overhead, and could even fail startup
         # (AuthTokenWriteError, TrustedProxyConfigError) for machinery this run never uses.
         if web_api_config.auth_enabled:
-            self._resolved_auth_token = resolve_auth_token(web_api_config, self.hassette.config.data_dir)
+            self._resolved_auth_token = resolve_auth_token(
+                web_api_config, self.hassette.config.data_dir, addon_runtime=is_addon_runtime()
+            )
 
             # Passing the current set carries last-known-good hostname resolutions across a
             # ServiceWatcher restart; a hostname that doesn't resolve never fails startup.

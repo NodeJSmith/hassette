@@ -13,7 +13,12 @@ from pydantic import SecretStr
 
 from hassette.config.models import WebApiConfig
 from hassette.exceptions import AuthTokenWriteError
-from hassette.web.auth.tokens import TOKEN_FILENAME, resolve_auth_token, web_api_token_path
+from hassette.web.auth.tokens import (
+    TOKEN_FILENAME,
+    resolve_auth_token,
+    token_generated_message,
+    web_api_token_path,
+)
 
 
 def _make_config(**overrides: Any) -> WebApiConfig:
@@ -27,7 +32,7 @@ class TestResolveAuthTokenExplicitConfig:
         config = _make_config(auth_token=SecretStr("configured-token-value"))
 
         with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
-            token = resolve_auth_token(config, tmp_path)
+            token = resolve_auth_token(config, tmp_path, addon_runtime=False)
 
         assert token == "configured-token-value"
         assert not (tmp_path / TOKEN_FILENAME).exists()
@@ -42,7 +47,7 @@ class TestResolveAuthTokenExplicitConfig:
         config = _make_config(auth_token=SecretStr(blank_value))
 
         with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
-            token = resolve_auth_token(config, tmp_path)
+            token = resolve_auth_token(config, tmp_path, addon_runtime=False)
 
         assert token != blank_value
         assert len(token) > 32  # secrets.token_urlsafe(32) produces a 43-char string
@@ -60,7 +65,7 @@ class TestResolveAuthTokenExistingFile:
         config = _make_config()
 
         with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
-            token = resolve_auth_token(config, tmp_path)
+            token = resolve_auth_token(config, tmp_path, addon_runtime=False)
 
         assert token == "existing-token-value"
 
@@ -73,7 +78,7 @@ class TestResolveAuthTokenGenerated:
         config = _make_config(host="127.0.0.1", port=8126)
 
         with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
-            token = resolve_auth_token(config, tmp_path)
+            token = resolve_auth_token(config, tmp_path, addon_runtime=False)
 
         token_path = tmp_path / TOKEN_FILENAME
         assert token_path.exists()
@@ -109,7 +114,7 @@ class TestResolveAuthTokenGenerated:
         config = _make_config(host=configured_host, port=8126)
 
         with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
-            resolve_auth_token(config, tmp_path)
+            resolve_auth_token(config, tmp_path, addon_runtime=False)
 
         messages = [r.message for r in caplog.records]
         generated_messages = [m for m in messages if "generated" in m.lower()]
@@ -119,7 +124,7 @@ class TestResolveAuthTokenGenerated:
 
     def test_no_leftover_temp_file(self, tmp_path: Path) -> None:
         config = _make_config()
-        resolve_auth_token(config, tmp_path)
+        resolve_auth_token(config, tmp_path, addon_runtime=False)
 
         remaining = {p.name for p in tmp_path.iterdir()}
         assert remaining == {TOKEN_FILENAME}, remaining
@@ -131,7 +136,7 @@ class TestResolveAuthTokenGenerated:
             patch("hassette.web.auth.tokens.os.open", side_effect=OSError("disk full")),
             pytest.raises(AuthTokenWriteError) as exc_info,
         ):
-            resolve_auth_token(config, tmp_path)
+            resolve_auth_token(config, tmp_path, addon_runtime=False)
 
         err = exc_info.value
         assert err.path == tmp_path / TOKEN_FILENAME
@@ -143,6 +148,31 @@ class TestResolveAuthTokenGenerated:
         assert not (tmp_path / TOKEN_FILENAME).exists()
 
 
+class TestTokenGeneratedMessage:
+    def test_default_message_names_login_url(self) -> None:
+        message = token_generated_message(Path("/data/.web_api_token"), "http://127.0.0.1:8126", addon_runtime=False)
+
+        assert message == (
+            "Generated new web API auth_token, written to /data/.web_api_token. Open http://127.0.0.1:8126 to log in."
+        )
+
+    def test_addon_message_points_at_ingress(self) -> None:
+        message = token_generated_message(Path("/config/.web_api_token"), "http://127.0.0.1:8126", addon_runtime=True)
+
+        assert message == (
+            "Generated new web API auth_token, written to /config/.web_api_token. Open Hassette from the Home "
+            'Assistant sidebar or the add-on\'s "Open Web UI" button; the token is only needed for the hassette '
+            "CLI or a published port."
+        )
+
+    def test_addon_runtime_still_generates_and_persists_token(self, tmp_path: Path) -> None:
+        generated = resolve_auth_token(_make_config(), tmp_path, addon_runtime=True)
+
+        token_path = tmp_path / TOKEN_FILENAME
+        assert token_path.read_text(encoding="utf-8") == generated
+        assert len(generated) > 32
+
+
 class TestResolveAuthTokenCorruptFile:
     def test_empty_file_falls_back_to_generation(self, tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
         token_path = tmp_path / TOKEN_FILENAME
@@ -150,7 +180,7 @@ class TestResolveAuthTokenCorruptFile:
         config = _make_config()
 
         with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
-            token = resolve_auth_token(config, tmp_path)
+            token = resolve_auth_token(config, tmp_path, addon_runtime=False)
 
         assert token  # a fresh token was generated
         assert token_path.read_text(encoding="utf-8") == token
@@ -171,7 +201,7 @@ class TestResolveAuthTokenCorruptFile:
         config = _make_config()
 
         with caplog.at_level("ERROR", logger="hassette.web.auth.tokens"):
-            token = resolve_auth_token(config, tmp_path)
+            token = resolve_auth_token(config, tmp_path, addon_runtime=False)
 
         assert token
         error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
@@ -183,7 +213,7 @@ class TestResolveAuthTokenCorruptFile:
         token_path.write_text("", encoding="utf-8")
         config = _make_config()
 
-        token = resolve_auth_token(config, tmp_path)
+        token = resolve_auth_token(config, tmp_path, addon_runtime=False)
 
         assert isinstance(token, str)
         assert token
@@ -197,7 +227,9 @@ class TestResolveAuthTokenDistinctLogMessages:
         messages: list[str] = []
 
         with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
-            resolve_auth_token(_make_config(auth_token=SecretStr("explicit-value")), tmp_path / "a")
+            resolve_auth_token(
+                _make_config(auth_token=SecretStr("explicit-value")), tmp_path / "a", addon_runtime=False
+            )
         messages.append(next(r.message for r in caplog.records if r.levelno == logging.INFO))
         caplog.clear()
 
@@ -205,12 +237,12 @@ class TestResolveAuthTokenDistinctLogMessages:
         existing_dir.mkdir()
         (existing_dir / TOKEN_FILENAME).write_text("pre-existing-value", encoding="utf-8")
         with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
-            resolve_auth_token(_make_config(), existing_dir)
+            resolve_auth_token(_make_config(), existing_dir, addon_runtime=False)
         messages.append(next(r.message for r in caplog.records if r.levelno == logging.INFO))
         caplog.clear()
 
         with caplog.at_level("INFO", logger="hassette.web.auth.tokens"):
-            resolve_auth_token(_make_config(), tmp_path / "c")
+            resolve_auth_token(_make_config(), tmp_path / "c", addon_runtime=False)
         messages.append(next(r.message for r in caplog.records if r.levelno == logging.INFO))
         caplog.clear()
 
@@ -225,7 +257,7 @@ class TestResolveAuthTokenConfiguredTokenFile:
         data_dir = tmp_path / "data"
         config = _make_config(token_file=token_path)
 
-        token = resolve_auth_token(config, data_dir)
+        token = resolve_auth_token(config, data_dir, addon_runtime=False)
 
         assert token_path.read_text(encoding="utf-8") == token
         assert stat.S_IMODE(token_path.stat().st_mode) == 0o600
@@ -236,7 +268,7 @@ class TestResolveAuthTokenConfiguredTokenFile:
         token_path.write_text("configured-file-token\n", encoding="utf-8")
         (tmp_path / TOKEN_FILENAME).write_text("data-dir-token", encoding="utf-8")
 
-        token = resolve_auth_token(_make_config(token_file=token_path), tmp_path)
+        token = resolve_auth_token(_make_config(token_file=token_path), tmp_path, addon_runtime=False)
 
         assert token == "configured-file-token"
 
@@ -244,7 +276,7 @@ class TestResolveAuthTokenConfiguredTokenFile:
         token_path = tmp_path / "token"
         token_path.write_text("", encoding="utf-8")
 
-        token = resolve_auth_token(_make_config(token_file=token_path), tmp_path)
+        token = resolve_auth_token(_make_config(token_file=token_path), tmp_path, addon_runtime=False)
 
         assert token
         assert token_path.read_text(encoding="utf-8") == token
@@ -264,7 +296,9 @@ class TestResolveAuthTokenConfiguredTokenFile:
         caplog.set_level(logging.INFO, logger="hassette.web.auth.tokens")
 
         token = resolve_auth_token(
-            _make_config(auth_token=SecretStr("configured-secret-value"), token_file=token_path), tmp_path
+            _make_config(auth_token=SecretStr("configured-secret-value"), token_file=token_path),
+            tmp_path,
+            addon_runtime=False,
         )
 
         assert token == "configured-secret-value"
@@ -277,7 +311,9 @@ class TestResolveAuthTokenConfiguredTokenFile:
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
         with caplog.at_level("WARNING", logger="hassette.web.auth.tokens"):
-            resolve_auth_token(_make_config(auth_token=SecretStr("configured-secret-value")), tmp_path)
+            resolve_auth_token(
+                _make_config(auth_token=SecretStr("configured-secret-value")), tmp_path, addon_runtime=False
+            )
 
         assert not caplog.records
 
@@ -286,6 +322,6 @@ class TestResolveAuthTokenConfiguredTokenFile:
         token_dir.mkdir()
 
         with pytest.raises(AuthTokenWriteError) as exc_info:
-            resolve_auth_token(_make_config(token_file=token_dir), tmp_path)
+            resolve_auth_token(_make_config(token_file=token_dir), tmp_path, addon_runtime=False)
 
         assert exc_info.value.path == token_dir
