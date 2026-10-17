@@ -87,7 +87,7 @@ async def test_exponential_backoff(watcher: ServiceWatcher):
 
 
 async def test_budget_reset_on_recovery(watcher: ServiceWatcher):
-    """Budget resets when a service transitions to RUNNING and becomes ready."""
+    """Budget resets when a service becomes RUNNING and ready after its restart episode ended."""
     context.PROTECT_TASK.set(False)
     dummy = register_dummy_service(
         watcher,
@@ -107,7 +107,43 @@ async def test_budget_reset_on_recovery(watcher: ServiceWatcher):
     await on_running_and_await(watcher, make_service_running_event(dummy.service))
 
     assert budget_entries(watcher, dummy.key) == 0  # budget reset
-    assert dummy.key not in watcher._restarting  # in-restart cleared
+
+
+async def test_budget_reset_when_attempt_succeeds_after_mid_episode_readiness(watcher: ServiceWatcher):
+    """A service that is ready by the time a successful attempt's restart() returns gets its budget
+    reset by the episode, even though the readiness it signaled mid-attempt was ignored.
+    """
+    context.PROTECT_TASK.set(False)
+    starts = 0
+    watcher_ref = watcher
+
+    class _ReadyDuringInit(Service):
+        restart_spec: ClassVar[RestartSpec] = make_fast_spec(
+            restart_type=RestartType.TRANSIENT, budget_intensity=5, startup_timeout_seconds=1.0
+        )
+
+        async def serve(self):
+            await asyncio.Event().wait()
+
+        async def on_initialize(self):
+            nonlocal starts
+            starts += 1
+            if starts == 1:
+                raise RuntimeError("first attempt fails")
+            mark_ready(self, reason="test")
+
+        async def after_initialize(self):
+            await on_running_and_await(watcher_ref, make_service_running_event(self))
+
+    service = _ReadyDuringInit(watcher.hassette)
+    mark_failed(service)
+    watcher.hassette.children.append(service)
+    key = watcher.service_key(service.class_name, service.role)
+
+    await restart_and_await(watcher, make_service_failed_event(service))
+
+    assert starts == 2
+    assert budget_entries(watcher, key) == 0
 
 
 async def test_in_restart_guard_prevents_double_budget(watcher: ServiceWatcher):
@@ -295,6 +331,60 @@ async def test_failed_restart_attempts_walk_budget_then_exhaust(watcher: Service
     assert dummy.calls["start"] == 3, "Every budgeted attempt should run"
     assert budget_entries(watcher, dummy.key) == 3
     assert dummy.service.status == ResourceStatus.EXHAUSTED_DEAD
+
+
+async def test_readiness_during_restart_episode_does_not_release_episode_key(watcher: ServiceWatcher):
+    """A service that is ready before a post-ready init step fails stays owned by its episode.
+
+    Readiness reached mid-attempt must not reset the budget or release `_restarting`: the attempt
+    is still inside restart(), so a release would let the post-ready failure's FAILED event start
+    a second episode and let every attempt refill the budget, retrying without bound.
+    """
+    post_ready_failure_cap = 10  # keeps the test finite if attempts are unbounded
+    starts = 0
+    watcher_ref = watcher
+
+    class _FailsAfterReady(Service):
+        restart_spec: ClassVar[RestartSpec] = make_fast_spec(
+            restart_type=RestartType.TEMPORARY, budget_intensity=3, startup_timeout_seconds=1.0
+        )
+
+        async def serve(self):
+            await asyncio.Event().wait()
+
+        async def on_initialize(self):
+            mark_ready(self, reason="test")
+
+        async def after_initialize(self):
+            nonlocal starts
+            starts += 1
+            await on_running_and_await(watcher_ref, make_service_running_event(self))
+            if starts > post_ready_failure_cap:
+                return
+            mark_failed(self)
+            await watcher_ref.restart_service(make_service_failed_event(self))
+            raise RuntimeError("post-ready init step failed")
+
+    service = _FailsAfterReady(watcher.hassette)
+    mark_failed(service)
+    watcher.hassette.children.append(service)
+    key = watcher.service_key(service.class_name, service.role)
+
+    episodes = 0
+    real_execute = watcher.execute_restart
+
+    async def counting_execute(*args: object, **kwargs: object) -> None:
+        nonlocal episodes
+        episodes += 1
+        await real_execute(*args, **kwargs)
+
+    with patch.object(watcher, "execute_restart", side_effect=counting_execute):
+        await restart_and_await(watcher, make_service_failed_event(service))
+
+    assert episodes == 1, "A post-ready failure must not start a second restart episode"
+    assert starts == 3, "Attempts must stay bounded by the budget even though each one reached ready"
+    assert service.status == ResourceStatus.EXHAUSTED_DEAD
+    assert key not in watcher._restarting
 
 
 async def test_late_failed_event_during_exhaustion_does_not_exhaust_twice(watcher: ServiceWatcher):

@@ -17,7 +17,6 @@ from hassette.core.bus_service import BusService
 from hassette.events import HassetteServiceEvent
 from hassette.resources.lifecycle import mark_ready
 from hassette.resources.restart import RestartSpec
-from hassette.testing import wait_for
 from hassette.types import Topic
 from hassette.types.enums import RestartType
 from tests.support.helpers import (
@@ -386,11 +385,9 @@ class TestShutdownIfCrashed:
             mock_request_shutdown.assert_not_called()
 
 
-class TestOnServiceRunningBudgetNoneBranch:
-    async def test_clears_in_restart_flag_without_creating_budget(self) -> None:
-        """A RUNNING event while restarting (but with no budget entry yet) clears the flag,
-        without fabricating a budget.
-        """
+class TestOnServiceRunningEpisodeHeldKey:
+    async def test_readiness_leaves_episode_held_key_and_creates_no_budget(self) -> None:
+        """A RUNNING event while an episode holds the key does not release it or fabricate a budget."""
         hassette = make_watcher_hassette()
         watcher = make_watcher(hassette)
         dummy = DummyService(hassette)
@@ -401,11 +398,9 @@ class TestOnServiceRunningBudgetNoneBranch:
         watcher._restarting.add(key)
         assert key not in watcher._budgets
 
-        event = make_service_running_event(dummy)
-        await watcher.on_service_running(event)
-        await wait_for(lambda: key not in watcher._restarting, desc="await_service_readiness completed")
+        await watcher.await_service_readiness(dummy, dummy.class_name, dummy.role, key, readiness_timeout=1.0)
 
-        assert key not in watcher._restarting
+        assert key in watcher._restarting, "Only the episode that holds the key may release it"
         assert key not in watcher._budgets
 
 
