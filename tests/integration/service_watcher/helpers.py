@@ -2,6 +2,7 @@
 
 import asyncio
 import contextlib
+import sys
 from collections.abc import AsyncIterator, Callable
 from typing import ClassVar, NamedTuple
 
@@ -19,6 +20,9 @@ from tests.support.helpers import (
 )
 
 AWAIT_TIMEOUT = 5.0
+
+ALWAYS_FAIL = sys.maxsize
+"""``fail_times`` value for a dummy service whose ``on_initialize()`` raises on every call."""
 
 
 def make_call_counts() -> dict[str, int]:
@@ -84,16 +88,38 @@ async def isolated_watcher(
             await watcher.shutdown()
 
 
-async def restart_and_await(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
-    """Call restart_service and wait for the spawned execute_restart task to complete.
+def mark_failed(service: Service) -> None:
+    """Put `service` in FAILED status, as a real failure does before its FAILED event is sent.
 
-    restart_service now spawns the backoff+restart as a detached task and returns
+    restart_service() drops a FAILED event for a service that is no longer FAILED as stale, so a
+    test that drives it with a synthetic event must put the service in the state that event
+    describes. Bypasses the lifecycle (``_status``) on purpose: this is fixture setup.
+    """
+    service._status = ResourceStatus.FAILED
+
+
+async def restart_once(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
+    """Mark the event's service FAILED and deliver the event to restart_service, without waiting.
+
+    Returns once restart_service does: exhaustion and drop decisions have been made, but a
+    spawned restart episode may still be running (see restart_and_await).
+    """
+    service = watcher.get_service(event.payload.data.resource_name, event.payload.data.role)
+    assert service is not None, f"No service registered for {event.payload.data.resource_name}"
+    mark_failed(service)
+    await watcher.restart_service(event)
+
+
+async def restart_and_await(watcher: ServiceWatcher, event: HassetteServiceEvent) -> None:
+    """Like restart_once, then wait for any restart episode it spawned to end.
+
+    restart_service spawns the backoff+restart episode as a detached task and returns
     immediately. Tests that call restart_service sequentially need to wait for the
     in-restart flag to clear before the next call.
     """
     key = watcher.service_key(event.payload.data.resource_name, event.payload.data.role)
     was_restarting = key in watcher._restarting
-    await watcher.restart_service(event)
+    await restart_once(watcher, event)
     if not was_restarting and key in watcher._restarting:
         await wait_for(
             lambda: key not in watcher._restarting,
@@ -106,9 +132,13 @@ def get_dummy_service(
     called: dict[str, int],
     hassette,
     *,
-    fail: bool = False,
+    fail_times: int = 0,
     restart_spec: RestartSpec | None = None,
 ) -> Service:
+    """Build a dummy Service whose first ``fail_times`` ``on_initialize()`` calls raise.
+
+    Pass ``ALWAYS_FAIL`` for a service that never initializes successfully.
+    """
     spec = restart_spec if restart_spec is not None else RestartSpec()
 
     class _Dummy(Service):
@@ -124,8 +154,8 @@ def get_dummy_service(
 
         async def on_initialize(self):
             called["start"] += 1
-            if fail:
-                raise RuntimeError("always fails")
+            if called["start"] <= fail_times:
+                raise RuntimeError("initialize failed")
 
     return _Dummy(hassette)
 
@@ -141,12 +171,13 @@ class DummyServiceSetup(NamedTuple):
 
 
 def register_dummy_service(
-    watcher: ServiceWatcher, *, fail: bool = False, **spec_overrides: object
+    watcher: ServiceWatcher, *, fail_times: int = 0, **spec_overrides: object
 ) -> DummyServiceSetup:
-    """Attach a dummy service to `watcher`'s hassette and pre-build what tests assert against."""
+    """Attach a FAILED dummy service to `watcher`'s hassette and pre-build what tests assert against."""
     calls = make_call_counts()
     spec = make_fast_spec(**spec_overrides)
-    service = get_dummy_service(calls, watcher.hassette, fail=fail, restart_spec=spec)
+    service = get_dummy_service(calls, watcher.hassette, fail_times=fail_times, restart_spec=spec)
+    mark_failed(service)
     watcher.hassette.children.append(service)
     return DummyServiceSetup(
         service=service,

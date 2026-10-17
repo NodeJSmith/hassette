@@ -14,12 +14,14 @@ from hassette.types import Topic
 from hassette.types.enums import RestartType
 
 from .helpers import (
+    ALWAYS_FAIL,
     DummyServiceSetup,
     budget_entries,
     crashed_events,
     isolated_watcher,
     register_dummy_service,
     restart_and_await,
+    restart_once,
 )
 
 if TYPE_CHECKING:
@@ -36,7 +38,7 @@ async def exhaust_budget(watcher: ServiceWatcher, dummy: DummyServiceSetup, rest
         await restart_and_await(watcher, dummy.failed_event)
 
     with EventCapture.capturing(watcher.hassette) as capture:
-        await watcher.restart_service(dummy.failed_event)
+        await restart_once(watcher, dummy.failed_event)
 
     return capture.events
 
@@ -49,18 +51,16 @@ async def test_always_failing_service_stops_after_max_attempts(
         hassette = watcher.hassette
 
         # budget_intensity=3 means 3 restarts before exhaustion
-        dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=3)
+        dummy = register_dummy_service(
+            watcher, fail_times=ALWAYS_FAIL, restart_type=RestartType.PERMANENT, budget_intensity=3
+        )
 
-        # Each call to restart_service increments budget and spawns a restart task. The service
-        # fails on restart; the 3rd attempt both records the last budget entry and, failing from
-        # within execute_restart() itself, exhausts it immediately -- no extra event is needed
-        # to notice exhaustion (see test_execute_restart_own_failure_triggers_exhaustion).
-        for _ in range(2):
-            await restart_and_await(watcher, dummy.failed_event)
-            assert not hassette.shutdown_event.is_set(), "Shutdown should not happen before budget exhausted"
-
+        # One FAILED event starts a restart episode that retries each failed attempt itself: the
+        # 3rd attempt records the last budget entry and, failing, exhausts it -- no further event
+        # is needed to notice exhaustion (see test_execute_restart_own_failure_triggers_exhaustion).
         await restart_and_await(watcher, dummy.failed_event)
 
+        assert dummy.calls["start"] == 3, "Every budgeted attempt should run before shutdown"
         assert budget_entries(watcher, dummy.key) == 3
         assert hassette.shutdown_event.is_set(), "Shutdown should be triggered after budget exhausted"
 
@@ -70,7 +70,9 @@ async def test_crashed_event_emitted_before_shutdown(
 ):
     """When budget is exhausted for PERMANENT service, a CRASHED event is emitted before shutdown."""
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
-        dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=1)
+        dummy = register_dummy_service(
+            watcher, fail_times=ALWAYS_FAIL, restart_type=RestartType.PERMANENT, budget_intensity=1
+        )
 
         # The single allowed attempt both records the last budget entry (Step 5) and fails from
         # within execute_restart() -- exhaustion fires directly from that failure, not a
@@ -104,7 +106,7 @@ async def test_permanent_exhaustion_triggers_shutdown(
         assert not hassette.shutdown_event.is_set(), "Should not shutdown until budget exhausted"
 
         # Exhaust budget (budget check is synchronous — no spawn needed)
-        await watcher.restart_service(dummy.failed_event)
+        await restart_once(watcher, dummy.failed_event)
         assert hassette.shutdown_event.is_set()
 
 
@@ -125,7 +127,7 @@ async def test_permanent_exhaustion_records_fatal_reason(
 
         await restart_and_await(watcher, dummy.failed_event)
         await restart_and_await(watcher, dummy.failed_event)
-        await watcher.restart_service(dummy.failed_event)  # exhausts → handle_exhaustion (PERMANENT, no spawn)
+        await restart_once(watcher, dummy.failed_event)  # exhausts → handle_exhaustion (PERMANENT, no spawn)
 
         assert hassette._fatal_shutdown_reason is not None
         assert dummy.service.class_name in hassette._fatal_shutdown_reason
@@ -186,7 +188,9 @@ async def test_execute_restart_own_failure_triggers_exhaustion(
     Uses isolated_watcher because the PERMANENT exhaustion path drives a real hassette.shutdown().
     """
     async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
-        dummy = register_dummy_service(watcher, fail=True, restart_type=RestartType.PERMANENT, budget_intensity=1)
+        dummy = register_dummy_service(
+            watcher, fail_times=ALWAYS_FAIL, restart_type=RestartType.PERMANENT, budget_intensity=1
+        )
 
         with EventCapture.capturing(watcher.hassette) as capture:
             await restart_and_await(watcher, dummy.failed_event)
@@ -210,7 +214,7 @@ async def test_cooldown_then_recovery(watcher: ServiceWatcher):
     await restart_and_await(watcher, dummy.failed_event)
 
     # Exhaust budget — should schedule cooldown task (budget check is synchronous)
-    await watcher.restart_service(dummy.failed_event)
+    await restart_once(watcher, dummy.failed_event)
 
     assert dummy.key in watcher._cooldown_tasks
     cooldown_task = watcher._cooldown_tasks[dummy.key]

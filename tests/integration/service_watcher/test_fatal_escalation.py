@@ -27,13 +27,16 @@ from tests.support.helpers import (
 )
 
 from .helpers import (
+    ALWAYS_FAIL,
     AWAIT_TIMEOUT,
+    budget_entries,
     crashed_events,
     isolated_watcher,
     make_call_counts,
     make_fast_spec,
     register_dummy_service,
     restart_and_await,
+    restart_once,
 )
 
 if TYPE_CHECKING:
@@ -181,6 +184,91 @@ async def test_non_retryable_error_skips_restart(watcher: ServiceWatcher):
     assert capture.events[0].payload.data.status == ResourceStatus.EXHAUSTED_DEAD
 
 
+async def test_non_retryable_error_from_restart_attempt_ends_episode(watcher: ServiceWatcher):
+    """A restart attempt that raises a non-retryable error goes straight to exhaustion, not a retry.
+
+    The attempt's own FAILED event is dropped while the episode runs, so the episode itself must
+    route the error the way restart_service() routes one carried by a FAILED event.
+    """
+    dummy = register_dummy_service(
+        watcher,
+        fail_times=ALWAYS_FAIL,
+        restart_type=RestartType.TEMPORARY,
+        budget_intensity=5,
+        non_retryable_error_names=("RuntimeError",),
+    )
+
+    await restart_and_await(watcher, dummy.failed_event)
+
+    assert dummy.calls["start"] == 1, "A non-retryable failure must not be retried"
+    assert budget_entries(watcher, dummy.key) == 1
+    assert dummy.service.status == ResourceStatus.EXHAUSTED_DEAD
+
+
+async def test_episode_failed_event_with_non_retryable_error_is_not_routed_twice(watcher: ServiceWatcher):
+    """The attempt's own FAILED event, carrying a non-retryable error and delivered while the
+    episode is still routing that same failure (service still FAILED), is dropped by the
+    in-restart guard instead of being routed a second time.
+    """
+    dummy = register_dummy_service(
+        watcher,
+        fail_times=ALWAYS_FAIL,
+        restart_type=RestartType.TEMPORARY,
+        budget_intensity=5,
+        non_retryable_error_names=("RuntimeError",),
+    )
+    attempt_event = make_service_failed_event(dummy.service, exception=RuntimeError("initialize failed"))
+    real_dispatch = watcher.dispatch_status_event_best_effort
+    real_exhaustion = watcher.handle_exhaustion
+    exhaustion_calls = 0
+    late_event_delivered = False
+
+    async def dispatch_with_late_event(name: str, role: ResourceRole, event: HassetteServiceEvent) -> None:
+        nonlocal late_event_delivered
+        if not late_event_delivered:
+            late_event_delivered = True
+            assert dummy.service.status == ResourceStatus.FAILED, "precondition: status not yet moved on"
+            await watcher.restart_service(attempt_event)
+        await real_dispatch(name, role, event)
+
+    async def counting_exhaustion(*args: object, **kwargs: object) -> None:
+        nonlocal exhaustion_calls
+        exhaustion_calls += 1
+        await real_exhaustion(*args, **kwargs)
+
+    with (
+        patch.object(watcher, "dispatch_status_event_best_effort", side_effect=dispatch_with_late_event),
+        patch.object(watcher, "handle_exhaustion", side_effect=counting_exhaustion),
+    ):
+        await restart_and_await(watcher, dummy.failed_event)
+
+    assert late_event_delivered
+    assert exhaustion_calls == 1, "The episode-owned FAILED event must not route the failure again"
+    assert dummy.service.status == ResourceStatus.EXHAUSTED_DEAD
+
+
+async def test_fatal_error_from_restart_attempt_triggers_shutdown(
+    test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
+):
+    """A restart attempt that raises a configured fatal error shuts down instead of retrying."""
+    async with isolated_watcher(test_config_class, unused_tcp_port_factory) as watcher:
+        hassette = watcher.hassette
+        dummy = register_dummy_service(
+            watcher,
+            fail_times=ALWAYS_FAIL,
+            restart_type=RestartType.TRANSIENT,
+            budget_intensity=5,
+            fatal_error_names=("RuntimeError",),
+        )
+
+        await restart_and_await(watcher, dummy.failed_event)
+
+        assert dummy.calls["start"] == 1, "A fatal failure must not be retried"
+        assert hassette.fatal_shutdown_reason is not None
+        assert "RuntimeError" in hassette.fatal_shutdown_reason
+        assert hassette.shutdown_event.is_set()
+
+
 async def test_restart_refused_during_backoff_escalates_to_fatal_shutdown(
     test_config_class: type[HassetteConfig], unused_tcp_port_factory: "Callable[[], int]"
 ):
@@ -256,7 +344,7 @@ async def test_restart_refused_during_cooldown_escalates_to_fatal_shutdown(
 
         # Second FAILED event exceeds budget (intensity=1) -> TRANSIENT cooldown scheduled.
         with EventCapture.capturing(hassette) as capture:
-            await watcher.restart_service(failed_event)
+            await restart_once(watcher, failed_event)
             cooldown_task = watcher._cooldown_tasks[key]
             await asyncio.wait_for(asyncio.shield(cooldown_task), timeout=AWAIT_TIMEOUT)
 

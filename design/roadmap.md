@@ -12,7 +12,7 @@ Last reviewed: 2026-10-17
 | **Milestone** | An initiative. Its description holds the **Done when** line. Being in the milestone means the Done-when needs it |
 | **`epic:*` label** | Topic only ("related to HACS"). Apply freely; it never adds scope |
 | **`topic:*` / `epic:correctness` labels** | Buckets. Never in a milestone unless an initiative's Done-when needs them |
-| **Tracker issue** | Optional — only where there's a brief or discussion to hang off it (#71, #1336, #1540, #1427) |
+| **Tracker issue** | Optional — only where there's a brief or discussion to hang off it (#1336, #1540, #1427) |
 | **This file** | Which milestone is Now / Next / Later, and the forced orderings |
 
 An initiative gets its milestone when it enters Now, or earlier once its Done-when can be
@@ -49,7 +49,7 @@ milestone that turned out not to be needed out of it, then close the milestone.
 
 | Initiative | Milestone | Note |
 |---|---|---|
-| **HA add-on v0.1** | *HA Add-on v0.1* (umbrella #71) | Design: `design/specs/129-ha-addon-v01/design.md`. Spans three repos: hassette, `hassette-addon` and `hass-hassette`. All the code has shipped, including discovery pairing in hass-hassette v0.2.0, except #2711 (service restart retry). When it lands, close #71 and the milestone and promote the first Next row |
+| **Standalone CLI** | *Standalone CLI* (tracker #1540) | Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed. Unblocked: #2386 shipped |
 
 ## Next
 
@@ -58,7 +58,6 @@ Ordered. Only the first row is committed to start next; the rest can swap.
 | Initiative | Milestone / pool | Why here |
 |---|---|---|
 | **Testing API redesign** | *Testing API Redesign* (tracker #1336) | Breaking changes to `hassette.testing` belong before 1.0 |
-| **Standalone CLI** | *Standalone CLI* (tracker #1540) | Unblocked (#2386 shipped). Moves the CLI onto `hassette-client[cli]` and deletes `HassetteCLIClient`, so a laptop can drive a remote server without the framework installed |
 | **Runtime correctness sweep** | pool: `epic:correctness` | High-priority runtime bugs (open `epic:correctness` + `priority:high`) plus the remaining `wait_for` races (#2302, #2304). Any can be pulled forward as an interrupt |
 | **DB retention** | pool: `epic:db-retention` | Self-contained, no dependencies |
 | **HACS app entities** | pool: #1449, #2439, #2611 (`epic:hacs`) | WS topic subscriptions, per-instance + app-declared entities, `self.entities` (#1449), WS wire-compat check (#2439), per-element list parsing so one bad app doesn't blank the integration (#2611) |

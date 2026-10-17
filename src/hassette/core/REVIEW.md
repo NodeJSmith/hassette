@@ -35,6 +35,16 @@ error handling, and budget accounting? A failure in one tier that corrupts state
 the next, or an empty tier that silently consumes the deletion budget, has been a
 repeated Codex finding.
 
+## Restart Episode Ownership
+`execute_restart()` in `src/hassette/core/service_watcher.py` holds a service's
+`_restarting` key for its whole restart episode, and `restart_service()` drops
+FAILED events for services no longer in FAILED. Does every path that retries,
+exhausts, or changes a supervised service's status keep the key held until the
+service has left FAILED, so a FAILED event delivered during an `await` cannot
+start a second episode or run `handle_exhaustion()` twice? Does anything other
+than the episode itself release the key or reset the budget while the episode
+holds it (readiness can arrive mid-attempt, before `initialize()` returns)?
+
 ## Bus Recovery Reconciliation
 After `BusService` restarts, `reconcile_after_bus_recovery()` in
 `src/hassette/core/service_watcher.py` scans for FAILED services with no budget
