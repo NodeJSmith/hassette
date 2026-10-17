@@ -23,8 +23,6 @@ from hassette.types.types import IfExistsPolicy, WhereClause
 if typing.TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from hassette_wire import BackpressurePolicy, ExecutionMode
-
     from hassette import Bus, Hassette
     from hassette.bus.listeners import Listener
     from hassette.events.base import AnyEvent
@@ -97,16 +95,9 @@ class BusSyncFacade(BusSyncEventShortcuts):
         handler: "HandlerType",
         where: WhereClause = None,
         kwargs: Mapping[str, Any] | None = None,
-        once: bool = False,
-        debounce: float | None = None,
-        throttle: float | None = None,
-        timeout: float | None = None,
-        timeout_disabled: bool = False,
-        mode: "ExecutionMode | str | None" = None,
-        backpressure: "BackpressurePolicy | str | None" = None,
         name: str,
         on_error: "BusErrorHandlerType | None" = None,
-        if_exists: IfExistsPolicy = "error",
+        **opts: Unpack[Options],
     ) -> Subscription:
         """Subscribe to an event topic with optional filtering and modifiers.
 
@@ -120,30 +111,13 @@ class BusSyncFacade(BusSyncEventShortcuts):
             where: Optional predicates to filter events. These can be custom callables or predefined predicates from
                 `hassette.event_handling.predicates`. They will receive the full event for evaluation.
             kwargs: Keyword arguments to pass to the handler.
-            once: If True, the handler will be called only once and then removed.
-            debounce: If set, applies a debounce to the handler.
-            throttle: If set, applies a throttle to the handler.
-            timeout: Per-listener timeout in seconds. Overrides the global event_handler_timeout_seconds config.
-                None means fall through to the config default.
-            timeout_disabled: When True, disables timeout enforcement for this listener regardless of config.
-            mode: Overlap behavior when a trigger fires while a prior invocation still runs —
-                ``"single"``, ``"restart"``, ``"queued"``, or ``"parallel"``. When omitted, the
-                effective default is tier-aware: ``parallel`` for framework listeners, ``single``
-                for app listeners. Suppressed/dropped counts are live-only diagnostics, reset on
-                restart.
-            backpressure: Saturation policy when the global dispatch concurrency semaphore is full.
-                ``"block"`` (default) waits for a slot; ``"drop_newest"`` skips the event immediately
-                and records one drop on the listener. When omitted, the effective default is ``block``.
             name: Required. Stable string identifier for this listener. Forms part of the natural
                 key ``(app_key, instance_index, name, topic)`` used for upsert deduplication across
                 restarts. Omitting it entirely raises ``TypeError`` (no default value); passing an
                 empty string raises ``ListenerNameRequiredError`` at call time.
             on_error: Optional per-listener error handler.
-            if_exists: Behavior when a listener with the same natural key already exists.
-                ``"error"`` (default) raises ``DuplicateListenerError``. ``"skip"`` returns the
-                existing listener's subscription when the configurations match, and raises
-                ``ValueError`` if the configuration has drifted. ``"replace"`` cancels the
-                existing listener and registers the new one in its place.
+            **opts: Listener options (``once``, ``debounce``, ``throttle``, ``timeout``, ``timeout_disabled``,
+                ``mode``, ``backpressure``, ``if_exists``). See `hassette.bus.options.Options` for each one.
 
         Returns:
             A subscription object. ``sub.cancel()`` removes the listener.
@@ -157,22 +131,7 @@ class BusSyncFacade(BusSyncEventShortcuts):
                 exists but with a different configuration (the message lists the changed fields).
         """
         return self.task_bucket.run_sync(
-            self._bus.on(
-                topic=topic,
-                handler=handler,
-                where=where,
-                kwargs=kwargs,
-                once=once,
-                debounce=debounce,
-                throttle=throttle,
-                timeout=timeout,
-                timeout_disabled=timeout_disabled,
-                mode=mode,
-                backpressure=backpressure,
-                name=name,
-                on_error=on_error,
-                if_exists=if_exists,
-            )
+            self._bus.on(topic=topic, handler=handler, where=where, kwargs=kwargs, name=name, on_error=on_error, **opts)
         )
 
     def on_state_change(
